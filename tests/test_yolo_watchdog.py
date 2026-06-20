@@ -5,7 +5,7 @@ Covers each detector (D1–D4) and the orchestrator integration:
 * D1 escalates after N consecutive identical failures.
 * D2 logs a starvation warning when reviews_considered < total_reviews
   for ≥3 consecutive ticks.
-* D3 detects bead-PR coherence breaks (closed recovery bead, PR still
+* D3 detects task-PR coherence breaks (closed recovery task, PR still
   failing) and resets the orphan-recovery cache.
 * D4 switches strategy from auto-merge to direct merge after 3
   consecutive "PR already mergeable" failures, then escalates via D1.
@@ -33,7 +33,7 @@ from oompah.yolo_watchdog import (
     count_consecutive_already_mergeable,
     detect_d1_recurrent_failures,
     detect_d2_loop_coverage,
-    detect_d3_bead_pr_coherence,
+    detect_d3_task_pr_coherence,
     detect_d4_already_mergeable,
     is_already_mergeable_error,
     run_all_detectors,
@@ -340,7 +340,7 @@ class TestDetectD2:
 
 class TestDetectD3:
     def test_no_incoherent_no_patterns(self):
-        assert detect_d3_bead_pr_coherence(incoherent_prs=[]) == []
+        assert detect_d3_task_pr_coherence(incoherent_prs=[]) == []
 
     def test_incoherent_emits_pattern(self):
         incoherent = [{
@@ -348,9 +348,9 @@ class TestDetectD3:
             "review_id": "5",
             "kind": "merge-conflict",
             "source_branch": "feat",
-            "reason": "recovery bead closed",
+            "reason": "recovery task closed",
         }]
-        patterns = detect_d3_bead_pr_coherence(incoherent_prs=incoherent)
+        patterns = detect_d3_task_pr_coherence(incoherent_prs=incoherent)
         assert len(patterns) == 1
         p = patterns[0]
         assert p.detector == "d3"
@@ -755,7 +755,7 @@ class TestYoloEpicStrategyGate:
 
 
 class TestOrchestratorD1Watchdog:
-    """D1 — recurring identical failure → P0 bead."""
+    """D1 — recurring identical failure → P0 task."""
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
@@ -778,14 +778,14 @@ class TestOrchestratorD1Watchdog:
         for _ in range(D1_RECURRENCE_THRESHOLD):
             orch._yolo_review_actions_sync()
 
-        # Watchdog should have filed a P0 bead.
+        # Watchdog should have filed a P0 task.
         create_calls = mock_tracker.create_issue.call_args_list
         watchdog_calls = [
             c for c in create_calls
             if c.kwargs.get("priority") == 0
             and "needs-human" in (c.kwargs.get("labels") or [])
         ]
-        assert len(watchdog_calls) == 1, f"Expected 1 watchdog bead, got: {create_calls}"
+        assert len(watchdog_calls) == 1, f"Expected 1 watchdog task, got: {create_calls}"
         kw = watchdog_calls[0].kwargs
         assert "42" in kw["title"]
         assert "merge" in kw["title"]
@@ -812,7 +812,7 @@ class TestOrchestratorD1Watchdog:
         for _ in range(D1_RECURRENCE_THRESHOLD + 5):
             orch._yolo_review_actions_sync()
 
-        # Only one watchdog bead — idempotent.
+        # Only one watchdog task — idempotent.
         create_calls = mock_tracker.create_issue.call_args_list
         watchdog_calls = [
             c for c in create_calls
@@ -905,11 +905,11 @@ class TestOrchestratorD2Watchdog:
 
 
 class TestOrchestratorD3Watchdog:
-    """D3 — bead-PR coherence."""
+    """D3 — task-PR coherence."""
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_closed_recovery_bead_resets_cache_and_files_watchdog(
+    def test_closed_recovery_task_resets_cache_and_files_watchdog(
         self, mock_slug, mock_detect, tmp_path,
     ):
         project = _make_project()
@@ -917,15 +917,15 @@ class TestOrchestratorD3Watchdog:
         mock_detect.return_value = provider
         mock_slug.return_value = "org/repo"
 
-        # A previously-filed orphan-recovery bead that is now closed.
-        closed_bead = Issue(
+        # A previously-filed orphan-recovery task that is now closed.
+        closed_task = Issue(
             id="rec-001", identifier="rec-001",
             title="merge conflict on PR #7",
             description="recovery", state="closed", labels=["merge-conflict"],
         )
-        # Also, the bead that fetch_issue_detail returns for the BRANCH
+        # Also, the task that fetch_issue_detail returns for the BRANCH
         # name (in _yolo_notify_conflict) — also closed.
-        bead_for_branch = Issue(
+        task_for_branch = Issue(
             id="feat-7", identifier="feat-7",
             title="feature 7", description="x",
             state="closed", labels=[],
@@ -934,9 +934,9 @@ class TestOrchestratorD3Watchdog:
         mock_tracker = MagicMock()
         def fetch_detail(arg):
             if arg == "rec-001":
-                return closed_bead
+                return closed_task
             if arg == "feat-7":
-                return bead_for_branch
+                return task_for_branch
             return None
         mock_tracker.fetch_issue_detail.side_effect = fetch_detail
         mock_tracker.create_issue.return_value = MagicMock(identifier="watchdog-001")
@@ -953,7 +953,7 @@ class TestOrchestratorD3Watchdog:
 
         # Cache should have been reset for the (project, 7, merge-conflict) key.
         assert (project.id, "7", "merge-conflict") not in orch._yolo_orphan_recovery_tasks
-        # And a watchdog bead should have been filed.
+        # And a watchdog task should have been filed.
         watchdog_calls = [
             c for c in mock_tracker.create_issue.call_args_list
             if c.kwargs.get("priority") == 0
@@ -1048,7 +1048,7 @@ class TestOrchestratorWatchdogStatePruning:
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_pr_removed_from_cache_clears_filed_bead_state(
+    def test_pr_removed_from_cache_clears_filed_task_state(
         self, mock_slug, mock_detect, tmp_path,
     ):
         project = _make_project()
@@ -1146,17 +1146,17 @@ class TestOrchestratorCoverageLogging:
 class TestWatchdogFilingLogLevel:
     """Regression for oompah-zlz_2-8vc.
 
-    The watchdog's "filed P0 bead" log line must NOT be at ERROR level,
-    or else error_watcher's _BeadLoggingHandler will auto-file a duplicate
-    meta-bead in the oompah project every time the watchdog escalates a
+    The watchdog's "filed P0 task" log line must NOT be at ERROR level,
+    or else error_watcher's _TaskLoggingHandler will auto-file a duplicate
+    meta-task in the oompah project every time the watchdog escalates a
     legitimate stuck PR. The notification belongs in the target project's
-    bead (already filed by _file_watchdog_task); the oompah orchestrator
+    task (already filed by _file_watchdog_task); the oompah orchestrator
     log line should stay at WARNING.
     """
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_filed_p0_bead_logged_at_warning_not_error(
+    def test_filed_p0_task_logged_at_warning_not_error(
         self, mock_slug, mock_detect, tmp_path, caplog,
     ):
         import logging
@@ -1177,22 +1177,22 @@ class TestWatchdogFilingLogLevel:
             project.id: [_make_review("42", ci_status="passed")],
         }
 
-        # Drive D1 to threshold so the watchdog files a P0 bead.
+        # Drive D1 to threshold so the watchdog files a P0 task.
         with caplog.at_level(logging.DEBUG, logger="oompah.orchestrator"):
             for _ in range(D1_RECURRENCE_THRESHOLD):
                 orch._yolo_review_actions_sync()
 
-        # The watchdog should have filed exactly one P0 bead.
+        # The watchdog should have filed exactly one P0 task.
         watchdog_calls = [
             c for c in mock_tracker.create_issue.call_args_list
             if c.kwargs.get("priority") == 0
             and "needs-human" in (c.kwargs.get("labels") or [])
         ]
         assert len(watchdog_calls) == 1, (
-            f"Expected 1 watchdog bead, got: {mock_tracker.create_issue.call_args_list}"
+            f"Expected 1 watchdog task, got: {mock_tracker.create_issue.call_args_list}"
         )
 
-        # The "filed P0 bead" log line must be at WARNING, NOT ERROR.
+        # The "filed P0 task" log line must be at WARNING, NOT ERROR.
         filing_records = [
             r for r in caplog.records
             if "YOLO watchdog: filed P0 task" in r.message
@@ -1205,7 +1205,7 @@ class TestWatchdogFilingLogLevel:
         assert rec.levelno == logging.WARNING, (
             f"Expected 'YOLO watchdog: filed P0 task' to be logged at "
             f"WARNING (not ERROR — error_watcher would auto-file a "
-            f"duplicate meta-bead in oompah), got level={rec.levelname}"
+            f"duplicate meta-task in oompah), got level={rec.levelname}"
         )
         # And explicitly: no records at ERROR or above for this filing.
         error_records = [

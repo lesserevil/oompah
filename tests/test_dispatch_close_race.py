@@ -4,7 +4,7 @@ re-appearing as in_progress after the user closed it.
 Two bugs covered:
 1. ``_dispatch`` used to write status=in_progress without verifying the
    issue's current state. If the candidate fetch predated a close, the
-   write silently re-opened the bead.
+   write silently re-opened the task.
 2. The UI close handler terminated the running worker but didn't touch
    ``state.retry_attempts``. A retry timer scheduled before the close
    would fire later, fetch candidates, and re-dispatch.
@@ -170,7 +170,7 @@ class TestDispatchRecheckSkipsClosedIssue:
 
 class TestUiCloseCancelsPendingRetry:
     """When the user closes via UI, any pending retry timer must be
-    cancelled — otherwise it fires later and re-dispatches a closed bead."""
+    cancelled — otherwise it fires later and re-dispatches a closed task."""
 
     def test_pending_retry_cancelled_when_issue_closed_via_ui(self, tmp_path):
         from fastapi.testclient import TestClient
@@ -291,8 +291,8 @@ class TestDispatchRejectsWhilePaused:
 #
 # For GitHub-backed issues oompah writes a unique run ID to
 # oompah.agent_run_id, re-reads it, and aborts if a different run ID was
-# observed (another instance won the race).  BacklogMd projects skip the
-# protocol and keep the current single-process dispatch lock behaviour.
+# observed (another instance won the race). Issues without tracker metadata
+# skip the protocol and keep the current single-process dispatch lock behavior.
 # ---------------------------------------------------------------------------
 
 def _github_issue(state: str = "open", **overrides) -> Issue:
@@ -390,10 +390,10 @@ class TestGitHubClaimRunIdProtocol:
             "RunningEntry must be created when claim succeeds"
         )
 
-    def test_backlog_issue_skips_run_id_protocol(self, tmp_path, event_loop):
-        """BacklogMd-backed issues must NOT call set_metadata_field."""
+    def test_issue_without_tracker_kind_skips_run_id_protocol(self, tmp_path, event_loop):
+        """Issues without tracker kind must NOT call set_metadata_field."""
         orch = _make_orchestrator(tmp_path)
-        # Issue with no tracker_kind → BacklogMd path
+        # Issue with no tracker_kind.
         issue = _issue(state="open")
         fresh = _issue(state="open")
 
@@ -410,10 +410,10 @@ class TestGitHubClaimRunIdProtocol:
 
         # set_metadata_field must NOT be called for non-GitHub issues.
         assert mock_tracker.set_metadata_field.call_count == 0, (
-            "BacklogMd dispatch must not use the run-id claim protocol"
+            "issues without tracker kind must not use the run-id claim protocol"
         )
         assert mock_tracker.get_metadata.call_count == 0, (
-            "BacklogMd dispatch must not read metadata for claim verification"
+            "issues without tracker kind must not read metadata for claim verification"
         )
 
     def test_run_id_failure_falls_through_gracefully(self, tmp_path, event_loop):
@@ -478,21 +478,21 @@ class TestSnapshotIncludesTrackerKind:
         )
         assert rows["gh-789"]["issue_identifier"] == "owner/repo#42"
 
-    def test_running_row_tracker_kind_none_for_backlog_issue(self, tmp_path):
-        """A BacklogMd issue surfaces tracker_kind=None in the snapshot."""
+    def test_running_row_tracker_kind_none_when_unset(self, tmp_path):
+        """An issue with no tracker_kind surfaces tracker_kind=None in the snapshot."""
         orch = _make_orchestrator(tmp_path)
         from datetime import datetime, timezone
         from unittest.mock import MagicMock
         from oompah.models import RunningEntry
 
-        bl_issue = _issue(state="In Progress")
+        native_issue = _issue(state="In Progress")
         fake_task = MagicMock()
         fake_task.done.return_value = False
 
         orch.state.running["i-abc"] = RunningEntry(
             worker_task=fake_task,
-            identifier=bl_issue.identifier,
-            issue=bl_issue,
+            identifier=native_issue.identifier,
+            issue=native_issue,
             session=None,
             retry_attempt=0,
             started_at=datetime.now(timezone.utc),
@@ -515,8 +515,8 @@ class TestSnapshotIncludesTrackerKind:
 #    When the user manually closes via the UI, the retry timer must be
 #    cancelled so the issue cannot be re-dispatched.
 # 2. _dispatch for a GitHub-backed issue aborts when the issue was closed
-#    between the candidate fetch and the dispatch write (same as Backlog
-#    but must also work with GitHub identifiers like ``owner/repo#123``).
+#    between the candidate fetch and the dispatch write, and must also work
+#    with GitHub identifiers like ``owner/repo#123``.
 # ---------------------------------------------------------------------------
 
 class TestGitHubManualCloseRace:

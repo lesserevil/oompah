@@ -631,7 +631,7 @@ class TestApiIssuesDataShape:
             assert not missing, f"Issue {entry.get('identifier')} missing fields: {missing}"
 
     def test_api_issues_grouped_by_state(self, api_client):
-        """API response must group issues by canonical Backlog status."""
+        """API response must group issues by canonical status."""
         issues = [
             _make_issue(id="t1", identifier="T-1", state="open"),
             _make_issue(id="t2", identifier="T-2", state="in_progress"),
@@ -647,7 +647,7 @@ class TestApiIssuesDataShape:
         assert "In Progress" in data, "Response must have 'In Progress' key"
 
     def test_api_issues_maps_backlog_statuses_to_dashboard_columns(self, api_client):
-        """Backlog.md statuses must land in columns the dashboard renders."""
+        """Tracker statuses must land in columns the dashboard renders."""
         issues = [
             _make_issue(id="t1", identifier="T-TODO", state="To Do"),
             _make_issue(id="t2", identifier="T-IP", state="In Progress"),

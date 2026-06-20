@@ -26,7 +26,6 @@ failure:
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 
 from typing import TYPE_CHECKING, Any
@@ -42,13 +41,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_GITHUB_TRACKER_KINDS = frozenset({"github_issues", "github-issues"})
-_MISSING_BACKLOG_PROJECT_PREFIX = "No Backlog.md project found"
-
-
 class StartupError(RuntimeError):
-    """Raised by :func:`setup_services` on config/backlog/profile validation
-    failure.
+    """Raised by :func:`setup_services` on config/profile validation failure.
 
     Replaces direct ``sys.exit(1)`` calls so callers can choose the
     appropriate termination strategy:
@@ -102,17 +96,6 @@ def attach_webhook_forwarder_alerts(
     webhook_forwarder._status_callback = _on_forwarder_status
 
 
-def _is_missing_backlog_project_error(exc: BaseException) -> bool:
-    return str(exc).strip().startswith(_MISSING_BACKLOG_PROJECT_PREFIX)
-
-
-def _root_backlog_check_is_optional(config: Any, projects: list[Any]) -> bool:
-    if projects:
-        return True
-    tracker_kind = str(getattr(config, "tracker_kind", "") or "").strip().lower()
-    return tracker_kind in _GITHUB_TRACKER_KINDS
-
-
 async def setup_services(
     workflow_path: str,
     cli_port: int | None = None,
@@ -120,7 +103,7 @@ async def setup_services(
 ) -> "Services":
     """Load config, validate, and create all service objects.
 
-    All config/backlog/profile validation errors raise
+    All config/profile validation errors raise
     :class:`StartupError` with a descriptive message (and the original
     exception chained via ``__cause__``).  Error details are also emitted
     via ``logger.error`` before raising so they appear in the log
@@ -153,10 +136,6 @@ async def setup_services(
     """
     # Keep imports local so this module can be imported cheaply (e.g. from
     # tests) without pulling in the whole app immediately.
-    from oompah.backlog_compat import (
-        BacklogCompatibilityError,
-        ensure_backlog_compatible,
-    )
     from oompah.agent_profile_store import AgentProfileStore
     from oompah.config import (
         ServiceConfig,
@@ -191,37 +170,13 @@ async def setup_services(
         raise StartupError("Config validation failed: " + "; ".join(errors))
 
     # ------------------------------------------------------------------
-    # 3. Load managed-project config before root tracker compatibility
+    # 3. Load managed-project config
     # ------------------------------------------------------------------
     project_store = ProjectStore()
     projects = project_store.list_all()
 
     # ------------------------------------------------------------------
-    # 4. Backlog.md compatibility check
-    # ------------------------------------------------------------------
-    try:
-        compat = ensure_backlog_compatible(os.path.dirname(workflow_path))
-        if compat.changed:
-            logger.info(
-                "Updated Backlog.md config at %s (%s)",
-                compat.config_path,
-                ", ".join(compat.migrations),
-            )
-    except BacklogCompatibilityError as exc:
-        if _is_missing_backlog_project_error(exc) and _root_backlog_check_is_optional(
-            config,
-            projects,
-        ):
-            logger.info(
-                "Skipping root Backlog.md compatibility check: %s",
-                exc,
-            )
-        else:
-            logger.error("Backlog.md compatibility error: %s", exc)
-            raise StartupError(f"Backlog.md compatibility error: {exc}") from exc
-
-    # ------------------------------------------------------------------
-    # 5. Strict profile-source mode check
+    # 4. Strict profile-source mode check
     # ------------------------------------------------------------------
     if (
         config.strict_profile_source == "strict"
@@ -293,10 +248,9 @@ async def setup_services(
         for pid, st in sync_results.items():
             name = next((p.name for p in projects if p.id == pid), pid)
             logger.info(
-                "Startup sync %s: git=%s backlog=%s",
+                "Startup sync %s: git=%s",
                 name,
                 st.get("git", "?"),
-                st.get("backlog", "?"),
             )
 
     # ------------------------------------------------------------------
@@ -316,24 +270,7 @@ async def setup_services(
                 logger.warning("GitHub label bootstrap %s: %s", name, status_summary)
 
     # ------------------------------------------------------------------
-    # 11. Ensure Backlog task-change webhook hooks per project
-    # ------------------------------------------------------------------
-    if projects:
-        from oompah.backlog_webhooks import ensure_backlog_webhooks
-
-        server_base_url = (
-            os.environ.get("OOMPAH_SERVER_URL") or f"http://localhost:{port}"
-        )
-        webhook_results = ensure_backlog_webhooks(project_store, server_base_url)
-        for pid, status in webhook_results.items():
-            name = next((p.name for p in projects if p.id == pid), pid)
-            if status.startswith("ok") or status.startswith("skipped"):
-                logger.info("Backlog webhook hook %s: %s", name, status)
-            else:
-                logger.warning("Backlog webhook hook %s: %s", name, status)
-
-    # ------------------------------------------------------------------
-    # 12. Create orchestrator
+    # 11. Create orchestrator
     # ------------------------------------------------------------------
     orchestrator = Orchestrator(
         config,

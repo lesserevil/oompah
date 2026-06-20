@@ -221,7 +221,7 @@ class TestShouldDispatchEpic:
         epic = _make_epic(project_id=project.id)
 
         mock_tracker = MagicMock()
-        mock_tracker.fetch_children.side_effect = TrackerError("bd failed")
+        mock_tracker.fetch_children.side_effect = TrackerError("tracker failed")
         orch._project_trackers[project.id] = mock_tracker
 
         # fetch_children returns [] on error, so epic IS dispatchable
@@ -269,7 +269,7 @@ class TestFetchEpicChildren:
         epic = _make_epic(project_id=project.id)
 
         mock_tracker = MagicMock()
-        mock_tracker.fetch_children.side_effect = TrackerError("bd failed")
+        mock_tracker.fetch_children.side_effect = TrackerError("tracker failed")
         orch._project_trackers[project.id] = mock_tracker
 
         result = orch._fetch_epic_children(epic)
@@ -561,13 +561,13 @@ class TestEpicPlannerFocusSelection:
         assert focus.name == "epic_planner"
         assert focus.role == "Epic Planner"
 
-    def test_epic_planner_must_do_includes_backlog_create(self):
-        """The epic_planner focus should tell the agent to use backlog task create."""
+    def test_epic_planner_must_do_includes_child_create(self):
+        """The epic_planner focus should tell the agent to create child tasks."""
         from oompah.focus import select_focus
 
         epic = _make_epic()
         focus = select_focus(epic)
-        assert any("backlog task create" in rule for rule in focus.must_do)
+        assert any("oompah task child-create" in rule for rule in focus.must_do)
 
     def test_epic_planner_must_not_do_includes_no_coding(self):
         """The epic_planner focus should tell the agent not to implement code."""

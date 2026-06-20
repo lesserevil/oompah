@@ -51,7 +51,7 @@ Out of scope
 ~~~~~~~~~~~~
 
 HTTP / WS endpoints, the dashboard UI panel, and the end-to-end
-cross-backend integration test are tracked in beads
+cross-backend integration test are tracked in tasks
 oompah-zlz_2-g73s, -577a, -elug respectively.
 """
 

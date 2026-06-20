@@ -130,7 +130,7 @@ class TestBuildPrBody:
             identifier="TASK-1",
             title="T",
             url="https://example.com/task/1",
-            tracker_kind="backlog",
+            tracker_kind="oompah_md",
         )
         result = orch._build_pr_body(issue, "main", "org/repo", "main")
         assert "Relates to:" in result
@@ -541,8 +541,8 @@ class TestEnsureReviewExistsPassesDescription:
         description = call_kwargs.get("description", "")
         assert "Fixes #42" in description
 
-    def test_backlog_issue_no_url_empty_description(self, tmp_path):
-        """Backlog issue without URL → empty description (no hub link)."""
+    def test_native_issue_no_url_empty_description(self, tmp_path):
+        """Native issue without URL -> empty description."""
         proj = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[proj])
         orch._reviews_cache = {"proj-1": []}
@@ -558,7 +558,7 @@ class TestEnsureReviewExistsPassesDescription:
         issue = Issue(
             id="TASK-99",
             identifier="TASK-99",
-            title="Backlog task",
+            title="Task",
             url=None,
             tracker_kind=None,
             project_id="proj-1",

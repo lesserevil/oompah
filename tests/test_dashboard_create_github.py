@@ -7,7 +7,7 @@ Covers:
 - JS: isGitHubBacked(), updateGitHubFieldsVisibility().
 - submitCreateDialog() includes target_branch and labels for GitHub projects.
 - enhanceCreateDialog() includes target_branch for GitHub projects.
-- Legacy Backlog projects are not affected by the GitHub fields.
+- Native projects are not affected by the GitHub fields.
 """
 
 from __future__ import annotations

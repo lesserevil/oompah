@@ -469,7 +469,7 @@ def _make_orchestrator_with_project(project: Project):
 
     config = ServiceConfig(
         agent_command="echo",
-        tracker_kind="backlog_md",
+        tracker_kind="oompah_md",
         tracker_active_states=["open"],
         tracker_terminal_states=["done"],
     )

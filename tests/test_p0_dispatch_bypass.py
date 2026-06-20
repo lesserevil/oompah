@@ -1,6 +1,6 @@
 """Tests for P0 dispatch bypass policy (oompah-zlz_2-dyi).
 
-P0 beads bypass the blocker-chain check (a blocker in non-terminal
+P0 tasks bypass the blocker-chain check (a blocker in non-terminal
 state OR closed-with-unmerged-PR no longer blocks dispatch). Other
 gates — pauses, structural sanity, dedup, label gates that signal
 human interaction — still apply to P0.

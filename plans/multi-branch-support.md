@@ -2,14 +2,14 @@
 
 ## Overview
 
-Projects can now track multiple branch patterns (beyond just `main`), including glob patterns like `release/*`, `hotfix/*`, with a configurable `default_branch` for new bead worktrees.
+Projects can now track multiple branch patterns (beyond just `main`), including glob patterns like `release/*`, `hotfix/*`, with a configurable `default_branch` for new task worktrees.
 
 ## Motivation
 
-- Track release branches (`release/*`) for backport beads
+- Track release branches (`release/*`) for backport tasks
 - Track hotfix branches (`hotfix/*`) for urgent fixes
 - Support monorepos with multiple release trains
-- Allow beads to target specific branches via `target_branch` field
+- Allow tasks to target specific branches via `target_branch` field
 
 ## Data Model Changes
 
@@ -17,7 +17,7 @@ Projects can now track multiple branch patterns (beyond just `main`), including 
 
 **New Fields:**
 - `branches: list[str]` - List of branch patterns to track (supports fnmatch globs)
-- `default_branch: str` - Primary branch for new bead worktrees
+- `default_branch: str` - Primary branch for new task worktrees
 
 **New Methods:**
 - `primary_branch` property - Returns `default_branch`
@@ -31,12 +31,12 @@ Projects can now track multiple branch patterns (beyond just `main`), including 
 ### Issue Model (`oompah/models.py`)
 
 **New Field:**
-- `target_branch: str | None` - Allows beads to target specific branches
+- `target_branch: str | None` - Allows tasks to target specific branches
 
 ## Component Updates
 
 ### Tracker (`oompah/tracker.py`)
-- Issue construction reads `target_branch` from bead metadata
+- Issue construction reads `target_branch` from tracker metadata
 
 ### ProjectStore (`oompah/projects.py`)
 - `create()` accepts `branches` and `default_branch` parameters
@@ -131,7 +131,7 @@ Existing projects with only `branch` field:
 
 ## Future Considerations
 
-- API for creating beads targeting specific branch (`target_branch` on bead create)
+- API for creating tasks targeting specific branch (`target_branch` on task create)
 - Branch-specific agent profiles / concurrency limits
 - Per-branch webhook filtering
 - Release branch auto-detection from git tags

@@ -75,7 +75,7 @@ class TestCodexRegistration:
     def test_acp_mode_provider_with_codex_validates_via_registry(self):
         """Provider record with mode=acp + backend='codex' passes the
         registry lookup check (validate_for_mode) — acceptance
-        criterion in the bead description."""
+        criterion in the task description."""
         provider = ModelProvider(
             id="p", name="codex", base_url="", backend="codex",
             api_key="sk-codex-test",
@@ -1008,7 +1008,7 @@ class TestProviderUiBackendBadge:
 class TestClaudeBackendNotRegressed:
     """The presence of the codex backend in the registry must not
     affect the claude backend's contract — acceptance criterion in
-    the bead description."""
+    the task description."""
 
     def test_claude_name_unchanged(self):
         assert ClaudeAcpBackend.name() == "claude"

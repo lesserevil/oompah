@@ -11,8 +11,8 @@ thread pool, issues snapshot cache, tick-pool for YAML-heavy operations), the
 underlying Python GIL contention between the API and scheduler threads in the
 **same process** remained.
 
-`tracker.py` uses `yaml.safe_load()` to parse YAML front matter in every Backlog
-task file. On large projects this is the dominant per-tick cost, and because
+The native Markdown tracker uses `yaml.safe_load()` to parse YAML front matter
+in every task file. On large projects this is the dominant per-tick cost, and because
 `yaml.safe_load` holds the GIL for the duration of each parse:
 
 - All API thread-pool threads stall while the scheduler's tick thread parses YAML.

@@ -1,4 +1,4 @@
-"""Tests for per-agent telemetry comment on bead at worker completion.
+"""Tests for per-agent telemetry comment on task at worker completion.
 
 Covers (oompah-zlz_2-y3fy):
 - _format_tokens, _format_duration, _dispatch_attempt_label,

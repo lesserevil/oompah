@@ -12,7 +12,7 @@ directions:
 Each registered backend lives in a submodule (``claude.py``,
 ``codex.py``, …) and provides those two functions. This package's
 :func:`get_translator` dispatches by backend name so callers
-(``oompah.console`` in the downstream bead) don't have to import each
+(``oompah.console`` in the downstream task) don't have to import each
 backend individually.
 """
 

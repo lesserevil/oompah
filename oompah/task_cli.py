@@ -1,8 +1,7 @@
 """Tracker-neutral task command-line wrapper for oompah agents.
 
 Provides the ``oompah task`` subcommand surface so agents can manage tasks
-without needing to know whether the active tracker is GitHub Issues or a
-legacy Backlog.md project.
+through the active oompah tracker.
 
 All operations call the local oompah server API.  If the server is unavailable
 the commands exit with an actionable error message (acceptance criterion #2).
@@ -430,8 +429,8 @@ def build_parser() -> argparse.ArgumentParser:
         prog="oompah task",
         description=(
             "Tracker-neutral task operations.\n\n"
-            "Calls the local oompah server API and works for both GitHub Issues "
-            "and legacy Backlog trackers.  Set OOMPAH_SERVER_URL or use "
+            "Calls the local oompah server API and works with supported oompah "
+            "trackers.  Set OOMPAH_SERVER_URL or use "
             "--server/--port to point at a non-default server."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,

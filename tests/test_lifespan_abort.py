@@ -65,45 +65,8 @@ class TestSetupServicesRaisesStartupError:
                     server_port=None,
                 ),
             ),
-            patch(
-                "oompah.backlog_compat.ensure_backlog_compatible",
-                return_value=MagicMock(changed=False),
-            ),
         ):
             with pytest.raises(StartupError, match="Config validation failed"):
-                await setup_services(str(tmp_path / "WORKFLOW.md"))
-
-    @pytest.mark.asyncio
-    async def test_backlog_compat_error_raises_startup_error(
-        self, tmp_path,
-    ):
-        """BacklogCompatibilityError → StartupError."""
-        from oompah.bootstrap import StartupError, setup_services
-        from oompah.backlog_compat import BacklogCompatibilityError
-        from oompah.models import WorkflowDefinition
-
-        fake_wf = WorkflowDefinition(config={}, prompt_template="")
-
-        with (
-            patch("oompah.config.load_workflow", return_value=fake_wf),
-            patch(
-                "oompah.config.validate_dispatch_config", return_value=[],
-            ),
-            patch(
-                "oompah.config.ServiceConfig.from_workflow",
-                return_value=MagicMock(
-                    strict_profile_source="warn",
-                    workflow_has_profiles_block=False,
-                    agent_profiles_drift=False,
-                    server_port=None,
-                ),
-            ),
-            patch(
-                "oompah.backlog_compat.ensure_backlog_compatible",
-                side_effect=BacklogCompatibilityError("boom"),
-            ),
-        ):
-            with pytest.raises(StartupError, match="Backlog.md compatibility error"):
                 await setup_services(str(tmp_path / "WORKFLOW.md"))
 
     @pytest.mark.asyncio
@@ -129,10 +92,6 @@ class TestSetupServicesRaisesStartupError:
                     agent_profiles_drift=False,
                     server_port=None,
                 ),
-            ),
-            patch(
-                "oompah.backlog_compat.ensure_backlog_compatible",
-                return_value=MagicMock(changed=False),
             ),
         ):
             with pytest.raises(StartupError, match="Strict profile-source mode"):

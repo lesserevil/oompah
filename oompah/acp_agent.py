@@ -4,10 +4,10 @@ Drives the bundled `claude` CLI (via the Claude Agent SDK) — or any
 other registered ACP backend — so the per-token cost is billed against
 the operator's Pro/Max subscription rather than the per-token API
 meter that the api_agent path incurs. See ``plans/acp-agent.md`` and
-bead ``oompah-zlz_2-bcl``.
+task ``oompah-zlz_2-bcl``.
 
 This module used to inline all the Claude Agent SDK setup directly.
-As of bead ``oompah-zlz_2-0hzh`` (Child A of the multi-backend epic)
+As of task ``oompah-zlz_2-0hzh`` (Child A of the multi-backend epic)
 it has been split: SDK-specific code now lives in
 ``oompah/acp_backends/claude.py`` (registered as ``"claude"``);
 :class:`AcpAgentSession` is a thin facade that looks up the requested
@@ -18,13 +18,13 @@ The class shape mirrors :class:`oompah.api_agent.ApiAgentSession` so
 ``_run_api_worker``: same observable surface (token counters, run_task
 return shape, terminate semantics, JSONL event stream).
 
-Key architectural decisions (locked in via the bead's Q&A in
+Key architectural decisions (locked in via the task's Q&A in
 plans/acp-agent.md):
 
 * **Tool bridging (Q2 = B).** The SDK's ``ClaudeAgentOptions.mcp_servers``
   takes an in-process MCP server. We declare oompah's existing tool
   catalog (read_file / edit_file / write_file / run_command /
-  search_files / list_files / bd_*) as ``@tool``-decorated functions
+  search_files / list_files / task helpers) as ``@tool``-decorated functions
   and intercept their execution. That keeps the cd-out-of-worktree
   guard and shell-as-tool-name redirect in force —
   none of those exist in claude's native tools.

@@ -3,7 +3,7 @@
 When an agent dispatches, the "state" WebSocket message arrives within
 100-500ms but the "issues" push is throttled to once every 3s (see
 oompah/server.py _ISSUES_THROTTLE_MS). This created a visible mismatch
-where the chip appeared in the agent bar but the bead's card lagged in
+where the chip appeared in the agent bar but the task's card lagged in
 the "Open" column for up to 3s before snapping to "In Progress".
 
 The fix in handleStateUpdate() diffs running[] vs lastRunningAgents and
@@ -386,7 +386,7 @@ class TestDispatchOptimisticAppliesToBoard:
     """Verify the full flow: diff -> set optimisticUpdates -> applyOptimisticOverrides
     correctly moves the issue from Open to In Progress.
 
-    No double-counting (acceptance criterion): the bead must NOT appear in
+    No double-counting (acceptance criterion): the task must NOT appear in
     both Open and In Progress columns simultaneously.
     """
 
@@ -480,7 +480,7 @@ class TestDispatchOptimisticAppliesToBoard:
     def test_dispatch_moves_duplicate_task_id_only_in_matching_project(
         self, tmp_path, script: str
     ):
-        """Duplicate Backlog task ids across projects must not move the wrong card."""
+        """Duplicate task ids across projects must not move the wrong card."""
         apply_fn = self._extract_apply_optimistic(script)
         js = _DIFF_FN_JS + apply_fn + textwrap.dedent("""
             const boardData = {

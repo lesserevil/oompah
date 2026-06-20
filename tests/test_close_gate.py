@@ -10,7 +10,7 @@ Covers:
 * epic issue → allowed (skip)
 * decomposed label → allowed (skip)
 * operator-style close reasons → allowed (skip)
-* orchestrator wiring: gate refused → bead reopened, comment posted, not in completed
+* orchestrator wiring: gate refused → task reopened, comment posted, not in completed
 """
 
 from __future__ import annotations
@@ -545,7 +545,7 @@ class TestBuildRefusalComment:
         assert "--base main" in comment
         assert "--head test-123" in comment
         assert "Required: open a PR before closing" in comment
-        assert "Bead reopened" in comment
+        assert "Task reopened" in comment
 
     def test_refusal_comment_uses_work_branch(self):
         issue = _make_issue(
@@ -622,13 +622,13 @@ class TestOrchestratorCloseGateWiring:
 
         # Issue should be in completed set (gate was disabled, close honored)
         assert issue.id in orch.state.completed
-        # update_issue was NOT called to reopen the bead
+        # update_issue was NOT called to reopen the task
         calls = [str(c) for c in mock_tracker.method_calls]
         reopen_calls = [c for c in calls if "status='open'" in c or '"open"' in c]
         assert len(reopen_calls) == 0
 
     def test_gate_refuses_no_pr(self, tmp_path, event_loop):
-        """Branch ahead + no PR → close refused, bead reopened, comment posted."""
+        """Branch ahead + no PR → close refused, task reopened, comment posted."""
         orch = _make_orch(tmp_path, close_gate_enabled=True)
         issue = _make_issue(project_id="proj-1")
         entry = _make_entry(issue)
@@ -664,7 +664,7 @@ class TestOrchestratorCloseGateWiring:
 
         # Gate refused → issue NOT in completed
         assert issue.id not in orch.state.completed
-        # No retry scheduled (bead reopened, will be picked up by next tick)
+        # No retry scheduled (task reopened, will be picked up by next tick)
         # The gate itself does the reopen; orchestrator just stops processing
 
     def test_gate_allows_with_open_pr(self, tmp_path, event_loop):
@@ -761,7 +761,7 @@ class TestOrchestratorCloseGateWiring:
         assert mock_check.call_args.args[0].work_branch == "oompah/repo/gh-42"
 
     def test_gate_refused_posts_comment_and_reopens(self, tmp_path):
-        """When gate refuses, a comment is posted and the bead is reopened."""
+        """When gate refuses, a comment is posted and the task is reopened."""
         orch = _make_orch(tmp_path, close_gate_enabled=True)
         issue = _make_issue(project_id=None)
 
@@ -788,7 +788,7 @@ class TestOrchestratorCloseGateWiring:
         comment_args = mock_tracker.add_comment.call_args
         assert "Close refused" in comment_args[0][1]
         assert "2 commit" in comment_args[0][1]
-        # Bead reopened
+        # Task reopened
         assert mock_tracker.update_issue.called
         update_call = mock_tracker.update_issue.call_args
         assert update_call.kwargs.get("status") == "Open"

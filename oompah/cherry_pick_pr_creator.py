@@ -531,7 +531,7 @@ def cherry_pick_push_and_open_pr(
         )
 
         # Mark the child task Needs Rebase (the canonical status for merge
-        # conflicts) so it is visible in the backlog and can be dispatched
+        # conflicts) so it is visible on the board and can be dispatched
         # to a rebase agent.
         try:
             tracker.update_issue(child_issue.identifier, status=NEEDS_REBASE)

@@ -1,6 +1,6 @@
 """Tests for the dashboard 'Hide merged' toggle (issue oompah-zlz_2-7nr).
 
-This is a render-time client-side filter: closed beads with the 'merged'
+This is a render-time client-side filter: closed tasks with the 'merged'
 label are hidden from the kanban (flat + swimlane) when the toggle is ON.
 
 The toggle:
@@ -147,11 +147,11 @@ class TestFilterHelper:
 
     def test_filter_checks_merged_label(self, script: str):
         # As of commit 09d8b6d, the filter no longer keys off the 'merged'
-        # label — it uses has_open_review on closed beads instead. Verify the
+        # label — it uses has_open_review on closed tasks instead. Verify the
         # in-flight predicate references has_open_review.
         body = _extract_function(script, "_isIndividuallyInFlight")
         assert "has_open_review" in body, (
-            "_isIndividuallyInFlight must check has_open_review for closed beads"
+            "_isIndividuallyInFlight must check has_open_review for closed tasks"
         )
 
     def test_filter_handles_missing_labels(self, script: str):
@@ -244,14 +244,14 @@ class TestCounter:
 
 
 # ===========================================================================
-# 5. boardData stays unfiltered so toggling OFF restores merged beads
+# 5. boardData stays unfiltered so toggling OFF restores merged tasks
 # ===========================================================================
 
 
 class TestBoardDataUnfiltered:
     """The server's full payload is preserved in boardData; the filter is
     applied to a derivative for rendering only. This means the user can flip
-    the toggle off and merged beads come back without a refetch."""
+    the toggle off and merged tasks come back without a refetch."""
 
     def test_boarddata_assigned_before_filter(self, script: str):
         body = _extract_function(script, "renderBoard")
@@ -261,7 +261,7 @@ class TestBoardDataUnfiltered:
         assert m and f, "renderBoard must assign boardData and call applyHideMergedFilter"
         assert m.start() < f.start(), (
             "boardData must be assigned BEFORE applyHideMergedFilter is applied so "
-            "toggling Hide-merged off can recover merged-closed beads without refetching"
+            "toggling Hide-merged off can recover merged-closed tasks without refetching"
         )
 
 
@@ -468,7 +468,7 @@ class TestFilterBehavior:
         assert [i["id"] for i in out["Open"]] == ["b"]
 
     def test_backlog_column_unaffected_by_toggle(self):
-        """Backlog tasks stay visible so operators can promote them to Open."""
+        """Backlog-column tasks stay visible so operators can promote them to Open."""
         data = {
             "Backlog": [
                 {"id": "d1", "state": "Backlog"},
@@ -481,7 +481,7 @@ class TestFilterBehavior:
         assert out["Backlog"] == data["Backlog"]
 
     def test_open_column_unaffected_by_toggle(self):
-        """Open beads always show, even ones with no parent epic and no
+        """Open tasks always show, even ones with no parent epic and no
         children (the previous filter would have included them via the
         individually-in-flight rule, but we now bypass the column entirely).
         """
@@ -530,7 +530,7 @@ class TestFilterBehavior:
         assert [i["id"] for i in out["Done"]] == ["c1"]
 
     def test_hidden_count_excludes_visible_backlog_tasks(self):
-        """Hidden-count label excludes Backlog tasks because they stay visible."""
+        """Hidden-count label excludes backlog-column tasks because they stay visible."""
         data = {
             "Backlog": [{"id": f"d{i}", "state": "Backlog"} for i in range(50)],
             "Done": [

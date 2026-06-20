@@ -33,15 +33,15 @@ from oompah.statuses import (
 )
 from oompah.tracker import (
     TrackerError,
-    _append_backlog_comment,
-    _backlog_comment_field,
-    _backlog_priority_int,
-    _format_backlog_comment_timestamp,
-    _parse_backlog_comments,
     _parse_timestamp,
     _sanitize_identifier,
     _sort_issues_for_dispatch,
     _string_list,
+    append_tracker_comment,
+    comment_author_field,
+    format_comment_timestamp,
+    normalize_priority_int,
+    parse_tracker_comments,
 )
 
 logger = logging.getLogger(__name__)
@@ -210,7 +210,7 @@ class OompahMarkdownTracker:
         rec = self._read_record(identifier)
         if not rec:
             return []
-        return _parse_backlog_comments(str(rec["body"]))
+        return parse_tracker_comments(str(rec["body"]))
 
     def fetch_issues_by_states(self, state_names: list[str]) -> list[Issue]:
         wanted = {status_key(canonicalize_status(s)) for s in state_names}
@@ -356,18 +356,18 @@ class OompahMarkdownTracker:
         comment_text = str(text or "").strip()
         if not comment_text:
             raise TrackerError("Comment text is required")
-        comment_author = _backlog_comment_field(author, fallback="oompah")
+        comment_author = comment_author_field(author, fallback="oompah")
         with self._write_lock:
             self._prepare_default_branch_for_write()
             rec = self._read_record_uncached(identifier)
             if not rec:
                 raise TrackerError(f"Native oompah task not found: {identifier}")
             meta = dict(rec["meta"])
-            body = _append_backlog_comment(
+            body = append_tracker_comment(
                 str(rec["body"]),
                 text=comment_text,
                 author=comment_author,
-                created=_format_backlog_comment_timestamp(),
+                created=format_comment_timestamp(),
             )
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, body)
@@ -502,7 +502,7 @@ class OompahMarkdownTracker:
         elif key_norm in ("description", "desc"):
             body = _replace_section(body, "Summary", str(value))
         elif key_norm == "priority":
-            meta["priority"] = _backlog_priority_int(value)
+            meta["priority"] = normalize_priority_int(value)
         elif key_norm == "assignee":
             meta["assignee"] = str(value) if value is not None else None
         elif key_norm in ("label", "labels"):
@@ -553,7 +553,7 @@ class OompahMarkdownTracker:
         identifier = str(meta.get("id") or Path(rec["path"]).stem)
         state = canonicalize_status(str(meta.get("status") or BACKLOG))
         labels = _string_list(meta.get("labels"))
-        priority = _backlog_priority_int(meta.get("priority"))
+        priority = normalize_priority_int(meta.get("priority"))
         blocked_ids = _string_list(meta.get("blocked_by") or meta.get("dependencies"))
         created_at = _parse_utc(meta.get("created_at") or meta.get("created_date"))
         updated_at = _parse_utc(meta.get("updated_at") or meta.get("updated_date"))

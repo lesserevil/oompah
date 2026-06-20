@@ -6,7 +6,7 @@ go in an ``outputs/`` subdirectory. File names are
 ``<sha256-prefix>-<original-name>`` so duplicates collapse and the original
 name stays human-readable.
 
-This module is the storage layer only — wiring into beads metadata, the
+This module is the storage layer only — wiring into tasks metadata, the
 prompt renderer, and the dashboard happens in later phases. See
 ``plans/multimodal-attachments.md``.
 """
@@ -304,7 +304,7 @@ class AttachmentStore:
 
         Records are reconstructed from disk; the canonical record (with
         accurate ``created_at`` / ``added_by`` / ``caption``) lives in the
-        beads metadata in later phases. This list is intended for the
+        tasks metadata in later phases. This list is intended for the
         dashboard's sidecar use.
         """
         out: list[Attachment] = []

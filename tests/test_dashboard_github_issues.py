@@ -2,10 +2,8 @@
 
 Covers:
 - Card-level GitHub URL tracker link (AC #1: GitHub issue cards link to URL).
-- Card-level legacy Backlog task badge (AC #2: legacy tasks visually distinct).
 - Detail panel GitHub issue URL field.
 - Detail panel tracker kind / owner / repo field.
-- Detail panel legacy marker.
 - CSS classes for the new visual elements.
 """
 
@@ -54,10 +52,6 @@ def _extract_func_body(script: str, fn_name: str) -> str:
 # ---------------------------------------------------------------------------
 
 class TestCSSClasses:
-    def test_legacy_badge_css_exists(self):
-        html = _load_dashboard()
-        assert ".legacy-badge {" in html or ".legacy-badge{" in html
-
     def test_tracker_link_css_exists(self):
         html = _load_dashboard()
         assert ".tracker-link {" in html or ".tracker-link{" in html
@@ -133,36 +127,6 @@ class TestCreateCardTrackerLink:
 
 
 # ---------------------------------------------------------------------------
-# createCard: legacy Backlog badge
-# ---------------------------------------------------------------------------
-
-class TestCreateCardLegacyBadge:
-    def test_legacy_badge_variable_built_from_is_legacy(self):
-        """createCard builds legacyBadgeHtml from issue.is_legacy."""
-        script = _extract_script(_load_dashboard())
-        body = _extract_func_body(script, "createCard")
-        assert "legacyBadgeHtml" in body
-        assert "issue.is_legacy" in body
-
-    def test_legacy_badge_uses_css_class(self):
-        """Legacy badge element uses the legacy-badge CSS class."""
-        script = _extract_script(_load_dashboard())
-        body = _extract_func_body(script, "createCard")
-        assert 'class="legacy-badge"' in body
-
-    def test_legacy_badge_included_in_card_innerHTML(self):
-        """legacyBadgeHtml is interpolated into the card HTML."""
-        script = _extract_script(_load_dashboard())
-        body = _extract_func_body(script, "createCard")
-        assert "${legacyBadgeHtml}" in body
-
-    def test_legacy_badge_has_aria_label(self):
-        """Legacy badge has an aria-label for accessibility."""
-        script = _extract_script(_load_dashboard())
-        body = _extract_func_body(script, "createCard")
-        assert 'aria-label="Legacy Backlog task"' in body
-
-
 class TestCreateCardIntakeSummary:
     def test_card_renders_intake_summary(self):
         script = _extract_script(_load_dashboard())
@@ -186,7 +150,7 @@ class TestDetailPanelIntakeSummary:
 
 
 # ---------------------------------------------------------------------------
-# openDetailPanel: GitHub URL, tracker kind, legacy marker
+# openDetailPanel: GitHub URL and tracker kind
 # ---------------------------------------------------------------------------
 
 class TestDetailPanelGitHubFields:
@@ -218,19 +182,6 @@ class TestDetailPanelGitHubFields:
         script = _extract_script(_load_dashboard())
         assert "detail.tracker_owner" in script
         assert "detail.tracker_repo" in script
-
-    def test_detail_panel_renders_legacy_marker(self):
-        """Detail panel shows a legacy marker note when detail.is_legacy is set."""
-        script = _extract_script(_load_dashboard())
-        assert "detail.is_legacy" in script
-        assert "Legacy Backlog.md task" in script
-
-    def test_detail_panel_legacy_marker_uses_legacy_badge_class(self):
-        """The legacy note in the detail panel uses the legacy-badge CSS class."""
-        script = _extract_script(_load_dashboard())
-        idx = script.index("Legacy Backlog.md task")
-        surrounding = script[max(0, idx - 200) : idx + 200]
-        assert 'class="legacy-badge"' in surrounding
 
     def test_detail_panel_github_issue_label(self):
         """Detail panel uses the label 'GitHub Issue' for the URL field."""

@@ -35,10 +35,10 @@ Gate logic:
    * no open/merged PR → refuse.
 
 Refusal output:
-* Do NOT apply the close; the bead remains in_progress/open.
+* Do NOT apply the close; the task remains in_progress/open.
 * Post a diagnostic comment (author=oompah) with the required
   ``gh pr create`` command.
-* Reopen the bead so the existing dispatch/retry cycle picks it up.
+* Reopen the task so the existing dispatch/retry cycle picks it up.
 * Log a structured telemetry event ``close_refused_unmerged_work``.
 
 Telemetry event (logged at INFO via ``json.dumps``):
@@ -319,7 +319,7 @@ def check_close_gate(
     Returns:
         A :class:`CloseGateResult`. When ``allowed=True`` the close may
         proceed. When ``allowed=False`` the caller should post a
-        refusal comment, reopen the bead, and log telemetry.
+        refusal comment, reopen the task, and log telemetry.
     """
     # ------------------------------------------------------------------
     # Skip rules
@@ -458,7 +458,7 @@ def build_refusal_comment(
     result: CloseGateResult,
     base_branch: str,
 ) -> str:
-    """Build the diagnostic comment to post on the bead when close is refused."""
+    """Build the diagnostic comment to post on the task when close is refused."""
     branch = _branch_for_issue(issue)
     n = result.commits_ahead
     commit_noun = "commit" if n == 1 else "commits"
@@ -493,7 +493,7 @@ def build_refusal_comment(
         "Required: open a PR before closing.",
         f'  gh pr create --base {base_branch} --head {branch} --title "{iid}: {title}" --body "..."',
         "",
-        "Bead reopened. Re-dispatch on the next tick will see this comment in its prompt context.",
+        "Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.",
     ])
 
     return "\n".join(lines)

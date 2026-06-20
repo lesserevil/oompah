@@ -7,7 +7,7 @@ Covers the oompah-zlz_2-ag7h additions to the Add/Edit Provider dialog:
 * openProviderDialog seeds radios from provider.billing_model.
 * submitProvider sends billing_model in the request body.
 
-See bead oompah-zlz_2-ag7h.
+See task oompah-zlz_2-ag7h.
 """
 
 from __future__ import annotations
@@ -73,7 +73,7 @@ class TestBillingModelRadioGroup:
 
     def test_labels_mention_budget(self, html):
         """The labels must explain the difference so the operator
-        doesn't have to read the bead to understand the choice."""
+        doesn't have to read the task to understand the choice."""
         # Subscription label calls out flat-rate.
         assert "flat-rate" in html
         # Per-token label calls out budget tracking.

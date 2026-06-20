@@ -81,7 +81,6 @@ from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
 from oompah.projects import (
     ProjectError,
     ProjectStore,
-    _is_github_backed,
     github_owner_repo_from_url,
     github_work_branch_name,
 )
@@ -91,7 +90,6 @@ from oompah.scm import ReviewRequest, detect_provider, extract_repo_slug
 from oompah.error_watcher import ErrorWatcher
 from oompah.tracker import (
     ADAPTER_REGISTRY,
-    BacklogMdTracker,  # isinstance guard for legacy-only Backlog paths (see TASK-457.5)
     TrackerError,
     TrackerNotConfiguredError,
     TrackerProtocol,
@@ -602,9 +600,6 @@ class Orchestrator:
         self.tracker = self._new_tracker()
         # Per-project trackers, keyed by project_id
         self._project_trackers: dict[str, TrackerProtocol] = {}
-        # Secondary Backlog.md trackers for GitHub-backed projects in legacy
-        # dual-read mode, keyed by project_id.
-        self._project_legacy_backlog_trackers: dict[str, TrackerProtocol] = {}
         # Per-project branch-to-issue index: maps work_branch → identifier.
         # Built lazily the first time _resolve_task_for_branch needs it for
         # a project and cleared with tracker read caches each tick so the
@@ -1168,7 +1163,6 @@ class Orchestrator:
         self.tracker = self._new_tracker()
         # Clear cached per-project trackers so they pick up new state config
         self._project_trackers.clear()
-        self._project_legacy_backlog_trackers.clear()
         self.workspace_mgr = WorkspaceManager(
             workspace_root=config.workspace_root,
             hooks={
@@ -1440,8 +1434,7 @@ class Orchestrator:
 
         Resolves the tracker backend using the project's own ``tracker_kind``
         field when set, falling back to the global service ``tracker_kind``
-        when the project has no explicit configuration (preserves legacy
-        Backlog.md behaviour for existing projects).
+        when the project has no explicit configuration.
 
         For ``github_issues`` projects the factory receives the project's
         ``tracker_owner`` and ``tracker_repo`` so each project targets its
@@ -1516,13 +1509,8 @@ class Orchestrator:
         ``tracker_kind`` get the corresponding adapter (e.g.
         ``GitHubIssueTracker`` for ``"github_issues"``); projects without
         an explicit kind fall back to the global service ``tracker_kind``
-        (preserving legacy Backlog.md behaviour).
-
-        Acceptance criteria (TASK-461.1):
-        - AC #1: Returns ``BacklogMdTracker`` or ``GitHubIssueTracker``
-          depending on the project's configured backend.
-        - AC #2: Cache is project-scoped; ``_project_trackers`` is keyed
-          by ``project_id`` so each project has its own instance.
+        Cache is project-scoped; ``_project_trackers`` is keyed by
+        ``project_id`` so each project has its own instance.
         """
         if project_id in self._project_trackers:
             return self._project_trackers[project_id]
@@ -1533,51 +1521,11 @@ class Orchestrator:
         self._project_trackers[project_id] = tracker
         return tracker
 
-    def _legacy_backlog_tracker_for_project(self, project_id: str) -> TrackerProtocol:
-        """Get a Backlog.md tracker scoped to a project for dual-read mode."""
-        if project_id in self._project_legacy_backlog_trackers:
-            return self._project_legacy_backlog_trackers[project_id]
-        project = self.project_store.get(project_id)
-        if not project:
-            raise ProjectError(f"Unknown project: {project_id}")
-        factory = ADAPTER_REGISTRY.get("backlog_md")
-        if factory is None:
-            raise TrackerError("Backlog.md tracker adapter is not registered")
-        tracker = factory(
-            active_states=self.config.tracker_active_states,
-            terminal_states=self.config.tracker_terminal_states,
-            cwd=project.repo_path,
-        )
-        self._project_legacy_backlog_trackers[project_id] = tracker
-        return tracker
-
     def _tracker_for_issue(self, issue: Issue) -> TrackerProtocol:
-        """Get the appropriate tracker for an issue (project-specific or legacy)."""
+        """Get the appropriate tracker for an issue."""
         if issue.project_id:
             return self._tracker_for_project(issue.project_id)
         return self.tracker
-
-    def _fetch_legacy_backlog_candidates_for_project(self, project: Project) -> list[Issue]:
-        """Read legacy Backlog.md dispatch candidates for a GitHub-backed project."""
-        project_id = getattr(project, "id", "")
-        repo_path = getattr(project, "repo_path", None)
-        if not project_id or not isinstance(repo_path, str) or not repo_path:
-            return []
-        try:
-            tracker = self._legacy_backlog_tracker_for_project(project_id)
-            issues = tracker.fetch_candidate_issues()
-        except Exception as exc:  # noqa: BLE001 - legacy read must not hide GitHub work
-            logger.warning(
-                "Failed to fetch legacy Backlog candidates for project %s: %s",
-                getattr(project, "name", project_id),
-                exc,
-            )
-            return []
-        for issue in issues:
-            issue.project_id = project_id
-            issue.tracker_kind = "backlog_md"
-            issue.is_legacy = True
-        return issues
 
     def _invalidate_tracker_read_caches(self) -> None:
         """Clear the per-tick task-record cache on every tracker.
@@ -1592,7 +1540,6 @@ class Orchestrator:
         trackers = [
             self.tracker,
             *self._project_trackers.values(),
-            *self._project_legacy_backlog_trackers.values(),
         ]
         for tracker in trackers:
             inval = getattr(tracker, "invalidate_read_cache", None)
@@ -1828,10 +1775,6 @@ class Orchestrator:
     async def startup_cleanup(self) -> None:
         """Remove workspaces/worktrees for issues in terminal states."""
         projects = self.project_store.list_all()
-        if projects:
-            # Surface dashboard alerts for any projects quarantined due to
-            # unresolvable Backlog.md conflict markers.
-            self._refresh_backlog_conflict_alerts()
         self._maintenance_status["startup_cleanup"] = {
             "last_run_at": datetime.now(timezone.utc).isoformat(),
             "worktree_cleanup_deferred": True,
@@ -2086,13 +2029,6 @@ class Orchestrator:
         except Exception as exc:  # noqa: BLE001
             self._heal_error_last = str(exc)
             logger.warning("Periodic repo self-heal failed: %s", exc)
-        # Surface/clear dashboard alerts for any checkout that ended up
-        # quarantined (or got healed) this pass.
-        try:
-            self._refresh_backlog_conflict_alerts()
-        except Exception:  # noqa: BLE001
-            pass
-
     def _maybe_cleanup_worktrees(self) -> None:
         """Periodically remove terminal worktrees (merged/archived tasks only).
 
@@ -2445,7 +2381,7 @@ class Orchestrator:
 
         # 5a. MAINTENANCE LANE — watchdog: detect and fix stuck issues.
         # Offloaded to the tick thread pool to keep the event loop unblocked —
-        # the four sub-checks iterate _last_candidates and may issue bd CLI
+        # the four sub-checks iterate _last_candidates and may issue tracker
         # calls per stuck issue, which can block 200ms-2s. Safe because
         # watchdog runs after all other tick handlers have settled, so the
         # shared mutable state it reads (state.completed, _orphan_reset_counts,
@@ -2740,18 +2676,18 @@ class Orchestrator:
             metrics[f"{name}_ms"] = round((time.monotonic() - start) * 1000, 3)
             return result
 
-        # 1. Candidate fetch — dominant I/O cost (one bd list call per project)
+        # 1. Candidate fetch — dominant I/O cost (one tracker query per project)
         candidates = await _timed("fetch_candidates", self._fetch_all_candidates)
         self._last_candidates = candidates
         metrics["candidate_count"] = len(candidates)
         timings["candidate_fetch"] = metrics["fetch_candidates_ms"]
 
-        # 2. Blocker pre-resolution — parallel bd state lookups per blocker
+        # 2. Blocker pre-resolution — parallel tracker state lookups per blocker
         await _timed("pre_resolve_blockers", self._pre_resolve_blockers, candidates)
         timings["blocker_pre_resolution"] = metrics["pre_resolve_blockers_ms"]
 
-        # 3. Duplicate detection — pattern-based de-dup (add-label, add-comment)
-        # bd CLI calls don't block the event loop. This detects pattern-based
+        # 3. Duplicate detection — pattern-based de-dup (add-label, add-comment).
+        # Tracker calls run off the event loop. This detects pattern-based
         # duplicates like "rogers-*" that share a topic prefix even when suffixes differ.
         await _timed("duplicate_detection", self._apply_duplicate_detection, candidates)
         metrics["duplicate_detection"] = getattr(
@@ -2768,8 +2704,8 @@ class Orchestrator:
         timings["epic_proposals"] = metrics["epic_proposals_ms"]
 
         # 5. Candidate selection — sort + filter pass via _select_dispatchable.
-        # Run in a worker thread so bd CLI calls inside _should_dispatch
-        # (~150ms each) don't block uvicorn's event loop. Returns the
+        # Run in a worker thread so tracker calls inside _should_dispatch
+        # don't block uvicorn's event loop. Returns the
         # final ordered list of issues that passed _should_dispatch; the
         # async loop below only yields once per actual dispatch — no sync
         # work between yields. See task oompah-zlz_2-nvr.
@@ -3103,52 +3039,6 @@ class Orchestrator:
                         )
                         return []
 
-                # Legacy Backlog dual-read (TASK-464.2):
-                # For GitHub-backed projects the primary tracker returns GitHub
-                # issues (tracker_kind='github_issues').  When
-                # legacy_backlog_enabled=True we additionally read the
-                # BacklogMdTracker and merge its issues — tagging them as
-                # 'backlog_md' so the dispatch gate can distinguish them.
-                # When legacy_backlog_enabled=False we must *not* expose
-                # Backlog issues at all: filter them from the primary fetch
-                # result (handles the transition period where TASK-461.1 has
-                # not yet switched _tracker_for_project to GitHubIssueTracker).
-                github_backed = _is_github_backed(project)
-                if github_backed:
-                    raw_issues, _ = await self._run_bounded_refresh(
-                        project_id, "candidates", _coro
-                    )
-                    # Separate GitHub-native issues from legacy Backlog issues.
-                    gh_issues = []
-                    backlog_issues = []
-                    for issue in raw_issues:
-                        kind = (issue.tracker_kind or "").strip().lower()
-                        if kind in ("github_issues", "github-issues"):
-                            gh_issues.append(issue)
-                        else:
-                            backlog_issues.append(issue)
-                    if project.legacy_backlog_enabled:
-                        backlog_issues.extend(
-                            self._fetch_legacy_backlog_candidates_for_project(project)
-                        )
-                        # Tag legacy issues so the dispatch gate can apply the
-                        # legacy_backlog_dispatch check.
-                        seen_backlog: set[str] = set()
-                        tagged_backlog: list[Issue] = []
-                        for issue in backlog_issues:
-                            key = issue.identifier or issue.id
-                            if key in seen_backlog:
-                                continue
-                            seen_backlog.add(key)
-                            issue.project_id = project_id
-                            issue.tracker_kind = "backlog_md"
-                            issue.is_legacy = True
-                            tagged_backlog.append(issue)
-                        return gh_issues + tagged_backlog
-                    else:
-                        # Backlog issues are not visible for this project.
-                        return gh_issues
-                # Non-GitHub-backed project: standard path, no filtering.
                 data, _ = await self._run_bounded_refresh(
                     project_id, "candidates", _coro
                 )
@@ -3164,7 +3054,7 @@ class Orchestrator:
         return asyncio.run(_fetch_all_projects())
 
     def _fetch_legacy_candidates(self) -> list[Issue]:
-        """Fetch candidates from legacy (no-projects) tracker."""
+        """Fetch candidates from the globally configured tracker."""
         try:
             return self.tracker.fetch_candidate_issues()
         except TrackerNotConfiguredError:
@@ -3183,7 +3073,7 @@ class Orchestrator:
     def _fetch_in_progress_issues(self) -> list[Issue]:
         """Fetch In Progress issues for orphan reconciliation.
 
-        In Progress is not a dispatchable status in the Backlog workflow, so
+        In Progress is not a dispatchable status in the oompah workflow, so
         these tasks must be fetched separately from normal dispatch candidates.
         """
         projects = self.project_store.list_all()
@@ -3327,7 +3217,7 @@ class Orchestrator:
     def _fetch_issue_across_trackers(self, identifier: str) -> Issue | None:
         """Look up an issue by identifier across all configured trackers.
 
-        Tries project trackers first, then falls back to the legacy default
+        Tries project trackers first, then falls back to the service default
         tracker.  Returns the first match found, or ``None``.  Sets
         ``issue.project_id`` on the returned issue when found in a project
         tracker.
@@ -3425,163 +3315,26 @@ class Orchestrator:
         return n
 
     def _shared_epic_child_done(self, issue: Issue) -> bool:
-        """[LEGACY: Backlog.md only] True when a shared-epic child already records a terminal status
-        on its epic branch worktree.
-
-        The dispatch loop reads status from the main checkout, which only
-        reflects a shared-epic child's completion once the epic→main PR
-        lands. Until then an already-finished child still looks active in
-        main and would be re-dispatched indefinitely. We consult the epic
-        worktree (the child's real working branch) to break that loop.
-
-        Uses ``issue.parent_id`` directly as the epic identifier — it maps
-        to the same ``epic-<identifier>`` worktree the dispatcher creates
-        (verified: parent_id == the epic's identifier for Backlog). Reads
-        a local file only (no git/CLI), and fails open (returns False) if
-        the worktree or task file is absent, so a missing worktree just
-        falls through to normal dispatch rather than wrongly skipping.
-
-        For API-backed trackers (e.g. GitHub Issues), task state is
-        centralised and always current; this worktree file check is a no-op.
-        """
-        if not issue.project_id or not issue.parent_id:
-            return False
-        # Guard: worktree task-file reads are only meaningful for
-        # BacklogMdTracker.  API-backed trackers keep task state in the remote
-        # service, so fetch_issue_detail is always authoritative.
-        try:
-            tracker = self._tracker_for_project(issue.project_id)
-        except Exception:  # noqa: BLE001
-            return False
-        if not isinstance(tracker, BacklogMdTracker):
-            return False
-        try:
-            status = self.project_store.read_task_status_in_epic_worktree(
-                issue.project_id,
-                issue.parent_id,
-                issue.identifier,
-            )
-        except Exception as exc:  # noqa: BLE001 — best-effort gate
-            logger.debug(
-                "epic-branch status read failed for %s: %s",
-                issue.identifier,
-                exc,
-            )
-            return False
-        if not status:
-            return False
-        return _is_terminal_state(status, self.config.tracker_terminal_states)
+        """Return True when the tracker says a shared-epic child is terminal."""
+        return _is_terminal_state(issue.state, self.config.tracker_terminal_states)
 
     def _blocker_satisfied(self, issue: Issue, blocker, blocker_state: str) -> bool:
         """Whether a dependency/blocker counts as resolved for dispatch.
 
-        Terminal on the default branch always satisfies. Additionally, for
-        a shared-epic child using BacklogMdTracker, a blocker that is a SIBLING
-        in the same epic records its terminal status on the epic branch (not the
-        default branch the tracker reads) — so treat it satisfied if it's
-        terminal there too. Without this, a child that depends on a sibling
-        which is Done-on-branch-but-Open-on-main is blocked forever.
-
-        The worktree file check (``read_task_status_in_epic_worktree``) is a
-        LEGACY Backlog.md-only path.  For API-backed trackers the tracker's
-        own state is always current and no filesystem read is needed.
+        The tracker owns task state, so the blocker is satisfied only when its
+        current tracker state is terminal.
         """
         if _is_terminal_state(blocker_state, self.config.tracker_terminal_states):
             return True
-        if not issue.project_id or not issue.parent_id:
-            return False
-        if self._project_epic_strategy(issue.project_id) != "shared":
-            return False
-        blocker_ident = (
-            getattr(blocker, "identifier", None) or getattr(blocker, "id", None)
-        )
-        if not blocker_ident:
-            return False
-        # Guard: worktree file reads are Backlog.md-only.  API-backed trackers
-        # do not store task state as files in the epic worktree.
-        try:
-            tracker = self._tracker_for_project(issue.project_id)
-        except Exception:  # noqa: BLE001
-            return False
-        if not isinstance(tracker, BacklogMdTracker):
-            return False
-        # read_task_status_in_epic_worktree returns None when the blocker
-        # isn't a child of this epic (not in the epic worktree), so a
-        # cross-epic / standalone blocker correctly falls through to False.
-        try:
-            status = self.project_store.read_task_status_in_epic_worktree(
-                issue.project_id, issue.parent_id, blocker_ident
-            )
-        except Exception:  # noqa: BLE001 — best-effort; default-branch check stands
-            status = None
-        return bool(status) and _is_terminal_state(
-            status, self.config.tracker_terminal_states
-        )
+        return False
 
     def _shared_epic_child_terminal(self, epic: Issue, child: Issue) -> bool:
-        """Whether a shared-epic child counts as complete for the landing gate.
-
-        A child is terminal if it's terminal on EITHER branch:
-
-        * the default branch (``child.state``) — e.g. a child that merged
-          via its own PR, so it's Done/Merged on main but may be stale on
-          the epic branch; OR
-        * the epic branch — [LEGACY: Backlog.md only] where a shared child
-          records its status; the default branch only catches up once THIS
-          epic's PR lands, so reading only the default branch would deadlock
-          the gate.
-
-        For API-backed trackers (e.g. GitHub Issues), task state is
-        centralised; only ``child.state`` from the tracker is checked.
-        """
-        if _is_terminal_state(child.state, self.config.tracker_terminal_states):
-            return True
-        if not epic.project_id or not child.identifier:
-            return False
-        # Guard: worktree file reads are Backlog.md-only.  API-backed trackers
-        # keep task state in the remote service — child.state is authoritative.
-        try:
-            tracker = self._tracker_for_project(epic.project_id)
-        except Exception:  # noqa: BLE001
-            return False
-        if not isinstance(tracker, BacklogMdTracker):
-            return False
-        try:
-            status = self.project_store.read_task_status_in_epic_worktree(
-                epic.project_id, epic.identifier, child.identifier
-            )
-        except Exception:  # noqa: BLE001 — best-effort; default-branch check stands
-            status = None
-        return bool(status) and _is_terminal_state(
-            status, self.config.tracker_terminal_states
-        )
+        """Whether a shared-epic child counts as complete for the landing gate."""
+        return _is_terminal_state(child.state, self.config.tracker_terminal_states)
 
     def _epic_child_effective_state(self, epic: Issue, child: Issue) -> str:
-        """The further-along of a shared-epic child's default-branch and
-        epic-branch statuses — the child's true progress regardless of which
-        branch carries it. Used to roll an epic up to a state.
-
-        The epic-branch read (``read_task_status_in_epic_worktree``) is a
-        LEGACY Backlog.md-only path.  For API-backed trackers the tracker
-        state is always current; only ``child.state`` is used.
-        """
-        eff = child.state
-        if epic.project_id and child.identifier:
-            # Guard: worktree file reads are Backlog.md-only.
-            try:
-                tracker = self._tracker_for_project(epic.project_id)
-            except Exception:  # noqa: BLE001
-                tracker = None
-            if isinstance(tracker, BacklogMdTracker):
-                try:
-                    branch_status = self.project_store.read_task_status_in_epic_worktree(
-                        epic.project_id, epic.identifier, child.identifier
-                    )
-                except Exception:  # noqa: BLE001 — best-effort; default branch stands
-                    branch_status = None
-                if branch_status:
-                    eff = more_advanced_status(child.state, branch_status)
-        return eff
+        """Return the tracker-backed effective state for a shared-epic child."""
+        return child.state
 
     def _all_non_terminal_epics(self) -> list[Issue]:
         """Every unfinished epic across all projects, regardless of the
@@ -4201,41 +3954,6 @@ class Orchestrator:
             return None
         return strategy
 
-    def _sync_issue_task_file_to_workspace(self, issue: Issue, workspace_path: str) -> None:
-        """[LEGACY: Backlog.md only] Best-effort sync of Backlog task metadata into a worktree.
-
-        No-op for API-backed trackers (e.g. GitHub Issues) — their task state
-        is centralised and does not live as files in the managed checkout.
-        """
-        if not issue.project_id:
-            return
-        # Guard: only BacklogMdTracker stores task state as filesystem files
-        # that need copying into the worker worktree.  API-backed trackers
-        # have no file to sync.
-        try:
-            tracker = self._tracker_for_project(issue.project_id)
-        except Exception:  # noqa: BLE001
-            return
-        if not isinstance(tracker, BacklogMdTracker):
-            return
-        try:
-            self.project_store.sync_task_file_to_worktree(
-                issue.project_id,
-                issue.identifier,
-                workspace_path,
-                # Don't let a stale main-checkout copy regress a status the
-                # agent already advanced on a persistent (shared-epic)
-                # branch — see the infinite re-dispatch loop this caused.
-                preserve_statuses=frozenset(self.config.tracker_terminal_states),
-            )
-        except (ProjectError, OSError) as exc:
-            logger.warning(
-                "Failed to sync task file into workspace issue_id=%s project=%s: %s",
-                issue.identifier,
-                issue.project_id,
-                exc,
-            )
-
     def _create_workspace_for_issue(
         self,
         issue: Issue,
@@ -4274,7 +3992,6 @@ class Orchestrator:
                     issue.project_id,
                     parent_epic.identifier,
                 )
-                self._sync_issue_task_file_to_workspace(issue, wp)
                 return wp, parent_epic
 
         # For GitHub-backed tasks, generate a GitHub-safe branch name
@@ -4313,7 +4030,6 @@ class Orchestrator:
             base_branch=issue.target_branch,
             branch_name=work_branch,
         )
-        self._sync_issue_task_file_to_workspace(issue, wp)
         return wp, None
 
     def _auto_close_completed_epics(self, candidates: list[Issue]) -> None:
@@ -4578,78 +4294,6 @@ class Orchestrator:
                 "Cleared stuck_epic alert for %s",
                 epic_identifier,
             )
-
-    # ------------------------------------------------------------------
-    # Backlog conflict quarantine alerts (TASK-431)
-    # ------------------------------------------------------------------
-
-    def _refresh_backlog_conflict_alerts(self) -> None:
-        """Arm or clear dashboard alerts for projects quarantined due to
-        unresolved Backlog.md git conflict markers.
-
-        Called from :meth:`startup_cleanup` so the dashboard shows a
-        warning whenever oompah boots with a quarantined project.  Also
-        called from :meth:`sync_project_sources` after each project sync
-        so the alert clears when the operator resolves the conflicts.
-        """
-        projects = self.project_store.list_all()
-        # Build the set of source keys for currently-quarantined projects
-        active_sources: set[str] = set()
-        for project in projects:
-            source = f"backlog_conflict:{project.id}"
-            paths = getattr(project, "backlog_conflict_paths", None) or []
-            if paths:
-                active_sources.add(source)
-                # Drop any existing alert for this project before re-arming
-                self._alerts = [
-                    a for a in self._alerts if a.get("source") != source
-                ]
-                basenames = [
-                    p.split("/")[-1] for p in paths
-                ]
-                files_hint = ", ".join(basenames[:5])
-                if len(basenames) > 5:
-                    files_hint += f" (+{len(basenames) - 5} more)"
-                self._alerts.append(
-                    {
-                        "source": source,
-                        "level": "error",
-                        "title": (
-                            f"Project {project.name!r} is quarantined: "
-                            f"unresolved Backlog.md conflicts"
-                        ),
-                        "detail": (
-                            f"oompah detected unresolvable git conflict markers "
-                            f"in {len(paths)} Backlog task file(s) for project "
-                            f"{project.name!r}. Dispatch is suspended for this "
-                            f"project until the conflicts are resolved.\n\n"
-                            f"Conflicted files: {files_hint}\n\n"
-                            f"To resolve: manually edit each file, remove the "
-                            f"conflict markers, then trigger a project sync or "
-                            f"restart oompah."
-                        ),
-                        "project_id": project.id,
-                        "project_name": project.name,
-                        "conflict_paths": list(paths),
-                    }
-                )
-                logger.warning(
-                    "Dashboard alert armed: project %r quarantined for "
-                    "Backlog conflict in: %s",
-                    project.name,
-                    files_hint,
-                )
-            else:
-                # Project has no conflicts — clear any stale alert
-                before = len(self._alerts)
-                self._alerts = [
-                    a for a in self._alerts if a.get("source") != source
-                ]
-                if len(self._alerts) != before:
-                    logger.info(
-                        "Cleared backlog_conflict alert for project %r",
-                        project.name,
-                    )
 
     # ------------------------------------------------------------------
     # Epic branch staleness detection (oompah-zlz_2-82dr.1)
@@ -5414,7 +5058,6 @@ class Orchestrator:
                     wt_path,
                     epic_branch,
                 )
-                self._commit_shared_epic_metadata_if_dirty(wt_path, epic_identifier)
                 push_cwd = wt_path
                 push_cmd = ["git", "push", "origin", f"HEAD:{epic_branch}"]
 
@@ -5426,89 +5069,6 @@ class Orchestrator:
             check=True,
             timeout=60,
         )
-
-    def _commit_shared_epic_metadata_if_dirty(
-        self,
-        wt_path: str,
-        epic_identifier: str,
-    ) -> None:
-        """Commit pending Backlog metadata before opening a shared-epic PR."""
-        status = subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=wt_path,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=30,
-        )
-        if not status.stdout.strip():
-            return
-
-        metadata_paths = [
-            path
-            for path in ("backlog/tasks", "backlog/completed", "backlog/archive")
-            if os.path.exists(os.path.join(wt_path, path))
-        ]
-        if not metadata_paths:
-            raise ProjectError(
-                "shared epic worktree is dirty but has no Backlog metadata paths "
-                f"to commit: {wt_path}"
-            )
-
-        subprocess.run(
-            ["git", "add", "--", *metadata_paths],
-            cwd=wt_path,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=30,
-        )
-        staged = subprocess.run(
-            ["git", "diff", "--cached", "--quiet"],
-            cwd=wt_path,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if staged.returncode == 0:
-            raise ProjectError(
-                "shared epic worktree has uncommitted non-metadata changes; "
-                f"refusing rollup PR for {epic_identifier}"
-            )
-        if staged.returncode != 1:
-            raise ProjectError(
-                "failed to inspect staged shared epic metadata changes: "
-                f"{staged.stderr.strip()}"
-            )
-
-        message = (
-            f"{epic_identifier}: Commit shared epic task metadata\n\n"
-            "Record shared-epic Backlog task state before opening the rollup PR.\n\n"
-            "🤖 Generated with https://github.com/lesserevil/oompah\n\n"
-            "Co-authored-by: oompah <lesserevil@users.noreply.github.com>"
-        )
-        subprocess.run(
-            ["git", "commit", "-m", message],
-            cwd=wt_path,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=60,
-        )
-
-        status_after = subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=wt_path,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=30,
-        )
-        if status_after.stdout.strip():
-            raise ProjectError(
-                "shared epic worktree still has uncommitted non-metadata changes "
-                f"after metadata commit; refusing rollup PR for {epic_identifier}"
-            )
 
     # ------------------------------------------------------------------
     # Epic rebase outcome tracking (oompah-zlz_2-82dr.3)
@@ -5898,20 +5458,6 @@ class Orchestrator:
         # state snapshot. See task oompah-zlz_2-u7c.
         if self._is_project_paused(issue.project_id):
             return _reject("project_paused")
-        # Legacy Backlog dispatch gate (TASK-464.2): when a project has been
-        # cut over to GitHub Issues (tracker_kind='github_issues'), existing
-        # Backlog.md tasks may be readable (legacy_backlog_enabled=True) but
-        # are not dispatchable unless legacy_backlog_dispatch is also set.
-        # A "Backlog" issue is identified by its tracker_kind being absent or
-        # any value other than "github_issues" / "github-issues".
-        project_store = getattr(self, "project_store", None)
-        if issue.project_id and project_store is not None:
-            _lb_proj = project_store.get(issue.project_id)
-            if _lb_proj is not None and _is_github_backed(_lb_proj):
-                issue_kind = (getattr(issue, "tracker_kind", None) or "").strip().lower()
-                _issue_is_github = issue_kind in ("github_issues", "github-issues")
-                if not _issue_is_github and not _lb_proj.legacy_backlog_dispatch:
-                    return _reject("legacy_backlog_not_dispatchable")
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return _reject("missing_fields")
         if (
@@ -9035,14 +8581,9 @@ class Orchestrator:
                                 tracker,
                                 review.source_branch,
                             )
-                            # GitHub-backed tasks: post a comment so the
-                            # issue record reflects that the PR entered
-                            # the merge queue. Backlog tasks rely on the
-                            # webhook sweep and need no extra comment.
-                            if self.config.tracker_kind == "github_issues":
-                                self._yolo_comment_enqueued(
-                                    tracker, project, review, str(review_id)
-                                )
+                            self._yolo_comment_enqueued(
+                                tracker, project, review, str(review_id)
+                            )
                             actions_fired += 1
                             # Merge-queue mode: GitHub's queue handles
                             # serialization, so a successful enqueue does
@@ -9111,12 +8652,9 @@ class Orchestrator:
                                 tracker,
                                 review.source_branch,
                             )
-                            # GitHub-backed tasks: mark Merged + comment.
-                            # Backlog tasks are updated by the webhook sweep.
-                            if self.config.tracker_kind == "github_issues":
-                                self._yolo_mark_task_merged(
-                                    tracker, project, review, str(review_id)
-                                )
+                            self._yolo_mark_task_merged(
+                                tracker, project, review, str(review_id)
+                            )
                             actions_fired += 1
                             # Direct merge (fallback path): each merge
                             # changes the target branch, so subsequent
@@ -9174,12 +8712,9 @@ class Orchestrator:
                                 tracker,
                                 review.source_branch,
                             )
-                            # GitHub-backed tasks: mark Merged + comment.
-                            # Backlog tasks are updated by the webhook sweep.
-                            if self.config.tracker_kind == "github_issues":
-                                self._yolo_mark_task_merged(
-                                    tracker, project, review, str(review_id)
-                                )
+                            self._yolo_mark_task_merged(
+                                tracker, project, review, str(review_id)
+                            )
                             actions_fired += 1
                             # Direct-merge mode: each merge changes the
                             # target branch, so subsequent PRs would
@@ -9603,8 +9138,8 @@ class Orchestrator:
                 else:
                     continue
                 key = (project.id, review_id, kind)
-                bead_id = self._yolo_orphan_recovery_tasks.get(key)
-                if not bead_id:
+                recovery_task_id = self._yolo_orphan_recovery_tasks.get(key)
+                if not recovery_task_id:
                     # We haven't filed an orphan-recovery task — the
                     # standard YOLO path is responsible for handling
                     # this PR. D3 only fires when a recovery task WAS
@@ -9612,7 +9147,7 @@ class Orchestrator:
                     continue
                 # Check: is the orphan-recovery task still open?
                 try:
-                    issue = tracker.fetch_issue_detail(bead_id)
+                    issue = tracker.fetch_issue_detail(recovery_task_id)
                 except Exception:  # noqa: BLE001
                     continue
                 if not issue:
@@ -9625,7 +9160,7 @@ class Orchestrator:
                             "kind": kind,
                             "source_branch": source_branch,
                             "reason": (
-                                f"recovery task {bead_id} no longer exists; "
+                                f"recovery task {recovery_task_id} no longer exists; "
                                 "PR still in failing state"
                             ),
                         }
@@ -9642,7 +9177,7 @@ class Orchestrator:
                             "kind": kind,
                             "source_branch": source_branch,
                             "reason": (
-                                f"recovery task {bead_id} is closed (state={issue.state}) "
+                                f"recovery task {recovery_task_id} is closed (state={issue.state}) "
                                 f"but PR still has {kind} condition"
                             ),
                         }
@@ -9732,7 +9267,7 @@ class Orchestrator:
         # Log at WARNING (not ERROR): filing a P0 escalation task is the
         # watchdog's *expected* notification path for stuck PRs — it's
         # not an oompah-internal failure. Logging at ERROR would cause
-        # error_watcher's _BeadLoggingHandler to auto-file a duplicate
+        # error_watcher's _TaskLoggingHandler to auto-file a duplicate
         # meta-task in the oompah project, dirtying the queue with
         # notifications that already have their own task in the target
         # project (oompah-zlz_2-8vc).
@@ -9922,9 +9457,8 @@ class Orchestrator:
         branch-to-issue index — a ``{work_branch: identifier}`` mapping built
         from open/in-review issues — before falling back to the legacy path.
 
-        For **Backlog-backed tasks** branches are named after the task
-        identifier, so the direct ``fetch_issue_detail`` lookup still works
-        (legacy fallback).
+        For native tasks, branches are named after the task identifier, so the
+        direct ``fetch_issue_detail`` lookup still works as a fallback.
 
         Epic→main PRs use an ``epic-<identifier>`` branch (see
         ``ProjectStore.epic_branch_name``); the ``epic-`` prefix is stripped in
@@ -9951,7 +9485,7 @@ class Orchestrator:
                 if issue is not None:
                     return issue
 
-        # --- Legacy Backlog path: branch name == identifier ---
+        # --- Native fallback path: branch name == identifier ---
         issue = tracker.fetch_issue_detail(source_branch)
         if issue is None and source_branch.startswith("epic-"):
             issue = tracker.fetch_issue_detail(source_branch[len("epic-"):])
@@ -10491,11 +10025,10 @@ class Orchestrator:
     def _yolo_comment_enqueued(
         self, tracker, project, review, review_id: str
     ) -> None:
-        """Post a comment on a GitHub-backed task when YOLO enqueues its PR.
+        """Post a comment on a task when YOLO enqueues its PR.
 
-        Only called for non-Backlog trackers (``isinstance`` guard at call
-        site).  Best-effort: any failure is logged at DEBUG level so it
-        never blocks the main YOLO loop.
+        Best-effort: any failure is logged at DEBUG level so it never blocks
+        the main YOLO loop.
         """
         try:
             source_branch = getattr(review, "source_branch", "") or ""
@@ -10522,13 +10055,7 @@ class Orchestrator:
     def _yolo_mark_task_merged(
         self, tracker, project, review, review_id: str
     ) -> None:
-        """Mark a GitHub-backed task Merged and comment when YOLO directly merges it.
-
-        Only called for non-Backlog trackers (``isinstance`` guard at call
-        site).  For Backlog tasks the webhook sweep handles the status
-        transition — this explicit update is only needed for GitHub-backed
-        tasks where the branch name does not equal the task identifier and
-        the legacy webhook lookup path would silently miss the task.
+        """Mark a task Merged and comment when YOLO directly merges its PR.
 
         Best-effort: any failure is logged at DEBUG level so it never
         blocks the main YOLO loop.
@@ -11044,8 +10571,8 @@ class Orchestrator:
         """Sort candidates and filter via _should_dispatch.
 
         Designed to be called via run_in_executor from _handle_dispatch_needed
-        so the bd CLI calls inside _should_dispatch (label/blocker resolution
-        at ~150ms each) run off the asyncio event loop, keeping uvicorn
+        so tracker calls inside _should_dispatch (label/blocker resolution)
+        run off the asyncio event loop, keeping uvicorn
         responsive during heavy ticks. See task oompah-zlz_2-nvr.
 
         Returns the issues that pass _should_dispatch in priority/age order.
@@ -12392,8 +11919,8 @@ class Orchestrator:
         """Persist cost telemetry for a completed run into the issue's metadata.
 
         Storage key: ``oompah.task_costs``, written via the tracker protocol
-        (``set_metadata_field``).  Works for both BacklogMd (front matter) and
-        GitHub-backed tasks (body metadata block).
+        (``set_metadata_field``). Works for native frontmatter and
+        GitHub-backed tasks.
         Multiple runs accumulate cumulatively — per-model entries are summed.
 
         This method is designed to be called from a background thread
@@ -13047,8 +12574,7 @@ class Orchestrator:
         # unique run ID onto the issue metadata and re-read it immediately. The
         # last writer wins: if another oompah instance claimed the issue after
         # us, our run ID will have been overwritten and we abort rather than
-        # starting a duplicate agent. Legacy Backlog projects rely on the
-        # in-process dispatch lock and skip this protocol.
+        # starting a duplicate agent.
         if (issue.tracker_kind or "").strip().lower() in {"github_issues", "oompah_md"}:
             _claim_run_id = str(uuid.uuid4())
             try:
@@ -14889,109 +14415,13 @@ class Orchestrator:
         else:
             logger.warning(
                 "completion verifier REJECTED close for %s: "
-                "new_backlog_files=%s missing_files=%s missing_symbols=%s llm_verdict=%s",
+                "missing_files=%s missing_symbols=%s llm_verdict=%s",
                 entry.identifier,
-                result.new_backlog_files,
                 (result.stage1.missing_files if result.stage1 else []),
                 (result.stage1.missing_symbols if result.stage1 else []),
                 (result.stage2.verdict if result.stage2 else None),
             )
-            # Surface a dashboard alert when the backlog-file guard fires so
-            # operators can see GitHub-backed tasks that attempted to create
-            # Backlog.md task files.  The alert is keyed per-issue so
-            # re-dispatch replaces it rather than stacking.
-            if result.new_backlog_files:
-                source = f"backlog_file_guard:{entry.identifier}"
-                self._alerts = [
-                    a for a in self._alerts if a.get("source") != source
-                ]
-                self._alerts.append(
-                    {
-                        "level": "warning",
-                        "source": source,
-                        "message": (
-                            f"GitHub-backed task {entry.identifier} added "
-                            f"Backlog task file(s): "
-                            + ", ".join(result.new_backlog_files)
-                        ),
-                    }
-                )
         return result
-
-    def _fetch_terminal_issue_from_worker_workspace(
-        self,
-        entry: "RunningEntry",
-        tracker: TrackerProtocol | None = None,
-    ) -> Issue | None:
-        """[LEGACY: Backlog.md only] Return a terminal task state from the worker workspace.
-
-        BacklogMdTracker stores task state as files in the managed checkout.
-        Agents edit these files in their own git worktree, so a valid close
-        can exist in the worker worktree before the managed checkout's copy is
-        updated.  This function bridges that gap by reading state directly from
-        the agent's worktree directory.
-
-        For API-backed trackers (e.g. GitHub Issues), task state is always
-        centralised in the remote service and this function is a no-op.  Pass
-        the active project tracker via ``tracker`` so the guard can fire early
-        without constructing a new adapter.  For GitHub-backed tasks the caller
-        already has an authoritative state from ``fetch_issue_detail()`` on the
-        remote service — no workspace file read is needed or correct.
-        """
-        # Guard: only BacklogMdTracker stores task state as files in the worker
-        # worktree.  API-backed trackers (e.g. GitHub Issues) update the central
-        # service directly, so their state is already fresh via the standard
-        # fetch_issue_detail call.
-        #
-        # Use the passed project tracker to determine the kind.  When no tracker
-        # is supplied fall back to self.tracker (legacy global path).  Per-project
-        # tracker resolution (TASK-461.1) is now in place, so the passed tracker
-        # is authoritative for this decision — no secondary fallback to self.tracker
-        # is needed or correct.
-        check_tracker = tracker if tracker is not None else self.tracker
-        if not isinstance(check_tracker, BacklogMdTracker):
-            return None
-
-        workspace_path = (entry.workspace_path or "").strip()
-        if not workspace_path:
-            return None
-        if not os.path.isdir(workspace_path):
-            logger.debug(
-                "worker workspace missing for %s: %s",
-                entry.identifier,
-                workspace_path,
-            )
-            return None
-        try:
-            ws_tracker = self._new_tracker(cwd=workspace_path)
-            issue = ws_tracker.fetch_issue_detail(entry.identifier)
-        except Exception as exc:
-            logger.warning(
-                "Failed to read worker workspace task state for %s from %s: %s",
-                entry.identifier,
-                workspace_path,
-                exc,
-            )
-            return None
-        if not issue:
-            return None
-        if issue.identifier != entry.identifier:
-            logger.debug(
-                "Ignoring worker workspace task mismatch for %s: got %s",
-                entry.identifier,
-                issue.identifier,
-            )
-            return None
-        if not issue.project_id:
-            issue.project_id = entry.issue.project_id
-        if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
-            logger.info(
-                "Recognized terminal Backlog state for %s from worker workspace %s",
-                entry.identifier,
-                workspace_path,
-            )
-            return issue
-        return None
 
     async def _on_worker_exit(
         self, issue_id: str, reason: str, error: str | None
@@ -15130,11 +14560,6 @@ class Orchestrator:
                     else self.tracker
                 )
                 current = tracker.fetch_issue_detail(entry.identifier)
-                workspace_current = self._fetch_terminal_issue_from_worker_workspace(
-                    entry, tracker=tracker
-                )
-                if workspace_current is not None:
-                    current = workspace_current
                 if current and not _is_terminal_state(
                     current.state, self.config.tracker_terminal_states
                 ):

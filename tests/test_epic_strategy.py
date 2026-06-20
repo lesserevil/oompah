@@ -64,7 +64,7 @@ def _make_project_record(
     p.branch = "main"
     p.default_branch = "main"
     p.branches = ["main"]
-    p.tracker_kind = "backlog_md"
+    p.tracker_kind = "oompah_md"
     p.matches_branch = lambda b: fnmatch.fnmatch(b, "main")
     p.paused = paused
     p.epic_strategy = epic_strategy
@@ -84,7 +84,7 @@ def _make_orch(tmp_path, projects=None):
         f"epic-{epic_id.replace('/', '_')}"
     )
     orch = Orchestrator(
-        config=ServiceConfig(tracker_kind="backlog_md"),
+        config=ServiceConfig(tracker_kind="oompah_md"),
         workflow_path="WORKFLOW.md",
         project_store=project_store,
         state_path=str(tmp_path / "state.json"),
@@ -480,10 +480,8 @@ class TestSharedModeDispatchGating:
         reason, _count = orch.state.reject_streak[child.id]
         assert reason == "missing_parent_epic"
 
-    def test_rejects_when_child_done_on_epic_branch(self, tmp_path):
-        """A shared-epic child already terminal on its epic branch must not
-        be re-dispatched, even though main still shows it active. This is
-        the fix for the infinite re-dispatch loop."""
+    def test_removed_epic_branch_status_gate_does_not_block_dispatch(self, tmp_path):
+        """Shared-epic dispatch no longer reads task status from epic worktrees."""
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
         child = _make_issue(identifier="task-only", parent_id="epic-1", state="open")
@@ -493,9 +491,7 @@ class TestSharedModeDispatchGating:
             "read_task_status_in_epic_worktree",
             return_value="Done",
         ):
-            assert orch._should_dispatch(child) is False
-        reason, _count = orch.state.reject_streak[child.id]
-        assert "epic_branch_done" in reason
+            assert orch._should_dispatch(child) is True
 
     def test_allows_when_child_not_done_on_epic_branch(self, tmp_path):
         """A non-terminal (or absent) epic-branch status falls through to
@@ -511,10 +507,8 @@ class TestSharedModeDispatchGating:
         ):
             assert orch._should_dispatch(child) is True
 
-    def test_shared_child_dispatches_when_blocker_done_on_epic_branch(self, tmp_path):
-        """A shared-epic child whose sibling blocker is Done on the EPIC
-        BRANCH (but still Open on the default branch) must dispatch — the
-        dependency is satisfied. This breaks the 706.7-style deadlock."""
+    def test_shared_child_stays_blocked_when_default_branch_blocker_open(self, tmp_path):
+        """Shared-epic blocker checks use the canonical tracker state."""
         from oompah.models import BlockerRef
 
         proj = _make_project_record(epic_strategy="shared")
@@ -530,7 +524,9 @@ class TestSharedModeDispatchGating:
             patch.object(orch, "_resolve_blocker_state", return_value="open"),
             patch.object(orch, "_blocker_has_unmerged_pr", return_value=False),
         ):
-            assert orch._should_dispatch(child) is True
+            assert orch._should_dispatch(child) is False
+        reason, _count = orch.state.reject_streak[child.id]
+        assert "blocker" in reason
 
     def test_shared_child_blocked_when_blocker_not_done_on_either_branch(self, tmp_path):
         """If the sibling blocker is non-terminal on BOTH branches, the
@@ -550,9 +546,8 @@ class TestSharedModeDispatchGating:
         reason, _count = orch.state.reject_streak[child.id]
         assert "blocker" in reason
 
-    def test_p0_child_done_on_epic_branch_still_rejected(self, tmp_path):
-        """The epic-branch-done gate applies even to P0 — a completed
-        child must never be re-dispatched regardless of priority."""
+    def test_p0_child_ignores_removed_epic_branch_status_gate(self, tmp_path):
+        """The removed epic-branch status gate does not block P0 dispatch."""
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
         child = _make_issue(
@@ -564,9 +559,7 @@ class TestSharedModeDispatchGating:
             "read_task_status_in_epic_worktree",
             return_value="Merged",
         ):
-            assert orch._should_dispatch(child) is False
-        reason, _count = orch.state.reject_streak[child.id]
-        assert "epic_branch_done" in reason
+            assert orch._should_dispatch(child) is True
 
     def test_flat_mode_allows_multiple_children_of_same_epic(self, tmp_path):
         """Flat mode has no per-epic serial cap."""
@@ -785,46 +778,41 @@ class TestSharedModeDispatchGating:
 
 
 class TestWorkspaceAllocation:
-    """_create_workspace_for_issue picks per-bead vs shared epic worktree."""
+    """_create_workspace_for_issue picks per-task vs shared epic worktree."""
 
-    def test_flat_mode_uses_per_bead_worktree(self, tmp_path):
+    def test_flat_mode_uses_per_task_worktree(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")
         orch = _make_orch(tmp_path, projects=[proj])
-        orch.project_store.create_worktree.return_value = "/wt/per-bead"
+        orch.project_store.create_worktree.return_value = "/wt/per-task"
         orch.project_store.create_epic_worktree.return_value = "/wt/epic"
 
         issue = _make_issue(parent_id="epic-1", project_id="proj-1")
         wp, epic = orch._create_workspace_for_issue(issue)
-        assert wp == "/wt/per-bead"
+        assert wp == "/wt/per-task"
         assert epic is None
         orch.project_store.create_worktree.assert_called_once()
         orch.project_store.create_epic_worktree.assert_not_called()
 
-    def test_per_bead_worktree_syncs_task_file(self, tmp_path):
+    def test_per_task_worktree_does_not_sync_task_file(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")
         orch = _make_orch(tmp_path, projects=[proj])
-        orch.project_store.create_worktree.return_value = "/wt/per-bead"
+        orch.project_store.create_worktree.return_value = "/wt/per-task"
 
         issue = _make_issue(identifier="TASK-389", project_id="proj-1")
         wp, epic = orch._create_workspace_for_issue(issue)
 
-        assert wp == "/wt/per-bead"
+        assert wp == "/wt/per-task"
         assert epic is None
-        orch.project_store.sync_task_file_to_worktree.assert_called_once_with(
-            "proj-1",
-            "TASK-389",
-            "/wt/per-bead",
-            preserve_statuses=frozenset(orch.config.tracker_terminal_states),
-        )
+        orch.project_store.sync_task_file_to_worktree.assert_not_called()
 
-    def test_stacked_mode_uses_per_bead_worktree(self, tmp_path):
+    def test_stacked_mode_uses_per_task_worktree(self, tmp_path):
         proj = _make_project_record(epic_strategy="stacked")
         orch = _make_orch(tmp_path, projects=[proj])
-        orch.project_store.create_worktree.return_value = "/wt/per-bead"
+        orch.project_store.create_worktree.return_value = "/wt/per-task"
         issue = _make_issue(parent_id="epic-1", project_id="proj-1")
         wp, epic = orch._create_workspace_for_issue(issue)
-        assert wp == "/wt/per-bead"
-        assert epic is None  # stacked still uses per-bead worktree
+        assert wp == "/wt/per-task"
+        assert epic is None  # stacked still uses per-task worktree
         orch.project_store.create_worktree.assert_called_once()
 
     def test_shared_mode_uses_shared_epic_worktree(self, tmp_path):
@@ -874,7 +862,7 @@ class TestWorkspaceAllocation:
         )
         orch.project_store.create_worktree.assert_not_called()
 
-    def test_shared_epic_worktree_syncs_child_task_file(self, tmp_path):
+    def test_shared_epic_worktree_does_not_sync_child_task_file(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
         orch.project_store.create_epic_worktree.return_value = "/wt/epic-1"
@@ -892,21 +880,16 @@ class TestWorkspaceAllocation:
 
         assert wp == "/wt/epic-1"
         assert epic_ret is not None
-        orch.project_store.sync_task_file_to_worktree.assert_called_once_with(
-            "proj-1",
-            "TASK-389",
-            "/wt/epic-1",
-            preserve_statuses=frozenset(orch.config.tracker_terminal_states),
-        )
+        orch.project_store.sync_task_file_to_worktree.assert_not_called()
 
-    def test_shared_mode_top_level_issue_uses_per_bead(self, tmp_path):
-        """Top-level issues (no parent) under shared mode get a per-bead worktree."""
+    def test_shared_mode_top_level_issue_uses_per_task_worktree(self, tmp_path):
+        """Top-level issues (no parent) under shared mode get a per-task worktree."""
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
-        orch.project_store.create_worktree.return_value = "/wt/per-bead"
+        orch.project_store.create_worktree.return_value = "/wt/per-task"
         issue = _make_issue(parent_id=None, project_id="proj-1")
         wp, epic = orch._create_workspace_for_issue(issue)
-        assert wp == "/wt/per-bead"
+        assert wp == "/wt/per-task"
         assert epic is None
         orch.project_store.create_worktree.assert_called_once()
 
@@ -1252,7 +1235,7 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         tracker.update_issue.assert_called_once_with("task-1", status=IN_REVIEW)
 
     def test_stacked_top_level_targets_main(self, tmp_path):
-        """Top-level beads in stacked mode (no parent_id) still target main."""
+        """Top-level tasks in stacked mode (no parent_id) still target main."""
         proj = _make_project_record(epic_strategy="stacked")
         orch = _make_orch(tmp_path, projects=[proj])
         orch._reviews_cache = {"proj-1": []}
@@ -1658,10 +1641,8 @@ class TestOpenEpicMainPrs:
             opened = orch._open_epic_main_prs([epic])
         assert opened == 1
 
-    def test_shared_lands_when_children_done_on_epic_branch_only(self, tmp_path):
-        """The fix: shared-epic children that are Done on the EPIC BRANCH
-        but still Open on the default branch must satisfy the landing gate
-        (otherwise the epic→main PR never opens — the deadlock)."""
+    def test_shared_waits_when_children_open_on_default_branch(self, tmp_path):
+        """Shared epic landing waits for canonical child states."""
         orch, proj = self._setup(tmp_path, strategy="shared")
         orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
         # Epic branch says Done for every child...
@@ -1683,9 +1664,9 @@ class TestOpenEpicMainPrs:
             patch.object(orch, "_push_epic_branch") as push,
         ):
             opened = orch._open_epic_main_prs([epic])
-        assert opened == 1
-        push.assert_called_once_with(proj, "epic-1")
-        provider.create_review.assert_called_once()
+        assert opened == 0
+        push.assert_not_called()
+        provider.create_review.assert_not_called()
 
     def test_shared_waits_when_a_child_not_done_on_either_branch(self, tmp_path):
         """The gate waits when a child is non-terminal on BOTH the default
@@ -1714,10 +1695,8 @@ class TestOpenEpicMainPrs:
         provider.create_review.assert_not_called()
         push.assert_not_called()
 
-    def test_shared_merged_child_does_not_block_landing(self, tmp_path):
-        """A child merged via its own path (Merged on default branch, stale
-        on the epic branch) counts as complete and must NOT block an
-        otherwise-done epic — mirrors epic-706 (706.6 Merged, rest Done)."""
+    def test_shared_open_child_blocks_landing_even_when_sibling_merged(self, tmp_path):
+        """A still-open canonical child blocks shared epic landing."""
         orch, proj = self._setup(tmp_path, strategy="shared")
         orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
         # c1: Done on the epic branch (Open on default); c2: Merged on the
@@ -1741,7 +1720,8 @@ class TestOpenEpicMainPrs:
             patch.object(orch, "_push_epic_branch"),
         ):
             opened = orch._open_epic_main_prs([epic])
-        assert opened == 1
+        assert opened == 0
+        provider.create_review.assert_not_called()
 
     def test_all_non_terminal_epics_includes_backlog_epics(self, tmp_path):
         """The landing-gate pool must include epics in non-dispatch states
@@ -1810,7 +1790,7 @@ class TestOpenEpicMainPrs:
             title="Ubuntu package support",
             description="Body",
         )
-        child = _make_issue(identifier="TASK-738.1", parent_id="TASK-738", state="Open")
+        child = _make_issue(identifier="TASK-738.1", parent_id="TASK-738", state="Done")
         provider = MagicMock()
         provider.create_review.return_value = MagicMock(id="215")
         with (
@@ -2497,11 +2477,11 @@ class TestEpicRollupStatusReconciliation:
 
 
 class TestPushEpicBranch:
-    def test_shared_mode_commits_dirty_metadata_before_push(self, tmp_path):
+    def test_shared_mode_skips_fast_forward_for_dirty_worktree(self, tmp_path):
         repo_path = tmp_path / "repo"
         repo_path.mkdir()
         wt_path = tmp_path / "worktree"
-        (wt_path / "backlog" / "tasks").mkdir(parents=True)
+        (wt_path / ".oompah" / "tasks").mkdir(parents=True)
 
         proj = _make_project_record(epic_strategy="shared")
         proj.repo_path = str(repo_path)
@@ -2513,18 +2493,12 @@ class TestPushEpicBranch:
         def fake_run(cmd, **kwargs):
             calls.append((cmd, kwargs))
             if cmd == ["git", "status", "--porcelain"]:
-                status_calls = sum(
-                    1 for called_cmd, _kwargs in calls
-                    if called_cmd == ["git", "status", "--porcelain"]
+                return subprocess.CompletedProcess(
+                    cmd,
+                    0,
+                    stdout=" M .oompah/tasks/task-1.md\n",
+                    stderr="",
                 )
-                stdout = (
-                    " M backlog/tasks/task-1.md\n"
-                    if status_calls <= 2
-                    else ""
-                )
-                return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
-            if cmd == ["git", "diff", "--cached", "--quiet"]:
-                return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
         with patch("oompah.orchestrator.subprocess.run", side_effect=fake_run):
@@ -2534,19 +2508,9 @@ class TestPushEpicBranch:
         assert commands == [
             ["git", "fetch", "origin", "epic-epic-1"],
             ["git", "status", "--porcelain"],
-            ["git", "status", "--porcelain"],
-            ["git", "add", "--", "backlog/tasks"],
-            ["git", "diff", "--cached", "--quiet"],
-            ["git", "commit", "-m", commands[5][3]],
-            ["git", "status", "--porcelain"],
             ["git", "push", "origin", "HEAD:epic-epic-1"],
         ]
         assert calls[-1][1]["cwd"] == str(wt_path)
-        commit_message = commands[5][3]
-        assert commit_message.startswith("epic-1: Commit shared epic task metadata")
-        assert "Generated with https://github.com/" in commit_message
-        assert "\n\nCo-authored-by: oompah <" in commit_message
-        assert commit_message.rstrip().endswith("@users.noreply.github.com>")
 
     def test_shared_mode_fast_forwards_clean_worktree_before_push(self, tmp_path):
         repo_path = tmp_path / "repo"
@@ -2584,17 +2548,16 @@ class TestPushEpicBranch:
             ["git", "status", "--porcelain"],
             ["git", "rev-list", "--left-right", "--count", "HEAD...FETCH_HEAD"],
             ["git", "merge", "--ff-only", "FETCH_HEAD"],
-            ["git", "status", "--porcelain"],
             ["git", "push", "origin", "HEAD:epic-epic-1"],
         ]
         assert calls[3][1]["cwd"] == str(wt_path)
         assert calls[-1][1]["cwd"] == str(wt_path)
 
-    def test_shared_mode_refuses_non_metadata_dirty_worktree(self, tmp_path):
+    def test_shared_mode_skips_fast_forward_for_dirty_worktree(self, tmp_path):
         repo_path = tmp_path / "repo"
         repo_path.mkdir()
         wt_path = tmp_path / "worktree"
-        (wt_path / "backlog" / "tasks").mkdir(parents=True)
+        wt_path.mkdir()
 
         proj = _make_project_record(epic_strategy="shared")
         proj.repo_path = str(repo_path)
@@ -2616,14 +2579,12 @@ class TestPushEpicBranch:
                 return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
-        with (
-            patch("oompah.orchestrator.subprocess.run", side_effect=fake_run),
-            pytest.raises(ProjectError, match="non-metadata changes"),
-        ):
+        with patch("oompah.orchestrator.subprocess.run", side_effect=fake_run):
             orch._push_epic_branch(proj, "epic-1")
 
         assert ["git", "commit", "-m"] not in [cmd[:3] for cmd in calls]
-        assert ["git", "push", "origin", "HEAD:epic-epic-1"] not in calls
+        assert ["git", "merge", "--ff-only", "FETCH_HEAD"] not in calls
+        assert ["git", "push", "origin", "HEAD:epic-epic-1"] in calls
 
     def test_stacked_mode_pushes_named_branch_from_project_repo(self, tmp_path):
         repo_path = tmp_path / "repo"

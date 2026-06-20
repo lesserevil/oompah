@@ -617,7 +617,7 @@ class TestOnWorkerExitWritesCostRecord:
         fire_calls = []
         orch._fire_task_cost_record = lambda e: fire_calls.append(e)
 
-        # Patch tracker to prevent actual bd calls
+        # Patch tracker to prevent actual tracker calls
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_detail.return_value = _make_issue("test-001", state="closed")
         orch.tracker = mock_tracker

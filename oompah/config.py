@@ -219,12 +219,11 @@ def _coerce_int(value: Any, default: int) -> int:
 _BUDGET_WINDOW_VALUES = ("hour", "day", "week")
 _PROFILE_MODE_VALUES = ("auto", "api", "cli", "acp")
 _TRACKER_KIND_ALIASES = {
-    "backlog_md": "backlog_md",
-    "backlog.md": "backlog_md",
-    "backlog": "backlog_md",
     "oompah_md": "oompah_md",
     "oompah.md": "oompah_md",
     "oompah": "oompah_md",
+    "github_issues": "github_issues",
+    "github-issues": "github_issues",
 }
 _STRICT_PROFILE_SOURCE_VALUES = ("warn", "strict")
 DEFAULT_TRACKER_KIND = "oompah_md"
@@ -382,11 +381,11 @@ class ServiceConfig:
     # continues up the hierarchy on subsequent failures.
     # Default False: current behaviour (best-match profile on first dispatch).
     default_first_dispatch: bool = False
-   # Completion verifier (oompah-zlz_2-y0ns). When True, after a worker
-    # exits with reason="normal" AND has moved the bead to a terminal
+    # Completion verifier (oompah-zlz_2-y0ns). When True, after a worker
+    # exits with reason="normal" AND has moved the issue to a terminal
     # state, the orchestrator runs a two-stage check (regex + LLM)
-    # against the bead's "# Acceptance criteria" section. If the diff
-    # doesn't satisfy the criteria, the close is rejected: the bead is
+    # against the issue's "# Acceptance criteria" section. If the diff
+    # doesn't satisfy the criteria, the close is rejected: the issue is
     # reopened, a diagnostic comment is posted, and the issue is
     # rescheduled. Default False during initial rollout — flip via
     # OOMPAH_VERIFY_COMPLETION=true after a soak window.

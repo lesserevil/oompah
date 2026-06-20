@@ -26,11 +26,9 @@ from oompah.focus import Focus
 from oompah.models import AgentProfile, Issue, ModelProvider, RetryEntry, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
-from oompah.tracker import BacklogMdTracker
-
 
 def _make_config() -> ServiceConfig:
-    return ServiceConfig(tracker_kind="backlog_md")
+    return ServiceConfig(tracker_kind="oompah_md")
 
 
 def _make_issue(
@@ -509,7 +507,7 @@ class TestHandleDispatchNeeded:
 
         # _select_dispatchable was called once, on a worker thread (not the
         # event loop thread). If this fails, the change has regressed and
-        # the bd CLI calls inside _should_dispatch will block uvicorn again.
+        # the tracker CLI calls inside _should_dispatch will block uvicorn again.
         assert len(called_thread_ids) == 1
         assert called_thread_ids[0] != main_thread_id
 
@@ -882,7 +880,6 @@ class TestRunStep5bMaintenanceExtended:
         orch.tracker.fetch_issues_by_states.return_value = []
         orch.project_store.list_all.return_value = []
         orch.project_store.sync_all_sources = MagicMock()
-        orch._refresh_backlog_conflict_alerts = MagicMock()
         orch._cleanup_terminal_worktrees = MagicMock(return_value=0)
         orch._label_merged_issues = MagicMock()
         orch._label_merged_epics = MagicMock()
@@ -1470,13 +1467,11 @@ class TestTerminalWorktreeCleanup:
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch.config.maintenance_startup_delay_seconds = 0
         orch.project_store.sync_all_sources = MagicMock()
-        orch._refresh_backlog_conflict_alerts = MagicMock()
         orch._cleanup_terminal_worktrees = MagicMock()
 
         orch._maybe_heal_repos()
 
         orch.project_store.sync_all_sources.assert_called_once_with()
-        orch._refresh_backlog_conflict_alerts.assert_called_once_with()
         # cleanup is a separate job — heal must NOT call it
         orch._cleanup_terminal_worktrees.assert_not_called()
 
@@ -1497,7 +1492,6 @@ class TestTerminalWorktreeCleanup:
         # (which sets next_run_monotonic = now + interval after it completes).
         # Simplest approach: run once to arm the interval gate, then run again.
         orch.project_store.sync_all_sources = MagicMock()
-        orch._refresh_backlog_conflict_alerts = MagicMock()
         orch._maybe_heal_repos()  # first run — arms the interval gate
 
         # Reset mock call counts for the second check
@@ -1520,24 +1514,20 @@ class TestTerminalWorktreeCleanup:
         orch._cleanup_terminal_worktrees.assert_not_called()
 
     def test_maybe_heal_repos_heal_failure_does_not_stop_alert_refresh(self, tmp_path):
-        """Even when sync_all_sources fails, _refresh_backlog_conflict_alerts still runs."""
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch.config.maintenance_startup_delay_seconds = 0
         orch.project_store.sync_all_sources = MagicMock(side_effect=RuntimeError("net"))
-        orch._refresh_backlog_conflict_alerts = MagicMock()
 
         orch._maybe_heal_repos()
 
         orch.project_store.sync_all_sources.assert_called_once_with()
-        orch._refresh_backlog_conflict_alerts.assert_called_once_with()
 
     def test_maybe_cleanup_worktrees_and_heal_are_independent_jobs(self, tmp_path):
         """Heal and cleanup are independent maintenance jobs with separate throttles."""
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch.project_store.sync_all_sources = MagicMock(side_effect=RuntimeError("net"))
-        orch._refresh_backlog_conflict_alerts = MagicMock()
         orch._cleanup_terminal_worktrees = MagicMock(return_value=2)
 
         # Even if heal fails, cleanup (a separate job) still runs
@@ -1612,7 +1602,6 @@ class TestMaintenanceLaneJobStatus:
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch.project_store.sync_all_sources = MagicMock()
-        orch._refresh_backlog_conflict_alerts = MagicMock()
         orch._cleanup_terminal_worktrees = MagicMock(return_value=0)
 
         before = time.monotonic()
@@ -1627,7 +1616,6 @@ class TestMaintenanceLaneJobStatus:
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch._heal_error_last = "previous error"
         orch.project_store.sync_all_sources = MagicMock()
-        orch._refresh_backlog_conflict_alerts = MagicMock()
         orch._cleanup_terminal_worktrees = MagicMock(return_value=0)
 
         orch._maybe_heal_repos()
@@ -1641,7 +1629,6 @@ class TestMaintenanceLaneJobStatus:
         orch.project_store.sync_all_sources = MagicMock(
             side_effect=RuntimeError("git fetch failed")
         )
-        orch._refresh_backlog_conflict_alerts = MagicMock()
         orch._cleanup_terminal_worktrees = MagicMock(return_value=0)
 
         orch._maybe_heal_repos()
@@ -1702,7 +1689,6 @@ class TestMaintenanceLaneJobStatus:
         orch.project_store.sync_all_sources = MagicMock(
             side_effect=RuntimeError("network down")
         )
-        orch._refresh_backlog_conflict_alerts = MagicMock()
         orch._cleanup_terminal_worktrees = MagicMock(return_value=2)
 
         # Run heal (will fail) and cleanup (separate job) independently
@@ -1765,7 +1751,6 @@ class TestMaintenanceLaneJobStatus:
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch.project_store.sync_all_sources = MagicMock()
-        orch._refresh_backlog_conflict_alerts = MagicMock()
         orch._cleanup_terminal_worktrees = MagicMock(return_value=7)
         orch.tracker = MagicMock()
         orch.tracker.fetch_issues.return_value = []
@@ -1789,7 +1774,6 @@ class TestMaintenanceLaneJobStatus:
         orch.project_store.sync_all_sources = MagicMock(
             side_effect=RuntimeError("network timeout")
         )
-        orch._refresh_backlog_conflict_alerts = MagicMock()
         orch._cleanup_terminal_worktrees = MagicMock(return_value=0)
         orch.tracker = MagicMock()
         orch.tracker.fetch_issues.return_value = []
@@ -2418,7 +2402,6 @@ class TestRepoHealErrorReporting:
         orch.project_store.sync_all_sources = MagicMock(
             side_effect=RuntimeError("disk full")
         )
-        orch._refresh_backlog_conflict_alerts = MagicMock()
         orch.tracker = MagicMock()
         orch.tracker.fetch_issues.return_value = []
         orch._reviews_cache = {}
@@ -2433,7 +2416,6 @@ class TestRepoHealErrorReporting:
         """A successful heal run clears the previous error from the snapshot."""
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
-        orch._refresh_backlog_conflict_alerts = MagicMock()
         orch.tracker = MagicMock()
         orch.tracker.fetch_issues.return_value = []
         orch._reviews_cache = {}
@@ -2464,7 +2446,6 @@ class TestRepoHealErrorReporting:
         orch.project_store.sync_all_sources = MagicMock(
             side_effect=RuntimeError("network error")
         )
-        orch._refresh_backlog_conflict_alerts = MagicMock()
 
         before = time.monotonic()
         orch._maybe_heal_repos()
@@ -3132,9 +3113,9 @@ class TestRecordGeneratedAttachments:
 
 # ---------------------------------------------------------------------------
 # _fetch_all_candidates timeout handling.
-# Covers oompah-zlz_2-5re: ``bd list --json`` against a slow project
+# Covers oompah-zlz_2-5re: ``tracker list --json`` against a slow project
 # (e.g. trickle) was timing out. The orchestrator logged that at ERROR,
-# which the error_watcher escalated into a fresh bug bead on every poll
+# which the error_watcher escalated into a fresh bug task on every poll
 # tick — a feedback loop. Timeouts must log at WARNING, not ERROR.
 # ---------------------------------------------------------------------------
 
@@ -3148,14 +3129,14 @@ class TestFetchAllCandidatesTimeout:
         orch = _make_orchestrator(tmp_path, projects=[project])
         slow_tracker = MagicMock()
         slow_tracker.fetch_candidate_issues.side_effect = TrackerTimeoutError(
-            "bd command timed out: bd list --status=open --json"
+            "tracker command timed out: tracker list --status=open --json"
         )
         orch._tracker_for_project = MagicMock(return_value=slow_tracker)
 
         with caplog.at_level(_logging.DEBUG, logger="oompah.orchestrator"):
             result = orch._fetch_all_candidates()
 
-        # Tick continues with an empty backlog rather than crashing.
+        # Tick continues with an empty candidate set rather than crashing.
         assert result == []
 
         # The key contract: error_watcher only fires on ERROR, so we must
@@ -3167,7 +3148,7 @@ class TestFetchAllCandidatesTimeout:
         ]
         assert error_records == [], (
             "TrackerTimeoutError must not be logged at ERROR — "
-            "the error_watcher would auto-file a duplicate bug bead "
+            "the error_watcher would auto-file a duplicate bug task "
             "on every poll tick."
         )
         warning_records = [r for r in caplog.records if r.levelname == "WARNING"]
@@ -3184,7 +3165,7 @@ class TestFetchAllCandidatesTimeout:
         orch = _make_orchestrator(tmp_path, projects=[project])
         broken_tracker = MagicMock()
         broken_tracker.fetch_candidate_issues.side_effect = TrackerError(
-            "bd command failed (exit 1): something else"
+            "tracker command failed (exit 1): something else"
         )
         orch._tracker_for_project = MagicMock(return_value=broken_tracker)
 
@@ -3203,10 +3184,10 @@ class TestFetchAllCandidatesTimeout:
 # ---------------------------------------------------------------------------
 # YOLO orphan-branch recovery (oompah-zlz_2-975)
 #
-# When _yolo_notify_conflict / _yolo_retry_ci look up a bead by source
+# When _yolo_notify_conflict / _yolo_retry_ci look up a task by source
 # branch and find none, they previously silently exited — leaving the
 # PR DIRTY/FAILED forever with no escalation. Both must now file a
-# fresh recovery bead so the YOLO chain doesn't dead-end.
+# fresh recovery task so the YOLO chain doesn't dead-end.
 # ---------------------------------------------------------------------------
 
 
@@ -3471,7 +3452,7 @@ class TestBoundedProjectRefresh:
 
 
 class TestYoloOrphanBranchRecovery:
-    """Branch with no matching bead must trigger a recovery-bead filing."""
+    """Branch with no matching task must trigger a recovery-task filing."""
 
     def _make_review_request(
         self,
@@ -3497,7 +3478,7 @@ class TestYoloOrphanBranchRecovery:
 
     # --- _yolo_notify_conflict orphan branch ---
 
-    def test_notify_conflict_files_recovery_bead_when_no_bead_matches(self, tmp_path):
+    def test_notify_conflict_files_recovery_task_when_no_task_matches(self, tmp_path):
         project = _make_project(yolo=True)
         orch = _make_orchestrator(tmp_path, projects=[project])
 
@@ -3509,14 +3490,14 @@ class TestYoloOrphanBranchRecovery:
 
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = None  # orphan branch
-        new_bead = MagicMock()
-        new_bead.identifier = "trickle-rec1"
-        tracker.create_issue.return_value = new_bead
+        new_task = MagicMock()
+        new_task.identifier = "trickle-rec1"
+        tracker.create_issue.return_value = new_task
         orch._project_trackers[project.id] = tracker
 
         orch._yolo_notify_conflict(project, provider, "org/repo", "30")
 
-        # New bead created
+        # New task created
         assert tracker.create_issue.call_count == 1
         kwargs = tracker.create_issue.call_args.kwargs
         # Title must reference both PR number and branch for operator audit
@@ -3527,7 +3508,7 @@ class TestYoloOrphanBranchRecovery:
         # Label must be merge-conflict so the focus matcher routes correctly
         tracker.add_label.assert_called_once_with("trickle-rec1", "merge-conflict")
 
-        # Bookkeeping records the bead so a second call doesn't re-file
+        # Bookkeeping records the task so a second call doesn't re-file
         assert (project.id, "30", "merge-conflict") in orch._yolo_orphan_recovery_tasks
 
     def test_notify_conflict_idempotent_for_same_orphan_pr(self, tmp_path):
@@ -3543,19 +3524,19 @@ class TestYoloOrphanBranchRecovery:
 
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = None
-        new_bead = MagicMock()
-        new_bead.identifier = "trickle-rec1"
-        tracker.create_issue.return_value = new_bead
+        new_task = MagicMock()
+        new_task.identifier = "trickle-rec1"
+        tracker.create_issue.return_value = new_task
         orch._project_trackers[project.id] = tracker
 
         orch._yolo_notify_conflict(project, provider, "org/repo", "30")
         orch._yolo_notify_conflict(project, provider, "org/repo", "30")
 
-        # Only one bead filed across two YOLO fires
+        # Only one task filed across two YOLO fires
         assert tracker.create_issue.call_count == 1
 
-    def test_notify_conflict_existing_bead_path_unchanged(self, tmp_path):
-        """When the branch DOES match a bead, behavior is unchanged: no new bead filed."""
+    def test_notify_conflict_existing_task_path_unchanged(self, tmp_path):
+        """When the branch DOES match a task, behavior is unchanged: no new task filed."""
         project = _make_project(yolo=True)
         orch = _make_orchestrator(tmp_path, projects=[project])
 
@@ -3576,7 +3557,7 @@ class TestYoloOrphanBranchRecovery:
 
         orch._yolo_notify_conflict(project, provider, "org/repo", "30")
 
-        # Existing path: relabel + reopen, NO new bead
+        # Existing path: relabel + reopen, NO new task
         tracker.create_issue.assert_not_called()
         # add_comment + update_issue (reopen with merge-conflict label) hit
         tracker.add_comment.assert_called_once()
@@ -3584,7 +3565,7 @@ class TestYoloOrphanBranchRecovery:
 
     # --- _yolo_retry_ci orphan branch ---
 
-    def test_retry_ci_files_recovery_bead_when_no_bead_matches(self, tmp_path):
+    def test_retry_ci_files_recovery_task_when_no_task_matches(self, tmp_path):
         project = _make_project(yolo=True)
         orch = _make_orchestrator(tmp_path, projects=[project])
 
@@ -3597,9 +3578,9 @@ class TestYoloOrphanBranchRecovery:
 
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = None
-        new_bead = MagicMock()
-        new_bead.identifier = "trickle-rec2"
-        tracker.create_issue.return_value = new_bead
+        new_task = MagicMock()
+        new_task.identifier = "trickle-rec2"
+        tracker.create_issue.return_value = new_task
         orch._project_trackers[project.id] = tracker
 
         orch._yolo_retry_ci(project, review)
@@ -3629,9 +3610,9 @@ class TestYoloOrphanBranchRecovery:
 
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = None
-        new_bead = MagicMock()
-        new_bead.identifier = "trickle-rec2"
-        tracker.create_issue.return_value = new_bead
+        new_task = MagicMock()
+        new_task.identifier = "trickle-rec2"
+        tracker.create_issue.return_value = new_task
         orch._project_trackers[project.id] = tracker
 
         orch._yolo_retry_ci(project, review)
@@ -3639,7 +3620,7 @@ class TestYoloOrphanBranchRecovery:
 
         assert tracker.create_issue.call_count == 1
 
-    def test_retry_ci_existing_bead_path_unchanged(self, tmp_path):
+    def test_retry_ci_existing_task_path_unchanged(self, tmp_path):
         project = _make_project(yolo=True)
         orch = _make_orchestrator(tmp_path, projects=[project])
 
@@ -3661,7 +3642,7 @@ class TestYoloOrphanBranchRecovery:
 
         orch._yolo_retry_ci(project, review)
 
-        # Existing path: relabel + reopen, NO new bead
+        # Existing path: relabel + reopen, NO new task
         tracker.create_issue.assert_not_called()
         tracker.update_issue.assert_called_once()
         tracker.add_comment.assert_called_once()
@@ -4030,36 +4011,6 @@ class TestRateLimitAlertIncludesProviderAndModel:
 
 
 class TestNeedsHumanTransitions:
-    def _write_workspace_backlog_task(
-        self,
-        tmp_path,
-        *,
-        identifier: str = "TASK-1",
-        status: str = "Done",
-    ):
-        workspace = tmp_path / f"worker-{status.replace(' ', '-').lower()}"
-        task_dir = workspace / "backlog" / "tasks"
-        task_dir.mkdir(parents=True)
-        (task_dir / f"task-1 - Test task.md").write_text(
-            f"""---
-id: {identifier}
-title: Test task
-status: {status}
-labels: []
-dependencies: []
-priority: medium
----
-
-## Description
-
-<!-- SECTION:DESCRIPTION:BEGIN -->
-Test issue body.
-<!-- SECTION:DESCRIPTION:END -->
-""",
-            encoding="utf-8",
-        )
-        return workspace
-
     def test_completed_without_closing_marks_needs_human_with_comment(self, tmp_path):
         project = _make_project("proj-1")
         orch = _make_orchestrator(tmp_path, projects=[project])
@@ -4077,7 +4028,7 @@ Test issue body.
         orch.state.reopen_counts[issue.id] = 2
         orch._fire_task_cost_record = MagicMock()
         orch._fire_telemetry_comment = MagicMock()
-        tracker = MagicMock(spec=BacklogMdTracker)
+        tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
         tracker.mark_needs_human = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
@@ -4114,7 +4065,7 @@ Test issue body.
         orch._fire_task_cost_record = MagicMock()
         orch._fire_telemetry_comment = MagicMock()
         orch._post_comment = MagicMock()
-        tracker = MagicMock(spec=BacklogMdTracker)
+        tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
         tracker.mark_needs_human = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
@@ -4145,133 +4096,6 @@ Test issue body.
             and "Escalating from 'default' to 'standard'" in comment
             for comment in comments
         )
-
-    def test_worker_workspace_done_status_honored_before_needs_human(self, tmp_path):
-        project = _make_project("proj-1")
-        orch = _make_orchestrator(tmp_path, projects=[project])
-        issue = _make_issue("TASK-1", state="Open", project_id="proj-1")
-        entry = RunningEntry(
-            worker_task=None,
-            identifier=issue.identifier,
-            issue=issue,
-            session=None,
-            retry_attempt=0,
-            started_at=datetime.now(timezone.utc),
-            agent_profile_name="deep",
-            workspace_path=str(
-                self._write_workspace_backlog_task(
-                    tmp_path,
-                    identifier=issue.identifier,
-                    status="Done",
-                )
-            ),
-        )
-        orch.state.running[issue.id] = entry
-        orch.state.reopen_counts[issue.id] = 2
-        orch._fire_task_cost_record = MagicMock()
-        orch._fire_telemetry_comment = MagicMock()
-        tracker = MagicMock(spec=BacklogMdTracker)
-        tracker.fetch_issue_detail.return_value = issue
-        tracker.mark_needs_human = MagicMock()
-        orch._tracker_for_project = MagicMock(return_value=tracker)
-        orch._run_close_gate = MagicMock(return_value=True)
-        orch._run_unpushed_gate = MagicMock(return_value=True)
-        orch._run_completion_verifier = MagicMock(
-            return_value=MagicMock(passed=True, skipped=True, skip_reason="disabled")
-        )
-        orch._ensure_review_exists = MagicMock()
-        orch._maybe_auto_close_parent_epic = MagicMock()
-
-        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
-
-        tracker.mark_needs_human.assert_not_called()
-        assert issue.id not in orch.state.reopen_counts
-        assert issue.id in orch.state.completed
-        closed_issue = orch._run_close_gate.call_args.args[1]
-        assert closed_issue.identifier == issue.identifier
-        assert closed_issue.state == "Done"
-        orch._run_unpushed_gate.assert_called_once()
-        orch._run_completion_verifier.assert_called_once()
-        orch._ensure_review_exists.assert_called_once()
-        orch._maybe_auto_close_parent_epic.assert_called_once()
-
-    def test_review_handoff_failure_prevents_clean_completion(self, tmp_path):
-        project = _make_project("proj-1")
-        orch = _make_orchestrator(tmp_path, projects=[project])
-        issue = _make_issue("TASK-1", state="Open", project_id="proj-1")
-        entry = RunningEntry(
-            worker_task=None,
-            identifier=issue.identifier,
-            issue=issue,
-            session=None,
-            retry_attempt=0,
-            started_at=datetime.now(timezone.utc),
-            agent_profile_name="deep",
-            workspace_path=str(
-                self._write_workspace_backlog_task(
-                    tmp_path,
-                    identifier=issue.identifier,
-                    status="Done",
-                )
-            ),
-        )
-        orch.state.running[issue.id] = entry
-        orch.state.reopen_counts[issue.id] = 2
-        orch._fire_task_cost_record = MagicMock()
-        orch._fire_telemetry_comment = MagicMock()
-        tracker = MagicMock(spec=BacklogMdTracker)
-        tracker.fetch_issue_detail.return_value = issue
-        orch._tracker_for_project = MagicMock(return_value=tracker)
-        orch._run_close_gate = MagicMock(return_value=True)
-        orch._run_unpushed_gate = MagicMock(return_value=True)
-        orch._run_completion_verifier = MagicMock(
-            return_value=MagicMock(passed=True, skipped=True, skip_reason="disabled")
-        )
-        orch._ensure_review_exists = MagicMock(return_value=False)
-        orch._maybe_auto_close_parent_epic = MagicMock()
-
-        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
-
-        assert issue.id not in orch.state.completed
-        assert issue.id in orch.state.reopen_counts
-        orch._ensure_review_exists.assert_called_once()
-        orch._maybe_auto_close_parent_epic.assert_not_called()
-
-    def test_nonterminal_worker_workspace_state_still_needs_human(self, tmp_path):
-        project = _make_project("proj-1")
-        orch = _make_orchestrator(tmp_path, projects=[project])
-        issue = _make_issue("TASK-1", state="Open", project_id="proj-1")
-        entry = RunningEntry(
-            worker_task=None,
-            identifier=issue.identifier,
-            issue=issue,
-            session=None,
-            retry_attempt=0,
-            started_at=datetime.now(timezone.utc),
-            agent_profile_name="deep",
-            workspace_path=str(
-                self._write_workspace_backlog_task(
-                    tmp_path,
-                    identifier=issue.identifier,
-                    status="In Progress",
-                )
-            ),
-        )
-        orch.state.running[issue.id] = entry
-        orch.state.reopen_counts[issue.id] = 2
-        orch._fire_task_cost_record = MagicMock()
-        orch._fire_telemetry_comment = MagicMock()
-        tracker = MagicMock()
-        tracker.fetch_issue_detail.return_value = issue
-        tracker.mark_needs_human = MagicMock()
-        orch._tracker_for_project = MagicMock(return_value=tracker)
-        orch._run_close_gate = MagicMock(return_value=True)
-
-        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
-
-        tracker.mark_needs_human.assert_called_once()
-        orch._run_close_gate.assert_not_called()
-        assert issue.id in orch.state.completed
 
 
 class TestRetryTimerSpecificIssueLookup:

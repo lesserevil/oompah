@@ -33,7 +33,7 @@ constant is now binding throughput:
 | oompah  | ~3 min  | ≤ 20 PR / hour |
 
 A representative session this week sat idle for 30+ minute stretches with
-**41 ready beads and 5 free agent slots** simply waiting on the trickle
+**41 ready tasks and 5 free agent slots** simply waiting on the trickle
 PR queue to drain. The bottleneck is not capacity — it is artificial
 serialization.
 
@@ -75,9 +75,9 @@ today.
 
 - We are *not* changing the YOLO project model itself, only how YOLO
   performs the final merge action.
-- We are *not* sequencing or ordering PRs by bead priority — the merge
+- We are *not* sequencing or ordering PRs by task priority — the merge
   queue's FIFO is good enough for the throughput we need.
-- We are *not* introducing per-bead "stacked PR" workflows; each agent
+- We are *not* introducing per-task "stacked PR" workflows; each agent
   still produces one PR.
 
 ## 4. Rollout plan
@@ -89,7 +89,7 @@ parallel PRs but is not strictly required for the gate change.
 
 ```mermaid
 flowchart LR
-    S1["Step 1 (P0)<br/>Add merge_group CI triggers"] --> S2["Step 2 (P1)<br/>.beads merge driver"]
+    S1["Step 1 (P0)<br/>Add merge_group CI triggers"] --> S2["Step 2 (P1)<br/>task metadata guards"]
     S2 --> S3["Step 3 (P1)<br/>Soften open_review<br/>→ concurrency limit"]
     S3 --> S4["Step 4 (P1)<br/>YOLO enqueue mode"]
     S4 --> S5["Step 5 (P0)<br/>Enable Merge Queue<br/>on main"]
@@ -100,7 +100,7 @@ Children of this epic:
 | Child issue | Title |
 | --- | --- |
 | `oompah-zlz_2-7fp` | Step 1: add `merge_group` CI triggers to oompah and trickle | ✅ Done |
-| `oompah-zlz_2-win` | Step 2: reduce `.beads/issues.jsonl` merge contention via custom git merge driver |
+| `oompah-zlz_2-win` | Step 2: keep task metadata out of worker branch merge conflicts |
 | `oompah-zlz_2-pt4` | Step 3: soften `_project_has_open_review` to a configurable concurrency limit |
 | `oompah-zlz_2-d7o` | Step 4: update YOLO auto-merge to support enqueue mode for merge-queue-enabled projects |
 | `oompah-zlz_2-0c3` | Step 5: enable GitHub Merge Queue on `main` branches in oompah and trickle |
@@ -126,34 +126,25 @@ Validation: open a draft PR, queue it via `gh pr merge --auto --squash`
 and confirm CI ran on a `gh-readonly-queue/...` ref. Rollback is a
 single-line revert of the workflow file.
 
-### Step 2 — `.beads/issues.jsonl` merge contention (P1)
+### Step 2 — task metadata contention guards (P1)
 
-`bd` writes a deterministic JSONL file but every agent appends to it.
-With parallel PRs, two PRs almost always touch the same file and a
-naïve `git merge` produces conflicts on every queue entry.
+The native oompah tracker keeps canonical task files on the default branch,
+written by the managed source checkout. Worker branches should not carry
+task-state mutations, because those files are service state rather than code
+under review. With parallel PRs, task metadata on worker branches would create
+avoidable merge conflicts and stale lifecycle updates.
 
 Two complementary fixes:
 
-1. **Custom git merge driver.** `.beads/issues.jsonl` is a stream of
-   self-describing JSON records keyed by `id`; a 30-line Python merge
-   driver can union the two sides, dedupe by `id`, prefer the record
-   with the newer `updated` timestamp, and re-sort. Configured via
-   `.gitattributes`:
-   ```
-   .beads/issues.jsonl merge=beads-jsonl
-   .beads/interactions.jsonl merge=beads-jsonl
-   ```
-   plus a one-time `git config merge.beads-jsonl.driver` install that
-   the orchestrator runs at sync time (so contributors and CI runners
-   get it automatically).
+1. **Keep task writes server-side.** Agents use `oompah task ...`, which routes
+   mutations through the service and commits canonical `.oompah/tasks` changes
+   on the managed source checkout.
+2. **Reject task metadata drift in worker branches.** Completion verification
+   and PR preparation should flag unexpected task-file edits before they enter
+   the submit queue.
 
-2. **Don't commit backups.** `.beads/backup/` is gitignored but
-   already-tracked files leak in via `git add -f` from earlier agents.
-   Step 2 also untracks them so they stop showing up in rebases. (See
-   memory `beads-backup-rebase-gotcha`.)
-
-Validation: synthesize two branches that each add a different bead,
-merge them, expect zero conflict markers.
+Validation: synthesize two worker branches that complete independent tasks,
+merge them through the queue, and expect zero task metadata conflicts.
 
 ### Step 3 — Soften `_project_has_open_review` (P1) ✅ Done
 
@@ -290,7 +281,7 @@ YOLO: enqueue failed for trickle MR #9: Failed to enable auto-merge: HTTP 404 ..
 ```
 
 The `_yolo_notify_conflict` fallback fires every tick on every YOLO PR
-that reaches the merge step, so the bead's tracker sees a flood of
+that reaches the merge step, so the task's tracker sees a flood of
 spurious "merge conflict" comments. Recognise this case by the literal
 404 in the logged failure message; an actual merge conflict surfaces
 through `review.has_conflicts == True`, not through the enqueue call's
@@ -367,10 +358,10 @@ and `draft`. Hovering the chip surfaces the raw `mergeable_state` and
 | `ready`                    | CI passed, no `auto_merge` yet — oompah's YOLO watchdog will enqueue on next tick    | none — passive                                                                 |
 | `blocked: needs config`    | `mergeable_state=blocked` with no `auto_merge` — usually `allow_auto_merge` is off or a required check is missing | flip the repo's "Allow auto-merge" toggle, or fix the missing required check   |
 | `behind base`              | `mergeable_state=behind` — branch needs a rebase before the queue will accept it     | use the inline **Rebase** button, or wait for the queue to merge the leader   |
-| `conflict`                 | `has_conflicts=true` or `mergeable_state=dirty`                                      | use the inline **Resolve Conflicts** button (notifies the bead's agent)       |
+| `conflict`                 | `has_conflicts=true` or `mergeable_state=dirty`                                      | use the inline **Resolve Conflicts** button (notifies the task's agent)       |
 | `draft`                    | PR is still a draft                                                                  | none — author closes draft when ready                                          |
 | `ci pending`               | `ci_status=pending`                                                                  | none — passive                                                                 |
-| `ci failed`                | `ci_status=failed`                                                                   | use the inline **Retry** button (reopens the bead so the agent can fix CI)    |
+| `ci failed`                | `ci_status=failed`                                                                   | use the inline **Retry** button (reopens the task so the agent can fix CI)    |
 
 The chip column is sortable via the **Sort** dropdown above the list.
 "Queue status" sort is the fastest way to spot a `blocked: needs config`
@@ -383,9 +374,9 @@ instead of clicking through each PR.
 | Step | Failure mode | Detection | Rollback |
 | --- | --- | --- | --- |
 | 1 | Workflow doesn't run on merge_group ref | First queued PR hangs in "Pending" | Revert workflow change (single commit) |
-| 2 | Merge driver mis-merges JSONL | `bd validate` flags duplicate ids in CI | Remove `.gitattributes` line; resolve manually |
+| 2 | Task metadata guard is too strict | Workers that did not mutate task state are blocked | Relax the guard and re-run completion verification |
 | 3 | Concurrency raised too high; conflict storm | Spike in YOLO conflict notifications | Lower `OOMPAH_DEFAULT_MAX_INFLIGHT_REVIEWS` to `1` (live; no deploy) |
-| 4 | Enqueue path broken on a provider | YOLO PRs sit open without merging; logs show repeated `HTTP 404` from `enable_auto_merge` and a flood of `_yolo_notify_conflict` comments on the bead | Flip per-project `merge_queue_enabled=False` (with matching GitHub-side ruleset rollback) or manually enqueue with `gh pr merge --auto --squash <N>`. See Step 4 → Known issue: `POST /auto-merge` returns HTTP 404 |
+| 4 | Enqueue path broken on a provider | YOLO PRs sit open without merging; logs show repeated `HTTP 404` from `enable_auto_merge` and a flood of `_yolo_notify_conflict` comments on the task | Flip per-project `merge_queue_enabled=False` (with matching GitHub-side ruleset rollback) or manually enqueue with `gh pr merge --auto --squash <N>`. See Step 4 → Known issue: `POST /auto-merge` returns HTTP 404 |
 | 5 | Merge queue itself broken (GH outage) | All PRs stall in queue | Disable "Require merge queue" in branch protection |
 
 Each step is independently reversible and can ship behind its own

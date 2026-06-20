@@ -596,7 +596,7 @@ def _exec_attach_image(workspace: Path, args: dict[str, Any]) -> str:
     .oompah/attachments/<issue>/outputs/ directory, named
     ``<turn>-<sha>-<filename>``. Returns the canonical relative path on
     success, or an error string. The orchestrator commits these on agent
-    completion and writes the manifest back to Backlog task metadata."""
+    completion and writes the manifest back to tracker metadata."""
     import base64 as _b64
     import hashlib as _h
     import re as _re
@@ -730,12 +730,12 @@ def _execute_tool(
     handler = _TOOL_DISPATCH.get(name)
     if handler is None:
         # Models occasionally lift a shell command out of the WORKFLOW.md
-        # cheat sheet and call it as a tool name (e.g. ``backlog task edit``
+        # cheat sheet and call it as a tool name (e.g. ``oompah task set-status``
         # with spaces, or ``git commit``). Detect that and redirect them
         # to ``run_command`` instead of leaving them to loop on the bare
         # "unknown tool" message.
         looks_like_shell = " " in name or name.startswith(
-            ("backlog", "backlog_", "git", "git_", "uv ", "make")
+            ("oompah", "oompah_", "git", "git_", "uv ", "make")
         )
         if looks_like_shell:
             return (
@@ -1536,7 +1536,7 @@ class ApiAgentSession:
             # or a 401 authentication error (expired/revoked token).
             #
             # Log at WARNING — not ERROR — so the error_watcher does not
-            # auto-file duplicate bug beads for transient errors the
+            # auto-file duplicate bug tasks for transient errors the
             # orchestrator already handles by re-dispatching the worker.
             # Mirrors the RateLimitError handler above and the
             # TrackerTimeoutError WARNING pattern in oompah/tracker.py.
@@ -1579,7 +1579,7 @@ class ApiAgentSession:
             # exhausted on a sustained outage or because some new code
             # path bypasses ``_http_post`` — keep the bare ``[Errno N]``
             # repr out of the log line so error_watcher fingerprints
-            # cleanly into a single "transport_error" bead instead of
+            # cleanly into a single "transport_error" task instead of
             # duplicating the historic '[Errno 57] Socket is not
             # connected' title pattern that ovt already fixed at the
             # source.

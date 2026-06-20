@@ -1,31 +1,31 @@
-"""Completion verifier — reject bead-close when the agent diff does not
+"""Completion verifier — reject issue close when the agent diff does not
 satisfy the acceptance criteria.
 
 Motivating evidence (see issue oompah-zlz_2-y0ns):
 
 * **trickle-icl** (2026-05-07): Agent for a CI fix on PR #23's branch
   ``trickle-rl5`` opened a new branch + new PR instead. Closed the
-  bead. Operator had to refile.
-* **oompah-zlz_2-jg4** (2026-05-08): Watchdog feature bead specified
+  issue. Operator had to refile.
+* **oompah-zlz_2-jg4** (2026-05-08): Watchdog feature issue specified
   four detectors (D1/D2/D3/D4). Agent shipped only D2 and closed
-  the bead.
+  the issue.
 * **oompah-zlz_2-keb** (2026-05-10): Spec required
   ``ModelProvider.mode`` + UI Mode toggle. Agent shipped only CSS
-  badges and closed the bead.
+  badges and closed the issue.
 
-Pattern: bead has clear acceptance criteria → agent ships partial
-work → agent self-reports "done" → bead closes → operator later
+Pattern: issue has clear acceptance criteria → agent ships partial
+work → agent self-reports "done" → issue closes → operator later
 discovers gap.
 
 Design
 ------
 
 A two-stage verification pass runs after the worker exits and we
-detect that the agent moved the bead to ``closed``. Both stages
+detect that the agent moved the issue to ``closed``. Both stages
 fail-open so verification can never become a stuck-loop hazard:
 
 * **Stage 1** (cheap, deterministic): regex-extract file paths and
-  Python symbols from the bead's acceptance-criteria section, then
+  Python symbols from the issue's acceptance-criteria section, then
   check the diff contains a touch for each.
 * **Stage 2** (LLM-based, only when Stage 1 finds gaps): send the
   acceptance criteria + a diff summary to a small/fast model and
@@ -122,16 +122,6 @@ _LLM_TIMEOUT_S = 20.0
 # correctness).
 _BYPASS_LABELS = {"ci-fix", "merge-conflict"}
 
-# Path prefixes that are forbidden in GitHub-backed task diffs.
-# Agents running against a GitHub-backed project must not create
-# Backlog.md task files — those operations must go through the
-# oompah task command wrapper instead.
-_BACKLOG_GUARD_PREFIXES: tuple[str, ...] = (
-    "backlog/tasks/",
-    "backlog/completed/",
-)
-
-
 @dataclass
 class ExtractedReferences:
     """Files and symbols pulled from the AC section."""
@@ -186,28 +176,10 @@ class VerifierResult:
     skip_reason: str = ""
     stage1: Stage1Result | None = None
     stage2: Stage2Result | None = None
-    # Newly-added Backlog task/completed files detected in a
-    # GitHub-backed task's diff. Non-empty iff the backlog-file
-    # guard fired (see :func:`detect_new_backlog_files`).
-    new_backlog_files: list[str] = field(default_factory=list)
 
     def render_rejection_comment(self) -> str:
-        """Build the synthetic comment posted to the reopened bead."""
+        """Build the synthetic comment posted to the reopened issue."""
         parts = ["**Completion verifier rejected close.**", ""]
-        if self.new_backlog_files:
-            parts.append(
-                "This task is GitHub-backed. New Backlog.md task files must "
-                "not be created — use `oompah task create` (or child-create) "
-                "instead. The following file(s) were added:"
-            )
-            for f in self.new_backlog_files:
-                parts.append(f"- `{f}`")
-            parts.append("")
-            parts.append(
-                "Remove the new Backlog file(s) and re-route any follow-up "
-                "tasks through the oompah task command wrapper."
-            )
-            parts.append("")
         if self.stage1 and self.stage1.missing_files:
             parts.append("Files mentioned in acceptance criteria but missing from diff:")
             for f in self.stage1.missing_files:
@@ -364,7 +336,7 @@ def compute_added_files(workspace_path: str, base_branch: str) -> list[str]:
     """
     git = shutil.which("git")
     if not git:
-        logger.warning("git not on PATH; cannot check for new backlog files")
+        logger.warning("git not on PATH; cannot check for newly added files")
         return []
 
     bases = []
@@ -390,19 +362,6 @@ def compute_added_files(workspace_path: str, base_branch: str) -> list[str]:
             continue
         return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
     return []
-
-
-def detect_new_backlog_files(added_files: list[str]) -> list[str]:
-    """Return paths from *added_files* that are new Backlog task/completed files.
-
-    Matches any file whose repo-relative path starts with
-    ``backlog/tasks/`` or ``backlog/completed/``.  Only newly-added
-    files should be passed in (see :func:`compute_added_files`).
-    """
-    return [
-        f for f in added_files
-        if any(f.startswith(prefix) for prefix in _BACKLOG_GUARD_PREFIXES)
-    ]
 
 
 def _file_present(target: str, diff_files: list[str]) -> bool:
@@ -491,8 +450,8 @@ def run_stage1(
 def _build_stage2_prompt(ac_section: str, diff_summary: str) -> str:
     return (
         "You are auditing whether an agent's code diff satisfies a "
-        "bead's acceptance criteria.\n\n"
-        "Bead acceptance criteria:\n"
+        "issue's acceptance criteria.\n\n"
+        "Issue acceptance criteria:\n"
         f"```\n{ac_section}\n```\n\n"
         "Agent's diff summary (output of `git diff` against the base "
         "branch, truncated):\n"
@@ -623,7 +582,7 @@ def should_skip_verification(
 
     Skip when:
     * The issue type is ``epic`` (epics auto-close when children
-      close; no per-bead diff exists).
+      close; no per-issue diff exists).
     * The issue has a CI-fix/rebase status or legacy label (their own
       focus-rail enforces correctness).
     * The ``attempt`` count is at or above
@@ -660,45 +619,11 @@ def verify_completion(
 ) -> VerifierResult:
     """Top-level verification routine.
 
-    Runs the backlog-file guard (for non-Backlog oompah-managed tasks) first, then
-    the skip-rules, then Stage 1 (regex check), then Stage 2 (LLM
+    Runs the skip-rules, then Stage 1 (regex check), then Stage 2 (LLM
     check) if Stage 1 found gaps. Fail-open at every boundary.
-
-    Backlog-file guard
-    ------------------
-    GitHub-backed and native oompah Markdown tasks must not add files under
-    ``backlog/tasks/`` or ``backlog/completed/``. If the agent created such
-    files the verifier immediately rejects with a clear diagnostic and a
-    pointer to ``oompah task create``. The guard fires *before* the standard
-    skip rules so that epic/ci-fix labels cannot accidentally bypass the policy
-    check.
     """
     # ----------------------------------------------------------------
-    # 0. Backlog-file guard (non-Backlog oompah-managed tasks only).
-    # ----------------------------------------------------------------
-    if (issue.tracker_kind or "").strip().lower() in {"github_issues", "oompah_md"}:
-        try:
-            added = compute_added_files(workspace_path, base_branch)
-            new_backlog = detect_new_backlog_files(added)
-            if new_backlog:
-                logger.warning(
-                    "completion verifier: GitHub-backed task %s added "
-                    "Backlog task file(s) — rejecting close: %s",
-                    issue.identifier,
-                    new_backlog,
-                )
-                return VerifierResult(passed=False, new_backlog_files=new_backlog)
-        except Exception as exc:
-            # Fail open — a git error must not permanently block the close.
-            logger.warning(
-                "completion verifier: backlog-file guard error for %s; "
-                "failing open: %s",
-                issue.identifier,
-                exc,
-            )
-
-    # ----------------------------------------------------------------
-    # 1. Standard skip rules.
+    # 0. Standard skip rules.
     # ----------------------------------------------------------------
     skip, reason = should_skip_verification(
         issue,

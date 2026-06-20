@@ -482,7 +482,7 @@ class TestOrchestratorEventBus:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            # _dispatch will fail at tracker.update_issue (no bd), but the
+            # _dispatch will fail at tracker.update_issue (no tracker), but the
             # event is emitted before that — actually it's emitted after.
             # Instead, test via emit directly (unit test of the wiring).
             orch.event_bus.emit(EventType.AGENT_DISPATCHED, {

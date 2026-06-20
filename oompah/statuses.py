@@ -1,4 +1,4 @@
-"""Canonical Backlog.md lifecycle statuses used by oompah."""
+"""Canonical oompah lifecycle statuses."""
 
 from __future__ import annotations
 
@@ -97,13 +97,13 @@ _ALIASES = {
 
 
 def canonicalize_status(status: str | None) -> str:
-    """Return the canonical oompah status for a user or legacy value."""
+    """Return the canonical oompah status for a user-supplied value."""
     key = status_key(status)
     return _ALIASES.get(key, str(status or DEFAULT_STATUS).strip() or DEFAULT_STATUS)
 
 
 def canonical_statuses_with(existing: Iterable[str] | None = None) -> list[str]:
-    """Return canonical statuses plus non-legacy custom statuses.
+    """Return canonical statuses plus custom statuses.
 
     ``To Do``/``deferred`` are intentionally not preserved as custom
     statuses because they are compatibility aliases for ``Backlog``.

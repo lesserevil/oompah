@@ -29,11 +29,11 @@ class TestLoadWorkflow:
     def test_with_front_matter(self, tmp_path):
         f = tmp_path / "WORKFLOW.md"
         f.write_text(
-            "---\ntracker:\n  kind: backlog_md\npoll_ms: 5000\n---\n"
+            "---\ntracker:\n  kind: oompah_md\npoll_ms: 5000\n---\n"
             "Hello {{ issue.title }}"
         )
         wf = load_workflow(str(f))
-        assert wf.config["tracker"]["kind"] == "backlog_md"
+        assert wf.config["tracker"]["kind"] == "oompah_md"
         assert "Hello" in wf.prompt_template
 
     def test_missing_file(self):
@@ -146,23 +146,23 @@ class TestServiceConfig:
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.server_port is None
 
-    def test_from_workflow_backlog_md_defaults(self):
+    def test_from_workflow_oompah_md_defaults(self):
         wf = WorkflowDefinition(
-            config={"tracker": {"kind": "backlog_md"}},
+            config={"tracker": {"kind": "oompah_md"}},
             prompt_template="test",
         )
         cfg = ServiceConfig.from_workflow(wf)
-        assert cfg.tracker_kind == "backlog_md"
+        assert cfg.tracker_kind == "oompah_md"
         assert cfg.tracker_active_states == ["Open", "Needs CI Fix", "Needs Rebase"]
         assert cfg.tracker_terminal_states == ["Done", "Merged", "Archived"]
 
-    def test_from_workflow_backlog_md_alias(self):
+    def test_from_workflow_oompah_md_alias(self):
         wf = WorkflowDefinition(
-            config={"tracker": {"kind": "Backlog.md"}},
+            config={"tracker": {"kind": "oompah.md"}},
             prompt_template="test",
         )
         cfg = ServiceConfig.from_workflow(wf)
-        assert cfg.tracker_kind == "backlog_md"
+        assert cfg.tracker_kind == "oompah_md"
 
     def test_budget_window_explicit_in_workflow(self):
         wf = WorkflowDefinition(
@@ -228,7 +228,7 @@ class TestServiceConfig:
         )
         wf = WorkflowDefinition(
             config={
-                "tracker": {"kind": "backlog_md", "active_states": ["open"]},
+                "tracker": {"kind": "oompah_md", "active_states": ["open"]},
                 "polling": {"interval_ms": 5000},
                 "agent": {
                     "max_concurrent_agents": 3,
@@ -339,14 +339,14 @@ class TestValidateDispatchConfig:
         errors = validate_dispatch_config(cfg)
         assert errors == []
 
-    def test_valid_backlog_md(self):
-        cfg = ServiceConfig(tracker_kind="backlog_md")
+    def test_valid_oompah_md(self):
+        cfg = ServiceConfig(tracker_kind="oompah_md")
         errors = validate_dispatch_config(cfg)
         assert errors == []
 
-    def test_manual_backlog_md_alias_normalizes(self):
-        cfg = ServiceConfig(tracker_kind="Backlog.md")
-        assert cfg.tracker_kind == "backlog_md"
+    def test_manual_oompah_md_alias_normalizes(self):
+        cfg = ServiceConfig(tracker_kind="oompah.md")
+        assert cfg.tracker_kind == "oompah_md"
         assert validate_dispatch_config(cfg) == []
 
     def test_invalid_tracker(self):
@@ -358,11 +358,6 @@ class TestValidateDispatchConfig:
         cfg = ServiceConfig(tracker_kind="beans")
         errors = validate_dispatch_config(cfg)
         assert any("Unsupported" in e and "beans" in e for e in errors)
-
-    def test_beads_is_not_supported(self):
-        cfg = ServiceConfig(tracker_kind="beads")
-        errors = validate_dispatch_config(cfg)
-        assert any("Unsupported" in e and "beads" in e for e in errors)
 
     def test_empty_command(self):
         cfg = ServiceConfig(agent_command="")

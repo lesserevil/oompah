@@ -97,8 +97,7 @@ def _issue_to_template_vars(issue: Issue) -> dict[str, Any]:
         "updated_at": issue.updated_at.isoformat() if issue.updated_at else "",
         # Tracker identity fields (TASK-457.2 / TASK-460.2).
         # ``tracker_kind`` drives conditional rendering in WORKFLOW.md:
-        # "github_issues" and "oompah_md" use oompah task commands; "" is
-        # legacy Backlog.
+        # "github_issues" and "oompah_md" use oompah task commands.
         "tracker_kind": issue.tracker_kind or "",
         "provider_url": issue.provider_url or "",
         "display_identifier": issue.display_identifier or "",

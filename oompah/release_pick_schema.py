@@ -1,15 +1,15 @@
 """Release-pick metadata schema and status lifecycle (TASK-454.4).
 
 Defines the formal typed schema for the ``oompah.backports`` and
-``oompah.backport_of`` Backlog.md frontmatter fields used to coordinate
-cherry-pick PRs to release branches.
+``oompah.backport_of`` tracker metadata fields used to coordinate cherry-pick
+PRs to release branches.
 
 Overview
 --------
 
 When a source task (e.g. a feature or bugfix) is ready to be backported to
 one or more release branches, the operator adds an ``oompah.backports`` entry
-to its Backlog frontmatter listing the target branches::
+to its tracker metadata listing the target branches::
 
     oompah:
       backports:
@@ -18,8 +18,8 @@ to its Backlog frontmatter listing the target branches::
         - branch: release/2.0
           status: waiting
 
-The reconciliation loop (TASK-455.1) reads this list, creates a child Backlog
-task per target branch, cherry-picks the source commits, opens a PR, and
+The reconciliation loop (TASK-455.1) reads this list, creates a child task per
+target branch, cherry-picks the source commits, opens a PR, and
 advances the ``status`` field as the work progresses.
 
 The child (backport) task carries ``oompah.backport_of`` pointing back to the
@@ -87,8 +87,8 @@ from typing import Any
 class ReleasePick(str, Enum):
     """Status of a single release-pick (cherry-pick) to one target branch.
 
-    Values are lower-cased strings so they serialise cleanly as Backlog.md
-    frontmatter and are readable by non-Python tooling.
+    Values are lower-cased strings so they serialise cleanly and are readable
+    by non-Python tooling.
     """
 
     #: Requested but not yet started; no child task exists.
@@ -119,7 +119,7 @@ class ReleasePick(str, Enum):
         entries always start in the expected initial state.
 
         Args:
-            raw: Raw value from Backlog frontmatter (``str``, ``None``,
+            raw: Raw frontmatter value (``str``, ``None``,
                  or already a :class:`ReleasePick`).
 
         Returns:
@@ -232,7 +232,7 @@ def is_valid_transition(from_status: ReleasePick, to_status: ReleasePick) -> boo
 class BackportEntry:
     """Represents one target branch entry in the ``oompah.backports`` list.
 
-    Stored in Backlog.md frontmatter as either:
+    Stored in tracker metadata as either:
 
     * A plain string (branch name only, implicitly ``waiting``)::
 
@@ -265,7 +265,7 @@ class BackportEntry:
     commits: list[str] = field(default_factory=list)
 
     def to_raw(self) -> str | dict[str, Any]:
-        """Serialise to the canonical Backlog.md frontmatter form.
+        """Serialise to the canonical tracker metadata form.
 
         Returns a plain string when only ``branch`` and the default
         ``waiting`` status are set (compact form); otherwise returns a
@@ -297,7 +297,7 @@ class BackportEntry:
           ``pr_url``, ``commits`` fields.
 
         Args:
-            raw: Raw value from Backlog frontmatter.
+            raw: Raw frontmatter value.
 
         Returns:
             A :class:`BackportEntry` parsed from *raw*.
@@ -348,7 +348,7 @@ class BackportOf:
     Links the child task back to the source task and mirrors the per-branch
     status from the parent's ``oompah.backports`` entry.
 
-    Stored in Backlog.md frontmatter as either:
+    Stored in tracker metadata as either:
 
     * A plain string (source task identifier, status implicitly derived from
       the child task's own lifecycle)::
@@ -372,7 +372,7 @@ class BackportOf:
     status: ReleasePick = ReleasePick.WAITING
 
     def to_raw(self) -> str | dict[str, Any]:
-        """Serialise to the canonical Backlog.md frontmatter form.
+        """Serialise to the canonical tracker metadata form.
 
         Returns a plain string when ``status`` is ``waiting`` (compact
         form); otherwise returns a ``{"source": ..., "status": ...}`` dict.
@@ -391,7 +391,7 @@ class BackportOf:
         * A mapping with ``source`` key and optional ``status``.
 
         Args:
-            raw: Raw value from Backlog frontmatter.
+            raw: Raw frontmatter value.
 
         Returns:
             A :class:`BackportOf` parsed from *raw*.
@@ -485,6 +485,6 @@ def backports_to_raw(entries: list[BackportEntry]) -> list[Any]:
         entries: List of :class:`BackportEntry` objects.
 
     Returns:
-        List of strings/dicts suitable for writing to Backlog frontmatter.
+        List of strings/dicts suitable for writing to task frontmatter.
     """
     return [e.to_raw() for e in entries]

@@ -1,7 +1,7 @@
 """Tests for ``oompah.console.ConsoleSession`` + ``ConsoleSessionManager``
 (oompah-zlz_2-49tv).
 
-Covers the bead's acceptance criteria:
+Covers the task's acceptance criteria:
 
 * ``test_send_appends_input_and_event`` — one operator turn, mocked
   AcpAgentSession that emits a single backend event; transcript on
@@ -493,7 +493,7 @@ async def test_rehydration_after_construction_with_existing_transcript(
             ts="2026-05-13T19:00:02Z",
             kind="operator_input",
             backend="claude",
-            text="run bd ready",
+            text="run tracker ready",
         ),
     ]
     for ev in prior_events:

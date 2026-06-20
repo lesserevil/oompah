@@ -76,9 +76,8 @@ back on the next operator message.
    * Build tool catalog: `build_tool_catalog(workspace_path,
      tracker_env=...)` for Claude, `build_codex_tool_catalog(...)` for
      Codex. The catalogs share the same `_exec_*` helpers as the worker
-     dispatch path, so `cd`-out-of-worktree guard, tracker-specific
-     command routing (Backlog.md path/root hints), and per-command
-     timeouts apply.
+     dispatch path, so `cd`-out-of-worktree guard, tracker-aware
+     command routing, and per-command timeouts apply.
    * Build the prompt via `render_transcript_as_prompt(transcript,
      new_input=...)`. Replays Operator:/Assistant:/tool-use lines so
      the SDK has full conversational context. Caps history at 200
@@ -110,9 +109,8 @@ back on the next operator message.
   close tasks on the operator's behalf via the dispatch loop — it
   just gives the operator a chat interface with tool access. The
   operator can still ask "close oompah-zlz_2-foo with reason X" and
-  the model will use the configured Backlog.md completion operation, but
-  that's an explicit tool call, not orchestrator dispatch. Beans is not a
-  supported console tracker.
+  the model will use the configured `oompah task` operation, but that's
+  an explicit tool call, not orchestrator dispatch.
 
 * **Cost accounting.** Per-token billing meters against the
   project's chosen provider via the same `_estimate_cost` path
@@ -138,8 +136,7 @@ back on the next operator message.
   queued; the task-detail dropzone is the canonical attachment path.
 * Hot model swap mid-turn.
 
-Console follow-up work should extend Backlog.md support rather than
-introducing another tracker path.
+Console follow-up work should extend the shared tracker-aware tool path.
 
 ## Testing
 

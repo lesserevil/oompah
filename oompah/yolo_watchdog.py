@@ -1,9 +1,9 @@
 """YOLO-loop block watchdog.
 
 Detects recurring no-progress patterns in the YOLO review-action loop and
-proposes P0 escalation beads. The watchdog is intentionally pure — it
+proposes P0 escalation tasks. The watchdog is intentionally pure — it
 inspects state passed in by the orchestrator and returns descriptions
-of what to file. The orchestrator owns the side effects (filing beads,
+of what to file. The orchestrator owns the side effects (filing tasks,
 mutating its own caches).
 
 Design principles
@@ -14,9 +14,9 @@ Design principles
 * **Per-PR isolation.** v1 doesn't try to correlate patterns across
   projects — each (project, review) pair is its own watchdog timeline.
 * **Idempotent.** When the same pattern fires for the same PR repeatedly,
-  the orchestrator's filed-bead cache prevents re-filing.
+  the orchestrator's filed-task cache prevents re-filing.
 * **No auto-repair.** The watchdog escalates by filing operator-attention
-  beads. Per-pattern repair lives elsewhere (it's exactly the code we've
+  tasks. Per-pattern repair lives elsewhere (it's exactly the code we've
   already been writing reactively).
 
 The four detectors implemented for v1 are:
@@ -24,8 +24,8 @@ The four detectors implemented for v1 are:
 * **D1** — recurring identical failure on the same PR for ≥5 ticks.
 * **D2** — loop coverage: ``reviews_considered < total_reviews`` for
   ≥3 consecutive ticks (a starvation signal).
-* **D3** — bead-PR coherence: a PR with ``has_conflicts=True`` or
-  ``ci_status=='failed'`` whose recovery bead has been closed without
+* **D3** — task-PR coherence: a PR with ``has_conflicts=True`` or
+  ``ci_status=='failed'`` whose recovery task has been closed without
   resolving the underlying problem.
 * **D4** — "PR already mergeable" stuck loop: if ``enable_auto_merge``
   has reported "already mergeable" ≥3 ticks running, the orchestrator
@@ -49,7 +49,7 @@ from typing import Iterable
 DEFAULT_HISTORY_MAX: int = 400
 
 #: Recurrence threshold for D1: this many consecutive failures of the
-#: same (project, review, action) tuple before we file a P0 bead.
+#: same (project, review, action) tuple before we file a P0 task.
 D1_RECURRENCE_THRESHOLD: int = 5
 
 #: Coverage threshold for D2: this many consecutive ticks where
@@ -94,7 +94,7 @@ class YoloActionRecord:
             to determine "consecutive ticks" semantics. Tick numbering
             is per-process; the watchdog only cares about ordering.
         timestamp: Wall-clock seconds at attempt time. Surfaced in the
-            P0 bead body so the operator can correlate with logs.
+            P0 task body so the operator can correlate with logs.
     """
 
     project_id: str
@@ -136,24 +136,24 @@ class CoverageRecord:
 class WatchdogPattern:
     """A detected pattern to be escalated by the orchestrator.
 
-    The orchestrator translates this into either a P0 bead (D1, D3, D4
+    The orchestrator translates this into either a P0 task (D1, D3, D4
     when escalating) or a log warning (D2). The ``pattern_key`` is the
-    idempotency key — the orchestrator stamps it on its filed-bead
+    idempotency key — the orchestrator stamps it on its filed-task
     cache so the same pattern doesn't re-file every tick.
 
-    ``severity`` is ``"p0"`` for bead-filing patterns and ``"warning"``
+    ``severity`` is ``"p0"`` for task-filing patterns and ``"warning"``
     for log-only patterns (D2). The orchestrator handles each
     appropriately.
 
     Attributes:
-        project_id: Owning project for the bead.
+        project_id: Owning project for the task.
         review_id: PR/MR id (string). Empty for project-level
             patterns (D2).
         pattern_key: Detector-specific idempotency key.
         detector: Detector tag (``"d1"`` / ``"d2"`` / ``"d3"`` / ``"d4"``).
-        title: Bead title (for bead-filing patterns) or warning summary.
-        body: Bead description / warning detail.
-        labels: Labels to attach to the filed bead.
+        title: Task title (for task-filing patterns) or warning summary.
+        body: Task description / warning detail.
+        labels: Labels to attach to the filed task.
         severity: ``"p0"`` or ``"warning"``.
     """
 
@@ -273,7 +273,7 @@ def detect_d1_recurrent_failures(
             f"{project_name} review #{review_id} for {count} consecutive "
             f"ticks. Each attempt has failed, and the most recent error "
             f"was:\n\n```\n{latest_err or '(no error message captured)'}\n```\n\n"
-            "This bead was filed automatically by the YOLO watchdog. The "
+            "This task was filed automatically by the YOLO watchdog. The "
             "loop is not making progress on this PR — operator attention "
             "is required to either fix the underlying condition or close "
             "the PR.\n\n"
@@ -304,7 +304,7 @@ def detect_d2_loop_coverage(
 
     Returns a single warning-severity pattern per project where the most
     recent ``threshold`` ticks all had ``considered < total``. The
-    orchestrator emits this as a log WARNING rather than a bead.
+    orchestrator emits this as a log WARNING rather than a task.
     """
     by_project: dict[str, list[CoverageRecord]] = {}
     for r in coverage_history:
@@ -354,12 +354,12 @@ def detect_d2_loop_coverage(
     return patterns
 
 
-def detect_d3_bead_pr_coherence(
+def detect_d3_task_pr_coherence(
     *,
     incoherent_prs: Iterable[dict],
     project_lookup: dict[str, str] | None = None,
 ) -> list[WatchdogPattern]:
-    """D3 — bead-PR coherence breakdown.
+    """D3 — task-PR coherence breakdown.
 
     The caller (orchestrator) determines incoherence by inspecting open
     PRs and the orphan-recovery cache. Each entry in ``incoherent_prs``
@@ -370,7 +370,7 @@ def detect_d3_bead_pr_coherence(
     Returns one P0 watchdog pattern per incoherent PR. The pattern body
     explains what the orchestrator detected and asks the operator to
     re-run the YOLO recovery path. The orchestrator's separate orphan-
-    recovery-cache reset action runs alongside this bead filing.
+    recovery-cache reset action runs alongside this task filing.
     """
     project_lookup = project_lookup or {}
     patterns: list[WatchdogPattern] = []
@@ -383,18 +383,18 @@ def detect_d3_bead_pr_coherence(
         project_name = project_lookup.get(project_id, project_id)
         pattern_key = f"d3:{project_id}:{review_id}:{kind}"
         title = (
-            f"YOLO bead-PR coherence break on {project_name}/{review_id}: "
-            f"{kind} recovery bead missing or stale"
+            f"YOLO task-PR coherence break on {project_name}/{review_id}: "
+            f"{kind} recovery task missing or stale"
         )
         body = (
             f"PR #{review_id} on {project_name} (branch `{source_branch}`) "
             f"is in a state requiring `{kind}` recovery, but no matching "
-            f"open bead exists.\n\n"
+            f"open task exists.\n\n"
             f"- Reason: {reason or '(no detail)'}\n"
-            f"- Detector: D3 (bead-PR coherence)\n"
+            f"- Detector: D3 (task-PR coherence)\n"
             f"- Recovery: the YOLO orphan-recovery cache for this PR has "
             f"been cleared, so the next tick will re-attempt to file the "
-            f"correct recovery bead. If this watchdog bead recurs without "
+            f"correct recovery task. If this watchdog task recurs without "
             f"resolution, an operator must investigate the PR by hand.\n"
         )
         patterns.append(WatchdogPattern(
@@ -475,8 +475,8 @@ def detect_d4_already_mergeable(
     Returns a P0 pattern per (project, review) once the consecutive-
     "already mergeable" count crosses ``threshold``. The orchestrator
     uses ``count_consecutive_already_mergeable`` separately to decide
-    whether to switch strategy *before* the bead-filing threshold —
-    the bead is only filed when the strategy switch itself has been
+    whether to switch strategy *before* the task-filing threshold —
+    the task is only filed when the strategy switch itself has been
     insufficient (still failing).
     """
     history = list(history)
@@ -565,7 +565,7 @@ def run_all_detectors(
     Note that D1 will catch D4-eligible patterns once they reach the
     D1 threshold (5 consecutive failures of any kind). The orchestrator
     handles deduplication by pattern_key — D4's key is more specific
-    so D1+D4 simultaneous matches still file as separate beads only
+    so D1+D4 simultaneous matches still file as separate tasks only
     if neither has already been filed.
     """
     history = list(history)
@@ -578,7 +578,7 @@ def run_all_detectors(
     patterns.extend(detect_d4_already_mergeable(
         history, project_lookup=project_lookup,
     ))
-    patterns.extend(detect_d3_bead_pr_coherence(
+    patterns.extend(detect_d3_task_pr_coherence(
         incoherent_prs=incoherent_prs, project_lookup=project_lookup,
     ))
     patterns.extend(detect_d2_loop_coverage(coverage_history))

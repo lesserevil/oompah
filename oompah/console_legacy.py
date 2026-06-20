@@ -5,13 +5,13 @@ oompah-zlz_2-ebwe).
 
     This file is the inline implementation the umbrella epic shipped
     before the modular design (ConsoleStore / ConsoleEvent /
-    translators / ConsoleSession) landed via the child beads. New code
+    translators / ConsoleSession) landed via the child tasks. New code
     should use :mod:`oompah.console` (the new ConsoleSession +
-    ConsoleSessionManager built per the bead spec in
+    ConsoleSessionManager built per the task spec in
     oompah-zlz_2-49tv). This module is kept around so
     :mod:`oompah.server` and existing tests for the umbrella code keep
     working; HTTP/WS endpoints will be swung over to the new design in
-    bead oompah-zlz_2-g73s (Console 4/6).
+    task oompah-zlz_2-g73s (Console 4/6).
 
 Provides the operator with a first-class interactive ACP session inside
 the dashboard, using the same SDK and tool catalog as the worker

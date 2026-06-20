@@ -281,7 +281,7 @@ class TestParseGitHubPushWebhook:
         ref: str = "refs/heads/main",
         repo_full_name: str = "org/repo",
         deleted: bool = False,
-        head_message: str = "chore(beads): undefer all",
+        head_message: str = "chore(tasks): undefer all",
         pusher_name: str = "octocat",
     ) -> dict:
         return {
@@ -305,7 +305,7 @@ class TestParseGitHubPushWebhook:
         assert event.review_id == ""
         assert event.merged is False
         assert event.author == "octocat"
-        assert event.title == "chore(beads): undefer all"
+        assert event.title == "chore(tasks): undefer all"
         assert event.repo_slug == "org/repo"
 
     def test_push_to_feature_branch(self):

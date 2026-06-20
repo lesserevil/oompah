@@ -1,4 +1,4 @@
-"""Tests for oompah's canonical Backlog.md statuses."""
+"""Tests for oompah's canonical task statuses."""
 
 from oompah.statuses import (
     ARCHIVED,

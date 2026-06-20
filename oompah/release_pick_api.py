@@ -199,8 +199,7 @@ def get_release_pick_detail(
     default to ``True`` / ``None``.
 
     Args:
-        tracker: A :class:`~oompah.tracker.BacklogMdTracker` instance for
-            the project that owns the task.
+        tracker: Tracker adapter for the project that owns the task.
         identifier: The task identifier (e.g. ``"TASK-123"``).
         project: Optional :class:`~oompah.models.Project` for branch
             validation.  When ``None``, branch validation is skipped and
@@ -274,7 +273,7 @@ def update_release_pick_entry(
     When the branch fails validation an exception is raised and no write occurs.
 
     Args:
-        tracker: A :class:`~oompah.tracker.BacklogMdTracker` instance.
+        tracker: Tracker adapter for the project that owns the task.
         identifier: The task identifier (e.g. ``"TASK-123"``).
         branch: The target branch name for the entry to update/create.
         status: New lifecycle status value.  Accepts a raw string (parsed via
@@ -380,7 +379,7 @@ def update_release_picks_bulk(  # noqa: WPS231
     (if any) and applies updates; new entries are appended.
 
     Args:
-        tracker: A :class:`~oompah.tracker.BacklogMdTracker` instance.
+        tracker: Tracker adapter for the project that owns the task.
         identifier: The task identifier.
         backports: List of dicts each with ``"branch"`` and optional
             ``"status"``, ``"task_id"``, ``"pr_url"`` keys.
@@ -478,7 +477,7 @@ def get_epic_release_pick_matrix(
     column is a unique target branch seen anywhere in the epic.
 
     Args:
-        tracker: A :class:`~oompah.tracker.BacklogMdTracker` instance.
+        tracker: Tracker adapter for the project that owns the task.
         epic_identifier: The identifier of the parent epic task.
         project: Optional :class:`~oompah.models.Project` for branch
             validation.  When provided each entry's ``is_valid`` /
@@ -598,7 +597,7 @@ def apply_release_picks_to_all_children(
     validation a :class:`ValueError` is raised and no writes occur.
 
     Args:
-        tracker: A :class:`~oompah.tracker.BacklogMdTracker` instance.
+        tracker: Tracker adapter for the project that owns the task.
         epic_identifier: The identifier of the parent epic task.
         branches: List of target branch names to apply.
         skip_children: Optional list of child identifiers to mark as

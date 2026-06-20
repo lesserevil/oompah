@@ -408,10 +408,10 @@ def _github_project(repo_path: str) -> SimpleNamespace:
     )
 
 
-def _backlog_project(repo_path: str) -> SimpleNamespace:
+def _native_project(repo_path: str) -> SimpleNamespace:
     return SimpleNamespace(
         id="proj-2",
-        tracker_kind="backlog",
+        tracker_kind="oompah_md",
         repo_path=repo_path,
         git_user_name=None,
         git_user_email=None,
@@ -438,7 +438,7 @@ class TestIssueTemplatesStatusEndpoint:
         assert res.status_code == 404
 
     def test_400_for_non_github_issues_project(self, client, tmp_path) -> None:
-        project = _backlog_project(str(tmp_path))
+        project = _native_project(str(tmp_path))
         with patch("oompah.server._get_orchestrator") as mock_orch:
             mock_orch.return_value.project_store.get.return_value = project
             res = client.get(f"/api/v1/projects/{project.id}/issue-templates/status")
@@ -493,7 +493,7 @@ class TestIssueTemplatesPreviewEndpoint:
         assert "+++" in diff
 
     def test_400_for_non_github_issues_project(self, client, tmp_path) -> None:
-        project = _backlog_project(str(tmp_path))
+        project = _native_project(str(tmp_path))
         with patch("oompah.server._get_orchestrator") as mock_orch:
             mock_orch.return_value.project_store.get.return_value = project
             res = client.get(f"/api/v1/projects/{project.id}/issue-templates/preview")
@@ -560,7 +560,7 @@ class TestIssueTemplatesApplyEndpoint:
         assert "uncommitted changes" in data["error"]["message"]
 
     def test_400_for_non_github_issues_project(self, client, tmp_path) -> None:
-        project = _backlog_project(str(tmp_path))
+        project = _native_project(str(tmp_path))
         with patch("oompah.server._get_orchestrator") as mock_orch:
             mock_orch.return_value.project_store.get.return_value = project
             res = client.post(

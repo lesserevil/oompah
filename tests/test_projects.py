@@ -26,41 +26,13 @@ from oompah.projects import (
     _sanitize_identifier,
     github_work_branch_name,
 )
-from oompah.statuses import CANONICAL_STATUSES
 
 
-def _make_repo(tmp_path, *, backlog: bool = True):
+def _make_repo(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
     (repo / ".git").mkdir()
-    if backlog:
-        _write_backlog_config(repo)
     return repo
-
-
-def _write_backlog_config(repo, *, legacy: bool = False):
-    backlog_dir = repo / "backlog"
-    backlog_dir.mkdir(parents=True, exist_ok=True)
-    if legacy:
-        content = "\n".join([
-            "project_name: Legacy",
-            "default_status: To Do",
-            "task_prefix: TASK",
-            "statuses:",
-            "  - To Do",
-            "  - In Progress",
-            "  - Done",
-            "",
-        ])
-    else:
-        content = "\n".join([
-            "project_name: Test",
-            "default_status: Backlog",
-            "task_prefix: TASK",
-            f"statuses: [{', '.join(CANONICAL_STATUSES)}]",
-            "",
-        ])
-    (backlog_dir / "config.yml").write_text(content, encoding="utf-8")
 
 
 def _store(tmp_path) -> ProjectStore:
@@ -71,10 +43,8 @@ def _store(tmp_path) -> ProjectStore:
     )
 
 
-def _store_with_one_project(tmp_path, *, backlog: bool = True, legacy: bool = False):
-    repo = _make_repo(tmp_path, backlog=backlog)
-    if backlog and legacy:
-        _write_backlog_config(repo, legacy=True)
+def _store_with_one_project(tmp_path):
+    repo = _make_repo(tmp_path)
     store = _store(tmp_path)
     project = Project(
         id="proj-sync1",
@@ -143,7 +113,7 @@ class TestSanitizeIdentifier:
 
 class TestBootstrapLFS:
     def test_success_path_does_not_dirty_repo(self, tmp_path):
-        repo = _make_repo(tmp_path, backlog=False)
+        repo = _make_repo(tmp_path)
 
         def fake_run(args, **kwargs):
             if args[:3] == ["git", "lfs", "install"]:
@@ -157,7 +127,7 @@ class TestBootstrapLFS:
         assert not (repo / ".oompah").exists()
 
     def test_idempotent(self, tmp_path):
-        repo = _make_repo(tmp_path, backlog=False)
+        repo = _make_repo(tmp_path)
 
         with patch("oompah.projects.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess([], 0, "", "")
@@ -168,41 +138,21 @@ class TestBootstrapLFS:
         assert not (repo / ".oompah").exists()
 
     def test_no_lfs_installed_returns_false(self, tmp_path):
-        repo = _make_repo(tmp_path, backlog=False)
+        repo = _make_repo(tmp_path)
 
         with patch("oompah.projects.subprocess.run", side_effect=FileNotFoundError):
             assert _bootstrap_lfs(str(repo)) is False
 
     def test_lfs_install_failure_returns_false(self, tmp_path):
-        repo = _make_repo(tmp_path, backlog=False)
+        repo = _make_repo(tmp_path)
 
         with patch("oompah.projects.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.CalledProcessError(1, ["git", "lfs"])
             assert _bootstrap_lfs(str(repo)) is False
 
 
-class TestCreateProjectBacklogRequirement:
-    def test_default_create_uses_oompah_md_and_skips_backlog_compat_check(self, tmp_path):
-        store = _store(tmp_path)
-        repo_path = tmp_path / "repos" / "repo"
-        repo_path.mkdir(parents=True)
-        (repo_path / ".git").mkdir()
-
-        with patch("oompah.projects.ensure_backlog_compatible") as mock_compat:
-            with patch("oompah.projects.subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-                project = store.create(
-                    str(repo_path),
-                    name="repo",
-                    git_user_name="Test",
-                    git_user_email="t@example.com",
-                )
-
-        mock_compat.assert_not_called()
-        assert project.tracker_kind == "oompah_md"
-        assert project.paused is True
-
-    def test_explicit_legacy_clone_without_backlog_config_raises(self, tmp_path):
+class TestCreateProjectTrackerDefaults:
+    def test_default_create_uses_oompah_md_and_pauses(self, tmp_path):
         store = _store(tmp_path)
         repo_path = tmp_path / "repos" / "repo"
         repo_path.mkdir(parents=True)
@@ -210,58 +160,55 @@ class TestCreateProjectBacklogRequirement:
 
         with patch("oompah.projects.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-            with pytest.raises(ProjectError, match="No Backlog.md project"):
-                store.create(
-                    str(repo_path),
-                    name="repo",
-                    git_user_name="Test",
-                    git_user_email="t@example.com",
-                    tracker_kind="backlog_md",
-                )
+            project = store.create(
+                str(repo_path),
+                name="repo",
+                git_user_name="Test",
+                git_user_email="t@example.com",
+            )
 
-    def test_github_backed_create_skips_backlog_compat_check(self, tmp_path):
+        assert project.tracker_kind == "oompah_md"
+        assert project.paused is True
+
+    def test_github_backed_create_sets_tracker_fields(self, tmp_path):
         store = _store(tmp_path)
         repo_path = tmp_path / "repos" / "repo"
         repo_path.mkdir(parents=True)
         (repo_path / ".git").mkdir()
 
-        with patch("oompah.projects.ensure_backlog_compatible") as mock_compat:
-            with patch("oompah.projects.subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-                project = store.create(
-                    str(repo_path),
-                    name="repo",
-                    git_user_name="Test",
-                    git_user_email="t@example.com",
-                    tracker_kind="github_issues",
-                    tracker_owner="example-org",
-                    tracker_repo="oompah",
-                )
+        with patch("oompah.projects.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            project = store.create(
+                str(repo_path),
+                name="repo",
+                git_user_name="Test",
+                git_user_email="t@example.com",
+                tracker_kind="github_issues",
+                tracker_owner="example-org",
+                tracker_repo="oompah",
+            )
 
-        mock_compat.assert_not_called()
         assert project.tracker_kind == "github_issues"
         assert project.tracker_owner == "example-org"
         assert project.tracker_repo == "oompah"
         assert project.paused is True
 
-    def test_oompah_md_create_skips_backlog_compat_check(self, tmp_path):
+    def test_oompah_md_create_sets_tracker_kind(self, tmp_path):
         store = _store(tmp_path)
         repo_path = tmp_path / "repos" / "repo"
         repo_path.mkdir(parents=True)
         (repo_path / ".git").mkdir()
 
-        with patch("oompah.projects.ensure_backlog_compatible") as mock_compat:
-            with patch("oompah.projects.subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-                project = store.create(
-                    str(repo_path),
-                    name="repo",
-                    git_user_name="Test",
-                    git_user_email="t@example.com",
-                    tracker_kind="oompah_md",
-                )
+        with patch("oompah.projects.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            project = store.create(
+                str(repo_path),
+                name="repo",
+                git_user_name="Test",
+                git_user_email="t@example.com",
+                tracker_kind="oompah_md",
+            )
 
-        mock_compat.assert_not_called()
         assert project.tracker_kind == "oompah_md"
         assert project.paused is True
 
@@ -271,18 +218,16 @@ class TestCreateProjectBacklogRequirement:
         repo_path.mkdir(parents=True)
         (repo_path / ".git").mkdir()
 
-        with patch("oompah.projects.ensure_backlog_compatible") as mock_compat:
-            with patch("oompah.projects.subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-                project = store.create(
-                    "https://actor@github.com/example-org/example-repo.git",
-                    name="repo",
-                    git_user_name="Test",
-                    git_user_email="t@example.com",
-                    tracker_kind="github_issues",
-                )
+        with patch("oompah.projects.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            project = store.create(
+                "https://actor@github.com/example-org/example-repo.git",
+                name="repo",
+                git_user_name="Test",
+                git_user_email="t@example.com",
+                tracker_kind="github_issues",
+            )
 
-        mock_compat.assert_not_called()
         assert project.tracker_owner == "example-org"
         assert project.tracker_repo == "example-repo"
 
@@ -292,19 +237,17 @@ class TestCreateProjectBacklogRequirement:
         repo_path.mkdir(parents=True)
         (repo_path / ".git").mkdir()
 
-        with patch("oompah.projects.ensure_backlog_compatible") as mock_compat:
-            with patch("oompah.projects.subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-                project = store.create(
-                    "https://github.com/example-org/example-repo.git",
-                    name="repo",
-                    git_user_name="Test",
-                    git_user_email="t@example.com",
-                    tracker_kind="oompah_md",
-                    github_issue_intake_enabled=True,
-                )
+        with patch("oompah.projects.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            project = store.create(
+                "https://github.com/example-org/example-repo.git",
+                name="repo",
+                git_user_name="Test",
+                git_user_email="t@example.com",
+                tracker_kind="oompah_md",
+                github_issue_intake_enabled=True,
+            )
 
-        mock_compat.assert_not_called()
         assert project.tracker_kind == "oompah_md"
         assert project.github_issue_intake_enabled is True
         assert project.tracker_owner == "example-org"
@@ -312,79 +255,42 @@ class TestCreateProjectBacklogRequirement:
 
 
 class TestSyncProjectSources:
-    # The git-health portion of sync_project_sources is now delegated to
-    # backlog_conflict.ensure_repo_sound(); these tests patch that seam.
     _SOUND = {"sound": True, "actions": ["ff-pull"], "unrecoverable": [], "reset": False}
 
-    def test_runs_git_and_backlog_compatibility_when_present(self, tmp_path):
+    def test_runs_git_self_heal_when_present(self, tmp_path):
         store, repo = _store_with_one_project(tmp_path)
-        with patch(
-            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
-        ) as heal:
+        with patch("oompah.projects.ensure_repo_sound", return_value=dict(self._SOUND)) as heal:
             status = store.sync_project_sources("proj-sync1")
 
         assert status["git"] == "ok"
-        assert status["backlog"] == "ok"
-        assert status["conflicts"] == "none"
         heal.assert_called_once()
-        # called with (repo_path, default_branch)
         assert heal.call_args.args[0] == str(repo)
         assert heal.call_args.args[1] == "main"
 
     def test_reset_recovery_is_reported_in_git_status(self, tmp_path):
         store, _repo = _store_with_one_project(tmp_path)
         healed = {"sound": True, "actions": ["hard-reset"], "unrecoverable": [], "reset": True}
-        with patch("oompah.backlog_conflict.ensure_repo_sound", return_value=healed):
+        with patch("oompah.projects.ensure_repo_sound", return_value=healed):
             status = store.sync_project_sources("proj-sync1")
         assert status["git"] == "reset:ok"
         assert status.get("heal") == "hard-reset"
 
-    def test_legacy_backlog_config_is_migrated(self, tmp_path):
-        store, repo = _store_with_one_project(tmp_path, legacy=True)
-
-        with patch(
-            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
-        ):
-            status = store.sync_project_sources("proj-sync1")
-
-        assert status["git"] == "ok"
-        assert status["backlog"] == "migrated"
-        assert status["conflicts"] == "none"
-        config = (repo / "backlog" / "config.yml").read_text(encoding="utf-8")
-        assert "default_status: Backlog" in config
-        assert "Open" in config
-
-    def test_unhealable_checkout_does_not_block_backlog_check(self, tmp_path):
+    def test_unhealable_checkout_reports_git_failure(self, tmp_path):
         store, _repo = _store_with_one_project(tmp_path)
         unsound = {"sound": False, "actions": [], "unrecoverable": [], "reset": False}
-        with patch("oompah.backlog_conflict.ensure_repo_sound", return_value=unsound):
+        with patch("oompah.projects.ensure_repo_sound", return_value=unsound):
             status = store.sync_project_sources("proj-sync1")
 
         assert status["git"].startswith("failed")
-        assert status["backlog"] == "ok"
-
-    def test_missing_backlog_config_is_reported(self, tmp_path):
-        store, _repo = _store_with_one_project(tmp_path, backlog=False)
-
-        with patch(
-            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
-        ):
-            status = store.sync_project_sources("proj-sync1")
-
-        assert status["git"] == "ok"
-        assert status["backlog"].startswith("failed: No Backlog.md project")
 
     def test_unknown_project_returns_skipped(self, tmp_path):
         store, _repo = _store_with_one_project(tmp_path)
-
         status = store.sync_project_sources("proj-nope")
-
         assert status["git"].startswith("skipped")
-        assert status["backlog"].startswith("skipped")
 
 
 def _store_with_github_project(tmp_path):
-    """Return (store, repo_path) for a GitHub-backed project (no Backlog config)."""
+    """Return (store, repo_path) for a GitHub-backed project."""
     repo = tmp_path / "repo"
     repo.mkdir()
     (repo / ".git").mkdir()
@@ -450,87 +356,45 @@ class TestIsGithubBacked:
         )
         assert _is_github_backed(p) is False
 
-    def test_backlog_tracker_kind_is_not_github_backed(self):
-        p = Project(
-            id="x", name="x", repo_url="x", repo_path="/x",
-            branch="main", default_branch="main", tracker_kind="backlog",
-        )
-        assert _is_github_backed(p) is False
-
-
 class TestSyncProjectSourcesGitHubBacked:
-    """sync_project_sources for GitHub-backed projects skips Backlog-specific steps."""
+    """sync_project_sources for GitHub-backed projects reports tracker identity."""
 
     _SOUND = {"sound": True, "actions": [], "unrecoverable": [], "reset": False}
 
     def test_github_backed_reports_tracker_key(self, tmp_path):
         store, _repo = _store_with_github_project(tmp_path)
-        with patch(
-            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
-        ):
+        with patch("oompah.projects.ensure_repo_sound", return_value=dict(self._SOUND)):
             status = store.sync_project_sources("proj-gh1")
 
         assert status["tracker"] == "github_issues"
 
     def test_github_backed_git_self_heal_runs(self, tmp_path):
         store, _repo = _store_with_github_project(tmp_path)
-        with patch(
-            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
-        ) as heal:
+        with patch("oompah.projects.ensure_repo_sound", return_value=dict(self._SOUND)) as heal:
             status = store.sync_project_sources("proj-gh1")
 
         heal.assert_called_once()
         assert status["git"] == "ok"
 
-    def test_github_backed_skips_backlog_compat_check(self, tmp_path):
-        store, _repo = _store_with_github_project(tmp_path)
-        with patch(
-            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
-        ):
-            with patch("oompah.projects.ensure_backlog_compatible") as mock_compat:
-                status = store.sync_project_sources("proj-gh1")
-
-        mock_compat.assert_not_called()
-        assert status["backlog"] == "skipped: github_issues"
-
-    def test_github_backed_skips_conflict_repair(self, tmp_path):
-        store, _repo = _store_with_github_project(tmp_path)
-        with patch(
-            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
-        ):
-            with patch(
-                "oompah.backlog_conflict.repair_repo_backlog_conflicts"
-            ) as mock_repair:
-                status = store.sync_project_sources("proj-gh1")
-
-        mock_repair.assert_not_called()
-        assert status["conflicts"] == "skipped: github_issues"
-
-    def test_github_backed_does_not_quarantine_on_unmerged_files(self, tmp_path):
-        """Unmerged files in a GitHub-backed project must NOT trigger quarantine."""
+    def test_github_backed_unsound_checkout_does_not_pause_project(self, tmp_path):
         store, _repo = _store_with_github_project(tmp_path)
         unsound = {
             "sound": False,
             "actions": [],
-            "unrecoverable": ["backlog/tasks/task-1.md"],
+            "unrecoverable": ["some/file.txt"],
             "reset": False,
         }
-        with patch("oompah.backlog_conflict.ensure_repo_sound", return_value=unsound):
+        with patch("oompah.projects.ensure_repo_sound", return_value=unsound):
             status = store.sync_project_sources("proj-gh1")
 
-        # Git healing may fail, but no quarantine should happen
         assert status["git"].startswith("failed")
-        # Backlog/conflicts are still skipped, not quarantined
-        assert status["backlog"] == "skipped: github_issues"
-        assert status["conflicts"] == "skipped: github_issues"
-        # Project must NOT be paused
         project = store._projects["proj-gh1"]
         assert not project.paused
 
     def test_github_backed_reset_recovery_reported(self, tmp_path):
         store, _repo = _store_with_github_project(tmp_path)
         healed = {"sound": True, "actions": ["hard-reset"], "unrecoverable": [], "reset": True}
-        with patch("oompah.backlog_conflict.ensure_repo_sound", return_value=healed):
+        with patch("oompah.projects.ensure_repo_sound", return_value=healed):
             status = store.sync_project_sources("proj-gh1")
 
         assert status["git"] == "reset:ok"
@@ -541,35 +405,19 @@ class TestSyncProjectSourcesGitHubBacked:
         store, repo = _store_with_github_project(tmp_path)
         # Remove the .git dir to simulate a missing checkout
         (repo / ".git").rmdir()
-        with patch(
-            "oompah.backlog_conflict.ensure_repo_sound"
-        ) as mock_heal:
+        with patch("oompah.projects.ensure_repo_sound") as mock_heal:
             status = store.sync_project_sources("proj-gh1")
 
         mock_heal.assert_not_called()
         assert status["git"] == "skipped: no .git"
-        assert status["backlog"] == "skipped: github_issues"
-        assert status["conflicts"] == "skipped: github_issues"
         assert status["tracker"] == "github_issues"
 
-    def test_oompah_md_skips_backlog_compat_and_conflict_repair(self, tmp_path):
+    def test_oompah_md_reports_tracker_key(self, tmp_path):
         store, _repo = _store_with_oompah_md_project(tmp_path)
-        with patch(
-            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
-        ):
-            with (
-                patch("oompah.projects.ensure_backlog_compatible") as mock_compat,
-                patch(
-                    "oompah.backlog_conflict.repair_repo_backlog_conflicts"
-                ) as mock_repair,
-            ):
-                status = store.sync_project_sources("proj-md1")
+        with patch("oompah.projects.ensure_repo_sound", return_value=dict(self._SOUND)):
+            status = store.sync_project_sources("proj-md1")
 
-        mock_compat.assert_not_called()
-        mock_repair.assert_not_called()
         assert status["tracker"] == "oompah_md"
-        assert status["backlog"] == "skipped: oompah_md"
-        assert status["conflicts"] == "skipped: oompah_md"
 
 
 class TestSyncAllSources:
@@ -582,7 +430,6 @@ class TestSyncAllSources:
             repo = tmp_path / f"repo{i}"
             repo.mkdir()
             (repo / ".git").mkdir()
-            _write_backlog_config(repo)
             store._projects[f"p-{i}"] = Project(
                 id=f"p-{i}",
                 name=f"r{i}",
@@ -593,16 +440,13 @@ class TestSyncAllSources:
             )
 
         with patch(
-            "oompah.backlog_conflict.ensure_repo_sound",
+            "oompah.projects.ensure_repo_sound",
             return_value={"sound": True, "actions": [], "unrecoverable": [], "reset": False},
         ):
             results = store.sync_all_sources()
 
         assert set(results) == {"p-0", "p-1", "p-2"}
-        assert all(
-            st.get("git") == "ok" and st.get("backlog") == "ok" and st.get("conflicts") == "none"
-            for st in results.values()
-        )
+        assert all(st.get("git") == "ok" for st in results.values())
 
 
 _LOCK_STDERR = (
@@ -763,154 +607,6 @@ class TestCreateWorktreeAlreadyUsedFallback:
         assert hit_used["n"] == 1
         assert returned == wt_path
         assert os.path.isdir(wt_path)
-
-
-class TestSyncTaskFileToWorktree:
-    def test_copies_current_task_file_and_removes_stale_copy(self, tmp_path):
-        store, repo = _store_with_one_project(tmp_path)
-        source_dir = repo / "backlog" / "tasks"
-        source_dir.mkdir(parents=True, exist_ok=True)
-        source = source_dir / "task-389 - current.md"
-        source.write_text(
-            "\n".join([
-                "---",
-                "id: TASK-389",
-                "status: In Progress",
-                "title: Current",
-                "---",
-                "",
-                "Current task body",
-                "",
-            ]),
-            encoding="utf-8",
-        )
-        wt_path = tmp_path / "wt-task"
-        stale_dir = wt_path / "backlog" / "completed"
-        stale_dir.mkdir(parents=True)
-        stale = stale_dir / "task-389 - stale.md"
-        stale.write_text(
-            "\n".join([
-                "---",
-                "id: TASK-389",
-                "status: Done",
-                "title: Stale",
-                "---",
-                "",
-                "Stale task body",
-                "",
-            ]),
-            encoding="utf-8",
-        )
-
-        assert store.sync_task_file_to_worktree(
-            "proj-sync1",
-            "TASK-389",
-            str(wt_path),
-        )
-
-        copied = wt_path / "backlog" / "tasks" / source.name
-        assert copied.exists()
-        assert "status: In Progress" in copied.read_text(encoding="utf-8")
-        assert not stale.exists()
-
-    def test_returns_false_when_source_task_file_is_missing(self, tmp_path):
-        store, _repo = _store_with_one_project(tmp_path)
-        wt_path = tmp_path / "wt-task"
-        wt_path.mkdir()
-
-        assert store.sync_task_file_to_worktree(
-            "proj-sync1",
-            "TASK-999",
-            str(wt_path),
-        ) is False
-
-    def _setup_status_divergence(self, tmp_path, *, src_status, wt_status):
-        """Source (main) has src_status; worktree copy has wt_status."""
-        store, repo = _store_with_one_project(tmp_path)
-        sdir = repo / "backlog" / "tasks"
-        sdir.mkdir(parents=True, exist_ok=True)
-        (sdir / "task-389 - t.md").write_text(
-            f"---\nid: TASK-389\nstatus: {src_status}\ntitle: T\n---\n\nbody\n",
-            encoding="utf-8",
-        )
-        wt_path = tmp_path / "wt-task"
-        wdir = wt_path / "backlog" / "tasks"
-        wdir.mkdir(parents=True)
-        (wdir / "task-389 - t.md").write_text(
-            f"---\nid: TASK-389\nstatus: {wt_status}\ntitle: T\n---\n\nbody\n",
-            encoding="utf-8",
-        )
-        return store, wt_path
-
-    def test_preserves_terminal_worktree_status_over_stale_source(self, tmp_path):
-        """When the worktree records a terminal status (Done) and the
-        source is behind (Open), the sync must NOT regress it."""
-        store, wt_path = self._setup_status_divergence(
-            tmp_path, src_status="Open", wt_status="Done"
-        )
-        assert store.sync_task_file_to_worktree(
-            "proj-sync1", "TASK-389", str(wt_path),
-            preserve_statuses=frozenset({"Done", "Merged", "Archived"}),
-        )
-        copied = (wt_path / "backlog" / "tasks" / "task-389 - t.md").read_text()
-        assert "status: Done" in copied
-        # The non-status content still came from source.
-        assert "body" in copied
-
-    def test_no_preservation_without_preserve_statuses(self, tmp_path):
-        """Default behavior is unchanged: without preserve_statuses the
-        source status overwrites the worktree copy."""
-        store, wt_path = self._setup_status_divergence(
-            tmp_path, src_status="Open", wt_status="Done"
-        )
-        assert store.sync_task_file_to_worktree(
-            "proj-sync1", "TASK-389", str(wt_path),
-        )
-        copied = (wt_path / "backlog" / "tasks" / "task-389 - t.md").read_text()
-        assert "status: Open" in copied
-
-    def test_non_terminal_worktree_status_not_preserved(self, tmp_path):
-        """A worktree status that isn't in the preserve set (e.g. In
-        Progress) is overwritten by the source as usual."""
-        store, wt_path = self._setup_status_divergence(
-            tmp_path, src_status="Open", wt_status="In Progress"
-        )
-        assert store.sync_task_file_to_worktree(
-            "proj-sync1", "TASK-389", str(wt_path),
-            preserve_statuses=frozenset({"Done", "Merged", "Archived"}),
-        )
-        copied = (wt_path / "backlog" / "tasks" / "task-389 - t.md").read_text()
-        assert "status: Open" in copied
-
-
-class TestReadTaskStatusInEpicWorktree:
-    def _make_epic_worktree(self, store, tmp_path, *, status):
-        wt = store.epic_worktree_path_for("proj-sync1", "TASK-706")
-        tdir = os.path.join(wt, "backlog", "tasks")
-        os.makedirs(tdir, exist_ok=True)
-        with open(os.path.join(tdir, "task-706.4 - x.md"), "w", encoding="utf-8") as f:
-            f.write(f"---\nid: TASK-706.4\nstatus: {status}\ntitle: X\n---\n\nbody\n")
-        return wt
-
-    def test_reads_status_from_epic_worktree(self, tmp_path):
-        store, _repo = _store_with_one_project(tmp_path)
-        self._make_epic_worktree(store, tmp_path, status="Done")
-        assert store.read_task_status_in_epic_worktree(
-            "proj-sync1", "TASK-706", "TASK-706.4"
-        ) == "Done"
-
-    def test_none_when_worktree_absent(self, tmp_path):
-        store, _repo = _store_with_one_project(tmp_path)
-        assert store.read_task_status_in_epic_worktree(
-            "proj-sync1", "TASK-706", "TASK-706.4"
-        ) is None
-
-    def test_none_when_task_file_absent(self, tmp_path):
-        store, _repo = _store_with_one_project(tmp_path)
-        self._make_epic_worktree(store, tmp_path, status="Done")
-        assert store.read_task_status_in_epic_worktree(
-            "proj-sync1", "TASK-706", "TASK-999"
-        ) is None
 
 
 class TestGithubWorkBranchName:

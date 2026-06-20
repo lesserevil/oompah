@@ -21,7 +21,7 @@ from oompah.server import app
 # ---------------------------------------------------------------------------
 
 
-def _make_issue(identifier="bd-1", issue_type="task"):
+def _make_issue(identifier="tracker-1", issue_type="task"):
     return Issue(
         id=identifier,
         identifier=identifier,

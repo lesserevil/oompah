@@ -30,7 +30,7 @@ from oompah.models import Issue
 
 
 def _make_issue(**kwargs):
-    defaults = dict(id="1", identifier="beads-001", title="Test issue", state="open")
+    defaults = dict(id="1", identifier="tasks-001", title="Test issue", state="open")
     defaults.update(kwargs)
     return Issue(**defaults)
 
@@ -154,7 +154,7 @@ class TestSelectFocus:
         assert focus.name != "merge_conflict"
 
     def test_ci_fix_focus_selected_by_label(self):
-        """A bead with label='ci-fix' should be matched to the ci_fix focus."""
+        """A task with label='ci-fix' should be matched to the ci_fix focus."""
         issue = _make_issue(title="Some failing tests", labels=["ci-fix"])
         focus = select_focus(issue)
         assert focus.name == "ci_fix"
@@ -183,8 +183,8 @@ class TestSelectFocus:
 
     def test_ci_fix_focus_must_do_includes_checkout_existing_branch(self):
         """The ci_fix focus's must_do should direct the agent to identify
-        and check out the existing branch from the bead body — this is
-        what makes 'branch trickle-rl5' in the bead translate into the
+        and check out the existing branch from the task body — this is
+        what makes 'branch trickle-rl5' in the task translate into the
         right git checkout call.
         """
         ci_fix_focus = next(f for f in BUILTIN_FOCI if f.name == "ci_fix")
@@ -196,8 +196,8 @@ class TestSelectFocus:
 
     def test_ci_fix_focus_render_preserves_branch_instruction(self):
         """When rendered, the focus prompt should still tell the agent to
-        check out the existing branch identified in the bead body. The
-        bead body containing 'branch trickle-rl5' will be substituted into
+        check out the existing branch identified in the task body. The
+        task body containing 'branch trickle-rl5' will be substituted into
         <branch> by the agent following the focus instructions.
         """
         ci_fix_focus = next(f for f in BUILTIN_FOCI if f.name == "ci_fix")
@@ -208,7 +208,7 @@ class TestSelectFocus:
 
     def test_ci_fix_focus_priority_matches_merge_conflict(self):
         """Both safety-critical foci share priority=100 so neither wins
-        a tie over the other on a bead that somehow matches both — and
+        a tie over the other on a task that somehow matches both — and
         both decisively beat keyword/label-only matches from other foci.
         """
         ci_fix_focus = next(f for f in BUILTIN_FOCI if f.name == "ci_fix")
@@ -472,7 +472,7 @@ class TestAnalyzeCompletedIssue:
         # Submit suggestions from multiple distinct issues, all in the same domain
         for i in range(MIN_ISSUES_FOR_PROPOSAL):
             issue = _make_issue(
-                id=str(i), identifier=f"beads-{i:03d}",
+                id=str(i), identifier=f"tasks-{i:03d}",
                 title="Add API cache layer with database config",
                 description="Build a cache in front of the database API with config-driven TTL",
             )
@@ -539,7 +539,7 @@ class TestFocusSuggestionSerialization:
             suggested_name="cache_specialist",
             suggested_role="Cache Specialist",
             reason="No match",
-            source_issues=["beads-001"],
+            source_issues=["tasks-001"],
             sample_keywords=["cache", "redis"],
             created_at="2025-01-01T00:00:00",
             status="pending",
@@ -683,13 +683,13 @@ class TestEpicPlannerFocus:
         assert "subtask" in focus.keywords
 
     def test_epic_planner_must_do_includes_dependency_edit(self):
-        """epic_planner must_do should instruct using Backlog.md dependencies."""
+        """epic_planner must_do should instruct using task dependencies."""
         focus = self._get_epic_planner()
         dep_add_rule = any(
-            "backlog task edit" in rule and "--depends-on" in rule
+            "oompah task set-dependency" in rule and "--depends-on" in rule
             for rule in focus.must_do
         )
-        assert dep_add_rule, "must_do should include a rule about Backlog.md dependencies"
+        assert dep_add_rule, "must_do should include a rule about task dependencies"
 
     def test_epic_planner_must_do_includes_parent_child_link(self):
         """epic_planner must_do should instruct linking children to parent epic."""
@@ -703,11 +703,11 @@ class TestEpicPlannerFocus:
         remove_draft_rule = any("draft" in rule and ("remove" in rule or "label" in rule) for rule in focus.must_do)
         assert remove_draft_rule, "must_do should include a rule about removing the draft label"
 
-    def test_epic_planner_must_do_includes_set_to_do(self):
-        """epic_planner must_do should instruct setting the epic status to 'To Do'."""
+    def test_epic_planner_must_do_includes_set_to_backlog(self):
+        """epic_planner must_do should instruct setting the epic status to Backlog."""
         focus = self._get_epic_planner()
-        to_do_rule = any("To Do" in rule for rule in focus.must_do)
-        assert to_do_rule, "must_do should include a rule about setting status to To Do"
+        backlog_rule = any("Backlog" in rule for rule in focus.must_do)
+        assert backlog_rule, "must_do should include a rule about setting status to Backlog"
 
     def test_epic_planner_draft_label_boosts_score(self):
         """draft label on an epic should boost the epic_planner score."""
@@ -1034,17 +1034,17 @@ class TestDuplicateDetectorFocus:
         focus = self._get_duplicate_detector()
         assert len(focus.must_not_do) > 0
 
-    def test_must_do_includes_backlog_search(self):
-        """must_do should mention using Backlog.md to search for similar issues."""
+    def test_must_do_includes_task_search(self):
+        """must_do should mention searching for similar issues."""
         focus = self._get_duplicate_detector()
         text = " ".join(focus.must_do)
-        assert "backlog search" in text and ("duplicate" in text.lower() or "similar" in text.lower())
+        assert ".oompah/tasks" in text and ("duplicate" in text.lower() or "similar" in text.lower())
 
     def test_must_do_includes_close_as_duplicate(self):
         """must_do should instruct closing confirmed duplicates."""
         focus = self._get_duplicate_detector()
         text = " ".join(focus.must_do)
-        assert "backlog task edit" in text.lower() and "--status done" in text.lower()
+        assert "oompah task set-status" in text.lower() and "archived" in text.lower()
 
     def test_must_not_do_prevents_implementing_before_confirming(self):
         """must_not_do should prevent implementing code before duplicate is confirmed."""

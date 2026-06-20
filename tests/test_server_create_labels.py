@@ -22,7 +22,7 @@ from oompah.server import app
 # ---------------------------------------------------------------------------
 
 
-def _make_issue(identifier: str = "bd-1") -> Issue:
+def _make_issue(identifier: str = "tracker-1") -> Issue:
     return Issue(
         id=identifier,
         identifier=identifier,

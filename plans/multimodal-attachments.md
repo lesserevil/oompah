@@ -130,24 +130,9 @@ the dashboard, the prompt renderer, and the agent all read from it.
 
 ### Tracker persistence
 
-Attachment records are tracker-owned metadata. Beads is the existing backend;
-Backlog.md is the next supported backend. Beans is not planned.
-
-Beads has no first-class attachment field. Three options surveyed:
-
-1. **`metadata` JSON** (`bd create --metadata @file.json` /
-   `bd update --metadata`). Programmatic, structured, hidden from casual
-   readers — but writable from `bd`.
-2. **A trailing block in the description** (e.g. `<!-- attachments:\n
-   ['.oompah/attachments/...'] -->`). Visible in task detail output but ugly and
-   re-edited by humans/agents.
-3. **A sidecar file** at `.oompah/attachments/<id>/manifest.json`.
-   Decoupled from beads but adds a second source of truth.
-
-**Choice for beads: option 1, `metadata`**, with the sidecar manifest as a
-fallback cache for performance (the orchestrator reads many issues per tick;
-parsing JSON metadata from `bd list --json` is cheap, but having a manifest
-lets the dashboard render thumbnails without a `bd` call).
+Attachment records are tracker-owned metadata. The native oompah Markdown
+tracker stores structured records in task metadata; GitHub Issues stores the
+same records in the managed oompah metadata block.
 
 The metadata key is `oompah.attachments` and holds a list of objects:
 
@@ -166,13 +151,7 @@ The metadata key is `oompah.attachments` and holds a list of objects:
 }
 ```
 
-For Backlog.md, persist the same `oompah.attachments` records through the
-Backlog.md adapter's structured task metadata/front matter when available. If
-Backlog.md cannot store structured metadata directly, use a documented oompah
-sidecar under `.oompah/attachments/<id>/manifest.json`; do not append ad hoc
-attachment prose to the task body.
-
-The tracker layer (`oompah/tracker.py:_parse_issue`) reads
+The tracker layer reads
 `metadata["oompah.attachments"]` into `Issue.attachments` as
 `list[str]` (just the paths — full records stay in the metadata for the
 dashboard to fetch on demand). Writes go through a new
@@ -358,8 +337,7 @@ PR is merged — no special handling needed.
 3. **LFS not installed:** project registers with a warning; upload
    endpoint returns 503 with a clear message.
 4. **Issue model roundtrip:** tracker metadata read+write of
-   `oompah.attachments` parses into `Issue.attachments` for beads and
-   Backlog.md.
+   `oompah.attachments` parses into `Issue.attachments`.
 5. **Renderer:** text-only provider gets a string; multimodal provider
    gets a content array with the right mime types.
 6. **Capability fallback:** a focus pinned to a text-only model still
@@ -413,7 +391,5 @@ LFS + tests). Phase 2 carries the modality work and is the largest.
    are already global within the repo; we just need a UI affordance.
    Defer until requested.
 6. **Tracker upstreams.** Whether to push for first-class attachment
-   support upstream in beads or Backlog.md, or stay in backend metadata
-   indefinitely. The metadata approach works today for beads; Backlog.md
-   should follow the Backlog.md integration before inventing another
-   storage shape.
+   support upstream in GitHub Issues or stay in oompah-managed metadata
+   indefinitely.

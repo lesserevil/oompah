@@ -1156,7 +1156,7 @@ class TestGitHubReviewQueueState:
             "detect post-enqueue DIRTY state (oompah-zlz_2-l81)"
         )
         # Detail returned dirty → has_conflicts must be True so the
-        # YOLO loop files a merge-conflict bead.
+        # YOLO loop files a merge-conflict task.
         assert reviews[0].has_conflicts is True
         assert reviews[0].mergeable_state == "dirty"
 
@@ -1166,7 +1166,7 @@ class TestGitHubReviewQueueState:
         files. mergeable=CONFLICTING / mergeStateStatus=DIRTY,
         autoMerge still on. oompah must detect has_conflicts=True so
         the existing _yolo_notify_conflict pipeline files a P0
-        merge-conflict bead. (oompah-zlz_2-l81)"""
+        merge-conflict task. (oompah-zlz_2-l81)"""
         list_pr, detail_pr = self._list_endpoint_payload(
             number=16,
             auto_merge={"enabled_by": {"login": "bob"},
@@ -1184,7 +1184,7 @@ class TestGitHubReviewQueueState:
         )
         assert review.has_conflicts is True, (
             "DIRTY auto-merge PR must report has_conflicts=True so "
-            "_yolo_notify_conflict fires and files a merge-conflict bead"
+            "_yolo_notify_conflict fires and files a merge-conflict task"
         )
         assert review.needs_rebase is True
         assert review.mergeable_state == "dirty"

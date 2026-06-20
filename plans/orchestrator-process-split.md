@@ -296,7 +296,7 @@ acknowledgement can lag.  The existing command-status API (`commands` table,
 
 - `plans/service-split.md` — full service-split architecture (TASK-469.5.1)
 - `oompah/ipc.py` — `OrchestratorIPC` implementation
-- `backlog/docs/doc-1` — Granian HTTP server migration plan
+- `plans/codex-sdk-pin.md` — Granian HTTP server migration context
 - TASK-469.5.1 — SQLite IPC implementation (Needs CI Fix)
 - TASK-472 — Granian adoption epic
 - TASK-473 — HTTP event-loop contention epic (parent)

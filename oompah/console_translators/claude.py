@@ -5,7 +5,7 @@ Translates between the AgentEvent stream produced by
 :class:`oompah.console_format.ConsoleEvent` form, and reconstructs a
 Claude-API-compatible conversation history (the ``history=`` argument
 hand-off to :meth:`AcpAgentSession.start_session` in the downstream
-ConsoleSession bead, oompah-zlz_2-49tv).
+ConsoleSession task, oompah-zlz_2-49tv).
 
 Mapping table (claude AgentEvent.event → ConsoleEvent.kind):
 

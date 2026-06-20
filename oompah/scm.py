@@ -966,7 +966,7 @@ class GitHubProvider(SCMProvider):
             # DIRTY after another PR lands first (overlapping files),
             # and the queue will then sit forever waiting for manual
             # conflict resolution. Without this fetch, has_conflicts
-            # stays False and we never file a merge-conflict bead.
+            # stays False and we never file a merge-conflict task.
             # See oompah-zlz_2-l81 (regression of oompah-zlz_2-8rb).
             #
             # Cost amortisation (oompah-zlz_2-aza): we cache the
@@ -1337,7 +1337,7 @@ class GitHubProvider(SCMProvider):
         there is no REST endpoint for it. The previous implementation
         POSTed to ``/repos/{repo}/pulls/{N}/auto-merge`` and got an
         unconditional HTTP 404 because that path does not exist (see
-        bead oompah-zlz_2-d9v). This implementation:
+        task oompah-zlz_2-d9v). This implementation:
 
         1. Looks up the PR's GraphQL ``node_id`` via REST.
         2. Calls the ``enablePullRequestAutoMerge`` GraphQL mutation.
@@ -2101,7 +2101,7 @@ def get_all_open_reviews(projects: list) -> list[dict]:
         # Surface project.yolo so the /reviews UI can hide the manual
         # "Resolve Conflicts" button on YOLO-enabled projects (where YOLO
         # already retries provider.rebase_review then falls back to
-        # notifying the bead — making the click redundant). See
+        # notifying the task — making the click redundant). See
         # oompah-zlz_2-zvf2.
         project_yolo = bool(getattr(project, "yolo", False))
         for review in reviews:

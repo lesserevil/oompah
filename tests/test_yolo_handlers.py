@@ -3,11 +3,11 @@
 Covers the rebase-before-notify behavior in
 ``Orchestrator._yolo_notify_conflict``:
 
-- Provider rebase succeeds → no bead notification.
-- Provider rebase fails with ``conflict`` in message → bead notify path runs.
-- Provider rebase fails for unrelated reason (network/auth/etc.) → bead notify
+- Provider rebase succeeds → no task notification.
+- Provider rebase fails with ``conflict`` in message → task notify path runs.
+- Provider rebase fails for unrelated reason (network/auth/etc.) → task notify
   path still runs (safety net) AND a WARNING is logged.
-- Provider rebase raises → bead notify path still runs (safety net).
+- Provider rebase raises → task notify path still runs (safety net).
 """
 
 from __future__ import annotations
@@ -82,23 +82,23 @@ def _make_orchestrator(tmp_path, projects=None):
 
 
 class TestYoloNotifyConflictRebaseFirst:
-    """_yolo_notify_conflict tries provider.rebase_review before the bead.
+    """_yolo_notify_conflict tries provider.rebase_review before the task.
 
     Mirrors the dashboard "Resolve Conflicts" button's behavior at
     server.py:2825 — try the cheap provider rebase first, only disturb the
-    bead if the rebase produces a real merge conflict. (oompah-zlz_2-s56w)
+    task if the rebase produces a real merge conflict. (oompah-zlz_2-s56w)
     """
 
-    # --- Path 1: rebase success short-circuits the bead-notify path ---
+    # --- Path 1: rebase success short-circuits the task-notify path ---
 
-    def test_rebase_success_skips_bead_notification(self, tmp_path, caplog):
-        """When provider.rebase_review returns success, no bead is touched."""
+    def test_rebase_success_skips_task_notification(self, tmp_path, caplog):
+        """When provider.rebase_review returns success, no task is touched."""
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
 
         provider = MagicMock()
         provider.rebase_review.return_value = (True, "Rebase initiated successfully")
-        # If anything tries to fetch the review / bead, the test must fail
+        # If anything tries to fetch the review / task, the test must fail
         # — short-circuit must happen before that.
         provider.get_review.side_effect = AssertionError(
             "rebase success path must NOT fetch the review"
@@ -115,7 +115,7 @@ class TestYoloNotifyConflictRebaseFirst:
             orch._yolo_notify_conflict(project, provider, "org/repo", "30")
 
         provider.rebase_review.assert_called_once_with("org/repo", "30")
-        # Bead untouched
+        # Task untouched
         tracker.fetch_issue_detail.assert_not_called()
         tracker.add_comment.assert_not_called()
         tracker.update_issue.assert_not_called()
@@ -127,10 +127,10 @@ class TestYoloNotifyConflictRebaseFirst:
             f"expected YOLO rebase-success log, got: {[r.message for r in caplog.records]}"
         )
 
-    # --- Path 2: rebase fails with 'conflict' -> bead-notify fires ---
+    # --- Path 2: rebase fails with 'conflict' -> task-notify fires ---
 
-    def test_rebase_fails_with_conflict_falls_through_to_bead(self, tmp_path):
-        """Rebase fails with 'merge conflicts' in the message → existing bead path runs."""
+    def test_rebase_fails_with_conflict_falls_through_to_task(self, tmp_path):
+        """Rebase fails with 'merge conflicts' in the message → existing task path runs."""
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
 
@@ -155,18 +155,18 @@ class TestYoloNotifyConflictRebaseFirst:
 
         orch._yolo_notify_conflict(project, provider, "org/repo", "30")
 
-        # Bead path ran: comment + reopen
+        # Task path ran: comment + reopen
         provider.rebase_review.assert_called_once_with("org/repo", "30")
         tracker.fetch_issue_detail.assert_called_once()
         tracker.add_comment.assert_called_once()
         tracker.update_issue.assert_called_once()
 
-    # --- Path 3: rebase fails with non-conflict reason -> bead-notify still fires ---
+    # --- Path 3: rebase fails with non-conflict reason -> task-notify still fires ---
 
-    def test_rebase_fails_with_network_error_still_notifies_bead(
+    def test_rebase_fails_with_network_error_still_notifies_task(
         self, tmp_path, caplog
     ):
-        """Network/transport failure: WARNING logged, bead notification fires anyway."""
+        """Network/transport failure: WARNING logged, task notification fires anyway."""
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
 
@@ -192,7 +192,7 @@ class TestYoloNotifyConflictRebaseFirst:
         with caplog.at_level(logging.WARNING, logger="oompah.orchestrator"):
             orch._yolo_notify_conflict(project, provider, "org/repo", "31")
 
-        # The safety net is preserved: bead-notify path still ran.
+        # The safety net is preserved: task-notify path still ran.
         provider.rebase_review.assert_called_once_with("org/repo", "31")
         tracker.fetch_issue_detail.assert_called_once()
         tracker.add_comment.assert_called_once()
@@ -207,8 +207,8 @@ class TestYoloNotifyConflictRebaseFirst:
             f"{[(r.levelname, r.message) for r in caplog.records]}"
         )
 
-    def test_rebase_raises_still_notifies_bead(self, tmp_path, caplog):
-        """If provider.rebase_review raises, fall through to bead-notify anyway."""
+    def test_rebase_raises_still_notifies_task(self, tmp_path, caplog):
+        """If provider.rebase_review raises, fall through to task-notify anyway."""
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
 
@@ -304,7 +304,7 @@ class TestYoloNotifyConflictRebaseFirst:
         # Must NOT create a new issue
         tracker.create_issue.assert_not_called()
         tracker.add_label.assert_not_called()
-        # But should record the reused bead in bookkeeping
+        # But should record the reused task in bookkeeping
         assert (project.id, "40", "merge-conflict") in orch._yolo_orphan_recovery_tasks
         assert (
             orch._yolo_orphan_recovery_tasks[(project.id, "40", "merge-conflict")]
@@ -313,19 +313,19 @@ class TestYoloNotifyConflictRebaseFirst:
 
 
 # ---------------------------------------------------------------------------
-# Branch -> bead resolution (epic-<id> branches map back to the epic)
+# Branch -> task resolution (epic-<id> branches map back to the epic)
 # ---------------------------------------------------------------------------
 
 from unittest.mock import call  # noqa: E402
 
 
-class TestResolveBeadForBranch:
+class TestResolveTaskForBranch:
     def test_normal_branch_resolves_directly(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         tracker = MagicMock()
-        bead = MagicMock(identifier="TASK-8.2")
-        tracker.fetch_issue_detail.return_value = bead
-        assert orch._resolve_task_for_branch(tracker, "TASK-8.2") is bead
+        task = MagicMock(identifier="TASK-8.2")
+        tracker.fetch_issue_detail.return_value = task
+        assert orch._resolve_task_for_branch(tracker, "TASK-8.2") is task
         tracker.fetch_issue_detail.assert_called_once_with("TASK-8.2")
 
     def test_epic_branch_strips_prefix(self, tmp_path):
@@ -391,11 +391,11 @@ class TestResolveBeadForBranch:
         """Legacy path: no project_id → direct fetch_issue_detail, no index built."""
         orch = _make_orchestrator(tmp_path)
         tracker = MagicMock()
-        bead = MagicMock(identifier="TASK-9")
-        tracker.fetch_issue_detail.return_value = bead
+        task = MagicMock(identifier="TASK-9")
+        tracker.fetch_issue_detail.return_value = task
 
         result = orch._resolve_task_for_branch(tracker, "TASK-9")
-        assert result is bead
+        assert result is task
         # No call to fetch_issues_by_states (index not built)
         tracker.fetch_issues_by_states.assert_not_called()
 
@@ -405,13 +405,13 @@ class TestResolveBeadForBranch:
         tracker = MagicMock()
         # Index has no entries matching the branch.
         tracker.fetch_issues_by_states.return_value = []
-        bead = MagicMock(identifier="TASK-50")
-        tracker.fetch_issue_detail.return_value = bead
+        task = MagicMock(identifier="TASK-50")
+        tracker.fetch_issue_detail.return_value = task
 
         result = orch._resolve_task_for_branch(
             tracker, "TASK-50", project_id="proj-3"
         )
-        assert result is bead
+        assert result is task
         tracker.fetch_issue_detail.assert_called_with("TASK-50")
 
     def test_index_is_cached_across_calls(self, tmp_path):
@@ -462,13 +462,13 @@ class TestResolveBeadForBranch:
         orch = _make_orchestrator(tmp_path)
         tracker = MagicMock()
         tracker.fetch_issues_by_states.side_effect = RuntimeError("API offline")
-        bead = MagicMock(identifier="TASK-10")
-        tracker.fetch_issue_detail.return_value = bead
+        task = MagicMock(identifier="TASK-10")
+        tracker.fetch_issue_detail.return_value = task
 
         result = orch._resolve_task_for_branch(
             tracker, "TASK-10", project_id="proj-err"
         )
-        assert result is bead
+        assert result is task
         # Legacy path ran.
         tracker.fetch_issue_detail.assert_called_with("TASK-10")
 
@@ -477,7 +477,7 @@ class TestEpicBranchCiFailUsesEpicNotOrphan:
     """An epic->main PR's CI failure must resolve to the epic (and route
     through the parent/sibling path), not be treated as an orphan PR."""
 
-    def test_epic_branch_does_not_file_orphan_bead(self, tmp_path):
+    def test_epic_branch_does_not_file_orphan_task(self, tmp_path):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
         tracker = MagicMock()
@@ -493,7 +493,7 @@ class TestEpicBranchCiFailUsesEpicNotOrphan:
         orch._yolo_retry_ci(project, review)
         orch._file_orphan_recovery_task.assert_not_called()
 
-    def test_true_orphan_still_files_recovery_bead(self, tmp_path):
+    def test_true_orphan_still_files_recovery_task(self, tmp_path):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
         tracker = MagicMock()
@@ -519,7 +519,7 @@ class TestYoloNotifyConflictEpicBranch:
         epic.labels = []
         return epic
 
-    def test_epic_branch_conflict_files_p0_rebase_bead_not_needs_rebase(self, tmp_path):
+    def test_epic_branch_conflict_files_p0_rebase_task_not_needs_rebase(self, tmp_path):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
         provider = MagicMock()
@@ -562,7 +562,7 @@ class TestYoloNotifyConflictEpicBranch:
             orch._project_trackers[project.id] = tracker
             orch._yolo_notify_conflict(project, provider, "org/repo", "42")
 
-        # No duplicate rebase bead while one is already open.
+        # No duplicate rebase task while one is already open.
         tracker.create_issue.assert_not_called()
 
     def test_epic_branch_conflict_idempotent_when_child_read_misses_existing_rebase(
@@ -593,8 +593,8 @@ class TestYoloNotifyConflictEpicBranch:
         tracker.create_issue.assert_not_called()
 
 
-class TestFileRebaseBeadPriority:
-    def test_rebase_bead_is_p0_to_bypass_in_flight_cap(self, tmp_path):
+class TestFileRebaseTaskPriority:
+    def test_rebase_task_is_p0_to_bypass_in_flight_cap(self, tmp_path):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
         epic = MagicMock()

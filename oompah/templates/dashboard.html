@@ -443,17 +443,6 @@
       vertical-align: middle;
     }
 
-    /* Legacy Backlog task badge */
-    .legacy-badge {
-      font-size: 0.6rem;
-      font-weight: 600;
-      padding: 0.1rem 0.35rem;
-      border-radius: 4px;
-      background: rgba(227, 179, 65, 0.15);
-      color: var(--yellow, #e3b341);
-      font-family: 'SF Mono', 'Fira Code', monospace;
-    }
-
     /* External tracker link (GitHub issue URL) on cards */
     .tracker-link {
       font-size: 0.65rem;
@@ -2563,7 +2552,7 @@ function _computeInFlightShowSet(allIssues) {
     }
   }
   // Memoized "does this key's subtree (including itself) contain any
-  // individually-in-flight bead?"
+  // individually-in-flight task?"
   const subtreeInFlight = Object.create(null);
   function hasInFlightSubtree(key, stack) {
     if (key in subtreeInFlight) return subtreeInFlight[key];
@@ -2837,7 +2826,7 @@ function isSwimlaneParent(issue) {
 
 // Get epic/parent info by ID from flat list.
 //
-// Backlog task ids (e.g. "task-270") are only unique WITHIN a project,
+// Native task ids (e.g. "task-270") are only unique WITHIN a project,
 // not across the multi-project dashboard. Resolving by id alone makes a
 // trickle child's parent ("task-270") match whichever project's
 // "task-270" appears first in the flat list — surfacing e.g. the wrong
@@ -2908,7 +2897,7 @@ function renderBoard(data) {
     _pendingBoardData = data;
     // Still update the in-memory data so other lookups stay current
     // (unfiltered — toggling Hide merged off must be able to recover
-    // the merged-closed beads without refetching).
+    // the merged-closed tasks without refetching).
     boardData = data;
     allIssuesFlat = flattenIssues(data);
     return;
@@ -2916,7 +2905,7 @@ function renderBoard(data) {
 
   // Keep the unfiltered payload as boardData so re-renders triggered by
   // the Hide-merged toggle, swimlane collapse, view-mode flip, etc. can
-  // recover hidden beads without an extra fetch.
+  // recover hidden tasks without an extra fetch.
   boardData = data;
   // Apply the render-time Hide-merged filter. This is purely cosmetic —
   // /api/v1/issues and WebSocket pushes still carry the full set.
@@ -3168,7 +3157,7 @@ function displayIdentifierFor(identifier, projectId, projectName, displayIdentif
   return name && match ? `${name}-${match[1]}` : raw;
 }
 
-// Backlog task ids (e.g. "task-270") are unique only WITHIN a project,
+// Native task ids (e.g. "task-270") are unique only WITHIN a project,
 // not across the multi-project board. Any cross-project identity, parent,
 // or epic resolution must key on (project_id, id) — never the bare id —
 // or a trickle child can match an oompah epic of the same number. Used by
@@ -3280,11 +3269,6 @@ function createCard(issue) {
     ? ` <a class="tracker-link" href="${esc(issue.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open in GitHub" aria-label="Open GitHub issue">&#8599;</a>`
     : '';
 
-  // Build legacy badge for Backlog-backed tasks
-  const legacyBadgeHtml = issue.is_legacy
-    ? ' <span class="legacy-badge" aria-label="Legacy Backlog task">legacy</span>'
-    : '';
-
   const typeIcon = getTypeIcon(issue.issue_type);
   const typeLabel = issue.issue_type || 'task';
   const displayIdentifier = issueDisplayIdentifier(issue);
@@ -3300,7 +3284,6 @@ function createCard(issue) {
         ${epicBadgeHtml}
         ${draftEpicBadgeHtml}
         ${mergedBadgeHtml}
-        ${legacyBadgeHtml}
       </span>
       <span class="priority-badge ${pClass}">P${issue.priority ?? 4}</span>
     </div>
@@ -4250,16 +4233,6 @@ async function openDetailPanel(identifier) {
       <div class="detail-field">
         <div class="detail-field-label">Tracker</div>
         <div class="detail-field-value tracker-kind-value">${trackerLabel}</div>
-      </div>
-    `;
-  }
-
-  // Legacy marker — show note for legacy Backlog.md tasks
-  if (detail.is_legacy) {
-    html += `
-      <div class="detail-field">
-        <div class="detail-field-label">Note</div>
-        <div class="detail-field-value"><span class="legacy-badge">legacy</span> Legacy Backlog.md task</div>
       </div>
     `;
   }
@@ -5545,7 +5518,7 @@ function _clearConsoleInflightTimer() {
 }
 
 function stopConsoleTurn() {
-  // Server-side cancellation is a follow-up bead. v1: just unblocks
+  // Server-side cancellation is a follow-up task. v1: just unblocks
   // the UI so the operator can keep typing while the server-side
   // turn finishes (any events it does eventually emit will still
   // render).
@@ -5653,7 +5626,7 @@ async function clearConsole() {
 
 function _updateConsoleAttachmentsChip() {
   // We don't actually upload attachments in v1 — operator can use the
-  // bead-detail dropzone for that. This chip is a visual placeholder
+  // task-detail dropzone for that. This chip is a visual placeholder
   // for future expansion. Leave empty for now.
   const drop = document.getElementById('console-drop');
   if (!drop) return;
@@ -5684,8 +5657,8 @@ function _wireConsoleInputs() {
       drop.classList.remove('drag');
       const files = Array.from(e.dataTransfer.files || []);
       // v1: stash filenames so the operator can see what's queued, but
-      // actual upload-and-send would require a project-attached bead.
-      // The bead-detail dropzone is the canonical attachment path.
+      // actual upload-and-send would require a project-attached task.
+      // The task-detail dropzone is the canonical attachment path.
       _consoleAttachments = _consoleAttachments.concat(files.map(f => f.name));
       _updateConsoleAttachmentsChip();
     });
@@ -5998,7 +5971,7 @@ async function submitAddReleasePicksDialog() {
                 aria-label="Console message input"></textarea>
       <button class="console-send-btn" id="console-send" onclick="sendConsoleMessage()">Send</button>
       <button class="console-stop-btn" id="console-stop" hidden onclick="stopConsoleTurn()"
-              title="Re-enable input. Server-side cancellation lands in a follow-up bead; this currently just unblocks the UI.">Stop</button>
+              title="Re-enable input. Server-side cancellation lands in a follow-up task; this currently just unblocks the UI.">Stop</button>
     </div>
   </div>
 </div>

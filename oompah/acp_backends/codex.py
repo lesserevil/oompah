@@ -1,6 +1,6 @@
 """Codex / OpenAI-Agents-SDK backend (the second registered ACP backend).
 
-This is child B of the multi-backend ACP epic (bead
+This is child B of the multi-backend ACP epic (task
 ``oompah-zlz_2-yiuy``). It validates that the abstraction landed in
 child A (``oompah-zlz_2-0hzh``) holds in practice by implementing a
 second concrete :class:`oompah.acp_backends.base.AcpBackend` against
@@ -447,7 +447,7 @@ class CodexAcpBackendSession(AcpBackendSession):
         except NotImplementedError as exc:
             # An oompah focus required a tool shape we can't represent
             # — surface as a hard error so the orchestrator can flip
-            # the bead to needs-human instead of looping silently.
+            # the task to needs-human instead of looping silently.
             self._last_error = (
                 f"Codex backend cannot bridge required tools: {exc}"
             )

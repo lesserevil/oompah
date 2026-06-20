@@ -2,7 +2,7 @@
 
 ## Context
 
-The multi-backend ACP epic (root bead) established a pluggable backend layer for ACP-mode agent sessions. Child A (`oompah-zlz_2-0hzh`) introduced the abstract `AcpBackend` / `AcpBackendSession` / `BackendEvent` surface. Child B (`oompah-zlz_2-yiuy`) implemented `CodexAcpBackend` against the OpenAI Agents Python SDK as a concrete proof of the abstraction. This issue adds a **third backend** against the OpenCode Python SDK.
+The multi-backend ACP epic established a pluggable backend layer for ACP-mode agent sessions. Child A (`oompah-zlz_2-0hzh`) introduced the abstract `AcpBackend` / `AcpBackendSession` / `BackendEvent` surface. Child B (`oompah-zlz_2-yiuy`) implemented `CodexAcpBackend` against the OpenAI Agents Python SDK as a concrete proof of the abstraction. This issue adds a **third backend** against the OpenCode Python SDK.
 
 Adding a third backend diversifies the agent runner options, which is valuable for:
 

@@ -645,7 +645,7 @@ class TestHttpPost401AuthErrorClassifiedAsTransient:
     treated as a retryable TransientServerError — not a non-retryable
     RuntimeError — so that _call_api's 5-attempt retry loop fires on
     transient auth failures (token expiry / identity-service glitch).
-    This prevents error_watcher from filing a new bug bead every tick
+    This prevents error_watcher from filing a new bug task every tick
     on what is typically an operator-fixable config issue."""
 
     def test_401_raises_transient_server_error(self, monkeypatch):
@@ -1207,15 +1207,15 @@ class TestRunCommandTimeoutCleanup:
 class TestUnknownToolHelpfulErrorWhenLooksShellish:
     def test_space_in_name_redirects_to_run_command(self, tmp_path):
         from oompah.api_agent import _execute_tool
-        result = _execute_tool(tmp_path, "backlog task edit", {})
+        result = _execute_tool(tmp_path, "oompah task set-status", {})
         assert "is not a tool" in result
         assert "run_command" in result
         # Must still preserve the original tool list for the model.
         assert "read_file" in result
 
-    def test_backlog_prefix_no_space_still_redirects(self, tmp_path):
+    def test_oompah_task_prefix_no_space_still_redirects(self, tmp_path):
         from oompah.api_agent import _execute_tool
-        result = _execute_tool(tmp_path, "backlog_edit", {})
+        result = _execute_tool(tmp_path, "oompah_task_edit", {})
         assert "is not a tool" in result
         assert "run_command" in result
 
@@ -1324,7 +1324,7 @@ class TestExecuteToolForwardsEnvOverrides:
 # OSError leaks from, run_task must return an ApiAgentResult (never raise),
 # and the error message must be a clearer "Socket error..." / "transport_error..."
 # string instead of the bare "[Errno 57] Socket is not connected" repr that
-# used to auto-trigger duplicate beads via the error_watcher fingerprint.
+# used to auto-trigger duplicate tasks via the error_watcher fingerprint.
 # ---------------------------------------------------------------------------
 
 class TestRunTaskOSErrorRecovery:
@@ -1333,7 +1333,7 @@ class TestRunTaskOSErrorRecovery:
     an OSError(57) leaked from _http_post -> _call_api -> run_task, where
     only the broad ``except Exception`` caught it — logging the bare
     ``[Errno 57] Socket is not connected`` string and tripping the
-    error_watcher into filing a duplicate bead each time."""
+    error_watcher into filing a duplicate task each time."""
 
     def test_oserror_from_http_post_retries_and_wraps(self, tmp_path, monkeypatch):
         """ovt-path end-to-end: when ``urllib.request.urlopen`` raises
@@ -1377,7 +1377,7 @@ class TestRunTaskOSErrorRecovery:
         # Error message uses the wrapped form ("Socket error for ...:
         # [Errno 57] Socket is not connected"), NOT the bare OSError repr
         # that the error_watcher historically fingerprinted into the
-        # duplicate-bead loop.
+        # duplicate-task loop.
         assert "Socket error" in (result.error or ""), result.error
         assert "Errno 57" in (result.error or ""), result.error
 
@@ -1408,7 +1408,7 @@ class TestRunTaskOSErrorRecovery:
         assert result.status == "failed"
         # The dedicated OSError handler tags the message with the
         # 'transport_error:' prefix so error_watcher fingerprints into a
-        # *single* bead category instead of duplicating per-occurrence.
+        # *single* task category instead of duplicating per-occurrence.
         assert result.error is not None
         assert result.error.startswith("transport_error:"), result.error
         assert "Errno 57" in result.error
@@ -1418,10 +1418,10 @@ class TestRunTaskOSErrorRecovery:
     ):
         """The new OSError handler must NOT use the historic
         'ApiAgentSession.run_task failed: [Errno 57]...' log signature
-        that the error_watcher already filed beads for — otherwise
-        production keeps duplicating the same bead. The 'transport_error'
+        that the error_watcher already filed tasks for — otherwise
+        production keeps duplicating the same task. The 'transport_error'
         signature is intentionally distinct so the watcher fingerprints
-        into a fresh, single bead."""
+        into a fresh, single task."""
         import logging
         from oompah.api_agent import ApiAgentSession
 
@@ -1524,7 +1524,7 @@ class TestRunTaskOSErrorRecovery:
 # 5 retries fail, the wrapped TransientServerError propagates up to
 # run_task. Without a dedicated handler it falls through to the broad
 # `except Exception` — logging at ERROR and tripping error_watcher into
-# auto-filing a duplicate bug bead for what is, by definition, a
+# auto-filing a duplicate bug task for what is, by definition, a
 # known-transient network failure the orchestrator already retries.
 #
 # These tests assert the dedicated TransientServerError handler logs at
@@ -1535,7 +1535,7 @@ class TestRunTaskOSErrorRecovery:
 class TestRunTaskTransientServerErrorHandler:
     """Verifies that TransientServerError (which is NOT a subclass of
     OSError, so bpa's OSError handler doesn't catch it) is downgraded
-    to WARNING in run_task so error_watcher does not file beads."""
+    to WARNING in run_task so error_watcher does not file tasks."""
 
     def test_transient_server_error_returns_failed(self, tmp_path, monkeypatch):
         """Exhausted retries on a transient error must produce a clean
@@ -1566,8 +1566,8 @@ class TestRunTaskTransientServerErrorHandler:
     ):
         """The dedicated TransientServerError handler must log at
         WARNING — not ERROR — so the error_watcher (which only files
-        beads for ERROR+ records) does not auto-file duplicate bug
-        beads on every exhausted-retry transient failure."""
+        tasks for ERROR+ records) does not auto-file duplicate bug
+        tasks on every exhausted-retry transient failure."""
         import logging
         from oompah.api_agent import ApiAgentSession, TransientServerError
 
@@ -1591,17 +1591,17 @@ class TestRunTaskTransientServerErrorHandler:
         api_records = [
             r for r in caplog.records if r.name == "oompah.api_agent"
         ]
-        # MUST NOT log the historic bead-triggering 'failed: ' phrasing
+        # MUST NOT log the historic task-triggering 'failed: ' phrasing
         # at ERROR — the catch-all `except Exception` would otherwise
         # match our new handler's logger record verbatim.
-        bead_triggering = [
+        task_triggering = [
             r for r in api_records
             if r.levelno >= logging.ERROR
             and r.getMessage().startswith("ApiAgentSession.run_task failed: ")
         ]
-        assert not bead_triggering, (
+        assert not task_triggering, (
             f"transient errors must not log at ERROR with the historic "
-            f"'run_task failed:' phrasing: {[r.getMessage() for r in bead_triggering]}"
+            f"'run_task failed:' phrasing: {[r.getMessage() for r in task_triggering]}"
         )
         # MUST log at WARNING with a transient-tagged signature.
         warning_records = [
@@ -1714,7 +1714,7 @@ class TestRunTaskTransientServerErrorHandler:
         self, tmp_path, monkeypatch, caplog,
     ):
         """A 401 auth error must log at WARNING — not ERROR — so the
-        error_watcher does not auto-file duplicate bug beads every tick
+        error_watcher does not auto-file duplicate bug tasks every tick
         on what is typically an operator-fixable config issue (expired
         key, wrong endpoint)."""
         import logging
@@ -1742,14 +1742,14 @@ class TestRunTaskTransientServerErrorHandler:
             r for r in caplog.records if r.name == "oompah.api_agent"
         ]
         # Must NOT log at ERROR level — that triggers error_watcher.
-        bead_triggering = [
+        task_triggering = [
             r for r in api_records
             if r.levelno >= logging.ERROR
             and r.getMessage().startswith("ApiAgentSession.run_task failed: ")
         ]
-        assert not bead_triggering, (
+        assert not task_triggering, (
             f"401 auth error must not log at ERROR with 'run_task failed:' "
-            f"phrasing: {[r.getMessage() for r in bead_triggering]}"
+            f"phrasing: {[r.getMessage() for r in task_triggering]}"
         )
         # Must log at WARNING with the 'auth_error' signature.
         warning_records = [

@@ -14,14 +14,9 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlsplit
 
-import yaml
-
-from oompah.backlog_compat import (
-    BacklogCompatibilityError,
-    ensure_backlog_compatible,
-)
 from oompah.git_hooks import hook_path as _bundled_hook_path
 from oompah.models import Project
+from oompah.repo_health import ensure_repo_sound
 
 logger = logging.getLogger(__name__)
 
@@ -111,74 +106,6 @@ def github_work_branch_name(project_name: str, issue_number: int | str) -> str:
     """
     slug = _sanitize_identifier(str(project_name))
     return f"oompah/{slug}/gh-{issue_number}"
-
-
-def _task_id_key(value: str | None) -> str:
-    return str(value or "").strip().lower()
-
-
-def _task_file_frontmatter_id(path: str) -> str | None:
-    try:
-        with open(path, encoding="utf-8") as f:
-            content = f.read()
-    except OSError:
-        return None
-    if not content.startswith("---"):
-        return None
-    end = content.find("\n---", 3)
-    if end < 0:
-        return None
-    try:
-        meta = yaml.safe_load(content[3:end]) or {}
-    except yaml.YAMLError:
-        return None
-    task_id = meta.get("id") if isinstance(meta, dict) else None
-    return str(task_id).strip() if task_id else None
-
-
-def _task_file_status(path: str) -> str | None:
-    """Read the ``status:`` field from a Backlog task file's frontmatter,
-    or None when absent/unparseable."""
-    try:
-        with open(path, encoding="utf-8") as f:
-            content = f.read()
-    except OSError:
-        return None
-    if not content.startswith("---"):
-        return None
-    end = content.find("\n---", 3)
-    if end < 0:
-        return None
-    try:
-        meta = yaml.safe_load(content[3:end]) or {}
-    except yaml.YAMLError:
-        return None
-    status = meta.get("status") if isinstance(meta, dict) else None
-    return str(status).strip() if status else None
-
-
-def _backlog_task_files(root: str) -> list[str]:
-    files: list[str] = []
-    for rel_dir in ("backlog/tasks", "backlog/completed"):
-        task_dir = os.path.join(root, rel_dir)
-        if not os.path.isdir(task_dir):
-            continue
-        for dirpath, _dirs, filenames in os.walk(task_dir):
-            for filename in filenames:
-                if filename.endswith(".md"):
-                    files.append(os.path.join(dirpath, filename))
-    return files
-
-
-def _task_file_matches(path: str, issue_identifier: str) -> bool:
-    key = _task_id_key(issue_identifier)
-    if not key:
-        return False
-    frontmatter_id = _task_file_frontmatter_id(path)
-    if frontmatter_id and _task_id_key(frontmatter_id) == key:
-        return True
-    stem = os.path.splitext(os.path.basename(path))[0].lower()
-    return stem.startswith(key)
 
 
 def _bootstrap_lfs(repo_path: str) -> bool:
@@ -642,16 +569,11 @@ def _is_oompah_md_kind(kind: str) -> bool:
     return kind in ("oompah_md", "oompah.md", "oompah")
 
 
-def _uses_external_or_native_tracker_kind(kind: str) -> bool:
-    return _is_github_backed_kind(kind) or _is_oompah_md_kind(kind)
-
-
 def _is_github_backed(project: "Project") -> bool:
     """Return True when *project* uses the GitHub Issues tracker backend.
 
     Recognised values are ``"github_issues"`` and ``"github-issues"`` to
-    tolerate minor spelling variations.  All other tracker kinds (including
-    ``None``, which means legacy Backlog.md) return False.
+    tolerate minor spelling variations. All other tracker kinds return False.
     """
     kind = (getattr(project, "tracker_kind", None) or "").strip().lower()
     return _is_github_backed_kind(kind)
@@ -672,7 +594,7 @@ class ProjectStore:
         self._projects: dict[str, Project] = {}
 
         # Per-project write locks for tracker mutations and git operations.
-        # Serializes concurrent tracker writes (Backlog task file updates) and
+        # Serializes concurrent tracker writes and
         # git worktree/branch mutations for the same project so background
         # parallelism cannot corrupt shared state.  Different projects hold
         # independent locks so unrelated projects can make progress concurrently.
@@ -716,7 +638,7 @@ class ProjectStore:
 
         The lock is created on first access and cached for the lifetime of this
         store instance.  Callers should hold the lock while performing any
-        operation that mutates Backlog task files, GitHub tracker state, git
+        operation that mutates tracker state, git
         worktrees, or review metadata for the given project:
 
             with self.project_store.project_write_lock(project_id):
@@ -751,8 +673,6 @@ class ProjectStore:
         github_issue_intake_enabled: bool = False,
         status_actor_login: str | None = None,
         status_label_authorized_logins: list[str] | None = None,
-        legacy_backlog_enabled: bool = False,
-        legacy_backlog_dispatch: bool = False,
         paused: bool = True,
     ) -> Project:
         """Register a project by cloning its git repo.
@@ -766,8 +686,8 @@ class ProjectStore:
                       Supports glob patterns. Defaults to ["main"].
             default_branch: Default branch for new task branches. Defaults to first entry in branches.
             tracker_kind: Per-project tracker backend (e.g. "oompah_md",
-                          "github_issues", "backlog_md"). Defaults to
-                          oompah's native Markdown task store.
+                          "github_issues"). Defaults to oompah's native
+                          Markdown task store.
             tracker_owner: GitHub org/user owning the task hub repository.
             tracker_repo: GitHub task hub repository name.
             github_issue_intake_enabled: For native Markdown projects, import
@@ -776,8 +696,6 @@ class ProjectStore:
             status_actor_login: GitHub login used as the project-owner status actor.
             status_label_authorized_logins: Additional GitHub logins authorized to
                                       move protected status labels.
-            legacy_backlog_enabled: When True, existing Backlog.md tasks are still readable.
-            legacy_backlog_dispatch: When True, existing Backlog.md tasks are still dispatchable.
             paused: New managed projects start paused so operators can confirm
                     tracker, token, branch, and provider settings before dispatch.
         """
@@ -826,16 +744,8 @@ class ProjectStore:
         # Validate clone
         if not os.path.isdir(os.path.join(repo_path, ".git")):
             raise ProjectError(f"Clone succeeded but no .git/ found in: {repo_path}")
-        # Backlog.md compatibility is only relevant for legacy Backlog projects.
-        # GitHub-backed and native oompah-md projects do not use Backlog.md
-        # files as their authoritative task store, so skip the check for them.
         tracker_kind = tracker_kind or "oompah_md"
         _resolved_kind = str(tracker_kind).strip().lower()
-        if not _uses_external_or_native_tracker_kind(_resolved_kind):
-            try:
-                ensure_backlog_compatible(repo_path)
-            except BacklogCompatibilityError as exc:
-                raise ProjectError(str(exc)) from exc
 
         # If git_user_name / git_user_email not provided, read global git config
         if not git_user_name:
@@ -927,8 +837,6 @@ class ProjectStore:
                 for login in (status_label_authorized_logins or [])
                 if str(login).strip()
             ],
-            legacy_backlog_enabled=bool(legacy_backlog_enabled),
-            legacy_backlog_dispatch=bool(legacy_backlog_dispatch),
             paused=bool(paused),
         )
         self._projects[project_id] = project
@@ -970,16 +878,12 @@ class ProjectStore:
             "provider_whitelist",
             "status_actor_login",
             "status_label_authorized_logins",
-            "backlog_conflict_paths",
-            # Per-project tracker configuration (TASK-459.3 / TASK-464.2)
+            # Per-project tracker configuration
             "tracker_kind",
             "tracker_owner",
             "tracker_repo",
             "github_issue_intake_enabled",
             "github_project_node_id",
-            "legacy_backlog_enabled",
-            "legacy_backlog_dispatch",
-            "tracker_cutover_at",
         }
     )
 
@@ -1176,40 +1080,6 @@ class ProjectStore:
             else:
                 raise ProjectError("'github_issue_intake_enabled' must be a boolean")
 
-        # legacy_backlog_enabled / legacy_backlog_dispatch: boolean flags.
-        for key in ("legacy_backlog_enabled", "legacy_backlog_dispatch"):
-            if key in fields:
-                val = fields[key]
-                if val is None:
-                    fields[key] = False
-                else:
-                    fields[key] = bool(val)
-
-        # tracker_cutover_at: datetime or ISO string or null.
-        if "tracker_cutover_at" in fields:
-            from datetime import datetime as _datetime
-
-            val = fields["tracker_cutover_at"]
-            if val is None:
-                fields["tracker_cutover_at"] = None
-            elif isinstance(val, _datetime):
-                fields["tracker_cutover_at"] = val
-            elif isinstance(val, str):
-                s = val.strip()
-                if not s:
-                    fields["tracker_cutover_at"] = None
-                else:
-                    try:
-                        fields["tracker_cutover_at"] = _datetime.fromisoformat(s)
-                    except ValueError as exc:
-                        raise ProjectError(
-                            f"'tracker_cutover_at' must be an ISO 8601 datetime string or null: {exc}"
-                        )
-            else:
-                raise ProjectError(
-                    "'tracker_cutover_at' must be an ISO 8601 datetime string or null"
-                )
-
         for key, value in fields.items():
             setattr(project, key, value)
 
@@ -1230,62 +1100,25 @@ class ProjectStore:
         project_id: str,
         timeout_s: float = DEFAULT_SOURCE_SYNC_TIMEOUT_S,
     ) -> dict[str, str]:
-        """Pull latest code and (for legacy Backlog projects) check compatibility.
+        """Pull latest code and run generic git self-heal for a managed project.
 
         Best-effort: any failure is logged and recorded in the returned
         status dict but does NOT raise. The orchestrator should boot
         even if a project's network is flaky — it just operates on
         whatever local state exists.
 
-        **Tracker-aware behaviour:**
-
-        * For *all* projects: git self-heal (``ensure_repo_sound``) runs so
-          the checkout stays on the correct branch and tracks origin.
-        * For **legacy Backlog projects** (``tracker_kind`` is ``None`` or
-          ``"backlog"``): Backlog.md config compatibility checks and Backlog
-          task-file conflict repair/quarantine also run.
-        * For **GitHub-backed projects** (``tracker_kind="github_issues"``)
-          and **native oompah Markdown projects** (``tracker_kind="oompah_md"``):
-          Backlog compatibility and conflict repair are skipped because the
-          configured tracker is the source of truth. A ``"tracker"`` key is
-          added to the returned status dict for explicit project tracker kinds.
-
-        After a successful git pull on a legacy project, inspects backlog task
-        files for git conflict markers.  For conflicts limited to backlog task
-        files, a deterministic structured repair is attempted (see
-        :mod:`oompah.backlog_conflict`).  If repair is not safe, the
-        project is quarantined (``paused=True``) and the conflicted file
-        paths are stored on the project so the dashboard can surface an
-        alert.
-
         Returns ``{"git": "ok"|"reset:ok"|"failed: <reason>"|"skipped: <reason>",
-                  "backlog": "ok"|"migrated"|"failed: <reason>"|"skipped: <reason>",
-                  "conflicts": "none"|"repaired:<n>"|"quarantined:<paths>"|"skipped: <reason>",
                   "tracker": "<tracker_kind>"  # present for explicit project trackers
                   }``.
         """
-        from oompah.backlog_conflict import (
-            ensure_repo_sound,
-            repair_repo_backlog_conflicts,
-        )
-
         project = self._projects.get(project_id)
         if not project:
-            return {
-                "git": "skipped: unknown project",
-                "backlog": "skipped: unknown project",
-                "conflicts": "skipped: unknown project",
-            }
+            return {"git": "skipped: unknown project"}
 
         tracker_kind = (getattr(project, "tracker_kind", None) or "").strip().lower()
-        github_backed = _is_github_backed(project)
         status: dict[str, str] = {}
         if tracker_kind:
             status["tracker"] = tracker_kind
-
-        # Paths ensure_repo_sound() could not heal — fed into the quarantine
-        # decision below so an un-healable checkout is loud, never silent.
-        unmerged_failed: list[str] = []
 
         # Aggressively drive the checkout back to a sound state: abort stranded
         # merges/rebases, clear colliding untracked files, recover unmerged
@@ -1305,7 +1138,6 @@ class ProjectStore:
                     status["git"] = "reset:ok" if heal.get("reset") else "ok"
                 else:
                     status["git"] = "failed: not sound after heal"
-                    unmerged_failed = list(heal.get("unrecoverable", []))
                 if heal.get("actions"):
                     status["heal"] = ",".join(heal["actions"])
                     logger.info(
@@ -1321,109 +1153,6 @@ class ProjectStore:
                     project.name,
                     exc,
                 )
-
-        # Backlog.md compatibility checks and conflict repair are only relevant
-        # for legacy Backlog projects. External/native trackers skip both steps
-        # because Backlog.md is not the authoritative task store.
-        if github_backed or _is_oompah_md_kind(tracker_kind):
-            reason = "github_issues" if github_backed else "oompah_md"
-            status["backlog"] = f"skipped: {reason}"
-            status["conflicts"] = f"skipped: {reason}"
-            return status
-
-        try:
-            compat = ensure_backlog_compatible(project.repo_path)
-            status["backlog"] = "migrated" if compat.changed else "ok"
-        except BacklogCompatibilityError as exc:
-            status["backlog"] = f"failed: {exc}"
-            logger.warning("Backlog compatibility check failed for %s: %s", project.name, exc)
-
-        # Inspect and repair Backlog task file conflicts.
-        # This runs unconditionally (not gated on git success) because
-        # conflicts may already exist from a previous run's stash collision.
-        if project.repo_path and os.path.isdir(project.repo_path):
-            try:
-                repair_result = repair_repo_backlog_conflicts(project.repo_path)
-                repaired = repair_result.get("repaired", [])
-                failed = list(repair_result.get("failed", []))
-                # Unmerged-index entries that recovery could NOT resolve are
-                # also unrepairable conflicts — quarantine on them too so the
-                # checkout never silently stalls behind origin.
-                for p in unmerged_failed:
-                    if p not in failed:
-                        failed.append(p)
-                if repaired or failed:
-                    # Log repair summary
-                    if repaired:
-                        logger.info(
-                            "Auto-repaired %d backlog conflict(s) in %s: %s",
-                            len(repaired),
-                            project.name,
-                            ", ".join(os.path.basename(p) for p in repaired[:5]),
-                        )
-                    if failed:
-                        logger.warning(
-                            "Could not repair %d backlog conflict(s) in %s: %s",
-                            len(failed),
-                            project.name,
-                            ", ".join(os.path.basename(p) for p in failed[:5]),
-                        )
-                    # Quarantine project if any conflicts remain unrepairable
-                    if failed:
-                        # Pause the project so no tasks are dispatched until
-                        # the operator resolves the remaining conflicts.
-                        failed_basenames = [os.path.basename(p) for p in failed]
-                        status["conflicts"] = (
-                            f"quarantined:{','.join(failed_basenames)}"
-                        )
-                        self.update(
-                            project_id,
-                            paused=True,
-                            backlog_conflict_paths=list(failed),
-                        )
-                        logger.warning(
-                            "Project %s quarantined due to unresolvable backlog "
-                            "conflicts. Repair or remove: %s",
-                            project.name,
-                            ", ".join(failed),
-                        )
-                    else:
-                        # All conflicts repaired — clear any previous quarantine
-                        status["conflicts"] = f"repaired:{len(repaired)}"
-                        if project.backlog_conflict_paths:
-                            self.update(
-                                project_id,
-                                paused=False,
-                                backlog_conflict_paths=[],
-                            )
-                            logger.info(
-                                "Project %s conflict quarantine cleared after "
-                                "successful repair.",
-                                project.name,
-                            )
-                else:
-                    # No conflicts — clear any stale quarantine from a previous run
-                    if project.backlog_conflict_paths:
-                        self.update(
-                            project_id,
-                            paused=False,
-                            backlog_conflict_paths=[],
-                        )
-                        logger.info(
-                            "Project %s stale conflict quarantine cleared "
-                            "(no conflicts detected).",
-                            project.name,
-                        )
-                    status["conflicts"] = "none"
-            except Exception as exc:
-                logger.warning(
-                    "Backlog conflict inspection failed for %s: %s",
-                    project.name,
-                    exc,
-                )
-                status["conflicts"] = f"failed: {exc}"
-        else:
-            status["conflicts"] = "skipped: no repo"
 
         return status
 
@@ -1458,7 +1187,6 @@ class ProjectStore:
                     )
                     results[p.id] = {
                         "git": f"exception: {exc}",
-                        "backlog": f"exception: {exc}",
                     }
         return results
 
@@ -1477,8 +1205,8 @@ class ProjectStore:
         """Path used for the shared epic worktree under epic_strategy='shared'.
 
         Lives at ``<worktree_root>/<project>/epic-<epic_identifier>`` so it
-        can never collide with a per-bead worktree (which uses just the
-        bead identifier). The branch name on the worktree mirrors the
+        can never collide with a per-issue worktree (which uses just the
+        issue identifier). The branch name on the worktree mirrors the
         directory name (also ``epic-<epic_identifier>``).
         """
         project = self._projects.get(project_id)
@@ -1640,7 +1368,7 @@ class ProjectStore:
         """Soft-prepare an existing epic worktree for reuse.
 
         Unlike ``_prepare_existing_worktree`` (which hard-resets the
-        per-bead worktree), this one preserves any in-flight commits on
+        per-issue worktree), this one preserves any in-flight commits on
         the shared epic branch so a previous child's work isn't lost.
         We still fetch, ensure the branch is checked out, and disable
         hooks; we do NOT ``git reset --hard`` or ``git clean``.
@@ -1768,7 +1496,7 @@ class ProjectStore:
         wt_path = self.worktree_path_for(project_id, issue_identifier)
         # Use the caller-supplied branch name (e.g. GitHub-safe
         # ``oompah/<slug>/gh-<n>``) when provided; fall back to the
-        # sanitized identifier for legacy Backlog-backed tasks.
+        # sanitized identifier for native tasks.
         branch_name = branch_name or _sanitize_identifier(issue_identifier)
 
         if os.path.isdir(wt_path):
@@ -1861,176 +1589,6 @@ class ProjectStore:
 
         logger.info("Worktree created path=%s branch=%s", wt_path, branch_name)
         return wt_path
-
-    def sync_task_file_to_worktree(
-        self,
-        project_id: str,
-        issue_identifier: str,
-        wt_path: str,
-        preserve_statuses: "frozenset[str] | set[str] | None" = None,
-    ) -> bool:
-        """Copy the current Backlog task markdown into an agent worktree.
-
-        ``preserve_statuses`` guards against regressing agent-owned
-        progress: when the worktree's existing task file already records
-        a status in this set (e.g. terminal states like ``Done`` /
-        ``Merged``), that status is preserved in the synced file rather
-        than being overwritten by the (possibly stale) source copy.
-
-        This matters for ``epic_strategy='shared'`` children: they live
-        on a persistent epic branch and write ``status: Done`` there, but
-        the source-of-truth main checkout still shows ``Open`` until the
-        epic→main PR lands. Without this guard, every re-dispatch copied
-        the stale ``Open`` over the agent's ``Done``, causing an infinite
-        re-dispatch loop (the child never appeared complete).
-        """
-        project = self._projects.get(project_id)
-        if not project:
-            raise ProjectError(f"Unknown project: {project_id}")
-        if not os.path.isdir(wt_path):
-            raise ProjectError(f"Worktree path does not exist: {wt_path}")
-
-        source_path = next(
-            (
-                path
-                for path in _backlog_task_files(project.repo_path)
-                if _task_file_matches(path, issue_identifier)
-            ),
-            None,
-        )
-        if not source_path:
-            logger.debug(
-                "No Backlog task file found to sync project=%s issue=%s",
-                project_id,
-                issue_identifier,
-            )
-            return False
-
-        # Capture the worktree copy's status BEFORE deleting it, so we can
-        # avoid regressing an agent-owned advanced status (e.g. Done).
-        preserved_status: str | None = None
-        norm_preserve = (
-            {s.strip().lower() for s in preserve_statuses}
-            if preserve_statuses
-            else set()
-        )
-        for stale_path in _backlog_task_files(wt_path):
-            if _task_file_matches(stale_path, issue_identifier):
-                if norm_preserve and preserved_status is None:
-                    wt_status = _task_file_status(stale_path)
-                    src_status = _task_file_status(source_path)
-                    if (
-                        wt_status
-                        and wt_status.strip().lower() in norm_preserve
-                        and (src_status or "").strip().lower()
-                        != wt_status.strip().lower()
-                    ):
-                        preserved_status = wt_status
-                try:
-                    os.remove(stale_path)
-                except OSError as exc:
-                    raise ProjectError(f"Failed to remove stale task file: {exc}")
-
-        rel_path = os.path.relpath(source_path, project.repo_path)
-        target_path = os.path.join(wt_path, rel_path)
-        os.makedirs(os.path.dirname(target_path), exist_ok=True)
-        try:
-            shutil.copy2(source_path, target_path)
-        except OSError as exc:
-            raise ProjectError(f"Failed to sync task file: {exc}")
-
-        if preserved_status is not None:
-            if not self._rewrite_task_status(target_path, preserved_status):
-                logger.warning(
-                    "Could not preserve worktree status %r for %s; "
-                    "synced file may regress progress",
-                    preserved_status,
-                    issue_identifier,
-                )
-            else:
-                logger.info(
-                    "Preserved worktree status %r over stale source for "
-                    "project=%s issue=%s",
-                    preserved_status,
-                    project_id,
-                    issue_identifier,
-                )
-
-        logger.info(
-            "Synced task file to worktree project=%s issue=%s path=%s",
-            project_id,
-            issue_identifier,
-            target_path,
-        )
-        return True
-
-    def read_task_status_in_epic_worktree(
-        self,
-        project_id: str,
-        epic_identifier: str,
-        issue_identifier: str,
-    ) -> str | None:
-        """Return a child task's ``status:`` as recorded in the shared
-        epic worktree's Backlog copy, or None if the worktree or task
-        file doesn't exist.
-
-        Shared-epic children write their status to the persistent epic
-        branch, not the main checkout. The dispatch loop reads status
-        from main (which lags until the epic lands), so it needs this to
-        tell whether a child is already complete on the epic branch.
-        """
-        if not self._projects.get(project_id):
-            return None
-        wt_path = self.epic_worktree_path_for(project_id, epic_identifier)
-        if not os.path.isdir(wt_path):
-            return None
-        path = next(
-            (
-                p
-                for p in _backlog_task_files(wt_path)
-                if _task_file_matches(p, issue_identifier)
-            ),
-            None,
-        )
-        if not path:
-            return None
-        return _task_file_status(path)
-
-    @staticmethod
-    def _rewrite_task_status(path: str, status: str) -> bool:
-        """Rewrite the ``status:`` frontmatter line of *path* to *status*.
-
-        Returns True on success. Best-effort: only touches the first
-        ``status:`` line inside the leading ``---`` frontmatter block.
-        """
-        try:
-            with open(path, encoding="utf-8") as f:
-                content = f.read()
-        except OSError:
-            return False
-        if not content.startswith("---"):
-            return False
-        end = content.find("\n---", 3)
-        if end < 0:
-            return False
-        head = content[: end]
-        tail = content[end:]
-        new_head, n = re.subn(
-            r"(?m)^(status:).*$",
-            lambda m: f"{m.group(1)} {status}",
-            head,
-            count=1,
-        )
-        if n == 0:
-            # No status line in frontmatter — insert one just after the
-            # opening fence.
-            new_head = head.replace("---", f"---\nstatus: {status}", 1)
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(new_head + tail)
-        except OSError:
-            return False
-        return True
 
     def _prepare_existing_worktree(
         self,

@@ -22,7 +22,7 @@ from oompah.models import Issue
 def _make_issue(**kwargs):
     defaults = dict(
         id="1",
-        identifier="beads-001",
+        identifier="tasks-001",
         title="Test issue",
         state="open",
         issue_type="bug",

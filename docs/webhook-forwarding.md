@@ -17,21 +17,13 @@ near-realtime instead:
 - **Task state updates** when issues are opened, edited, commented on, or
   field-changed in GitHub Issues.
 
-## Two webhook channels
+## Webhook Channel
 
-Oompah uses **two distinct webhook mechanisms** with different scopes.
-It is important not to confuse them:
+Oompah uses the GitHub forwarder for SCM events and GitHub issue intake:
 
 | Channel | Endpoint | Transport | Purpose |
 |---|---|---|---|
 | **GitHub forge events** | `POST /api/v1/webhooks/github` | `gh webhook forward` CLI → localhost | Receive GitHub events for SCM (push, PR) and GitHub-backed task tracking (issues, comments, labels, project items). |
-| **Backlog task-change hooks** | `POST /api/v1/webhooks/backlog` | `post-commit` git hook in managed repo | Notify oompah when a Backlog.md task file changes in a managed repo (legacy Backlog-backed projects only). |
-
-**GitHub-backed projects** use the first channel exclusively. The
-`post-commit` Backlog hook is a legacy mechanism for Backlog.md-backed
-projects and does not apply once a project is migrated to GitHub Issues.
-See [`plans/backlog-task-change-webhooks.md`](../plans/backlog-task-change-webhooks.md)
-for details on the Backlog hook.
 
 ## Architecture
 
@@ -257,24 +249,3 @@ Set `OOMPAH_WEBHOOK_EVENTS=push,pull_request` in your `.env` file and
 restart. The forwarder will only subscribe to those two events. Note that
 issue, comment, and label changes will not arrive in real time — oompah will
 rely on its 5-minute periodic sync for task state.
-
-## Relation to Backlog task-change webhooks
-
-The `gh webhook forward` mechanism is **separate** from the legacy Backlog.md
-`post-commit` hook. They serve different purposes:
-
-- `gh webhook forward` → receives GitHub-level events (issues, PRs, pushes,
-  label changes) from GitHub's WebSocket API and forwards them to oompah's
-  `/api/v1/webhooks/github` endpoint.
-- `post-commit` hook → fires a local HTTP POST to `/api/v1/webhooks/backlog`
-  when a git commit in a managed repo touches `backlog/tasks/*.md` or
-  `backlog/completed/*.md` files.
-
-For **GitHub-backed projects** (tracker kind `github_issues`), task state
-lives in GitHub Issues and the Backlog `post-commit` hook is not installed
-or consulted. For **Backlog.md-backed projects** (legacy), the reverse is
-true — the `gh webhook forward` event list still handles SCM events but
-task-state changes arrive via the `post-commit` hook.
-
-See [`plans/backlog-task-change-webhooks.md`](../plans/backlog-task-change-webhooks.md)
-for the full design of the Backlog hook mechanism.

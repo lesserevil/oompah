@@ -2,7 +2,7 @@
 
 Motivating issue: oompah-zlz_2-kc2k.1
 
-When an agent session ends (worker exits) and the bead is still open
+When an agent session ends (worker exits) and the task is still open
 (not closed), check whether there are any commits on the issue's branch
 that have been pushed to origin. If no commits were pushed, refuse to
 let the agent escalate — log the situation, post a diagnostic comment,
@@ -18,10 +18,10 @@ Skip rules (fail-open without checking):
 * Git command fails or times out (fail-open, log WARNING).
 
 Refusal output:
-* Do NOT mark completed; the bead remains in_progress/open.
+* Do NOT mark completed; the task remains in_progress/open.
 * Post a diagnostic comment (author=oompah) with the required
   commit + push + close steps.
-* Reopen the bead so the existing dispatch/retry cycle picks it up.
+* Reopen the task so the existing dispatch/retry cycle picks it up.
 * Log a structured telemetry event ``completion_rejected_unpushed_work``.
 """
 
@@ -276,7 +276,7 @@ def build_unpushed_refusal_comment(
 
     lines: list[str] = [
         "Completion refused by orchestrator: unpushed work detected on "
-        f"branch `{branch}` while bead is in a terminal state.",
+        f"branch `{branch}` while task is in a terminal state.",
         "",
         "Diagnostic:",
     ]
@@ -297,7 +297,7 @@ def build_unpushed_refusal_comment(
 
     lines.extend([
         "",
-        "Required: commit the work, push to origin, then close the bead.",
+        "Required: commit the work, push to origin, then close the task.",
         "",
         "Steps to resolve:",
         f"  git checkout {branch}",
@@ -305,7 +305,7 @@ def build_unpushed_refusal_comment(
         f'  git commit -m "Descriptive commit message"',
         f"  git push origin {branch}",
         "",
-        "Bead re-opened. Re-dispatch will push a fresh agent to complete the landing.",
+        "Task re-opened. Re-dispatch will push a fresh agent to complete the landing.",
     ])
 
     return "\n".join(lines)

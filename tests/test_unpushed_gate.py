@@ -9,7 +9,7 @@ Covers:
 * no branch resolved → allowed (skip)
 * no repo_path → allowed (skip)
 * git error → fail-open + WARNING logged
-* orchestrator wiring: gate refused → bead re-opens to in_progress, comment posted
+* orchestrator wiring: gate refused → task re-opens to in_progress, comment posted
 * gate disabled → always allowed (no-op)
 * _check_unpushed helper: subprocess edge cases
 """
@@ -279,7 +279,7 @@ class TestBuildUnpushedRefusalComment:
 
     def test_refuses_with_unpushed_commits(self):
         """Comment contains commit count, commit lines, and required steps."""
-        issue = FakeIssue(identifier="my-bead", branch_name="my-bead")
+        issue = FakeIssue(identifier="my-task", branch_name="my-task")
         result = UnpushedGateResult(
             allowed=False,
             has_uncommitted=False,
@@ -288,12 +288,12 @@ class TestBuildUnpushedRefusalComment:
         )
         comment = build_unpushed_refusal_comment(issue, result, "main")
         assert "Completion refused" in comment
-        assert "`my-bead`" in comment
+        assert "`my-task`" in comment
         assert "3 commit" in comment
         assert "abc123 feat: add thing" in comment
-        assert "git checkout my-bead" in comment
-        assert "git push origin my-bead" in comment
-        assert "Bead re-opened" in comment
+        assert "git checkout my-task" in comment
+        assert "git push origin my-task" in comment
+        assert "Task re-opened" in comment
 
     def test_refusal_comment_uses_work_branch(self):
         issue = FakeIssue(

@@ -53,17 +53,17 @@ def _github_issue(**overrides) -> Issue:
     return Issue(**defaults)
 
 
-def _backlog_issue(**overrides) -> Issue:
+def _native_issue(**overrides) -> Issue:
     defaults = dict(
         id="TASK-999",
         identifier="TASK-999",
-        title="Backlog issue",
+        title="Native issue",
         state="in_progress",
         priority=2,
         issue_type="task",
         labels=[],
-        tracker_kind="backlog_md",
-        project_id="proj-bl",
+        tracker_kind="oompah_md",
+        project_id="proj-native",
     )
     defaults.update(overrides)
     return Issue(**defaults)
@@ -100,8 +100,7 @@ class TestGitHubWorkBranchGeneration:
         orch._project_trackers["proj-gh"] = mock_tracker
 
         with patch.object(orch, "_project_epic_strategy", return_value="flat"), \
-             patch.object(orch, "_resolve_parent_epic", return_value=None), \
-             patch.object(orch, "_sync_issue_task_file_to_workspace"):
+             patch.object(orch, "_resolve_parent_epic", return_value=None):
             orch._create_workspace_for_issue(issue)
 
         mock_store.create_worktree.assert_called_once_with(
@@ -113,12 +112,12 @@ class TestGitHubWorkBranchGeneration:
         assert issue.work_branch == expected_branch
         assert issue.branch_name == expected_branch
 
-    def test_backlog_issue_uses_no_explicit_branch_name(self, tmp_path):
-        """Backlog-backed tasks must not get a GitHub-style branch — the
+    def test_native_issue_uses_no_explicit_branch_name(self, tmp_path):
+        """Native tasks must not get a GitHub-style branch — the
         ``branch_name`` kwarg must remain ``None`` (default behaviour)."""
         orch = _make_orchestrator(tmp_path)
-        issue = _backlog_issue()
-        project = _make_project(project_id="proj-bl")
+        issue = _native_issue()
+        project = _make_project(project_id="proj-native")
 
         mock_store = MagicMock()
         mock_store.get.return_value = project
@@ -126,8 +125,7 @@ class TestGitHubWorkBranchGeneration:
         orch.project_store = mock_store
 
         with patch.object(orch, "_project_epic_strategy", return_value="flat"), \
-             patch.object(orch, "_resolve_parent_epic", return_value=None), \
-             patch.object(orch, "_sync_issue_task_file_to_workspace"):
+             patch.object(orch, "_resolve_parent_epic", return_value=None):
             orch._create_workspace_for_issue(issue)
 
         mock_store.create_worktree.assert_called_once_with(
@@ -149,8 +147,7 @@ class TestGitHubWorkBranchGeneration:
         orch.project_store = mock_store
 
         with patch.object(orch, "_project_epic_strategy", return_value="flat"), \
-             patch.object(orch, "_resolve_parent_epic", return_value=None), \
-             patch.object(orch, "_sync_issue_task_file_to_workspace"):
+             patch.object(orch, "_resolve_parent_epic", return_value=None):
             orch._create_workspace_for_issue(issue)
 
         _, kwargs = mock_store.create_worktree.call_args
@@ -172,8 +169,7 @@ class TestGitHubWorkBranchGeneration:
         orch._project_trackers["proj-gh"] = mock_tracker
 
         with patch.object(orch, "_project_epic_strategy", return_value="flat"), \
-             patch.object(orch, "_resolve_parent_epic", return_value=None), \
-             patch.object(orch, "_sync_issue_task_file_to_workspace"):
+             patch.object(orch, "_resolve_parent_epic", return_value=None):
             orch._create_workspace_for_issue(issue)
 
         _, kwargs = mock_store.create_worktree.call_args
@@ -215,8 +211,7 @@ class TestGitHubWorkBranchMetadataPersistence:
         orch.project_store = mock_store
 
         with patch.object(orch, "_project_epic_strategy", return_value="flat"), \
-             patch.object(orch, "_resolve_parent_epic", return_value=None), \
-             patch.object(orch, "_sync_issue_task_file_to_workspace"):
+             patch.object(orch, "_resolve_parent_epic", return_value=None):
             orch._create_workspace_for_issue(issue)
 
         expected_branch = github_work_branch_name(project.name, issue.issue_number)
@@ -243,8 +238,7 @@ class TestGitHubWorkBranchMetadataPersistence:
         orch._project_trackers["proj-gh"] = mock_tracker
 
         with patch.object(orch, "_project_epic_strategy", return_value="flat"), \
-             patch.object(orch, "_resolve_parent_epic", return_value=None), \
-             patch.object(orch, "_sync_issue_task_file_to_workspace"):
+             patch.object(orch, "_resolve_parent_epic", return_value=None):
             orch._create_workspace_for_issue(issue)
 
         calls = mock_tracker.set_metadata_field.call_args_list
@@ -270,8 +264,7 @@ class TestGitHubWorkBranchMetadataPersistence:
         orch._project_trackers["proj-gh"] = mock_tracker
 
         with patch.object(orch, "_project_epic_strategy", return_value="flat"), \
-             patch.object(orch, "_resolve_parent_epic", return_value=None), \
-             patch.object(orch, "_sync_issue_task_file_to_workspace"):
+             patch.object(orch, "_resolve_parent_epic", return_value=None):
             orch._create_workspace_for_issue(issue)
 
         calls = mock_tracker.set_metadata_field.call_args_list
@@ -299,19 +292,18 @@ class TestGitHubWorkBranchMetadataPersistence:
         orch._project_trackers["proj-gh"] = mock_tracker
 
         with patch.object(orch, "_project_epic_strategy", return_value="flat"), \
-             patch.object(orch, "_resolve_parent_epic", return_value=None), \
-             patch.object(orch, "_sync_issue_task_file_to_workspace"):
+             patch.object(orch, "_resolve_parent_epic", return_value=None):
             # Must NOT raise even though set_metadata_field raised.
             wp, _epic = orch._create_workspace_for_issue(issue)
 
         assert wp == "/fake/wt"
         mock_store.create_worktree.assert_called_once()
 
-    def test_backlog_issue_does_not_write_metadata(self, tmp_path):
-        """Backlog-backed tasks must not attempt to write GitHub metadata."""
+    def test_native_issue_does_not_write_github_metadata(self, tmp_path):
+        """Native tasks must not attempt to write GitHub metadata."""
         orch = _make_orchestrator(tmp_path)
-        issue = _backlog_issue()
-        project = _make_project(project_id="proj-bl")
+        issue = _native_issue()
+        project = _make_project(project_id="proj-native")
 
         mock_store = MagicMock()
         mock_store.get.return_value = project
@@ -319,11 +311,10 @@ class TestGitHubWorkBranchMetadataPersistence:
         orch.project_store = mock_store
 
         mock_tracker = MagicMock()
-        orch._project_trackers["proj-bl"] = mock_tracker
+        orch._project_trackers["proj-native"] = mock_tracker
 
         with patch.object(orch, "_project_epic_strategy", return_value="flat"), \
-             patch.object(orch, "_resolve_parent_epic", return_value=None), \
-             patch.object(orch, "_sync_issue_task_file_to_workspace"):
+             patch.object(orch, "_resolve_parent_epic", return_value=None):
             orch._create_workspace_for_issue(issue)
 
         mock_tracker.set_metadata_field.assert_not_called()

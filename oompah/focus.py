@@ -467,10 +467,10 @@ BUILTIN_FOCI: list[Focus] = [
             "Give each task a clear title and a description with enough context to work independently",
             "Cover the full scope of the epic — don't leave gaps",
             "Set appropriate priorities and dependencies between tasks",
-            "Use `backlog task create \"...\" --parent <epic-id> --plain` to file each child task linked to the parent epic (creates a parent-child relationship)",
-            "Set dependencies between children via `backlog task edit <child-id> --depends-on <other-id> --plain` where needed",
-            "Remove the 'draft' label from the epic when planning is complete via `backlog task edit <epic-id> --remove-label draft --plain`",
-            "Set the epic status to 'To Do' when planning is complete via `backlog task edit <epic-id> --status \"To Do\" --plain`",
+            "Use `oompah task child-create <epic-id> --title \"...\" --description \"...\"` to file each child task with an explicit parent-child link to the parent epic",
+            "Set dependencies between children via `oompah task set-dependency <child-id> --depends-on <other-id>` where needed",
+            "Remove the 'draft' label from the epic when planning is complete via `oompah task remove-label <epic-id> draft`",
+            "Set the epic status to 'Backlog' when planning is complete via `oompah task set-status <epic-id> Backlog`",
         ],
         must_not_do=[
             "Start implementing code — your job is planning, not coding",
@@ -494,15 +494,13 @@ BUILTIN_FOCI: list[Focus] = [
             "whether they describe the same underlying problem."
         ),
         must_do=[
-            "Search for similar tasks using `backlog search \"<query>\" "
-            "--type task --plain` filtered by the shared topic prefix (e.g. "
-            "for 'rogers-something' search 'rogers') or the bug/error description",
+            "Search for similar tasks with `rg -n \"<query>\" .oompah/tasks docs plans README.md WORKFLOW.md` filtered by the shared topic prefix (e.g. for 'rogers-something' search 'rogers') or the bug/error description",
             "Read the description, error messages, and comments of any "
-            "candidate duplicate to confirm whether it covers the same ground",
+            "candidate duplicate with `oompah task view <identifier>` to confirm whether it covers the same ground",
             "If a confirmed duplicate exists: comment on the NEW issue linking "
-            "to the original issue, then close it using `backlog task edit "
-            "<identifier> --status Done --final-summary "
-            "\"duplicate-of:<original-id>\" --plain`. Do NOT implement "
+            "to the original issue, then archive it using `oompah task set-status "
+            "<identifier> Archived --summary "
+            "\"duplicate-of:<original-id>\"`. Do NOT implement "
             "anything — the original already covers this",
             "If no clear duplicate is confirmed: continue with the work using "
             "the topic/resolution from the most likely match as your starting "

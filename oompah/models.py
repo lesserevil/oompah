@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 #
 # Tracks whether an epic branch has been detected as stale, is currently
 # being rebased, or has been successfully rebased onto main. Persisted
-# as labels on the epic bead (epic:stale, epic:rebasing, epic:rebased)
+# as labels on the epic task (epic:stale, epic:rebasing, epic:rebased)
 # AND in-memory via the Orchestrator._epic_rebase_states dict so the
 # dispatch loop can skip redundant rebase agent dispatches.
 # ---------------------------------------------------------------------------
@@ -33,7 +33,7 @@ class EpicRebaseState(str, Enum):
 
     @property
     def label(self) -> str:
-        """The bead label representing this state (e.g. 'epic:stale')."""
+        """The issue label representing this state (e.g. 'epic:stale')."""
         return f"epic:{self.value}"
 
     @classmethod
@@ -120,7 +120,7 @@ class Issue:
     closed_at: datetime | None = None
     # Repo-relative attachment paths (e.g.
     # ".oompah/attachments/<identifier>/<sha>-<name>.png"). Parsed from
-    # beads metadata["oompah.attachments"]; the rich record (mime, size,
+    # tracker metadata["oompah.attachments"]; the rich record (mime, size,
     # generated, added_by, ...) lives in the metadata block. The list
     # here carries just paths so prompt rendering and dispatch can ignore
     # the metadata structure.
@@ -148,9 +148,6 @@ class Issue:
     # Stored in GitHub issue metadata so review reconciliation can resolve
     # the task from the PR without guessing by task ID.
     work_branch: str | None = None
-    # True for issues that originate from the legacy Backlog.md tracker.
-    # Used by the dashboard to show a visual legacy marker during transition.
-    is_legacy: bool = False
 
 
 @dataclass
@@ -206,7 +203,7 @@ class LiveSession:
     # SDK's ResultMessage.total_cost_usd is non-None — the SDK knows
     # tier discounts oompah doesn't, so when present this beats the
     # local model_costs lookup. None means "fall back to model_costs"
-    # (or "no cost" for subscription/api/cli paths). See bead
+    # (or "no cost" for subscription/api/cli paths). See issue
     # oompah-zlz_2-ag7h.
     sdk_cost_usd: float | None = None
 
@@ -302,7 +299,7 @@ class Project:
     # exclusions.
     test_skip_paths: list[str] = field(default_factory=list)
     # Per-project strategy controlling how children of an epic relate to
-    # branches and CI. See bead oompah-zlz_2-amd for the full design.
+    # branches and CI. See issue oompah-zlz_2-amd for the full design.
     #
     # * "flat" (default) — preserves today's behavior: every task gets
     #   its own worktree off main, each PR targets main, CI runs per
@@ -347,12 +344,6 @@ class Project:
     # model-level role rules and provider health/failover still apply
     # after the whitelist filter. See TASK-407.10.
     provider_whitelist: list[str] = field(default_factory=list)
-    # Set when oompah detects unresolvable git conflict markers in backlog
-    # task files during startup sync. The project is quarantined (paused)
-    # until the conflicts are resolved, and these paths are surfaced in the
-    # dashboard as an alert so the operator knows which files need attention.
-    # Cleared when the project is successfully synced without conflicts.
-    backlog_conflict_paths: list[str] = field(default_factory=list)
     # GitHub login oompah uses as the project-owner actor for protected status
     # transitions.  By default this is resolved from the configured project
     # access token owner.  Operators may override it when the token owner cannot
@@ -369,8 +360,8 @@ class Project:
     # ---------------------------------------------------------------------------
     # Which tracker backend this project uses. When None, falls back to the
     # global ServiceConfig.tracker_kind. Recognized values are the keys in
-    # oompah.tracker.ADAPTER_REGISTRY plus aliases like "backlog", "backlog.md",
-    # and "oompah". Use "oompah_md" for native Markdown task files or
+    # oompah.tracker.ADAPTER_REGISTRY plus aliases like "oompah".
+    # Use "oompah_md" for native Markdown task files or
     # "github_issues" for GitHub-backed projects.
     tracker_kind: str | None = None
     # GitHub Issues task hub owner/repo for this project. When set, new tasks
@@ -385,18 +376,6 @@ class Project:
     # GitHub Projects (v2) node ID for board/roadmap views. Optional — oompah
     # does not require a Project board to manage GitHub Issues.
     github_project_node_id: str | None = None
-    # When True, oompah may still READ existing Backlog.md tasks (fetch,
-    # display, comments).  When False, the legacy Backlog store is ignored.
-    # Only relevant after tracker_kind has been switched to "github_issues".
-    legacy_backlog_enabled: bool = False
-    # When True, legacy Backlog.md tasks in this project are still ELIGIBLE
-    # for agent dispatch.  Setting this to False stops oompah from dispatching
-    # old Backlog tasks while still allowing reads if legacy_backlog_enabled.
-    legacy_backlog_dispatch: bool = False
-    # UTC timestamp recorded when this project was cut over from Backlog.md to
-    # GitHub Issues.  Used to detect and warn about Backlog task files created
-    # after the cutover, and as a reference for the cutover status UI.
-    tracker_cutover_at: datetime | None = None
 
     def __post_init__(self):
         # Ensure branches is never empty and default_branch is set
@@ -472,10 +451,6 @@ class Project:
         # Always emit provider_whitelist (even when empty) so the API
         # response consistently includes the field for dashboard rendering.
         d["provider_whitelist"] = list(self.provider_whitelist)
-        # Only emit backlog_conflict_paths when set to avoid cluttering
-        # normal project records with an empty list.
-        if self.backlog_conflict_paths:
-            d["backlog_conflict_paths"] = list(self.backlog_conflict_paths)
         if self.status_actor_login:
             d["status_actor_login"] = self.status_actor_login
         # Only emit status_label_authorized_logins when non-empty — most
@@ -493,12 +468,6 @@ class Project:
         d["github_issue_intake_enabled"] = self.github_issue_intake_enabled
         if self.github_project_node_id is not None:
             d["github_project_node_id"] = self.github_project_node_id
-        # Always emit the legacy backlog flags so API consumers can read them
-        # without back-compat guessing; they default to False.
-        d["legacy_backlog_enabled"] = self.legacy_backlog_enabled
-        d["legacy_backlog_dispatch"] = self.legacy_backlog_dispatch
-        if self.tracker_cutover_at is not None:
-            d["tracker_cutover_at"] = self.tracker_cutover_at.isoformat()
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -604,16 +573,6 @@ class Project:
         status_actor_login: str | None = (
             str(raw_status_actor_login).strip() if raw_status_actor_login else None
         ) or None
-        tracker_cutover_at: datetime | None = None
-        raw_cutover = d.get("tracker_cutover_at")
-        if raw_cutover:
-            if isinstance(raw_cutover, datetime):
-                tracker_cutover_at = raw_cutover
-            else:
-                try:
-                    tracker_cutover_at = datetime.fromisoformat(str(raw_cutover))
-                except (ValueError, TypeError):
-                    pass
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -645,10 +604,6 @@ class Project:
             churn_magnet_gate_enabled=bool(d.get("churn_magnet_gate_enabled", False)),
             churn_magnet_top_n=max(1, int(d.get("churn_magnet_top_n", 10))),
             provider_whitelist=provider_whitelist,
-            backlog_conflict_paths=[
-                str(p) for p in (d.get("backlog_conflict_paths") or [])
-                if str(p).strip()
-            ],
             status_actor_login=status_actor_login,
             status_label_authorized_logins=[
                 str(login).strip()
@@ -662,9 +617,6 @@ class Project:
                 d.get("github_issue_intake_enabled", False)
             ),
             github_project_node_id=github_project_node_id,
-            legacy_backlog_enabled=bool(d.get("legacy_backlog_enabled", False)),
-            legacy_backlog_dispatch=bool(d.get("legacy_backlog_dispatch", False)),
-            tracker_cutover_at=tracker_cutover_at,
         )
 
 
@@ -685,7 +637,7 @@ class ModelProvider:
     #     Claude Agent SDK today; future Codex etc. via oompah-zlz_2-0hzh).
     # Legacy values ("openai", "anthropic", "custom") are migrated at load
     # time by ``from_dict`` so existing providers.json records keep working
-    # without operator action. See bead oompah-zlz_2-zvm0 for the rationale.
+    # without operator action. See issue oompah-zlz_2-zvm0 for the rationale.
     provider_type: str = "openai_compatible"
     model_roles: dict[str, str] = field(default_factory=dict)
     model_costs: dict[str, dict[str, float]] = field(default_factory=dict)
@@ -707,7 +659,7 @@ class ModelProvider:
     # (see oompah/acp_backends/registry.py) handles the session.
     # ``None`` defaults to ``"claude"`` for back-compat with providers
     # persisted before this field existed. Ignored for non-acp modes.
-    # See bead oompah-zlz_2-0hzh for the multi-backend ACP epic.
+    # See issue oompah-zlz_2-0hzh for the multi-backend ACP epic.
     backend: str | None = None
     # Provider mode: "api" (default — OpenAI-compatible HTTP) or "acp"
     # (Claude Agent SDK; auth via operator's claude subscription).
@@ -715,7 +667,7 @@ class ModelProvider:
     # AgentProfile.mode field but at the provider granularity, so a
     # role-assignment matrix (child B of oompah-zlz_2-4a6) can dispatch
     # a model_role at this provider through the ACP path. See
-    # docs/acp-agent.md and bead oompah-zlz_2-keb.
+    # docs/acp-agent.md and issue oompah-zlz_2-keb.
     mode: str = "api"
     # ACP-only: passed to ClaudeAgentOptions(permission_mode=...) when
     # mode == "acp". One of {"default", "acceptEdits", "plan",
@@ -745,7 +697,7 @@ class ModelProvider:
     # the SDK-reported total_cost_usd, whichever is available).
     # For mode != "acp" this field is ignored — api/cli/auto modes
     # always meter per-token via the existing api_agent path.
-    # See bead oompah-zlz_2-ag7h.
+    # See issue oompah-zlz_2-ag7h.
     billing_model: str = "subscription"
 
     def get_model_costs(self, model: str) -> tuple[float, float]:
@@ -841,7 +793,7 @@ class ModelProvider:
 
         Mirrors ``is_model_explicitly_free`` in spirit: a conservative
         helper used by the budget gate to decide whether a dispatch
-        should consume the budget. See bead oompah-zlz_2-ag7h.
+        should consume the budget. See issue oompah-zlz_2-ag7h.
         """
         if mode == "acp":
             return self.billing_model == "per_token"
@@ -1147,7 +1099,7 @@ class RunningEntry:
     # the log file is opened so the per-agent telemetry comment
     # written at _on_worker_exit can reference it. None for legacy /
     # mid-startup state where the log path has not yet been resolved.
-    # See bead oompah-zlz_2-y3fy.
+    # See issue oompah-zlz_2-y3fy.
     agent_log_path: str | None = None
     # Model role resolved for this dispatch (e.g. "fast", "deep").
     # Captured at worker startup so the telemetry comment can show
@@ -1168,8 +1120,6 @@ class RunningEntry:
     provider_id: str | None = None
     candidate_key: str | None = None
     # Absolute path to the workspace/worktree used for this dispatch.
-    # Backlog.md task edits made by agents live here until the branch is
-    # merged, so worker-exit closure checks must be able to read it.
     workspace_path: str | None = None
 
 

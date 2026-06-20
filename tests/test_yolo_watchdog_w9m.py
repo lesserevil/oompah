@@ -5,11 +5,11 @@ emphasis on the live miss that motivated the bug:
 
 * The trickle PR #56 / trickle-iq1 scenario (D3): an open PR with
   has_conflicts=True and a PINNED orphan-recovery cache entry pointing
-  at a closed bead → reset cache + refile within 2 ticks.
+  at a closed task → reset cache + refile within 2 ticks.
 * D1 diagnostic-context body assertions (latest error + structured fields).
-* D3 negative cases (open recovery bead → no fire; missing cache → no fire).
+* D3 negative cases (open recovery task → no fire; missing cache → no fire).
 * D3 ci-fix kind parity (D3 also covers ci_status='failed').
-* D3 with disappeared bead (fetch_issue_detail returns None).
+* D3 with disappeared task (fetch_issue_detail returns None).
 * D4 strategy-switch granularity (sub-threshold non-switch, multi-project
   isolation).
 * Multi-project state pruning isolation.
@@ -111,21 +111,21 @@ class TestTrickleIq1TwoTickRefile:
       * Trickle PR #56 has has_conflicts=True for hours.
       * Orphan-recovery cache pinned (project, '56', 'merge-conflict')
         at trickle-iq1, which the operator closed without resolving.
-      * No new bead was filed automatically; operator had to manually
-        re-file a P0 merge-conflict bead.
+      * No new task was filed automatically; operator had to manually
+        re-file a P0 merge-conflict task.
 
     D3 acceptance criterion (verbatim):
       "an open PR with has_conflicts=True AND no current open
-       merge-conflict bead AND a PINNED entry in the orphan-recovery
+       merge-conflict task AND a PINNED entry in the orphan-recovery
        cache → reset the cache entry, allow the next tick to refile via
        the existing 975 path. Tested fixture: simulate the trickle-iq1
        scenario and assert the watchdog re-files within 2 ticks."
 
     Verifies:
       Tick 1: D3 detects the incoherence, resets the cache, files a
-              P0 watchdog bead.
+              P0 watchdog task.
       Tick 2: _file_orphan_recovery_task is reached (cache empty), and
-              a fresh merge-conflict orphan-recovery bead is filed.
+              a fresh merge-conflict orphan-recovery task is filed.
     """
 
     @patch("oompah.orchestrator.detect_provider")
@@ -141,7 +141,7 @@ class TestTrickleIq1TwoTickRefile:
         mock_detect.return_value = provider
         mock_slug.return_value = "NVIDIA-Omniverse/trickle"
 
-        # Pre-existing orphan-recovery bead, but operator closed it.
+        # Pre-existing orphan-recovery task, but operator closed it.
         closed_recovery = Issue(
             id="trickle-iq1", identifier="trickle-iq1",
             title="merge conflict on PR #56 (epic/callback-auth)",
@@ -150,15 +150,15 @@ class TestTrickleIq1TwoTickRefile:
 
         mock_tracker = MagicMock()
 
-        # Track every issue we file. Two beads should land:
-        #  (1) the D3 watchdog P0 bead (tick 1)
-        #  (2) the fresh orphan-recovery bead (tick 2 via 975 path)
+        # Track every issue we file. Two tasks should land:
+        #  (1) the D3 watchdog P0 task (tick 1)
+        #  (2) the fresh orphan-recovery task (tick 2 via 975 path)
         filed_issues = []
 
-        # Branch lookup returns None — the operator's closed bead does
+        # Branch lookup returns None — the operator's closed task does
         # NOT match the branch name (its identifier is trickle-iq1; the
-        # PR's branch is epic/callback-auth). For the closed bead, we
-        # return the closed Issue. For any freshly-filed bead in tick
+        # PR's branch is epic/callback-auth). For the closed task, we
+        # return the closed Issue. For any freshly-filed task in tick
         # 2, return an OPEN Issue so D3 doesn't re-fire on subsequent
         # ticks.
         def fetch_detail(arg):
@@ -195,7 +195,7 @@ class TestTrickleIq1TwoTickRefile:
             )],
         }
 
-        # ---- Tick 1: D3 detects, resets cache, files watchdog bead.
+        # ---- Tick 1: D3 detects, resets cache, files watchdog task.
         orch._yolo_review_actions_sync()
         assert (project.id, "56", "merge-conflict") not in orch._yolo_orphan_recovery_tasks, (
             "Tick 1 must reset the orphan-recovery cache entry"
@@ -205,19 +205,19 @@ class TestTrickleIq1TwoTickRefile:
             if kw.get("priority") == 0 and "yolo-watchdog" in (kw.get("labels") or [])
         ]
         assert len(d3_calls_t1) == 1, (
-            f"Tick 1 must file exactly one D3 watchdog bead, got: {filed_issues}"
+            f"Tick 1 must file exactly one D3 watchdog task, got: {filed_issues}"
         )
         assert "coherence" in d3_calls_t1[0][1]["title"].lower()
         # Watchdog body should reference both the PR and the closed
-        # bead so the operator has full context without log diving.
+        # task so the operator has full context without log diving.
         body = d3_calls_t1[0][1]["description"]
         assert "56" in body
         assert "merge-conflict" in body
 
         # ---- Tick 2: cache empty → 975 path refiles a fresh
-        # merge-conflict orphan-recovery bead.
+        # merge-conflict orphan-recovery task.
         orch._yolo_review_actions_sync()
-        # The fresh recovery bead has priority=0 but is filed via
+        # The fresh recovery task has priority=0 but is filed via
         # _file_orphan_recovery_task, NOT the watchdog. It should NOT
         # carry the yolo-watchdog label and the title should match the
         # 975 path's template.
@@ -228,22 +228,22 @@ class TestTrickleIq1TwoTickRefile:
             and "merge conflict on PR #56" in kw.get("title", "")
         ]
         assert len(recovery_calls) == 1, (
-            f"Tick 2 must refile exactly one orphan-recovery bead via the "
+            f"Tick 2 must refile exactly one orphan-recovery task via the "
             f"975 path. All filed: {filed_issues}"
         )
         # And the cache should now point at the new orphan-recovery
-        # bead (so a third tick wouldn't double-file).
+        # task (so a third tick wouldn't double-file).
         new_cache_entry = orch._yolo_orphan_recovery_tasks.get(
             (project.id, "56", "merge-conflict")
         )
         assert new_cache_entry is not None, (
-            "Tick 2 must repopulate the orphan-recovery cache with the new bead id"
+            "Tick 2 must repopulate the orphan-recovery cache with the new task id"
         )
         assert new_cache_entry == recovery_calls[0][0]
 
 
 # ---------------------------------------------------------------------------
-# Additional D3 coverage — negatives, ci-fix parity, disappeared bead.
+# Additional D3 coverage — negatives, ci-fix parity, disappeared task.
 # ---------------------------------------------------------------------------
 
 
@@ -252,10 +252,10 @@ class TestOrchestratorD3NegativeCases:
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_d3_does_not_fire_when_recovery_bead_still_open(
+    def test_d3_does_not_fire_when_recovery_task_still_open(
         self, mock_slug, mock_detect, tmp_path,
     ):
-        """Cached recovery bead is OPEN → operator/agent is on it → no D3."""
+        """Cached recovery task is OPEN → operator/agent is on it → no D3."""
         project = _make_project()
         provider = MagicMock()
         provider.get_review.return_value = _make_review(
@@ -294,7 +294,7 @@ class TestOrchestratorD3NegativeCases:
         assert orch._yolo_orphan_recovery_tasks.get(
             (project.id, "7", "merge-conflict")
         ) == "rec-001"
-        # No D3 watchdog bead.
+        # No D3 watchdog task.
         watchdog_calls = [
             c for c in mock_tracker.create_issue.call_args_list
             if "yolo-watchdog" in (c.kwargs.get("labels") or [])
@@ -308,13 +308,13 @@ class TestOrchestratorD3NegativeCases:
     ):
         """A conflicting PR with NO cache entry isn't D3's concern.
 
-        D3 only escalates when the orphan-recovery cache claims a bead
+        D3 only escalates when the orphan-recovery cache claims a task
         was filed but it's actually closed. A first-time conflict with
         no cache entry is the standard 975 path — D3 must stay silent
         and let the orphan-recovery filer act.
 
         Note: in tick 1, the 975 path itself fires (creating an orphan-
-        recovery bead). The mock returns that fresh bead as OPEN when
+        recovery task). The mock returns that fresh task as OPEN when
         D3's end-of-tick check looks it up, so D3 stays silent.
         """
         project = _make_project()
@@ -330,9 +330,9 @@ class TestOrchestratorD3NegativeCases:
         mock_tracker = MagicMock()
 
         def fetch_detail(arg):
-            # Return None for the branch lookup (no bead matches).
+            # Return None for the branch lookup (no task matches).
             # Return an OPEN Issue for any freshly-filed orphan-recovery
-            # bead so D3 sees a healthy cache entry.
+            # task so D3 sees a healthy cache entry.
             for nid, kw in filed_issues:
                 if arg == nid:
                     return Issue(
@@ -361,22 +361,22 @@ class TestOrchestratorD3NegativeCases:
 
         orch._yolo_review_actions_sync()
 
-        # An orphan-recovery bead may be filed (975 path) but NOT a D3
-        # watchdog bead.
+        # An orphan-recovery task may be filed (975 path) but NOT a D3
+        # watchdog task.
         d3_calls = [
             (nid, kw) for (nid, kw) in filed_issues
             if "yolo-watchdog" in (kw.get("labels") or [])
         ]
-        assert d3_calls == [], f"Did not expect any D3 beads, got: {d3_calls}"
+        assert d3_calls == [], f"Did not expect any D3 tasks, got: {d3_calls}"
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_d3_fires_when_recovery_bead_has_disappeared(
+    def test_d3_fires_when_recovery_task_has_disappeared(
         self, mock_slug, mock_detect, tmp_path,
     ):
         """Cache pins at an id that no longer exists → reset and refile.
 
-        If somebody hard-deletes the recovery bead (via tracker admin
+        If somebody hard-deletes the recovery task (via tracker admin
         action or DB cleanup), fetch_issue_detail returns None for it.
         The cache is stale — D3 must reset it so the next tick refiles.
         """
@@ -394,7 +394,7 @@ class TestOrchestratorD3NegativeCases:
         def fetch_detail(arg):
             # rec-deleted-001 has been hard-deleted, so no record.
             # Branch lookup also returns None.
-            # New beads filed in this tick (tick 1's D3 watchdog bead +
+            # New tasks filed in this tick (tick 1's D3 watchdog task +
             # any orphan-recovery refile) come back as OPEN.
             for nid, kw in filed_issues:
                 if arg == nid:
@@ -426,13 +426,13 @@ class TestOrchestratorD3NegativeCases:
 
         orch._yolo_review_actions_sync()
 
-        # And a D3 watchdog bead — body should mention the bead id and
+        # And a D3 watchdog task — body should mention the task id and
         # the disappearance.
         d3_calls = [
             (nid, kw) for (nid, kw) in filed_issues
             if "yolo-watchdog" in (kw.get("labels") or [])
         ]
-        assert len(d3_calls) == 1, f"Expected 1 D3 bead, got: {filed_issues}"
+        assert len(d3_calls) == 1, f"Expected 1 D3 task, got: {filed_issues}"
         body = d3_calls[0][1]["description"]
         assert "rec-deleted-001" in body or "no longer exists" in body
 
@@ -496,13 +496,13 @@ class TestOrchestratorD3NegativeCases:
 
         orch._yolo_review_actions_sync()
 
-        # Cache reset, watchdog bead filed.
+        # Cache reset, watchdog task filed.
         # NOTE: cache may have been re-populated within the same tick
         # by _yolo_retry_ci's 975 path. What matters is that the
         # original "rec-ci-001" entry was reset (and a fresh recovery
-        # bead may or may not have been filed in tick 1 depending on
+        # task may or may not have been filed in tick 1 depending on
         # the loop ordering).
-        # The key assertion: a D3 watchdog bead was filed for ci-fix.
+        # The key assertion: a D3 watchdog task was filed for ci-fix.
         d3_calls = [
             (nid, kw) for (nid, kw) in filed_issues
             if "yolo-watchdog" in (kw.get("labels") or [])
@@ -516,7 +516,7 @@ class TestOrchestratorD3NegativeCases:
             (project.id, "8", "ci-fix")
         )
         assert current != "rec-ci-001", (
-            "Closed recovery bead must have been evicted from the cache"
+            "Closed recovery task must have been evicted from the cache"
         )
 
 
@@ -526,10 +526,10 @@ class TestOrchestratorD3NegativeCases:
 
 
 class TestD1DiagnosticContext:
-    """D1 acceptance criterion: bead body must contain diagnostic context.
+    """D1 acceptance criterion: task body must contain diagnostic context.
 
     Verbatim from issue:
-      "D1: a recurring (PR, action, failure) tuple ≥5 ticks → P0 bead
+      "D1: a recurring (PR, action, failure) tuple ≥5 ticks → P0 task
        filed once with diagnostic context (latest error, action history)."
     """
 
@@ -684,7 +684,7 @@ class TestWatchdogStatePruningMultiProject:
             project_b.id: [_make_review("22", ci_status="passed")],
         }
 
-        # Run enough ticks to file D1 watchdog beads on both projects.
+        # Run enough ticks to file D1 watchdog tasks on both projects.
         for _ in range(D1_RECURRENCE_THRESHOLD):
             orch._yolo_review_actions_sync()
 
@@ -701,7 +701,7 @@ class TestWatchdogStatePruningMultiProject:
         orch._yolo_review_actions_sync()
 
         assert not any(k.startswith(f"d1:{project_a.id}:11:") for k in orch._yolo_watchdog_filed)
-        # Project B still has its filed-bead state — its PR didn't
+        # Project B still has its filed-task state — its PR didn't
         # leave the cache.
         assert any(k.startswith(f"d1:{project_b.id}:22:") for k in orch._yolo_watchdog_filed)
 
@@ -729,7 +729,7 @@ class TestRunAllDetectorsInteraction:
             "review_id": "56",
             "kind": "merge-conflict",
             "source_branch": "epic/callback-auth",
-            "reason": "recovery bead trickle-iq1 is closed",
+            "reason": "recovery task trickle-iq1 is closed",
         }]
         patterns = run_all_detectors(history=history, incoherent_prs=incoherent)
         keys = {p.pattern_key for p in patterns}

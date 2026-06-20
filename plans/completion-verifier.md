@@ -52,8 +52,7 @@ flowchart TD
 
 `Orchestrator._on_worker_exit` in `oompah/orchestrator.py`. When the
 worker exits with `reason="normal"` AND the task has transitioned to
-a terminal state (for Backlog.md, the task reached the configured Done
-status), the orchestrator calls
+a terminal state, the orchestrator calls
 `_run_completion_verifier(entry, current, project_id)` before
 marking the issue as completed.
 
@@ -162,5 +161,4 @@ the task forever.
   verifier rejects, comment lists the missing reference.
 - `render_rejection_comment` (file-only, with LLM reasoning).
 
-Backlog.md support reuses this verifier through the tracker abstraction.
-Beans is not a planned verifier backend.
+The verifier runs through the shared tracker abstraction.

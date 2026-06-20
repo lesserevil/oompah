@@ -368,7 +368,7 @@ class TestWouldDispatchViaAcp:
     def test_no_provider_treated_as_subscription(self, tmp_path):
         """ACP profile without a provider record (CLI-only / legacy
         deployments) is conservatively subscription-billed — the
-        prior behaviour before this bead."""
+        prior behaviour before this task."""
         orch = _make_orchestrator(tmp_path, provider=None)
         assert orch._would_dispatch_via_acp(_make_issue()) is True
 

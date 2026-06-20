@@ -4,7 +4,7 @@ The /projects-manage page had an unhandled ``TypeError: Failed to fetch`` from
 ``loadProjects()`` when the initial GET /api/v1/projects request failed (network
 hiccup, server reload, browser offline). The unhandled rejection was then
 auto-reported via ``window.addEventListener('unhandledrejection')`` to
-``/api/v1/errors`` which files a P3 bug bead.
+``/api/v1/errors`` which files a P3 bug task.
 
 These tests assert each fetch call site in ``oompah/templates/projects.html``
 is wrapped in try/catch so a transient network failure becomes a user-visible
@@ -90,7 +90,7 @@ def script(html: str) -> str:
 class TestLoadProjectsErrorHandling:
     """``loadProjects`` is invoked at page load (top-level). Any rejected
     promise it returns becomes an unhandledrejection event, which the page's
-    window handler POSTs to /api/v1/errors → P3 bug bead. The function MUST
+    window handler POSTs to /api/v1/errors → P3 bug task. The function MUST
     catch its own fetch failures."""
 
     def test_load_projects_has_try_catch(self, script: str) -> None:
@@ -156,7 +156,7 @@ MUTATOR_FUNCTIONS = [
 class TestMutatorErrorHandling:
     """The action-button handlers (toggle/pause/resume/delete/save/etc.) each
     call fetch() and follow up with loadProjects(). If the fetch rejects with
-    a TypeError, that rejection escapes and gets auto-filed as a bug bead too.
+    a TypeError, that rejection escapes and gets auto-filed as a bug task too.
     They must all be wrapped."""
 
     @pytest.mark.parametrize("fn_name", MUTATOR_FUNCTIONS)

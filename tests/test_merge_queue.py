@@ -13,7 +13,7 @@ Covers:
 - parse_github_webhook: checks_requested action
 - _webhook_advanced_tracked_branch: merge_group merged event triggers sync
 - _webhook_advanced_tracked_branch: merge_group non-merged event does NOT trigger sync
-- _label_task_merged_from_merge_group: labels bead merged on success
+- _label_task_merged_from_merge_group: labels task merged on success
 - Project CRUD: merge_queue_enabled accepted via UPDATABLE_FIELDS
 """
 
@@ -59,7 +59,7 @@ def _make_project(
     p.yolo = yolo
     p.merge_queue_enabled = merge_queue_enabled
     p.access_token = None
-    p.tracker_kind = "backlog_md"
+    p.tracker_kind = "oompah_md"
     return p
 
 
@@ -169,7 +169,7 @@ class TestGitHubEnableAutoMerge:
 
     The previous implementation POSTed to the non-existent REST URL
     ``/repos/{repo}/pulls/{N}/auto-merge`` and 404'd unconditionally
-    (bead oompah-zlz_2-d9v). These tests mock both the REST PR-lookup
+    (task oompah-zlz_2-d9v). These tests mock both the REST PR-lookup
     (to fetch ``node_id``) and the GraphQL mutation response.
     """
 
@@ -309,7 +309,7 @@ class TestGitHubEnableAutoMerge:
     def test_does_not_use_legacy_rest_endpoint(self):
         """Regression: the broken REST URL must NEVER be called.
 
-        See bead oompah-zlz_2-d9v: POST /repos/{repo}/pulls/{N}/auto-merge is
+        See task oompah-zlz_2-d9v: POST /repos/{repo}/pulls/{N}/auto-merge is
         not a real GitHub REST endpoint and 404s unconditionally.
         """
         provider = self._make_provider()
@@ -802,7 +802,7 @@ class TestYoloEnqueueMode:
 
         orch._yolo_review_actions_sync()
 
-        # MUST dispatch a conflict agent so the merge-conflict bead is
+        # MUST dispatch a conflict agent so the merge-conflict task is
         # filed; MUST NOT call enable_auto_merge (already enqueued)
         # or merge_review (would fail anyway on a DIRTY PR).
         orch._yolo_notify_conflict.assert_called_once_with(
@@ -1035,7 +1035,7 @@ class TestClassifyYoloMergeError:
 class TestYoloMergeFailureRouting:
     """Verify _yolo_review_actions_sync routes failures correctly:
     config errors don't dispatch conflict agents, conflicts do, transient
-    errors don't (and don't reopen the bead)."""
+    errors don't (and don't reopen the task)."""
 
     def _make_orchestrator(self, tmp_path, projects=None):
         from oompah.config import ServiceConfig
@@ -1055,11 +1055,11 @@ class TestYoloMergeFailureRouting:
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_config_error_does_not_reopen_bead_or_dispatch_conflict(
+    def test_config_error_does_not_reopen_task_or_dispatch_conflict(
         self, mock_slug, mock_detect, tmp_path
     ):
         """Bug fix oompah-zlz_2-btf.2: a config error must NOT call
-        _yolo_notify_conflict and must NOT reopen the bead — those
+        _yolo_notify_conflict and must NOT reopen the task — those
         burn agent budget on a problem only the operator can fix."""
         project = _make_project(merge_queue_enabled=True)
 
@@ -1628,8 +1628,8 @@ class TestWebhookAdvancedTrackedBranchMergeGroup:
 # ---------------------------------------------------------------------------
 
 
-class TestLabelBeadMergedFromMergeGroup:
-    """_label_task_merged_from_merge_group parses head_ref and labels the bead."""
+class TestLabelTaskMergedFromMergeGroup:
+    """_label_task_merged_from_merge_group parses head_ref and labels the task."""
 
     def _make_orch_with_tracker(self, issue_id: str, issue_labels: list[str]):
         """Build a minimal mock orchestrator with one issue in the tracker."""
@@ -1643,7 +1643,7 @@ class TestLabelBeadMergedFromMergeGroup:
         orch = MagicMock()
         orch._tracker_for_project.return_value = mock_tracker
         # _resolve_task_for_branch is used by the updated webhook handlers
-        # to support both Backlog and GitHub-backed task lookup.
+        # to support tracker-backed task lookup.
         orch._resolve_task_for_branch.return_value = mock_issue
         return orch, mock_tracker, mock_issue
 
@@ -1652,7 +1652,7 @@ class TestLabelBeadMergedFromMergeGroup:
         p.id = project_id
         return p
 
-    def test_labels_bead_merged_on_success(self):
+    def test_labels_task_merged_on_success(self):
         from oompah.server import _label_task_merged_from_merge_group
 
         # head_ref: gh-readonly-queue/main/pr-42-oompah-zlz_2-xyz
@@ -1672,7 +1672,7 @@ class TestLabelBeadMergedFromMergeGroup:
             "oompah-zlz_2-xyz", status="Merged"
         )
 
-    def test_skips_already_merged_bead(self):
+    def test_skips_already_merged_task(self):
         from oompah.server import _label_task_merged_from_merge_group
 
         orch, tracker, issue = self._make_orch_with_tracker(
@@ -1740,7 +1740,7 @@ class TestLabelBeadMergedFromMergeGroup:
         # Should not raise
         _label_task_merged_from_merge_group(orch, event, project)
 
-    def test_bead_not_found_is_noop(self):
+    def test_task_not_found_is_noop(self):
         from oompah.server import _label_task_merged_from_merge_group
 
         mock_tracker = MagicMock()
@@ -1769,12 +1769,12 @@ class TestLabelBeadMergedFromMergeGroup:
 
 class TestYoloGitHubTrackerUpdates:
     """YOLO paths update GitHub-backed task state and comments through the
-    tracker protocol; legacy Backlog tasks remain unchanged (AC#2).
+    tracker protocol.
 
     (TASK-462.4)
     """
 
-    def _make_orchestrator(self, tmp_path, projects=None, github_backed: bool = False):
+    def _make_orchestrator(self, tmp_path, projects=None):
         from oompah.config import ServiceConfig
         from oompah.orchestrator import Orchestrator
 
@@ -1784,21 +1784,16 @@ class TestYoloGitHubTrackerUpdates:
             (p for p in (projects or []) if p.id == pid), None
         )
         orch = Orchestrator(
-            config=ServiceConfig(tracker_kind="backlog_md"),
+            config=ServiceConfig(tracker_kind="oompah_md"),
             workflow_path="WORKFLOW.md",
             project_store=project_store,
             state_path=str(tmp_path / "state.json"),
         )
-        if github_backed:
-            # Override tracker_kind AFTER construction so the Orchestrator
-            # initialises with the default backlog_md tracker (no GitHub
-            # credentials needed in tests) but the YOLO guard reads
-            # "github_issues" at call time.
-            orch.config.tracker_kind = "github_issues"
+        orch.config.tracker_kind = "github_issues"
         return orch
 
     def _make_github_tracker(self, issue_id: str, issue_state: str = "In Review"):
-        """Return a mock tracker that is NOT a BacklogMdTracker."""
+        """Return a mock GitHub-like tracker."""
         from oompah.models import Issue
 
         mock_issue = Issue(
@@ -1809,8 +1804,6 @@ class TestYoloGitHubTrackerUpdates:
             work_branch="oompah/repo/gh-42",
         )
         tracker = MagicMock()
-        # Not isinstance BacklogMdTracker — simulated by spec.
-        tracker.__class__ = MagicMock  # ensures isinstance check fails
         tracker.fetch_issue_detail.return_value = mock_issue
         tracker.fetch_issues_by_states.return_value = [mock_issue]
         return tracker, mock_issue
@@ -1827,7 +1820,7 @@ class TestYoloGitHubTrackerUpdates:
         mock_detect.return_value = provider
         mock_slug.return_value = "org/repo"
 
-        orch = self._make_orchestrator(tmp_path, projects=[project], github_backed=True)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
         tracker, task_issue = self._make_github_tracker("gh#42")
 
         orch._project_trackers[project.id] = tracker
@@ -1848,34 +1841,6 @@ class TestYoloGitHubTrackerUpdates:
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_enqueue_success_no_comment_for_backlog_task(
-        self, mock_slug, mock_detect, tmp_path
-    ):
-        """AC#2: Successful enqueue does NOT call _yolo_comment_enqueued for
-        Backlog tasks — tracker_kind is backlog_md so the guard is False."""
-        project = _make_project(merge_queue_enabled=True)
-        provider = MagicMock()
-        provider.enable_auto_merge.return_value = (True, "enqueued")
-        mock_detect.return_value = provider
-        mock_slug.return_value = "org/repo"
-
-        orch = self._make_orchestrator(tmp_path, projects=[project])
-        # Default tracker_kind is backlog_md.
-        assert orch.config.tracker_kind == "backlog_md"
-
-        # Patch the helper to detect whether it's called.
-        orch._yolo_comment_enqueued = MagicMock()
-        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
-
-        orch._yolo_review_actions_sync()
-
-        # Enqueue happened.
-        provider.enable_auto_merge.assert_called_once_with("org/repo", "42")
-        # Comment helper must NOT be called for Backlog projects.
-        orch._yolo_comment_enqueued.assert_not_called()
-
-    @patch("oompah.orchestrator.detect_provider")
-    @patch("oompah.orchestrator.extract_repo_slug")
     def test_direct_merge_marks_github_task_merged_and_comments(
         self, mock_slug, mock_detect, tmp_path
     ):
@@ -1886,7 +1851,7 @@ class TestYoloGitHubTrackerUpdates:
         mock_detect.return_value = provider
         mock_slug.return_value = "org/repo"
 
-        orch = self._make_orchestrator(tmp_path, projects=[project], github_backed=True)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
         tracker, task_issue = self._make_github_tracker("gh#42", issue_state="In Review")
 
         orch._project_trackers[project.id] = tracker
@@ -1907,35 +1872,6 @@ class TestYoloGitHubTrackerUpdates:
         tracker.add_comment.assert_called_once()
         comment_text = tracker.add_comment.call_args[0][1]
         assert "42" in comment_text
-
-    @patch("oompah.orchestrator.detect_provider")
-    @patch("oompah.orchestrator.extract_repo_slug")
-    def test_direct_merge_no_tracker_update_for_backlog_task(
-        self, mock_slug, mock_detect, tmp_path
-    ):
-        """AC#2: Successful direct merge does NOT call _yolo_mark_task_merged
-        for Backlog tasks — tracker_kind is backlog_md so the guard is False."""
-        project = _make_project(merge_queue_enabled=False)
-        provider = MagicMock()
-        provider.merge_review.return_value = (True, "merged")
-        mock_detect.return_value = provider
-        mock_slug.return_value = "org/repo"
-
-        orch = self._make_orchestrator(tmp_path, projects=[project])
-        # Default tracker_kind is backlog_md.
-        assert orch.config.tracker_kind == "backlog_md"
-
-        # Patch the helper to observe whether it gets called.
-        orch._yolo_mark_task_merged = MagicMock()
-        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
-
-        orch._yolo_review_actions_sync()
-
-        # _yolo_mark_task_merged must NOT be called for Backlog tasks.
-        orch._yolo_mark_task_merged.assert_not_called()
-        # But the actual merge DID happen.
-        provider.merge_review.assert_called_once_with("org/repo", "42")
-
 
 # ---------------------------------------------------------------------------
 # TASK-462.4 — Webhook handlers use _resolve_task_for_branch
@@ -2294,26 +2230,26 @@ class TestClearMergeConflictLabelViaIndex:
 
         tracker.update_issue.assert_not_called()
 
-    def test_legacy_backlog_branch_still_works(self, tmp_path):
-        """AC#2: legacy Backlog branches (branch==identifier) continue to work."""
+    def test_identifier_branch_still_works(self, tmp_path):
+        """Branches named after task identifiers continue to work."""
         from oompah.models import Issue
 
         orch = self._make_orchestrator(tmp_path)
-        project = _make_project(project_id="proj-legacy")
+        project = _make_project(project_id="proj-native")
 
         task = Issue(
             id="TASK-5",
             identifier="TASK-5",
-            title="Legacy task",
+            title="Task",
             state="Needs Rebase",
             labels=["merge-conflict"],
         )
         tracker = MagicMock()
-        # Index build returns empty (Backlog issues have no work_branch).
+        # Index build returns empty when issues have no work_branch.
         tracker.fetch_issues_by_states.return_value = [
             Issue(id="TASK-5", identifier="TASK-5", title="t", state="Open")
         ]
-        # Legacy fetch_issue_detail path.
+        # Fallback fetch_issue_detail path.
         tracker.fetch_issue_detail.return_value = task
 
         orch._clear_merge_conflict_label_for_branch(project, tracker, "TASK-5")

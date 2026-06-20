@@ -10,10 +10,7 @@ Provides two mechanisms for detecting errors:
    for error lines and feeds them to an ``ErrorWatcher``.  Any project can
    use this by setting a ``log_path`` on its :class:`~oompah.models.Project`.
 
-Task creation goes through the :class:`~oompah.tracker.TrackerProtocol` so any
-configured tracker backend (Backlog.md, GitHub Issues, etc.) is supported.
-The :func:`_persist_error_task_to_git` helper is the only Backlog.md-specific
-path; it is guarded by an ``isinstance(tracker, BacklogMdTracker)`` check.
+Task creation goes through the :class:`~oompah.tracker.TrackerProtocol`.
 """
 
 from __future__ import annotations
@@ -23,15 +20,12 @@ import hashlib
 import logging
 import os
 import re
-import subprocess
-import threading
 import time
 from dataclasses import dataclass
-from pathlib import Path
 
 from watchfiles import awatch
 
-from oompah.tracker import BacklogMdTracker, TrackerProtocol
+from oompah.tracker import TrackerProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -40,171 +34,19 @@ _DEDUP_WINDOW_SECONDS = 3600  # 1 hour
 
 # Max number of fingerprints to keep in memory (LRU-ish eviction).
 _MAX_FINGERPRINTS = 500
-_GIT_PUBLISH_TIMEOUT_SECONDS = 30
-_GIT_AUTHOR_NAME = "oompah"
-_GIT_AUTHOR_EMAIL = "lesserevil@users.noreply.github.com"
-_COMMIT_TRAILER = (
-    "🤖 Generated with https://github.com/lesserevil/oompah\n\n"
-    "Co-authored-by: oompah <lesserevil@users.noreply.github.com>"
-)
-_GIT_PUBLISH_LOCKS: dict[Path, threading.Lock] = {}
-_GIT_PUBLISH_LOCKS_GUARD = threading.Lock()
-
-
-def _git_publish_lock(repo_root: Path) -> threading.Lock:
-    with _GIT_PUBLISH_LOCKS_GUARD:
-        lock = _GIT_PUBLISH_LOCKS.get(repo_root)
-        if lock is None:
-            lock = threading.Lock()
-            _GIT_PUBLISH_LOCKS[repo_root] = lock
-        return lock
-
-
-def _run_git(
-    repo_root: Path,
-    args: list[str],
-    *,
-    timeout: float = _GIT_PUBLISH_TIMEOUT_SECONDS,
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-
-
-def _redact_git_output(value: str | None) -> str:
-    text = (value or "").strip()
-    if not text:
-        return ""
-    text = re.sub(r"https://([^/\s:@]+):([^@\s]+)@", r"https://\1:<redacted>@", text)
-    text = re.sub(r"gh[pousr]_[A-Za-z0-9_]+", "<redacted-token>", text)
-    text = re.sub(r"github_pat_[A-Za-z0-9_]+", "<redacted-token>", text)
-    return text[:500]
-
-
-def _git_toplevel(path: Path) -> Path | None:
-    result = _run_git(path, ["rev-parse", "--show-toplevel"], timeout=5)
-    if result.returncode != 0:
-        return None
-    value = result.stdout.strip()
-    if not value:
-        return None
-    return Path(value).resolve()
-
-
-def _persist_error_task_to_git(
-    tracker: TrackerProtocol,
-    identifier: str,
-) -> bool:
-    """Commit and push the Backlog.md file for an ErrorWatcher-created task.
-
-    This is a Backlog.md-specific operation; for other tracker backends it is
-    a no-op.  Returns True only when a commit was created and pushed.  All
-    failures are best-effort and reported to the logger by the caller.
-    """
-    if not isinstance(tracker, BacklogMdTracker):
-        return False
-
-    task_path = tracker.task_file_path(identifier)
-    if not task_path:
-        logger.debug("ErrorWatcher task %s has no Backlog.md file to commit", identifier)
-        return False
-
-    repo_root = _git_toplevel(tracker.root_path)
-    if not repo_root:
-        logger.debug(
-            "ErrorWatcher task %s not committed: %s is not a git repository",
-            identifier,
-            tracker.root_path,
-        )
-        return False
-
-    task_path = task_path.resolve()
-    try:
-        rel_path = task_path.relative_to(repo_root)
-    except ValueError:
-        logger.debug(
-            "ErrorWatcher task %s not committed: task path %s is outside git repo %s",
-            identifier,
-            task_path,
-            repo_root,
-        )
-        return False
-
-    with _git_publish_lock(repo_root):
-        add = _run_git(repo_root, ["add", "--", str(rel_path)])
-        if add.returncode != 0:
-            logger.warning(
-                "ErrorWatcher task %s git add failed: %s",
-                identifier,
-                _redact_git_output(add.stderr or add.stdout),
-            )
-            return False
-
-        diff = _run_git(repo_root, ["diff", "--cached", "--quiet", "--", str(rel_path)])
-        if diff.returncode == 0:
-            logger.debug("ErrorWatcher task %s had no staged git changes", identifier)
-            return False
-        if diff.returncode != 1:
-            logger.warning(
-                "ErrorWatcher task %s staged diff check failed: %s",
-                identifier,
-                _redact_git_output(diff.stderr or diff.stdout),
-            )
-            return False
-
-        commit = _run_git(
-            repo_root,
-            [
-                "-c",
-                f"user.name={_GIT_AUTHOR_NAME}",
-                "-c",
-                f"user.email={_GIT_AUTHOR_EMAIL}",
-                "commit",
-                "--only",
-                "-m",
-                f"Record ErrorWatcher task {identifier}",
-                "-m",
-                _COMMIT_TRAILER,
-                "--",
-                str(rel_path),
-            ],
-        )
-        if commit.returncode != 0:
-            logger.warning(
-                "ErrorWatcher task %s git commit failed: %s",
-                identifier,
-                _redact_git_output(commit.stderr or commit.stdout),
-            )
-            return False
-
-        push = _run_git(repo_root, ["push"])
-        if push.returncode != 0:
-            logger.warning(
-                "ErrorWatcher task %s git push failed after local commit: %s",
-                identifier,
-                _redact_git_output(push.stderr or push.stdout),
-            )
-            return False
-
-    logger.info("Committed and pushed ErrorWatcher task %s", identifier)
-    return True
 
 
 @dataclass
 class _ErrorRecord:
-    """Tracks when we last created a bead for a given error fingerprint.
+    """Tracks when we last created a task for a given error fingerprint.
 
-    ``bead_id`` and ``issue_id`` are populated when ``report_error`` is
+    ``task_id`` and ``issue_id`` are populated when ``report_error`` is
     called with an ``issue_id``; they let the orchestrator auto-close the
     task when the originating issue's retry path succeeds.
     """
     fingerprint: str
     last_created: float = 0.0
-    bead_id: str | None = None
+    task_id: str | None = None
     issue_id: str | None = None
 
 
@@ -215,7 +57,7 @@ _AUTO_CLOSE_WINDOW_SECONDS = 1800  # 30 minutes
 
 # After report_error fires for a fingerprint, we wait at least this long
 # before allowing auto-close on it.  Without this guard, a successful
-# retry on issue A could close a bead whose same-fingerprint failure is
+# retry on issue A could close a task whose same-fingerprint failure is
 # still actively firing on issue B.
 _AUTO_CLOSE_QUIET_SECONDS = 60
 
@@ -232,12 +74,12 @@ class ErrorWatcher:
         self._tracker = tracker
         self._project_id = project_id
         self._seen: dict[str, _ErrorRecord] = {}
-        self._handler: _BeadLoggingHandler | None = None
+        self._handler: _TaskLoggingHandler | None = None
 
     def install_log_handler(self, logger_name: str = "oompah") -> None:
-        """Install a logging handler that creates beads for ERROR+ log records."""
+        """Install a logging handler that creates tasks for ERROR+ log records."""
         root = logging.getLogger(logger_name)
-        self._handler = _BeadLoggingHandler(self)
+        self._handler = _TaskLoggingHandler(self)
         self._handler.setLevel(logging.ERROR)
         root.addHandler(self._handler)
 
@@ -249,8 +91,6 @@ class ErrorWatcher:
 
     def _tracker_identity(self) -> tuple[str, str | None, str | None]:
         """Return ``(kind, owner, repo)`` for the underlying tracker backend."""
-        if isinstance(self._tracker, BacklogMdTracker):
-            return ("backlog", None, None)
         owner = getattr(self._tracker, "owner", None)
         repo = getattr(self._tracker, "repo", None)
         if owner and repo:
@@ -261,8 +101,7 @@ class ErrorWatcher:
         """Return a human-readable identifier for the underlying tracker backend.
 
         Uses duck-typing to detect GitHub Issues (owner/repo attributes
-        present) or Backlog.md (``BacklogMdTracker`` instance); falls back
-        to the class name for unrecognised adapters.
+        present); falls back to the class name for unrecognised adapters.
 
         Avoids importing ``github_tracker`` directly to prevent circular
         dependencies; the duck-type check is sufficient and forward-
@@ -284,27 +123,27 @@ class ErrorWatcher:
         issue_id: str | None = None,
         error_class: str | None = None,
     ) -> str | None:
-        """Report an error and create a bead if not a duplicate.
+        """Report an error and create a task if not a duplicate.
 
         Args:
             source: Where the error came from (e.g. "backend", "frontend").
             message: Short error summary (used for title + fingerprinting).
             detail: Longer description / stack trace.
-            priority: Bead priority (0=critical, 4=backlog). Default 2.
+            priority: Task priority (0=critical, 4=backlog). Default 2.
             issue_id: Optional id of the issue whose run triggered this
                 error. When supplied, the watcher links the resulting
-                bead to the issue so :meth:`auto_close_for_issue` can
+                task to the issue so :meth:`auto_close_for_issue` can
                 close it once the issue's retry path succeeds.
             error_class: Optional explicit error classification (e.g.
-                ``"bd_timeout"``, ``"connection_refused"``). When given,
+                ``"connection_refused"``). When given,
                 deduplication collapses *all* reports with the same class
-                to a single bead within the dedup window — regardless of
+                to a single task within the dedup window — regardless of
                 the exact message text, project, or subcommand. Use this
                 for known operational/infra failure modes that fan out
                 across many call sites.
 
         Returns:
-            The bead identifier if one was created, None if deduplicated.
+            The task identifier if one was created, None if deduplicated.
         """
         fp = self._fingerprint(source, message, error_class=error_class)
 
@@ -315,7 +154,7 @@ class ErrorWatcher:
             # auto_close_for_issue treats this fingerprint as still
             # actively firing.  Also remember the originating issue if
             # the previous record didn't have one (so subsequent
-            # success can auto-close the existing bead).
+            # success can auto-close the existing task).
             record.last_created = now
             if issue_id and not record.issue_id:
                 record.issue_id = issue_id
@@ -325,7 +164,7 @@ class ErrorWatcher:
         if len(self._seen) >= _MAX_FINGERPRINTS:
             self._evict_oldest()
 
-        # Create the bead
+        # Create the task
         title = f"[{source}] {message}"
         if len(title) > 200:
             title = title[:197] + "..."
@@ -376,28 +215,20 @@ class ErrorWatcher:
             )
         except Exception as exc:
             # Don't let error tracking errors cascade
-            logger.debug("Failed to create error bead: %s", exc)
+            logger.debug("Failed to create error task: %s", exc)
             return None
 
         self._seen[fp] = _ErrorRecord(
             fingerprint=fp,
             last_created=now,
-            bead_id=issue.identifier,
+            task_id=issue.identifier,
             issue_id=issue_id,
         )
         logger.info(
-            "Created error bead %s for [%s] %s%s",
+            "Created error task %s for [%s] %s%s",
             issue.identifier, source, message[:80],
             f" (issue={issue_id})" if issue_id else "",
         )
-        try:
-            _persist_error_task_to_git(self._tracker, issue.identifier)
-        except Exception as exc:  # noqa: BLE001 - persistence must not cascade
-            logger.warning(
-                "ErrorWatcher task %s git persistence failed: %s",
-                issue.identifier,
-                exc,
-            )
         return issue.identifier
 
     def auto_close_for_issue(
@@ -409,18 +240,18 @@ class ErrorWatcher:
         max_age_seconds: float = _AUTO_CLOSE_WINDOW_SECONDS,
         quiet_seconds: float = _AUTO_CLOSE_QUIET_SECONDS,
     ) -> list[str]:
-        """Auto-close every error bead linked to ``issue_id``.
+        """Auto-close every error task linked to ``issue_id``.
 
         Called by the orchestrator after a worker run finishes
         successfully *via the retry path* (attempt > 0).  Each matching
-        record's bead is closed with a "retry succeeded; transient"
+        record's task is closed with a "retry succeeded; transient"
         reason and popped from ``_seen`` so that a future error with
-        the same fingerprint will create a fresh bead.
+        the same fingerprint will create a fresh task.
 
         Records are skipped if:
 
         * ``last_created`` is older than ``max_age_seconds`` — the
-          bead is too stale to be plausibly the same incident.
+          task is too stale to be plausibly the same incident.
         * ``last_created`` is younger than ``quiet_seconds`` — the
           fingerprint is still actively firing (likely on another
           issue), so closing it would be premature.
@@ -432,14 +263,14 @@ class ErrorWatcher:
                 resolution comments.  Falls back to ``issue_id``.
             resolution_link: optional URL or identifier of the
                 successful run / commit / PR; mentioned in the
-                resolution comment posted on each closed bead.
+                resolution comment posted on each closed task.
             max_age_seconds: age cutoff (default 30 min).
             quiet_seconds: minimum time since the most recent
                 fingerprint hit before auto-close is allowed (default
                 60 s).
 
         Returns:
-            List of bead identifiers that were auto-closed.
+            List of task identifiers that were auto-closed.
         """
         if not issue_id:
             return []
@@ -453,8 +284,8 @@ class ErrorWatcher:
             record = self._seen.get(fp)
             if record is None or record.issue_id != issue_id:
                 continue
-            if not record.bead_id:
-                # No bead was ever filed for this record; nothing to close.
+            if not record.task_id:
+                # No task was ever filed for this record; nothing to close.
                 continue
             age = now - record.last_created
             if age > max_age_seconds:
@@ -466,7 +297,7 @@ class ErrorWatcher:
                 # intervenes), the dedup window will have moved on.
                 continue
 
-            bead_id = record.bead_id
+            task_id = record.task_id
             comment_body = (
                 "Auto-closed by error_watcher: the originating issue "
                 f"({ident}) recovered via retry."
@@ -475,33 +306,32 @@ class ErrorWatcher:
                 comment_body += f" Resolution: {resolution_link}"
             try:
                 # Post a comment first so the audit trail survives close.
-                # TASK-461.6 AC #2: the comment is posted to the bead's
+                # TASK-461.6 AC #2: the comment is posted to the task's
                 # own tracker (self._tracker), which is the same backend
-                # that created the bead.  This guarantees that auto-close
-                # comments on error beads always route to the source-task
+                # that created the task.  This guarantees that auto-close
+                # comments on error tasks always route to the source-task
                 # backend, even when the triggering issue lives in a
-                # different tracker (e.g. a Backlog-backed source project
-                # whose error bead was filed in GitHub Issues).
+                # different tracker.
                 try:
-                    self._tracker.add_comment(bead_id, comment_body)
+                    self._tracker.add_comment(task_id, comment_body)
                 except Exception as exc:  # pragma: no cover - best effort
                     logger.debug(
                         "Could not post resolution comment on %s: %s",
-                        bead_id, exc,
+                        task_id, exc,
                     )
                 self._tracker.close_issue(
-                    bead_id,
+                    task_id,
                     reason="retry succeeded; transient (auto-closed by error_watcher)",
                 )
                 logger.info(
-                    "Auto-closed transient error bead %s (issue=%s resolved)",
-                    bead_id, ident,
+                    "Auto-closed transient error task %s (issue=%s resolved)",
+                    task_id, ident,
                 )
-                closed.append(bead_id)
+                closed.append(task_id)
             except Exception as exc:
                 logger.warning(
-                    "Failed to auto-close error bead %s for issue %s: %s",
-                    bead_id, ident, exc,
+                    "Failed to auto-close error task %s for issue %s: %s",
+                    task_id, ident, exc,
                 )
                 continue
             # Drop the record so a fresh occurrence of the same
@@ -524,18 +354,18 @@ class ErrorWatcher:
         - **Explicit class** (``error_class`` given): the fingerprint hashes
           ``class=<error_class>`` alone, so every report with the same
           class collapses to one task within the dedup window — regardless
-          of source, message, project, or Backlog subcommand. This is the
+          of source, message, or project. This is the
           operator's escape hatch for transient infra failures that fan out
           across many call sites in seconds.
 
         - **Free-form** (no class): normalize the message by stripping
           parts that vary across operationally-identical errors —
-          timestamps, hex addresses, UUIDs, project names, Backlog command
-          args, task-style identifiers, large numbers — then hash.
+          timestamps, hex addresses, UUIDs, project names, task-style
+          identifiers, large numbers — then hash.
 
         Trade-off: broader fingerprints risk lumping unrelated errors into
         one task. The free-form normalization stays conservative; for the
-        cases where a *single* root cause is known (e.g. Backlog timeouts), the
+        cases where a *single* root cause is known, the
         caller opts in with ``error_class`` rather than us guessing from
         message text.
         """
@@ -570,16 +400,6 @@ class ErrorWatcher:
             normalized,
         )
 
-        # Collapse Backlog command invocations:
-        # "backlog task list --plain" -> "backlog task list",
-        # "backlog task view TASK-42" -> "backlog task view".
-        # Keeps the command family + verb; drops everything after.
-        normalized = re.sub(
-            r"\bbacklog\s+([a-z][a-z0-9_-]*)\s+([a-z][a-z0-9_-]*)(?:\s+\S[^\n]*)?",
-            r"backlog \1 \2",
-            normalized,
-        )
-
         # Tightened identifier normalization: catches task-style IDs
         # like "oompah-zlz_2-16h", "oompah-zlz_2-aup". Requires 2+ dash
         # segments to avoid eating ordinary hyphenated English words
@@ -602,7 +422,7 @@ class ErrorWatcher:
             self._seen.pop(r.fingerprint, None)
 
 
-class _BeadLoggingHandler(logging.Handler):
+class _TaskLoggingHandler(logging.Handler):
     """Logging handler that forwards ERROR+ records to the ErrorWatcher."""
 
     def __init__(self, watcher: ErrorWatcher):
@@ -622,14 +442,14 @@ class _BeadLoggingHandler(logging.Handler):
             source = f"backend:{record.module}"
             priority = 1 if record.levelno >= logging.CRITICAL else 2
             # Callers may attach context via ``logger.error(..., extra={
-            # "issue_id": <id>})`` to tie the resulting bead to the
+            # "issue_id": <id>})`` to tie the resulting task to the
             # issue whose run produced the error.  This lets the
-            # orchestrator auto-close the bead on retry success.
+            # orchestrator auto-close the task on retry success.
             issue_id = getattr(record, "issue_id", None)
             # Call sites can also pass an explicit class via
-            # ``logger.error("...", extra={"error_class": "bd_failed"})``
+            # ``logger.error("...", extra={"error_class": "project_fetch_failed"})``
             # to collapse fan-out failures (e.g. one Dolt slowdown that
-            # produces N project-fetch errors) into a single bead.
+            # produces N project-fetch errors) into a single task.
             error_class = getattr(record, "error_class", None)
             self._watcher.report_error(
                 source=source,
@@ -676,7 +496,7 @@ def _detect_error_level(line: str) -> str | None:
 
 
 def _priority_for_level(level: str) -> int:
-    """Return a bead priority (0-4) for a detected log level."""
+    """Return a task priority (0-4) for a detected log level."""
     return _LEVEL_PRIORITY.get(level, 2)
 
 
@@ -684,7 +504,7 @@ def _extract_message(line: str) -> str:
     """Extract the meaningful message portion from a log line.
 
     Strips common prefixes (timestamps, log-level tags) so the error
-    message used for bead titles and fingerprinting is clean.
+    message used for task titles and fingerprinting is clean.
     """
     # Strip leading timestamp (ISO-8601 or common syslog-style)
     stripped = re.sub(
@@ -706,7 +526,7 @@ class LogFileWatcher:
     Tails the log file using event-driven file-system notifications (via
     ``watchfiles``), scanning new lines for error-level messages.  When one
     is found, it calls ``error_watcher.report_error()`` which handles
-    deduplication and bead creation.
+    deduplication and task creation.
 
     If the log file does not yet exist, the watcher monitors the parent
     directory until the file is created, then switches to watching the file
@@ -930,7 +750,7 @@ class ProjectLogWatcherManager:
             error_watcher_factory: Callable ``(project_id) -> ErrorWatcher``
                 that returns the ErrorWatcher for a given project. The
                 manager calls this to get project-specific watchers so
-                beads are created in the correct project.
+                tasks are created in the correct project.
         """
         self._error_watcher_factory = error_watcher_factory
         # project_id -> (LogFileWatcher, asyncio.Task)

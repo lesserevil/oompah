@@ -13,32 +13,24 @@ def _makefile_text() -> str:
     return MAKEFILE.read_text(encoding="utf-8")
 
 
-def test_setup_depends_on_backlog_cli_check():
-    """make setup must verify the Backlog.md CLI, not just Python deps."""
+def test_setup_installs_server_dependencies_only():
+    """make setup installs Python dependencies without tracker-specific setup."""
     text = _makefile_text()
 
-    assert "setup: $(VENV)/.uv-setup ensure-backlog" in text
-    assert ".PHONY: help setup ensure-backlog" in text
+    assert "setup: $(VENV)/.uv-setup" in text
+    assert "ensure-" not in text
 
 
-def test_ensure_backlog_installs_upstream_backlog_repo():
-    """The setup helper installs the upstream Backlog.md repo."""
+def test_setup_does_not_install_external_tracker_cli():
+    """The setup helper should not install external tracker CLIs."""
     text = _makefile_text()
 
-    assert (
-        "BACKLOG_NPM_PACKAGE := https://github.com/MrLesk/Backlog.md/archive/HEAD.tar.gz"
-        in text
-    )
-    assert "BACKLOG_CLI := $(VENV)/bin/backlog" in text
-    assert "ensure-backlog: $(BACKLOG_CLI)" in text
-    assert "npm install --global --prefix" in text
-    assert "--ignore-scripts" in text
-    assert "$(BACKLOG_NPM_PACKAGE)" in text
-    assert "$(BACKLOG_CLI): $(VENV)/.uv-setup Makefile" in text
+    assert "npm install --global --prefix" not in text
+    assert "--ignore-scripts" not in text
 
 
 def test_make_targets_export_venv_bin_on_path():
-    """Runtime make targets should find the venv-local backlog binary."""
+    """Runtime make targets should find venv-local commands."""
     text = _makefile_text()
 
     assert "export PATH := $(abspath $(VENV)/bin):$(PATH)" in text

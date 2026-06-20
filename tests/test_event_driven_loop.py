@@ -35,7 +35,7 @@ from oompah.orchestrator import (
 
 def _make_config(**overrides) -> ServiceConfig:
     """Minimal ServiceConfig for testing."""
-    cfg = ServiceConfig(tracker_kind="backlog_md")
+    cfg = ServiceConfig(tracker_kind="oompah_md")
     for k, v in overrides.items():
         setattr(cfg, k, v)
     return cfg
@@ -861,6 +861,14 @@ class TestRetryTimerResetsInProgressOnRelease:
             title="Observed repro issue",
             state="In Progress",
         )
+        orch._fetch_retry_issue = MagicMock(
+            return_value=Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Completed retry issue",
+                state="Done",
+            )
+        )
         orch._fetch_issue_across_trackers = MagicMock(return_value=in_progress_issue)
         mock_tracker = MagicMock()
         orch._tracker_for_issue = MagicMock(return_value=mock_tracker)
@@ -880,6 +888,14 @@ class TestRetryTimerResetsInProgressOnRelease:
         orch = self._make_retry_orch(tmp_path)
         issue_id = "TASK-123"
         orch._fetch_all_candidates = MagicMock(return_value=[])
+        orch._fetch_retry_issue = MagicMock(
+            return_value=Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Completed retry issue",
+                state="Done",
+            )
+        )
         orch._fetch_issue_across_trackers = MagicMock(
             return_value=Issue(
                 id=issue_id,
@@ -905,6 +921,14 @@ class TestRetryTimerResetsInProgressOnRelease:
         orch = self._make_retry_orch(tmp_path)
         issue_id = "TASK-200"
         orch._fetch_all_candidates = MagicMock(return_value=[])
+        orch._fetch_retry_issue = MagicMock(
+            return_value=Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Completed retry issue",
+                state="Done",
+            )
+        )
         orch._fetch_issue_across_trackers = MagicMock(
             return_value=Issue(
                 id=issue_id,
@@ -927,6 +951,14 @@ class TestRetryTimerResetsInProgressOnRelease:
         orch = self._make_retry_orch(tmp_path)
         issue_id = "TASK-300"
         orch._fetch_all_candidates = MagicMock(return_value=[])
+        orch._fetch_retry_issue = MagicMock(
+            return_value=Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Completed retry issue",
+                state="Done",
+            )
+        )
         orch._fetch_issue_across_trackers = MagicMock(
             return_value=Issue(
                 id=issue_id,
@@ -950,6 +982,14 @@ class TestRetryTimerResetsInProgressOnRelease:
         orch = self._make_retry_orch(tmp_path)
         issue_id = "TASK-ERR"
         orch._fetch_all_candidates = MagicMock(return_value=[])
+        orch._fetch_retry_issue = MagicMock(
+            return_value=Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Completed retry issue",
+                state="Done",
+            )
+        )
         orch._fetch_issue_across_trackers = MagicMock(
             return_value=Issue(
                 id=issue_id,
@@ -968,9 +1008,19 @@ class TestRetryTimerResetsInProgressOnRelease:
         assert issue_id not in orch.state.claimed
 
     def test_does_not_reset_when_fetch_returns_none(self, tmp_path, event_loop):
+        from oompah.models import Issue
+
         orch = self._make_retry_orch(tmp_path)
         issue_id = "TASK-GONE"
         orch._fetch_all_candidates = MagicMock(return_value=[])
+        orch._fetch_retry_issue = MagicMock(
+            return_value=Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Completed retry issue",
+                state="Done",
+            )
+        )
         orch._fetch_issue_across_trackers = MagicMock(return_value=None)
         mock_tracker = MagicMock()
         orch._tracker_for_issue = MagicMock(return_value=mock_tracker)

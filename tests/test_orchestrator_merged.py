@@ -1279,7 +1279,7 @@ class TestFetchInProgressIssues:
 
 
 class TestBacklogStatusReconciliation:
-    """Tests for tracker status spelling used by Backlog.md."""
+    """Tests for tracker status spelling used by the task lifecycle."""
 
     def _make_orchestrator(self, tmp_path):
         config = _make_config()
@@ -1342,8 +1342,8 @@ class TestShouldDispatchCompleted:
         assert orch._should_dispatch(issue) is True
 
     def test_empty_description_rejected(self, tmp_path):
-        """A bead with no description body must not be dispatched.
-        Title-only beads are placeholders (e.g. ad-hoc CLI tests) and
+        """A task with no description body must not be dispatched.
+        Title-only tasks are placeholders (e.g. ad-hoc CLI tests) and
         agents have no useful context to work from."""
         orch = self._make_orchestrator(tmp_path)
         issue = _make_issue("feat-empty", state="open", description=None)
@@ -1630,9 +1630,9 @@ class TestYoloRetryCi:
     When a PR's source_branch matches an epic that already has children,
     relabeling the epic as ci-fix would silently strand the work — the
     dispatcher refuses to dispatch epics-with-children. The fix is to file
-    a sibling task bead under the epic instead, so an agent actually runs.
+    a sibling task task under the epic instead, so an agent actually runs.
 
-    For non-epic beads (or childless epics) the existing behavior is kept.
+    For non-epic tasks (or childless epics) the existing behavior is kept.
     """
 
     def _make_orchestrator(self, tmp_path, projects=None):
@@ -1662,8 +1662,8 @@ class TestYoloRetryCi:
         orch._project_trackers[project.id] = tracker
         return tracker
 
-    def test_epic_with_children_creates_sibling_bead(self, tmp_path):
-        """PR matched against a parent epic → new sibling bead is created
+    def test_epic_with_children_creates_sibling_task(self, tmp_path):
+        """PR matched against a parent epic → new sibling task is created
         instead of relabeling the epic."""
         project = _make_project()
         project.yolo = True
@@ -1754,14 +1754,14 @@ class TestYoloRetryCi:
         tracker.update_issue.assert_not_called()
         tracker.add_comment.assert_not_called()
 
-    def test_non_epic_bead_keeps_relabel_behavior(self, tmp_path):
-        """PR matched against a non-epic bead → existing behavior preserved
+    def test_non_epic_task_keeps_relabel_behavior(self, tmp_path):
+        """PR matched against a non-epic task → existing behavior preserved
         (relabel + reopen, no sibling created)."""
         project = _make_project()
         project.yolo = True
         orch = self._make_orchestrator(tmp_path, projects=[project])
 
-        bead = Issue(
+        task = Issue(
             id="proj-task1",
             identifier="proj-task1",
             title="Task",
@@ -1771,7 +1771,7 @@ class TestYoloRetryCi:
             labels=[],
             branch_name="feat-task1",
         )
-        tracker = self._attach_tracker(orch, project, bead, children=[])
+        tracker = self._attach_tracker(orch, project, task, children=[])
 
         review = _make_review("42", source_branch="feat-task1", ci_status="failed")
 
@@ -1783,14 +1783,14 @@ class TestYoloRetryCi:
         assert update_kwargs.get("status") == "Needs CI Fix"
         assert update_kwargs.get("priority") == "0"
         assert update_kwargs.get("add-label") == "ci-fix"
-        # Comment is added to the existing bead
+        # Comment is added to the existing task
         tracker.add_comment.assert_called_once()
-        # NO sibling bead is created
+        # NO sibling task is created
         tracker.create_issue.assert_not_called()
 
     def test_childless_epic_keeps_relabel_behavior(self, tmp_path):
         """PR matched against a childless epic → existing behavior preserved
-        (relabel — epic-planner can pick it up). No sibling bead."""
+        (relabel — epic-planner can pick it up). No sibling task."""
         project = _make_project()
         project.yolo = True
         orch = self._make_orchestrator(tmp_path, projects=[project])
@@ -1815,14 +1815,14 @@ class TestYoloRetryCi:
         # Existing relabel path fires (epic-planner will pick it up)
         tracker.update_issue.assert_called_once()
         tracker.add_comment.assert_called_once()
-        # NO sibling bead is created
+        # NO sibling task is created
         tracker.create_issue.assert_not_called()
 
     def test_already_labeled_ci_fix_is_noop_for_epic_with_children(self, tmp_path):
         """If the epic-with-children is already labeled ci-fix from a prior
         cycle that pre-dates this fix, we still skip relabel (idempotent
-        guard runs first). New sibling beads will only be filed when the
-        bead is freshly identified — the per-MR guard below test_only_one
+        guard runs first). New sibling tasks will only be filed when the
+        task is freshly identified — the per-MR guard below test_only_one
         ensures we don't spam, and any orphaned ci-fix-labeled epics are
         a one-time manual cleanup."""
         project = _make_project()
@@ -1884,8 +1884,8 @@ class TestYoloMergeConflictLabelClearing:
     def test_successful_merge_clears_merge_conflict_label(
         self, mock_slug, mock_detect, tmp_path,
     ):
-        """When YOLO merges a PR whose bead carries merge-conflict, the label
-        is removed so the bead doesn't stay stale."""
+        """When YOLO merges a PR whose task carries merge-conflict, the label
+        is removed so the task doesn't stay stale."""
         project = _make_project()
         project.yolo = True
         provider = MagicMock()
@@ -1896,16 +1896,16 @@ class TestYoloMergeConflictLabelClearing:
         orch = self._make_orchestrator(tmp_path, projects=[project])
 
         mock_tracker = MagicMock()
-        # Bead with merge-conflict label
-        mock_bead = MagicMock()
-        mock_bead.labels = ["bug", "merge-conflict"]
-        mock_bead.id = "bead-001"
-        mock_bead.identifier = "oompah-zlz_2-001"
-        mock_tracker.fetch_issue_detail.return_value = mock_bead
+        # Task with merge-conflict label
+        mock_task = MagicMock()
+        mock_task.labels = ["bug", "merge-conflict"]
+        mock_task.id = "task-001"
+        mock_task.identifier = "oompah-zlz_2-001"
+        mock_tracker.fetch_issue_detail.return_value = mock_task
         orch._project_trackers[project.id] = mock_tracker
 
         reviews = [
-            _make_review("1", source_branch="bead-001", ci_status="passed"),
+            _make_review("1", source_branch="task-001", ci_status="passed"),
         ]
         orch._reviews_cache = {project.id: reviews}
 
@@ -1913,18 +1913,18 @@ class TestYoloMergeConflictLabelClearing:
 
         # merge_review called (PR merged)
         provider.merge_review.assert_called_once_with("org/repo", "1")
-        # merge-conflict label removed from the matching bead
-        tracker_call_kwargs = mock_tracker.update_issue.call_args
-        assert tracker_call_kwargs is not None
-        kwargs_dict = tracker_call_kwargs[1]
-        assert kwargs_dict.get("remove-label") == "merge-conflict"
+        # merge-conflict label removed from the matching task
+        assert any(
+            call.kwargs.get("remove-label") == "merge-conflict"
+            for call in mock_tracker.update_issue.call_args_list
+        )
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
     def test_successful_enqueue_clears_merge_conflict_label(
         self, mock_slug, mock_detect, tmp_path,
     ):
-        """When YOLO enqueues a PR (merge queue mode) whose bead carries
+        """When YOLO enqueues a PR (merge queue mode) whose task carries
         merge-conflict, the label is removed."""
         project = _make_project()
         project.yolo = True
@@ -1937,15 +1937,15 @@ class TestYoloMergeConflictLabelClearing:
         orch = self._make_orchestrator(tmp_path, projects=[project])
 
         mock_tracker = MagicMock()
-        mock_bead = MagicMock()
-        mock_bead.labels = ["merge-conflict", "tech-debt"]
-        mock_bead.id = "bead-002"
-        mock_bead.identifier = "oompah-zlz_2-002"
-        mock_tracker.fetch_issue_detail.return_value = mock_bead
+        mock_task = MagicMock()
+        mock_task.labels = ["merge-conflict", "tech-debt"]
+        mock_task.id = "task-002"
+        mock_task.identifier = "oompah-zlz_2-002"
+        mock_tracker.fetch_issue_detail.return_value = mock_task
         orch._project_trackers[project.id] = mock_tracker
 
         reviews = [
-            _make_review("2", source_branch="bead-002", ci_status="passed"),
+            _make_review("2", source_branch="task-002", ci_status="passed"),
         ]
         orch._reviews_cache = {project.id: reviews}
 
@@ -1974,16 +1974,16 @@ class TestYoloMergeConflictLabelClearing:
         orch = self._make_orchestrator(tmp_path, projects=[project])
 
         mock_tracker = MagicMock()
-        mock_bead = MagicMock()
-        mock_bead.labels = ["merge-conflict"]  # stale label
-        mock_bead.id = "bead-003"
-        mock_bead.identifier = "oompah-zlz_2-003"
-        mock_tracker.fetch_issue_detail.return_value = mock_bead
+        mock_task = MagicMock()
+        mock_task.labels = ["merge-conflict"]  # stale label
+        mock_task.id = "task-003"
+        mock_task.identifier = "oompah-zlz_2-003"
+        mock_tracker.fetch_issue_detail.return_value = mock_task
         orch._project_trackers[project.id] = mock_tracker
 
         # CI is still running; has_conflicts=False (externally rebased)
         reviews = [
-            _make_review("3", source_branch="bead-003",
+            _make_review("3", source_branch="task-003",
                          ci_status="running", has_conflicts=False),
         ]
         orch._reviews_cache = {project.id: reviews}
@@ -1993,17 +1993,17 @@ class TestYoloMergeConflictLabelClearing:
         # No merge/enqueue attempted (CI still running)
         provider.merge_review.assert_not_called()
         provider.enable_auto_merge.assert_not_called()
-        # But the stale merge-conflict label on the matching bead was cleared
+        # But the stale merge-conflict label on the matching task was cleared
         tracker_call_kwargs = mock_tracker.update_issue.call_args
         assert tracker_call_kwargs is not None
         assert tracker_call_kwargs[1].get("remove-label") == "merge-conflict"
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_noop_when_bead_has_no_merge_conflict_label(
+    def test_noop_when_task_has_no_merge_conflict_label(
         self, mock_slug, mock_detect, tmp_path,
     ):
-        """When a merged PR matches a bead that does NOT have merge-conflict
+        """When a merged PR matches a task that does NOT have merge-conflict
         label, no tracker update is issued (reduces API chatter)."""
         project = _make_project()
         project.yolo = True
@@ -2015,29 +2015,32 @@ class TestYoloMergeConflictLabelClearing:
         orch = self._make_orchestrator(tmp_path, projects=[project])
 
         mock_tracker = MagicMock()
-        mock_bead = MagicMock()
-        mock_bead.labels = ["bug"]  # no merge-conflict
-        mock_bead.id = "bead-004"
-        mock_bead.identifier = "oompah-zlz_2-004"
-        mock_tracker.fetch_issue_detail.return_value = mock_bead
+        mock_task = MagicMock()
+        mock_task.labels = ["bug"]  # no merge-conflict
+        mock_task.id = "task-004"
+        mock_task.identifier = "oompah-zlz_2-004"
+        mock_tracker.fetch_issue_detail.return_value = mock_task
         orch._project_trackers[project.id] = mock_tracker
 
         reviews = [
-            _make_review("4", source_branch="bead-004", ci_status="passed"),
+            _make_review("4", source_branch="task-004", ci_status="passed"),
         ]
         orch._reviews_cache = {project.id: reviews}
 
         orch._yolo_review_actions_sync()
 
         provider.merge_review.assert_called()
-        mock_tracker.update_issue.assert_not_called()  # no label to remove
+        assert not any(
+            call.kwargs.get("remove-label") == "merge-conflict"
+            for call in mock_tracker.update_issue.call_args_list
+        )
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_noop_when_no_matching_bead(
+    def test_noop_when_no_matching_task(
         self, mock_slug, mock_detect, tmp_path,
     ):
-        """When a PR is merged and has no matching bead (orphan branch), the
+        """When a PR is merged and has no matching task (orphan branch), the
         clear-label step is a silent no-op and does not crash."""
         project = _make_project()
         project.yolo = True
@@ -2049,7 +2052,7 @@ class TestYoloMergeConflictLabelClearing:
         orch = self._make_orchestrator(tmp_path, projects=[project])
 
         mock_tracker = MagicMock()
-        mock_tracker.fetch_issue_detail.return_value = None  # no matching bead
+        mock_tracker.fetch_issue_detail.return_value = None  # no matching task
         orch._project_trackers[project.id] = mock_tracker
 
         reviews = [

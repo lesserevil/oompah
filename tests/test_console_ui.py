@@ -13,7 +13,7 @@ We follow the same pattern as tests/test_dashboard_activity_summary.py
 — pure HTML + JS source inspection, no browser, no orchestrator.
 
 Behavior-level tests (transcript round-trip, backend switch 409, WS
-push) live alongside the bead-detail tests under
+push) live alongside the task-detail tests under
 ``tests/test_console_session.py`` and ``tests/test_console_endpoints.py``
 — this file is intentionally limited to template-shape assertions.
 """
@@ -134,7 +134,7 @@ class TestConsoleHTMLStructure:
 
     def test_console_drop_exists(self, html):
         # Drop zone reuses the attachment-dropzone CSS pattern from the
-        # bead-detail panel.
+        # task-detail panel.
         assert 'id="console-drop"' in html
         assert "attachment-dropzone" in html
 
@@ -414,7 +414,7 @@ class TestStopAndInflight:
     def test_stop_clears_inflight(self, script):
         body = _get_func_body(script, "stopConsoleTurn")
         # The v1 stop just unblocks the UI (server-side cancel is a
-        # follow-up bead) — see issue out-of-scope note.
+        # follow-up task) — see issue out-of-scope note.
         assert "_setConsoleInflight" in body or "_consoleInflight" in body
 
     def test_set_inflight_helper_exists(self, script):

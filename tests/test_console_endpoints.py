@@ -572,7 +572,7 @@ class TestWebSocketConsoleInput:
             if m.get("type") == "console_event"
             and m.get("project_id") == pid
         ]
-        # operator_input must arrive — that's the bead's main
+        # operator_input must arrive — that's the task's main
         # acceptance criterion.
         assert "operator_input" in kinds
         # On-disk transcript should now contain at least the

@@ -9,13 +9,13 @@ from oompah.workspace import WorkspaceError, WorkspaceManager, sanitize_identifi
 
 class TestSanitizeIdentifier:
     def test_clean_string(self):
-        assert sanitize_identifier("beads-001") == "beads-001"
+        assert sanitize_identifier("tasks-001") == "tasks-001"
 
     def test_special_chars(self):
-        assert sanitize_identifier("beads/001 foo") == "beads_001_foo"
+        assert sanitize_identifier("tasks/001 foo") == "tasks_001_foo"
 
     def test_dots_and_underscores(self):
-        assert sanitize_identifier("beads_001.txt") == "beads_001.txt"
+        assert sanitize_identifier("tasks_001.txt") == "tasks_001.txt"
 
     def test_empty(self):
         assert sanitize_identifier("") == ""
@@ -27,18 +27,18 @@ class TestWorkspaceManager:
             workspace_root=str(tmp_path / "workspaces"),
             hooks={},
         )
-        ws = mgr.create_for_issue("beads-001")
+        ws = mgr.create_for_issue("tasks-001")
         assert ws.created_now is True
         assert os.path.isdir(ws.path)
-        assert ws.workspace_key == "beads-001"
+        assert ws.workspace_key == "tasks-001"
 
     def test_reuse_existing(self, tmp_path):
         mgr = WorkspaceManager(
             workspace_root=str(tmp_path / "workspaces"),
             hooks={},
         )
-        ws1 = mgr.create_for_issue("beads-001")
-        ws2 = mgr.create_for_issue("beads-001")
+        ws1 = mgr.create_for_issue("tasks-001")
+        ws2 = mgr.create_for_issue("tasks-001")
         assert ws1.path == ws2.path
         assert ws2.created_now is False
 
@@ -47,9 +47,9 @@ class TestWorkspaceManager:
             workspace_root=str(tmp_path / "workspaces"),
             hooks={},
         )
-        ws = mgr.create_for_issue("beads-002")
+        ws = mgr.create_for_issue("tasks-002")
         assert os.path.isdir(ws.path)
-        mgr.remove_workspace("beads-002")
+        mgr.remove_workspace("tasks-002")
         assert not os.path.isdir(ws.path)
 
     def test_remove_nonexistent_is_noop(self, tmp_path):
@@ -73,8 +73,8 @@ class TestWorkspaceManager:
             workspace_root=str(tmp_path / "workspaces"),
             hooks={},
         )
-        path = mgr.workspace_path_for("beads-001")
-        assert path.endswith("beads-001")
+        path = mgr.workspace_path_for("tasks-001")
+        assert path.endswith("tasks-001")
 
     def test_after_create_hook(self, tmp_path):
         marker = tmp_path / "hook_ran"
@@ -82,7 +82,7 @@ class TestWorkspaceManager:
             workspace_root=str(tmp_path / "workspaces"),
             hooks={"after_create": f"touch {marker}"},
         )
-        ws = mgr.create_for_issue("beads-hook")
+        ws = mgr.create_for_issue("tasks-hook")
         assert ws.created_now is True
         assert marker.exists()
 
@@ -92,7 +92,7 @@ class TestWorkspaceManager:
             hooks={"after_create": "exit 1"},
         )
         with pytest.raises(WorkspaceError):
-            mgr.create_for_issue("beads-fail")
+            mgr.create_for_issue("tasks-fail")
         # Workspace should be cleaned up on hook failure
-        ws_path = mgr.workspace_path_for("beads-fail")
+        ws_path = mgr.workspace_path_for("tasks-fail")
         assert not os.path.exists(ws_path)

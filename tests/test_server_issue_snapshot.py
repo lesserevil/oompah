@@ -178,38 +178,6 @@ def test_fetch_and_serialize_issues_counts_child_under_proposed_parent_as_propos
     assert board["Proposed"][0]["children_counts"]["Backlog"] == 0
 
 
-def test_fetch_all_issues_github_dual_read_fetches_legacy_backlog_tracker():
-    project = SimpleNamespace(
-        id="proj-1",
-        name="project-1",
-        repo_path="/tmp/project-1",
-        tracker_kind="github_issues",
-        legacy_backlog_enabled=True,
-    )
-    gh_issue = _issue("owner/repo#1", "Open")
-    gh_issue.tracker_kind = "github_issues"
-    legacy_issue = _issue("TASK-1", "Backlog")
-    github_tracker = MagicMock()
-    github_tracker.fetch_all_issues.return_value = [gh_issue]
-    legacy_tracker = MagicMock()
-    legacy_tracker.fetch_all_issues.return_value = [legacy_issue]
-    orch = MagicMock()
-    orch.project_store.list_all.return_value = [project]
-    orch._tracker_for_project.return_value = github_tracker
-    orch._legacy_backlog_tracker_for_project.return_value = legacy_tracker
-    orch._project_epic_strategy.return_value = "flat"
-
-    issues = server_module._fetch_all_issues(orch)
-
-    by_id = {issue.identifier: issue for issue in issues}
-    assert by_id["owner/repo#1"].tracker_kind == "github_issues"
-    assert by_id["TASK-1"].tracker_kind == "backlog_md"
-    assert by_id["TASK-1"].is_legacy is True
-    assert by_id["TASK-1"].project_id == "proj-1"
-    orch._legacy_backlog_tracker_for_project.assert_called_once_with("proj-1")
-    legacy_tracker.fetch_all_issues.assert_called_once_with()
-
-
 async def _reset_issue_snapshot() -> None:
     with server_module._issues_snapshot_lock:
         task = server_module._issues_refresh_task

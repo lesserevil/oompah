@@ -1,6 +1,6 @@
 """HTTP API + UI tests for the /providers role-assignment matrix.
 
-See bead oompah-zlz_2-6xc for design. The matrix maps the four standard
+See task oompah-zlz_2-6xc for design. The matrix maps the four standard
 role names (fast/standard/deep/default) to (provider, model) pairs in a
 single PUT call against ``/api/v1/agent-profiles/role-matrix``.
 """
@@ -602,7 +602,7 @@ class TestBillingColumn:
         assert "function lookupModelRate" in html
 
     def test_rate_warning_text_present(self, html):
-        # The "rates not set" warning copy from the bead description.
+        # The "rates not set" warning copy from the task description.
         assert "rates not set — set via Edit Provider" in html
 
     def test_billing_per_token_tag_css(self, html):

@@ -102,7 +102,7 @@ search). Two approaches:
   the tracker-routing helpers) in `initialize.capabilities.tools`. The agent
   picks ours over its built-ins. This keeps the cd-guard and
   shell-as-tool-name redirects functional, and routes tracker commands
-  through the Backlog.md path/root hints.
+  through tracker-aware path/root hints.
 
 Recommendation: **B**, even though it's more work, because losing the
 guards is unacceptable.
@@ -250,7 +250,7 @@ doesn't second-guess the agent's actual model selection.
 
 ---
 
-Once Q1-Q6 are answered, the next step is converting this to Backlog.md
+Once Q1-Q6 are answered, the next step is converting this to oompah
 work items:
 - Parent epic for the ACP feature.
 - One task per Files-to-touch entry (acp_agent.py, orchestrator.py

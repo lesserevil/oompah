@@ -11,7 +11,7 @@ oompah-zlz_2-ynd dialog:
 * mode=acp: budget-bypass warning surfaces in the dialog.
 * mode=acp: card list item shows a "bypasses budget gate" warning.
 
-See bead oompah-zlz_2-rls.
+See task oompah-zlz_2-rls.
 """
 
 from __future__ import annotations

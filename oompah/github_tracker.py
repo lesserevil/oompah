@@ -68,7 +68,7 @@ from oompah.statuses import (
 from oompah.tracker import (
     TrackerError,
     TrackerTimeoutError,
-    _backlog_priority_int,
+    normalize_priority_int,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,7 @@ logger = logging.getLogger(__name__)
 
 def _priority_label_value(priority: Any) -> int | None:
     """Return the numeric value for a GitHub ``priority:N`` label."""
-    return _backlog_priority_int(priority)
+    return normalize_priority_int(priority)
 
 # ---------------------------------------------------------------------------
 # Constants

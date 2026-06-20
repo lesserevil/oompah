@@ -10,28 +10,16 @@ from oompah.agent_instructions import (
 )
 
 
-def test_update_replaces_backlog_integration_block():
+def test_update_appends_github_block_to_custom_rules():
     original = """# Project Rules
 
 Keep docs in sync.
-
-<!-- BEGIN BACKLOG INTEGRATION v:1 profile:minimal -->
-## Backlog Task Tracker
-
-Use Backlog.md for ALL task tracking.
-
-```bash
-backlog task create "Follow-up" --plain
-```
-<!-- END BACKLOG INTEGRATION -->
 """
 
     updated, changed = update_agents_text_for_github_issues(original)
 
     assert changed is True
-    assert "BEGIN BACKLOG INTEGRATION" not in updated
-    assert "Backlog Task Tracker" not in updated
-    assert "backlog task create" not in updated
+    assert updated.startswith(original)
     assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" in updated
     assert "oompah task create --project <project-id>" in updated
     assert "oompah task set-status <owner/repo#number> Done" in updated
@@ -40,32 +28,14 @@ backlog task create "Follow-up" --plain
     assert "Work is not complete until the code is pushed" in updated
 
 
-def test_update_replaces_top_level_backlog_quick_reference():
-    original = """# Agent Instructions
-
-This project uses **Backlog.md** for issue tracking. Do **not** use `bd`
-(beads) as the task tracker for this project.
-
-## Quick Reference
-
-```bash
-backlog task list --plain                     # Find available work
-backlog task view TASK-123 --plain            # View task details
-backlog task edit TASK-123 --status "In Progress" --plain
-backlog task edit TASK-123 --status Done --plain
-backlog board --plain                         # Show the task board
-```
-
-## Other Rules
-
-Use Makefile targets.
-"""
+def test_update_replaces_existing_github_block_without_duplicates():
+    original, first_changed = update_agents_text_for_github_issues("# Agent Instructions\n")
+    assert first_changed is True
+    original += "\n## Other Rules\n\nUse Makefile targets.\n"
 
     updated, changed = update_agents_text_for_github_issues(original)
 
-    assert changed is True
-    assert "This project uses **Backlog.md**" not in updated
-    assert "backlog task list --plain" not in updated
+    assert changed is False
     assert "This project is managed by **oompah**" in updated
     assert "oompah task view <owner/repo#number>" in updated
     assert "uv tool install" in updated
@@ -75,40 +45,16 @@ Use Makefile targets.
     assert updated.count("This project is managed by **oompah**") == 1
 
 
-def test_update_replaces_top_backlog_reference_without_duplicate_managed_block():
-    original = """# Agent Instructions
-
-This project uses **Backlog.md** for issue tracking. Do **not** use `bd`
-(beads) as the task tracker for this project.
-
-## Quick Reference
-
-```bash
-backlog task list --plain                     # Find available work
-backlog task view TASK-123 --plain            # View task details
-backlog task edit TASK-123 --status "In Progress" --plain
-backlog task edit TASK-123 --status Done --plain
-backlog board --plain                         # Show the task board
-```
-
-## Other Rules
-
-Use Makefile targets.
-
-<!-- BEGIN BACKLOG INTEGRATION -->
-## Issue Tracking with Backlog.md
-
-Use Backlog.md for ALL task tracking.
-<!-- END BACKLOG INTEGRATION -->
-"""
+def test_update_replaces_oompah_task_block_with_github_block():
+    original, task_changed = update_agents_text_for_oompah_tasks("# Agent Instructions\n")
+    assert task_changed is True
+    original += "\n## Other Rules\n\nUse Makefile targets.\n"
 
     updated, changed = update_agents_text_for_github_issues(original)
 
     assert changed is True
-    assert "This project uses **Backlog.md**" not in updated
-    assert "Use Backlog.md for ALL task tracking" not in updated
-    assert "backlog task list --plain" not in updated
     assert "## Other Rules" in updated
+    assert "BEGIN OOMPAH TASK INTEGRATION" not in updated
     assert updated.count("BEGIN OOMPAH GITHUB ISSUES INTEGRATION") == 1
     assert updated.count("This project is managed by **oompah**") == 1
 
@@ -164,21 +110,8 @@ def test_update_oompah_task_replaces_github_block():
     assert "`.oompah/tasks`" in updated
 
 
-def test_update_oompah_task_replaces_top_level_backlog_quick_reference():
+def test_update_oompah_task_appends_to_custom_rules():
     original = """# Agent Instructions
-
-This project uses **Backlog.md** for issue tracking. Do **not** use `bd`
-(beads) as the task tracker for this project.
-
-## Quick Reference
-
-```bash
-backlog task list --plain                     # Find available work
-backlog task view TASK-123 --plain            # View task details
-backlog task edit TASK-123 --status "In Progress" --plain
-backlog task edit TASK-123 --status Done --plain
-backlog board --plain                         # Show the task board
-```
 
 ## Other Rules
 
@@ -188,8 +121,7 @@ Use Makefile targets.
     updated, changed = update_agents_text_for_oompah_tasks(original)
 
     assert changed is True
-    assert "This project uses **Backlog.md**" not in updated
-    assert "backlog task list --plain" not in updated
+    assert updated.startswith(original)
     assert "BEGIN OOMPAH TASK INTEGRATION" in updated
     assert "oompah task view <task-id> --project <project-id>" in updated
     assert "## Other Rules" in updated
@@ -211,9 +143,7 @@ def test_ensure_updates_agents_file(tmp_path):
     agents.write_text(
         """# Rules
 
-<!-- BEGIN BACKLOG INTEGRATION -->
-Use Backlog.md.
-<!-- END BACKLOG INTEGRATION -->
+Use oompah-managed tasks.
 """,
         encoding="utf-8",
     )
@@ -223,7 +153,7 @@ Use Backlog.md.
     assert changed is True
     text = agents.read_text(encoding="utf-8")
     assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" in text
-    assert "Use Backlog.md." not in text
+    assert "Use oompah-managed tasks." in text
 
 
 def test_ensure_updates_agents_file_for_oompah_tasks(tmp_path):

@@ -692,7 +692,7 @@ class TestServerLabelRemovalEdgeCases:
         from oompah.tracker import TrackerError
 
         mock_orch, mock_tracker = _make_mock_orch_for_server()
-        mock_tracker.fetch_issue_detail.side_effect = TrackerError("bd down")
+        mock_tracker.fetch_issue_detail.side_effect = TrackerError("tracker down")
 
         with (
             patch.object(server_mod, "_get_orchestrator", return_value=mock_orch),

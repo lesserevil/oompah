@@ -5,9 +5,8 @@
 
 This project is managed by **oompah**. The canonical task tracker is oompah's
 native Markdown task manager, stored by oompah on the default branch under
-`.oompah/tasks`. Do not create or edit Backlog.md task files, do not use the
-`backlog` CLI, and do not use `bd`, beads, TodoWrite, standalone markdown TODO
-lists, or direct GitHub issue edits for internal task tracking.
+`.oompah/tasks`. Do not use TodoWrite, standalone markdown TODO lists, or
+direct GitHub issue edits for internal task tracking.
 
 Use the `oompah task` CLI against the running oompah server. The CLI/API keeps
 task status, parent/child relationships, dependencies, comments, and
@@ -99,9 +98,6 @@ comments.
   bug and have checked with the project owner.
 - Do not edit GitHub `oompah:*`, `type:*`, `priority:*`, `parent:*`, or
   `depends-on:*` labels directly.
-- Existing `backlog/` files are legacy history only. Do not add new files
-  there.
-
 ## Session Completion
 
 When ending a work session, complete all of these steps:

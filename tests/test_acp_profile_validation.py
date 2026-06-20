@@ -11,7 +11,7 @@ cover):
 * model_role: when set AND the resolved provider has a model_roles
   map, the role must exist as a key.
 
-See bead oompah-zlz_2-rls.
+See task oompah-zlz_2-rls.
 """
 
 from __future__ import annotations

@@ -431,7 +431,7 @@ function renderReviewCard(r, provider, projectId, projectYolo) {
   } else if (r.has_conflicts) {
     // On YOLO-enabled projects, the orchestrator's _yolo_notify_conflict
     // path already tries provider.rebase_review then falls back to the
-    // bead-notify behavior on every full-sync tick. The "Resolve Conflicts"
+    // task-notify behavior on every full-sync tick. The "Resolve Conflicts"
     // button does the same thing manually — redundant friction. Hide it
     // and show a passive indicator instead (oompah-zlz_2-zvf2). Non-YOLO
     // projects still get the manual button.

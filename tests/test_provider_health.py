@@ -7,7 +7,7 @@ Acceptance criteria (TASK-407.3):
        reason missing_credentials or auth_failed.
   AC3: A timeout returns failure with normalized reason timeout.
   AC4: A rate limit or overload error returns a normalized retryable reason.
-  AC5: The endpoint does not create or modify any Backlog task.
+  AC5: The endpoint does not create or modify any task.
   AC6: The endpoint does not update role selection usage state.
 """
 
@@ -661,16 +661,16 @@ class TestProviderTestEndpoint:
         assert body["error_reason"] == "overloaded"
 
     # ------------------------------------------------------------------
-    # AC5: endpoint does NOT create/modify any Backlog task
+    # AC5: endpoint does NOT create/modify any task
     # (Structural test: the endpoint handler must not call tracker
     # functions.  We assert the call to test_provider has no side
     # effects on the tracker by verifying no tracker import is invoked.)
     # ------------------------------------------------------------------
 
     def test_does_not_import_tracker_during_test(self, health_client):
-        """The test endpoint must not touch the backlog tracker.
+        """The test endpoint must not touch any tracker.
 
-        We verify that importing provider_health doesn't pull in tracker.
+        We verify that importing provider_health doesn't pull in tracker code.
         """
         import sys
         # provider_health must be importable without importing tracker.

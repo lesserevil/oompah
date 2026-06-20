@@ -1,6 +1,6 @@
 """Tests for Epic-state reversion handling in PATCH /api/v1/issues.
 
-Covers the fix for oompah-zlz_2-sytm: bd's post-update Epic state hook
+Covers the fix for oompah-zlz_2-sytm: tracker's post-update Epic state hook
 reverts a manual state transition back to the children's-computed state.
 The endpoint now detects this by re-reading after the write and returns a
 clear 409 (epic_state_reverted) rather than silently returning ok=true.
@@ -315,7 +315,7 @@ class TestEpicStateVerification:
             call_count[0] += 1
             if call_count[0] == 1:
                 return existing_epic
-            return reverted_issue  # bd reverted
+            return reverted_issue  # tracker reverted
 
         mock_tracker.fetch_issue_detail.side_effect = fetch_side_effect
 
@@ -414,7 +414,7 @@ class TestVerifyEpicStateAfterUpdate:
 
     def test_returns_true_on_fetch_exception(self):
         tracker = MagicMock()
-        tracker.fetch_issue_detail.side_effect = Exception("bd error")
+        tracker.fetch_issue_detail.side_effect = Exception("tracker error")
 
         result = _verify_epic_state_after_update(tracker, "epic-1", "open")
         assert result is True  # best-effort

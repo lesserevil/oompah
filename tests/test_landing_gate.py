@@ -324,7 +324,7 @@ class TestSharedEpicLandingGate:
 
 class TestBuildTelemetryEvent:
     def test_basic_event(self):
-        issue = FakeIssue(id="id-x", identifier="bead-1", branch_name="feat-x")
+        issue = FakeIssue(id="id-x", identifier="task-1", branch_name="feat-x")
         result = LandingGateResult(
             allowed=False,
             branch_on_origin=False,
@@ -336,7 +336,7 @@ class TestBuildTelemetryEvent:
         )
         assert event["event"] == "landing_gate_retry_scheduled"
         assert event["issue_id"] == "id-x"
-        assert event["issue_identifier"] == "bead-1"
+        assert event["issue_identifier"] == "task-1"
         assert event["branch"] == "feat-x"
         assert event["branch_on_origin"] is False
 

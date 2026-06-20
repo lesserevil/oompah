@@ -55,7 +55,7 @@ from oompah.acp_backends.registry import (
 # Order matters only for the registry's deterministic ordering when
 # the /providers UI lists backends — Claude is the historical
 # default and remains first; Codex follows as the second backend;
-# OpenCode is the third (bead oompah-zlz_2-p1ti).
+# OpenCode is the third (task oompah-zlz_2-p1ti).
 from oompah.acp_backends import claude as _claude  # noqa: F401, E402
 from oompah.acp_backends import codex as _codex  # noqa: F401, E402
 from oompah.acp_backends import opencode as _opencode  # noqa: F401, E402

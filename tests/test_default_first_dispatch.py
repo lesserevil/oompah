@@ -581,15 +581,15 @@ class TestDispatchWithDefaultFirstDispatch:
         assert "deep" in dispatched_profile
 
     def test_flag_on_merge_conflict_label_bypasses_default_first(self, tmp_path):
-        """With flag=True, beads carrying the 'merge-conflict' label bypass the
+        """With flag=True, tasks carrying the 'merge-conflict' label bypass the
         cost optimization (oompah-zlz_2-2sd). The merge_conflict Focus has strict
         must_not_do rails (no squash, no blind ours/theirs, no force-push to main)
         that the default profile cannot enforce on its own — so we want the
         natural specialist on the FIRST dispatch, not after a bounce.
         """
         orch = self._make_orch_with_mocks(tmp_path, default_first_dispatch=True)
-        # Bug-typed bead with the merge-conflict label — like the trickle-dhr
-        # bead from the issue's live evidence.
+        # Bug-typed task with the merge-conflict label — like the trickle-dhr
+        # task from the issue's live evidence.
         issue = _make_issue(
             issue_type="bug",
             labels=["merge-conflict"],
@@ -604,9 +604,9 @@ class TestDispatchWithDefaultFirstDispatch:
 
         asyncio.run(orch._dispatch(issue, attempt=None))
 
-        # Carve-out: merge-conflict beads must NOT be routed to default first.
+        # Carve-out: merge-conflict tasks must NOT be routed to default first.
         assert "default" not in dispatched_profile, (
-            "merge-conflict bead was dispatched on default profile — "
+            "merge-conflict task was dispatched on default profile — "
             "default_first_dispatch carve-out failed"
         )
         # They get the natural match (deep for type=bug in our test profile set).
@@ -629,7 +629,7 @@ class TestDispatchWithDefaultFirstDispatch:
         assert entry.natural_profile_name is None
 
     def test_flag_on_merge_conflict_keyword_bypasses_default_first(self, tmp_path):
-        """A bead without the label but whose title/description matches the
+        """A task without the label but whose title/description matches the
         merge_conflict Focus keywords also bypasses the cost optimization.
         Detection mirrors the Focus's keyword set so users describing the work
         in plain English still get the safety rails.
@@ -653,15 +653,15 @@ class TestDispatchWithDefaultFirstDispatch:
         assert "deep" in dispatched_profile
 
     def test_flag_on_ci_fix_label_bypasses_default_first(self, tmp_path):
-        """With flag=True, beads carrying the 'ci-fix' label bypass the
+        """With flag=True, tasks carrying the 'ci-fix' label bypass the
         cost optimization (oompah-zlz_2-0pr). The ci_fix Focus has strict
         must_not_do rails (no new branch, no new PR) that the default
         profile cannot enforce on its own — so we want the natural
         specialist on the FIRST dispatch, not after a bounce.
         """
         orch = self._make_orch_with_mocks(tmp_path, default_first_dispatch=True)
-        # Bug-typed bead with the ci-fix label — like the trickle-icl
-        # bead from the issue's live evidence.
+        # Bug-typed task with the ci-fix label — like the trickle-icl
+        # task from the issue's live evidence.
         issue = _make_issue(
             issue_type="bug",
             labels=["ci-fix"],
@@ -677,7 +677,7 @@ class TestDispatchWithDefaultFirstDispatch:
         asyncio.run(orch._dispatch(issue, attempt=None))
 
         assert "default" not in dispatched_profile, (
-            "ci-fix bead was dispatched on default profile — "
+            "ci-fix task was dispatched on default profile — "
             "default_first_dispatch carve-out failed"
         )
         # They get the natural match (deep for type=bug in our test profile set).
@@ -781,7 +781,7 @@ class TestIsSafetyCriticalIssue:
         assert orch._is_safety_critical_issue(issue) is False
 
     def test_ci_fix_label_match(self, tmp_path):
-        """oompah-zlz_2-0pr: ci-fix beads should be safety-critical too."""
+        """oompah-zlz_2-0pr: ci-fix tasks should be safety-critical too."""
         orch = _make_orchestrator(tmp_path)
         issue = _make_issue(labels=["ci-fix"])
         assert orch._is_safety_critical_issue(issue) is True
@@ -792,7 +792,7 @@ class TestIsSafetyCriticalIssue:
         assert orch._is_safety_critical_issue(issue) is True
 
     def test_ci_fix_keyword_match_in_description(self, tmp_path):
-        """A bead describing CI failure work without the label still matches."""
+        """A task describing CI failure work without the label still matches."""
         orch = _make_orchestrator(tmp_path)
         issue = _make_issue(
             description="The tier-c-windows-nvidia job is failing on PR #23.",
@@ -974,7 +974,7 @@ def _make_profiles_with_acp_default() -> list[AgentProfile]:
     incident on 2026-05-07: the safety-critical carve-out skipped
     default_first_dispatch and routed trickle-6zi through the
     api-mode 'standard' profile, which then hit token-rate-limit
-    cascades. With the lfy fix, carved-out beads should land on
+    cascades. With the lfy fix, carved-out tasks should land on
     the ACP-enabled 'default' profile instead.
     """
     return [
@@ -1117,9 +1117,9 @@ class TestSafetyCriticalAcpRouting:
     """Tests for the safety-critical ACP-routing carve-out (oompah-zlz_2-lfy).
 
     Acceptance criteria:
-    - merge-conflict / ci-fix bead with non-ACP natural → ACP profile
-    - merge-conflict / ci-fix bead with ACP natural → unchanged
-    - non-carved-out bead → default_first_dispatch behavior preserved
+    - merge-conflict / ci-fix task with non-ACP natural → ACP profile
+    - merge-conflict / ci-fix task with ACP natural → unchanged
+    - non-carved-out task → default_first_dispatch behavior preserved
     - Telemetry: log line includes both ACP profile name AND natural profile name
     """
 
@@ -1163,7 +1163,7 @@ class TestSafetyCriticalAcpRouting:
         asyncio.run(orch._dispatch(issue, attempt=None))
 
         assert "default" in dispatched, (
-            "safety-critical bead with non-ACP natural profile was NOT "
+            "safety-critical task with non-ACP natural profile was NOT "
             "routed to the ACP profile — lfy fix didn't fire"
         )
         assert "deep" not in dispatched
@@ -1259,10 +1259,10 @@ class TestSafetyCriticalAcpRouting:
         # No swap happened, so natural_profile_name stays None
         assert entry.natural_profile_name is None
 
-    def test_non_carved_out_bead_is_unaffected(self, tmp_path):
+    def test_non_carved_out_task_is_unaffected(self, tmp_path):
         """A regular bug (no merge-conflict / ci-fix label) still uses
         default_first_dispatch normally — the lfy fix only kicks in
-        for safety-critical beads.
+        for safety-critical tasks.
         """
         orch = self._make_orch_with_mocks(
             tmp_path, profiles=_make_profiles_with_acp_default(),
@@ -1318,9 +1318,9 @@ class TestSafetyCriticalAcpRouting:
     def test_carve_out_skipped_when_default_first_dispatch_off(self, tmp_path):
         """When default_first_dispatch is OFF entirely, the lfy fix
         should still apply on first dispatch — the carve-out logic is
-        about safety-critical beads, not the default_first_dispatch
+        about safety-critical tasks, not the default_first_dispatch
         flag. Verify this regression: a flag=False operator should
-        still get ACP routing for ci-fix / merge-conflict beads.
+        still get ACP routing for ci-fix / merge-conflict tasks.
         """
         orch = self._make_orch_with_mocks(
             tmp_path,
@@ -1340,7 +1340,7 @@ class TestSafetyCriticalAcpRouting:
         orch._run_worker = capture
         asyncio.run(orch._dispatch(issue, attempt=None))
 
-        # Even with flag=False, safety-critical beads route to ACP
+        # Even with flag=False, safety-critical tasks route to ACP
         assert "default" in dispatched
         entry = orch.state.running.get(issue.id)
         assert entry.agent_profile_name == "default"
@@ -1408,7 +1408,7 @@ class TestSafetyCriticalAcpRouting:
         orch = _make_orchestrator(tmp_path, default_first_dispatch=True)
         orch.config.agent_profiles = _make_profiles_with_acp_default()
 
-        # Safety-critical bead whose natural profile (deep) is non-ACP.
+        # Safety-critical task whose natural profile (deep) is non-ACP.
         # Dispatch will swap to 'default' (mode=acp), so the gate must
         # report True.
         issue = _make_issue(
@@ -1426,7 +1426,7 @@ class TestSafetyCriticalAcpRouting:
         assert orch._would_dispatch_via_acp(regular) is False
 
     def test_would_dispatch_via_acp_no_acp_profile(self, tmp_path):
-        """Without any ACP profile, even safety-critical beads return
+        """Without any ACP profile, even safety-critical tasks return
         False — there's no ACP path to bypass the budget through.
         """
         orch = _make_orchestrator(tmp_path)

@@ -7,7 +7,7 @@ from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
 
 
 def _make_issue(**kwargs):
-    defaults = dict(id="1", identifier="beads-001", title="Fix the bug", state="open")
+    defaults = dict(id="1", identifier="tasks-001", title="Fix the bug", state="open")
     defaults.update(kwargs)
     return Issue(**defaults)
 
@@ -17,13 +17,13 @@ class TestRenderPrompt:
         issue = _make_issue()
         template = "Working on {{ issue.identifier }}: {{ issue.title }}"
         result = render_prompt(template, issue)
-        assert "beads-001" in result
+        assert "tasks-001" in result
         assert "Fix the bug" in result
 
     def test_empty_template_fallback(self):
         issue = _make_issue()
         result = render_prompt("  ", issue)
-        assert "beads-001" in result
+        assert "tasks-001" in result
         assert "Fix the bug" in result
 
     def test_with_attempt(self):
@@ -71,7 +71,7 @@ class TestBuildContinuationPrompt:
     def test_contains_info(self):
         issue = _make_issue()
         result = build_continuation_prompt(issue, 5, 20)
-        assert "beads-001" in result
+        assert "tasks-001" in result
         assert "turn 5" in result
         assert "20" in result
         assert "open" in result
@@ -373,7 +373,7 @@ class TestTrackerIdentityTemplateVars:
     """Tests for tracker_kind / provider_url / display_identifier / project_id
     being exposed to Liquid templates."""
 
-    def test_tracker_kind_empty_for_legacy_issue(self):
+    def test_tracker_kind_empty_when_not_set(self):
         issue = _make_issue()  # no tracker_kind set
         template = "kind=[{{ issue.tracker_kind }}]"
         out = render_prompt(template, issue)
@@ -418,24 +418,17 @@ class TestTrackerIdentityTemplateVars:
 
 class TestTrackerSpecificConditionalRendering:
     """Verify WORKFLOW.md-style conditional blocks render correctly for
-    each tracker kind (TASK-460.2 acceptance criteria)."""
+    each supported tracker kind."""
 
     # Minimal mock of the WORKFLOW.md conditional quick-reference section.
     _TRACKER_SECTION_TEMPLATE = """\
-{% if issue.tracker_kind == "github_issues" or issue.tracker_kind == "oompah_md" %}
 ## oompah Task Reference
 view: `oompah task view {{ issue.identifier }}`
 comment: `oompah task comment {{ issue.identifier }} --message "..." --author oompah`
 create: `oompah task create --project {{ issue.project_id }} --title "..."`
 close: `oompah task set-status {{ issue.identifier }} Done --summary "..."`
 {% if issue.provider_url != "" %}GitHub Issue: {{ issue.provider_url }}{% endif %}
-{% else %}
-## Backlog.md Quick Reference
-view: `backlog task view {{ issue.identifier }} --plain`
-comment: `backlog task edit {{ issue.identifier }} --comment "..." --comment-author oompah --plain`
-create: `backlog task create "..." --priority medium --plain`
-close: `backlog task edit {{ issue.identifier }} --status Done --final-summary "..." --plain`
-{% endif %}"""
+"""
 
     def test_github_backed_shows_oompah_commands(self):
         issue = _make_issue(
@@ -451,10 +444,6 @@ close: `backlog task edit {{ issue.identifier }} --status Done --final-summary "
         assert "oompah task create --project proj-gh" in out
         assert "oompah task set-status" in out
         assert "GitHub Issue: https://github.com/owner/repo/issues/42" in out
-        # No backlog commands
-        assert "backlog task view" not in out
-        assert "backlog task edit" not in out
-        assert "backlog task create" not in out
 
     def test_native_oompah_markdown_shows_oompah_commands(self):
         issue = _make_issue(
@@ -467,23 +456,6 @@ close: `backlog task edit {{ issue.identifier }} --status Done --final-summary "
         assert "oompah task comment OVA-12" in out
         assert "oompah task create --project proj-ova" in out
         assert "oompah task set-status OVA-12" in out
-        assert "backlog task view" not in out
-        assert "backlog task edit" not in out
-
-    def test_legacy_backlog_shows_backlog_commands(self):
-        issue = _make_issue(
-            identifier="TASK-123",
-            tracker_kind=None,  # legacy — no tracker_kind set
-        )
-        out = render_prompt(self._TRACKER_SECTION_TEMPLATE, issue)
-        # backlog commands present
-        assert "backlog task view TASK-123 --plain" in out
-        assert "backlog task edit TASK-123 --comment" in out
-        assert "backlog task create" in out
-        assert "backlog task edit TASK-123 --status Done" in out
-        # No oompah commands
-        assert "oompah task view" not in out
-        assert "oompah task comment" not in out
 
     def test_github_backed_omits_provider_url_when_empty(self):
         issue = _make_issue(
@@ -525,9 +497,6 @@ close: `backlog task edit {{ issue.identifier }} --status Done --final-summary "
         assert "oompah Task Reference" in out
         assert "oompah task view" in out
         assert "oompah task set-status" in out
-        # Must NOT include backlog task create/edit for GitHub tasks
-        assert "backlog task edit owner/repo#99" not in out
-        assert "backlog task create" not in out
 
     def test_workflow_md_renders_for_native_oompah_markdown_issue(self):
         """End-to-end: native Markdown tracker tasks use oompah task commands."""
@@ -554,42 +523,11 @@ close: `backlog task edit {{ issue.identifier }} --status Done --final-summary "
         assert "oompah Task Reference" in out
         assert "oompah task view OVA-12" in out
         assert "oompah task set-status OVA-12" in out
-        assert "Backlog.md Quick Reference" not in out
-        assert "backlog task edit OVA-12" not in out
-        assert "backlog task create" not in out
-
-    def test_workflow_md_renders_for_legacy_issue(self):
-        """End-to-end: the actual WORKFLOW.md renders for a legacy Backlog issue
-        and includes backlog commands."""
-        import os
-        workflow_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "WORKFLOW.md"
-        )
-        if not os.path.isfile(workflow_path):
-            pytest.skip("WORKFLOW.md not found")
-        with open(workflow_path) as f:
-            raw = f.read()
-        parts = raw.split("---", 2)
-        template_source = parts[2].strip() if len(parts) == 3 else raw
-
-        issue = _make_issue(
-            identifier="TASK-999",
-            title="Legacy backlog task",
-            tracker_kind=None,
-            branch_name="TASK-999",
-        )
-        out = render_prompt(template_source, issue)
-        assert isinstance(out, str)
-        assert "Backlog.md Quick Reference" in out
-        assert "backlog task view TASK-999 --plain" in out
-        assert "backlog task edit TASK-999 --status Done" in out
-        # Must NOT include oompah task commands (except search which is backlog)
-        assert "oompah task set-status" not in out
 
 
 class TestSourceMetadataInFollowUpCommands:
     """Verify that WORKFLOW.md follow-up task examples include source metadata
-    for both GitHub-backed and legacy Backlog tracker kinds (TASK-460.3 AC#2)."""
+    for supported tracker kinds."""
 
     def _load_workflow_template(self) -> str:
         import os
@@ -616,20 +554,8 @@ class TestSourceMetadataInFollowUpCommands:
         # The follow-up task line should include --source with the issue identifier
         assert "--source owner/repo#123" in out
 
-    def test_legacy_follow_up_includes_source_in_description(self):
-        """Legacy Backlog: 'backlog task create' follow-up embeds source identifier in description."""
-        template_source = self._load_workflow_template()
-        issue = _make_issue(
-            identifier="TASK-456",
-            tracker_kind=None,
-            branch_name="TASK-456",
-        )
-        out = render_prompt(template_source, issue)
-        # The follow-up description should reference the source task
-        assert "Follow-up from TASK-456" in out
-
-    def test_github_follow_up_does_not_include_backlog_source(self):
-        """GitHub-backed: rendered follow-up does NOT mention 'Follow-up from ...' (legacy pattern)."""
+    def test_github_follow_up_uses_source_flag(self):
+        """GitHub-backed rendered follow-up uses structured source metadata."""
         template_source = self._load_workflow_template()
         issue = _make_issue(
             identifier="owner/repo#99",
@@ -638,7 +564,7 @@ class TestSourceMetadataInFollowUpCommands:
             branch_name="gh-99",
         )
         out = render_prompt(template_source, issue)
-        # The legacy pattern should not appear in GitHub-backed prompts
+        # Free-form source prose should not replace structured source metadata.
         assert "Follow-up from owner/repo#99" not in out
         # But the oompah --source pattern should appear
         assert "--source owner/repo#99" in out

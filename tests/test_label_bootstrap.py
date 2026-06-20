@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from oompah.label_bootstrap import (
     INTAKE_REQUIRED_LABELS,
     REQUIRED_LABEL_NAMES,
@@ -61,7 +59,6 @@ def _project(**overrides) -> Project:
         "tracker_kind": "github_issues",
         "tracker_owner": "NVIDIA-Omniverse",
         "tracker_repo": "trickle",
-        "tracker_cutover_at": datetime(2026, 6, 10, tzinfo=timezone.utc),
     }
     values.update(overrides)
     return Project(**values)
@@ -177,38 +174,18 @@ def test_validate_project_config_accepts_complete_github_project() -> None:
     assert validate_project_config_warnings(_project()) == []
 
 
-def test_validate_project_config_reports_actor_and_cutover_errors() -> None:
-    project = _project(tracker_cutover_at="not-a-datetime")  # type: ignore[arg-type]
+def test_validate_project_config_reports_actor_errors() -> None:
+    project = _project()
     project.status_label_authorized_logins = ["alice", "Alice", ""]
-    project.legacy_backlog_enabled = False
-    project.legacy_backlog_dispatch = True
 
     errors = validate_project_config(project)
 
     assert any("duplicate login" in error for error in errors)
     assert any("non-empty string" in error for error in errors)
-    assert any("legacy_backlog_dispatch" in error for error in errors)
-    assert any("tracker_cutover_at" in error for error in errors)
 
 
-def test_missing_cutover_is_warning_not_bootstrap_blocker() -> None:
-    project = _project(tracker_cutover_at=None, legacy_backlog_enabled=True)
-    client = FakeGitHubClient(existing=[name for name, _, _ in _TEST_LABELS])
-
-    results = ensure_github_labels(
-        [project],
-        labels=_TEST_LABELS,
-        client_factory=lambda _project: client,
-    )
-
-    result = results["proj-gh"]
-    assert result.success is True
-    assert result.config_warnings
-    assert "tracker_cutover_at" in result.config_warnings[0]
-
-
-def test_github_only_project_without_cutover_does_not_warn() -> None:
-    project = _project(tracker_cutover_at=None, legacy_backlog_enabled=False)
+def test_github_project_without_optional_warnings() -> None:
+    project = _project()
     client = FakeGitHubClient(existing=[name for name, _, _ in _TEST_LABELS])
 
     results = ensure_github_labels(
@@ -224,9 +201,9 @@ def test_github_only_project_without_cutover_does_not_warn() -> None:
 
 
 def test_ensure_github_labels_skips_non_github_projects() -> None:
-    legacy = _project(
-        id="proj-legacy",
-        tracker_kind="backlog",
+    native = _project(
+        id="proj-native",
+        tracker_kind="oompah_md",
         tracker_owner=None,
         tracker_repo=None,
     )
@@ -234,7 +211,7 @@ def test_ensure_github_labels_skips_non_github_projects() -> None:
     client = FakeGitHubClient(existing=[name for name, _, _ in _TEST_LABELS])
 
     results = ensure_github_labels(
-        [legacy, github],
+        [native, github],
         labels=_TEST_LABELS,
         client_factory=lambda _project: client,
     )

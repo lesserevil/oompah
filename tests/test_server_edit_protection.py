@@ -1,6 +1,6 @@
 """Tests for edit-state protection in the dashboard JavaScript.
 
-When a user is inline-editing a bead's title or description in the web UI,
+When a user is inline-editing a task's title or description in the web UI,
 incoming WebSocket updates must NOT overwrite what the user is typing.
 These tests verify that the JavaScript in DASHBOARD_HTML contains the
 necessary edit-state tracking and deferred-render logic.

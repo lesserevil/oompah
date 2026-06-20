@@ -33,7 +33,7 @@ and frontend JS errors. Behavioral misbehaviors never get recorded.
 | **Dedup grain** (Q2) | Per-fingerprint across all time. Each filed tracker task carries a note/comment listing the latest 5 occurrences (issue id, turn, ts). |
 | **Live or post-mortem** (Q3) | Post-mortem only for v1. Live wires can be added later if post-mortem evidence shows a pattern that needs to be caught mid-flight. |
 | **commit_without_close source** (Q4) | Both: tool stream check (did the agent call the tracker-specific close operation?) AND a tracker re-query at end of run (is it actually terminal, possibly by the operator via UI). Only file the report when both say no. |
-| **Annotate original or new task** (Q5) | Both. Add a comment on the original issue so the next agent dispatched on it sees the prior misbehavior, AND file a new deferred/backlog tracker task for the operator-facing fix. |
+| **Annotate original or new task** (Q5) | Both. Add a comment on the original issue so the next agent dispatched on it sees the prior misbehavior, AND file a new deferred tracker task for the operator-facing fix. |
 | **Truncated runs** (Q6) | Scan partial logs anyway, tag the report with `partial_run: true` so operators don't over-read. |
 
 ## Architecture
@@ -43,7 +43,7 @@ Mirror the existing `ErrorWatcher` split.
 ### Layer 1 — `AgentWatcher` (post-mortem, default)
 
 Tails completed agent JSONL log files. Runs detectors over the full event
-stream, files one deferred/backlog task per *unique* fingerprint, with the existing
+stream, files one deferred task per *unique* fingerprint, with the existing
 issue annotated.
 
 Trigger: orchestrator calls `AgentWatcher.scan_log(log_path, issue_id,
@@ -86,8 +86,7 @@ fingerprint.
 
 ## Filing protocol
 
-Mirrors `ErrorWatcher`, using the configured tracker backend (`beads` or
-Backlog.md; not beans):
+Mirrors `ErrorWatcher`, using the configured tracker backend:
 
 ```
 title:        "[agent-misbehavior:<category>] <issue_id>: <short_summary>"
@@ -105,7 +104,7 @@ notes (Q2):   updated each occurrence with last 5 (issue, turn, ts)
 turn numbers, timestamps, and per-issue identifiers. Same
 `_DEDUP_WINDOW_SECONDS` and `_MAX_FINGERPRINTS` policy as `ErrorWatcher`.
 
-So the same loop pattern across 50 runs files 1 deferred/backlog task, not 50.
+So the same loop pattern across 50 runs files 1 deferred task, not 50.
 Each new occurrence within the window just appends to the filed task's
 note/comment and refreshes `last_seen`. Outside the window, a new task is
 filed.

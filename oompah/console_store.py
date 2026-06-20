@@ -36,7 +36,7 @@ Design notes
   raise — the console session would otherwise become un-resumable.
 
 * **Out of scope.** SDK integration, replay logic, event normalization,
-  rotation/compaction, and cross-process safety are downstream beads.
+  rotation/compaction, and cross-process safety are downstream tasks.
 """
 
 from __future__ import annotations

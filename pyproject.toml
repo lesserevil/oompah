@@ -29,20 +29,20 @@ server = [
 # Claude ACP backend: drives the bundled `claude` CLI via the Claude Agent
 # SDK so ACP-mode dispatches bill against the operator's Pro/Max
 # subscription rather than the per-token API meter.
-# See docs/acp-agent.md and bead oompah-zlz_2-bcl.
+# See docs/acp-agent.md.
 claude = [
     "claude-agent-sdk>=0.1.0",
 ]
 # Codex ACP backend: drives OpenAI's Codex CLI via the openai-agents SDK.
 # Pin verified against the TResponseInputItem union shape; see
-# tests/test_codex_sdk_shape_smoke.py and bead oompah-zlz_2-jrkz.1.
+# tests/test_codex_sdk_shape_smoke.py.
 codex = [
     "openai-agents>=0.17.2,<0.18",
 ]
 # Granian ASGI server: opt-in replacement for uvicorn (--server granian).
 # Granian is a Rust/Tokio ASGI server with ~+23% HTTP throughput vs uvicorn
 # in single-worker mode.  Must be installed to use `oompah --server granian`
-# or `make run-granian`.  See TASK-472 / backlog/docs/doc-1 for background.
+# or `make run-granian`.
 granian = [
     "granian>=1.0",
 ]
@@ -67,7 +67,7 @@ dev = [
     "httpx>=0.27",
     # ACP backends: installed in CI so tests that import claude_agent_sdk
     # or openai_agents (via oompah.acp_tools / oompah.acp_backends.claude)
-    # can run.  See bead oompah-zlz_2-bqkz.
+    # can run.
     "claude-agent-sdk>=0.1.0",
     "openai-agents>=0.17.2,<0.18",
     # Granian: included so the granian import guard tests can run.

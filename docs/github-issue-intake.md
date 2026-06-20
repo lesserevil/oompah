@@ -4,19 +4,14 @@ This document describes how new GitHub issues enter an oompah-managed project
 and advance from `Proposed` through intake validation to a dispatchable `Open`
 state.
 
-See `docs/cutover-workflow.md` for the operator steps to cut a project over
-from Backlog.md to GitHub Issues, and `plans/github-issues-tracker-migration.md`
-for full architecture background.
-
----
-
 ## Overview
 
-oompah uses **GitHub Issues** as the canonical task tracker for managed
-projects after the GitHub Issues cutover.  Anyone with access to the managed
-repository can file a GitHub issue.  However, a freshly filed issue does not
-immediately become eligible for agent dispatch — it must pass through the
-intake workflow first.
+oompah uses **GitHub Issues** as customer-facing intake for managed projects.
+The canonical internal task record lives in oompah's native Markdown tracker.
+Anyone with access to the managed repository can file a GitHub issue. However,
+a freshly filed issue does not immediately become eligible for agent dispatch:
+it must pass through intake validation before oompah creates or updates the
+corresponding internal task.
 
 ```mermaid
 flowchart TD
@@ -25,7 +20,8 @@ flowchart TD
     C -- Required info missing --> D[oompah records missing fields; issue stays Proposed]
     D --> E[Requestor edits the issue body]
     E --> C
-    C -- Info complete --> G[Issue moves to Backlog]
+    C -- Info complete --> F[oompah creates internal native task]
+    F --> G[Internal task moves to Backlog]
     G --> H{Owner review}
     H -- Accepted for work --> I[Owner applies oompah:status:open]
     I --> J[Issue is dispatchable; oompah picks it up]
@@ -88,12 +84,13 @@ dashboard-visible intake summary explaining what is needed.  The requestor
 should update the original issue body.  oompah re-validates on the next
 webhook or polling refresh.
 
-### Step 3 — Backlog promotion
+### Step 3 — Internal task creation and Backlog promotion
 
-Once intake validation passes, oompah applies the `oompah:status:backlog`
-label and moves the issue into the `Backlog` queue. Validation metadata updates
-do not rewrite the requestor-authored issue content, so no separate requestor
-approval is required for ordinary well-formed issues.
+Once intake validation passes, oompah creates or updates the corresponding
+internal native Markdown task and moves that task into the `Backlog` queue.
+Validation metadata updates do not rewrite the requestor-authored issue
+content, so no separate requestor approval is required for ordinary
+well-formed issues.
 
 If oompah creates a decomposition proposal for an oversized issue, explicit
 approval can still be required before that generated proposal is applied.
@@ -115,16 +112,16 @@ GitHub login to the project's `status_label_authorized_logins` setting.
 
 ### Step 4 — Backlog
 
-Once the `oompah:status:backlog` label is applied by oompah or another
-authorized actor, the issue appears in the oompah dashboard but is still **not
-dispatched** to an agent.  `Backlog` is the holding state for validated work
-that has not yet been prioritized for active development.
+Once oompah moves the internal task to `Backlog`, the task appears in the
+oompah dashboard but is still **not dispatched** to an agent. `Backlog` is the
+holding state for validated work that has not yet been prioritized for active
+development.
 
 Project owners can use the oompah dashboard or `oompah task set-status` to
 manage the backlog:
 
 ```bash
-# Move an issue from Proposed to Backlog (requires validator pass, unless owner override)
+# Move an internal task from Proposed to Backlog (requires validator pass, unless owner override)
 oompah task set-status owner/repo#123 Backlog
 
 # View the current state of an issue
@@ -133,8 +130,8 @@ oompah task view owner/repo#123
 
 ### Step 5 — Open (dispatchable)
 
-When the project owner is ready for oompah to work on the issue, they advance
-it to `Open` by applying `oompah:status:open`:
+When the project owner is ready for oompah to work on the task, they advance
+it to `Open`:
 
 ```bash
 oompah task set-status owner/repo#123 Open
@@ -217,10 +214,3 @@ or `Open` without a `Proposed` review step.  This is supported — authorized
 actors can apply any status label directly, bypassing `Proposed` entirely.
 The `Proposed` stage is a convention enforced only when the project operator
 uses it as part of their intake process.
-
-### Legacy Backlog.md projects
-
-For projects still using `Backlog.md` as the task tracker (i.e.
-`tracker_kind` is not `github_issues`), this intake workflow does not apply.
-Use the Backlog.md CLI to manage issue status for those projects.  See
-`docs/cutover-workflow.md` to migrate a project to GitHub Issues.

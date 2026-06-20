@@ -12,8 +12,8 @@ into :meth:`~oompah.orchestrator.Orchestrator._reconcile_release_picks_pass`).
 It performs four operations:
 
 1. **Create child tasks** for ``waiting`` entries that have no matching child
-   yet.  The child task is created under the source task (as a Backlog
-   parent-child), carries ``oompah.backport_of`` pointing back to the source,
+   yet.  The child task is created under the source task as a native
+   parent-child relationship, carries ``oompah.backport_of`` pointing back to the source,
    and has ``oompah.target_branch`` set to the target branch name.  A
    target-branch worktree is also created (via ``project_store``) so that the
    cherry-pick agent has an isolated working copy rooted at
@@ -520,7 +520,7 @@ def _post_conflict_source_comment(
     """Post an actionable conflict comment on the *source* task.
 
     Called when a cherry-pick conflict is detected so that operators watching
-    the source GitHub Issue (or Backlog task) are alerted and can take action.
+    the source task are alerted and can take action.
     The child task already gets a diagnostic comment (from
     :func:`~oompah.cherry_pick_pr_creator.cherry_pick_push_and_open_pr`);
     this adds a parallel, human-readable notice to the source.
@@ -802,7 +802,7 @@ def _create_backport_child(
 
     The new task:
 
-    * Has the source task as its Backlog parent (``--parent``).
+    * Has the source task as its parent.
     * Title: ``"Backport <source.title> to <entry.branch>"``.
     * ``backport`` label.
     * ``oompah.backport_of`` frontmatter pointing at the source.

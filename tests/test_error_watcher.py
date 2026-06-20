@@ -5,11 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import subprocess
 import tempfile
 import time
-from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -18,12 +15,10 @@ from oompah.error_watcher import (
     ErrorWatcher,
     LogFileWatcher,
     ProjectLogWatcherManager,
-    _COMMIT_TRAILER,
     _detect_error_level,
     _extract_message,
     _priority_for_level,
 )
-from oompah.tracker import BacklogMdTracker
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +121,7 @@ class TestErrorWatcher:
         watcher = ErrorWatcher(tracker)
         return watcher, tracker
 
-    def test_report_error_creates_bead(self):
+    def test_report_error_creates_task(self):
         watcher, tracker = self._make_watcher()
         result = watcher.report_error("test", "something broke")
         assert result == "test-001"
@@ -138,10 +133,10 @@ class TestErrorWatcher:
         watcher, tracker = self._make_watcher()
         watcher.report_error("test", "same error")
         watcher.report_error("test", "same error")
-        # Should only create one bead
+        # Should only create one task
         assert tracker.create_issue.call_count == 1
 
-    def test_different_errors_create_separate_beads(self):
+    def test_different_errors_create_separate_tasks(self):
         watcher, tracker = self._make_watcher()
         watcher.report_error("test", "error one")
         watcher.report_error("test", "error two")
@@ -162,141 +157,6 @@ class TestErrorWatcher:
         title = call_kwargs.kwargs.get("title", "")
         assert len(title) <= 200
 
-
-def _git(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-
-
-def _init_git_backlog_repo(
-    tmp_path: Path,
-    *,
-    with_remote: bool,
-) -> tuple[Path, Path | None]:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    origin = tmp_path / "origin.git" if with_remote else None
-    if origin is not None:
-        _git(["init", "--bare", str(origin)])
-    _git(["init", "-b", "main"], cwd=repo)
-    _git(["config", "user.name", "Tester"], cwd=repo)
-    _git(["config", "user.email", "tester@example.com"], cwd=repo)
-
-    backlog_dir = repo / "backlog"
-    (backlog_dir / "tasks").mkdir(parents=True)
-    (backlog_dir / "config.yml").write_text(
-        "project_name: test\n"
-        "statuses: [Backlog, Open, In Progress, Done]\n"
-        "labels: []\n"
-        "task_prefix: task\n"
-        "default_status: Backlog\n",
-        encoding="utf-8",
-    )
-    _git(["add", "backlog/config.yml"], cwd=repo)
-    _git(["commit", "-m", "Initial backlog config"], cwd=repo)
-    if origin is not None:
-        _git(["remote", "add", "origin", str(origin)], cwd=repo)
-        _git(["push", "-u", "origin", "main"], cwd=repo)
-    return repo, origin
-
-
-def _write_error_task(repo: Path, identifier: str, title: str) -> Path:
-    task_number = identifier.split("-", 1)[-1].lower()
-    path = repo / "backlog" / "tasks" / f"task-{task_number} - ErrorWatcher-test.md"
-    path.write_text(
-        f"""---
-id: {identifier}
-title: {title}
-status: Backlog
-assignee: []
-created_date: '2026-06-03 04:35'
-labels:
-  - bug
-dependencies: []
-priority: medium
-ordinal: 1
----
-
-## Description
-
-<!-- SECTION:DESCRIPTION:BEGIN -->
-{title}
-<!-- SECTION:DESCRIPTION:END -->
-""",
-        encoding="utf-8",
-    )
-    return path
-
-
-class TestErrorWatcherGitPersistence:
-    def test_report_error_commits_and_pushes_only_created_task(self, tmp_path):
-        repo, origin = _init_git_backlog_repo(tmp_path, with_remote=True)
-        assert origin is not None
-        tracker = BacklogMdTracker(
-            active_states=["Open"],
-            terminal_states=["Done"],
-            cwd=str(repo),
-        )
-        task_path: Path | None = None
-
-        def create_issue(**_kwargs):
-            nonlocal task_path
-            task_path = _write_error_task(repo, "TASK-900", "ErrorWatcher test")
-            return SimpleNamespace(identifier="TASK-900")
-
-        tracker.create_issue = create_issue
-        (repo / "notes.txt").write_text("unrelated local work\n", encoding="utf-8")
-        (repo / "staged.txt").write_text("pre-staged user work\n", encoding="utf-8")
-        _git(["add", "staged.txt"], cwd=repo)
-
-        result = ErrorWatcher(tracker).report_error("frontend", "boom")
-
-        assert result == "TASK-900"
-        assert task_path is not None
-        rel_path = task_path.relative_to(repo).as_posix()
-        remote_show = subprocess.run(
-            ["git", "--git-dir", str(origin), "show", f"main:{rel_path}"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        assert "TASK-900" in remote_show.stdout
-
-        status_lines = _git(["status", "--short"], cwd=repo).stdout.splitlines()
-        assert "?? notes.txt" in status_lines
-        assert "A  staged.txt" in status_lines
-        assert not any("TASK-900" in line or "task-900" in line for line in status_lines)
-
-        message = _git(["log", "-1", "--pretty=%B"], cwd=repo).stdout
-        assert "Record ErrorWatcher task TASK-900" in message
-        assert _COMMIT_TRAILER in message
-
-    def test_report_error_returns_identifier_when_push_fails(self, tmp_path, caplog):
-        repo, _origin = _init_git_backlog_repo(tmp_path, with_remote=False)
-        tracker = BacklogMdTracker(
-            active_states=["Open"],
-            terminal_states=["Done"],
-            cwd=str(repo),
-        )
-
-        def create_issue(**_kwargs):
-            _write_error_task(repo, "TASK-901", "Push failure still returns")
-            return SimpleNamespace(identifier="TASK-901")
-
-        tracker.create_issue = create_issue
-        caplog.set_level(logging.WARNING)
-
-        result = ErrorWatcher(tracker).report_error("frontend", "push failed")
-
-        assert result == "TASK-901"
-        assert "git push failed after local commit" in caplog.text
-
-
 # ---------------------------------------------------------------------------
 # Tests for issue-aware error tracking + retry-success auto-close
 # (oompah-zlz_2-0nc)
@@ -306,28 +166,28 @@ class TestErrorWatcherGitPersistence:
 class TestErrorWatcherAutoClose:
     """Verify ErrorWatcher.report_error/auto_close_for_issue behavior."""
 
-    def _make_watcher(self, bead_id: str = "oompah-test-001"):
+    def _make_watcher(self, task_id: str = "oompah-test-001"):
         tracker = MagicMock()
         issue = MagicMock()
-        issue.identifier = bead_id
+        issue.identifier = task_id
         tracker.create_issue.return_value = issue
         watcher = ErrorWatcher(tracker)
         return watcher, tracker
 
     def test_report_error_with_issue_id_records_link(self):
         watcher, tracker = self._make_watcher()
-        bead = watcher.report_error(
+        task = watcher.report_error(
             "backend:worker",
             "transient errno 57",
             issue_id="orig-issue-123",
         )
-        assert bead == "oompah-test-001"
+        assert task == "oompah-test-001"
         # Find the seen record and verify the link.
         records = list(watcher._seen.values())
         assert len(records) == 1
         rec = records[0]
         assert rec.issue_id == "orig-issue-123"
-        assert rec.bead_id == "oompah-test-001"
+        assert rec.task_id == "oompah-test-001"
 
     def test_auto_close_with_no_issue_id_does_nothing(self):
         watcher, tracker = self._make_watcher()
@@ -342,7 +202,7 @@ class TestErrorWatcherAutoClose:
 
     def test_auto_close_after_retry_success(self):
         """fingerprint+issue_id, retry success → auto-closed."""
-        watcher, tracker = self._make_watcher(bead_id="oompah-test-001")
+        watcher, tracker = self._make_watcher(task_id="oompah-test-001")
         watcher.report_error(
             "backend:worker",
             "transient errno 57",
@@ -361,28 +221,28 @@ class TestErrorWatcherAutoClose:
         args, kwargs = tracker.close_issue.call_args
         assert args[0] == "oompah-test-001"
         assert "retry succeeded" in kwargs.get("reason", "")
-        # Record popped so a future error will create a fresh bead.
+        # Record popped so a future error will create a fresh task.
         assert not watcher._seen
 
     def test_auto_close_only_targets_matching_issue(self):
-        """Only beads tied to the matching issue_id get closed."""
+        """Only tasks tied to the matching issue_id get closed."""
         watcher, tracker = self._make_watcher()
-        # Two different beads, two different issues.
-        bead_a = MagicMock(); bead_a.identifier = "oompah-bead-A"
-        bead_b = MagicMock(); bead_b.identifier = "oompah-bead-B"
-        tracker.create_issue.side_effect = [bead_a, bead_b]
+        # Two different tasks, two different issues.
+        task_a = MagicMock(); task_a.identifier = "oompah-task-A"
+        task_b = MagicMock(); task_b.identifier = "oompah-task-B"
+        tracker.create_issue.side_effect = [task_a, task_b]
         watcher.report_error("backend:a", "first error", issue_id="issue-A")
         watcher.report_error("backend:b", "second error", issue_id="issue-B")
         # Move both records out of the quiet window
         for rec in watcher._seen.values():
             rec.last_created -= 120
         closed = watcher.auto_close_for_issue("issue-A")
-        assert closed == ["oompah-bead-A"]
+        assert closed == ["oompah-task-A"]
         # Only A was closed; B remains in _seen
-        remaining_beads = {r.bead_id for r in watcher._seen.values()}
-        assert remaining_beads == {"oompah-bead-B"}
+        remaining_tasks = {r.task_id for r in watcher._seen.values()}
+        assert remaining_tasks == {"oompah-task-B"}
 
-    def test_no_recovery_keeps_bead_deferred(self):
+    def test_no_recovery_keeps_task_deferred(self):
         """fingerprint+issue_id, no recovery → stays deferred."""
         watcher, tracker = self._make_watcher()
         watcher.report_error(
@@ -391,10 +251,10 @@ class TestErrorWatcherAutoClose:
             issue_id="orig-issue-456",
         )
         # auto_close is only called on retry success; never invoking it
-        # should leave the bead untouched.
+        # should leave the task untouched.
         tracker.close_issue.assert_not_called()
         assert len(watcher._seen) == 1
-        assert next(iter(watcher._seen.values())).bead_id is not None
+        assert next(iter(watcher._seen.values())).task_id is not None
 
     def test_auto_close_skipped_within_quiet_window(self):
         """Recent errors guard: don't close while fingerprint is hot."""
@@ -413,7 +273,7 @@ class TestErrorWatcherAutoClose:
         # Record stays in _seen so future success can still auto-close
         assert len(watcher._seen) == 1
 
-    def test_auto_close_skipped_when_bead_too_old(self):
+    def test_auto_close_skipped_when_task_too_old(self):
         """Stale records (>30 min) are skipped — operator owns them."""
         watcher, tracker = self._make_watcher()
         watcher.report_error(
@@ -431,10 +291,10 @@ class TestErrorWatcherAutoClose:
     def test_auto_close_chain_of_retries(self):
         """Multiple distinct errors → all auto-close on success."""
         watcher, tracker = self._make_watcher()
-        bead_a = MagicMock(); bead_a.identifier = "oompah-bead-A"
-        bead_b = MagicMock(); bead_b.identifier = "oompah-bead-B"
-        bead_c = MagicMock(); bead_c.identifier = "oompah-bead-C"
-        tracker.create_issue.side_effect = [bead_a, bead_b, bead_c]
+        task_a = MagicMock(); task_a.identifier = "oompah-task-A"
+        task_b = MagicMock(); task_b.identifier = "oompah-task-B"
+        task_c = MagicMock(); task_c.identifier = "oompah-task-C"
+        tracker.create_issue.side_effect = [task_a, task_b, task_c]
         # All three errors during the same issue's retry chain.
         watcher.report_error("backend:net", "errno 57", issue_id="issue-X")
         watcher.report_error("backend:net", "timeout", issue_id="issue-X")
@@ -442,7 +302,7 @@ class TestErrorWatcherAutoClose:
         for rec in watcher._seen.values():
             rec.last_created -= 120
         closed = watcher.auto_close_for_issue("issue-X")
-        assert sorted(closed) == ["oompah-bead-A", "oompah-bead-B", "oompah-bead-C"]
+        assert sorted(closed) == ["oompah-task-A", "oompah-task-B", "oompah-task-C"]
         assert tracker.close_issue.call_count == 3
         assert not watcher._seen
 
@@ -452,13 +312,13 @@ class TestErrorWatcherAutoClose:
         watcher.report_error("backend:x", "boom", issue_id="orig-y")
         for rec in watcher._seen.values():
             rec.last_created -= 120
-        tracker.close_issue.side_effect = Exception("bd unreachable")
+        tracker.close_issue.side_effect = Exception("tracker unreachable")
         # Should not raise; should return empty list.
         closed = watcher.auto_close_for_issue("orig-y")
         assert closed == []
 
     def test_dedup_path_records_issue_id_when_first_lacked_one(self):
-        """If a bead was first filed without issue context, a later
+        """If a task was first filed without issue context, a later
         same-fingerprint hit *with* issue context still hooks the link
         up so a future success can auto-close."""
         watcher, tracker = self._make_watcher()
@@ -502,7 +362,7 @@ class TestErrorWatcherAutoClose:
 class TestFingerprintNormalization:
     """Verify the fingerprint dedupes operationally-identical errors.
 
-    See oompah-zlz_2-ag7: a single Dolt slowdown produced 3 separate beads
+    See oompah-zlz_2-ag7: a single Dolt slowdown produced 3 separate tasks
     because the fingerprint hashed the full message. These tests pin the
     new normalization rules.
     """
@@ -541,40 +401,40 @@ class TestFingerprintNormalization:
 
     def test_project_name_collapses(self):
         w, _ = self._make_watcher()
-        a = "Fetch failed for project oompah: backlog command failed (exit 1): boom"
-        b = "Fetch failed for project trickle: backlog command failed (exit 1): boom"
+        a = "Fetch failed for project oompah: tracker command failed (exit 1): boom"
+        b = "Fetch failed for project trickle: tracker command failed (exit 1): boom"
         assert self._fp(w, a) == self._fp(w, b)
 
-    # --- new: Backlog command args stripped ---
+    # --- command argument handling ---
 
-    def test_backlog_subcommand_args_stripped(self):
-        """Different Backlog command args must collapse to one fingerprint."""
+    def test_tracker_subcommand_args_stay_distinct_without_error_class(self):
+        """Different tracker command args remain distinct without an explicit class."""
         w, _ = self._make_watcher()
         a = (
-            "Fetch failed for project oompah: backlog command timed out: "
-            "backlog task list --plain"
+            "Fetch failed for project oompah: tracker command timed out: "
+            "oompah task list --project proj"
         )
         b = (
-            "Fetch failed for project oompah: backlog command timed out: "
-            "backlog task edit TASK-16 --status Done --plain"
+            "Fetch failed for project oompah: tracker command timed out: "
+            "oompah task set-status TASK-16 Done --project proj"
         )
         c = (
-            "Fetch failed for project oompah: backlog command timed out: "
-            "backlog task view TASK-7 --plain"
+            "Fetch failed for project oompah: tracker command timed out: "
+            "oompah task view TASK-7 --project proj"
         )
-        assert self._fp(w, a) == self._fp(w, b)
-        assert self._fp(w, b) == self._fp(w, c)
+        assert self._fp(w, a) != self._fp(w, b)
+        assert self._fp(w, b) != self._fp(w, c)
 
-    def test_backlog_subcommand_args_stripped_across_projects(self):
-        """Combination: project name + Backlog args stripped -> all collapse."""
+    def test_same_tracker_command_collapses_across_projects(self):
+        """Project name normalization still collapses otherwise-identical failures."""
         w, _ = self._make_watcher()
         a = (
-            "Fetch failed for project oompah: backlog command timed out: "
-            "backlog task list --plain"
+            "Fetch failed for project oompah: tracker command timed out: "
+            "oompah task list --project proj"
         )
         b = (
-            "Fetch failed for project trickle: backlog command timed out: "
-            "backlog task edit TASK-42 --status Done --plain"
+            "Fetch failed for project trickle: tracker command timed out: "
+            "oompah task list --project proj"
         )
         assert self._fp(w, a) == self._fp(w, b)
 
@@ -606,19 +466,19 @@ class TestFingerprintNormalization:
     def test_error_class_collapses_disparate_messages(self):
         """Same root cause, completely different message templates → one fp."""
         w, _ = self._make_watcher()
-        a = "Fetch failed for project oompah: bd command timed out: bd list --json"
-        b = "Failed to fetch candidates: bd command timed out: bd list --json"
+        a = "Fetch failed for project oompah: tracker command timed out: tracker list --json"
+        b = "Failed to fetch candidates: tracker command timed out: tracker list --json"
         c = "Some entirely unrelated phrasing of a timeout"
         assert (
-            self._fp(w, a, error_class="bd_timeout")
-            == self._fp(w, b, error_class="bd_timeout")
-            == self._fp(w, c, error_class="bd_timeout")
+            self._fp(w, a, error_class="tracker_timeout")
+            == self._fp(w, b, error_class="tracker_timeout")
+            == self._fp(w, c, error_class="tracker_timeout")
         )
 
     def test_error_class_distinct_from_other_classes(self):
         w, _ = self._make_watcher()
-        a = self._fp(w, "anything", error_class="bd_timeout")
-        b = self._fp(w, "anything", error_class="bd_failed")
+        a = self._fp(w, "anything", error_class="tracker_timeout")
+        b = self._fp(w, "anything", error_class="tracker_failed")
         assert a != b
 
     def test_error_class_distinct_from_freeform(self):
@@ -626,13 +486,13 @@ class TestFingerprintNormalization:
         free-form fingerprint of the same message."""
         w, _ = self._make_watcher()
         msg = "something"
-        assert self._fp(w, msg) != self._fp(w, msg, error_class="bd_timeout")
+        assert self._fp(w, msg) != self._fp(w, msg, error_class="tracker_timeout")
 
     def test_error_class_ignores_source(self):
-        """Different sources, same error_class → still collapse to one bead."""
+        """Different sources, same error_class → still collapse to one task."""
         w, _ = self._make_watcher()
-        a = self._fp(w, "x", source="backend:tracker", error_class="bd_failed")
-        b = self._fp(w, "x", source="backend:orchestrator", error_class="bd_failed")
+        a = self._fp(w, "x", source="backend:tracker", error_class="tracker_failed")
+        b = self._fp(w, "x", source="backend:orchestrator", error_class="tracker_failed")
         assert a == b
 
     # --- regression: free-form path still distinguishes truly different errors ---
@@ -645,7 +505,7 @@ class TestFingerprintNormalization:
 
 
 class TestReportErrorWithErrorClass:
-    """End-to-end: report_error with error_class collapses to one bead."""
+    """End-to-end: report_error with error_class collapses to one task."""
 
     def _make_watcher(self):
         tracker = MagicMock()
@@ -654,43 +514,42 @@ class TestReportErrorWithErrorClass:
         tracker.create_issue.return_value = issue
         return ErrorWatcher(tracker), tracker
 
-    def test_three_messages_one_bead_with_error_class(self):
-        """Reproduces the oompah-zlz_2-ag7 scenario: 3 messages → 1 bead."""
+    def test_three_messages_one_task_with_error_class(self):
+        """Reproduces the oompah-zlz_2-ag7 scenario: 3 messages → 1 task."""
         watcher, tracker = self._make_watcher()
         watcher.report_error(
             "backend:orchestrator",
-            "Fetch failed for project oompah: backlog command timed out: backlog task list --plain",
-            error_class="backlog_timeout",
+            "Fetch failed for project oompah: tracker command timed out: oompah task list --project proj",
+            error_class="tracker_timeout",
         )
         watcher.report_error(
             "backend:orchestrator",
-            "Fetch failed for project trickle: backlog command timed out: backlog task list --plain",
-            error_class="backlog_timeout",
+            "Fetch failed for project trickle: tracker command timed out: oompah task list --project proj",
+            error_class="tracker_timeout",
         )
         watcher.report_error(
             "backend:tracker",
-            "Failed to fetch candidates: backlog command timed out: backlog task list --plain",
-            error_class="backlog_timeout",
+            "Failed to fetch candidates: tracker command timed out: oompah task list --project proj",
+            error_class="tracker_timeout",
         )
         assert tracker.create_issue.call_count == 1
 
     def test_no_error_class_falls_back_to_freeform(self):
-        """Without error_class, free-form normalization still applies — and
-        the new project/Backlog-args normalization collapses these to one."""
+        """Without error_class, free-form normalization still applies."""
         watcher, tracker = self._make_watcher()
         watcher.report_error(
             "backend:orchestrator",
-            "Fetch failed for project oompah: backlog command failed (exit 1): backlog task list --plain",
+            "Fetch failed for project oompah: tracker command failed (exit 1): oompah task list --project proj",
         )
         watcher.report_error(
             "backend:orchestrator",
-            "Fetch failed for project trickle: backlog command failed (exit 1): backlog task edit TASK-16 --status Done --plain",
+            "Fetch failed for project trickle: tracker command failed (exit 1): oompah task list --project proj",
         )
         # Same source, same template after normalization → collapsed.
         assert tracker.create_issue.call_count == 1
 
     def test_no_error_class_keeps_distinct_errors_distinct(self):
-        """Regression: different operational errors → different beads."""
+        """Regression: different operational errors → different tasks."""
         watcher, tracker = self._make_watcher()
         watcher.report_error("backend:disk", "disk full")
         watcher.report_error("backend:net", "permission denied")
@@ -701,22 +560,22 @@ class TestReportErrorWithErrorClass:
         watcher, tracker = self._make_watcher()
         watcher.report_error(
             "backend:orchestrator",
-            "Fetch failed for project oompah: backlog command timed out: backlog task list --plain",
-            error_class="backlog_timeout",
+            "Fetch failed for project oompah: tracker command timed out: oompah task list --project proj",
+            error_class="tracker_timeout",
         )
         call_kwargs = tracker.create_issue.call_args
         description = call_kwargs.kwargs.get("description", "")
-        assert "error_class=backlog_timeout" in description
-        assert "backlog task list --plain" in description
+        assert "error_class=tracker_timeout" in description
+        assert "oompah task list --project proj" in description
 
 
-class TestBeadLoggingHandlerErrorClass:
+class TestTaskLoggingHandlerErrorClass:
     """Logging handler must propagate ``extra={'error_class': ...}``."""
 
     def test_handler_passes_error_class_from_extra(self):
-        from oompah.error_watcher import _BeadLoggingHandler
+        from oompah.error_watcher import _TaskLoggingHandler
         watcher = MagicMock()
-        handler = _BeadLoggingHandler(watcher)
+        handler = _TaskLoggingHandler(watcher)
 
         # Build a LogRecord with error_class set via the standard "extra"
         # logging mechanism (Python adds the dict as record attributes).
@@ -725,24 +584,24 @@ class TestBeadLoggingHandlerErrorClass:
             level=logging.ERROR,
             pathname=__file__,
             lineno=1,
-            msg="bd command failed (exit 1): boom",
+            msg="tracker command failed (exit 1): boom",
             args=(),
             exc_info=None,
         )
-        record.error_class = "bd_failed"
+        record.error_class = "tracker_failed"
         record.module = "tracker"
 
         handler.emit(record)
 
         watcher.report_error.assert_called_once()
         kwargs = watcher.report_error.call_args.kwargs
-        assert kwargs["error_class"] == "bd_failed"
+        assert kwargs["error_class"] == "tracker_failed"
         assert kwargs["source"] == "backend:tracker"
 
     def test_handler_default_error_class_is_none(self):
-        from oompah.error_watcher import _BeadLoggingHandler
+        from oompah.error_watcher import _TaskLoggingHandler
         watcher = MagicMock()
-        handler = _BeadLoggingHandler(watcher)
+        handler = _TaskLoggingHandler(watcher)
 
         record = logging.LogRecord(
             name="oompah.foo",
@@ -1211,12 +1070,14 @@ class TestTrackerLabel:
     def _make_watcher(self, tracker, project_id=None):
         return ErrorWatcher(tracker, project_id=project_id)
 
-    def test_backlog_tracker_label(self):
-        """BacklogMdTracker is identified as 'backlog'."""
-        tracker = MagicMock(spec=BacklogMdTracker)
-        # spec=BacklogMdTracker makes isinstance(..., BacklogMdTracker) return True
+    def test_native_tracker_label(self):
+        """Unrecognised native trackers use their class name."""
+        class NativeTracker:
+            pass
+
+        tracker = NativeTracker()
         watcher = self._make_watcher(tracker)
-        assert watcher._tracker_label() == "backlog"
+        assert watcher._tracker_label() == "nativetracker"
 
     def test_github_tracker_label(self):
         """Trackers with owner/repo attributes are labelled as github_issues."""
@@ -1247,19 +1108,22 @@ class TestTrackerLabel:
 
 
 class TestAutoFiledTaskMetadata:
-    """Auto-filed error beads include tracker identity, source project, fingerprint."""
+    """Auto-filed error tasks include tracker identity, source project, fingerprint."""
 
     def _make_watcher(self, project_id=None, owner=None, repo=None):
-        tracker = MagicMock()
         issue = MagicMock()
-        issue.identifier = "bead-001"
-        tracker.create_issue.return_value = issue
+        issue.identifier = "task-001"
         if owner and repo:
+            tracker = MagicMock()
+            tracker.create_issue.return_value = issue
             tracker.owner = owner
             tracker.repo = repo
         else:
-            # Make it look like BacklogMdTracker for the label check
-            tracker.__class__ = BacklogMdTracker
+            class NativeTracker:
+                pass
+
+            tracker = NativeTracker()
+            tracker.create_issue = MagicMock(return_value=issue)
         watcher = ErrorWatcher(tracker, project_id=project_id)
         return watcher, tracker
 
@@ -1269,7 +1133,7 @@ class TestAutoFiledTaskMetadata:
         return call_kwargs.kwargs.get("description", "") or str(call_kwargs)
 
     def test_description_includes_source_project(self):
-        """Error bead description includes source_project from watcher's project_id."""
+        """Error task description includes source_project from watcher's project_id."""
         watcher, tracker = self._make_watcher(project_id="proj-abc")
         watcher.report_error("test", "something broke")
         desc = self._get_description(tracker)
@@ -1282,16 +1146,16 @@ class TestAutoFiledTaskMetadata:
         desc = self._get_description(tracker)
         assert "source_project: global" in desc
 
-    def test_description_includes_tracker_label_backlog(self):
-        """Error bead description includes backlog tracker label."""
+    def test_description_includes_tracker_label_native(self):
+        """Error task description includes native tracker label."""
         watcher, tracker = self._make_watcher()
         watcher.report_error("test", "something broke")
         desc = self._get_description(tracker)
-        assert "tracker: backlog" in desc
-        assert "tracker_kind: backlog" in desc
+        assert "tracker: nativetracker" in desc
+        assert "tracker_kind: nativetracker" in desc
 
     def test_description_includes_tracker_label_github(self):
-        """Error bead description includes github_issues tracker label with hub."""
+        """Error task description includes github_issues tracker label with hub."""
         watcher, tracker = self._make_watcher(
             project_id="proj-gh", owner="my-org", repo="tasks"
         )
@@ -1303,7 +1167,7 @@ class TestAutoFiledTaskMetadata:
         assert "tracker_repo: tasks" in desc
 
     def test_description_includes_fingerprint(self):
-        """Error bead description includes the dedup fingerprint."""
+        """Error task description includes the dedup fingerprint."""
         watcher, tracker = self._make_watcher(project_id="proj-fp")
         watcher.report_error("test", "fingerprint test error")
         desc = self._get_description(tracker)
@@ -1315,61 +1179,60 @@ class TestAutoFiledTaskMetadata:
         assert re.search(r"dedup_fingerprint: [0-9a-f]{16}", desc)
 
     def test_description_includes_source_issue_when_given(self):
-        """Error bead description includes source_issue when available."""
+        """Error task description includes source_issue when available."""
         watcher, tracker = self._make_watcher(project_id="proj-src")
         watcher.report_error("test", "issue scoped error", issue_id="repo#123")
         desc = self._get_description(tracker)
         assert "source_issue: repo#123" in desc
 
     def test_description_omits_source_issue_when_not_given(self):
-        """Error bead description omits source_issue when no issue id exists."""
+        """Error task description omits source_issue when no issue id exists."""
         watcher, tracker = self._make_watcher(project_id="proj-src")
         watcher.report_error("test", "global error")
         desc = self._get_description(tracker)
         assert "source_issue:" not in desc
 
     def test_description_includes_error_class_when_given(self):
-        """Error bead description includes error_class when one is supplied."""
+        """Error task description includes error_class when one is supplied."""
         watcher, tracker = self._make_watcher(project_id="proj-ec")
         watcher.report_error("test", "db timeout", error_class="bd_timeout")
         desc = self._get_description(tracker)
         assert "error_class: bd_timeout" in desc
 
     def test_description_omits_error_class_when_not_given(self):
-        """Error bead description omits error_class line when not supplied."""
+        """Error task description omits error_class line when not supplied."""
         watcher, tracker = self._make_watcher(project_id="proj-ec")
         watcher.report_error("test", "no class error")
         desc = self._get_description(tracker)
         assert "error_class:" not in desc
 
     def test_metadata_footer_present(self):
-        """Error bead description ends with the standard oompah footer."""
+        """Error task description ends with the standard oompah footer."""
         watcher, tracker = self._make_watcher(project_id="proj-meta")
         watcher.report_error("test", "meta test")
         desc = self._get_description(tracker)
         assert "*Auto-filed by oompah error_watcher*" in desc
 
 
-class TestAutoCloseUsesBeadTracker:
-    """AC #2: auto_close_for_issue routes comments to the bead's own tracker backend.
+class TestAutoCloseUsesTaskTracker:
+    """AC #2: auto_close_for_issue routes comments to the task's own tracker backend.
 
-    The error bead and the source task may live in different tracker backends
-    (e.g. a Backlog-backed source project whose error bead was filed in GitHub
-    Issues).  ``auto_close_for_issue`` must always add comments / close
-    issues via ``self._tracker`` - the tracker that CREATED the bead - not
-    via any external tracker reference.
+    The error task and the source task may live in different tracker backends.
+    ``auto_close_for_issue`` must always add comments / close issues via
+    ``self._tracker`` - the tracker that CREATED the task - not via any
+    external tracker reference.
     """
 
-    def test_auto_close_comment_uses_bead_tracker(self):
-        """add_comment is called on the bead's own tracker, not another one."""
-        bead_tracker = MagicMock()
-        bead_issue = MagicMock()
-        bead_issue.identifier = "bead-auto-001"
-        bead_tracker.create_issue.return_value = bead_issue
+    def test_auto_close_comment_uses_task_tracker(self):
+        """add_comment is called on the task's own tracker, not another one."""
+        task_tracker = MagicMock()
+        task_issue = MagicMock()
+        task_issue.identifier = "task-auto-001"
+        task_tracker.create_issue.return_value = task_issue
 
         source_tracker = MagicMock()  # a *different* tracker for the source task
 
-        watcher = ErrorWatcher(bead_tracker, project_id="proj-x")
+        watcher = ErrorWatcher(task_tracker, project_id="proj-x")
         with patch("oompah.error_watcher.time.monotonic") as mock_time:
             mock_time.return_value = 0.0
             watcher.report_error("test", "auto-close test", issue_id="src-issue-1")
@@ -1380,11 +1243,11 @@ class TestAutoCloseUsesBeadTracker:
                 "src-issue-1", issue_identifier="src-001"
             )
 
-        assert closed == ["bead-auto-001"]
-        # Comments must go to the bead tracker, NOT to source_tracker.
-        bead_tracker.add_comment.assert_called_once()
+        assert closed == ["task-auto-001"]
+        # Comments must go to the task tracker, NOT to source_tracker.
+        task_tracker.add_comment.assert_called_once()
         source_tracker.add_comment.assert_not_called()
-        bead_tracker.close_issue.assert_called_once()
+        task_tracker.close_issue.assert_called_once()
         source_tracker.close_issue.assert_not_called()
 
 

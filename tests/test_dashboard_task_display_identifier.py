@@ -1,4 +1,4 @@
-"""Tests for project-scoped Backlog task ids in dashboard display."""
+"""Tests for project-scoped task ids in dashboard display."""
 
 from __future__ import annotations
 
@@ -104,7 +104,7 @@ def _make_orch(project: Project, tracker: MagicMock) -> MagicMock:
     return orch
 
 
-def test_display_identifier_formats_backlog_task_ids_with_project_name():
+def test_display_identifier_formats_numeric_task_ids_with_project_name():
     assert server_module._display_identifier("TASK-1234", "ProjectName") == (
         "ProjectName-1234"
     )

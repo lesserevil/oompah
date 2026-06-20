@@ -1,7 +1,7 @@
 """LLM-driven enhancement of operator-authored issues against project AGENTS.md.
 
 When an operator creates an issue via the dashboard, the raw title + description
-flow straight into ``bd create`` with no enhancement (server.py:api_create_issue).
+can be written without enhancement (server.py:api_create_issue).
 AGENTS.md, which is meant to encode per-project quality standards, is only
 consulted at agent dispatch time — never at issue creation time. So operator
 issues land in the backlog without the project's quality criteria applied
@@ -26,7 +26,7 @@ dashboard can disable the Enhance button or show a meaningful error.
 Out of scope for this module
 ----------------------------
 * Editing existing issues (separate feature).
-* Auto-enhancing agent-created beads (agents already follow AGENTS.md in
+* Auto-enhancing agent-created tasks (agents already follow AGENTS.md in
   their dispatch prompt).
 * Writing the enhanced version to the tracker — the server endpoint owns
   the persistence side-effect.

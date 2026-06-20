@@ -218,7 +218,7 @@
     }
 
     /* Inline notes inside dialogs (e.g. ACP-mode advisories). See
-       bead oompah-zlz_2-rls. */
+       task oompah-zlz_2-rls. */
     .dialog-note {
       font-size: 0.75rem;
       padding: 0.55rem 0.7rem;
@@ -1163,7 +1163,7 @@ function renderProfiles() {
     // operator's claude subscription). Surface a card-level warning so
     // operators reviewing the list can see at a glance which profiles
     // are subscription-billed. Mirrors the orchestrator's startup
-    // diagnostic at oompah/orchestrator.py — see bead oompah-zlz_2-rls.
+    // diagnostic at oompah/orchestrator.py — see task oompah-zlz_2-rls.
     const acpWarning = mode === 'acp'
       ? `<div class="profile-warning">⚠ mode=acp profiles bypass the budget gate (subscription-billed).</div>`
       : '';
@@ -1692,7 +1692,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ACP billing-model radio: toggle the "model_costs ignored" hint
   // when the operator flips between subscription and per_token so
   // they immediately see whether their model_costs entries matter.
-  // See bead oompah-zlz_2-ag7h.
+  // See task oompah-zlz_2-ag7h.
   document.querySelectorAll('input[name="prov-billing-model"]').forEach(el => {
     el.addEventListener('change', updateBillingModelNote);
   });
@@ -1956,7 +1956,7 @@ function onProfileModeChange() {
   }
 
   // Budget bypass warning. Mirrors the orchestrator's startup
-  // diagnostic at oompah/orchestrator.py for ACP profiles. See bead
+  // diagnostic at oompah/orchestrator.py for ACP profiles. See task
   // oompah-zlz_2-rls and plans/acp-agent.md.
   if (budgetWarn) budgetWarn.style.display = isAcp ? 'block' : 'none';
 
@@ -2079,7 +2079,7 @@ async function submitProfile() {
 
   // Surface server-side warnings (e.g. mode=acp ignores provider_id).
   // The /api/v1/agent-profiles validation hook attaches a non-fatal
-  // ``warnings`` array to the success response — see bead
+  // ``warnings`` array to the success response — see task
   // oompah-zlz_2-rls.
   try {
     const data = await res.json();
@@ -2266,7 +2266,7 @@ document.addEventListener('keydown', e => {
     </select>
     <div class="hint" id="ap-provider-hint">api/auto require a provider. acp does not use a provider.</div>
     <!-- Inline note shown only when mode=acp; explains why the
-         provider dropdown is disabled. See bead oompah-zlz_2-rls. -->
+         provider dropdown is disabled. See task oompah-zlz_2-rls. -->
     <div class="dialog-note note-info" id="ap-provider-acp-note" style="display:none;">
       ACP bypasses providers — billed against the operator's claude
       subscription. See <code>plans/acp-agent.md</code>.

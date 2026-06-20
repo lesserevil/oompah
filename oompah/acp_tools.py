@@ -61,8 +61,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 # Tracker-related fields that agents are allowed to read and update via the
-# non-HTTP MCP path.  Intentionally conservative: only the fields needed for
-# managed-project cutover and rollback.  Infrastructure fields (repo_path,
+# non-HTTP MCP path. Intentionally conservative: infrastructure fields (repo_path,
 # lfs_available, branches, …) must go through the operator UI or API.
 _PROJECT_READABLE_FIELDS = frozenset(
     {
@@ -76,9 +75,6 @@ _PROJECT_READABLE_FIELDS = frozenset(
         "github_project_node_id",
         "status_actor_login",
         "status_label_authorized_logins",
-        "legacy_backlog_enabled",
-        "legacy_backlog_dispatch",
-        "tracker_cutover_at",
         "intake_auto_promote",
         "paused",
     }
@@ -93,9 +89,6 @@ _PROJECT_UPDATABLE_FIELDS = frozenset(
         "github_project_node_id",
         "status_actor_login",
         "status_label_authorized_logins",
-        "legacy_backlog_enabled",
-        "legacy_backlog_dispatch",
-        "tracker_cutover_at",
         "intake_auto_promote",
         "paused",
     }
@@ -103,14 +96,7 @@ _PROJECT_UPDATABLE_FIELDS = frozenset(
 
 
 def _project_snapshot(project: Any) -> dict[str, Any]:
-    """Return the public tracker/cutover fields for a Project-like object."""
-    cutover_at = None
-    raw = getattr(project, "tracker_cutover_at", None)
-    if raw is not None:
-        try:
-            cutover_at = raw.isoformat()
-        except AttributeError:
-            cutover_at = str(raw)
+    """Return the public tracker fields for a Project-like object."""
 
     def bool_attr(name: str, default: bool) -> bool:
         value = getattr(project, name, default)
@@ -132,9 +118,6 @@ def _project_snapshot(project: Any) -> dict[str, Any]:
         "status_label_authorized_logins": list(
             getattr(project, "status_label_authorized_logins", []) or []
         ),
-        "legacy_backlog_enabled": bool_attr("legacy_backlog_enabled", False),
-        "legacy_backlog_dispatch": bool_attr("legacy_backlog_dispatch", False),
-        "tracker_cutover_at": cutover_at,
         "intake_auto_promote": bool_attr("intake_auto_promote", True),
         "paused": bool_attr("paused", False),
     }
@@ -286,9 +269,9 @@ def _oompah_task_argv(command: str) -> tuple[list[str] | None, str | None]:
 def _priority_int(value: Any) -> int | None:
     if value is None:
         return None
-    from oompah.tracker import _backlog_priority_int
+    from oompah.tracker import normalize_priority_int
 
-    return _backlog_priority_int(value)
+    return normalize_priority_int(value)
 
 
 def _issue_detail_dict(tracker: Any, issue: Any, project_id: str | None) -> dict[str, Any]:
@@ -456,8 +439,7 @@ def build_tool_catalog(
     output), ready to be passed into
     :func:`claude_agent_sdk.create_sdk_mcp_server`.
 
-    Backlog.md commands resolve from the workspace, so no tracker-specific
-    environment override is needed. Mirrors the api_agent path.
+    Task commands resolve from the workspace. Mirrors the api_agent path.
 
     When ``project_store`` is supplied, project management tools are included:
     ``list_projects`` (read all managed project tracker fields),
@@ -572,11 +554,10 @@ def build_tool_catalog(
 
     @tool(
         "list_projects",
-        "List managed projects and their tracker/cutover configuration. "
+        "List managed projects and their tracker configuration. "
         "Returns JSON containing id, name, repo_url, tracker_kind, "
         "tracker_owner, tracker_repo, status_actor_login, "
-        "status_label_authorized_logins, tracker_cutover_at, "
-        "legacy_backlog_enabled, legacy_backlog_dispatch, "
+        "status_label_authorized_logins, "
         "github_issue_intake_enabled, github_project_node_id, and paused for each project. "
         "Use this to discover target project ids instead of reading "
         ".oompah/projects.json.",
@@ -590,8 +571,7 @@ def build_tool_catalog(
         "Read the tracker configuration for the managed project this "
         "worktree belongs to. Returns JSON with id, name, tracker_kind, "
         "tracker_owner, tracker_repo, status_actor_login, "
-        "status_label_authorized_logins, tracker_cutover_at, "
-        "legacy_backlog_enabled, legacy_backlog_dispatch, "
+        "status_label_authorized_logins, "
         "github_issue_intake_enabled, github_project_node_id, and paused fields. "
         "Use this instead of calling http://127.0.0.1:8090 — HTTP "
         "self-calls from inside an oompah MCP tool deadlock the server. "
@@ -623,8 +603,7 @@ def build_tool_catalog(
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: tracker_kind, tracker_owner, tracker_repo, "
         "github_issue_intake_enabled, github_project_node_id, status_actor_login, "
-        "status_label_authorized_logins, legacy_backlog_enabled, "
-        "legacy_backlog_dispatch, tracker_cutover_at, paused. "
+        "status_label_authorized_logins, paused. "
         "Example: '{\"tracker_kind\": \"github_issues\", "
         "\"tracker_owner\": \"my-org\", \"tracker_repo\": \"my-repo\"}'. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
@@ -648,8 +627,7 @@ def build_tool_catalog(
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: tracker_kind, tracker_owner, tracker_repo, "
         "github_issue_intake_enabled, github_project_node_id, status_actor_login, "
-        "status_label_authorized_logins, legacy_backlog_enabled, "
-        "legacy_backlog_dispatch, tracker_cutover_at, paused. "
+        "status_label_authorized_logins, paused. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
         "or editing .oompah/projects.json directly.",
         {"project_id": str, "fields_json": str},
@@ -807,7 +785,7 @@ def build_codex_tool_catalog(
 
     @function_tool
     def list_projects() -> str:
-        """List managed projects and their tracker/cutover configuration.
+        """List managed projects and their tracker configuration.
         Use this to discover target project ids instead of reading
         .oompah/projects.json."""
         return _exec_list_projects(project_store)
@@ -816,8 +794,7 @@ def build_codex_tool_catalog(
     def get_project() -> str:
         """Read the tracker configuration for the managed project this
         worktree belongs to. Returns JSON with id, name, tracker_kind,
-        tracker_owner, tracker_repo, tracker_cutover_at,
-        legacy_backlog_enabled, legacy_backlog_dispatch,
+        tracker_owner, tracker_repo,
         github_issue_intake_enabled, github_project_node_id, and paused fields.
         Use this instead of calling http://127.0.0.1:8090 — HTTP
         self-calls from inside an oompah MCP tool deadlock the server."""
@@ -834,8 +811,7 @@ def build_codex_tool_catalog(
         """Update tracker configuration fields for the managed project.
         ``fields_json`` must be a JSON-encoded object whose keys are a
         subset of: tracker_kind, tracker_owner, tracker_repo,
-        github_issue_intake_enabled, github_project_node_id, legacy_backlog_enabled,
-        legacy_backlog_dispatch, tracker_cutover_at, paused.
+        github_issue_intake_enabled, github_project_node_id, paused.
         Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id>
         or editing .oompah/projects.json directly — both can deadlock or
         corrupt the running service."""
@@ -1007,11 +983,10 @@ def build_opencode_tool_catalog(
 
     @tool(
         "list_projects",
-        "List managed projects and their tracker/cutover configuration. "
+        "List managed projects and their tracker configuration. "
         "Returns JSON containing id, name, repo_url, tracker_kind, "
         "tracker_owner, tracker_repo, status_actor_login, "
-        "status_label_authorized_logins, tracker_cutover_at, "
-        "legacy_backlog_enabled, legacy_backlog_dispatch, "
+        "status_label_authorized_logins, "
         "github_issue_intake_enabled, github_project_node_id, and paused for each project. "
         "Use this to discover target project ids instead of reading "
         ".oompah/projects.json.",
@@ -1025,8 +1000,7 @@ def build_opencode_tool_catalog(
         "Read the tracker configuration for the managed project this "
         "worktree belongs to. Returns JSON with id, name, tracker_kind, "
         "tracker_owner, tracker_repo, status_actor_login, "
-        "status_label_authorized_logins, tracker_cutover_at, "
-        "legacy_backlog_enabled, legacy_backlog_dispatch, "
+        "status_label_authorized_logins, "
         "github_issue_intake_enabled, github_project_node_id, and paused fields. "
         "Use this instead of calling http://127.0.0.1:8090 — HTTP "
         "self-calls from inside an oompah MCP tool deadlock the server. "
@@ -1058,8 +1032,7 @@ def build_opencode_tool_catalog(
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: tracker_kind, tracker_owner, tracker_repo, "
         "github_issue_intake_enabled, github_project_node_id, status_actor_login, "
-        "status_label_authorized_logins, legacy_backlog_enabled, "
-        "legacy_backlog_dispatch, tracker_cutover_at, paused. "
+        "status_label_authorized_logins, paused. "
         "Example: '{\"tracker_kind\": \"github_issues\", "
         "\"tracker_owner\": \"my-org\", \"tracker_repo\": \"my-repo\"}'. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
@@ -1083,8 +1056,7 @@ def build_opencode_tool_catalog(
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: tracker_kind, tracker_owner, tracker_repo, "
         "github_issue_intake_enabled, github_project_node_id, status_actor_login, "
-        "status_label_authorized_logins, legacy_backlog_enabled, "
-        "legacy_backlog_dispatch, tracker_cutover_at, paused. "
+        "status_label_authorized_logins, paused. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
         "or editing .oompah/projects.json directly.",
         {"project_id": str, "fields_json": str},

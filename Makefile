@@ -9,8 +9,6 @@ _ENV_PORT := $(shell grep -E '^OOMPAH_SERVER_PORT[[:space:]]*=' .env 2>/dev/null
 PORT ?= $(if $(OOMPAH_SERVER_PORT),$(OOMPAH_SERVER_PORT),$(if $(_ENV_PORT),$(_ENV_PORT),8080))
 # Timeout (seconds) for waiting on process exit and port release during stop/restart.
 STOP_TIMEOUT ?= 30
-BACKLOG_NPM_PACKAGE := https://github.com/MrLesk/Backlog.md/archive/HEAD.tar.gz
-BACKLOG_CLI := $(VENV)/bin/backlog
 
 export PATH := $(abspath $(VENV)/bin):$(PATH)
 
@@ -55,11 +53,11 @@ define port_in_use
 	[ $$? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | grep -q .)
 endef
 
-.PHONY: help setup ensure-backlog start stop restart graceful status logs test clean install-hooks check-secrets install-gh-extensions run-granian
+.PHONY: help setup start stop restart graceful status logs test clean install-hooks check-secrets install-gh-extensions run-granian
 
 help:
 	@echo "oompah — make targets:"
-	@echo "  setup          Install server dependencies and Backlog.md CLI into $(VENV) (idempotent)"
+	@echo "  setup          Install server dependencies into $(VENV) (idempotent)"
 	@echo "  start          Start oompah in the background (default port: $(PORT))"
 	@echo "  stop           Stop the background oompah process"
 	@echo "  restart        Hard restart (stop + start) — use for orchestrator/agent changes"
@@ -73,25 +71,13 @@ help:
 	@echo "  install-gh-extensions  Install gh CLI extensions oompah needs (cli/gh-webhook). Idempotent."
 	@echo "  clean          Stop, then remove $(VENV), logs, pid file, and __pycache__ dirs"
 
-setup: $(VENV)/.uv-setup ensure-backlog
+setup: $(VENV)/.uv-setup
 
 $(VENV)/.uv-setup: pyproject.toml
 	@test -d $(VENV) || uv venv $(VENV)
 	uv pip install -e '.[server]'
 	@touch $@
 	@echo "Setup complete. Run 'make start' to launch oompah."
-
-ensure-backlog: $(BACKLOG_CLI)
-	@echo "Backlog.md CLI available: $$(backlog --version 2>/dev/null || echo unknown)"
-
-$(BACKLOG_CLI): $(VENV)/.uv-setup Makefile
-	@if ! command -v npm >/dev/null 2>&1; then \
-		echo "ERROR: npm is required to install Backlog.md from $(BACKLOG_NPM_PACKAGE)."; \
-		exit 1; \
-	fi
-	@echo "Installing Backlog.md CLI from $(BACKLOG_NPM_PACKAGE) into $(abspath $(VENV))..."
-	npm install --global --prefix "$(abspath $(VENV))" --ignore-scripts --no-audit --no-fund "$(BACKLOG_NPM_PACKAGE)"
-	@test -x "$(VENV)/bin/backlog"
 
 start: setup
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
@@ -146,8 +132,7 @@ restart: stop start
 # Granian is an experimental opt-in server (~+23% HTTP throughput vs uvicorn,
 # tighter tail latency). It must be run with a single worker because oompah
 # holds shared in-process state; the orchestrator runs inside the worker's
-# ASGI lifespan. See backlog/docs/doc-1 (Granian HTTP server migration plan)
-# and TASK-472 for context.
+# ASGI lifespan. See plans/codex-sdk-pin.md and TASK-472 for context.
 #
 # Requires: uv pip install -e '.[server,granian]'
 run-granian:

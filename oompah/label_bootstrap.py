@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -252,38 +251,12 @@ def validate_project_config(project: "Project") -> list[str]:
                 )
             seen.add(key)
 
-    for key in ("legacy_backlog_enabled", "legacy_backlog_dispatch"):
-        value = getattr(project, key, False)
-        if not isinstance(value, bool):
-            errors.append(f"{key} must be a boolean")
-    if (
-        getattr(project, "legacy_backlog_dispatch", False) is True
-        and getattr(project, "legacy_backlog_enabled", False) is not True
-    ):
-        errors.append(
-            "legacy_backlog_dispatch cannot be true when legacy_backlog_enabled is false"
-        )
-
-    cutover = getattr(project, "tracker_cutover_at", None)
-    if cutover is not None and not isinstance(cutover, datetime):
-        errors.append("tracker_cutover_at must be a datetime or null")
     return errors
 
 
 def validate_project_config_warnings(project: "Project") -> list[str]:
     """Return non-blocking GitHub tracker configuration findings."""
-    warnings: list[str] = []
-    if not _is_github_tracker_kind(getattr(project, "tracker_kind", None)):
-        return warnings
-    if (
-        getattr(project, "legacy_backlog_enabled", False) is True
-        and getattr(project, "tracker_cutover_at", None) is None
-    ):
-        warnings.append(
-            "tracker_cutover_at is not set; record the GitHub Issues cutover "
-            "timestamp so post-cutover Backlog.md drift can be detected"
-        )
-    return warnings
+    return []
 
 
 # ---------------------------------------------------------------------------

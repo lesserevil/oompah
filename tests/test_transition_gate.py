@@ -30,7 +30,6 @@ def _project(
         tracker_owner=owner,
         tracker_repo="repo",
         tracker_kind="github_issues",
-        legacy_backlog_enabled=False,
         webhook_secret=None,
         status_actor_login=status_actor_login,
         status_label_authorized_logins=authorized or [],

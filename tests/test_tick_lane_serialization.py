@@ -667,7 +667,7 @@ class TestDispatchBeforeMaintenanceInTick:
             return {}
 
         def slow_watchdog() -> None:
-            # A watchdog that blocks for 50ms — typical for bd CLI calls.
+            # A watchdog that blocks for 50ms — typical for tracker CLI calls.
             time.sleep(0.05)
 
         orch._handle_dispatch_needed = dispatch_that_records_issue

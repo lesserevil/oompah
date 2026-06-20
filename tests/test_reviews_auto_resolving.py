@@ -3,7 +3,7 @@
 Covers oompah-zlz_2-zvf2: on YOLO-enabled projects the manual
 "Resolve Conflicts" button is redundant — the orchestrator's
 ``_yolo_notify_conflict`` path already tries ``provider.rebase_review``
-then falls back to notifying the bead on the next full-sync tick. The
+then falls back to notifying the task on the next full-sync tick. The
 button is replaced with a passive ``<span class="conflict-badge
 auto-resolving">Auto-resolving…</span>`` indicator (no click target).
 

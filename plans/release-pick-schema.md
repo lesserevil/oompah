@@ -1,7 +1,7 @@
 # Release-pick Metadata Schema and Status Lifecycle
 
 **TASK-454.4** — Design record for `oompah.backports` and `oompah.backport_of`
-Backlog.md frontmatter fields.
+task metadata fields.
 
 ---
 

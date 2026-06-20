@@ -9,8 +9,7 @@ Covers:
 - project tools degrade gracefully without a project_store
 
 These tests verify that agents running inside oompah MCP have a non-HTTP
-path to read and mutate ProjectStore tracker fields for managed-project
-cutovers (acceptance criteria from TASK-464.8).
+path to read and mutate ProjectStore tracker fields for managed projects.
 """
 
 from __future__ import annotations
@@ -38,9 +37,6 @@ def _make_project(
     github_project_node_id: str | None = None,
     status_actor_login: str | None = None,
     status_label_authorized_logins: list[str] | None = None,
-    legacy_backlog_enabled: bool = False,
-    legacy_backlog_dispatch: bool = False,
-    tracker_cutover_at: datetime | None = None,
     intake_auto_promote: bool = True,
     paused: bool = False,
 ) -> MagicMock:
@@ -55,9 +51,6 @@ def _make_project(
     p.github_project_node_id = github_project_node_id
     p.status_actor_login = status_actor_login
     p.status_label_authorized_logins = status_label_authorized_logins or []
-    p.legacy_backlog_enabled = legacy_backlog_enabled
-    p.legacy_backlog_dispatch = legacy_backlog_dispatch
-    p.tracker_cutover_at = tracker_cutover_at
     p.intake_auto_promote = intake_auto_promote
     p.paused = paused
     return p
@@ -163,23 +156,8 @@ class TestExecGetProject:
         assert data["tracker_repo"] == "my-repo"
         assert data["status_actor_login"] == "status-actor"
         assert data["status_label_authorized_logins"] == ["release-manager"]
-        assert data["legacy_backlog_enabled"] is False
-        assert data["legacy_backlog_dispatch"] is False
-        assert data["tracker_cutover_at"] is None
         assert data["intake_auto_promote"] is True
         assert data["paused"] is False
-
-    def test_returns_cutover_at_as_isoformat(self):
-        from oompah.acp_tools import _exec_get_project
-
-        cutover = datetime(2026, 6, 10, 15, 0, 0, tzinfo=timezone.utc)
-        project = _make_project(tracker_cutover_at=cutover)
-        store = _make_store(project)
-
-        result = _exec_get_project(store, "proj-test")
-        data = json.loads(result)
-
-        assert data["tracker_cutover_at"] == "2026-06-10T15:00:00+00:00"
 
     def test_returns_error_when_project_store_is_none(self):
         from oompah.acp_tools import _exec_get_project
@@ -244,9 +222,6 @@ class TestExecGetProject:
             tracker_owner="acme",
             tracker_repo="tasks",
             github_project_node_id="PVT_123",
-            legacy_backlog_enabled=True,
-            legacy_backlog_dispatch=True,
-            tracker_cutover_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
             intake_auto_promote=False,
             paused=True,
         )
@@ -394,21 +369,6 @@ class TestExecUpdateProject:
         assert result.startswith("error:")
         assert "invalid tracker_kind" in result
 
-    def test_serializes_cutover_at_in_result(self):
-        from oompah.acp_tools import _exec_update_project
-
-        cutover = datetime(2026, 6, 10, 15, 0, 0, tzinfo=timezone.utc)
-        updated = _make_project(tracker_cutover_at=cutover)
-        store = _make_store(updated)
-        store.update.return_value = updated
-
-        result = _exec_update_project(
-            store, "proj-test",
-            '{"tracker_cutover_at": "2026-06-10T15:00:00+00:00"}',
-        )
-        data = json.loads(result)
-        assert data["tracker_cutover_at"] == "2026-06-10T15:00:00+00:00"
-
     def test_updates_paused_flag(self):
         from oompah.acp_tools import _exec_update_project
 
@@ -433,19 +393,6 @@ class TestExecUpdateProject:
         data = json.loads(result)
         assert data["intake_auto_promote"] is False
 
-    def test_updates_legacy_backlog_flags(self):
-        from oompah.acp_tools import _exec_update_project
-
-        updated = _make_project(legacy_backlog_enabled=True, legacy_backlog_dispatch=True)
-        store = _make_store(updated)
-        store.update.return_value = updated
-
-        fields = {"legacy_backlog_enabled": True, "legacy_backlog_dispatch": True}
-        result = _exec_update_project(store, "proj-test", json.dumps(fields))
-        data = json.loads(result)
-        assert data["legacy_backlog_enabled"] is True
-        assert data["legacy_backlog_dispatch"] is True
-
     def test_allowed_fields_set_is_correct(self):
         from oompah.acp_tools import _PROJECT_UPDATABLE_FIELDS
 
@@ -456,9 +403,6 @@ class TestExecUpdateProject:
             "github_project_node_id",
             "status_actor_login",
             "status_label_authorized_logins",
-            "legacy_backlog_enabled",
-            "legacy_backlog_dispatch",
-            "tracker_cutover_at",
             "intake_auto_promote",
             "github_issue_intake_enabled",
             "paused",

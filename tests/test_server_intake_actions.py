@@ -40,7 +40,6 @@ def _make_orchestrator(issue: Issue | None = None):
     project.tracker_owner = "owner"
     project.status_label_authorized_logins = ["pm"]
     project.tracker_kind = "github_issues"
-    project.legacy_backlog_enabled = False
 
     orch = MagicMock()
     orch._tracker_for_project.return_value = tracker

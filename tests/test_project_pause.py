@@ -242,7 +242,7 @@ class TestShouldDispatchProjectPauseGate:
     def test_p0_does_not_bypass_project_pause(self, tmp_path):
         """A paused project should hold even P0 issues — operators
         explicitly took the project offline (forge down, CI offline,
-        bead tracker corrupted) and don't want anything dispatched."""
+        task tracker corrupted) and don't want anything dispatched."""
         proj = _make_project_mock("proj-1", paused=True)
         orch = _make_orchestrator(tmp_path, projects=[proj])
         issue = _make_issue("issue-p0", project_id="proj-1", priority=0)

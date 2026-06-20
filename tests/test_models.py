@@ -252,7 +252,7 @@ class TestProviderTypeMigration:
 
 class TestIssue:
     def test_defaults(self):
-        i = Issue(id="1", identifier="beads-001", title="Test")
+        i = Issue(id="1", identifier="tasks-001", title="Test")
         assert i.state == ""
         assert i.issue_type == "task"
         assert i.labels == []
@@ -260,7 +260,7 @@ class TestIssue:
 
     def test_fields(self):
         i = Issue(
-            id="1", identifier="beads-001", title="Fix bug",
+            id="1", identifier="tasks-001", title="Fix bug",
             priority=1, state="open", issue_type="bug",
             labels=["urgent"], description="Something broke",
         )

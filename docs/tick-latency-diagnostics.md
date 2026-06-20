@@ -112,7 +112,7 @@ falls back to the last known candidate list for that project (may be stale or
 empty) and dispatches normally from proj-fast. No cross-project blocking.
 
 **Remediation**:
-- Check the Backlog.md tracker for proj-slow (large task files? filesystem issue?)
+- Check the tracker for proj-slow (large task files? filesystem issue?)
 - Increase `project_refresh_timeout_ms` if the tracker is normally fast but
   occasionally spikes
 - Set `project_refresh_max_concurrent` to limit parallelism if disk I/O contention

@@ -29,7 +29,7 @@ Gate logic:
 3. If branch does exist on origin: check
    ``git log --oneline <base>..origin/<branch> --count``.  Any commits?
    If yes → work was pushed, just not closed → allow escalation (agent
-   may have pusher access but no bead close rights).  The retry loop
+   may have pusher access but no task close rights).  The retry loop
    will pick it up and close it.
 4. If branch does not exist on origin AND no commits locally → agent
    produced no deployable output → gate triggers.

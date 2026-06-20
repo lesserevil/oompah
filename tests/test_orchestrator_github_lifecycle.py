@@ -4,7 +4,7 @@ Covers the full orchestrator lifecycle against mocked GitHub-like trackers:
 
 1. Candidate fetch — ``_fetch_all_candidates`` returns GitHub issues stamped
    with the correct ``project_id``; tracker errors are silently skipped.
-2. Mixed fetch — two projects (Backlog + GitHub) return disjoint candidates;
+2. Mixed fetch — two projects (native Markdown + GitHub) return disjoint candidates;
    issue IDs from different projects never collide (AC #2).
 3. Dispatch + GitHub claim protocol — run-ID stamp and verify; race abort when
    a concurrent writer wins; pre-dispatch terminal-state abort.
@@ -14,12 +14,12 @@ Covers the full orchestrator lifecycle against mocked GitHub-like trackers:
 5. Retry scheduling — ``_schedule_retry`` propagates ``project_id`` so the
    retry re-dispatches to the same GitHub project.
 6. Close / reopen via tracker — GitHub close/reopen goes through the tracker
-   protocol (no Backlog file mutations).
+   protocol (no native tracker mutations).
 7. Worker exit + retry path — completing without closing triggers a retry for
    GitHub-backed tasks; tracked in ``state.retry_attempts`` with correct
    ``project_id``.
 8. Watcher-created tasks — ``ErrorWatcher`` calls ``create_issue`` on the
-   project-scoped tracker (GitHub or Backlog) so auto-filed work goes to the
+   project-scoped tracker (GitHub or native Markdown) so auto-filed work goes to the
    canonical backend.
 9. Mixed-project dispatch — two projects with overlapping issue numbers are
    each dispatched only once; no cross-project task ID confusion.
@@ -41,7 +41,7 @@ from oompah.error_watcher import ErrorWatcher
 from oompah.models import AgentProfile, Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.roles import RoleStore
-from oompah.tracker import BacklogMdTracker, TrackerError, TrackerNotConfiguredError
+from oompah.tracker import TrackerError, TrackerNotConfiguredError
 
 
 # ---------------------------------------------------------------------------
@@ -105,16 +105,16 @@ def _native_issue(
     )
 
 
-def _backlog_issue(
+def _native_tracker_issue(
     issue_id: str = "TASK-1",
     state: str = "open",
-    project_id: str = "proj-bl",
+    project_id: str = "proj-native",
     priority: int = 2,
 ) -> Issue:
     return Issue(
         id=issue_id,
         identifier=issue_id,
-        title=f"Backlog task {issue_id}",
+        title=f"Native task {issue_id}",
         description="Detailed description that passes the empty-description gate.",
         state=state,
         priority=priority,
@@ -304,37 +304,37 @@ class TestCandidateFetchGitHub:
 
 
 # ---------------------------------------------------------------------------
-# 2. Mixed fetch — Backlog + GitHub, no ID collisions (AC #2)
+# 2. Mixed fetch — native Markdown + GitHub, no ID collisions (AC #2)
 # ---------------------------------------------------------------------------
 
 
 class TestMixedCandidateFetch:
-    """Mixed Backlog + GitHub projects return disjoint candidate sets (AC #2)."""
+    """Mixed native Markdown + GitHub projects return disjoint candidate sets (AC #2)."""
 
     def _make_mixed_orch(
         self,
         tmp_path,
-        bl_issues: list[Issue],
+        native_issues: list[Issue],
         gh_issues: list[Issue],
     ) -> tuple[Orchestrator, MagicMock, MagicMock]:
-        bl_tracker = _make_tracker(bl_issues)
+        native_tracker = _make_tracker(native_issues)
         gh_tracker = _make_tracker(gh_issues)
 
-        proj_bl = _make_project("proj-bl", name="myproject", tracker_kind="backlog_md")
+        proj_native = _make_project("proj-native", name="myproject", tracker_kind="oompah_md")
         proj_gh = _make_project("proj-gh", name="mygh", tracker_kind="github_issues")
 
-        orch = _make_orch(tmp_path, projects=[proj_bl, proj_gh])
-        orch._project_trackers["proj-bl"] = bl_tracker
+        orch = _make_orch(tmp_path, projects=[proj_native, proj_gh])
+        orch._project_trackers["proj-native"] = native_tracker
         orch._project_trackers["proj-gh"] = gh_tracker
 
-        return orch, bl_tracker, gh_tracker
+        return orch, native_tracker, gh_tracker
 
     def test_issues_from_both_projects_returned(self, tmp_path):
-        """Candidates include both Backlog and GitHub issues."""
-        bl = _backlog_issue("TASK-1", project_id="proj-bl")
+        """Candidates include both native and GitHub issues."""
+        native = _native_tracker_issue("TASK-1", project_id="proj-native")
         gh = _github_issue("GH_1", "acme/tasks#1", "1", project_id="proj-gh")
 
-        orch, _, _ = self._make_mixed_orch(tmp_path, [bl], [gh])
+        orch, _, _ = self._make_mixed_orch(tmp_path, [native], [gh])
         candidates = orch._fetch_all_candidates()
 
         identifiers = {c.identifier for c in candidates}
@@ -343,22 +343,22 @@ class TestMixedCandidateFetch:
 
     def test_project_ids_are_distinct_and_correct(self, tmp_path):
         """Each candidate is stamped with its source project's ID."""
-        bl = _backlog_issue("TASK-2", project_id="proj-bl")
+        native = _native_tracker_issue("TASK-2", project_id="proj-native")
         gh = _github_issue("GH_2", "acme/tasks#2", "2", project_id="proj-gh")
 
-        orch, _, _ = self._make_mixed_orch(tmp_path, [bl], [gh])
+        orch, _, _ = self._make_mixed_orch(tmp_path, [native], [gh])
         candidates = orch._fetch_all_candidates()
 
         by_id = {c.identifier: c for c in candidates}
-        assert by_id["TASK-2"].project_id == "proj-bl"
+        assert by_id["TASK-2"].project_id == "proj-native"
         assert by_id["acme/tasks#2"].project_id == "proj-gh"
 
     def test_overlapping_bare_numbers_no_id_collision(self, tmp_path):
         """TASK-1 and GitHub #1 share a bare number but get distinct identifiers."""
-        bl = _backlog_issue("TASK-1", project_id="proj-bl")
+        native = _native_tracker_issue("TASK-1", project_id="proj-native")
         gh = _github_issue("GH_1", "acme/tasks#1", "1", project_id="proj-gh")
 
-        orch, _, _ = self._make_mixed_orch(tmp_path, [bl], [gh])
+        orch, _, _ = self._make_mixed_orch(tmp_path, [native], [gh])
         candidates = orch._fetch_all_candidates()
 
         ids = [c.id for c in candidates]
@@ -370,24 +370,24 @@ class TestMixedCandidateFetch:
             f"Duplicate identifiers: {identifiers}"
         )
 
-    def test_github_project_error_doesnt_lose_backlog_candidates(self, tmp_path):
-        """If the GitHub tracker raises, Backlog candidates are still returned."""
-        bl = _backlog_issue("TASK-5", project_id="proj-bl")
+    def test_github_project_error_doesnt_lose_native_candidates(self, tmp_path):
+        """If the GitHub tracker raises, native candidates are still returned."""
+        native = _native_tracker_issue("TASK-5", project_id="proj-native")
         gh_tracker = _make_tracker()
         gh_tracker.fetch_candidate_issues.side_effect = TrackerError("github down")
 
-        bl_tracker = _make_tracker([bl])
-        proj_bl = _make_project("proj-bl", name="myproject", tracker_kind="backlog_md")
+        native_tracker = _make_tracker([native])
+        proj_native = _make_project("proj-native", name="myproject", tracker_kind="oompah_md")
         proj_gh = _make_project("proj-gh", name="mygh", tracker_kind="github_issues")
 
-        orch = _make_orch(tmp_path, projects=[proj_bl, proj_gh])
-        orch._project_trackers["proj-bl"] = bl_tracker
+        orch = _make_orch(tmp_path, projects=[proj_native, proj_gh])
+        orch._project_trackers["proj-native"] = native_tracker
         orch._project_trackers["proj-gh"] = gh_tracker
 
         candidates = orch._fetch_all_candidates()
         assert any(c.identifier == "TASK-5" for c in candidates)
-        # GitHub failure leaves only Backlog candidates
-        assert all(c.project_id == "proj-bl" for c in candidates)
+        # GitHub failure leaves only native candidates
+        assert all(c.project_id == "proj-native" for c in candidates)
 
 
 # ---------------------------------------------------------------------------
@@ -526,25 +526,25 @@ class TestGitHubClaimProtocol:
         orch._run_worker.assert_awaited_once()
 
     def test_non_github_issue_skips_claim_protocol(self, tmp_path, event_loop):
-        """Backlog-backed issues do not call set_metadata_field (no claim protocol)."""
-        bl_issue = _backlog_issue("TASK-20", project_id="proj-bl")
-        tracker = _make_tracker([bl_issue])
-        tracker.fetch_issue_states_by_ids.return_value = [bl_issue]
+        """native-backed issues do not call set_metadata_field (no claim protocol)."""
+        native_issue = _native_tracker_issue("TASK-20", project_id="proj-native")
+        tracker = _make_tracker([native_issue])
+        tracker.fetch_issue_states_by_ids.return_value = [native_issue]
 
         proj = _make_project(
-            "proj-bl", name="myproject", tracker_kind="backlog_md"
+            "proj-native", name="myproject", tracker_kind="oompah_md"
         )
         orch = _make_orch(tmp_path, projects=[proj])
-        orch._project_trackers["proj-bl"] = tracker
+        orch._project_trackers["proj-native"] = tracker
 
         mock_profile = AgentProfile(name="default", command="echo test")
         orch._match_agent_profile = MagicMock(return_value=mock_profile)
         orch._get_profile_by_name = MagicMock(return_value=mock_profile)
         orch._run_worker = AsyncMock()
 
-        event_loop.run_until_complete(orch._dispatch(bl_issue, attempt=None))
+        event_loop.run_until_complete(orch._dispatch(native_issue, attempt=None))
 
-        # No metadata write for Backlog issues
+        # No metadata write for native issues
         tracker.set_metadata_field.assert_not_called()
 
     def test_pre_dispatch_terminal_state_aborts(self, tmp_path, event_loop):
@@ -649,17 +649,16 @@ class TestMarkNeedsHumanGitHub:
             "acme/tasks#6", "Review needed.", author="bot"
         )
 
-    def test_github_tracker_mark_needs_human_not_backlog_file(self, tmp_path):
-        """A non-BacklogMdTracker receives mark_needs_human, not a file write."""
+    def test_github_tracker_mark_needs_human_uses_tracker_method(self, tmp_path):
+        """Trackers with mark_needs_human receive that protocol method."""
         orch = _make_orch(tmp_path)
         tracker = MagicMock()
         tracker.mark_needs_human = MagicMock()
-        assert not isinstance(tracker, BacklogMdTracker)
 
         orch._mark_needs_human(tracker, "acme/tasks#7", "Need a human.")
 
         tracker.mark_needs_human.assert_called_once()
-        # Backlog file path logic must not be involved
+        # native tracker path logic must not be involved
         # (we just verify the correct method was called, no file I/O)
 
 
@@ -778,7 +777,7 @@ class TestCloseReopenGitHub:
         entry = _make_running_entry(issue)
         orch.state.running[issue.id] = entry
 
-        # Use the existing worker exit path; verify no Backlog file path
+        # Use the existing worker exit path; verify no native tracker path
         event_loop.run_until_complete(
             orch._on_worker_exit(issue.id, "normal", None)
         )
@@ -981,45 +980,39 @@ class TestWatcherCreatedTasksGitHub:
         description = call_kwargs.get("description", "")
         assert "tracker_kind" in description
 
-    def test_error_watcher_for_backlog_project_uses_backlog_tracker(self, tmp_path):
-        """ErrorWatcher initialized with a Backlog tracker calls Backlog create_issue."""
-        bl_tracker = MagicMock(spec=BacklogMdTracker)
-        bl_tracker.root_path = str(tmp_path)
-        created = _backlog_issue("TASK-999", project_id="proj-bl")
-        bl_tracker.create_issue.return_value = created
-        bl_tracker.task_file_path = MagicMock(return_value=str(tmp_path / "TASK-999.md"))
+    def test_error_watcher_for_native_project_uses_native_tracker(self, tmp_path):
+        """ErrorWatcher initialized with a native tracker calls native create_issue."""
+        native_tracker = MagicMock()
+        created = _native_tracker_issue("TASK-999", project_id="proj-native")
+        native_tracker.create_issue.return_value = created
 
-        watcher = ErrorWatcher(tracker=bl_tracker, project_id="proj-bl")
+        watcher = ErrorWatcher(tracker=native_tracker, project_id="proj-native")
 
-        with patch("oompah.error_watcher._persist_error_task_to_git", return_value=None):
-            watcher.report_error(
-                source="backend",
-                message="Backlog error scenario",
-            )
+        watcher.report_error(
+            source="backend",
+            message="native error scenario",
+        )
 
-        bl_tracker.create_issue.assert_called_once()
-        call_kwargs = bl_tracker.create_issue.call_args[1]
+        native_tracker.create_issue.assert_called_once()
+        call_kwargs = native_tracker.create_issue.call_args[1]
         assert call_kwargs.get("issue_type") == "bug"
 
     def test_error_watcher_doesnt_cross_trackers(self):
-        """A Backlog watcher must NOT call the GitHub tracker and vice versa."""
-        bl_tracker = MagicMock(spec=BacklogMdTracker)
-        bl_tracker.root_path = "/tmp/bl"
-        bl_tracker.task_file_path = MagicMock(return_value="/tmp/bl/TASK-1.md")
-        created = _backlog_issue("TASK-1")
-        bl_tracker.create_issue.return_value = created
+        """A native watcher must NOT call the GitHub tracker and vice versa."""
+        native_tracker = MagicMock()
+        created = _native_tracker_issue("TASK-1")
+        native_tracker.create_issue.return_value = created
 
         gh_tracker = self._make_github_tracker_mock()
 
-        watcher = ErrorWatcher(tracker=bl_tracker, project_id="proj-bl")
+        watcher = ErrorWatcher(tracker=native_tracker, project_id="proj-native")
 
-        with patch("oompah.error_watcher._persist_error_task_to_git", return_value=None):
-            watcher.report_error(
-                source="backend",
-                message="Some error",
-            )
+        watcher.report_error(
+            source="backend",
+            message="Some error",
+        )
 
-        bl_tracker.create_issue.assert_called_once()
+        native_tracker.create_issue.assert_called_once()
         gh_tracker.create_issue.assert_not_called()
 
 
@@ -1029,97 +1022,97 @@ class TestWatcherCreatedTasksGitHub:
 
 
 class TestMixedProjectDispatch:
-    """Dispatch across Backlog + GitHub projects without ID confusion (AC #2)."""
+    """Dispatch across native Markdown + GitHub projects without ID confusion (AC #2)."""
 
     def _make_mixed_orch(
         self,
         tmp_path,
-        bl_issues: list[Issue],
+        native_issues: list[Issue],
         gh_issues: list[Issue],
     ) -> tuple[Orchestrator, MagicMock, MagicMock]:
-        bl_tracker = _make_tracker(bl_issues)
+        native_tracker = _make_tracker(native_issues)
         gh_tracker = _make_tracker(gh_issues)
 
-        proj_bl = _make_project(
-            "proj-bl", name="myproject", tracker_kind="backlog_md"
+        proj_native = _make_project(
+            "proj-native", name="myproject", tracker_kind="oompah_md"
         )
         proj_gh = _make_project("proj-gh", name="mygh", tracker_kind="github_issues")
 
-        orch = _make_orch(tmp_path, projects=[proj_bl, proj_gh])
-        orch._project_trackers["proj-bl"] = bl_tracker
+        orch = _make_orch(tmp_path, projects=[proj_native, proj_gh])
+        orch._project_trackers["proj-native"] = native_tracker
         orch._project_trackers["proj-gh"] = gh_tracker
 
-        return orch, bl_tracker, gh_tracker
+        return orch, native_tracker, gh_tracker
 
     def test_candidates_for_two_projects_have_distinct_project_ids(self, tmp_path):
         """After fetch, every candidate carries its own project_id."""
-        bl = _backlog_issue("TASK-1", project_id="proj-bl")
+        native = _native_tracker_issue("TASK-1", project_id="proj-native")
         gh = _github_issue("GH_1", "acme/tasks#1", "1", project_id="proj-gh")
 
-        orch, _, _ = self._make_mixed_orch(tmp_path, [bl], [gh])
+        orch, _, _ = self._make_mixed_orch(tmp_path, [native], [gh])
         candidates = orch._fetch_all_candidates()
 
         by_proj = {c.project_id for c in candidates}
-        assert by_proj == {"proj-bl", "proj-gh"}
+        assert by_proj == {"proj-native", "proj-gh"}
 
     def test_total_candidate_count_matches_both_projects(self, tmp_path):
         """Total candidate count equals sum of issues from both projects."""
-        bl_issues = [_backlog_issue(f"TASK-{i}", project_id="proj-bl") for i in range(3)]
+        native_issues = [_native_tracker_issue(f"TASK-{i}", project_id="proj-native") for i in range(3)]
         gh_issues = [
             _github_issue(f"GH_{i}", f"acme/tasks#{i}", str(i), project_id="proj-gh")
             for i in range(2)
         ]
 
-        orch, _, _ = self._make_mixed_orch(tmp_path, bl_issues, gh_issues)
+        orch, _, _ = self._make_mixed_orch(tmp_path, native_issues, gh_issues)
         candidates = orch._fetch_all_candidates()
 
         assert len(candidates) == 5
 
-    def test_backlog_issue_tracker_for_issue_returns_backlog_tracker(self, tmp_path):
+    def test_native_tracker_issue_tracker_for_issue_returns_native_tracker(self, tmp_path):
         """``_tracker_for_issue`` resolves to the correct tracker for each type."""
-        bl = _backlog_issue("TASK-5", project_id="proj-bl")
+        native = _native_tracker_issue("TASK-5", project_id="proj-native")
         gh = _github_issue("GH_5", "acme/tasks#5", "5", project_id="proj-gh")
 
-        bl_tracker = _make_tracker([bl])
+        native_tracker = _make_tracker([native])
         gh_tracker = _make_tracker([gh])
 
-        proj_bl = _make_project(
-            "proj-bl", name="myproject", tracker_kind="backlog_md"
+        proj_native = _make_project(
+            "proj-native", name="myproject", tracker_kind="oompah_md"
         )
         proj_gh = _make_project("proj-gh", name="mygh", tracker_kind="github_issues")
 
-        orch = _make_orch(tmp_path, projects=[proj_bl, proj_gh])
-        orch._project_trackers["proj-bl"] = bl_tracker
+        orch = _make_orch(tmp_path, projects=[proj_native, proj_gh])
+        orch._project_trackers["proj-native"] = native_tracker
         orch._project_trackers["proj-gh"] = gh_tracker
 
-        resolved_bl = orch._tracker_for_issue(bl)
+        resolved_native = orch._tracker_for_issue(native)
         resolved_gh = orch._tracker_for_issue(gh)
 
-        assert resolved_bl is bl_tracker
+        assert resolved_native is native_tracker
         assert resolved_gh is gh_tracker
 
     def test_same_bare_number_issues_resolve_to_different_trackers(self, tmp_path):
         """TASK-1 and GH_1 resolve to different tracker instances."""
-        bl = _backlog_issue("TASK-1", project_id="proj-bl")
+        native = _native_tracker_issue("TASK-1", project_id="proj-native")
         gh = _github_issue("GH_1", "acme/tasks#1", "1", project_id="proj-gh")
 
-        bl_tracker = _make_tracker([bl])
+        native_tracker = _make_tracker([native])
         gh_tracker = _make_tracker([gh])
 
-        proj_bl = _make_project(
-            "proj-bl", name="myproject", tracker_kind="backlog_md"
+        proj_native = _make_project(
+            "proj-native", name="myproject", tracker_kind="oompah_md"
         )
         proj_gh = _make_project("proj-gh", name="mygh", tracker_kind="github_issues")
 
-        orch = _make_orch(tmp_path, projects=[proj_bl, proj_gh])
-        orch._project_trackers["proj-bl"] = bl_tracker
+        orch = _make_orch(tmp_path, projects=[proj_native, proj_gh])
+        orch._project_trackers["proj-native"] = native_tracker
         orch._project_trackers["proj-gh"] = gh_tracker
 
-        resolved_bl = orch._tracker_for_issue(bl)
+        resolved_native = orch._tracker_for_issue(native)
         resolved_gh = orch._tracker_for_issue(gh)
 
-        assert resolved_bl is not resolved_gh
-        assert resolved_bl is bl_tracker
+        assert resolved_native is not resolved_gh
+        assert resolved_native is native_tracker
         assert resolved_gh is gh_tracker
 
     def test_dispatch_uses_project_scoped_tracker_for_github_issue(
@@ -1129,7 +1122,7 @@ class TestMixedProjectDispatch:
         gh = _github_issue("GH_10", "acme/tasks#10", "10", project_id="proj-gh")
         gh_tracker = _make_tracker([gh])
         gh_tracker.fetch_issue_states_by_ids.return_value = [gh]
-        bl_tracker = _make_tracker()
+        native_tracker = _make_tracker()
 
         # Confirm GitHub claim
         written_ids: list[str] = []
@@ -1145,13 +1138,13 @@ class TestMixedProjectDispatch:
         gh_tracker.set_metadata_field.side_effect = _capture_set
         gh_tracker.get_metadata.side_effect = _echo_meta
 
-        proj_bl = _make_project(
-            "proj-bl", name="myproject", tracker_kind="backlog_md"
+        proj_native = _make_project(
+            "proj-native", name="myproject", tracker_kind="oompah_md"
         )
         proj_gh = _make_project("proj-gh", name="mygh", tracker_kind="github_issues")
 
-        orch = _make_orch(tmp_path, projects=[proj_bl, proj_gh])
-        orch._project_trackers["proj-bl"] = bl_tracker
+        orch = _make_orch(tmp_path, projects=[proj_native, proj_gh])
+        orch._project_trackers["proj-native"] = native_tracker
         orch._project_trackers["proj-gh"] = gh_tracker
 
         mock_profile = AgentProfile(name="default", command="echo test")
@@ -1161,6 +1154,6 @@ class TestMixedProjectDispatch:
 
         event_loop.run_until_complete(orch._dispatch(gh, attempt=None))
 
-        # GitHub tracker was used for in-progress update; Backlog was not
+        # GitHub tracker was used for in-progress update; native tracker was not
         assert gh_tracker.update_issue.called
-        assert not bl_tracker.update_issue.called
+        assert not native_tracker.update_issue.called

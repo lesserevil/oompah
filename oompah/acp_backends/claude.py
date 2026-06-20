@@ -7,7 +7,7 @@ contains ALL of the SDK-specific code that previously lived inline in
 ``oompah/acp_agent.py``; the latter is now a backend-agnostic facade
 that looks the backend up through the registry.
 
-See ``plans/acp-agent.md`` and bead ``oompah-zlz_2-bcl`` for the
+See ``plans/acp-agent.md`` and task ``oompah-zlz_2-bcl`` for the
 architectural decisions that locked in the strict-allowlist tool
 policy and the can_use_tool / disallowed_tools dual-gating mechanism.
 """

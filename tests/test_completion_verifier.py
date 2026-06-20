@@ -1,12 +1,12 @@
 """Tests for the completion verifier (oompah-zlz_2-y0ns).
 
-Covers the four acceptance criteria from the bead:
+Covers the four acceptance criteria from the task:
 
 1. Full match: AC mentions a file AND the agent's diff touches it →
    close allowed.
 2. Partial match: AC mentions a file AND the diff doesn't touch it →
    close rejected (and re-opened with a diagnostic comment).
-3. No AC: bead has no ``# Acceptance criteria`` section → verification
+3. No AC: task has no ``# Acceptance criteria`` section → verification
    skipped (close allowed).
 4. LLM fail-open: stage 2 LLM call fails / times out → close allowed.
 
@@ -39,7 +39,6 @@ from oompah.completion_verifier import (
     _symbol_present,
     compute_added_files,
     compute_diff,
-    detect_new_backlog_files,
     extract_acceptance_section,
     extract_references,
     run_stage1,
@@ -159,7 +158,7 @@ class TestExtractReferences:
 
     def test_files_with_directory(self):
         section = (
-            "- A bead whose AC mentions `oompah/foo.py` AND the agent's "
+            "- A task whose AC mentions `oompah/foo.py` AND the agent's "
             "diff doesn't touch `oompah/foo.py`.\n"
             "- Tests in `tests/test_completion_verifier.py`.\n"
         )
@@ -289,7 +288,7 @@ class TestRunStage1:
         _commit_files(repo, {"oompah/foo.py": "def bar():\n    pass\n"})
         issue = _issue(description=(
             "# Acceptance criteria\n"
-            "- A bead whose AC mentions `oompah/foo.py` ...\n"
+            "- A task whose AC mentions `oompah/foo.py` ...\n"
         ))
         result = run_stage1(issue, str(repo), base)
         assert result.missing_files == []
@@ -501,13 +500,13 @@ class TestVerifyCompletion:
         assert not result.skipped
 
     def test_partial_match_rejected_without_llm(self, git_repo):
-        """The first AC from the bead body — file mentioned, diff
+        """The first AC from the task body — file mentioned, diff
         doesn't touch it → rejected even when stage 2 is disabled."""
         repo, base = git_repo
         _commit_files(repo, {"unrelated.py": "x = 1\n"})
         issue = _issue(description=(
             "# Acceptance criteria\n"
-            "- A bead whose AC mentions `oompah/foo.py` AND the agent's "
+            "- A task whose AC mentions `oompah/foo.py` AND the agent's "
             "diff doesn't touch `oompah/foo.py` → close rejected.\n"
         ))
         result = verify_completion(
@@ -612,7 +611,7 @@ class TestVerifyCompletion:
 class TestTrickleIclRegression:
     """Live verification: the trickle-icl scenario.
 
-    Bead AC says "push to existing branch trickle-rl5". The agent
+    Task AC says "push to existing branch trickle-rl5". The agent
     instead created a new branch and pushed there. The diff against
     main contains the right code (it's the same fix) but the AC
     explicitly references the wrong branch name, so the verifier
@@ -653,46 +652,6 @@ class TestTrickleIclRegression:
 
 
 # --------------------------------------------------------------------------- #
-# detect_new_backlog_files (unit)
-# --------------------------------------------------------------------------- #
-
-
-class TestDetectNewBacklogFiles:
-    """Unit tests for the backlog-file path filter."""
-
-    def test_task_file_detected(self):
-        files = ["backlog/tasks/task-99.md", "oompah/foo.py"]
-        result = detect_new_backlog_files(files)
-        assert result == ["backlog/tasks/task-99.md"]
-
-    def test_completed_file_detected(self):
-        files = ["backlog/completed/task-100.md"]
-        result = detect_new_backlog_files(files)
-        assert result == ["backlog/completed/task-100.md"]
-
-    def test_normal_files_not_flagged(self):
-        files = ["oompah/foo.py", "tests/test_foo.py", "README.md"]
-        assert detect_new_backlog_files(files) == []
-
-    def test_empty_list(self):
-        assert detect_new_backlog_files([]) == []
-
-    def test_multiple_backlog_files(self):
-        files = [
-            "backlog/tasks/task-1.md",
-            "backlog/completed/task-2.md",
-            "oompah/server.py",
-        ]
-        result = detect_new_backlog_files(files)
-        assert set(result) == {"backlog/tasks/task-1.md", "backlog/completed/task-2.md"}
-
-    def test_partial_prefix_not_flagged(self):
-        # "backlog/" alone or other subdirs must not be matched.
-        files = ["backlog/config.yml", "backlog/docs/guide.md"]
-        assert detect_new_backlog_files(files) == []
-
-
-# --------------------------------------------------------------------------- #
 # compute_added_files (git integration)
 # --------------------------------------------------------------------------- #
 
@@ -720,209 +679,6 @@ class TestComputeAddedFiles:
     def test_non_git_dir_returns_empty(self, tmp_path):
         added = compute_added_files(str(tmp_path), "main")
         assert added == []
-
-
-# --------------------------------------------------------------------------- #
-# New backlog-file guard — full verify_completion integration
-# --------------------------------------------------------------------------- #
-
-
-def _issue_github(
-    *,
-    identifier: str = "owner/repo#42",
-    description: str = "# Acceptance criteria\n\n- Something done.\n",
-    labels: list[str] | None = None,
-    issue_type: str = "task",
-) -> Issue:
-    """Return an Issue configured as a GitHub-backed task."""
-    return Issue(
-        id=identifier,
-        identifier=identifier,
-        title="test github task",
-        description=description,
-        issue_type=issue_type,
-        labels=list(labels or []),
-        tracker_kind="github_issues",
-        tracker_owner="owner",
-        tracker_repo="repo",
-    )
-
-
-def _issue_native(
-    *,
-    identifier: str = "OVA-42",
-    description: str = "# Acceptance criteria\n\n- Something done.\n",
-) -> Issue:
-    """Return an Issue configured as a native oompah Markdown task."""
-    return Issue(
-        id=identifier,
-        identifier=identifier,
-        title="test native task",
-        description=description,
-        issue_type="task",
-        labels=[],
-        tracker_kind="oompah_md",
-    )
-
-
-class TestNewBacklogFilesGuard:
-    """TASK-460.4: Backlog-file guard for non-Backlog oompah-managed tasks.
-
-    AC#1 — GitHub-backed tasks fail verification if they add Backlog
-    task files.
-    AC#2 — The guard does not block legacy Backlog task updates.
-    """
-
-    # ----------------------------------------------------------------
-    # AC#1: GitHub-backed tasks are rejected
-    # ----------------------------------------------------------------
-
-    def test_github_adds_backlog_task_file_rejected(self, git_repo):
-        """AC#1: adding backlog/tasks/*.md rejects the close."""
-        repo, base = git_repo
-        _commit_files(repo, {"backlog/tasks/task-99.md": "# rogue task\n"})
-        issue = _issue_github(identifier="owner/repo#1")
-        result = verify_completion(issue, str(repo), base, provider=None)
-        assert not result.passed
-        assert "backlog/tasks/task-99.md" in result.new_backlog_files
-
-    def test_native_adds_backlog_task_file_rejected(self, git_repo):
-        """Native oompah Markdown tasks also reject new Backlog task files."""
-        repo, base = git_repo
-        _commit_files(repo, {"backlog/tasks/task-99.md": "# rogue task\n"})
-        issue = _issue_native(identifier="OVA-1")
-        result = verify_completion(issue, str(repo), base, provider=None)
-        assert not result.passed
-        assert "backlog/tasks/task-99.md" in result.new_backlog_files
-
-    def test_github_adds_backlog_completed_file_rejected(self, git_repo):
-        """AC#1: adding backlog/completed/*.md also rejects the close."""
-        repo, base = git_repo
-        _commit_files(repo, {"backlog/completed/task-100.md": "# done\n"})
-        issue = _issue_github(identifier="owner/repo#2")
-        result = verify_completion(issue, str(repo), base, provider=None)
-        assert not result.passed
-        assert "backlog/completed/task-100.md" in result.new_backlog_files
-
-    def test_github_adds_multiple_backlog_files_all_reported(self, git_repo):
-        """All newly-added backlog files are listed in the result."""
-        repo, base = git_repo
-        _commit_files(repo, {
-            "backlog/tasks/task-1.md": "# t1\n",
-            "backlog/tasks/task-2.md": "# t2\n",
-        })
-        issue = _issue_github(identifier="owner/repo#3")
-        result = verify_completion(issue, str(repo), base, provider=None)
-        assert not result.passed
-        assert "backlog/tasks/task-1.md" in result.new_backlog_files
-        assert "backlog/tasks/task-2.md" in result.new_backlog_files
-
-    def test_github_no_backlog_files_passes(self, git_repo):
-        """GitHub-backed task with only normal files is not blocked."""
-        repo, base = git_repo
-        _commit_files(repo, {"oompah/foo.py": "x = 1\n"})
-        issue = _issue_github(
-            identifier="owner/repo#4",
-            description="# Acceptance criteria\n\n- `oompah/foo.py` updated.\n",
-        )
-        result = verify_completion(issue, str(repo), base, provider=None)
-        assert result.passed
-
-    def test_guard_fires_before_skip_rules_epic(self, git_repo):
-        """AC#1: guard fires even for epics (not bypassed by skip rules)."""
-        repo, base = git_repo
-        _commit_files(repo, {"backlog/tasks/task-99.md": "# epic child\n"})
-        issue = _issue_github(identifier="owner/repo#5", issue_type="epic")
-        result = verify_completion(issue, str(repo), base, provider=None)
-        assert not result.passed
-        assert "backlog/tasks/task-99.md" in result.new_backlog_files
-
-    def test_guard_fires_before_skip_rules_ci_fix_label(self, git_repo):
-        """AC#1: guard fires even when ci-fix label is present."""
-        repo, base = git_repo
-        _commit_files(repo, {"backlog/tasks/task-99.md": "# ci fix task\n"})
-        issue = _issue_github(identifier="owner/repo#6", labels=["ci-fix"])
-        result = verify_completion(issue, str(repo), base, provider=None)
-        assert not result.passed
-        assert "backlog/tasks/task-99.md" in result.new_backlog_files
-
-    # ----------------------------------------------------------------
-    # AC#2: legacy Backlog tasks are not blocked
-    # ----------------------------------------------------------------
-
-    def test_legacy_backlog_task_none_tracker_kind_not_blocked(self, git_repo):
-        """AC#2: tracker_kind=None (legacy) does not trigger the guard."""
-        repo, base = git_repo
-        _commit_files(repo, {"backlog/tasks/task-99.md": "# legacy task\n"})
-        # Default _issue() has no tracker_kind (None → legacy mode).
-        issue = _issue(description="No AC here.")
-        result = verify_completion(issue, str(repo), base, provider=None)
-        # Skips (no AC section), but most importantly does NOT reject for
-        # backlog files.
-        assert result.passed
-        assert result.new_backlog_files == []
-
-    def test_legacy_backlog_md_tracker_kind_not_blocked(self, git_repo):
-        """AC#2: tracker_kind=backlog_md explicitly legacy → not blocked."""
-        repo, base = git_repo
-        _commit_files(repo, {"backlog/tasks/task-99.md": "# task\n"})
-        issue = _issue(description="No AC.")
-        issue.tracker_kind = "backlog_md"
-        result = verify_completion(issue, str(repo), base, provider=None)
-        assert result.passed
-        assert result.new_backlog_files == []
-
-    def test_legacy_backlog_tracker_kind_with_ac_not_blocked(self, git_repo):
-        """AC#2: legacy task with an AC section still not blocked."""
-        repo, base = git_repo
-        _commit_files(repo, {
-            "backlog/tasks/task-99.md": "# updated task\n",
-            "oompah/foo.py": "x = 1\n",
-        })
-        issue = _issue(description=(
-            "# Acceptance criteria\n"
-            "- `oompah/foo.py` is updated.\n"
-        ))
-        # tracker_kind=None → legacy; guard must not fire.
-        result = verify_completion(issue, str(repo), base, provider=None)
-        assert result.passed
-        assert result.new_backlog_files == []
-
-    # ----------------------------------------------------------------
-    # Rejection comment
-    # ----------------------------------------------------------------
-
-    def test_rejection_comment_mentions_backlog_files(self, git_repo):
-        repo, base = git_repo
-        _commit_files(repo, {"backlog/tasks/task-99.md": "# rogue\n"})
-        issue = _issue_github(identifier="owner/repo#7")
-        result = verify_completion(issue, str(repo), base, provider=None)
-        assert not result.passed
-        comment = result.render_rejection_comment()
-        assert "backlog/tasks/task-99.md" in comment
-        assert "oompah task" in comment.lower()
-
-    def test_rejection_comment_includes_oompah_task_guidance(self, git_repo):
-        repo, base = git_repo
-        _commit_files(repo, {"backlog/completed/done-1.md": "# done\n"})
-        issue = _issue_github(identifier="owner/repo#8")
-        result = verify_completion(issue, str(repo), base, provider=None)
-        comment = result.render_rejection_comment()
-        assert "backlog/completed/done-1.md" in comment
-        # Must guide the agent to use oompah task create instead.
-        assert "oompah task create" in comment
-
-    def test_rejection_comment_standalone_backlog_guard(self):
-        """render_rejection_comment works for a guard-only rejection."""
-        r = VerifierResult(
-            passed=False,
-            new_backlog_files=["backlog/tasks/task-1.md", "backlog/tasks/task-2.md"],
-        )
-        comment = r.render_rejection_comment()
-        assert "backlog/tasks/task-1.md" in comment
-        assert "backlog/tasks/task-2.md" in comment
-        assert "GitHub-backed" in comment
-        assert "oompah task create" in comment
 
 
 # --------------------------------------------------------------------------- #

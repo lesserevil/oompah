@@ -26,8 +26,7 @@ def _make_minimal_workflow() -> str:
     """Return a minimal WORKFLOW.md string that loads without error."""
     return """---
 tracker:
-  type: backlog
-  path: .
+  kind: oompah_md
 agents:
   max_concurrent: 1
 dispatch:
@@ -130,9 +129,6 @@ class TestSetupServicesSuccess:
         mock_projects = MagicMock(name="project_store")
         mock_projects.list_all.return_value = []
 
-        mock_compat_result = MagicMock(name="compat")
-        mock_compat_result.changed = False
-
         return {
             "workflow": mock_workflow,
             "config": mock_config,
@@ -140,7 +136,6 @@ class TestSetupServicesSuccess:
             "role_store": mock_role_store,
             "forwarder": mock_forwarder,
             "projects": mock_projects,
-            "compat": mock_compat_result,
         }
 
     # bootstrap.setup_services() uses lazy imports inside the function body,
@@ -150,7 +145,6 @@ class TestSetupServicesSuccess:
         "load_workflow": "oompah.config.load_workflow",
         "ServiceConfig": "oompah.config.ServiceConfig",
         "validate_dispatch_config": "oompah.config.validate_dispatch_config",
-        "ensure_backlog_compatible": "oompah.backlog_compat.ensure_backlog_compatible",
         "ProviderStore": "oompah.providers.ProviderStore",
         "ProjectStore": "oompah.projects.ProjectStore",
         "AgentProfileStore": "oompah.agent_profile_store.AgentProfileStore",
@@ -172,10 +166,6 @@ class TestSetupServicesSuccess:
             patch(self._PATCHES["load_workflow"], return_value=mocks["workflow"]),
             patch(self._PATCHES["ServiceConfig"], mock_sc),
             patch(self._PATCHES["validate_dispatch_config"], return_value=[]),
-            patch(
-                self._PATCHES["ensure_backlog_compatible"],
-                return_value=mocks["compat"],
-            ),
             patch(self._PATCHES["ProviderStore"], return_value=MagicMock()),
             patch(self._PATCHES["ProjectStore"], return_value=mocks["projects"]),
             patch(self._PATCHES["AgentProfileStore"], return_value=MagicMock()),
@@ -217,10 +207,6 @@ class TestSetupServicesSuccess:
             patch(self._PATCHES["load_workflow"], return_value=mocks["workflow"]),
             patch(self._PATCHES["ServiceConfig"], mock_sc),
             patch(self._PATCHES["validate_dispatch_config"], return_value=[]),
-            patch(
-                self._PATCHES["ensure_backlog_compatible"],
-                return_value=mocks["compat"],
-            ),
             patch(self._PATCHES["ProviderStore"], return_value=MagicMock()),
             patch(self._PATCHES["ProjectStore"], return_value=mocks["projects"]),
             patch(self._PATCHES["AgentProfileStore"], return_value=MagicMock()),
@@ -251,7 +237,7 @@ class TestSetupServicesSuccess:
         project.name = "trickle"
         mocks["projects"].list_all.return_value = [project]
         mocks["projects"].sync_all_sources.return_value = {
-            "proj-gh": {"git": "ok", "backlog": "skipped: github_issues"}
+            "proj-gh": {"git": "ok", "tracker": "github_issues"}
         }
 
         bootstrap_result = MagicMock(name="label_bootstrap_result")
@@ -272,10 +258,6 @@ class TestSetupServicesSuccess:
             patch(self._PATCHES["load_workflow"], return_value=mocks["workflow"]),
             patch(self._PATCHES["ServiceConfig"], mock_sc),
             patch(self._PATCHES["validate_dispatch_config"], return_value=[]),
-            patch(
-                self._PATCHES["ensure_backlog_compatible"],
-                return_value=mocks["compat"],
-            ),
             patch(self._PATCHES["ProviderStore"], return_value=MagicMock()),
             patch(self._PATCHES["ProjectStore"], return_value=mocks["projects"]),
             patch(self._PATCHES["AgentProfileStore"], return_value=MagicMock()),
@@ -288,10 +270,6 @@ class TestSetupServicesSuccess:
             patch(
                 self._PATCHES["Orchestrator"],
                 return_value=mocks["orchestrator"],
-            ),
-            patch(
-                "oompah.backlog_webhooks.ensure_backlog_webhooks",
-                return_value={"proj-gh": "skipped: github_issues"},
             ),
             patch(
                 "oompah.label_bootstrap.ensure_github_labels",
@@ -310,92 +288,6 @@ class TestSetupServicesSuccess:
         build_alerts.assert_called_once_with({"proj-gh": bootstrap_result})
         assert bootstrap_alert in mocks["orchestrator"]._alerts
 
-    @pytest.mark.asyncio
-    async def test_missing_root_backlog_is_nonfatal_with_managed_projects(
-        self,
-        tmp_path,
-    ):
-        """GitHub-managed project stores do not require a root Backlog.md config."""
-        from oompah.backlog_compat import BacklogCompatibilityError
-
-        mocks = self._make_mocks()
-        project = MagicMock(name="project")
-        project.id = "proj-gh"
-        project.name = "oompah"
-        project.tracker_kind = "github_issues"
-        mocks["projects"].list_all.return_value = [project]
-        mocks["projects"].sync_all_sources.return_value = {
-            "proj-gh": {"git": "ok", "backlog": "skipped: github_issues"}
-        }
-
-        mock_sc = MagicMock(name="ServiceConfig_class")
-        mock_sc.from_workflow.return_value = mocks["config"]
-
-        with (
-            patch(self._PATCHES["load_workflow"], return_value=mocks["workflow"]),
-            patch(self._PATCHES["ServiceConfig"], mock_sc),
-            patch(self._PATCHES["validate_dispatch_config"], return_value=[]),
-            patch(
-                self._PATCHES["ensure_backlog_compatible"],
-                side_effect=BacklogCompatibilityError(
-                    "No Backlog.md project found in /tmp/repo. Run `backlog init`."
-                ),
-            ),
-            patch(self._PATCHES["ProviderStore"], return_value=MagicMock()),
-            patch(self._PATCHES["ProjectStore"], return_value=mocks["projects"]),
-            patch(self._PATCHES["AgentProfileStore"], return_value=MagicMock()),
-            patch(self._PATCHES["RoleStore"], return_value=mocks["role_store"]),
-            patch(self._PATCHES["migrate_agent_profiles_to_roles"]),
-            patch(
-                self._PATCHES["WebhookForwarder"],
-                return_value=mocks["forwarder"],
-            ),
-            patch(
-                self._PATCHES["Orchestrator"],
-                return_value=mocks["orchestrator"],
-            ),
-            patch("oompah.label_bootstrap.ensure_github_labels", return_value={}),
-            patch(
-                "oompah.backlog_webhooks.ensure_backlog_webhooks",
-                return_value={"proj-gh": "skipped: github_issues"},
-            ),
-        ):
-            from oompah.bootstrap import setup_services
-
-            services = await setup_services(str(tmp_path / "WORKFLOW.md"))
-
-        assert services.project_store is mocks["projects"]
-        assert services.orchestrator is mocks["orchestrator"]
-
-    @pytest.mark.asyncio
-    async def test_missing_root_backlog_remains_fatal_without_managed_projects(
-        self,
-        tmp_path,
-    ):
-        """Legacy single-tracker startup still requires a Backlog.md config."""
-        from oompah.backlog_compat import BacklogCompatibilityError
-        from oompah.bootstrap import StartupError, setup_services
-
-        mocks = self._make_mocks()
-
-        mock_sc = MagicMock(name="ServiceConfig_class")
-        mock_sc.from_workflow.return_value = mocks["config"]
-
-        with (
-            patch(self._PATCHES["load_workflow"], return_value=mocks["workflow"]),
-            patch(self._PATCHES["ServiceConfig"], mock_sc),
-            patch(self._PATCHES["validate_dispatch_config"], return_value=[]),
-            patch(
-                self._PATCHES["ensure_backlog_compatible"],
-                side_effect=BacklogCompatibilityError(
-                    "No Backlog.md project found in /tmp/repo. Run `backlog init`."
-                ),
-            ),
-            patch(self._PATCHES["ProjectStore"], return_value=mocks["projects"]),
-        ):
-            with pytest.raises(StartupError, match="Backlog.md compatibility error"):
-                await setup_services(str(tmp_path / "WORKFLOW.md"))
-
 
 # ---------------------------------------------------------------------------
 # __main__.main() — --server argument parsing
@@ -408,7 +300,7 @@ class TestMainServerArgument:
     def test_default_server_is_uvicorn(self, tmp_path, monkeypatch):
         """Omitting --server uses uvicorn (asyncio.run called)."""
         wf = tmp_path / "WORKFLOW.md"
-        wf.write_text("tracker:\n  type: backlog\n")
+        wf.write_text("tracker:\n  kind: oompah_md\n")
 
         monkeypatch.setattr(sys, "argv", ["oompah", str(wf)])
 
@@ -435,7 +327,7 @@ class TestMainServerArgument:
     def test_server_granian_dispatches_run_granian(self, tmp_path, monkeypatch):
         """--server granian calls _run_granian() instead of asyncio.run."""
         wf = tmp_path / "WORKFLOW.md"
-        wf.write_text("tracker:\n  type: backlog\n")
+        wf.write_text("tracker:\n  kind: oompah_md\n")
 
         monkeypatch.setattr(
             sys, "argv", ["oompah", str(wf), "--server", "granian"]

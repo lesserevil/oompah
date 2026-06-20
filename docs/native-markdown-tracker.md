@@ -76,8 +76,7 @@ default branch. After a write it commits `.oompah/tasks` and pushes back to
 Set `OOMPAH_MD_TRACKER_GIT_SYNC=0` only for tests or one-off local experiments.
 With sync disabled, oompah writes files without committing or pushing them.
 
-Native tracker projects skip Backlog.md compatibility checks and Backlog task
-conflict repair because `.oompah/tasks` is the task source of truth.
+Native tracker projects use `.oompah/tasks` as the task source of truth.
 
 ## Optional GitHub Issue Intake
 

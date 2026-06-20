@@ -273,7 +273,7 @@ def _parse_github_merge_group(
 
     The ``head_ref`` of the merge group encodes the source PR branch name in
     the form ``gh-readonly-queue/<base>/<pr-identifier>``.  We surface it
-    in ``source_branch`` so downstream consumers can match the bead.
+    in ``source_branch`` so downstream consumers can match the task.
 
     Args:
         event_type: Always ``"merge_group"``.

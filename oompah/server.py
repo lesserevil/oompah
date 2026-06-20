@@ -39,7 +39,6 @@ from oompah.webhooks import (
     validate_github_signature,
     validate_gitlab_token,
 )
-from oompah.backlog_webhooks import validate_backlog_webhook_signature
 from oompah.focus import (
     BUILTIN_FOCI,
     DEFAULT_FOCUS,
@@ -95,7 +94,7 @@ from oompah.github_intake_bridge import (
 from oompah.issue_validator import validate_issue
 from oompah.models import AgentProfile
 from oompah.projects import ProjectError, ProjectStore
-from oompah.tracker import _backlog_priority_int
+from oompah.tracker import normalize_priority_int
 from oompah.providers import ProviderStore
 from oompah.roles import Candidate, RoleError, RoleStore, VALID_STRATEGIES, DEFAULT_STRATEGY
 from oompah.statuses import (
@@ -133,7 +132,7 @@ logger = logging.getLogger(__name__)
 
 def _task_priority_int(value: Any) -> int | None:
     """Normalize task priority values accepted by tracker-neutral APIs."""
-    return _backlog_priority_int(value)
+    return normalize_priority_int(value)
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _template_cache: dict[str, str] = {}
@@ -435,7 +434,7 @@ _ws_clients: set[WebSocket] = set()
 # then accessed by the WS handler and the GET /api/v1/console endpoints.
 _console_manager: Any = None
 
-_BACKLOG_TASK_IDENTIFIER_RE = re.compile(r"^TASK-(\d+(?:\.\d+)*)$", re.IGNORECASE)
+_NATIVE_TASK_IDENTIFIER_RE = re.compile(r"^TASK-(\d+(?:\.\d+)*)$", re.IGNORECASE)
 
 
 def _project_names_by_id(orch) -> dict[str, str]:
@@ -471,10 +470,10 @@ def _project_by_id(orch, project_id: str | None):
 
 
 def _display_identifier(identifier: str, project_name: str | None) -> str:
-    """Format Backlog task ids for display without changing their real id."""
+    """Format native task ids for display without changing their real id."""
     if not project_name:
         return identifier
-    match = _BACKLOG_TASK_IDENTIFIER_RE.match(identifier)
+    match = _NATIVE_TASK_IDENTIFIER_RE.match(identifier)
     if not match:
         return identifier
     return f"{project_name}-{match.group(1)}"
@@ -486,7 +485,7 @@ def _issue_display_fields(
 ) -> dict[str, str | None]:
     project_name = project_names.get(issue.project_id or "")
     # Prefer the tracker's own display_identifier when set (e.g. GitHub issues
-    # use a short form like "tasks#1234"). Fall back to the Backlog-specific
+    # use a short form like "tasks#1234"). Fall back to the native task
     # formatter so existing TASK-NNN identifiers still appear as
     # "ProjectName-NNN" in the dashboard.
     di = getattr(issue, "display_identifier", None) or _display_identifier(
@@ -784,9 +783,6 @@ _PROJECT_TRACKER_CACHE_FIELDS = frozenset(
         "tracker_repo",
         "github_issue_intake_enabled",
         "github_project_node_id",
-        "legacy_backlog_enabled",
-        "legacy_backlog_dispatch",
-        "tracker_cutover_at",
     }
 )
 
@@ -796,10 +792,6 @@ def _invalidate_project_tracker_cache(orch: object, project_id: str) -> None:
     project_trackers = getattr(orch, "_project_trackers", None)
     if isinstance(project_trackers, dict):
         project_trackers.pop(project_id, None)
-
-    legacy_trackers = getattr(orch, "_project_legacy_backlog_trackers", None)
-    if isinstance(legacy_trackers, dict):
-        legacy_trackers.pop(project_id, None)
 
     branch_indexes = getattr(orch, "_branch_indexes", None)
     if isinstance(branch_indexes, dict):
@@ -1024,7 +1016,7 @@ async def _ensure_issues_snapshot_refresh(
     """Start one background board refresh if the snapshot is absent/stale.
 
     The request path never waits for the refresh. This keeps the dashboard
-    responsive even when the Backlog corpus takes tens of seconds to parse.
+    responsive even when the task corpus takes tens of seconds to parse.
     """
     global _issues_refresh_task
     with _issues_snapshot_lock:
@@ -1103,40 +1095,7 @@ def _status_rank(status: str) -> int:
 
 
 def _effective_display_status(orch, issue) -> str:
-    """Status to display for *issue*, reconciling the default branch with the
-    epic branch for shared-epic children.
-
-    A shared-epic child records agent progress on the epic branch, while the
-    operator's manual moves land on the default branch; neither is strictly
-    authoritative until the epic merges. We show whichever is **further along
-    the workflow**:
-
-    * epic branch ahead (e.g. agent marked it Done/Merged) → show that, so the
-      board doesn't keep a finished child in Open/In-Progress; and
-    * default branch ahead (e.g. operator moved Backlog→Open before the epic
-      branch caught up) → show that, so manual moves aren't reverted.
-
-    Ties keep the default-branch value. Returns ``issue.state`` unchanged for
-    non-shared / non-child issues, or on any lookup failure (display must
-    never break the board).
-    """
-    parent_id = getattr(issue, "parent_id", None)
-    project_id = getattr(issue, "project_id", None)
-    identifier = getattr(issue, "identifier", None)
-    if not (parent_id and project_id and identifier):
-        return issue.state
-    try:
-        if orch._project_epic_strategy(project_id) != "shared":
-            return issue.state
-        epic_status = orch.project_store.read_task_status_in_epic_worktree(
-            project_id, parent_id, identifier
-        )
-    except Exception:  # noqa: BLE001 — display path; fall back to default branch
-        return issue.state
-    if not epic_status:
-        return issue.state
-    if _status_rank(epic_status) > _status_rank(issue.state):
-        return epic_status
+    """Status to display for *issue* from the canonical tracker state."""
     return issue.state
 
 
@@ -1390,8 +1349,7 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             "branch_name": issue.branch_name,
             "has_open_review": has_open_review,
             "attachments": list(getattr(issue, "attachments", []) or []),
-            # Tracker identity fields — populated for GitHub-backed issues;
-            # None/False for legacy Backlog-backed issues (backward compat).
+            # Tracker identity fields.
             "tracker_kind": getattr(issue, "tracker_kind", None),
             "tracker_owner": getattr(issue, "tracker_owner", None),
             "tracker_repo": getattr(issue, "tracker_repo", None),
@@ -1401,7 +1359,6 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             "managed_repo": getattr(issue, "managed_repo", None),
             "target_branch": getattr(issue, "target_branch", None),
             "work_branch": getattr(issue, "work_branch", None),
-            "is_legacy": bool(getattr(issue, "is_legacy", False)),
             **_issue_display_fields(issue, project_names),
         }
         if intake_summary is not None:
@@ -1999,39 +1956,7 @@ def _find_tracker_for_issue(orch, identifier: str, project_id: str | None = None
 
     Returns (tracker, project_id, issue) tuple. If the issue cannot be found in
     any project, returns (None, None, None).
-
-    Used by read-only endpoints (issue detail, comments, attachments) where the
-    UI may not know which project an issue belongs to. Mutating endpoints should
-    still require project_id explicitly; with project_id they can use the same
-    lookup to route visible legacy Backlog cards in GitHub dual-read projects.
     """
-    def _legacy_tracker_for_dual_read_project(pid: str):
-        project = None
-        try:
-            project = orch.project_store.get(pid)
-        except Exception:
-            project = None
-        if project is None:
-            return None
-        if not _is_github_tracker_kind(getattr(project, "tracker_kind", None)):
-            return None
-        if getattr(project, "legacy_backlog_enabled", False) is not True:
-            return None
-        tracker_for_project = getattr(orch, "_legacy_backlog_tracker_for_project", None)
-        if not callable(tracker_for_project):
-            return None
-        try:
-            return tracker_for_project(pid)
-        except Exception:
-            return None
-
-    def _tag_legacy(issue, pid: str):
-        if issue is not None:
-            issue.project_id = pid
-            issue.tracker_kind = "backlog_md"
-            issue.is_legacy = True
-        return issue
-
     # Fast path: explicit project_id wins
     if project_id:
         try:
@@ -2042,17 +1967,6 @@ def _find_tracker_for_issue(orch, identifier: str, project_id: str | None = None
             issue = tracker.fetch_issue_detail(identifier)
         except Exception:
             issue = None
-        if issue is None:
-            legacy_tracker = _legacy_tracker_for_dual_read_project(project_id)
-            if legacy_tracker is not None:
-                try:
-                    legacy_issue = legacy_tracker.fetch_issue_detail(identifier)
-                except Exception:
-                    legacy_issue = None
-                if legacy_issue is not None:
-                    return legacy_tracker, project_id, _tag_legacy(
-                        legacy_issue, project_id
-                    )
         return tracker, project_id, issue
 
     # Slow path: search all known projects for the issue
@@ -2073,16 +1987,6 @@ def _find_tracker_for_issue(orch, identifier: str, project_id: str | None = None
             issue = None
         if issue is not None:
             return tracker, project.id, issue
-        legacy_tracker = _legacy_tracker_for_dual_read_project(project.id)
-        if legacy_tracker is not None:
-            try:
-                legacy_issue = legacy_tracker.fetch_issue_detail(identifier)
-            except Exception:
-                legacy_issue = None
-            if legacy_issue is not None:
-                return legacy_tracker, project.id, _tag_legacy(
-                    legacy_issue, project.id
-                )
 
     return None, None, None
 
@@ -2090,7 +1994,7 @@ def _find_tracker_for_issue(orch, identifier: str, project_id: str | None = None
 def _get_tracker_for_issue_or_project(
     orch, identifier: str, project_id: str
 ) -> tuple[object, str]:
-    """Resolve a tracker for a known project, honoring legacy dual-read items."""
+    """Resolve a tracker for a known project."""
     tracker, resolved_project_id, issue = _find_tracker_for_issue(
         orch, identifier, project_id
     )
@@ -2469,77 +2373,12 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
     if not targets:
         return []
 
-    def _fetch_legacy_backlog_issues_for_project(project) -> list:
-        project_id = getattr(project, "id", "")
-        repo_path = getattr(project, "repo_path", None)
-        if not project_id or not isinstance(repo_path, str) or not repo_path:
-            return []
-        legacy_tracker_for_project = getattr(
-            orch, "_legacy_backlog_tracker_for_project", None
-        )
-        if not callable(legacy_tracker_for_project):
-            return []
-        try:
-            tracker = legacy_tracker_for_project(project_id)
-            issues = tracker.fetch_all_issues()
-        except Exception as exc:  # noqa: BLE001 - keep GitHub issue reads available
-            logger.warning(
-                "Fetch legacy Backlog issues failed for project %s: %s",
-                getattr(project, "name", project_id),
-                exc,
-            )
-            return []
-        for issue in issues:
-            issue.project_id = project_id
-            issue.tracker_kind = "backlog_md"
-            issue.is_legacy = True
-        return issues
-
     def _fetch_for_project(project):
         try:
-            from oompah.projects import _is_github_backed
             tracker = orch._tracker_for_project(project.id)
             issues = tracker.fetch_all_issues()
-            # Legacy Backlog visibility filter (TASK-464.2):
-            # For GitHub-backed projects, Backlog.md issues (those with
-            # tracker_kind other than 'github_issues') are only shown when
-            # legacy_backlog_enabled is True.  Tag them as 'backlog_md' so
-            # callers can apply a "legacy" marker in the UI.
-            if _is_github_backed(project):
-                github_issues = []
-                backlog_issues = []
-                for issue in issues:
-                    issue.project_id = project.id
-                    kind = (issue.tracker_kind or "").strip().lower()
-                    is_github_issue = kind in ("github_issues", "github-issues")
-                    if is_github_issue:
-                        github_issues.append(issue)
-                    elif project.legacy_backlog_enabled:
-                        backlog_issues.append(issue)
-                    # else: Backlog issues are not visible for this project.
-                if project.legacy_backlog_enabled:
-                    backlog_issues.extend(
-                        _fetch_legacy_backlog_issues_for_project(project)
-                    )
-                    seen_backlog: set[str] = set()
-                    tagged_backlog = []
-                    for issue in backlog_issues:
-                        key = issue.identifier or issue.id
-                        if key in seen_backlog:
-                            continue
-                        seen_backlog.add(key)
-                        issue.project_id = project.id
-                        # Tag legacy Backlog tasks so the dashboard can mark
-                        # them as legacy.
-                        issue.tracker_kind = "backlog_md"
-                        issue.is_legacy = True
-                        tagged_backlog.append(issue)
-                    issues = github_issues + tagged_backlog
-                else:
-                    issues = github_issues
-            else:
-                for issue in issues:
-                    issue.project_id = project.id
+            for issue in issues:
+                issue.project_id = project.id
             for issue in issues:
                 # Display-only: reflect the epic-branch status for shared-
                 # epic children (their default-branch copy lags until the
@@ -2831,7 +2670,6 @@ async def api_create_issue(request: Request):
                     "managed_repo": getattr(issue, "managed_repo", None),
                     "target_branch": getattr(issue, "target_branch", None),
                     "work_branch": getattr(issue, "work_branch", None),
-                    "is_legacy": bool(getattr(issue, "is_legacy", False)),
                 },
             },
             status_code=201,
@@ -4154,8 +3992,8 @@ async def api_issue_full_detail(identifier: str, request: Request):
         project_id = resolved_project_id
         project_names = _project_names_by_id(orch)
         project_name = project_names.get(project_id or "")
-        # Prefer the tracker's own display_identifier when set (GitHub issues);
-        # fall back to the Backlog-specific formatter for legacy issues.
+        # Prefer the tracker's own display_identifier when set; otherwise use
+        # the generic project-prefixed task formatter.
         display_id = getattr(issue, "display_identifier", None) or _display_identifier(
             issue.identifier, project_name
         )
@@ -4174,8 +4012,7 @@ async def api_issue_full_detail(identifier: str, request: Request):
             "labels": issue.labels,
             "created_at": issue.created_at.isoformat() if issue.created_at else None,
             "updated_at": issue.updated_at.isoformat() if issue.updated_at else None,
-            # Tracker identity fields — present for GitHub-backed issues;
-            # null/false for legacy Backlog-backed issues (backward compat).
+            # Tracker identity fields.
             "tracker_kind": getattr(issue, "tracker_kind", None),
             "tracker_owner": getattr(issue, "tracker_owner", None),
             "tracker_repo": getattr(issue, "tracker_repo", None),
@@ -4185,7 +4022,6 @@ async def api_issue_full_detail(identifier: str, request: Request):
             "managed_repo": getattr(issue, "managed_repo", None),
             "target_branch": getattr(issue, "target_branch", None),
             "work_branch": getattr(issue, "work_branch", None),
-            "is_legacy": bool(getattr(issue, "is_legacy", False)),
             "intake_actions": action_permissions(
                 issue,
                 _project_by_id(orch, project_id),
@@ -6259,8 +6095,8 @@ async def api_create_project(request: Request):
         git_user_email = body.get("git_user_email", "").strip() or None
         access_token = (body.get("access_token") or "").strip() or None
         # Per-project tracker configuration. New projects use oompah's native
-        # Markdown task store by default; legacy Backlog and GitHub Issues must
-        # be selected explicitly.
+        # Markdown task store by default; GitHub Issues must be selected
+        # explicitly.
         tracker_kind = (body.get("tracker_kind") or "").strip() or "oompah_md"
         tracker_owner = (body.get("tracker_owner") or "").strip() or None
         tracker_repo = (body.get("tracker_repo") or "").strip() or None
@@ -6309,8 +6145,6 @@ async def api_create_project(request: Request):
                 if cleaned and key not in seen_status_logins:
                     status_label_authorized_logins.append(cleaned)
                     seen_status_logins.add(key)
-        legacy_backlog_enabled = bool(body.get("legacy_backlog_enabled", False))
-        legacy_backlog_dispatch = bool(body.get("legacy_backlog_dispatch", False))
         project = orch.project_store.create(
             repo_url=repo_url,
             name=name,
@@ -6327,15 +6161,11 @@ async def api_create_project(request: Request):
             github_project_node_id=github_project_node_id,
             status_actor_login=status_actor_login,
             status_label_authorized_logins=status_label_authorized_logins,
-            legacy_backlog_enabled=legacy_backlog_enabled,
-            legacy_backlog_dispatch=legacy_backlog_dispatch,
             paused=True,
         )
         # Sync log watchers in case the new project has a log_path
         if _log_watcher_manager:
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
-        # Install Backlog webhook hook for the new project (best-effort).
-        _install_backlog_hook_for_project(project)
         _ensure_tracker_agent_instructions_for_project(project)
         return JSONResponse(project.to_safe_dict(), status_code=201)
     except ProjectError as exc:
@@ -6616,25 +6446,6 @@ async def api_update_project(project_id: str, request: Request):
             fields["status_actor_login"] = _resolve_github_token_owner(
                 fields["access_token"]
             )
-        for key in ("legacy_backlog_enabled", "legacy_backlog_dispatch"):
-            if key in body:
-                fields[key] = bool(body[key])
-        if "tracker_cutover_at" in body:
-            val = body["tracker_cutover_at"]
-            if val is None:
-                fields["tracker_cutover_at"] = None
-            elif isinstance(val, str):
-                fields["tracker_cutover_at"] = val  # ProjectStore.update() parses it
-            else:
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "validation",
-                            "message": "tracker_cutover_at must be an ISO 8601 datetime string or null",
-                        }
-                    },
-                    status_code=400,
-                )
         project = orch.project_store.update(project_id, **fields)
         if not project:
             return JSONResponse(
@@ -6652,8 +6463,6 @@ async def api_update_project(project_id: str, request: Request):
         # Sync log watchers when project settings change (log_path may have been added/changed/removed)
         if _log_watcher_manager:
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
-        # Re-install Backlog webhook hook in case webhook_secret or URL changed.
-        _install_backlog_hook_for_project(project)
         _ensure_tracker_agent_instructions_for_project(project)
         return JSONResponse(project.to_safe_dict())
     except ProjectError as exc:
@@ -6797,74 +6606,6 @@ def _git_file_added_at(repo_path: str, rel_path: str) -> datetime | None:
         return _as_aware_utc(datetime.fromisoformat(raw[0]))
     except ValueError:
         return None
-
-
-def _backlog_task_file_report(project: Any) -> dict[str, Any]:
-    cutover = _as_aware_utc(project.tracker_cutover_at)
-    repo_path = project.repo_path
-    entry: dict[str, Any] = {
-        "project_id": project.id,
-        "project_name": project.name,
-        "tracker_owner": getattr(project, "tracker_owner", None),
-        "tracker_repo": getattr(project, "tracker_repo", None),
-        "tracker_cutover_at": cutover.isoformat(),
-        "files": [],
-    }
-    if not repo_path or not os.path.isdir(repo_path):
-        entry["error"] = "repo_path_missing"
-        return entry
-
-    for rel_dir in ("backlog/tasks", "backlog/completed"):
-        abs_dir = os.path.join(repo_path, rel_dir)
-        if not os.path.isdir(abs_dir):
-            continue
-        for root, _dirs, files in os.walk(abs_dir):
-            for filename in sorted(files):
-                if not filename.endswith(".md"):
-                    continue
-                abs_path = os.path.join(root, filename)
-                rel_path = os.path.relpath(abs_path, repo_path).replace(os.sep, "/")
-                added_at = _git_file_added_at(repo_path, rel_path)
-                source = "git"
-                if added_at is None:
-                    try:
-                        added_at = datetime.fromtimestamp(
-                            os.path.getmtime(abs_path), tz=timezone.utc
-                        )
-                        source = "mtime"
-                    except OSError:
-                        continue
-                if added_at > cutover:
-                    entry["files"].append(
-                        {
-                            "path": rel_path,
-                            "added_at": added_at.isoformat(),
-                            "source": source,
-                        }
-                    )
-    return entry
-
-
-@app.get("/api/v1/reports/backlog-files-post-cutover")
-async def api_report_backlog_files_post_cutover():
-    """Report Backlog task files added after GitHub Issues cutover."""
-    orch = _get_orchestrator()
-    projects = [
-        project
-        for project in orch.project_store.list_all()
-        if _is_github_tracker_kind(getattr(project, "tracker_kind", None))
-        and getattr(project, "tracker_cutover_at", None) is not None
-    ]
-    report = await asyncio.to_thread(
-        lambda: [_backlog_task_file_report(project) for project in projects]
-    )
-    return JSONResponse(
-        {
-            "projects": report,
-            "total_projects": len(report),
-            "total_files": sum(len(item["files"]) for item in report),
-        }
-    )
 
 
 @app.get("/api/v1/foci")
@@ -8964,10 +8705,8 @@ def _label_task_merged_from_merge_group(orch, event, project) -> None:
 
     try:
         tracker = orch._tracker_for_project(project.id)
-        # Use _resolve_task_for_branch so GitHub-backed tasks (whose
-        # branch names are generated slugs) are found via the per-project
-        # branch index, and legacy Backlog tasks (branch==identifier) are
-        # found via the direct fetch_issue_detail fallback.
+        # Use _resolve_task_for_branch so GitHub-backed tasks whose branch
+        # names are generated slugs are found via the per-project branch index.
         issue = orch._resolve_task_for_branch(
             tracker, branch_name, project_id=project.id
         )
@@ -9010,10 +8749,8 @@ def _mark_task_in_review_from_webhook(orch, event, project) -> None:
         return
     try:
         tracker = orch._tracker_for_project(project.id)
-        # Use _resolve_task_for_branch so GitHub-backed tasks (whose
-        # branch names are generated slugs) are found via the per-project
-        # branch index, and legacy Backlog tasks (branch==identifier) are
-        # found via the direct fetch_issue_detail fallback.
+        # Use _resolve_task_for_branch so GitHub-backed tasks whose branch
+        # names are generated slugs are found via the per-project branch index.
         issue = orch._resolve_task_for_branch(
             tracker, source_branch, project_id=project.id
         )
@@ -9101,10 +8838,8 @@ def _label_task_merged_from_pr(orch, event, project) -> None:
         return
     try:
         tracker = orch._tracker_for_project(project.id)
-        # Use _resolve_task_for_branch so GitHub-backed tasks (whose
-        # branch names are generated slugs) are found via the per-project
-        # branch index, and legacy Backlog tasks (branch==identifier) are
-        # found via the direct fetch_issue_detail fallback.
+        # Use _resolve_task_for_branch so GitHub-backed tasks whose branch
+        # names are generated slugs are found via the per-project branch index.
         issue = orch._resolve_task_for_branch(
             tracker, source_branch, project_id=project.id
         )
@@ -9150,63 +8885,13 @@ def _sync_project_after_webhook(
     try:
         status = orch.project_store.sync_project_sources(project_id)
         logger.info(
-            "Webhook sync %s: git=%s backlog=%s conflicts=%s",
+            "Webhook sync %s: git=%s conflicts=%s",
             project_name,
             status.get("git", "?"),
-            status.get("backlog", "?"),
             status.get("conflicts", "?"),
         )
-        # Refresh conflict alerts after each project sync so the dashboard
-        # immediately reflects resolved or new conflicts.
-        if hasattr(orch, "_refresh_backlog_conflict_alerts"):
-            orch._refresh_backlog_conflict_alerts()
     except Exception as exc:
         logger.warning("Webhook sync failed for %s: %s", project_name, exc)
-
-
-def _install_backlog_hook_for_project(project) -> None:
-    """Install or update the Backlog webhook hook for one project.
-
-    GitHub-backed and native oompah Markdown projects are skipped because they
-    do not use Backlog post-commit hooks for task-change notifications.
-
-    Best-effort: any failure is logged at DEBUG level so project
-    create/update operations are never blocked by hook installation
-    errors.
-    """
-    tracker_kind = str(getattr(project, "tracker_kind", None) or "").strip().lower()
-    if tracker_kind in {"github_issues", "github-issues", "oompah_md", "oompah.md", "oompah"}:
-        logger.debug(
-            "_install_backlog_hook_for_project: skipping %s project %s",
-            tracker_kind,
-            getattr(project, "id", "?"),
-        )
-        return
-
-    try:
-        from oompah.backlog_webhooks import install_backlog_webhook_hook
-
-        port = int(os.environ.get("OOMPAH_SERVER_PORT", "8080"))
-        server_base_url = (
-            os.environ.get("OOMPAH_SERVER_URL")
-            or f"http://localhost:{port}"
-        )
-        webhook_url = server_base_url.rstrip("/") + "/api/v1/webhooks/backlog"
-        secret = getattr(project, "webhook_secret", None) or ""
-        repo_path = getattr(project, "repo_path", None) or ""
-
-        install_backlog_webhook_hook(
-            repo_path=repo_path,
-            webhook_url=webhook_url,
-            project_id=project.id,
-            secret=secret,
-        )
-    except Exception as exc:
-        logger.debug(
-            "_install_backlog_hook_for_project: failed for %s: %s",
-            getattr(project, "id", "?"),
-            exc,
-        )
 
 
 def _is_oompah_md_tracker_kind(kind: str | None) -> bool:
@@ -9410,146 +9095,6 @@ async def api_webhook_gitlab(request: Request):
 
     except Exception as exc:
         logger.error("GitLab webhook error: %s", exc, exc_info=True)
-        return JSONResponse(
-            {"error": {"code": "webhook_error", "message": str(exc)}},
-            status_code=500,
-        )
-
-
-@app.post("/api/v1/webhooks/backlog")
-async def api_webhook_backlog(request: Request):
-    """Receive Backlog.md task-change webhook notifications.
-
-    This endpoint is called by the ``post-commit`` git hook installed
-    in each managed project repo whenever a commit touches backlog task
-    files.  The hook signs the payload with HMAC-SHA256 and sends the
-    signature in ``X-Oompah-Signature: sha256=<hex>``.
-
-    Validation:
-    - If the project has a ``webhook_secret`` configured and the request
-      carries a signature header, the signature is validated.
-    - If the project has no secret (or the request carries no signature),
-      the webhook is accepted without authentication (to support initial
-      setup and repos with no secret).
-
-    On receipt:
-    - Invalidates the issue list cache for the project.
-    - Triggers a ``git pull`` / Backlog sync in a background thread.
-    - Calls ``orchestrator.request_refresh()`` so the dashboard updates.
-
-    Returns:
-        200 OK on success, 400 on bad JSON / missing fields,
-        401 on signature mismatch.
-    """
-    try:
-        body_bytes = await request.body()
-
-        # Require a non-empty body.
-        if not body_bytes:
-            return JSONResponse(
-                {"error": "Empty request body"},
-                status_code=400,
-            )
-
-        try:
-            payload = json.loads(body_bytes)
-        except (json.JSONDecodeError, ValueError):
-            return JSONResponse(
-                {"error": "Invalid JSON payload"},
-                status_code=400,
-            )
-
-        if not isinstance(payload, dict):
-            return JSONResponse(
-                {"error": "Payload must be a JSON object"},
-                status_code=400,
-            )
-
-        project_id = payload.get("project_id", "")
-        event = payload.get("event", "")
-        files_changed = payload.get("files", [])
-
-        # Look up the project.
-        orch = _get_orchestrator()
-        project = orch.project_store.get(project_id) if project_id else None
-
-        # External/native tracker projects must not process Backlog webhook
-        # receipts. If a stale hook fires for a project that has moved away
-        # from Backlog, acknowledge it but take no action.
-        tracker_kind = (
-            str(getattr(project, "tracker_kind", None) or "").strip().lower()
-            if project
-            else ""
-        )
-        if tracker_kind in {"github_issues", "github-issues", "oompah_md", "oompah.md", "oompah"}:
-            logger.info(
-                "Backlog webhook ignored for %s project %s; returning ok with no-op action",
-                tracker_kind,
-                project_id,
-            )
-            return JSONResponse(
-                {
-                    "ok": True,
-                    "action": "ignored",
-                    "reason": f"{tracker_kind} tracker",
-                    "project_id": project_id,
-                }
-            )
-
-        # Validate HMAC signature if the project has a secret configured.
-        signature = request.headers.get("X-Oompah-Signature", "")
-        if project and project.webhook_secret:
-            if signature:
-                if not validate_backlog_webhook_signature(
-                    body_bytes, signature, project.webhook_secret
-                ):
-                    logger.warning(
-                        "Backlog webhook signature validation failed for project %s",
-                        project_id,
-                    )
-                    return JSONResponse(
-                        {"error": "Invalid signature"},
-                        status_code=401,
-                    )
-            # If the project has a secret but no signature was sent, accept
-            # the request anyway (hook may not have a secret configured yet).
-
-        logger.info(
-            "Backlog webhook: project=%s event=%s files=%s",
-            project_id or "(unmatched)",
-            event,
-            len(files_changed) if isinstance(files_changed, list) else "?",
-        )
-
-        # Invalidate caches so the next dashboard fetch is fresh.
-        _api_cache.invalidate("issues:all")
-        if project_id:
-            _api_cache.invalidate_prefix(f"detail:{project_id}:")
-
-        # Request an orchestrator refresh so the dashboard updates promptly.
-        orch.request_refresh()
-
-        # Trigger a git pull + Backlog config sync in a background thread.
-        if project:
-            threading.Thread(
-                target=_sync_project_after_webhook,
-                args=(orch, project.id, project.name),
-                name=f"backlog-webhook-sync-{project.name}",
-                daemon=True,
-            ).start()
-
-        return JSONResponse(
-            {
-                "ok": True,
-                "action": "processed",
-                "project_id": project_id,
-                "event": event,
-                "files_changed": len(files_changed) if isinstance(files_changed, list) else 0,
-            }
-        )
-
-    except Exception as exc:
-        logger.error("Backlog webhook error: %s", exc, exc_info=True)
         return JSONResponse(
             {"error": {"code": "webhook_error", "message": str(exc)}},
             status_code=500,

@@ -4,7 +4,7 @@ Regression tests for oompah-zlz_2-uemy: before the fix, any POST/PATCH
 endpoint that called ``await request.json()`` without catching
 json.JSONDecodeError would return HTTP 500 (Internal Server Error) when
 the client sent an empty or invalid JSON body. The error watcher logged
-the 500 and auto-filed this bug bead. After the fix, all such endpoints
+the 500 and auto-filed this bug task. After the fix, all such endpoints
 return HTTP 400 (Bad Request) with a descriptive error message.
 """
 

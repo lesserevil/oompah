@@ -104,7 +104,7 @@ class TestOrchestratorAutoCloseHook:
         orch = _make_orch(tmp_path)
 
         watcher = MagicMock(spec=ErrorWatcher)
-        watcher.auto_close_for_issue.return_value = ["oompah-bead-1"]
+        watcher.auto_close_for_issue.return_value = ["oompah-task-1"]
         orch.register_error_watcher(watcher, project_id=None)
 
         issue = _make_issue(issue_id="iss-X", identifier="oompah-iss-X")

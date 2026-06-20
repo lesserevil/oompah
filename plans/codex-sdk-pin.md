@@ -118,7 +118,7 @@ the version we actually tested end-to-end.
 ## Bumping the pin
 
 When `openai-agents` releases `0.18.x`, the operator (or a follow-up
-bead in the next epic) should:
+task in the next epic) should:
 
 1. Run `scripts/smoke_codex_sdk.py` against `0.18.x`.
 2. If it passes, also run `pytest tests/test_codex_sdk_shape_smoke.py`
