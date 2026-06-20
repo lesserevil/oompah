@@ -14,7 +14,7 @@ labels:
 - task-creation
 assignee: null
 created_at: '2026-06-20T03:02:22.002875Z'
-updated_at: '2026-06-20T03:49:19.273652Z'
+updated_at: '2026-06-20T03:49:53.869133Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,5 +60,10 @@ author: oompah
 created: 2026-06-20 03:49
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-20 03:49
+---
+Understanding: Investigating OOMPAH-12 as Duplicate Investigator. The issue reports that the dashboard create dialog hides labels and parent-epic selection for native oompah_md projects because isGitHubBacked() only returns true for github_issues tracker_kind. The fix involves replacing isGitHubBacked with capability-specific helpers. Before implementing, I need to check if any prior task already covers this same problem.
 ---
 <!-- COMMENTS:END -->
