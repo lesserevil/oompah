@@ -14,7 +14,7 @@ labels:
 - git-sync
 assignee: null
 created_at: '2026-06-20T02:43:17.381453Z'
-updated_at: '2026-06-20T02:54:06.815395Z'
+updated_at: '2026-06-20T02:54:13.626411Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,5 +77,10 @@ author: oompah
 created: 2026-06-20 02:54
 ---
 Verification: All 6907 tests pass (28 skipped). The 5 new TestOompahMarkdownTrackerGitSync tests all pass: (1) fetch+ff-only called, pull --rebase never called; (2) fetch failure raises TrackerError with remediation; (3) ff-only failure raises TrackerError with remediation (OOMPAH-10 regression path); (4) clean repo never calls git pull; (5) commit+push retry also uses fetch+ff-only.
+---
+author: oompah
+created: 2026-06-20 02:54
+---
+Completion: OOMPAH-10 is not a duplicate (no existing task covered this bug). Fixed in oompah/oompah_md_tracker.py: replaced both 'git pull --rebase origin main' calls with deterministic fetch+ff-only via new _sync_from_remote() helper. Tests added in tests/test_oompah_md_tracker.py. Branch OOMPAH-10 pushed and all tests passing.
 ---
 <!-- COMMENTS:END -->
