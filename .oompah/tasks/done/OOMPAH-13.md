@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-13
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Use project status actor by default for dashboard intake actions
 parent: null
@@ -15,7 +15,7 @@ labels:
 - auth
 assignee: null
 created_at: '2026-06-20T03:02:36.629755Z'
-updated_at: '2026-06-20T03:45:25.069867Z'
+updated_at: '2026-06-20T03:45:34.187186Z'
 work_branch: null
 target_branch: null
 review_url: null
