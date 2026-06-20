@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from oompah.github_tracker import GitHubAuth, GitHubIssueTracker
+from oompah.github_tracker import GitHubAuth, GitHubIssueTracker, _gh_issue_to_issue
 from oompah.intake_comments import (
     ValidatorResult as IntakeCommentResult,
     compute_fingerprint,
@@ -178,13 +178,69 @@ def _write_external_metadata_if_changed(
         _set_external_metadata(native_tracker, identifier, updated)
 
 
+def _reconcile_native_type_and_labels(
+    native_tracker: Any,
+    existing: Issue,
+    github_issue: Issue,
+) -> Issue:
+    """Backfill issue type and user labels on an already-imported native task.
+
+    This handles the case where a webhook created the native task before the
+    label-parsing fix was deployed, or before the GitHub issue had its final
+    labels applied.  Updates are intentionally conservative:
+
+    - Issue type is updated only when the native task still carries the default
+      ``"task"`` type and the GitHub issue specifies a different type.  This
+      avoids overwriting a type that was set intentionally after import.
+    - Labels are *added* (never removed): any user-facing GitHub label not yet
+      present on the native task is appended.  Manually-added native labels are
+      preserved.
+    """
+    needs_update = False
+    update_fields: dict[str, Any] = {}
+
+    # Backfill type when native task still has the default "task" value.
+    github_type = (github_issue.issue_type or "task") or "task"
+    native_type = (existing.issue_type or "task") or "task"
+    if native_type == "task" and github_type != "task":
+        update_fields["type"] = github_type
+        needs_update = True
+
+    # Add any GitHub user labels that are missing from the native task.
+    existing_labels = set(existing.labels or [])
+    github_user_labels = [
+        lbl for lbl in (github_issue.labels or []) if lbl != "external:github"
+    ]
+    missing_labels = [lbl for lbl in github_user_labels if lbl not in existing_labels]
+    if missing_labels:
+        needs_update = True
+
+    if not needs_update:
+        return existing
+
+    try:
+        if "type" in update_fields:
+            native_tracker.update_issue(existing.identifier, type=update_fields["type"])
+        for lbl in missing_labels:
+            native_tracker.update_issue(existing.identifier, **{"add-label": lbl})
+        existing = native_tracker.fetch_issue_detail(existing.identifier) or existing
+    except Exception as exc:  # noqa: BLE001
+        logger.debug(
+            "github_intake: failed to backfill type/labels on %s: %s",
+            existing.identifier,
+            exc,
+        )
+    return existing
+
+
 def _reconcile_native_status_from_github_issue(
     native_tracker: Any,
     github_issue: Issue,
     existing: Issue | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> Issue | None:
-    """Apply GitHub open/closed state to an already-imported native task."""
+    """Apply GitHub open/closed state (and backfill missing metadata) to an
+    already-imported native task."""
     external_id = github_issue.identifier
     if existing is None or metadata is None:
         existing, metadata = _find_native_issue_for_external(native_tracker, external_id)
@@ -232,10 +288,23 @@ def _reconcile_native_status_from_github_issue(
         )
         return existing
 
+    # Backfill missing type and labels on open, already-imported tasks.
+    # This repairs tasks that were created before label normalization was
+    # applied in the webhook path, without touching status or other fields.
+    existing = _reconcile_native_type_and_labels(native_tracker, existing, github_issue)
+
     return existing
 
 
 def _github_issue_from_event(event: WebhookEvent, project: Project) -> Issue | None:
+    """Build an :class:`Issue` from a raw GitHub webhook event payload.
+
+    When the event carries a full issue dict (number + labels), this delegates
+    to :func:`~oompah.github_tracker._gh_issue_to_issue` so the webhook path
+    produces the same normalized metadata (type, priority, parent, user labels)
+    as the polling path.  A minimal fallback is used when the payload is
+    incomplete (e.g. comment-only events where issue.number is absent).
+    """
     issue = (event.raw or {}).get("issue") or {}
     number = event.issue_number or issue.get("number")
     external_id = _external_identifier_for_project(project, number)
@@ -243,6 +312,17 @@ def _github_issue_from_event(event: WebhookEvent, project: Project) -> Issue | N
         return None
     slug = github_issue_intake_repo_slug(project) or ""
     owner, repo = slug.split("/", 1)
+
+    # When the webhook carries a full issue payload, parse it with the same
+    # logic used by the polling path so type, priority, parent, dependencies,
+    # and user-facing labels are all extracted identically.
+    if issue and issue.get("number") is not None:
+        try:
+            return _gh_issue_to_issue(issue, owner, repo)
+        except Exception:  # noqa: BLE001
+            pass  # Fall through to minimal construction below.
+
+    # Minimal fallback for events that lack a complete issue object.
     user = issue.get("user") if isinstance(issue.get("user"), dict) else {}
     closed_at = issue.get("closed_at")
     parsed_closed_at = None
@@ -329,13 +409,24 @@ def ensure_native_issue_for_github_issue(
     if _github_issue_is_closed(github_issue):
         return None
 
+    # Forward issue type, priority, parent, and user-facing labels from the
+    # parsed GitHub issue so the native task carries the same metadata as one
+    # created via the polling path.  The "external:github" label is always
+    # added to identify the task as GitHub-intake-derived.
+    issue_type = (github_issue.issue_type or "task") or "task"
+    github_user_labels = [
+        lbl for lbl in (github_issue.labels or []) if lbl != "external:github"
+    ]
+    native_labels = ["external:github"] + github_user_labels
+
     created = native_tracker.create_issue(
         github_issue.title,
-        issue_type="task",
+        issue_type=issue_type,
         description=_native_description_for_github_issue(github_issue),
         priority=github_issue.priority,
         initial_status=PROPOSED,
-        labels=["external:github"],
+        labels=native_labels,
+        parent=github_issue.parent_id or None,
     )
     metadata = _external_metadata_from_issue(github_issue)
     _set_external_metadata(native_tracker, created.identifier, metadata)
