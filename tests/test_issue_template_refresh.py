@@ -387,6 +387,67 @@ class TestEnsureIssueTemplates:
 
 
 # ---------------------------------------------------------------------------
+# _has_github_issue_template_capability predicate
+# ---------------------------------------------------------------------------
+
+
+class TestHasGithubIssueTemplateCapability:
+    """Unit tests for the shared predicate used by all three endpoints."""
+
+    def _predicate(self, **attrs):
+        from oompah.server import _has_github_issue_template_capability
+        return _has_github_issue_template_capability(SimpleNamespace(**attrs))
+
+    def test_github_issues_always_true(self) -> None:
+        assert self._predicate(tracker_kind="github_issues") is True
+        assert self._predicate(tracker_kind="github-issues") is True
+        # Case-insensitive
+        assert self._predicate(tracker_kind="GITHUB_ISSUES") is True
+
+    def test_oompah_md_with_intake_and_owner_repo_true(self) -> None:
+        assert self._predicate(
+            tracker_kind="oompah_md",
+            github_issue_intake_enabled=True,
+            tracker_owner="my-org",
+            tracker_repo="my-repo",
+        ) is True
+
+    def test_oompah_md_without_intake_false(self) -> None:
+        assert self._predicate(
+            tracker_kind="oompah_md",
+            github_issue_intake_enabled=False,
+            tracker_owner="my-org",
+            tracker_repo="my-repo",
+        ) is False
+
+    def test_oompah_md_with_intake_but_no_owner_false(self) -> None:
+        assert self._predicate(
+            tracker_kind="oompah_md",
+            github_issue_intake_enabled=True,
+            tracker_owner=None,
+            tracker_repo="my-repo",
+        ) is False
+
+    def test_oompah_md_with_intake_but_no_repo_false(self) -> None:
+        assert self._predicate(
+            tracker_kind="oompah_md",
+            github_issue_intake_enabled=True,
+            tracker_owner="my-org",
+            tracker_repo=None,
+        ) is False
+
+    def test_oompah_md_with_intake_but_missing_attrs_false(self) -> None:
+        """Missing attributes should not raise — defaults to False."""
+        assert self._predicate(tracker_kind="oompah_md") is False
+
+    def test_unknown_tracker_kind_false(self) -> None:
+        assert self._predicate(tracker_kind="unknown_tracker") is False
+
+    def test_none_tracker_kind_false(self) -> None:
+        assert self._predicate(tracker_kind=None) is False
+
+
+# ---------------------------------------------------------------------------
 # Server API endpoints
 # ---------------------------------------------------------------------------
 
@@ -405,10 +466,14 @@ def _github_project(repo_path: str) -> SimpleNamespace:
         git_user_name="bot",
         git_user_email="bot@example.com",
         default_branch="main",
+        tracker_owner="my-org",
+        tracker_repo="my-repo",
+        github_issue_intake_enabled=False,
     )
 
 
 def _native_project(repo_path: str) -> SimpleNamespace:
+    """oompah_md project WITHOUT GitHub intake — templates not applicable."""
     return SimpleNamespace(
         id="proj-2",
         tracker_kind="oompah_md",
@@ -416,6 +481,24 @@ def _native_project(repo_path: str) -> SimpleNamespace:
         git_user_name=None,
         git_user_email=None,
         default_branch="main",
+        tracker_owner=None,
+        tracker_repo=None,
+        github_issue_intake_enabled=False,
+    )
+
+
+def _native_intake_project(repo_path: str) -> SimpleNamespace:
+    """oompah_md project WITH GitHub intake enabled — templates ARE applicable."""
+    return SimpleNamespace(
+        id="proj-3",
+        tracker_kind="oompah_md",
+        repo_path=repo_path,
+        git_user_name="bot",
+        git_user_email="bot@example.com",
+        default_branch="main",
+        tracker_owner="my-org",
+        tracker_repo="my-repo",
+        github_issue_intake_enabled=True,
     )
 
 
@@ -437,13 +520,16 @@ class TestIssueTemplatesStatusEndpoint:
             res = client.get("/api/v1/projects/unknown/issue-templates/status")
         assert res.status_code == 404
 
-    def test_400_for_non_github_issues_project(self, client, tmp_path) -> None:
+    def test_400_for_native_project_without_intake(self, client, tmp_path) -> None:
+        """oompah_md without github_issue_intake_enabled → 400 not_applicable."""
         project = _native_project(str(tmp_path))
         with patch("oompah.server._get_orchestrator") as mock_orch:
             mock_orch.return_value.project_store.get.return_value = project
             res = client.get(f"/api/v1/projects/{project.id}/issue-templates/status")
         assert res.status_code == 400
-        assert "not_applicable" in res.text
+        data = res.json()
+        assert data["error"]["code"] == "not_applicable"
+        assert "github_issue_intake_enabled" in data["error"]["message"]
 
     def test_all_current_when_templates_match(self, client, tmp_path) -> None:
         repo = _make_managed_repo(tmp_path, write_templates=True)
@@ -471,6 +557,50 @@ class TestIssueTemplatesStatusEndpoint:
             assert "diff" in entry
             assert entry["diff"] != ""
 
+    # --- Regression: native intake projects ---
+
+    def test_200_for_native_intake_project_all_current(self, client, tmp_path) -> None:
+        """oompah_md + github_issue_intake_enabled=True → status endpoint works."""
+        repo = _make_managed_repo(tmp_path, write_templates=True)
+        project = _native_intake_project(str(repo))
+        with patch("oompah.server._get_orchestrator") as mock_orch:
+            mock_orch.return_value.project_store.get.return_value = project
+            res = client.get(f"/api/v1/projects/{project.id}/issue-templates/status")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["all_current"] is True
+
+    def test_200_for_native_intake_project_drifted(self, client, tmp_path) -> None:
+        """oompah_md + github_issue_intake_enabled=True + missing templates → drifted."""
+        repo = _make_managed_repo(tmp_path, write_templates=False)
+        project = _native_intake_project(str(repo))
+        with patch("oompah.server._get_orchestrator") as mock_orch:
+            mock_orch.return_value.project_store.get.return_value = project
+            res = client.get(f"/api/v1/projects/{project.id}/issue-templates/status")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["all_current"] is False
+        assert len(data["drifted"]) == len(CANONICAL_TEMPLATES)
+
+    def test_400_for_native_intake_project_missing_owner(self, client, tmp_path) -> None:
+        """oompah_md + intake enabled but no tracker_owner → 400 not_applicable."""
+        project = SimpleNamespace(
+            id="proj-no-owner",
+            tracker_kind="oompah_md",
+            repo_path=str(tmp_path),
+            github_issue_intake_enabled=True,
+            tracker_owner=None,
+            tracker_repo="my-repo",
+            git_user_name=None,
+            git_user_email=None,
+            default_branch="main",
+        )
+        with patch("oompah.server._get_orchestrator") as mock_orch:
+            mock_orch.return_value.project_store.get.return_value = project
+            res = client.get(f"/api/v1/projects/{project.id}/issue-templates/status")
+        assert res.status_code == 400
+        assert res.json()["error"]["code"] == "not_applicable"
+
 
 class TestIssueTemplatesPreviewEndpoint:
     def test_empty_diff_when_current(self, client, tmp_path) -> None:
@@ -492,12 +622,37 @@ class TestIssueTemplatesPreviewEndpoint:
         diff = res.json()["diff"]
         assert "+++" in diff
 
-    def test_400_for_non_github_issues_project(self, client, tmp_path) -> None:
+    def test_400_for_native_project_without_intake(self, client, tmp_path) -> None:
+        """oompah_md without intake → preview returns 400 not_applicable."""
         project = _native_project(str(tmp_path))
         with patch("oompah.server._get_orchestrator") as mock_orch:
             mock_orch.return_value.project_store.get.return_value = project
             res = client.get(f"/api/v1/projects/{project.id}/issue-templates/preview")
         assert res.status_code == 400
+        assert res.json()["error"]["code"] == "not_applicable"
+
+    # --- Regression: native intake projects ---
+
+    def test_200_for_native_intake_project_empty_diff(self, client, tmp_path) -> None:
+        """oompah_md + github_issue_intake_enabled=True → preview works when current."""
+        repo = _make_managed_repo(tmp_path, write_templates=True)
+        project = _native_intake_project(str(repo))
+        with patch("oompah.server._get_orchestrator") as mock_orch:
+            mock_orch.return_value.project_store.get.return_value = project
+            res = client.get(f"/api/v1/projects/{project.id}/issue-templates/preview")
+        assert res.status_code == 200
+        assert res.json()["diff"] == ""
+
+    def test_200_for_native_intake_project_with_diff(self, client, tmp_path) -> None:
+        """oompah_md + github_issue_intake_enabled=True → preview returns diff when drifted."""
+        repo = _make_managed_repo(tmp_path, write_templates=False)
+        project = _native_intake_project(str(repo))
+        with patch("oompah.server._get_orchestrator") as mock_orch:
+            mock_orch.return_value.project_store.get.return_value = project
+            res = client.get(f"/api/v1/projects/{project.id}/issue-templates/preview")
+        assert res.status_code == 200
+        diff = res.json()["diff"]
+        assert "+++" in diff
 
 
 class TestIssueTemplatesApplyEndpoint:
@@ -559,7 +714,8 @@ class TestIssueTemplatesApplyEndpoint:
         assert data["error"]["code"] == "dirty_worktree"
         assert "uncommitted changes" in data["error"]["message"]
 
-    def test_400_for_non_github_issues_project(self, client, tmp_path) -> None:
+    def test_400_for_native_project_without_intake(self, client, tmp_path) -> None:
+        """oompah_md without intake → apply returns 400 not_applicable."""
         project = _native_project(str(tmp_path))
         with patch("oompah.server._get_orchestrator") as mock_orch:
             mock_orch.return_value.project_store.get.return_value = project
@@ -567,9 +723,72 @@ class TestIssueTemplatesApplyEndpoint:
                 f"/api/v1/projects/{project.id}/issue-templates/apply"
             )
         assert res.status_code == 400
+        assert res.json()["error"]["code"] == "not_applicable"
 
     def test_404_for_unknown_project(self, client) -> None:
         with patch("oompah.server._get_orchestrator") as mock_orch:
             mock_orch.return_value.project_store.get.return_value = None
             res = client.post("/api/v1/projects/ghost/issue-templates/apply")
         assert res.status_code == 404
+
+    # --- Regression: native intake projects ---
+
+    def test_200_for_native_intake_project_apply(self, client, tmp_path) -> None:
+        """oompah_md + github_issue_intake_enabled=True → apply works."""
+        repo = _make_managed_repo(tmp_path, write_templates=False)
+        project = _native_intake_project(str(repo))
+        fake_result = TemplateApplyResult(
+            applied=[
+                f"{TEMPLATE_SUBDIR}/bug_report.yml",
+                f"{TEMPLATE_SUBDIR}/feature_request.yml",
+                f"{TEMPLATE_SUBDIR}/question.yml",
+            ],
+            skipped=[],
+            commit_sha="b" * 40,
+            pushed=True,
+        )
+        with patch("oompah.server._get_orchestrator") as mock_orch:
+            mock_orch.return_value.project_store.get.return_value = project
+            with patch(
+                "oompah.issue_template_refresh.apply_template_updates",
+                return_value=fake_result,
+            ):
+                res = client.post(
+                    f"/api/v1/projects/{project.id}/issue-templates/apply"
+                )
+        assert res.status_code == 200
+        data = res.json()
+        assert len(data["applied"]) == len(CANONICAL_TEMPLATES)
+        assert data["commit_sha"] == "b" * 40
+
+    def test_200_for_native_intake_project_apply_already_current(
+        self, client, tmp_path
+    ) -> None:
+        """oompah_md + intake enabled + current templates → apply returns skipped."""
+        repo = _make_managed_repo(tmp_path, write_templates=True)
+        project = _native_intake_project(str(repo))
+        with patch("oompah.server._get_orchestrator") as mock_orch:
+            mock_orch.return_value.project_store.get.return_value = project
+            res = client.post(
+                f"/api/v1/projects/{project.id}/issue-templates/apply"
+            )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["applied"] == []
+        assert len(data["skipped"]) == len(CANONICAL_TEMPLATES)
+
+    def test_409_on_dirty_worktree_for_native_intake_project(
+        self, client, tmp_path
+    ) -> None:
+        """oompah_md + intake enabled + dirty template → 409 dirty_worktree."""
+        repo = _make_managed_repo(tmp_path, write_templates=True)
+        bug = repo / TEMPLATE_SUBDIR / "bug_report.yml"
+        bug.write_text("dirty content\n")
+        project = _native_intake_project(str(repo))
+        with patch("oompah.server._get_orchestrator") as mock_orch:
+            mock_orch.return_value.project_store.get.return_value = project
+            res = client.post(
+                f"/api/v1/projects/{project.id}/issue-templates/apply"
+            )
+        assert res.status_code == 409
+        assert res.json()["error"]["code"] == "dirty_worktree"
