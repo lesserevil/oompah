@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T05:00:45.338713Z'
+updated_at: '2026-06-20T05:00:55.905683Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
@@ -505,5 +505,19 @@ author: oompah
 created: 2026-06-20 05:00
 ---
 **Verification:** 6993 tests pass, 28 skipped, 0 failures. The implementation on branch OOMPAH-6 is clean and all tests green. Closing the task now.
+---
+author: oompah
+created: 2026-06-20 05:00
+---
+**Completion:** All work for OOMPAH-6 is complete. Implementation summary:
+
+1. **tracker.py**: Added TrackerAuthError(TrackerError) subclass for non-retriable 401/403 GitHub credential failures.
+2. **github_tracker.py**: request() and request_paginated() raise TrackerAuthError for HTTP 401/403.
+3. **github_intake_bridge.py**: poll_github_issue_intake_project() catches TrackerAuthError, logs WARNING with project name/repo/access_token instructions, re-raises for orchestrator.
+4. **orchestrator.py**: _sync_github_issue_intake_pass() catches TrackerAuthError and surfaces a level=error dashboard alert. _error_class_for_tracker_exc() classifies TrackerAuthError as 'tracker_auth_failed' (distinct dedup key).
+5. **forge.py** (create_review): 422 'already exists' idempotency fix — returns existing PR instead of failing.
+6. **12 regression tests** covering all new paths.
+
+Branch OOMPAH-6 is pushed to origin. PR #342 is open and mergeable. 6993 tests pass. Not a duplicate — confirmed in first dispatch.
 ---
 <!-- COMMENTS:END -->
