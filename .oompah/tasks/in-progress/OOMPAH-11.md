@@ -14,7 +14,7 @@ labels:
 - templates
 assignee: null
 created_at: '2026-06-20T03:02:09.918768Z'
-updated_at: '2026-06-20T03:38:18.183612Z'
+updated_at: '2026-06-20T03:41:59.134253Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,10 @@ author: oompah
 created: 2026-06-20 03:38
 ---
 Discovery: Found the root cause. In oompah/server.py, all three issue-template endpoints (status, preview, apply) guard with _is_github_tracker_kind() which only accepts tracker_kind='github_issues'. The fix is to add a new predicate _has_github_issue_template_capability() that also accepts oompah_md projects when github_issue_intake_enabled=True and tracker_owner/repo are configured. 4 test classes in tests/test_issue_template_refresh.py need updating: keep existing 400 for oompah_md-without-intake, add new passing cases for oompah_md+intake.
+---
+author: oompah
+created: 2026-06-20 03:41
+---
+Implementation: Added _has_github_issue_template_capability() predicate in oompah/server.py that accepts: (1) github_issues tracker kind, OR (2) oompah_md with github_issue_intake_enabled=True + tracker_owner + tracker_repo configured. Updated all 3 issue-template endpoints (status, preview, apply) to use this predicate instead of _is_github_tracker_kind(). Improved error messages to mention github_issue_intake_enabled requirement. Added 8-test suite for the predicate + 9 regression tests covering oompah_md+intake for all 3 endpoints including dirty-worktree safety and missing-owner edge cases.
 ---
 <!-- COMMENTS:END -->
