@@ -14,7 +14,7 @@ labels:
 - task-creation
 assignee: null
 created_at: '2026-06-20T03:02:22.002875Z'
-updated_at: '2026-06-20T03:49:53.869133Z'
+updated_at: '2026-06-20T03:56:27.313532Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,5 +65,10 @@ author: oompah
 created: 2026-06-20 03:49
 ---
 Understanding: Investigating OOMPAH-12 as Duplicate Investigator. The issue reports that the dashboard create dialog hides labels and parent-epic selection for native oompah_md projects because isGitHubBacked() only returns true for github_issues tracker_kind. The fix involves replacing isGitHubBacked with capability-specific helpers. Before implementing, I need to check if any prior task already covers this same problem.
+---
+author: oompah
+created: 2026-06-20 03:56
+---
+Discovery: No duplicate found. This is a unique issue. All other tasks (OOMPAH-11: template refresh, OOMPAH-13: status actor, OOMPAH-14: webhook label normalization) address different problems. OOMPAH-12 specifically targets the dashboard create dialog where isGitHubBacked() gates ALL of: target branch, focus labels, and parent epic for oompah_md projects. Root cause confirmed in dashboard.html: updateGitHubFieldsVisibility() only shows create-github-fields (which wraps all three controls) when isGitHubBacked() is true. submitCreateDialog() also gates labels and parent_id dropdown on isGitHubBacked(). Plan: (1) Add supportsLabels() and supportsParentEpic() helpers returning true for oompah_md AND github_issues. (2) Separate HTML: move focus-labels and parent-epic into new create-tracker-fields div (shown for both), keep create-github-fields for target-branch-row only (GitHub-only). (3) Update updateGitHubFieldsVisibility() to use the new helpers. (4) Update submitCreateDialog() to gate labels/parent_epic on supportsLabels/supportsParentEpic. (5) Add tests/test_dashboard_create_native.py with tests for native task creation including labels and parent epic.
 ---
 <!-- COMMENTS:END -->
