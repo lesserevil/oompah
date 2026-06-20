@@ -14,7 +14,7 @@ labels:
 - git-sync
 assignee: null
 created_at: '2026-06-20T02:43:17.381453Z'
-updated_at: '2026-06-20T02:54:21.393383Z'
+updated_at: '2026-06-20T02:54:24.001497Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -82,5 +82,10 @@ author: oompah
 created: 2026-06-20 02:54
 ---
 Completion: OOMPAH-10 is not a duplicate (no existing task covered this bug). Fixed in oompah/oompah_md_tracker.py: replaced both 'git pull --rebase origin main' calls with deterministic fetch+ff-only via new _sync_from_remote() helper. Tests added in tests/test_oompah_md_tracker.py. Branch OOMPAH-10 pushed and all tests passing.
+---
+author: oompah
+created: 2026-06-20 02:54
+---
+Fixed: replaced 'git pull --rebase origin main' with fetch+ff-only in _prepare_default_branch_for_write() and _commit_and_push(). New _sync_from_remote() helper raises TrackerError with actionable remediation on failure. 5 regression tests added. All 6907 tests pass.
 ---
 <!-- COMMENTS:END -->
