@@ -1705,7 +1705,13 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
-    /* GitHub-specific create dialog fields */
+    /* Tracker-agnostic create dialog fields (labels, parent epic) */
+    #create-tracker-fields {
+      border-top: 1px solid var(--border);
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+    }
+    /* GitHub-specific create dialog fields (target branch) */
     #create-github-fields {
       border-top: 1px solid var(--border);
       margin-top: 0.75rem;
@@ -4417,12 +4423,36 @@ function isGitHubBacked(projectId) {
 }
 
 /**
- * Show or hide the GitHub-specific create dialog fields based on the currently
- * selected project.  Also populates the parent-epic select for GitHub projects.
+ * Return true when the given project supports labels (focus/routing labels).
+ * Both native oompah_md projects and direct github_issues projects support labels.
+ */
+function supportsLabels(projectId) {
+  if (!projectId) return false;
+  const project = currentProjects.find(p => p.id === projectId);
+  if (!project) return false;
+  return project.tracker_kind === 'github_issues' || project.tracker_kind === 'oompah_md';
+}
+
+/**
+ * Return true when the given project supports parent-epic selection.
+ * Both native oompah_md projects and direct github_issues projects support parent tasks.
+ */
+function supportsParentEpic(projectId) {
+  if (!projectId) return false;
+  const project = currentProjects.find(p => p.id === projectId);
+  if (!project) return false;
+  return project.tracker_kind === 'github_issues' || project.tracker_kind === 'oompah_md';
+}
+
+/**
+ * Show or hide the create dialog fields based on the currently selected project.
+ * - Tracker-agnostic fields (labels, parent epic) shown for oompah_md and github_issues.
+ * - GitHub-only fields (target branch) shown for github_issues only.
+ * Also populates the parent-epic select when applicable.
  */
 function updateGitHubFieldsVisibility() {
   const ghFields = document.getElementById('create-github-fields');
-  if (!ghFields) return;
+  const trackerFields = document.getElementById('create-tracker-fields');
 
   // Resolve the active project id using the same cascade as submitCreateDialog.
   let projectId = '';
@@ -4438,14 +4468,21 @@ function updateGitHubFieldsVisibility() {
   }
 
   const github = isGitHubBacked(projectId);
-  ghFields.style.display = github ? '' : 'none';
+  const hasLabels = supportsLabels(projectId);
+  const hasParentEpic = supportsParentEpic(projectId);
 
-  // Populate/show the parent-epic selector only for GitHub projects when not
+  // Show GitHub-only fields (target branch) only for direct GitHub projects.
+  if (ghFields) ghFields.style.display = github ? '' : 'none';
+
+  // Show tracker-agnostic fields (focus labels, parent epic) for any supported tracker.
+  if (trackerFields) trackerFields.style.display = hasLabels ? '' : 'none';
+
+  // Populate/show the parent-epic selector for supported trackers when not
   // already creating a child via openCreateDialogForEpic.
   const epicRow = document.getElementById('create-parent-epic-row');
   const epicSel = document.getElementById('create-parent-epic-select');
   if (epicRow && epicSel) {
-    if (github && !createParentId) {
+    if (hasParentEpic && !createParentId) {
       // Collect epics for the selected project from the flat issue list.
       const epics = allIssuesFlat.filter(
         i => i.project_id === projectId && (i.issue_type === 'epic' || i.type === 'epic')
@@ -4696,15 +4733,21 @@ async function submitCreateDialog() {
       const sel = document.getElementById('project-filter');
       if (sel && sel.value) body.project_id = sel.value;
     }
-    // GitHub-backed project fields: target branch, focus labels, parent epic.
+    // GitHub-only field: target branch (only for direct github_issues projects).
     if (isGitHubBacked(body.project_id)) {
       const tbEl = document.getElementById('create-target-branch');
       if (tbEl && tbEl.value.trim()) body.target_branch = tbEl.value.trim();
+    }
+    // Tracker-agnostic fields: focus labels and parent epic.
+    // Supported for both oompah_md and github_issues projects.
+    if (supportsLabels(body.project_id)) {
       const flEl = document.getElementById('create-focus-labels');
       if (flEl && flEl.value.trim()) {
         const labels = flEl.value.split(',').map(s => s.trim()).filter(Boolean);
         if (labels.length) body.labels = labels;
       }
+    }
+    if (supportsParentEpic(body.project_id)) {
       // Parent epic from dropdown (only when not already set via openCreateDialogForEpic).
       if (!body.parent_id) {
         const epicSel = document.getElementById('create-parent-epic-select');
@@ -5887,11 +5930,7 @@ async function submitAddReleasePicksDialog() {
     </select>
     <label for="create-desc">Description</label>
     <textarea id="create-desc" placeholder="Optional details..."></textarea>
-    <div id="create-github-fields" style="display:none;">
-      <div id="create-target-branch-row">
-        <label for="create-target-branch">Target Branch</label>
-        <input type="text" id="create-target-branch" placeholder="e.g. main, release/1.2">
-      </div>
+    <div id="create-tracker-fields" style="display:none;">
       <div id="create-focus-labels-row">
         <label for="create-focus-labels">Focus Labels</label>
         <input type="text" id="create-focus-labels" placeholder="e.g. needs:frontend, area:api">
@@ -5901,6 +5940,12 @@ async function submitAddReleasePicksDialog() {
         <select id="create-parent-epic-select">
           <option value="">— none —</option>
         </select>
+      </div>
+    </div>
+    <div id="create-github-fields" style="display:none;">
+      <div id="create-target-branch-row">
+        <label for="create-target-branch">Target Branch</label>
+        <input type="text" id="create-target-branch" placeholder="e.g. main, release/1.2">
       </div>
     </div>
     <div id="create-enhance-preview" style="display:none;margin-top:0.75rem;border:1px solid var(--border, #444);border-radius:4px;padding:0.75rem;background:var(--bg-elevated, rgba(255,255,255,0.04));">
