@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T03:25:25.113470Z'
+updated_at: '2026-06-20T03:27:21.231155Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,6 +53,7 @@ oompah.intake:
 ---
 ## Summary
 
+OVA GitHub issue intake is failing because oompah cannot authenticate when fetching issues from https://api.github.com/repos/NVIDIA-dev/ova/issues. Actual behavior: the fetch records a tracker_failed error and prevents OVA issue reconciliation. Expected behavior: oompah should authenticate successfully or show an actionable credential error. Reproduction steps and acceptance criteria are documented below.
 ## Problem
 Oompah cannot fetch GitHub issues for the managed OVA project during GitHub issue intake. The tracker fetch fails against `https://api.github.com/repos/NVIDIA-dev/ova/issues`, which prevents oompah from reconciling external GitHub issues into native oompah tasks for that project.
 
