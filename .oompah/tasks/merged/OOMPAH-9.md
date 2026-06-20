@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-9
 type: task
-status: Done
+status: Merged
 priority: null
 title: Update managed-project guidance for optional oompah CLI use
 parent: null
@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.718959Z'
-updated_at: '2026-06-20T02:14:02.575723Z'
+updated_at: '2026-06-20T14:51:05.950175Z'
 work_branch: null
 target_branch: null
 review_url: null
