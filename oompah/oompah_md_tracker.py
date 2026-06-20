@@ -711,8 +711,40 @@ class OompahMarkdownTracker:
                 f"current branch is {current!r}"
             )
         if self._has_remote("origin"):
-            self._git(["fetch", "origin", branch], check=False)
-            self._git(["pull", "--rebase", "origin", branch], check=True)
+            self._sync_from_remote(branch)
+
+    def _sync_from_remote(self, branch: str) -> None:
+        """Fetch and fast-forward the local default branch from origin.
+
+        Replaces ``git pull --rebase origin <branch>`` which can fail with
+        ``fatal: Cannot rebase onto multiple branches`` when git resolves the
+        remote ref ambiguously.  A plain fetch followed by ``--ff-only`` merge
+        is fully deterministic for clean, up-to-date managed repos and refuses
+        to silently overwrite uncommitted user work (``--ff-only`` fails if the
+        local branch has diverged).
+
+        Raises :class:`TrackerError` with an actionable remediation message
+        when the fast-forward cannot proceed so oompah can surface a dashboard
+        alert instead of silently aborting dispatch.
+        """
+        fetch = self._git(["fetch", "origin", branch], check=False)
+        if fetch.returncode != 0:
+            fetch_err = (fetch.stderr.strip() or fetch.stdout.strip())
+            raise TrackerError(
+                f"Cannot sync native tracker: "
+                f"git fetch origin {branch!r} failed: {fetch_err}. "
+                f"Remediation: verify network access and remote URL "
+                f"(git remote get-url origin)."
+            )
+        ff = self._git(["merge", "--ff-only", f"origin/{branch}"], check=False)
+        if ff.returncode != 0:
+            ff_err = (ff.stderr.strip() or ff.stdout.strip())
+            raise TrackerError(
+                f"Cannot sync native tracker: "
+                f"git merge --ff-only origin/{branch} failed: {ff_err}. "
+                f"Remediation: the local {branch!r} branch has diverged from origin. "
+                f"Run: git fetch origin && git merge --ff-only origin/{branch}"
+            )
 
     def _commit_and_push(self, subject: str) -> None:
         if not self._git_sync_requested() or not self._is_git_repo():
@@ -732,7 +764,8 @@ class OompahMarkdownTracker:
         push = self._git(["push", "origin", f"HEAD:{branch}"], check=False)
         if push.returncode == 0:
             return
-        self._git(["pull", "--rebase", "origin", branch], check=True)
+        # Push was rejected — sync from remote and retry once.
+        self._sync_from_remote(branch)
         self._git(["push", "origin", f"HEAD:{branch}"], check=True)
 
     def _is_git_repo(self) -> bool:
