@@ -15,7 +15,7 @@ labels:
 - metadata
 assignee: null
 created_at: '2026-06-20T03:03:06.527980Z'
-updated_at: '2026-06-20T03:54:48.387431Z'
+updated_at: '2026-06-20T03:56:33.086644Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -100,5 +100,16 @@ author: oompah
 created: 2026-06-20 03:54
 ---
 Verification: All 6923 tests pass (28 skipped, 0 failures). The 28 new tests in test_github_intake_bridge.py all pass including: label parsing from webhook event payload, type/priority/parent/depends-on extraction, routing label preservation, ensure_native_issue forwarding all fields, full webhook handler integration (type:bug, priority:2, team-alpha labels), polling==webhook equivalence, and reconciliation backfill of missing type/labels on existing tasks.
+---
+author: oompah
+created: 2026-06-20 03:56
+---
+Completion: Delivered fix for OOMPAH-14. No duplicate found (investigated OOMPAH-11, OOMPAH-12, OOMPAH-13 — all orthogonal). 
+
+Changes pushed on branch OOMPAH-14:
+- _github_issue_from_event() now calls _gh_issue_to_issue() (same logic as polling) when event has full issue dict — extracts type:*, priority:*, parent:*, depends-on:*, user labels
+- ensure_native_issue_for_github_issue() forwards issue_type, user labels, parent_id to native create
+- New _reconcile_native_type_and_labels() repairs pre-fix tasks: backfills type (if still default 'task') and adds missing labels without removing existing ones
+- 16 new passing tests; full suite: 6923 passed, 28 skipped, 0 failures
 ---
 <!-- COMMENTS:END -->
