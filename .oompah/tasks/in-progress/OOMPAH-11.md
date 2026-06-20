@@ -14,7 +14,7 @@ labels:
 - templates
 assignee: null
 created_at: '2026-06-20T03:02:09.918768Z'
-updated_at: '2026-06-20T03:41:59.134253Z'
+updated_at: '2026-06-20T03:42:06.036150Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,5 +69,10 @@ author: oompah
 created: 2026-06-20 03:41
 ---
 Implementation: Added _has_github_issue_template_capability() predicate in oompah/server.py that accepts: (1) github_issues tracker kind, OR (2) oompah_md with github_issue_intake_enabled=True + tracker_owner + tracker_repo configured. Updated all 3 issue-template endpoints (status, preview, apply) to use this predicate instead of _is_github_tracker_kind(). Improved error messages to mention github_issue_intake_enabled requirement. Added 8-test suite for the predicate + 9 regression tests covering oompah_md+intake for all 3 endpoints including dirty-worktree safety and missing-owner edge cases.
+---
+author: oompah
+created: 2026-06-20 03:42
+---
+Verification: All 6923 tests pass (make test). Issue-template-specific suite: 51/51 passed. New tests confirm: oompah_md+intake=True+owner+repo → 200 for status/preview/apply; oompah_md without intake still returns 400; dirty-worktree safety preserved for native intake projects.
 ---
 <!-- COMMENTS:END -->
