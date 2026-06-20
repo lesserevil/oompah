@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T04:33:05.808487Z'
+updated_at: '2026-06-20T04:36:28.003223Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
@@ -244,5 +244,16 @@ author: oompah
 created: 2026-06-20 04:32
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-06-20 04:36
+---
+**Merge Conflict Resolved:** Rebased OOMPAH-6 onto origin/main and resolved conflict in tests/test_github_intake_bridge.py.
+
+The conflict was between OOMPAH-14's label/type normalization tests (HEAD) and OOMPAH-6's auth failure regression tests (branch). Both independent test sections were preserved. The rebase produced a clean single commit on top of origin/main.
+
+- 6959 tests pass, 0 failures
+- Force-pushed: 6f4ee67 → 1e83d83
+- Diff: 6 files, +214/-5 lines (unchanged from original)
 ---
 <!-- COMMENTS:END -->
