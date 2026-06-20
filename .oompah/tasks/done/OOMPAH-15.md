@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-15
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Ensure auto-generated tasks pass intake validation
 parent: null
@@ -15,7 +15,7 @@ labels:
 - error-watcher
 assignee: null
 created_at: '2026-06-20T03:23:38.004425Z'
-updated_at: '2026-06-20T03:58:52.448430Z'
+updated_at: '2026-06-20T03:58:58.530836Z'
 work_branch: null
 target_branch: null
 review_url: null
