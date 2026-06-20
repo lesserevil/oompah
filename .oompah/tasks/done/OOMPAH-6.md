@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T04:03:24.329415Z'
+updated_at: '2026-06-20T04:03:26.978249Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -195,5 +195,10 @@ created: 2026-06-20 04:03
 5. 8 new regression tests covering all paths.
 
 The OVA project auth failure is now surfaced as an actionable dashboard alert and WARNING log rather than silently dropped at DEBUG level. Operators are directed to set project access_token or configure OOMPAH_GITHUB_TOKEN with read access to NVIDIA-dev/ova.
+---
+author: oompah
+created: 2026-06-20 04:03
+---
+Added TrackerAuthError subclass and surfaced GitHub intake auth failures as actionable dashboard alerts and WARNING logs. 8 regression tests added. No duplicate found.
 ---
 <!-- COMMENTS:END -->
