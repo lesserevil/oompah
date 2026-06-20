@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-15
 type: bug
-status: In Review
+status: Merged
 priority: 1
 title: Ensure auto-generated tasks pass intake validation
 parent: null
@@ -15,7 +15,7 @@ labels:
 - error-watcher
 assignee: null
 created_at: '2026-06-20T03:23:38.004425Z'
-updated_at: '2026-06-20T04:02:42.731708Z'
+updated_at: '2026-06-20T04:26:43.509047Z'
 work_branch: OOMPAH-15
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/340
