@@ -15,7 +15,7 @@ labels:
 - error-watcher
 assignee: null
 created_at: '2026-06-20T03:23:38.004425Z'
-updated_at: '2026-06-20T03:59:23.648949Z'
+updated_at: '2026-06-20T03:59:26.279555Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,5 +97,15 @@ author: oompah
 created: 2026-06-20 03:59
 ---
 Added _build_structured_description() to ErrorWatcher generating all five validate_issue()-required sections (Problem, Steps to Reproduce, Actual Behavior, Expected Behavior, Acceptance Criteria) plus diagnostic metadata footer. 8 regression tests added including OOMPAH-6 shape test. All 6915 tests pass. No hardcoded user logins.
+---
+author: oompah
+created: 2026-06-20 03:59
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 49
+- Tokens: 83 in / 2.5K out [2.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 14m 22s
+- Log: OOMPAH-15__20260620T034458Z.jsonl
 ---
 <!-- COMMENTS:END -->
