@@ -158,7 +158,6 @@ _ROLLUP_ACTIVE = frozenset(
         NEEDS_CI_FIX,
         NEEDS_REBASE,
         IN_REVIEW,
-        DECOMPOSED,
         DUPLICATE_CANDIDATE,
     }
 )
@@ -175,7 +174,7 @@ def epic_rollup_state(child_states: Iterable[str | None]) -> str | None:
 
     Precedence (per the agreed model):
 
-    * no children (or all Proposed)     → None (caller keeps the epic's own state)
+    * no children (or all Proposed/Decomposed) → None (caller keeps the epic's own state)
     * all children Merged/Archived      → ``Merged`` (whole epic has landed)
     * all children terminal (Done/...)  → ``Done``   (complete → ready to merge)
     * any child actively working        → ``In Progress`` (beats Open: a mix of
@@ -186,10 +185,14 @@ def epic_rollup_state(child_states: Iterable[str | None]) -> str | None:
     * otherwise (e.g. some Done + some Backlog, none open/active) → ``In Progress``
       (the epic has started but isn't complete)
     """
+    # Proposed work has not entered the implementation workflow yet.
+    # Decomposed work is a superseded wrapper whose generated leaves carry
+    # the actionable state. Neither should keep an epic active by itself.
+    ignored = {PROPOSED, DECOMPOSED}
     canon = [
         canonicalize_status(s)
         for s in child_states
-        if s is not None and canonicalize_status(s) != PROPOSED
+        if s is not None and canonicalize_status(s) not in ignored
     ]
     if not canon:
         return None

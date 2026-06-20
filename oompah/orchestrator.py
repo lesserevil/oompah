@@ -3439,7 +3439,10 @@ class Orchestrator:
             if (
                 not rolled
                 or rolled_status == current_status
-                or (current_status == IN_REVIEW and rolled_status == DONE)
+                or (
+                    current_status in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
+                    and rolled_status == DONE
+                )
             ):
                 continue
 
@@ -3758,9 +3761,24 @@ class Orchestrator:
         """Return True when tracker state shows this issue has children."""
         return bool(self._fetch_epic_children(issue))
 
-    def _has_epic_landing_ref(self, project: Any, epic_identifier: str) -> bool:
+    def _epic_branch_for_issue(self, epic: Issue) -> str:
+        """Return the branch that should carry an epic rollup."""
+        work_branch = getattr(epic, "work_branch", None)
+        if isinstance(work_branch, str) and work_branch.strip():
+            return work_branch.strip()
+        return self.project_store.epic_branch_name(epic.identifier)
+
+    def _has_epic_landing_ref(
+        self,
+        project: Any,
+        epic_identifier: str,
+        *,
+        epic_branch: str | None = None,
+    ) -> bool:
         """Return True when local state has an epic branch/worktree to land."""
-        epic_branch = self.project_store.epic_branch_name(epic_identifier)
+        epic_branch = epic_branch or self.project_store.epic_branch_name(
+            epic_identifier
+        )
 
         project_id = getattr(project, "id", None)
         if (
@@ -4115,9 +4133,7 @@ class Orchestrator:
         strategy = self._project_epic_strategy(epic.project_id)
         if strategy in ("stacked", "shared"):
             try:
-                expected_child_target = self.project_store.epic_branch_name(
-                    epic.identifier,
-                )
+                expected_child_target = self._epic_branch_for_issue(epic)
             except Exception:
                 expected_child_target = target_branch
         else:
@@ -4195,9 +4211,7 @@ class Orchestrator:
                 # Can't verify — fail closed (don't auto-close).
                 return False
             try:
-                epic_branch = self.project_store.epic_branch_name(
-                    epic.identifier,
-                )
+                epic_branch = self._epic_branch_for_issue(epic)
             except Exception:
                 return False
             try:
@@ -4658,9 +4672,11 @@ class Orchestrator:
             project = self.project_store.get(project_id)
             if not project or not project.repo_url:
                 continue
+            epic_branch = self._epic_branch_for_issue(issue)
             if not self._has_epic_landing_ref(
                 project,
                 issue.identifier,
+                epic_branch=epic_branch,
             ):
                 logger.debug(
                     "Skipping epic rollup %s on %s: no epic branch "
@@ -4676,7 +4692,6 @@ class Orchestrator:
             if provider is None:
                 continue
             slug = extract_repo_slug(project.repo_url)
-            epic_branch = self.project_store.epic_branch_name(issue.identifier)
 
             # Authoritative already-landed check — MUST come before the
             # open-PR idempotency check below. A shared epic lands exactly
@@ -4758,7 +4773,17 @@ class Orchestrator:
             # children's PRs already pushed their commits to the epic
             # branch on the remote).
             try:
-                self._push_epic_branch(project, issue.identifier)
+                default_epic_branch = self.project_store.epic_branch_name(
+                    issue.identifier
+                )
+                if epic_branch == default_epic_branch:
+                    self._push_epic_branch(project, issue.identifier)
+                else:
+                    self._push_epic_branch(
+                        project,
+                        issue.identifier,
+                        epic_branch=epic_branch,
+                    )
             except Exception as exc:
                 if not self._remote_epic_branch_has_unmerged_work(
                     project,
@@ -4981,7 +5006,7 @@ class Orchestrator:
         if strategy == "shared":
             parent_epic = self._resolve_parent_epic(epic)
             if parent_epic is not None:
-                return self.project_store.epic_branch_name(parent_epic.identifier)
+                return self._epic_branch_for_issue(parent_epic)
         return project.default_branch
 
     def _fast_forward_shared_epic_worktree_if_clean(
@@ -5042,17 +5067,27 @@ class Orchestrator:
                 timeout=60,
             )
 
-    def _push_epic_branch(self, project, epic_identifier: str) -> None:
+    def _push_epic_branch(
+        self,
+        project,
+        epic_identifier: str,
+        *,
+        epic_branch: str | None = None,
+    ) -> None:
         """Push the shared epic branch from the local repo to origin.
 
         Best-effort: subprocess errors propagate so the caller can log
         and skip PR creation for this tick.
         """
-        epic_branch = self.project_store.epic_branch_name(epic_identifier)
+        default_epic_branch = self.project_store.epic_branch_name(epic_identifier)
+        epic_branch = epic_branch or default_epic_branch
         push_cwd = project.repo_path
         push_cmd = ["git", "push", "origin", epic_branch]
 
-        if self._project_epic_strategy(getattr(project, "id", None)) == "shared":
+        if (
+            epic_branch == default_epic_branch
+            and self._project_epic_strategy(getattr(project, "id", None)) == "shared"
+        ):
             wt_path = self.project_store.epic_worktree_path_for(
                 project.id,
                 epic_identifier,
@@ -6665,9 +6700,7 @@ class Orchestrator:
         # falling back to the project's default branch.
         target_branch = project.default_branch
         if strategy == "stacked" and parent_epic is not None:
-            target_branch = self.project_store.epic_branch_name(
-                parent_epic.identifier,
-            )
+            target_branch = self._epic_branch_for_issue(parent_epic)
         elif entry.issue and entry.issue.target_branch:
             target_branch = entry.issue.target_branch
 
@@ -7024,6 +7057,7 @@ class Orchestrator:
         """
         sweeps = [
             ("label_merged_epics", self._label_merged_epics),
+            ("reconcile_merged_epic_children", self._reconcile_merged_epic_children),
             ("label_merged_issues", self._label_merged_issues),
             ("reconcile_in_review_pr_outcomes", self._reconcile_in_review_pr_outcomes),
             ("reconcile_terminal_open_reviews", self._reconcile_terminal_open_reviews),
@@ -7093,6 +7127,12 @@ class Orchestrator:
                     continue
                 branch = self._branch_for_issue(issue, project)
                 if (
+                    issue.parent_id
+                    and self._epic_rollup_child_strategy(issue, project_id)
+                    == "shared"
+                ):
+                    continue
+                if (
                     branch
                     and branch in merged_branches
                     and self._merged_branch_tip_landed(
@@ -7102,12 +7142,35 @@ class Orchestrator:
                         branch,
                     )
                 ):
+                    try:
+                        tracker.update_issue(issue.identifier, status=MERGED)
+                        logger.info(
+                            "Marked Done task %s Merged: branch %s has merged",
+                            issue.identifier,
+                            branch,
+                        )
+                    except TrackerError as exc:
+                        logger.debug(
+                            "Failed to mark merged Done task %s merged: %s",
+                            issue.identifier,
+                            exc,
+                        )
                     continue
-                if (
-                    issue.parent_id
-                    and self._epic_rollup_child_strategy(issue, project_id)
-                    == "shared"
-                ):
+                if self._done_issue_branch_tip_landed(issue, project, project_id):
+                    try:
+                        tracker.update_issue(issue.identifier, status=MERGED)
+                        logger.info(
+                            "Marked Done task %s Merged: branch %s is already "
+                            "contained in its target",
+                            issue.identifier,
+                            self._branch_for_issue(issue, project),
+                        )
+                    except TrackerError as exc:
+                        logger.debug(
+                            "Failed to mark landed Done task %s merged: %s",
+                            issue.identifier,
+                            exc,
+                        )
                     continue
                 if not self._done_issue_has_unmerged_review_work(
                     issue,
@@ -7144,9 +7207,7 @@ class Orchestrator:
         if issue.parent_id and strategy in ("stacked", "shared"):
             parent_epic = self._resolve_parent_epic(issue)
         if strategy == "stacked" and parent_epic is not None:
-            target_branch = self.project_store.epic_branch_name(
-                parent_epic.identifier,
-            )
+            target_branch = self._epic_branch_for_issue(parent_epic)
         elif issue.target_branch:
             target_branch = issue.target_branch
 
@@ -7175,6 +7236,46 @@ class Orchestrator:
             )
             return False
         return commits_ahead > 0
+
+    def _done_issue_branch_tip_landed(
+        self,
+        issue: Issue,
+        project: Project,
+        project_id: str,
+    ) -> bool:
+        """Return True when a Done task's branch is already in its target."""
+        branch = self._branch_for_issue(issue, project)
+        repo_path = getattr(project, "repo_path", "") or ""
+        if not branch or not repo_path:
+            return False
+        if not self._managed_branch_ref_exists(repo_path, branch):
+            return False
+
+        target_branch = getattr(project, "default_branch", None) or "main"
+        strategy = self._project_epic_strategy(project_id)
+        parent_epic: Issue | None = None
+        if issue.parent_id and strategy in ("stacked", "shared"):
+            parent_epic = self._resolve_parent_epic(issue)
+        if strategy == "stacked" and parent_epic is not None:
+            target_branch = self._epic_branch_for_issue(parent_epic)
+        elif issue.target_branch:
+            target_branch = issue.target_branch
+
+        ahead, _commit_lines, commit_error = self._count_review_branch_ahead(
+            project,
+            target_branch,
+            branch,
+        )
+        if commit_error:
+            logger.debug(
+                "Done landed check skipped for %s branch=%s base=%s: %s",
+                issue.identifier,
+                branch,
+                target_branch,
+                commit_error,
+            )
+            return False
+        return ahead <= 0
 
     def _maybe_run_merged_labels(self) -> None:
         """Periodically label merged issues/epics and reconcile stale In Review tasks.
@@ -7524,6 +7625,23 @@ class Orchestrator:
             }
             if not branch_to_review:
                 continue
+            provider = None
+            slug = ""
+            access_token = getattr(project, "access_token", None)
+            if getattr(project, "repo_url", None) and access_token:
+                try:
+                    provider = detect_provider(
+                        project.repo_url,
+                        access_token=access_token,
+                    )
+                    if provider:
+                        slug = extract_repo_slug(project.repo_url)
+                except Exception as exc:  # noqa: BLE001 - cache fallback is enough
+                    logger.debug(
+                        "False-Merged provider setup failed for %s: %s",
+                        getattr(project, "name", project_id),
+                        exc,
+                    )
 
             try:
                 tracker = self._tracker_for_project(project_id)
@@ -7552,6 +7670,31 @@ class Orchestrator:
                 if not branch:
                     continue
                 review = branch_to_review[branch]
+                if provider is not None and slug:
+                    try:
+                        current_review = provider.find_pr_for_branch(slug, branch)
+                    except Exception as exc:  # noqa: BLE001 - avoid false demotion
+                        logger.debug(
+                            "Skipping false-Merged repair for %s branch=%s: "
+                            "could not verify cached open review: %s",
+                            issue.identifier,
+                            branch,
+                            exc,
+                        )
+                        continue
+                    current_state = str(
+                        getattr(current_review, "state", "") or ""
+                    ).lower()
+                    if current_state != "open":
+                        logger.debug(
+                            "Skipping false-Merged repair for %s branch=%s: "
+                            "cached open review is now %s",
+                            issue.identifier,
+                            branch,
+                            current_state or "missing",
+                        )
+                        continue
+                    review = current_review
                 target_branch = self._review_target_branch(project, review)
                 commits_ahead, _commit_lines, commit_error = (
                     self._count_review_branch_ahead(
@@ -7802,7 +7945,7 @@ class Orchestrator:
             parent_epic = self._resolve_parent_epic(issue)
             if parent_epic is not None:
                 try:
-                    return self.project_store.epic_branch_name(parent_epic.identifier)
+                    return self._epic_branch_for_issue(parent_epic)
                 except Exception:  # noqa: BLE001 - fall through to the default target
                     pass
         target = getattr(issue, "target_branch", None)
@@ -7917,7 +8060,7 @@ class Orchestrator:
             and (issue.issue_type or "").strip().lower() == "epic"
         ):
             try:
-                return self.project_store.epic_branch_name(issue.identifier)
+                return self._epic_branch_for_issue(issue)
             except Exception:  # noqa: BLE001 - fall back to the legacy branch rule
                 pass
         if project is None and project_id:
@@ -8175,7 +8318,7 @@ class Orchestrator:
             if self._project_epic_strategy(project_id) not in ("stacked", "shared"):
                 continue
             try:
-                epic_branch = self.project_store.epic_branch_name(epic.identifier)
+                epic_branch = self._epic_branch_for_issue(epic)
             except Exception:  # noqa: BLE001
                 continue
             if epic_branch not in merged:
@@ -8231,6 +8374,83 @@ class Orchestrator:
                     continue
             self._mark_epic_merged(epic, epic_branch=epic_branch)
 
+    def _all_merged_epics(self) -> list[Issue]:
+        """Return merged epic/rollup parents that may still have open children."""
+        out: list[Issue] = []
+        projects = self.project_store.list_all()
+        trackers: list[tuple[str | None, TrackerProtocol]] = []
+        if projects:
+            for project in projects:
+                try:
+                    trackers.append((project.id, self._tracker_for_project(project.id)))
+                except (ProjectError, TrackerError):
+                    pass
+        else:
+            trackers.append((None, self.tracker))
+
+        for pid, tracker in trackers:
+            try:
+                issues = list(tracker.fetch_all_issues())
+            except (TrackerError, ProjectError) as exc:
+                logger.debug("merged epic fetch failed for %s: %s", pid, exc)
+                continue
+
+            parent_ids = {
+                str(issue.parent_id).strip()
+                for issue in issues
+                if (issue.parent_id or "").strip()
+            }
+            for issue in issues:
+                if pid:
+                    issue.project_id = pid
+                if canonicalize_status(issue.state) != MERGED:
+                    continue
+                is_declared_epic = (
+                    (issue.issue_type or "").strip().lower() == "epic"
+                )
+                issue_ids = {
+                    str(value).strip()
+                    for value in (issue.id, issue.identifier)
+                    if value
+                }
+                has_children = bool(issue_ids & parent_ids)
+                project_strategy = self._project_epic_strategy(issue.project_id)
+                is_rollup_parent = (
+                    is_declared_epic
+                    or (
+                        has_children
+                        and project_strategy in ("stacked", "shared")
+                    )
+                )
+                if is_rollup_parent:
+                    out.append(issue)
+        return out
+
+    def _reconcile_merged_epic_children(self) -> None:
+        """Ensure children of already-merged epics are also terminal.
+
+        A restart or stale review-cache race can mark the epic ``Merged`` before
+        every child is swept. Since the epic is the authoritative rollup, any
+        non-archived child under it should become ``Merged`` as well.
+        """
+        for epic in self._all_merged_epics():
+            if self._job_deadline_exceeded("merged_labels"):
+                return
+            try:
+                children = self._fetch_epic_children(epic)
+            except Exception:  # noqa: BLE001 - reconciliation is best effort
+                children = []
+            if not any(
+                canonicalize_status(child.state) not in {MERGED, ARCHIVED}
+                for child in children
+            ):
+                continue
+            try:
+                epic_branch = self._epic_branch_for_issue(epic)
+            except Exception:  # noqa: BLE001
+                epic_branch = epic.identifier
+            self._mark_epic_merged(epic, epic_branch=epic_branch)
+
     def _mark_epic_merged(self, epic: Issue, *, epic_branch: str | None = None) -> None:
         """Mark ``epic`` and all its non-terminal children ``Merged``.
 
@@ -8242,7 +8462,7 @@ class Orchestrator:
         """
         if epic_branch is None:
             try:
-                epic_branch = self.project_store.epic_branch_name(epic.identifier)
+                epic_branch = self._epic_branch_for_issue(epic)
             except Exception:  # noqa: BLE001
                 epic_branch = epic.identifier
 
@@ -9566,7 +9786,7 @@ class Orchestrator:
             return None
 
         try:
-            issue_epic_branch = self.project_store.epic_branch_name(issue.identifier)
+            issue_epic_branch = self._epic_branch_for_issue(issue)
         except Exception:  # noqa: BLE001
             issue_epic_branch = ""
         if source_branch == issue_epic_branch:
@@ -9579,9 +9799,7 @@ class Orchestrator:
             return None
 
         target_branch = self._review_target_branch(project, review)
-        parent_epic_branch = self.project_store.epic_branch_name(
-            parent_epic.identifier
-        )
+        parent_epic_branch = self._epic_branch_for_issue(parent_epic)
 
         if strategy == "shared":
             return (
@@ -9663,15 +9881,11 @@ class Orchestrator:
             parent_epic = self._resolve_parent_epic(issue)
             if parent_epic is not None:
                 try:
-                    issue_epic_branch = self.project_store.epic_branch_name(
-                        issue.identifier
-                    )
+                    issue_epic_branch = self._epic_branch_for_issue(issue)
                 except Exception:  # noqa: BLE001 - branch mismatch is enough
                     issue_epic_branch = ""
                 if source_branch != issue_epic_branch:
-                    parent_epic_branch = self.project_store.epic_branch_name(
-                        parent_epic.identifier
-                    )
+                    parent_epic_branch = self._epic_branch_for_issue(parent_epic)
                     close_comment = (
                         "Closing stale child task PR. This project uses shared "
                         "epic branches, so child task work must land through "

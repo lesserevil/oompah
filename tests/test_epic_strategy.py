@@ -19,7 +19,15 @@ from oompah.config import ServiceConfig
 from oompah.models import BlockerRef, Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
-from oompah.statuses import DONE, IN_PROGRESS, IN_REVIEW, NEEDS_HUMAN, OPEN
+from oompah.statuses import (
+    DONE,
+    IN_PROGRESS,
+    IN_REVIEW,
+    MERGED,
+    NEEDS_CI_FIX,
+    NEEDS_HUMAN,
+    OPEN,
+)
 
 
 # --------------------------------------------------------------------- helpers
@@ -1641,6 +1649,42 @@ class TestOpenEpicMainPrs:
             opened = orch._open_epic_main_prs([epic])
         assert opened == 1
 
+    def test_epic_pr_uses_explicit_work_branch(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
+        epic = _make_issue(
+            identifier="OVA-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state="open",
+            title="Imported epic",
+            description="Doc body",
+        )
+        epic.work_branch = "epic-NVIDIA-dev_ova_3"
+        child = _make_issue(identifier="OVA-5", state="closed")
+        provider = MagicMock()
+        provider.list_merged_branches.return_value = set()
+        provider.create_review.return_value = MagicMock(id="100")
+
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch") as push,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
+        assert opened == 1
+        push.assert_called_once_with(
+            proj,
+            "OVA-1",
+            epic_branch="epic-NVIDIA-dev_ova_3",
+        )
+        args = provider.create_review.call_args.args
+        assert args[2] == "epic-NVIDIA-dev_ova_3"
+
     def test_shared_waits_when_children_open_on_default_branch(self, tmp_path):
         """Shared epic landing waits for canonical child states."""
         orch, proj = self._setup(tmp_path, strategy="shared")
@@ -2299,6 +2343,23 @@ class TestDeferredDoneReviews:
         )
         orch._ensure_review_exists.assert_called_once()
 
+    def test_done_task_with_confirmed_merged_branch_is_marked_merged(self, tmp_path):
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        orch._merged_branches = {"task-1"}
+        issue = _make_issue(identifier="task-1", state=DONE, project_id="proj-1")
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [issue]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._merged_branch_tip_landed = MagicMock(return_value=True)
+        orch._ensure_review_exists = MagicMock(return_value=True)
+
+        orch._open_deferred_done_reviews()
+
+        tracker.update_issue.assert_called_once_with("task-1", status=MERGED)
+        orch._ensure_review_exists.assert_not_called()
+
     def test_done_task_review_handoff_skips_project_at_capacity(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")
         proj.max_in_flight_prs = 1
@@ -2351,6 +2412,29 @@ class TestDeferredDoneReviews:
         ):
             orch._open_deferred_done_reviews()
 
+        orch._ensure_review_exists.assert_not_called()
+
+    def test_done_task_with_landed_branch_is_marked_merged(self, tmp_path):
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        issue = _make_issue(identifier="task-1", state=DONE, project_id="proj-1")
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [issue]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._ensure_review_exists = MagicMock(return_value=True)
+
+        with (
+            patch.object(orch, "_managed_branch_ref_exists", return_value=True),
+            patch.object(
+                orch,
+                "_count_review_branch_ahead",
+                return_value=(0, [], ""),
+            ),
+        ):
+            orch._open_deferred_done_reviews()
+
+        tracker.update_issue.assert_called_once_with("task-1", status=MERGED)
         orch._ensure_review_exists.assert_not_called()
 
 
@@ -2429,6 +2513,29 @@ class TestEpicRollupStatusReconciliation:
         tracker.update_issue.assert_called_once_with(epic.identifier, status=DONE)
         assert epic.state == DONE
 
+    def test_decomposed_children_do_not_keep_epic_in_progress(self, tmp_path):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            state="Backlog",
+        )
+        tracker.fetch_children.return_value = [
+            _make_issue(identifier="child-1", state=DONE, parent_id=epic.identifier),
+            _make_issue(
+                identifier="child-2",
+                state="Decomposed",
+                parent_id=epic.identifier,
+            ),
+        ]
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            updated = orch._reconcile_epic_rollup_statuses([epic])
+
+        assert updated == 1
+        tracker.update_issue.assert_called_once_with(epic.identifier, status=DONE)
+        assert epic.state == DONE
+
     def test_in_review_epic_with_done_children_is_not_downgraded(self, tmp_path):
         orch, tracker = self._orch_with_tracker(tmp_path)
         epic = _make_issue(
@@ -2446,6 +2553,24 @@ class TestEpicRollupStatusReconciliation:
         assert updated == 0
         tracker.update_issue.assert_not_called()
         assert epic.state == IN_REVIEW
+
+    def test_ci_fix_epic_with_done_children_is_not_downgraded(self, tmp_path):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            state=NEEDS_CI_FIX,
+        )
+        tracker.fetch_children.return_value = [
+            _make_issue(identifier="child-1", state=DONE, parent_id=epic.identifier),
+        ]
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            updated = orch._reconcile_epic_rollup_statuses([epic])
+
+        assert updated == 0
+        tracker.update_issue.assert_not_called()
+        assert epic.state == NEEDS_CI_FIX
 
     def test_matching_rollup_status_is_not_rewritten(self, tmp_path):
         orch, tracker = self._orch_with_tracker(tmp_path)
@@ -2773,6 +2898,28 @@ class TestLabelMergedEpics:
             patch.object(orch, "_fetch_epic_children", return_value=[c1]),
         ):
             orch._label_merged_epics()
+
+        marked = {
+            call.args[0]: call.kwargs.get("status")
+            for call in tracker.update_issue.call_args_list
+        }
+        assert marked == {"epic-1": "Merged", "c1": "Merged"}
+
+    def test_merged_epic_reconciles_children_still_done(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(identifier="epic-1", issue_type="epic", state="Merged")
+        c1 = _make_issue(identifier="c1", state="Done", parent_id="epic-1")
+        c2 = _make_issue(identifier="c2", state="Archived", parent_id="epic-1")
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = [epic, c1, c2]
+
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[c1, c2]),
+        ):
+            orch._reconcile_merged_epic_children()
 
         marked = {
             call.args[0]: call.kwargs.get("status")

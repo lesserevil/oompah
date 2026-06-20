@@ -101,6 +101,7 @@ from oompah.statuses import (
     ARCHIVED,
     BACKLOG,
     CANONICAL_STATUSES,
+    DONE,
     IN_PROGRESS,
     IN_REVIEW,
     MERGED,
@@ -2403,9 +2404,17 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
                     child_states.setdefault(issue.parent_id, []).append(issue.state)
             for issue in issues:
                 if (issue.issue_type or "").strip().lower() == "epic":
-                    if canonicalize_status(issue.state) in {MERGED, ARCHIVED}:
+                    current_status = canonicalize_status(issue.state)
+                    if current_status in {MERGED, ARCHIVED}:
                         continue
                     rolled = epic_rollup_state(child_states.get(issue.id, []))
+                    rolled_status = canonicalize_status(rolled)
+                    if (
+                        current_status
+                        in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE, NEEDS_HUMAN}
+                        and rolled_status == DONE
+                    ):
+                        continue
                     if rolled:
                         issue.state = rolled
             return issues

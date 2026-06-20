@@ -146,6 +146,15 @@ def test_epic_rollup_ignores_proposed_children_when_other_work_exists():
     assert epic_rollup_state(["Proposed", "Done"]) == "Done"
 
 
+def test_epic_rollup_ignores_decomposed_children_when_other_work_exists():
+    assert epic_rollup_state(["Decomposed", "Done"]) == "Done"
+    assert epic_rollup_state(["Decomposed", "Merged"]) == "Merged"
+
+
+def test_epic_rollup_all_decomposed_children_is_none():
+    assert epic_rollup_state(["Decomposed", "decomposed"]) is None
+
+
 def test_more_advanced_status_picks_further_along():
     assert more_advanced_status("Open", "Done") == "Done"
     assert more_advanced_status("Open", "Backlog") == "Open"

@@ -115,6 +115,21 @@ def test_fetch_all_issues_rolls_up_non_terminal_epic_status():
     assert by_id["TASK-1"].state == "Done"
 
 
+def test_fetch_all_issues_does_not_downgrade_review_epic_to_done():
+    orch = _orch_with_issues(
+        [
+            _issue("TASK-1", "In Review", issue_type="epic"),
+            _issue("TASK-1.1", "Done", parent_id="TASK-1"),
+            _issue("TASK-1.2", "Done", parent_id="TASK-1"),
+        ]
+    )
+
+    issues = server_module._fetch_all_issues(orch)
+
+    by_id = {issue.identifier: issue for issue in issues}
+    assert by_id["TASK-1"].state == "In Review"
+
+
 def test_fetch_all_issues_keeps_epic_state_when_children_only_proposed():
     orch = _orch_with_issues(
         [

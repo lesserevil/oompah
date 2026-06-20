@@ -542,6 +542,61 @@ class TestReconcileStaleInReviewTasks:
             work_branch,
         )
 
+    @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_false_merged_repair_skips_stale_cached_open_review(
+        self,
+        mock_detect,
+        _mock_slug,
+        tmp_path,
+    ):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        project.access_token = "token"
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        work_branch = "epic-imported-branch"
+        orch._reviews_cache = {
+            project.id: [
+                ReviewRequest(
+                    id="195",
+                    title="PR #195",
+                    url="https://github.com/org/repo/pull/195",
+                    author="alice",
+                    state="open",
+                    source_branch=work_branch,
+                    target_branch="main",
+                    created_at="2026-01-01",
+                    updated_at="2026-01-01",
+                )
+            ]
+        }
+        provider = MagicMock()
+        provider.find_pr_for_branch.return_value = ReviewRequest(
+            id="195",
+            title="PR #195",
+            url="https://github.com/org/repo/pull/195",
+            author="alice",
+            state="merged",
+            source_branch=work_branch,
+            target_branch="main",
+            created_at="2026-01-01",
+            updated_at="2026-01-02",
+        )
+        mock_detect.return_value = provider
+        orch._count_review_branch_ahead = MagicMock(return_value=(11, [], ""))
+
+        issue = _make_issue("OVA-1", state=MERGED, project_id=project.id)
+        issue.work_branch = work_branch
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [issue]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_terminal_open_reviews()
+
+        provider.find_pr_for_branch.assert_called_once_with("org/repo", work_branch)
+        orch._count_review_branch_ahead.assert_not_called()
+        mock_tracker.update_issue.assert_not_called()
+
     def test_keeps_merged_when_open_review_branch_is_not_ahead(self, tmp_path):
         project = _make_project()
         project.repo_path = str(tmp_path)
@@ -643,6 +698,55 @@ class TestReconcileStaleInReviewTasks:
             issue.identifier,
             status=MERGED,
         )
+        mock_tracker.add_comment.assert_not_called()
+
+    @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_shared_epic_stale_review_uses_explicit_work_branch(
+        self,
+        mock_detect,
+        _mock_slug,
+        tmp_path,
+    ):
+        project = _make_project(epic_strategy="shared")
+        project.repo_path = str(tmp_path)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.epic_branch_name.side_effect = (
+            lambda ident: f"epic-{ident}"
+        )
+        orch._reviews_cache = {project.id: []}
+        orch._merged_branches = set()
+
+        work_branch = "epic-NVIDIA-dev_ova_3"
+        provider = MagicMock()
+        provider.find_pr_for_branch.return_value = ReviewRequest(
+            id="195",
+            title="OVA-1",
+            url="https://github.com/org/repo/pull/195",
+            author="alice",
+            state="merged",
+            source_branch=work_branch,
+            target_branch="main",
+            created_at="2026-01-01",
+            updated_at="2026-01-02",
+        )
+        mock_detect.return_value = provider
+
+        issue = _make_issue(
+            "OVA-1",
+            state=IN_REVIEW,
+            issue_type="epic",
+            project_id=project.id,
+        )
+        issue.work_branch = work_branch
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [issue]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_stale_in_review_tasks()
+
+        provider.find_pr_for_branch.assert_called_once_with("org/repo", work_branch)
+        mock_tracker.update_issue.assert_called_once_with("OVA-1", status=MERGED)
         mock_tracker.add_comment.assert_not_called()
 
     @patch("oompah.orchestrator.detect_provider", return_value=None)
