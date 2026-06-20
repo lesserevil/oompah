@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-8
 type: task
-status: Done
+status: Merged
 priority: null
 title: Add installed CLI smoke coverage
 parent: null
@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.713362Z'
-updated_at: '2026-06-20T02:14:02.580897Z'
+updated_at: '2026-06-20T14:51:03.843588Z'
 work_branch: null
 target_branch: null
 review_url: null
