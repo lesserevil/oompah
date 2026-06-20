@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T05:17:33.779849Z'
+updated_at: '2026-06-20T05:17:35.852789Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
@@ -577,5 +577,10 @@ The loop occurs because:
 3. When an agent sets Done, _ensure_review_exists fires, finds empty reviews cache, calls create_review, gets 422 (PR already exists), old code returns None, task is reopened
 
 Plan: (1) Fix _fetch_all_reviews_bounded to use stale cache for webhook-healthy projects; (2) Add review_number fallback check in _ensure_review_exists to use the task's existing review_number field; (3) Set task to In Review (stable: reconciliation calls find_pr_for_branch directly and finds PR #342 open, keeps it In Review)
+---
+author: oompah
+created: 2026-06-20 05:17
+---
+YOLO: merged PR #342.
 ---
 <!-- COMMENTS:END -->
