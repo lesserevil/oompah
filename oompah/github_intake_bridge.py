@@ -491,6 +491,31 @@ def handle_github_issue_event_for_native_project(
         _reconcile_native_status_from_github_issue(native_tracker, github_issue)
         return
 
+    existing, metadata = _find_native_issue_for_external(native_tracker, external_id)
+    if existing is not None:
+        internal = _reconcile_native_status_from_github_issue(
+            native_tracker,
+            github_issue,
+            existing,
+            metadata,
+        ) or existing
+        if event.event_type == "issue_comment" and event.action in {"created", "edited"}:
+            metadata = _get_external_metadata(native_tracker, internal.identifier)
+            comment = (event.raw or {}).get("comment") or {}
+            author = (
+                str((comment.get("user") or {}).get("login") or event.author or "").strip()
+                or None
+            )
+            import_github_comment_to_native(
+                native_tracker,
+                internal.identifier,
+                metadata,
+                comment_id=event.comment_id or comment.get("id"),
+                author=author,
+                body=comment.get("body"),
+            )
+        return
+
     _reconcile_native_status_from_github_issue(native_tracker, github_issue)
 
     if event.event_type == "issues" and event.action in {"opened", "edited", "reopened"}:
@@ -560,20 +585,30 @@ def poll_github_issue_intake_project(orch: Any, project: Project) -> int:
                 _reconcile_native_status_from_github_issue(native_tracker, github_issue)
                 continue
 
-            _reconcile_native_status_from_github_issue(native_tracker, github_issue)
-            if not _github_issue_ready_for_native_import(github_tracker, github_issue):
-                continue
-            before, _ = _find_native_issue_for_external(
+            existing, metadata = _find_native_issue_for_external(
                 native_tracker,
                 github_issue.identifier,
             )
+            if existing is not None:
+                internal = _reconcile_native_status_from_github_issue(
+                    native_tracker,
+                    github_issue,
+                    existing,
+                    metadata,
+                ) or existing
+                _copy_existing_github_comments(native_tracker, github_tracker, internal)
+                continue
+
+            _reconcile_native_status_from_github_issue(native_tracker, github_issue)
+            if not _github_issue_ready_for_native_import(github_tracker, github_issue):
+                continue
             created = ensure_native_issue_for_github_issue(
                 native_tracker,
                 github_tracker,
                 github_issue,
-                post_import_comment=before is None,
+                post_import_comment=True,
             )
-            if before is None and created is not None:
+            if created is not None:
                 imported += 1
             _copy_existing_github_comments(native_tracker, github_tracker, created)
         except Exception as exc:  # noqa: BLE001

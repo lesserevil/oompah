@@ -277,6 +277,37 @@ def test_poll_does_not_rewrite_unchanged_invalid_github_issue(monkeypatch):
     assert github.metadata_writes == writes_after_first_poll
 
 
+def test_poll_skips_readiness_comment_for_existing_native_import(monkeypatch):
+    native = FakeNativeTracker()
+    imported = native.create_issue("Imported", initial_status=PROPOSED)
+    native.set_metadata_field(
+        imported.identifier,
+        "oompah.external.github",
+        {
+            "id": "example-org/app#7",
+            "last_synced_status": PROPOSED,
+            "imported_comment_ids": [],
+        },
+    )
+    invalid_issue = _github_issue(
+        title="Bug",
+        description="Broken.",
+    )
+    github = FakeGitHubTracker([invalid_issue])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+
+    imported_count = poll_github_issue_intake_project(_orch(native), _project())
+
+    assert imported_count == 0
+    assert list(native.issues) == [imported.identifier]
+    assert github.comments == []
+    assert github.metadata_writes == 0
+    assert native.update_calls == []
+
+
 def test_poll_imports_github_issue_after_external_readiness_passes(monkeypatch):
     native = FakeNativeTracker()
     github = FakeGitHubTracker([_github_issue(description=_valid_description())])
@@ -365,6 +396,63 @@ def test_closed_github_webhook_archives_existing_native_task(monkeypatch):
 
     assert native.issues[issue.identifier].state == ARCHIVED
     assert native.update_calls == [(issue.identifier, {"status": ARCHIVED})]
+
+
+def test_existing_native_import_comment_webhook_copies_without_readiness_comment(monkeypatch):
+    native = FakeNativeTracker()
+    issue = native.create_issue("Imported", initial_status=PROPOSED)
+    native.set_metadata_field(
+        issue.identifier,
+        "oompah.external.github",
+        {
+            "id": "example-org/app#7",
+            "last_synced_status": PROPOSED,
+            "imported_comment_ids": [],
+        },
+    )
+    github = FakeGitHubTracker(
+        [
+            _github_issue(
+                title="Bug",
+                description="Broken.",
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+    event = WebhookEvent(
+        provider="github",
+        event_type="issue_comment",
+        action="created",
+        repo_slug="example-org/app",
+        issue_number="7",
+        comment_id="100",
+        author="alice",
+        raw={
+            "issue": {
+                "number": 7,
+                "state": "open",
+                "title": "Bug",
+                "body": "Broken.",
+                "user": {"login": "alice"},
+            },
+            "comment": {
+                "id": 100,
+                "body": "Here is the extra context.",
+                "user": {"login": "alice"},
+            },
+        },
+    )
+
+    handle_github_issue_event_for_native_project(_orch(native), event, _project())
+
+    assert github.comments == []
+    assert github.metadata_writes == 0
+    assert native.comments == [
+        (issue.identifier, "Here is the extra context.", "alice")
+    ]
 
 
 def test_closed_github_issue_does_not_archive_merged_native_task(monkeypatch):
