@@ -15,7 +15,7 @@ labels:
 - error-watcher
 assignee: null
 created_at: '2026-06-20T03:23:38.004425Z'
-updated_at: '2026-06-20T03:45:55.878212Z'
+updated_at: '2026-06-20T03:48:48.998702Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-06-20 03:45
 ---
 Understanding: OOMPAH-15 is NOT a duplicate. OOMPAH-6 is the motivating example (actual auth failure task auto-filed by error_watcher) — OOMPAH-15 is the systemic fix to make error_watcher generate properly-structured descriptions that pass intake validation. All other open/in-progress tasks (OOMPAH-11 through OOMPAH-14) cover different problems (template refresh, label preservation, dashboard actor resolution). Plan: (1) Find error_watcher code and how it generates task descriptions, (2) Find validate_issue() to understand required sections, (3) Fix error_watcher to generate structured descriptions with Problem/Steps to Reproduce/Actual Behavior/Expected Behavior/Acceptance Criteria sections, (4) Add regression test reproducing OOMPAH-6 shape.
+---
+author: oompah
+created: 2026-06-20 03:48
+---
+Discovery: Root cause confirmed in oompah/error_watcher.py:report_error(). Current description uses raw error text + metadata footer but lacks structured sections needed by validate_issue(). Fix: Add _build_structured_bug_description() helper. Regression test reproducing OOMPAH-6 shape.
 ---
 <!-- COMMENTS:END -->
