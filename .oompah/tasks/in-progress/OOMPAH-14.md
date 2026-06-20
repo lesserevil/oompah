@@ -15,7 +15,7 @@ labels:
 - metadata
 assignee: null
 created_at: '2026-06-20T03:03:06.527980Z'
-updated_at: '2026-06-20T03:36:56.688166Z'
+updated_at: '2026-06-20T03:37:48.130778Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,5 +62,10 @@ author: oompah
 created: 2026-06-20 03:36
 ---
 Understanding: This issue reports that the native GitHub-intake webhook path (github_intake_bridge._github_issue_from_event()) does not parse issue labels the same way the polling path does (GitHubIssueTracker.fetch_all_issues()). Webhook-created native tasks lose type:*, priority, parent, dependency, and routing labels. Plan: First investigating whether this is a duplicate of an existing issue before any implementation.
+---
+author: oompah
+created: 2026-06-20 03:37
+---
+Duplicate investigation complete: No duplicate found. OOMPAH-12 involves labels in the dashboard UI (different problem). OOMPAH-11 is about template endpoints. No existing task covers the webhook _github_issue_from_event() label normalization bug. Proceeding with implementation.
 ---
 <!-- COMMENTS:END -->
