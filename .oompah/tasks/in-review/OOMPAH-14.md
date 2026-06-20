@@ -15,9 +15,9 @@ labels:
 - metadata
 assignee: null
 created_at: '2026-06-20T03:03:06.527980Z'
-updated_at: '2026-06-20T03:59:11.948672Z'
+updated_at: '2026-06-20T03:59:14.574083Z'
 work_branch: OOMPAH-14
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/339
 review_number: '339'
 merged_at: null
@@ -25,6 +25,7 @@ oompah.agent_run_id: 512d45d6-22ac-4ede-bd49-da4944c61c85
 oompah.review_url: https://github.com/lesserevil/oompah/pull/339
 oompah.review_number: '339'
 oompah.work_branch: OOMPAH-14
+oompah.target_branch: main
 ---
 ## Summary
 
