@@ -14,7 +14,7 @@ labels:
 - git-sync
 assignee: null
 created_at: '2026-06-20T02:43:17.381453Z'
-updated_at: '2026-06-20T02:46:14.995043Z'
+updated_at: '2026-06-20T02:47:16.056805Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,5 +57,10 @@ author: oompah
 created: 2026-06-20 02:46
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-20 02:47
+---
+Understanding: OOMPAH-10 is NOT a duplicate — no prior task covers the git pull --rebase sync failure in the native markdown tracker dispatch path. This is a fresh bug. My plan: (1) Find the dispatch/sync code that runs 'git pull --rebase origin main', (2) Search for any related git sync helpers, (3) Implement fetch+fast-forward replacement, (4) Add a failing test that reproduces the bug, (5) Verify tests pass.
 ---
 <!-- COMMENTS:END -->
