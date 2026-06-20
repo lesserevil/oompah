@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T02:14:02.543707Z'
+updated_at: '2026-06-20T02:16:04.871575Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,6 +34,22 @@ oompah.external.github:
   external_state: open
   external_created_at: '2026-06-20T01:59:20Z'
   external_updated_at: '2026-06-20T02:13:50Z'
+oompah.intake:
+  missing_fields:
+  - actual_behavior
+  - expected_behavior
+  - reproduction_steps
+  scope: small
+  requestor_approved: false
+  requestor_approved_at: null
+  requestor_actor: null
+  owner_override: false
+  owner_override_at: null
+  owner_actor: null
+  decomposition_status: not_needed
+  proposal_fingerprint: null
+  last_validator_result: fail
+  last_validated_at: '2026-06-20T02:16:03.683670+00:00'
 ---
 ## Summary
 
