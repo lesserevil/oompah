@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-12
 type: bug
-status: In Review
+status: Merged
 priority: 2
 title: Expose labels and parent epic controls for native task creation
 parent: null
@@ -14,7 +14,7 @@ labels:
 - task-creation
 assignee: null
 created_at: '2026-06-20T03:02:22.002875Z'
-updated_at: '2026-06-20T04:03:56.312921Z'
+updated_at: '2026-06-20T04:54:12.592971Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/341
