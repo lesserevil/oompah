@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T03:49:08.711835Z'
+updated_at: '2026-06-20T04:00:09.740673Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -156,5 +156,20 @@ Implementation plan:
 3. In poll_github_issue_intake_project(): catch TrackerAuthError separately, log at WARNING with actionable message about setting project access_token
 4. In orchestrator._sync_github_issue_intake_pass(): surface dashboard alert for auth failures
 5. Add regression tests for the auth failure path
+---
+author: oompah
+created: 2026-06-20 04:00
+---
+**Implementation:** Made the following changes to fix the OVA GitHub issue intake auth failure:
+
+1. **tracker.py**: Added TrackerAuthError(TrackerError) subclass — a distinct exception class for non-retriable 401/403 credential failures vs generic tracker errors.
+
+2. **github_tracker.py**: Changed request() and request_paginated() to raise TrackerAuthError (subclass of TrackerError, so backward-compatible) for HTTP 401 and 403 responses.
+
+3. **github_intake_bridge.py**: In poll_github_issue_intake_project(), added specific except TrackerAuthError clause that: (a) logs a WARNING at the oompah logger with the project name, repo slug, and actionable advice to set project access_token; (b) re-raises the exception so callers can surface a dashboard alert.
+
+4. **orchestrator.py**: In _sync_github_issue_intake_pass(), added except TrackerAuthError handler that surfaces a dashboard alert (level=error) with an actionable message. Also updated _error_class_for_tracker_exc() to classify TrackerAuthError as 'tracker_auth_failed' (distinct dedup key from 'tracker_failed').
+
+5. **Tests**: Added 3 regression tests in test_github_intake_bridge.py covering: auth failure logs WARNING + re-raises TrackerAuthError, non-auth errors still return 0 silently. Added 5 tests in test_error_watcher_orchestrator.py for _error_class_for_tracker_exc().
 ---
 <!-- COMMENTS:END -->
