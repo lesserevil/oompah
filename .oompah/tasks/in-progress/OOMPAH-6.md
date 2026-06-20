@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T05:01:46.827411Z'
+updated_at: '2026-06-20T05:14:02.000431Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
@@ -565,5 +565,17 @@ author: oompah
 created: 2026-06-20 05:01
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-20 05:14
+---
+**Understanding (re-dispatch #6):** I am the 6th agent dispatched. The OOMPAH-6 implementation (TrackerAuthError, WARNING logs, dashboard alerts, 422 idempotency fix, 12 regression tests) is complete on branch OOMPAH-6. PR #342 is OPEN and MERGEABLE.
+
+The loop occurs because:
+1. The running service (on main) lacks the 422 idempotency fix in scm.py
+2. _fetch_all_reviews_bounded clears _reviews_cache before calling itself, so webhook-healthy projects always get empty reviews — PR #342 never appears in the reviews cache
+3. When an agent sets Done, _ensure_review_exists fires, finds empty reviews cache, calls create_review, gets 422 (PR already exists), old code returns None, task is reopened
+
+Plan: (1) Fix _fetch_all_reviews_bounded to use stale cache for webhook-healthy projects; (2) Add review_number fallback check in _ensure_review_exists to use the task's existing review_number field; (3) Set task to In Review (stable: reconciliation calls find_pr_for_branch directly and finds PR #342 open, keeps it In Review)
 ---
 <!-- COMMENTS:END -->
