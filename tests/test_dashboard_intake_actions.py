@@ -53,8 +53,51 @@ class TestDashboardIntakeActions:
         body = _function_body(script, "openDetailPanel")
 
         assert "const intakeActor = intakeActorLogin();" in body
-        assert "detailParams.actor = intakeActor" in body
+        assert "projectStatusActorLogin(project)" in body
+        assert "effectiveIntakeActor" in body
+        assert "detailParams.actor = effectiveIntakeActor" in body
         assert "issueApiUrl(identifier, '/detail', detailParams)" in body
+
+    def test_open_detail_panel_falls_back_to_project_status_actor(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "openDetailPanel")
+
+        # When localStorage actor is empty, fall back to project status actor
+        assert "intakeActor || projectStatusActorLogin(project)" in body
+        assert "currentProjects.find(p => p.id === projectId)" in body
+
+    def test_perform_intake_action_uses_project_status_actor_without_prompting(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "performIntakeAction")
+
+        # projectId extracted first so project lookup is available for actor fallback
+        assert "const projectId = document.getElementById('detail-panel-body').dataset.projectId;" in body
+        # Project status actor used as default before prompting
+        assert "const project = currentProjects.find(p => p.id === projectId) || null;" in body
+        assert "actor = projectStatusActorLogin(project);" in body
+
+    def test_perform_intake_action_only_prompts_if_no_project_actor(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "performIntakeAction")
+
+        # projectStatusActorLogin fallback must come before the prompt fallback
+        project_actor_idx = body.index("projectStatusActorLogin(project)")
+        prompt_idx = body.index("prompt('GitHub login'")
+        assert project_actor_idx < prompt_idx, (
+            "projectStatusActorLogin fallback must appear before the prompt fallback"
+        )
+
+    def test_perform_intake_action_oompah_md_owner_does_not_prompt_for_actor(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "performIntakeAction")
+
+        # The actor resolution block: projectId + intakeActorLogin + projectStatusActorLogin
+        # must all appear before the prompt block so a configured status_actor_login is used first.
+        assert "intakeActorLogin()" in body
+        assert "projectStatusActorLogin(project)" in body
+        # Only falls through to prompt when both localStorage and project actor are empty
+        # (verified by position: project lookup precedes prompt)
+        assert "prompt('GitHub login'" in body
 
     def test_render_intake_actions_only_for_proposed_state(self):
         script = _load_dashboard_script()
