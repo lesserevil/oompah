@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-10
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Fix native markdown tracker default-branch sync failures
 parent: null
@@ -14,7 +14,7 @@ labels:
 - git-sync
 assignee: null
 created_at: '2026-06-20T02:43:17.381453Z'
-updated_at: '2026-06-20T02:54:13.626411Z'
+updated_at: '2026-06-20T02:54:21.393383Z'
 work_branch: null
 target_branch: null
 review_url: null
