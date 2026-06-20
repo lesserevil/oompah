@@ -9,10 +9,9 @@ children: []
 blocked_by: []
 labels:
 - external:github
-- merge-conflict
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T04:49:10.113374Z'
+updated_at: '2026-06-20T04:54:07.598109Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
