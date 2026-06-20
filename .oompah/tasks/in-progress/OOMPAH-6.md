@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T03:39:19.319475Z'
+updated_at: '2026-06-20T03:49:08.711835Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -142,5 +142,19 @@ author: oompah
 created: 2026-06-20 03:37
 ---
 **Understanding:** Investigating OOMPAH-6 as Duplicate Investigator. The issue reports that oompah fails to fetch GitHub issues for the OVA project (NVIDIA-dev/ova) with a GitHub API authentication failure. Before implementing any fix, I need to search for existing tasks covering the same authentication failure or OVA project issues to determine if this is a duplicate. Plan: (1) search .oompah/tasks and docs for similar auth/OVA failures, (2) read candidate duplicates in full, (3) archive if duplicate or proceed with implementation if new.
+---
+author: oompah
+created: 2026-06-20 03:49
+---
+**Discovery:** No duplicate found. This is a unique issue. Searched all .oompah/tasks (OOMPAH-1 through OOMPAH-15) - OOMPAH-15 covers auto-generated task format validation but NOT the underlying auth failure. OOMPAH-6 is specifically about the GitHub API authentication failure when fetching NVIDIA-dev/ova issues.
+
+Root cause: The OVA project (proj-edbc8b4c) uses oompah_md tracker with github_issue_intake_enabled=true. The _github_tracker_for_project() function in github_intake_bridge.py builds a GitHubIssueTracker for NVIDIA-dev/ova. When no project-level access_token is set, it falls back to global GitHubAuth() (OOMPAH_GITHUB_TOKEN) which doesn't have access to NVIDIA-dev/ova. The resulting 401 auth error is caught and logged at DEBUG level only - never surfaced as a warning or alert.
+
+Implementation plan:
+1. Add TrackerAuthError(TrackerError) subclass to tracker.py for distinguishing auth failures
+2. Raise TrackerAuthError for 401 in request_paginated() in github_tracker.py
+3. In poll_github_issue_intake_project(): catch TrackerAuthError separately, log at WARNING with actionable message about setting project access_token
+4. In orchestrator._sync_github_issue_intake_pass(): surface dashboard alert for auth failures
+5. Add regression tests for the auth failure path
 ---
 <!-- COMMENTS:END -->
