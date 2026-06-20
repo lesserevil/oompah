@@ -14,7 +14,7 @@ labels:
 - task-creation
 assignee: null
 created_at: '2026-06-20T03:02:22.002875Z'
-updated_at: '2026-06-20T04:02:24.080485Z'
+updated_at: '2026-06-20T04:02:59.738781Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -80,5 +80,10 @@ author: oompah
 created: 2026-06-20 04:02
 ---
 Verification: All 6937 tests pass (28 skipped). New tests/test_dashboard_create_native.py: 31/31 passed. Existing tests/test_dashboard_create_github.py: 34/34 passed (no regressions on GitHub Issues behavior). New test classes cover: TestSupportsLabels (6 tests), TestSupportsParentEpic (6 tests), TestCreateTrackerFieldsHTML (6 tests), TestUpdateFieldsVisibilityNative (5 tests), TestSubmitCreateDialogNative (7 tests). Key verifications: supportsLabels/supportsParentEpic accept oompah_md AND github_issues; create-tracker-fields div exists and is hidden by default; focus-labels and parent-epic are inside create-tracker-fields (not github-only); target-branch stays inside create-github-fields (GitHub-only); submitCreateDialog uses supportsLabels/supportsParentEpic for labels and parent_epic fields.
+---
+author: oompah
+created: 2026-06-20 04:02
+---
+Completion: Duplicate investigation confirmed no prior task covers this specific bug. Delivered fix for OOMPAH-12. Changes to oompah/templates/dashboard.html: added supportsLabels() and supportsParentEpic() capability-specific helpers (true for oompah_md + github_issues), restructured HTML so focus-labels and parent-epic live in new create-tracker-fields div (shown for all supported trackers), target-branch stays in create-github-fields (GitHub-only), updated updateGitHubFieldsVisibility() and submitCreateDialog() to use the new helpers. Added tests/test_dashboard_create_native.py (31 new tests). All 6937 tests pass. Branch OOMPAH-12 pushed to origin.
 ---
 <!-- COMMENTS:END -->
