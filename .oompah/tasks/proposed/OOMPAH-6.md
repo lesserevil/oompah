@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T03:25:20.403332Z'
+updated_at: '2026-06-20T03:25:25.113470Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,8 +34,10 @@ oompah.external.github:
   external_updated_at: '2026-06-20T02:13:50Z'
 oompah.intake:
   missing_fields:
+  - acceptance_criteria
   - actual_behavior
   - expected_behavior
+  - problem_statement
   - reproduction_steps
   scope: small
   requestor_approved: false
@@ -47,7 +49,7 @@ oompah.intake:
   decomposition_status: not_needed
   proposal_fingerprint: null
   last_validator_result: fail
-  last_validated_at: '2026-06-20T02:20:11.125637+00:00'
+  last_validated_at: '2026-06-20T03:25:23.909854+00:00'
 ---
 ## Summary
 
