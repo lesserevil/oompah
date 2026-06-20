@@ -337,6 +337,38 @@ class TestPostIntakeComment:
         assert intake["missing_fields"] == ["acceptance_criteria"]
         assert intake["last_validator_result"] == "fail"
 
+    def test_post_comment_false_does_not_rewrite_unchanged_metadata(self):
+        tracker = FakeTracker()
+        result = _result("acceptance criteria")
+
+        with patch("oompah.intake_comments._now_iso", return_value=_iso(12, 5)):
+            post_intake_comment_if_needed(
+                tracker,
+                IDENTIFIER,
+                result,
+                "alice",
+                issue_updated_at=_dt(12, 0),
+                post_comment=False,
+            )
+        calls_after_first = list(tracker.set_calls)
+
+        with patch("oompah.intake_comments._now_iso", return_value=_iso(12, 10)):
+            posted = post_intake_comment_if_needed(
+                tracker,
+                IDENTIFIER,
+                result,
+                "alice",
+                issue_updated_at=_dt(12, 5),
+                post_comment=False,
+            )
+
+        assert posted is False
+        assert tracker.comments == []
+        assert tracker.set_calls == calls_after_first
+        intake = tracker.metadata["oompah.intake"]
+        assert isinstance(intake, dict)
+        assert intake["last_validated_at"] == _iso(12, 5)
+
     def test_adapts_readiness_validator_result(self):
         tracker = FakeTracker()
         validation = IssueValidationResult(

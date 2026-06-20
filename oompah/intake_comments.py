@@ -412,6 +412,7 @@ def _update_intake_metadata(
         )
         meta = {}
 
+    previous = parse_intake_metadata(meta.get(_INTAKE_META_KEY))
     readiness = parse_intake_metadata(meta.get(_INTAKE_META_KEY))
     readiness.missing_fields = [
         field
@@ -428,6 +429,14 @@ def _update_intake_metadata(
     elif readiness.decomposition_status == DecompositionStatus.PENDING:
         readiness.decomposition_status = DecompositionStatus.NOT_NEEDED
 
+    previous_raw = intake_to_raw(previous)
+    next_raw = intake_to_raw(readiness)
+    previous_raw.pop("last_validated_at", None)
+    next_raw.pop("last_validated_at", None)
+    if previous.last_validated_at and previous_raw == next_raw:
+        return
+
+    readiness.last_validated_at = validated_at
     try:
         tracker.set_metadata_field(
             identifier,
