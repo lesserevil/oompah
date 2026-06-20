@@ -14,7 +14,7 @@ labels:
 - git-sync
 assignee: null
 created_at: '2026-06-20T02:43:17.381453Z'
-updated_at: '2026-06-20T02:47:16.056805Z'
+updated_at: '2026-06-20T02:50:00.594034Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,5 +62,10 @@ author: oompah
 created: 2026-06-20 02:47
 ---
 Understanding: OOMPAH-10 is NOT a duplicate — no prior task covers the git pull --rebase sync failure in the native markdown tracker dispatch path. This is a fresh bug. My plan: (1) Find the dispatch/sync code that runs 'git pull --rebase origin main', (2) Search for any related git sync helpers, (3) Implement fetch+fast-forward replacement, (4) Add a failing test that reproduces the bug, (5) Verify tests pass.
+---
+author: oompah
+created: 2026-06-20 02:50
+---
+Discovery: Root cause found in oompah/oompah_md_tracker.py. Two locations call 'git pull --rebase origin <branch>': (1) _prepare_default_branch_for_write() at line ~715 — fetches first then re-fetches+rebases with the pull, which can fail with 'Cannot rebase onto multiple branches'. (2) _commit_and_push() at line ~735 — retry path on push conflict also uses the same brittle pull --rebase. Fix: Replace both with deterministic 'git fetch origin <branch>' + 'git merge --ff-only origin/<branch>'. This avoids the rebase ambiguity while preserving protection for dirty worktrees. Will also add a visible alert via TrackerError with actionable remediation. No duplicate task found — proceeding with implementation.
 ---
 <!-- COMMENTS:END -->
