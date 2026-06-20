@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T04:00:09.740673Z'
+updated_at: '2026-06-20T04:02:51.240192Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -171,5 +171,16 @@ created: 2026-06-20 04:00
 4. **orchestrator.py**: In _sync_github_issue_intake_pass(), added except TrackerAuthError handler that surfaces a dashboard alert (level=error) with an actionable message. Also updated _error_class_for_tracker_exc() to classify TrackerAuthError as 'tracker_auth_failed' (distinct dedup key from 'tracker_failed').
 
 5. **Tests**: Added 3 regression tests in test_github_intake_bridge.py covering: auth failure logs WARNING + re-raises TrackerAuthError, non-auth errors still return 0 silently. Added 5 tests in test_error_watcher_orchestrator.py for _error_class_for_tracker_exc().
+---
+author: oompah
+created: 2026-06-20 04:02
+---
+**Verification:** All tests pass. 388 tests in the affected test files (test_github_intake_bridge.py, test_error_watcher_orchestrator.py, test_github_tracker.py) pass with no regressions. New tests added:
+- test_poll_auth_failure_logs_warning_with_actionable_message: Confirms WARNING is logged with project name, repo slug, and access_token guidance
+- test_poll_auth_failure_reraises_tracker_auth_error: Confirms TrackerAuthError propagates to orchestrator for alert surfacing
+- test_poll_non_auth_error_still_returns_zero_and_does_not_reraise: Confirms non-auth errors remain silent/swallowed
+- TestErrorClassForTrackerExc (5 cases): Confirms 'tracker_auth_failed' dedup class for TrackerAuthError vs 'tracker_failed' for generic TrackerError
+
+Branch OOMPAH-6 pushed to origin.
 ---
 <!-- COMMENTS:END -->
