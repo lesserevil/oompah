@@ -14,7 +14,7 @@ labels:
 - git-sync
 assignee: null
 created_at: '2026-06-20T02:43:17.381453Z'
-updated_at: '2026-06-20T02:54:00.757330Z'
+updated_at: '2026-06-20T02:54:06.815395Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-06-20 02:54
 ---
 Implementation: Replaced both 'git pull --rebase origin <branch>' calls in oompah/oompah_md_tracker.py with a new _sync_from_remote() helper that runs 'git fetch origin <branch>' followed by 'git merge --ff-only origin/<branch>'. The fetch+ff-only approach is fully deterministic for clean managed repos and cannot produce the 'Cannot rebase onto multiple branches' error. Both fetch failures and ff-only failures now raise TrackerError with project/command/remediation context so callers can surface a visible alert. The _commit_and_push() retry path was also fixed.
+---
+author: oompah
+created: 2026-06-20 02:54
+---
+Verification: All 6907 tests pass (28 skipped). The 5 new TestOompahMarkdownTrackerGitSync tests all pass: (1) fetch+ff-only called, pull --rebase never called; (2) fetch failure raises TrackerError with remediation; (3) ff-only failure raises TrackerError with remediation (OOMPAH-10 regression path); (4) clean repo never calls git pull; (5) commit+push retry also uses fetch+ff-only.
 ---
 <!-- COMMENTS:END -->
