@@ -14,7 +14,7 @@ labels:
 - task-creation
 assignee: null
 created_at: '2026-06-20T03:02:22.002875Z'
-updated_at: '2026-06-20T04:02:07.998508Z'
+updated_at: '2026-06-20T04:02:24.080485Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,5 +75,10 @@ author: oompah
 created: 2026-06-20 04:02
 ---
 Implementation: Modified oompah/templates/dashboard.html and added tests/test_dashboard_create_native.py. Changes: (1) Added supportsLabels() and supportsParentEpic() helpers that return true for both oompah_md and github_issues tracker kinds. (2) Restructured HTML: focus-labels-row and parent-epic-row moved from create-github-fields into new create-tracker-fields div (shown for all supported trackers). create-github-fields now contains only the target-branch-row (GitHub-only). (3) Updated updateGitHubFieldsVisibility() to show create-tracker-fields via supportsLabels() and create-github-fields via isGitHubBacked(). (4) Updated submitCreateDialog() to gate labels/parent_epic on supportsLabels()/supportsParentEpic() instead of isGitHubBacked(). (5) Added CSS for #create-tracker-fields. (6) Added 31 new tests in test_dashboard_create_native.py covering supportsLabels/supportsParentEpic, HTML structure, visibility logic, and native task creation including labels and parent epic. All 6937 tests pass (was 6923 before).
+---
+author: oompah
+created: 2026-06-20 04:02
+---
+Verification: All 6937 tests pass (28 skipped). New tests/test_dashboard_create_native.py: 31/31 passed. Existing tests/test_dashboard_create_github.py: 34/34 passed (no regressions on GitHub Issues behavior). New test classes cover: TestSupportsLabels (6 tests), TestSupportsParentEpic (6 tests), TestCreateTrackerFieldsHTML (6 tests), TestUpdateFieldsVisibilityNative (5 tests), TestSubmitCreateDialogNative (7 tests). Key verifications: supportsLabels/supportsParentEpic accept oompah_md AND github_issues; create-tracker-fields div exists and is hidden by default; focus-labels and parent-epic are inside create-tracker-fields (not github-only); target-branch stays inside create-github-fields (GitHub-only); submitCreateDialog uses supportsLabels/supportsParentEpic for labels and parent_epic fields.
 ---
 <!-- COMMENTS:END -->
