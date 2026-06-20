@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.713362Z'
-updated_at: '2026-06-20T14:52:04.019016Z'
+updated_at: '2026-06-20T14:53:02.055017Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,6 +33,7 @@ oompah.external.github:
   external_created_at: '2026-06-15T02:39:16Z'
   external_updated_at: '2026-06-15T05:24:20Z'
   external_parent_id: lesserevil/oompah#312
+  last_github_state: closed
 ---
 ## Summary
 
