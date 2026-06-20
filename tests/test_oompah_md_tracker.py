@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
@@ -30,6 +31,15 @@ def _frontmatter(path):
     end = content.find("\n---", 4)
     assert end > 0
     return yaml.safe_load(content[4:end])
+
+
+def _make_completed_process(returncode: int, stdout: str = "", stderr: str = "") -> MagicMock:
+    """Build a mock CompletedProcess-like object for _git() to return."""
+    proc = MagicMock()
+    proc.returncode = returncode
+    proc.stdout = stdout
+    proc.stderr = stderr
+    return proc
 
 
 class TestOompahMarkdownTrackerCreate:
@@ -193,3 +203,211 @@ class TestOompahMarkdownTrackerDefaultBranchGuard:
 
         with pytest.raises(TrackerError, match="default branch"):
             tracker.create_issue("Should fail")
+
+
+class TestOompahMarkdownTrackerGitSync:
+    """Tests for the fetch/fast-forward sync strategy (OOMPAH-10 regression).
+
+    Verifies that the tracker uses a deterministic fetch + merge --ff-only
+    instead of the brittle ``git pull --rebase origin main`` which fails with
+    ``fatal: Cannot rebase onto multiple branches`` on clean default branches.
+    """
+
+    def _mock_git_for_sync(self, tracker: OompahMarkdownTracker, *, fetch_rc: int = 0, ff_rc: int = 0, fetch_stderr: str = "", ff_stderr: str = "") -> list[tuple]:
+        """Patch _git to record calls and return controlled results."""
+        calls: list[tuple] = []
+
+        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+            calls.append(tuple(args))
+            cmd = args[0] if args else ""
+            if cmd == "rev-parse":
+                # _is_git_repo
+                return _make_completed_process(0, "true")
+            if cmd == "symbolic-ref" and "--short" in args and "refs/remotes" not in " ".join(args):
+                # current branch is main
+                return _make_completed_process(0, "main")
+            if cmd == "remote":
+                # _has_remote("origin") → True
+                return _make_completed_process(0, "git@example.com:org/repo.git")
+            if cmd == "fetch":
+                return _make_completed_process(fetch_rc, "", fetch_stderr)
+            if cmd == "merge" and "--ff-only" in args:
+                return _make_completed_process(ff_rc, "", ff_stderr)
+            # For add, diff, commit, push — succeed silently
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+        return calls
+
+    def test_sync_uses_fetch_then_ff_only_not_pull_rebase(self, tmp_path):
+        """_prepare_default_branch_for_write must use fetch+ff-only, never pull --rebase."""
+        tracker = _tracker(tmp_path, git_sync=True)
+        calls: list[tuple] = []
+
+        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+            calls.append(tuple(args))
+            cmd = args[0] if args else ""
+            if cmd == "rev-parse":
+                return _make_completed_process(0, "true")
+            if cmd == "symbolic-ref":
+                return _make_completed_process(0, "main")
+            if cmd == "remote":
+                return _make_completed_process(0, "git@example.com:org/repo.git")
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+        tracker._prepare_default_branch_for_write()
+
+        arg_strings = [" ".join(c) for c in calls]
+        # Must use fetch + merge --ff-only
+        assert any("fetch" in s and "origin" in s for s in arg_strings), (
+            f"Expected a 'git fetch origin ...' call, got: {arg_strings}"
+        )
+        assert any("merge" in s and "--ff-only" in s for s in arg_strings), (
+            f"Expected a 'git merge --ff-only ...' call, got: {arg_strings}"
+        )
+        # Must NOT use 'git pull --rebase'
+        assert not any("pull" in s and "rebase" in s for s in arg_strings), (
+            f"Expected no 'git pull --rebase' call, got: {arg_strings}"
+        )
+
+    def test_fetch_failure_raises_tracker_error_with_remediation(self, tmp_path):
+        """A failed git fetch must raise TrackerError with actionable text."""
+        tracker = _tracker(tmp_path, git_sync=True)
+
+        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+            cmd = args[0] if args else ""
+            if cmd == "rev-parse":
+                return _make_completed_process(0, "true")
+            if cmd == "symbolic-ref":
+                return _make_completed_process(0, "main")
+            if cmd == "remote":
+                return _make_completed_process(0, "git@example.com:org/repo.git")
+            if cmd == "fetch":
+                return _make_completed_process(1, "", "fatal: unable to connect to origin")
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+
+        with pytest.raises(TrackerError, match="Cannot sync native tracker") as exc_info:
+            tracker._prepare_default_branch_for_write()
+
+        error_msg = str(exc_info.value)
+        assert "fetch" in error_msg.lower()
+        assert "Remediation" in error_msg or "remediation" in error_msg.lower()
+
+    def test_ff_only_failure_raises_tracker_error_with_remediation(self, tmp_path):
+        """A diverged branch (ff-only fails) must raise TrackerError with actionable text.
+
+        This is the OOMPAH-10 regression: the old 'git pull --rebase origin main'
+        would fail with 'Cannot rebase onto multiple branches' on clean managed
+        repos.  The new ff-only path must instead raise a TrackerError that
+        surfaces the problem without silently aborting dispatch.
+        """
+        tracker = _tracker(tmp_path, git_sync=True)
+
+        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+            cmd = args[0] if args else ""
+            if cmd == "rev-parse":
+                return _make_completed_process(0, "true")
+            if cmd == "symbolic-ref":
+                return _make_completed_process(0, "main")
+            if cmd == "remote":
+                return _make_completed_process(0, "git@example.com:org/repo.git")
+            if cmd == "fetch":
+                return _make_completed_process(0)
+            if cmd == "merge" and "--ff-only" in args:
+                # Simulates a diverged local branch — analogous to what
+                # `git pull --rebase` would report as
+                # "Cannot rebase onto multiple branches".
+                return _make_completed_process(
+                    1, "", "fatal: Not possible to fast-forward, aborting."
+                )
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+
+        with pytest.raises(TrackerError, match="Cannot sync native tracker") as exc_info:
+            tracker._prepare_default_branch_for_write()
+
+        error_msg = str(exc_info.value)
+        assert "ff-only" in error_msg or "fast-forward" in error_msg.lower() or "ff_only" in error_msg
+        assert "Remediation" in error_msg or "remediation" in error_msg.lower()
+
+    def test_clean_ff_succeeds_without_pull_rebase(self, tmp_path):
+        """A clean up-to-date repo must sync without error and never call pull --rebase."""
+        tracker = _tracker(tmp_path, git_sync=True)
+        calls: list[tuple] = []
+
+        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+            calls.append(tuple(args))
+            cmd = args[0] if args else ""
+            if cmd == "rev-parse":
+                return _make_completed_process(0, "true")
+            if cmd == "symbolic-ref":
+                return _make_completed_process(0, "main")
+            if cmd == "remote":
+                return _make_completed_process(0, "git@example.com:org/repo.git")
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+
+        # Should not raise
+        tracker._prepare_default_branch_for_write()
+
+        arg_strings = [" ".join(c) for c in calls]
+        assert not any("pull" in s for s in arg_strings), (
+            f"Expected no 'git pull' call on clean repo, got: {arg_strings}"
+        )
+
+    def test_commit_and_push_retry_uses_ff_only_not_pull_rebase(self, tmp_path):
+        """_commit_and_push retry path must also use fetch+ff-only, not pull --rebase."""
+        tracker = _tracker(tmp_path, git_sync=True)
+        calls: list[tuple] = []
+        push_count = [0]
+
+        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+            calls.append(tuple(args))
+            cmd = args[0] if args else ""
+            if cmd == "rev-parse":
+                return _make_completed_process(0, "true")
+            if cmd == "symbolic-ref":
+                return _make_completed_process(0, "main")
+            if cmd == "remote":
+                return _make_completed_process(0, "git@example.com:org/repo.git")
+            if cmd == "add":
+                return _make_completed_process(0)
+            if cmd == "diff":
+                # Simulate staged changes so commit runs
+                return _make_completed_process(1)
+            if cmd == "commit":
+                return _make_completed_process(0)
+            if cmd == "push":
+                push_count[0] += 1
+                if push_count[0] == 1:
+                    # First push fails (rejected)
+                    return _make_completed_process(1, "", "! [rejected] main -> main (fetch first)")
+                # Second push succeeds
+                return _make_completed_process(0)
+            if cmd == "fetch":
+                return _make_completed_process(0)
+            if cmd == "merge" and "--ff-only" in args:
+                return _make_completed_process(0)
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+
+        tracker._commit_and_push("Test subject")
+
+        arg_strings = [" ".join(c) for c in calls]
+        # After push failure, must sync via fetch + ff-only
+        assert any("fetch" in s and "origin" in s for s in arg_strings), (
+            f"Expected git fetch after push failure, got: {arg_strings}"
+        )
+        assert any("merge" in s and "--ff-only" in s for s in arg_strings), (
+            f"Expected git merge --ff-only after push failure, got: {arg_strings}"
+        )
+        # Must NOT use 'git pull --rebase' in retry
+        assert not any("pull" in s and "rebase" in s for s in arg_strings), (
+            f"Expected no 'git pull --rebase' in retry path, got: {arg_strings}"
+        )
