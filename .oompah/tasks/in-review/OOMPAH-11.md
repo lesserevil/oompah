@@ -14,7 +14,7 @@ labels:
 - templates
 assignee: null
 created_at: '2026-06-20T03:02:09.918768Z'
-updated_at: '2026-06-20T03:48:35.630670Z'
+updated_at: '2026-06-20T03:48:38.231516Z'
 work_branch: OOMPAH-11
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/337
@@ -142,5 +142,10 @@ author: oompah
 created: 2026-06-20 03:48
 ---
 Duplicate investigation complete: OOMPAH-11 is the original issue, not a duplicate. The reconciliation that reopened this task was a false-negative — PR #337 (OOMPAH-11: Allow issue template refresh for native GitHub-intake projects) exists and is OPEN targeting main. The implementation from Run #1 is in place: _has_github_issue_template_capability() predicate added, all 3 issue-template endpoints updated, 17 regression tests added, 6923 tests passing. Moving task back to In Review.
+---
+author: oompah
+created: 2026-06-20 03:48
+---
+PR #337 open; implementation complete; duplicate investigation found no duplicate
 ---
 <!-- COMMENTS:END -->
