@@ -14,13 +14,29 @@ labels:
 - git-sync
 assignee: null
 created_at: '2026-06-20T02:43:17.381453Z'
-updated_at: '2026-06-20T02:54:32.253624Z'
+updated_at: '2026-06-20T02:54:34.974800Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: e11e3b9d-d625-45d0-b56e-65b58d4f37d0
+oompah.task_costs:
+  total_input_tokens: 79
+  total_output_tokens: 2622
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 79
+      output_tokens: 2622
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 79
+    output_tokens: 2622
+    cost_usd: 0.0
+    recorded_at: '2026-06-20T02:54:31.080814+00:00'
 ---
 ## Summary
 
