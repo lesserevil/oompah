@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-12
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: Expose labels and parent epic controls for native task creation
 parent: null
@@ -14,7 +14,7 @@ labels:
 - task-creation
 assignee: null
 created_at: '2026-06-20T03:02:22.002875Z'
-updated_at: '2026-06-20T03:36:11.945181Z'
+updated_at: '2026-06-20T03:48:56.898674Z'
 work_branch: null
 target_branch: null
 review_url: null
