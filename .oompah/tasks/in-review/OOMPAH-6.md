@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-6
 type: bug
-status: Done
+status: In Review
 priority: 2
 title: Fix OVA GitHub issue intake authentication failure
 parent: null
@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T04:03:37.851788Z'
+updated_at: '2026-06-20T04:04:05.682995Z'
 work_branch: null
 target_branch: null
 review_url: null
