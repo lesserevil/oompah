@@ -15,9 +15,9 @@ labels:
 - error-watcher
 assignee: null
 created_at: '2026-06-20T03:23:38.004425Z'
-updated_at: '2026-06-20T04:02:37.387231Z'
+updated_at: '2026-06-20T04:02:40.053526Z'
 work_branch: OOMPAH-15
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/340
 review_number: '340'
 merged_at: null
@@ -41,6 +41,7 @@ oompah.task_costs:
 oompah.review_url: https://github.com/lesserevil/oompah/pull/340
 oompah.review_number: '340'
 oompah.work_branch: OOMPAH-15
+oompah.target_branch: main
 ---
 ## Summary
 
