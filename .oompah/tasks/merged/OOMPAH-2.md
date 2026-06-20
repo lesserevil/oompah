@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.660543Z'
-updated_at: '2026-06-20T14:46:22.007576Z'
+updated_at: '2026-06-20T14:46:48.667528Z'
 work_branch: oompah/oompah/gh-321
 target_branch: null
 review_url: null
@@ -27,8 +27,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/321
   requestor_login: lesserevil
   imported_comment_ids: []
-  last_synced_status: Done
-  last_synced_at: '2026-06-20T02:13:20.664221Z'
+  last_synced_status: Merged
+  last_synced_at: '2026-06-20T14:46:48.105129+00:00'
   migrated_at: '2026-06-20T02:13:20.664229Z'
   migrated_from_tracker: github_issues
   external_state: open
