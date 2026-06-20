@@ -23,7 +23,9 @@ build/
 *.egg
 
 # Oompah local config
-.oompah/
+.oompah/*
+!.oompah/tasks/
+!.oompah/tasks/**
 
 # Per-project console transcripts (oompah-zlz_2-ebwe). Already covered
 # by ``.oompah/`` above, but listed explicitly so the path is greppable
