@@ -1239,13 +1239,28 @@ class GitHubProvider(SCMProvider):
                 "base": target_branch,
                 "body": description,
             })
-            if r.status_code not in (200, 201):
-                logger.warning("GitHub create_review failed: HTTP %d %s",
-                               r.status_code, r.text[:200])
-                return None
-            pr = r.json()
-            pr_number = str(pr.get("number", ""))
-            return self.get_review(repo, pr_number)
+            if r.status_code in (200, 201):
+                pr = r.json()
+                pr_number = str(pr.get("number", ""))
+                return self.get_review(repo, pr_number)
+            # GitHub returns 422 when a PR already exists for this branch.
+            # Look up and return the existing open PR so the orchestrator
+            # can mark the task In Review instead of failing with
+            # "forge provider returned no review".
+            if r.status_code == 422:
+                body_text = r.text.lower()
+                if "already exists" in body_text or "pull request already" in body_text:
+                    logger.info(
+                        "PR already exists for %s:%s — returning existing review",
+                        repo,
+                        source_branch,
+                    )
+                    existing = self.find_pr_for_branch(repo, source_branch)
+                    if existing and existing.state == "open":
+                        return existing
+            logger.warning("GitHub create_review failed: HTTP %d %s",
+                           r.status_code, r.text[:200])
+            return None
         except httpx.HTTPError as exc:
             logger.warning("GitHub create_review failed: %s", exc)
             return None
