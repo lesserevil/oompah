@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T04:36:33.065061Z'
+updated_at: '2026-06-20T04:36:35.220099Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
@@ -255,5 +255,10 @@ The conflict was between OOMPAH-14's label/type normalization tests (HEAD) and O
 - 6959 tests pass, 0 failures
 - Force-pushed: 6f4ee67 → 1e83d83
 - Diff: 6 files, +214/-5 lines (unchanged from original)
+---
+author: oompah
+created: 2026-06-20 04:36
+---
+Rebased OOMPAH-6 onto origin/main, resolved conflict in tests/test_github_intake_bridge.py (OOMPAH-14 label normalization tests + OOMPAH-6 auth regression tests both preserved). 6959 tests pass. Force-pushed cleanly.
 ---
 <!-- COMMENTS:END -->
