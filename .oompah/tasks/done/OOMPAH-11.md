@@ -14,7 +14,7 @@ labels:
 - templates
 assignee: null
 created_at: '2026-06-20T03:02:09.918768Z'
-updated_at: '2026-06-20T03:43:59.641736Z'
+updated_at: '2026-06-20T03:44:02.311010Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -79,5 +79,10 @@ author: oompah
 created: 2026-06-20 03:42
 ---
 Completion: Delivered fix for OOMPAH-11. Added _has_github_issue_template_capability() predicate and updated all 3 issue-template API endpoints (status/preview/apply) to accept oompah_md projects with github_issue_intake_enabled=True + tracker_owner/repo configured. 51 issue-template tests pass, 6923 total tests pass. Branch OOMPAH-11 pushed.
+---
+author: oompah
+created: 2026-06-20 03:44
+---
+Added _has_github_issue_template_capability() predicate; updated status/preview/apply endpoints to accept oompah_md+github_issue_intake_enabled=True projects; 17 new regression tests (8 predicate unit tests + 9 endpoint integration tests); all 6923 tests pass.
 ---
 <!-- COMMENTS:END -->
