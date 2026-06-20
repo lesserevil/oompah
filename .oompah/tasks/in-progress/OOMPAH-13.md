@@ -15,7 +15,7 @@ labels:
 - auth
 assignee: null
 created_at: '2026-06-20T03:02:36.629755Z'
-updated_at: '2026-06-20T03:45:04.531749Z'
+updated_at: '2026-06-20T03:45:25.069867Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -79,5 +79,10 @@ author: oompah
 created: 2026-06-20 03:45
 ---
 Verification: All 6911 tests pass (28 skipped). All 17 dashboard intake action tests pass, including 4 new tests: test_open_detail_panel_falls_back_to_project_status_actor, test_perform_intake_action_uses_project_status_actor_without_prompting, test_perform_intake_action_only_prompts_if_no_project_actor, test_perform_intake_action_oompah_md_owner_does_not_prompt_for_actor. No hardcoded usernames in tests.
+---
+author: oompah
+created: 2026-06-20 03:45
+---
+Completion: OOMPAH-13 is NOT a duplicate — no prior task addressed the intake action button path. Fixed in oompah/templates/dashboard.html: openDetailPanel() now uses effectiveIntakeActor = intakeActor || projectStatusActorLogin(project) for detail requests; performIntakeAction() resolves project status actor before prompting. 4 new regression tests added. All 6911 tests pass. Branch OOMPAH-13 pushed to origin.
 ---
 <!-- COMMENTS:END -->
