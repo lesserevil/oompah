@@ -15,7 +15,7 @@ labels:
 - metadata
 assignee: null
 created_at: '2026-06-20T03:03:06.527980Z'
-updated_at: '2026-06-20T03:37:48.130778Z'
+updated_at: '2026-06-20T03:39:55.845263Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,5 +67,18 @@ author: oompah
 created: 2026-06-20 03:37
 ---
 Duplicate investigation complete: No duplicate found. OOMPAH-12 involves labels in the dashboard UI (different problem). OOMPAH-11 is about template endpoints. No existing task covers the webhook _github_issue_from_event() label normalization bug. Proceeding with implementation.
+---
+author: oompah
+created: 2026-06-20 03:39
+---
+Discovery: Two root causes found:
+
+1. _github_issue_from_event() in github_intake_bridge.py constructs Issue with hardcoded issue_type='task' and no label parsing, even though event.raw['issue'] has the same label structure as the GitHub API response. The fix: import _gh_issue_to_issue from github_tracker.py and call it when the issue dict has a number.
+
+2. ensure_native_issue_for_github_issue() calls native_tracker.create_issue() with issue_type='task' (hardcoded) and labels=['external:github'] only — ignoring the issue_type, labels, parent_id, and priority already parsed on the github_issue object.
+
+The polling path calls GitHubIssueTracker.fetch_all_issues() which calls _gh_issue_to_issue() and correctly extracts type:*, priority:*, parent:*, depends-on:*, and user-facing labels. The webhook path skips all that.
+
+Additionally: _reconcile_native_status_from_github_issue() only reconciles open/closed state but never updates type/labels on already-imported tasks, so once a task is imported without correct metadata, it stays wrong.
 ---
 <!-- COMMENTS:END -->
