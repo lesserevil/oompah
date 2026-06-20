@@ -2790,12 +2790,16 @@ async def api_issue_templates_status(project_id: str):
                 {"error": {"code": "not_found", "message": "project not found"}},
                 status_code=404,
             )
-        if not _is_github_tracker_kind(getattr(project, "tracker_kind", None)):
+        if not _has_github_issue_template_capability(project):
             return JSONResponse(
                 {
                     "error": {
                         "code": "not_applicable",
-                        "message": "issue template refresh is only available for github_issues projects",
+                        "message": (
+                            "issue template refresh requires a github_issues project, "
+                            "or an oompah_md project with github_issue_intake_enabled=true "
+                            "and tracker_owner/tracker_repo configured"
+                        ),
                     }
                 },
                 status_code=400,
@@ -2846,12 +2850,16 @@ async def api_issue_templates_preview(project_id: str):
                 {"error": {"code": "not_found", "message": "project not found"}},
                 status_code=404,
             )
-        if not _is_github_tracker_kind(getattr(project, "tracker_kind", None)):
+        if not _has_github_issue_template_capability(project):
             return JSONResponse(
                 {
                     "error": {
                         "code": "not_applicable",
-                        "message": "issue template refresh is only available for github_issues projects",
+                        "message": (
+                            "issue template refresh requires a github_issues project, "
+                            "or an oompah_md project with github_issue_intake_enabled=true "
+                            "and tracker_owner/tracker_repo configured"
+                        ),
                     }
                 },
                 status_code=400,
@@ -2895,12 +2903,16 @@ async def api_issue_templates_apply(project_id: str):
                 {"error": {"code": "not_found", "message": "project not found"}},
                 status_code=404,
             )
-        if not _is_github_tracker_kind(getattr(project, "tracker_kind", None)):
+        if not _has_github_issue_template_capability(project):
             return JSONResponse(
                 {
                     "error": {
                         "code": "not_applicable",
-                        "message": "issue template refresh is only available for github_issues projects",
+                        "message": (
+                            "issue template refresh requires a github_issues project, "
+                            "or an oompah_md project with github_issue_intake_enabled=true "
+                            "and tracker_owner/tracker_repo configured"
+                        ),
                     }
                 },
                 status_code=400,
@@ -6570,6 +6582,25 @@ async def api_list_worktrees(project_id: str):
 
 def _is_github_tracker_kind(kind: str | None) -> bool:
     return (kind or "").strip().lower() in {"github_issues", "github-issues"}
+
+
+def _has_github_issue_template_capability(project: object) -> bool:
+    """Return True when *project* can have GitHub issue templates managed.
+
+    Applicable for:
+    - Direct ``github_issues`` tracker projects (always).
+    - Native ``oompah_md`` projects with ``github_issue_intake_enabled=True``
+      and both ``tracker_owner`` and ``tracker_repo`` configured.
+    """
+    tracker_kind = getattr(project, "tracker_kind", None)
+    if _is_github_tracker_kind(tracker_kind):
+        return True
+    if _is_oompah_md_tracker_kind(tracker_kind):
+        intake_enabled = getattr(project, "github_issue_intake_enabled", False)
+        owner = getattr(project, "tracker_owner", None)
+        repo = getattr(project, "tracker_repo", None)
+        return bool(intake_enabled and owner and repo)
+    return False
 
 
 def _as_aware_utc(value: datetime) -> datetime:
