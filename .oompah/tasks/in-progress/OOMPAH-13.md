@@ -15,7 +15,7 @@ labels:
 - auth
 assignee: null
 created_at: '2026-06-20T03:02:36.629755Z'
-updated_at: '2026-06-20T03:39:01.690854Z'
+updated_at: '2026-06-20T03:44:36.994950Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,10 @@ author: oompah
 created: 2026-06-20 03:39
 ---
 Understanding: OOMPAH-13 is NOT a duplicate. Prior commits (b56adf0, 1cb1bff, 82c9846) fixed the drag/drop status-change paths to use projectStatusActorLogin(project), but the *intake action button path* in openDetailPanel() and performIntakeAction() still only reads from localStorage('oompah_intake_actor'). When the operator has not set that localStorage key, the detail request omits the actor, action_permissions() returns no owner actions, and buttons like 'Request Changes', 'Override Readiness', 'Promote to Backlog' disappear. Plan: (1) Modify openDetailPanel() to fall back to projectStatusActorLogin(project) when no localStorage actor, (2) Modify performIntakeAction() to use project status actor instead of prompting, (3) Add tests for oompah_md Proposed tasks showing owner actions with status_actor_login configured, (4) Verify no hardcoded user names in tests.
+---
+author: oompah
+created: 2026-06-20 03:44
+---
+Discovery: Confirmed NOT a duplicate. Prior commits fixed drag/drop status-change paths but the intake action button path was still broken. In openDetailPanel(), intakeActor only used localStorage('oompah_intake_actor'); in performIntakeAction(), missing actor went straight to prompt(). The fix: (1) openDetailPanel now resolves project from currentProjects and uses effectiveIntakeActor = intakeActor || projectStatusActorLogin(project), (2) performIntakeAction moves projectId extraction to the top and inserts a projectStatusActorLogin(project) fallback before the prompt() call.
 ---
 <!-- COMMENTS:END -->
