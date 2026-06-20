@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T04:48:24.658215Z'
+updated_at: '2026-06-20T04:48:26.727496Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
@@ -405,5 +405,10 @@ author: oompah
 created: 2026-06-20 04:48
 ---
 **Merge Conflict Resolved (run 4):** Rebased OOMPAH-6 onto origin/main (clean, no code conflicts — main only had task metadata commits ahead). Force-pushed: f331b59 → fdb9b48. PR #342 (https://github.com/lesserevil/oompah/pull/342) is OPEN and MERGEABLE. All 6959 tests pass.
+---
+author: oompah
+created: 2026-06-20 04:48
+---
+Rebased OOMPAH-6 onto origin/main (no code conflicts). PR #342 is open and MERGEABLE. Implementation: TrackerAuthError subclass + auth failure surfaced as WARNING log and dashboard alert. 8 regression tests added. 6959 tests pass.
 ---
 <!-- COMMENTS:END -->
