@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T05:01:29.499501Z'
+updated_at: '2026-06-20T05:01:31.606658Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
@@ -540,5 +540,20 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 48s
 - Log: OOMPAH-6__20260620T045826Z.jsonl
+---
+author: oompah
+created: 2026-06-20 05:01
+---
+Review handoff failed: the task branch has unmerged work but no review artifact was created.
+
+Branch: `OOMPAH-6`
+Target branch: `main`
+Unmerged commits: 2 commits
+  702ef6f OOMPAH-6: Fix create_review 422 idempotency — return existing PR on 'already exists'
+  961222b OOMPAH-6: Add TrackerAuthError and surface GitHub intake auth failures as actionable alerts
+
+Reason: forge provider returned no review
+
+Required: create or restore the PR/MR for this branch, then move the task to In Review only after the review exists.
 ---
 <!-- COMMENTS:END -->
