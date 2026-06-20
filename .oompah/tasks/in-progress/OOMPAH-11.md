@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-11
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Allow issue template refresh for native GitHub-intake projects
 parent: null
@@ -14,7 +14,7 @@ labels:
 - templates
 assignee: null
 created_at: '2026-06-20T03:02:09.918768Z'
-updated_at: '2026-06-20T03:35:56.635941Z'
+updated_at: '2026-06-20T03:36:25.144461Z'
 work_branch: null
 target_branch: null
 review_url: null
