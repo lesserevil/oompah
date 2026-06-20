@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T03:37:09.171595Z'
+updated_at: '2026-06-20T03:39:19.319475Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,8 +25,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/334
   requestor_login: lesserevil
   imported_comment_ids: []
-  last_synced_status: Backlog
-  last_synced_at: '2026-06-20T03:33:34.199502+00:00'
+  last_synced_status: In Progress
+  last_synced_at: '2026-06-20T03:39:18.062765+00:00'
   migrated_at: '2026-06-20T02:13:20.699738Z'
   migrated_from_tracker: github_issues
   external_state: open
