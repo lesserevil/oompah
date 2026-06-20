@@ -15,10 +15,10 @@ labels:
 - error-watcher
 assignee: null
 created_at: '2026-06-20T03:23:38.004425Z'
-updated_at: '2026-06-20T04:02:18.676614Z'
+updated_at: '2026-06-20T04:02:21.389338Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/340
 review_number: null
 merged_at: null
 oompah.agent_run_id: 7140460c-6e72-4f9f-b110-d0f59a8fec8c
@@ -38,6 +38,7 @@ oompah.task_costs:
     output_tokens: 2460
     cost_usd: 0.0
     recorded_at: '2026-06-20T03:59:16.166895+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/340
 ---
 ## Summary
 
