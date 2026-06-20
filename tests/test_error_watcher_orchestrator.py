@@ -198,3 +198,45 @@ class TestOrchestratorAutoCloseHook:
             orch._on_worker_exit(issue.id, "normal", None)
         )
         watcher.auto_close_for_issue.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Regression: _error_class_for_tracker_exc classifies TrackerAuthError
+# correctly (OOMPAH-6)
+# ---------------------------------------------------------------------------
+
+
+class TestErrorClassForTrackerExc:
+    """Verify _error_class_for_tracker_exc returns the right class for each
+    exception type, including the new TrackerAuthError introduced to give
+    auth failures a distinct dedup key."""
+
+    def _classify(self, exc: BaseException) -> str:
+        from oompah.orchestrator import _error_class_for_tracker_exc
+        return _error_class_for_tracker_exc(exc)
+
+    def test_tracker_auth_error_returns_tracker_auth_failed(self):
+        from oompah.tracker import TrackerAuthError
+        exc = TrackerAuthError("GitHub API authentication failed fetching page ...")
+        assert self._classify(exc) == "tracker_auth_failed"
+
+    def test_tracker_timeout_error_returns_tracker_timeout(self):
+        from oompah.tracker import TrackerTimeoutError
+        exc = TrackerTimeoutError("timed out")
+        assert self._classify(exc) == "tracker_timeout"
+
+    def test_generic_tracker_error_returns_tracker_failed(self):
+        from oompah.tracker import TrackerError
+        exc = TrackerError("generic failure")
+        assert self._classify(exc) == "tracker_failed"
+
+    def test_tracker_auth_error_not_classified_as_generic_tracker_failed(self):
+        """TrackerAuthError must get its own class, not collapse into tracker_failed."""
+        from oompah.tracker import TrackerAuthError
+        exc = TrackerAuthError("401")
+        assert self._classify(exc) != "tracker_failed"
+
+    def test_tracker_auth_error_is_subclass_of_tracker_error(self):
+        """TrackerAuthError must remain a TrackerError subclass for backward compat."""
+        from oompah.tracker import TrackerAuthError, TrackerError
+        assert issubclass(TrackerAuthError, TrackerError)

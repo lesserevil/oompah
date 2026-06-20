@@ -90,6 +90,7 @@ from oompah.scm import ReviewRequest, detect_provider, extract_repo_slug
 from oompah.error_watcher import ErrorWatcher
 from oompah.tracker import (
     ADAPTER_REGISTRY,
+    TrackerAuthError,
     TrackerError,
     TrackerNotConfiguredError,
     TrackerProtocol,
@@ -148,6 +149,7 @@ def _error_class_for_tracker_exc(exc: BaseException) -> str:
     watcher fingerprint:
       - "tracker_timeout"      — TrackerTimeoutError (subprocess timeout)
       - "tracker_not_configured" — TrackerNotConfiguredError
+      - "tracker_auth_failed"  — TrackerAuthError (401/403 credential error)
       - "tracker_failed"       — generic TrackerError
       - "project_error"        — ProjectError fallback
 
@@ -159,6 +161,8 @@ def _error_class_for_tracker_exc(exc: BaseException) -> str:
         return "tracker_timeout"
     if isinstance(exc, TrackerNotConfiguredError):
         return "tracker_not_configured"
+    if isinstance(exc, TrackerAuthError):
+        return "tracker_auth_failed"
     if isinstance(exc, TrackerError):
         return "tracker_failed"
     return "project_error"
@@ -7240,6 +7244,31 @@ class Orchestrator:
                 metrics["status_commented"] += int(status_metrics.get("commented", 0))
                 metrics["status_closed"] += int(status_metrics.get("closed", 0))
                 metrics["errors"] += int(status_metrics.get("errors", 0))
+            except TrackerAuthError as exc:
+                metrics["errors"] += 1
+                project_name = getattr(project, "name", "?")
+                source = f"github_intake_auth:{project_name}"
+                self._alerts = [
+                    a for a in self._alerts if a.get("source") != source
+                ]
+                self._alerts.append(
+                    {
+                        "level": "error",
+                        "source": source,
+                        "title": (
+                            f"GitHub intake authentication failure for project "
+                            f"{project_name!r}"
+                        ),
+                        "message": (
+                            f"Oompah cannot fetch GitHub issues for project "
+                            f"{project_name!r}: {exc}. "
+                            "Set the project's access_token to a token with "
+                            "read access to the intake repository, or configure "
+                            "OOMPAH_GITHUB_TOKEN / GitHub App credentials that "
+                            "cover this repository."
+                        ),
+                    }
+                )
             except Exception as exc:  # noqa: BLE001
                 metrics["errors"] += 1
                 logger.debug(

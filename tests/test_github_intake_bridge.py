@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from unittest.mock import patch
+
+import pytest
 
 from oompah.github_intake_bridge import (
     _github_issue_from_event,
@@ -16,6 +20,7 @@ from oompah.github_intake_bridge import (
 )
 from oompah.models import Issue, Project
 from oompah.statuses import ARCHIVED, MERGED, PROPOSED
+from oompah.tracker import TrackerAuthError
 from oompah.webhooks import WebhookEvent
 
 
@@ -991,3 +996,113 @@ def test_reconcile_from_poll_backfills_type_on_existing_task(monkeypatch):
     repaired = native.issues[task.identifier]
     assert repaired.issue_type == "bug"
     assert "team-alpha" in (repaired.labels or [])
+
+
+# ---------------------------------------------------------------------------
+# Regression: GitHub intake authentication failure (OOMPAH-6)
+# ---------------------------------------------------------------------------
+# When the configured token lacks access to the intake repository the tracker
+# raises TrackerAuthError.  poll_github_issue_intake_project must:
+#   1. Log a WARNING with the project name, repo slug, and actionable advice.
+#   2. Re-raise the TrackerAuthError so callers (e.g. the orchestrator's
+#      _sync_github_issue_intake_pass) can surface a dashboard alert.
+# ---------------------------------------------------------------------------
+
+
+class _RaisingGitHubTracker:
+    """Stub tracker that raises TrackerAuthError on fetch_all_issues."""
+
+    def __init__(self, exc: Exception):
+        self._exc = exc
+
+    def fetch_all_issues(self):
+        raise self._exc
+
+
+def _ova_project() -> Project:
+    """Return a project shaped like the real OVA managed project."""
+    return Project(
+        id="proj-edbc8b4c",
+        name="ova",
+        repo_url="https://NVShawn@github.com/NVIDIA-dev/ova.git",
+        repo_path="/tmp/ova",
+        tracker_kind="oompah_md",
+        tracker_owner="NVIDIA-dev",
+        tracker_repo="ova",
+        github_issue_intake_enabled=True,
+        status_actor_login="NVShawn",
+    )
+
+
+def test_poll_auth_failure_logs_warning_with_actionable_message(
+    monkeypatch, caplog
+):
+    """TrackerAuthError during GitHub fetch is logged at WARNING with the repo slug."""
+    auth_exc = TrackerAuthError(
+        "GitHub API authentication failed fetching page "
+        "https://api.github.com/repos/NVIDIA-dev/ova/issues. "
+        "Check OOMPAH_GITHUB_TOKEN or GitHub App credentials."
+    )
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: _RaisingGitHubTracker(auth_exc),
+    )
+
+    native = FakeNativeTracker()
+    project = _ova_project()
+
+    with caplog.at_level(logging.WARNING, logger="oompah.github_intake_bridge"):
+        with pytest.raises(TrackerAuthError):
+            poll_github_issue_intake_project(_orch(native), project)
+
+    assert any(
+        "authentication failed" in record.message
+        and "ova" in record.message
+        for record in caplog.records
+    ), f"Expected auth-failure warning; got: {[r.message for r in caplog.records]}"
+    # The warning must name the intake repo so operators know where to configure creds.
+    assert any(
+        "NVIDIA-dev/ova" in record.message or "access_token" in record.message
+        for record in caplog.records
+    ), "Warning must mention the intake repo slug or access_token config field"
+
+
+def test_poll_auth_failure_reraises_tracker_auth_error(monkeypatch):
+    """poll_github_issue_intake_project re-raises TrackerAuthError for the caller."""
+    auth_exc = TrackerAuthError(
+        "GitHub API authentication failed fetching page "
+        "https://api.github.com/repos/NVIDIA-dev/ova/issues."
+    )
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: _RaisingGitHubTracker(auth_exc),
+    )
+
+    native = FakeNativeTracker()
+    project = _ova_project()
+
+    with pytest.raises(TrackerAuthError):
+        poll_github_issue_intake_project(_orch(native), project)
+
+    # No native tasks should have been created — the error is non-data-loss.
+    assert native.issues == {}
+
+
+def test_poll_non_auth_error_still_returns_zero_and_does_not_reraise(monkeypatch):
+    """Non-auth exceptions (network errors etc.) are swallowed and return 0."""
+    from oompah.tracker import TrackerError as _TrackerError
+
+    class _NetworkErrorTracker:
+        def fetch_all_issues(self):
+            raise _TrackerError("transient network error")
+
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: _NetworkErrorTracker(),
+    )
+
+    native = FakeNativeTracker()
+    result = poll_github_issue_intake_project(_orch(native), _project())
+
+    assert result == 0
+    assert native.issues == {}
