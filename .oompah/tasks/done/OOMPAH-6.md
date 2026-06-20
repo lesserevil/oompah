@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T05:01:01.508979Z'
+updated_at: '2026-06-20T05:01:03.655178Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
@@ -519,5 +519,10 @@ created: 2026-06-20 05:00
 6. **12 regression tests** covering all new paths.
 
 Branch OOMPAH-6 is pushed to origin. PR #342 is open and mergeable. 6993 tests pass. Not a duplicate — confirmed in first dispatch.
+---
+author: oompah
+created: 2026-06-20 05:01
+---
+TrackerAuthError subclass added; GitHub intake auth failures surface as WARNING log + dashboard alert; create_review 422 idempotency fixed; 12 regression tests; 6993 tests pass. PR #342 open and mergeable.
 ---
 <!-- COMMENTS:END -->
