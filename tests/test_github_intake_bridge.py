@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from oompah.github_intake_bridge import (
+    _github_issue_from_event,
+    _reconcile_native_type_and_labels,
     ensure_native_issue_for_github_issue,
     handle_github_issue_event_for_native_project,
     import_github_comment_to_native,
@@ -72,6 +74,14 @@ class FakeNativeTracker:
             issue.state = str(fields["state"])
         if "title" in fields:
             issue.title = str(fields["title"])
+        if "type" in fields:
+            issue.issue_type = str(fields["type"])
+        if "add-label" in fields:
+            lbl = str(fields["add-label"])
+            if lbl not in (issue.labels or []):
+                issue.labels = list(issue.labels or []) + [lbl]
+        if "labels" in fields:
+            issue.labels = list(fields["labels"])  # type: ignore[arg-type]
         self.update_calls.append((identifier, dict(fields)))
 
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
@@ -158,6 +168,25 @@ def _valid_description() -> str:
         "## Acceptance Criteria\n"
         "- Large report exports complete successfully\n"
         "- A regression test covers the large report export path\n"
+    )
+
+
+def _valid_bug_description() -> str:
+    """A description that passes the bug-type intake validator."""
+    return (
+        "## Problem\n"
+        "Widget renders incorrectly when data contains unicode characters.\n\n"
+        "## Steps to Reproduce\n"
+        "1. Open the widget panel\n"
+        "2. Load a dataset that contains unicode characters in labels\n"
+        "3. Observe the garbled output\n\n"
+        "## Actual Behavior\n"
+        "The widget shows garbled text instead of the correct characters.\n\n"
+        "## Expected Behavior\n"
+        "The widget should render unicode characters correctly.\n\n"
+        "## Acceptance Criteria\n"
+        "- Widget renders unicode labels without garbling\n"
+        "- A regression test covers this rendering path\n"
     )
 
 
@@ -539,3 +568,426 @@ def test_status_sync_comments_and_closes_github_issue_on_terminal_state(monkeypa
     assert github.update_calls == [("example-org/app#7", {"status": MERGED})]
     metadata = native.metadata[issue.identifier]["oompah.external.github"]
     assert metadata["last_synced_status"] == MERGED
+
+
+# ---------------------------------------------------------------------------
+# Label and type normalization (OOMPAH-14)
+# ---------------------------------------------------------------------------
+
+def _webhook_issue_payload(
+    number: int = 7,
+    title: str = "Bug: widget renders wrong",
+    body: str = "",
+    state: str = "open",
+    labels: list[dict] | None = None,
+    login: str = "alice",
+    html_url: str | None = None,
+) -> dict:
+    """Build a minimal GitHub webhook issue dict with the specified labels."""
+    return {
+        "number": number,
+        "title": title,
+        "body": body,
+        "state": state,
+        "labels": labels or [],
+        "user": {"login": login},
+        "html_url": html_url or f"https://github.com/example-org/app/issues/{number}",
+        "closed_at": None,
+    }
+
+
+def test_github_issue_from_event_parses_type_bug_label():
+    """_github_issue_from_event() must extract issue_type from a type:bug label."""
+    event = WebhookEvent(
+        provider="github",
+        event_type="issues",
+        action="opened",
+        repo_slug="example-org/app",
+        issue_number="7",
+        raw={
+            "issue": _webhook_issue_payload(
+                labels=[{"name": "type:bug"}, {"name": "team-alpha"}]
+            )
+        },
+    )
+
+    result = _github_issue_from_event(event, _project())
+
+    assert result is not None
+    assert result.issue_type == "bug"
+    # user-facing label preserved; oompah-internal type label excluded
+    assert "team-alpha" in (result.labels or [])
+    assert "type:bug" not in (result.labels or [])
+
+
+def test_github_issue_from_event_parses_priority_label():
+    """_github_issue_from_event() must extract priority from a priority:N label."""
+    event = WebhookEvent(
+        provider="github",
+        event_type="issues",
+        action="opened",
+        repo_slug="example-org/app",
+        issue_number="7",
+        raw={
+            "issue": _webhook_issue_payload(
+                labels=[{"name": "priority:2"}, {"name": "type:feature"}]
+            )
+        },
+    )
+
+    result = _github_issue_from_event(event, _project())
+
+    assert result is not None
+    assert result.priority == 2
+    assert result.issue_type == "feature"
+
+
+def test_github_issue_from_event_parses_parent_label():
+    """_github_issue_from_event() must extract parent_id from a parent:N label."""
+    event = WebhookEvent(
+        provider="github",
+        event_type="issues",
+        action="opened",
+        repo_slug="example-org/app",
+        issue_number="7",
+        raw={
+            "issue": _webhook_issue_payload(
+                labels=[{"name": "parent:42"}]
+            )
+        },
+    )
+
+    result = _github_issue_from_event(event, _project())
+
+    assert result is not None
+    assert result.parent_id == "example-org/app#42"
+    # parent: label must not appear in user-facing labels
+    assert "parent:42" not in (result.labels or [])
+
+
+def test_github_issue_from_event_parses_depends_on_label():
+    """_github_issue_from_event() must extract blocked_by from depends-on:N labels."""
+    event = WebhookEvent(
+        provider="github",
+        event_type="issues",
+        action="opened",
+        repo_slug="example-org/app",
+        issue_number="7",
+        raw={
+            "issue": _webhook_issue_payload(
+                labels=[{"name": "depends-on:17"}, {"name": "depends-on:23"}]
+            )
+        },
+    )
+
+    result = _github_issue_from_event(event, _project())
+
+    assert result is not None
+    dep_ids = [str(b.identifier) for b in (result.blocked_by or [])]
+    assert "example-org/app#17" in dep_ids
+    assert "example-org/app#23" in dep_ids
+
+
+def test_github_issue_from_event_preserves_routing_labels():
+    """_github_issue_from_event() must keep user/routing labels not in oompah namespace."""
+    event = WebhookEvent(
+        provider="github",
+        event_type="issues",
+        action="opened",
+        repo_slug="example-org/app",
+        issue_number="7",
+        raw={
+            "issue": _webhook_issue_payload(
+                labels=[
+                    {"name": "type:bug"},
+                    {"name": "priority:1"},
+                    {"name": "team-alpha"},
+                    {"name": "area:infra"},
+                    {"name": "oompah:status:backlog"},  # internal — must be excluded
+                ]
+            )
+        },
+    )
+
+    result = _github_issue_from_event(event, _project())
+
+    assert result is not None
+    user_labels = result.labels or []
+    assert "team-alpha" in user_labels
+    assert "area:infra" in user_labels
+    # oompah-internal labels must not appear in user_labels
+    assert "oompah:status:backlog" not in user_labels
+    assert "type:bug" not in user_labels
+    assert "priority:1" not in user_labels
+
+
+def test_ensure_native_issue_forwards_issue_type_to_native_create():
+    """ensure_native_issue_for_github_issue() must pass issue_type to create_issue()."""
+    native = FakeNativeTracker()
+    github = FakeGitHubTracker()
+
+    gh_issue = _github_issue(issue_type="bug")
+    created = ensure_native_issue_for_github_issue(native, github, gh_issue)
+
+    assert created is not None
+    assert created.issue_type == "bug"
+
+
+def test_ensure_native_issue_forwards_user_labels_to_native_create():
+    """User-facing GitHub labels are preserved on the native task alongside external:github."""
+    native = FakeNativeTracker()
+    github = FakeGitHubTracker()
+
+    gh_issue = _github_issue(labels=["team-alpha", "area:backend"])
+    created = ensure_native_issue_for_github_issue(native, github, gh_issue)
+
+    assert created is not None
+    assert "external:github" in created.labels
+    assert "team-alpha" in created.labels
+    assert "area:backend" in created.labels
+
+
+def test_ensure_native_issue_forwards_parent_id_to_native_create():
+    """parent_id from the GitHub issue is forwarded to the native task's parent field."""
+    native = FakeNativeTracker()
+    github = FakeGitHubTracker()
+
+    gh_issue = _github_issue(parent_id="example-org/app#42")
+    created = ensure_native_issue_for_github_issue(native, github, gh_issue)
+
+    assert created is not None
+    assert created.parent_id == "example-org/app#42"
+
+
+def test_ensure_native_issue_sets_only_external_github_label_when_no_user_labels():
+    """When the GitHub issue has no user-facing labels, only 'external:github' is set."""
+    native = FakeNativeTracker()
+    github = FakeGitHubTracker()
+
+    # _github_issue() defaults: labels=None (no user labels)
+    created = ensure_native_issue_for_github_issue(native, github, _github_issue())
+
+    assert created is not None
+    assert created.labels == ["external:github"]
+
+
+def test_webhook_opened_event_creates_native_task_with_type_and_labels(monkeypatch):
+    """Full webhook handler must create a native task with correct type and labels.
+
+    Simulates an issues.opened webhook for a GitHub issue that carries type:bug,
+    priority:2, and routing label team-alpha.  The FakeGitHubTracker returns an
+    issue pre-populated with the same metadata (as if parsed by the API).
+    """
+    native = FakeNativeTracker()
+    gh_issue = _github_issue(
+        title="Widget renders incorrectly always",
+        description=_valid_bug_description(),
+        issue_type="bug",
+        priority=2,
+        labels=["team-alpha"],
+    )
+    github = FakeGitHubTracker([gh_issue])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+
+    event = WebhookEvent(
+        provider="github",
+        event_type="issues",
+        action="opened",
+        repo_slug="example-org/app",
+        issue_number="7",
+        raw={
+            "issue": _webhook_issue_payload(
+                title="Widget renders incorrectly always",
+                body=_valid_bug_description(),
+                labels=[
+                    {"name": "type:bug"},
+                    {"name": "priority:2"},
+                    {"name": "team-alpha"},
+                ],
+            )
+        },
+    )
+
+    handle_github_issue_event_for_native_project(_orch(native), event, _project())
+
+    assert len(native.issues) == 1
+    task = next(iter(native.issues.values()))
+    assert task.issue_type == "bug"
+    assert task.priority == 2
+    assert "external:github" in task.labels
+    assert "team-alpha" in task.labels
+    assert task.state == PROPOSED
+
+
+def test_polling_and_webhook_produce_equivalent_native_metadata(monkeypatch):
+    """Polling and webhook intake paths must produce the same native task metadata.
+
+    Uses the same GitHub issue (type:bug, priority:2, team-alpha) for both
+    paths and asserts that issue_type, priority, and labels match.
+    """
+    # ---- polling path ----
+    native_poll = FakeNativeTracker()
+    gh_issue = _github_issue(
+        title="Widget unicode rendering bug",
+        description=_valid_bug_description(),
+        issue_type="bug",
+        priority=2,
+        labels=["team-alpha"],
+    )
+    github_poll = FakeGitHubTracker([gh_issue])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github_poll,
+    )
+    poll_github_issue_intake_project(_orch(native_poll), _project())
+    poll_task = next(iter(native_poll.issues.values()))
+
+    # ---- webhook path ----
+    native_wh = FakeNativeTracker()
+    gh_issue_wh = _github_issue(
+        title="Widget unicode rendering bug",
+        description=_valid_bug_description(),
+        issue_type="bug",
+        priority=2,
+        labels=["team-alpha"],
+    )
+    github_wh = FakeGitHubTracker([gh_issue_wh])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github_wh,
+    )
+    event = WebhookEvent(
+        provider="github",
+        event_type="issues",
+        action="opened",
+        repo_slug="example-org/app",
+        issue_number="7",
+        raw={
+            "issue": _webhook_issue_payload(
+                title="Widget unicode rendering bug",
+                body=_valid_bug_description(),
+                labels=[
+                    {"name": "type:bug"},
+                    {"name": "priority:2"},
+                    {"name": "team-alpha"},
+                ],
+            )
+        },
+    )
+    handle_github_issue_event_for_native_project(_orch(native_wh), event, _project())
+    wh_task = next(iter(native_wh.issues.values()))
+
+    # Both paths must produce matching metadata.
+    assert poll_task.issue_type == wh_task.issue_type
+    assert poll_task.priority == wh_task.priority
+    assert sorted(poll_task.labels or []) == sorted(wh_task.labels or [])
+
+
+def test_reconcile_native_type_and_labels_backfills_type_on_default_task():
+    """_reconcile_native_type_and_labels() updates type when native has default 'task'."""
+    native = FakeNativeTracker()
+    existing = native.create_issue("Old task", issue_type="task", initial_status=PROPOSED)
+
+    gh_issue = _github_issue(issue_type="bug")
+    updated = _reconcile_native_type_and_labels(native, existing, gh_issue)
+
+    assert updated.issue_type == "bug"
+    assert any(
+        "type" in fields for _, fields in native.update_calls
+    )
+
+
+def test_reconcile_native_type_and_labels_does_not_overwrite_explicit_type():
+    """_reconcile_native_type_and_labels() must not overwrite an explicitly set type."""
+    native = FakeNativeTracker()
+    # Issue was explicitly set to 'feature' after import.
+    existing = native.create_issue("Epic: new thing", issue_type="feature", initial_status=PROPOSED)
+
+    # GitHub says it is now a bug, but we should not override an explicit type.
+    gh_issue = _github_issue(issue_type="bug")
+    updated = _reconcile_native_type_and_labels(native, existing, gh_issue)
+
+    assert updated.issue_type == "feature"
+    assert not any("type" in fields for _, fields in native.update_calls)
+
+
+def test_reconcile_native_type_and_labels_adds_missing_labels():
+    """_reconcile_native_type_and_labels() adds GitHub user labels absent on native task."""
+    native = FakeNativeTracker()
+    existing = native.create_issue(
+        "Imported",
+        issue_type="task",
+        labels=["external:github"],
+        initial_status=PROPOSED,
+    )
+
+    gh_issue = _github_issue(issue_type="task", labels=["team-alpha", "area:backend"])
+    updated = _reconcile_native_type_and_labels(native, existing, gh_issue)
+
+    assert "team-alpha" in (updated.labels or [])
+    assert "area:backend" in (updated.labels or [])
+    assert "external:github" in (updated.labels or [])
+
+
+def test_reconcile_native_type_and_labels_preserves_existing_native_labels():
+    """_reconcile_native_type_and_labels() never removes manually-added native labels."""
+    native = FakeNativeTracker()
+    existing = native.create_issue(
+        "Imported",
+        issue_type="task",
+        labels=["external:github", "manually-added"],
+        initial_status=PROPOSED,
+    )
+
+    gh_issue = _github_issue(issue_type="task", labels=["team-alpha"])
+    updated = _reconcile_native_type_and_labels(native, existing, gh_issue)
+
+    # Both the new GitHub label and the existing manual label must be present.
+    assert "manually-added" in (updated.labels or [])
+    assert "team-alpha" in (updated.labels or [])
+
+
+def test_reconcile_from_poll_backfills_type_on_existing_task(monkeypatch):
+    """Polling an open GitHub issue must backfill missing type/labels on an existing native task.
+
+    This covers the scenario where a webhook created the native task before the
+    label-parsing fix was deployed (issue_type='task', labels=['external:github']),
+    and the polling path must repair the metadata.
+    """
+    native = FakeNativeTracker()
+    # Simulate a task that was created before the fix: default type, no routing labels.
+    task = native.create_issue(
+        "Bug report",
+        issue_type="task",
+        labels=["external:github"],
+        initial_status=PROPOSED,
+    )
+    native.set_metadata_field(
+        task.identifier,
+        "oompah.external.github",
+        {
+            "id": "example-org/app#7",
+            "last_synced_status": PROPOSED,
+            "imported_comment_ids": [],
+        },
+    )
+    # GitHub issue now has type:bug and routing label team-alpha.
+    gh_issue = _github_issue(
+        description=_valid_bug_description(),
+        issue_type="bug",
+        labels=["team-alpha"],
+    )
+    github = FakeGitHubTracker([gh_issue])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+
+    poll_github_issue_intake_project(_orch(native), _project())
+
+    repaired = native.issues[task.identifier]
+    assert repaired.issue_type == "bug"
+    assert "team-alpha" in (repaired.labels or [])
