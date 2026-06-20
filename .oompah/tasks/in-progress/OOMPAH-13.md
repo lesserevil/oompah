@@ -15,7 +15,7 @@ labels:
 - auth
 assignee: null
 created_at: '2026-06-20T03:02:36.629755Z'
-updated_at: '2026-06-20T03:44:53.048401Z'
+updated_at: '2026-06-20T03:45:04.531749Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -74,5 +74,10 @@ author: oompah
 created: 2026-06-20 03:44
 ---
 Implementation: Changed oompah/templates/dashboard.html in two places. (1) openDetailPanel(): added 'const project = currentProjects.find(p => p.id === projectId) || null' and 'const effectiveIntakeActor = intakeActor || projectStatusActorLogin(project)', using effectiveIntakeActor instead of intakeActor for detailParams.actor. (2) performIntakeAction(): moved projectId extraction to the top of the function, added 'const project = currentProjects.find(p => p.id === projectId) || null; actor = projectStatusActorLogin(project)' as fallback before the prompt(). Updated existing test and added 4 new tests covering: fall-back to project status actor in openDetailPanel, project actor used without prompting in performIntakeAction, ordering (projectStatusActorLogin before prompt), oompah_md no-prompt path.
+---
+author: oompah
+created: 2026-06-20 03:45
+---
+Verification: All 6911 tests pass (28 skipped). All 17 dashboard intake action tests pass, including 4 new tests: test_open_detail_panel_falls_back_to_project_status_actor, test_perform_intake_action_uses_project_status_actor_without_prompting, test_perform_intake_action_only_prompts_if_no_project_actor, test_perform_intake_action_oompah_md_owner_does_not_prompt_for_actor. No hardcoded usernames in tests.
 ---
 <!-- COMMENTS:END -->
