@@ -14,10 +14,10 @@ labels:
 - git-sync
 assignee: null
 created_at: '2026-06-20T02:43:17.381453Z'
-updated_at: '2026-06-20T02:54:40.215944Z'
+updated_at: '2026-06-20T02:54:42.758203Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/336
 review_number: null
 merged_at: null
 oompah.agent_run_id: e11e3b9d-d625-45d0-b56e-65b58d4f37d0
@@ -37,6 +37,7 @@ oompah.task_costs:
     output_tokens: 2622
     cost_usd: 0.0
     recorded_at: '2026-06-20T02:54:31.080814+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/336
 ---
 ## Summary
 
