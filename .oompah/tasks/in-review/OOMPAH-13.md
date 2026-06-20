@@ -15,8 +15,8 @@ labels:
 - auth
 assignee: null
 created_at: '2026-06-20T03:02:36.629755Z'
-updated_at: '2026-06-20T03:48:22.567321Z'
-work_branch: null
+updated_at: '2026-06-20T03:48:25.131515Z'
+work_branch: OOMPAH-13
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/338
 review_number: '338'
@@ -40,6 +40,7 @@ oompah.task_costs:
     recorded_at: '2026-06-20T03:45:44.091293+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/338
 oompah.review_number: '338'
+oompah.work_branch: OOMPAH-13
 ---
 ## Summary
 
