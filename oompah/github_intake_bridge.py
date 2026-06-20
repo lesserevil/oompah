@@ -21,7 +21,7 @@ from oompah.issue_validator import validate_issue
 from oompah.models import Issue, Project
 from oompah.projects import github_owner_repo_from_url
 from oompah.statuses import ARCHIVED, MERGED, PROPOSED, canonicalize_status, status_key
-from oompah.tracker import TrackerError
+from oompah.tracker import TrackerAuthError, TrackerError
 from oompah.webhooks import WebhookEvent
 
 logger = logging.getLogger(__name__)
@@ -667,6 +667,18 @@ def poll_github_issue_intake_project(orch: Any, project: Project) -> int:
     imported = 0
     try:
         github_issues = github_tracker.fetch_all_issues()
+    except TrackerAuthError as exc:
+        slug = github_issue_intake_repo_slug(project) or "unknown/repo"
+        logger.warning(
+            "github_intake: authentication failed for project %r fetching %s — "
+            "set project access_token or configure OOMPAH_GITHUB_TOKEN / "
+            "GitHub App credentials with read access to %s: %s",
+            project.name,
+            slug,
+            slug,
+            exc,
+        )
+        raise
     except Exception as exc:  # noqa: BLE001
         logger.debug("github_intake: poll fetch failed for %s: %s", project.name, exc)
         return 0

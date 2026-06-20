@@ -2551,3 +2551,175 @@ class TestReviewRequestFiles:
         )
         d = rr.to_dict()
         assert d["files"] == ["x.py", "y.md"]
+
+
+# ---------------------------------------------------------------------------
+# GitHubProvider.create_review — 422 idempotency (PR already exists)
+# ---------------------------------------------------------------------------
+
+
+class TestGitHubCreateReviewIdempotent:
+    """create_review must return the existing open PR when GitHub responds with
+    HTTP 422 "A pull request already exists", instead of returning None and
+    causing the orchestrator to loop with 'forge provider returned no review'.
+
+    Regression test for OOMPAH-6 (review handoff loop).
+    """
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code: int = 200, text: str = ""):
+            self._payload = payload
+            self.status_code = status_code
+            self.text = text or str(payload)
+
+        def json(self):
+            return self._payload
+
+    def _pr_payload(self, number: int = 342, branch: str = "OOMPAH-6") -> dict:
+        return {
+            "number": number,
+            "title": f"PR {number}",
+            "html_url": f"https://github.com/owner/repo/pull/{number}",
+            "user": {"login": "oompah"},
+            "state": "open",
+            "merged_at": None,
+            "head": {"ref": branch, "sha": "abc123"},
+            "base": {"ref": "main"},
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "body": "",
+            "labels": [],
+            "draft": False,
+            "auto_merge": None,
+            "mergeable": True,
+            "mergeable_state": "clean",
+            "additions": 50,
+            "deletions": 5,
+        }
+
+    def _provider(self, pr_payload: dict) -> GitHubProvider:
+        provider = GitHubProvider(access_token="t")
+        calls: list[tuple] = []
+        pr_number = str(pr_payload.get("number", "1"))
+        branch = pr_payload.get("head", {}).get("ref", "")
+
+        def fake_api(method, path, **kwargs):
+            calls.append((method, path, kwargs))
+            # POST /pulls — simulate 422 "already exists"
+            if method == "POST" and path.endswith("/pulls"):
+                return self._FakeResponse(
+                    {
+                        "message": "Validation Failed",
+                        "errors": [{"message": "A pull request already exists for owner:OOMPAH-6."}],
+                    },
+                    status_code=422,
+                    text='{"message": "Validation Failed", "errors": [{"message": "A pull request already exists for owner:OOMPAH-6."}]}',
+                )
+            # GET /pulls?state=all&head=owner:OOMPAH-6 — find_pr_for_branch
+            if method == "GET" and path.endswith("/pulls") and kwargs.get("params", {}).get("state") == "all":
+                return self._FakeResponse([pr_payload])
+            # GET /pulls/{number} — get_review
+            if method == "GET" and f"/pulls/{pr_number}" in path:
+                return self._FakeResponse(pr_payload)
+            # CI status endpoints
+            if path.endswith("/status"):
+                return self._FakeResponse({"state": "success", "total_count": 0})
+            if path.endswith("/check-runs"):
+                return self._FakeResponse({"check_runs": []})
+            raise AssertionError(f"Unexpected API call: {method} {path}")
+
+        provider._api = fake_api
+        provider._calls = calls  # type: ignore[attr-defined]
+
+        def fake_graphql(query, variables=None):
+            return self._FakeResponse({
+                "data": {"repository": {"pullRequest": {"isInMergeQueue": False}}}
+            })
+
+        provider._graphql = fake_graphql
+        return provider
+
+    def test_returns_existing_pr_on_422_already_exists(self):
+        """create_review returns the existing PR when GitHub responds 422."""
+        pr = self._pr_payload(number=342, branch="OOMPAH-6")
+        provider = self._provider(pr)
+        result = provider.create_review(
+            "owner/repo", "OOMPAH-6: fix", "OOMPAH-6", target_branch="main"
+        )
+        assert result is not None, "Expected existing PR to be returned on 422"
+        assert result.id == "342"
+        assert result.source_branch == "OOMPAH-6"
+        assert result.state == "open"
+
+    def test_still_returns_none_on_422_non_duplicate(self):
+        """create_review returns None for a 422 that is not a duplicate PR error."""
+        provider = GitHubProvider(access_token="t")
+
+        def fake_api(method, path, **kwargs):
+            return self._FakeResponse(
+                {"message": "Validation Failed", "errors": [{"message": "Invalid base branch."}]},
+                status_code=422,
+                text='{"message": "Validation Failed", "errors": [{"message": "Invalid base branch."}]}',
+            )
+
+        provider._api = fake_api
+        result = provider.create_review(
+            "owner/repo", "PR title", "feature-branch", target_branch="main"
+        )
+        assert result is None
+
+    def test_still_returns_none_when_existing_pr_is_closed(self):
+        """create_review returns None when the found PR is closed (not open)."""
+        pr = self._pr_payload(number=99, branch="OOMPAH-6")
+        pr["state"] = "closed"
+        pr["merged_at"] = None
+        provider = GitHubProvider(access_token="t")
+
+        def fake_api(method, path, **kwargs):
+            if method == "POST":
+                return self._FakeResponse(
+                    {"errors": [{"message": "A pull request already exists."}]},
+                    status_code=422,
+                    text='{"errors": [{"message": "A pull request already exists."}]}',
+                )
+            if method == "GET" and path.endswith("/pulls"):
+                return self._FakeResponse([pr])
+            return self._FakeResponse({}, status_code=404)
+
+        provider._api = fake_api
+        result = provider.create_review(
+            "owner/repo", "PR title", "OOMPAH-6", target_branch="main"
+        )
+        assert result is None
+
+    def test_creates_pr_normally_on_201(self):
+        """create_review still works normally when GitHub returns 201."""
+        pr = self._pr_payload(number=500, branch="new-branch")
+        provider = GitHubProvider(access_token="t")
+        calls: list[tuple] = []
+
+        def fake_api(method, path, **kwargs):
+            calls.append((method, path))
+            if method == "POST" and path.endswith("/pulls"):
+                return self._FakeResponse(pr, status_code=201)
+            if method == "GET" and "/pulls/500" in path:
+                return self._FakeResponse(pr)
+            if path.endswith("/status"):
+                return self._FakeResponse({"state": "success", "total_count": 0})
+            if path.endswith("/check-runs"):
+                return self._FakeResponse({"check_runs": []})
+            raise AssertionError(f"Unexpected: {method} {path}")
+
+        def fake_graphql(query, variables=None):
+            return self._FakeResponse({
+                "data": {"repository": {"pullRequest": {"isInMergeQueue": False}}}
+            })
+
+        provider._api = fake_api
+        provider._graphql = fake_graphql
+        result = provider.create_review("owner/repo", "New PR", "new-branch")
+        assert result is not None
+        assert result.id == "500"
+        # Only POST + GET should be called — no find_pr_for_branch call
+        post_calls = [c for c in calls if c[0] == "POST"]
+        assert len(post_calls) == 1

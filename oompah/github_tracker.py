@@ -66,6 +66,7 @@ from oompah.statuses import (
     status_key,
 )
 from oompah.tracker import (
+    TrackerAuthError,
     TrackerError,
     TrackerTimeoutError,
     normalize_priority_int,
@@ -810,14 +811,14 @@ class GitHubClient:
 
             # Auth errors — not retryable.
             if resp.status_code == 401:
-                raise TrackerError(
+                raise TrackerAuthError(
                     f"GitHub API authentication failed ({method} {url}). "
                     "Check OOMPAH_GITHUB_TOKEN, OOMPAH_GITHUB_APP_ID, or "
                     "run 'gh auth login'."
                 )
             if resp.status_code == 403:
                 body_snippet = resp.text[:200]
-                raise TrackerError(
+                raise TrackerAuthError(
                     f"GitHub API access forbidden ({method} {url}): "
                     f"{body_snippet}"
                 )
@@ -927,12 +928,12 @@ class GitHubClient:
             _log_rate_limits(resp)
 
             if resp.status_code == 401:
-                raise TrackerError(
+                raise TrackerAuthError(
                     f"GitHub API authentication failed fetching page {url}. "
                     "Check OOMPAH_GITHUB_TOKEN or GitHub App credentials."
                 )
             if resp.status_code == 403:
-                raise TrackerError(
+                raise TrackerAuthError(
                     f"GitHub API access forbidden fetching page {url}: {resp.text[:200]}"
                 )
             if resp.status_code == 429:

@@ -49,6 +49,16 @@ class TrackerError(Exception):
     """Raised when tracker operations fail."""
 
 
+class TrackerAuthError(TrackerError):
+    """Raised when tracker authentication fails (e.g. HTTP 401 or 403).
+
+    A ``TrackerAuthError`` is a non-transient, non-retriable failure: the
+    configured credential does not have the access required to perform the
+    operation.  Callers should surface this as an actionable operator alert
+    rather than silently retrying.
+    """
+
+
 class TrackerNotConfiguredError(TrackerError):
     """Raised when a tracker backend is not configured for a project."""
 
