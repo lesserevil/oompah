@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T04:48:52.573249Z'
+updated_at: '2026-06-20T04:48:54.644326Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
@@ -426,5 +426,19 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/default
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 11s
 - Log: OOMPAH-6__20260620T044527Z.jsonl
+---
+author: oompah
+created: 2026-06-20 04:48
+---
+Review handoff failed: the task branch has unmerged work but no review artifact was created.
+
+Branch: `OOMPAH-6`
+Target branch: `main`
+Unmerged commits: 1 commit
+  fdb9b48 OOMPAH-6: Add TrackerAuthError and surface GitHub intake auth failures as actionable alerts
+
+Reason: forge provider returned no review
+
+Required: create or restore the PR/MR for this branch, then move the task to In Review only after the review exists.
 ---
 <!-- COMMENTS:END -->
