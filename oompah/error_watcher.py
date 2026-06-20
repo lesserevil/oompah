@@ -169,41 +169,16 @@ class ErrorWatcher:
         if len(title) > 200:
             title = title[:197] + "..."
 
-        # Description still carries the full message + caller-supplied
-        # detail so the operator can diagnose even when the fingerprint
-        # was collapsed via error_class.
-        description = detail or message
-        if error_class:
-            description = (
-                f"error_class={error_class}\n\n"
-                f"Triggering message: {message}\n\n"
-                f"{description}"
-            )
-
-        # Append structured metadata so operators (and future automation)
-        # can identify the origin, tracker backend, and dedup key without
-        # opening the source project.  This satisfies TASK-461.6 AC #1:
-        # auto-filed tasks include tracker identity, source project, and
-        # dedup metadata.
-        tracker_kind, tracker_owner, tracker_repo = self._tracker_identity()
-        meta_parts = [
-            "\n\n---",
-            "*Auto-filed by oompah error_watcher*",
-            f"- source_project: {self._project_id or 'global'}",
-            f"- tracker: {self._tracker_label()}",
-            f"- tracker_kind: {tracker_kind}",
-            f"- fingerprint: {fp}",
-            f"- dedup_fingerprint: {fp}",
-        ]
-        if tracker_owner:
-            meta_parts.append(f"- tracker_owner: {tracker_owner}")
-        if tracker_repo:
-            meta_parts.append(f"- tracker_repo: {tracker_repo}")
-        if issue_id:
-            meta_parts.append(f"- source_issue: {issue_id}")
-        if error_class:
-            meta_parts.append(f"- error_class: {error_class}")
-        description = description + "\n".join(meta_parts)
+        # Build a structured description that passes validate_issue() for the
+        # bug issue type.  Includes intake-validator-required sections
+        # (Problem, Steps to Reproduce, Actual Behavior, Expected Behavior,
+        # Acceptance Criteria) plus diagnostic metadata for deduplication.
+        description = self._build_structured_description(
+            source, message, fp,
+            detail=detail,
+            error_class=error_class,
+            issue_id=issue_id,
+        )
 
         try:
             issue = self._tracker.create_issue(
@@ -339,6 +314,127 @@ class ErrorWatcher:
             self._seen.pop(fp, None)
 
         return closed
+
+    def _build_structured_description(
+        self,
+        source: str,
+        message: str,
+        fp: str,
+        *,
+        detail: str | None = None,
+        error_class: str | None = None,
+        issue_id: str | None = None,
+    ) -> str:
+        """Build a structured bug description that passes ``validate_issue()``.
+
+        Generates the five markdown sections required by the intake validator
+        for bug-type issues (Problem, Steps to Reproduce, Actual Behavior,
+        Expected Behavior, Acceptance Criteria) and appends the standard
+        diagnostic metadata footer.
+
+        The generated text is intentionally generic — it is derived entirely
+        from available runtime context (source, message, detail, error_class,
+        project_id, tracker identity) without any LLM call.  An operator or
+        agent may subsequently refine the content, but the task will pass
+        ``validate_issue()`` without manual editing.
+        """
+        project_id = self._project_id or "global"
+        tracker_kind, tracker_owner, tracker_repo = self._tracker_identity()
+        tracker_label = self._tracker_label()
+        class_note = f" (error class: `{error_class}`)" if error_class else ""
+
+        parts: list[str] = []
+
+        # ------------------------------------------------------------------ #
+        # 1. Problem
+        # ------------------------------------------------------------------ #
+        parts.append("## Problem\n")
+        parts.append(
+            f"Oompah detected a backend error{class_note} from `{source}`:\n\n"
+            f"> {message}\n"
+        )
+        if detail and detail != message:
+            _cap = 2000
+            detail_body = detail[:_cap]
+            if len(detail) > _cap:
+                detail_body += "\n…(truncated)"
+            parts.append(f"\n**Error detail:**\n\n```\n{detail_body}\n```\n")
+
+        # ------------------------------------------------------------------ #
+        # 2. Steps to Reproduce
+        # ------------------------------------------------------------------ #
+        parts.append("\n## Steps to Reproduce\n")
+        parts.append(f"1. Run oompah with `{source}` active.\n")
+        if project_id != "global":
+            parts.append(
+                f"2. Let oompah operate on the `{project_id}` project "
+                f"(tracker: `{tracker_label}`).\n"
+            )
+        else:
+            parts.append(
+                "2. Let oompah execute the operation that involves "
+                f"`{source}` (tracker: `{tracker_label}`).\n"
+            )
+        parts.append(
+            "3. Observe that the error is captured by `error_watcher` "
+            "and auto-filed as this task.\n"
+        )
+
+        # ------------------------------------------------------------------ #
+        # 3. Actual Behavior
+        # ------------------------------------------------------------------ #
+        parts.append("\n## Actual Behavior\n")
+        parts.append(
+            f"An error occurs in `{source}` and is recorded by oompah's "
+            f"`error_watcher`:\n\n> {message}\n"
+        )
+
+        # ------------------------------------------------------------------ #
+        # 4. Expected Behavior
+        # ------------------------------------------------------------------ #
+        parts.append("\n## Expected Behavior\n")
+        parts.append(
+            f"The operation in `{source}` should complete successfully, "
+            "or degrade gracefully with a clear actionable message. "
+            "No unhandled error should be auto-filed as a task during "
+            "normal operation.\n"
+        )
+
+        # ------------------------------------------------------------------ #
+        # 5. Acceptance Criteria
+        # ------------------------------------------------------------------ #
+        parts.append("\n## Acceptance Criteria\n")
+        parts.append(
+            f"- The error from `{source}` no longer occurs, or is handled "
+            "gracefully so `error_watcher` is not triggered.\n"
+            "- The root cause is identified and resolved, or documented as "
+            "a known acceptable failure with explicit handling.\n"
+            "- No regression: other error types continue to be reported "
+            "correctly by `error_watcher`.\n"
+        )
+
+        # ------------------------------------------------------------------ #
+        # Diagnostic metadata footer
+        # ------------------------------------------------------------------ #
+        meta_lines = [
+            "\n---",
+            "*Auto-filed by oompah error_watcher*",
+            f"- source_project: {project_id}",
+            f"- tracker: {tracker_label}",
+            f"- tracker_kind: {tracker_kind}",
+            f"- fingerprint: {fp}",
+            f"- dedup_fingerprint: {fp}",
+        ]
+        if tracker_owner:
+            meta_lines.append(f"- tracker_owner: {tracker_owner}")
+        if tracker_repo:
+            meta_lines.append(f"- tracker_repo: {tracker_repo}")
+        if issue_id:
+            meta_lines.append(f"- source_issue: {issue_id}")
+        if error_class:
+            meta_lines.append(f"- error_class: {error_class}")
+
+        return "".join(parts) + "\n".join(meta_lines)
 
     def _fingerprint(
         self,
