@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.676158Z'
-updated_at: '2026-06-20T14:47:28.771517Z'
+updated_at: '2026-06-20T14:47:30.813898Z'
 work_branch: oompah/oompah/gh-330
 target_branch: null
 review_url: null
@@ -26,13 +26,14 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/330
   requestor_login: lesserevil
   imported_comment_ids: []
-  last_synced_status: Merged
-  last_synced_at: '2026-06-20T14:47:28.155063+00:00'
+  last_synced_status: Done
+  last_synced_at: '2026-06-20T02:13:20.681102Z'
   migrated_at: '2026-06-20T02:13:20.681109Z'
   migrated_from_tracker: github_issues
   external_state: open
   external_created_at: '2026-06-19T17:22:48Z'
   external_updated_at: '2026-06-19T17:26:42Z'
+  last_github_state: closed
 ---
 ## Summary
 
