@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.667753Z'
-updated_at: '2026-06-20T14:45:23.159696Z'
+updated_at: '2026-06-20T14:47:20.274447Z'
 work_branch: oompah/oompah/gh-328
 target_branch: null
 review_url: null
@@ -33,6 +33,7 @@ oompah.external.github:
   external_state: open
   external_created_at: '2026-06-19T17:22:47Z'
   external_updated_at: '2026-06-19T17:26:51Z'
+  last_github_state: closed
 ---
 ## Summary
 
