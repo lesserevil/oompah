@@ -14,9 +14,9 @@ labels:
 - git-sync
 assignee: null
 created_at: '2026-06-20T02:43:17.381453Z'
-updated_at: '2026-06-20T02:54:48.014333Z'
+updated_at: '2026-06-20T02:54:50.641697Z'
 work_branch: OOMPAH-10
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/336
 review_number: '336'
 merged_at: null
@@ -40,6 +40,7 @@ oompah.task_costs:
 oompah.review_url: https://github.com/lesserevil/oompah/pull/336
 oompah.review_number: '336'
 oompah.work_branch: OOMPAH-10
+oompah.target_branch: main
 ---
 ## Summary
 
