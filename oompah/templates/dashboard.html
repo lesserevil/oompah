@@ -2055,7 +2055,8 @@ function issueMatchesIdentifier(issue, identifier) {
 
 function statusChangeNeedsProjectActor(issue, project, targetStatus) {
   const trackerKind = (project && project.tracker_kind) || (issue && issue.tracker_kind) || '';
-  if (trackerKind !== 'github_issues') return false;
+  const protectedTrackers = new Set(['github_issues', 'oompah_md']);
+  if (!protectedTrackers.has(trackerKind)) return false;
   const toKey = statusKey(targetStatus);
   if (toKey === 'open') return true;
   if (!issue) return false;

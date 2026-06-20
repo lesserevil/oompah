@@ -102,12 +102,14 @@ class TestDashboardIntakeActions:
         assert "outgoing.actor_login = actor" in body
         assert "prompt(" not in body
 
-    def test_status_actor_needed_when_local_issue_missing_but_opening_github_project(self):
+    def test_status_actor_needed_when_local_issue_missing_but_opening_project(self):
         script = _load_dashboard_script()
         body = _function_body(script, "statusChangeNeedsProjectActor")
 
         assert "(project && project.tracker_kind) || (issue && issue.tracker_kind)" in body
-        assert "trackerKind !== 'github_issues'" in body
+        assert "protectedTrackers" in body
+        assert "'github_issues'" in body
+        assert "'oompah_md'" in body
         assert "const toKey = statusKey(targetStatus)" in body
         assert "if (toKey === 'open') return true" in body
         assert "if (!issue) return false" in body
