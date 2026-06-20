@@ -15,7 +15,7 @@ labels:
 - metadata
 assignee: null
 created_at: '2026-06-20T03:03:06.527980Z'
-updated_at: '2026-06-20T03:56:42.372122Z'
+updated_at: '2026-06-20T03:56:52.151396Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -116,5 +116,15 @@ author: oompah
 created: 2026-06-20 03:56
 ---
 Fixed webhook label normalization: _github_issue_from_event() now uses _gh_issue_to_issue() to parse type/priority/parent/labels from webhook payload identically to polling path; ensure_native_issue forwards all parsed fields to native create; new _reconcile_native_type_and_labels() backfills missing type/labels on existing tasks. 16 new tests added. All 6923 tests pass.
+---
+author: oompah
+created: 2026-06-20 03:56
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 76
+- Tokens: 129 in / 3.6K out [3.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 20m 12s
+- Log: OOMPAH-14__20260620T033644Z.jsonl
 ---
 <!-- COMMENTS:END -->
