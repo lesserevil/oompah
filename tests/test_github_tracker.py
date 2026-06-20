@@ -1252,9 +1252,21 @@ class TestStatusLabelHelpers:
         assert _extract_oompah_status(labels, "closed") == "Archived"
 
     def test_extract_oompah_status_label_beats_gh_state(self):
-        """Status label overrides GitHub built-in state."""
+        """Status label overrides GitHub built-in open state."""
         labels = [{"name": "oompah:status:needs-human"}]
         assert _extract_oompah_status(labels, "open") == "Needs Human"
+
+    def test_extract_oompah_status_closed_overrides_non_terminal_label(self):
+        labels = [{"name": "oompah:status:open"}]
+        assert _extract_oompah_status(labels, "closed") == "Archived"
+
+    def test_extract_oompah_status_closed_preserves_merged_label(self):
+        labels = [{"name": "oompah:status:merged"}]
+        assert _extract_oompah_status(labels, "closed") == "Merged"
+
+    def test_extract_oompah_status_closed_preserves_archived_label(self):
+        labels = [{"name": "oompah:status:archived"}]
+        assert _extract_oompah_status(labels, "closed") == "Archived"
 
     def test_extract_priority_label(self):
         labels = [{"name": "priority:2"}]
@@ -1413,6 +1425,14 @@ class TestGhIssueToIssue:
             state="open", labels=["oompah:status:in-progress"]
         )
         assert issue.state == "In Progress"
+
+    def test_closed_state_overrides_non_terminal_status_label(self):
+        issue = self._convert(state="closed", labels=["oompah:status:open"])
+        assert issue.state == "Archived"
+
+    def test_closed_state_preserves_merged_status_label(self):
+        issue = self._convert(state="closed", labels=["oompah:status:merged"])
+        assert issue.state == "Merged"
 
     def test_proposed_status_label_maps_to_issue_state(self):
         issue = self._convert(state="open", labels=["oompah:status:proposed"])
@@ -1927,6 +1947,47 @@ class TestGitHubIssueTrackerFetch:
         assert patch_call.call_args.kwargs["json"]["labels"] == [
             "oompah:status:archived"
         ]
+
+    def test_fetch_issue_detail_closed_non_terminal_label_is_archived(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(
+            number=44,
+            state="closed",
+            labels=["oompah:status:open", "bug"],
+        )
+        patch_resp = _mock_response(200, json_data={"ok": True})
+
+        with (
+            patch.object(tracker._client, "request", return_value=(gh_issue, None)),
+            patch.object(tracker._client, "patch", return_value=patch_resp) as patch_call,
+        ):
+            result = tracker.fetch_issue_detail("example-org/oompah-tasks#44")
+
+        assert result is not None
+        assert result.state == "Archived"
+        patch_call.assert_called_once()
+        assert patch_call.call_args.kwargs["json"]["labels"] == [
+            "bug",
+            "oompah:status:archived",
+        ]
+
+    def test_fetch_issue_detail_closed_merged_label_is_not_rewritten(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(
+            number=45,
+            state="closed",
+            labels=["oompah:status:merged"],
+        )
+
+        with (
+            patch.object(tracker._client, "request", return_value=(gh_issue, None)),
+            patch.object(tracker._client, "patch") as patch_call,
+        ):
+            result = tracker.fetch_issue_detail("example-org/oompah-tasks#45")
+
+        assert result is not None
+        assert result.state == "Merged"
+        patch_call.assert_not_called()
 
     def test_fetch_issue_detail_returns_none_for_404(self):
         tracker = self._make_tracker()

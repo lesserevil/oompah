@@ -1031,7 +1031,8 @@ _STATUS_TO_LABEL_SLUG: dict[str, str] = {
 # GitHub's native issue state has only open/closed. Oompah's ``Done`` means
 # implementation work is finished and waiting for review/merge, so it must
 # stay open. Only statuses that are truly terminal in GitHub itself close the
-# issue.
+# issue, and externally closed issues must resolve to one of these terminal
+# statuses.
 _GITHUB_CLOSED_STATUS_KEYS = frozenset({
     status_key(MERGED),
     status_key(ARCHIVED),
@@ -1113,14 +1114,21 @@ def _extract_oompah_status(
 
     Priority:
 
-    1. ``oompah:status:*`` label — explicit oompah status.
-    2. GitHub ``state`` field — unlabeled ``open`` issues are treated as
+    1. GitHub ``closed`` state forces ``Archived`` unless the explicit
+       oompah status is already ``Merged`` or ``Archived``.
+    2. ``oompah:status:*`` label — explicit oompah status.
+    3. GitHub ``state`` field — unlabeled ``open`` issues are treated as
        ``"Proposed"``; unlabeled ``closed`` issues become ``"Archived"``.
     """
     for lbl in labels:
         name = lbl.get("name", "")
         status = _label_to_status(name)
         if status is not None:
+            if (
+                str(gh_state).lower() == "closed"
+                and status_key(status) not in _GITHUB_CLOSED_STATUS_KEYS
+            ):
+                return ARCHIVED
             return status
     return _github_fallback_status(gh_state)
 
@@ -1480,23 +1488,24 @@ class GitHubIssueTracker:
             return gh_issue
 
         labels_raw: list[dict[str, Any]] = gh_issue.get("labels") or []
+        gh_state: str = gh_issue.get("state", "open")
+        desired_status = _extract_oompah_status(labels_raw, gh_state)
         for label in labels_raw:
             name = label.get("name", "")
-            if _label_to_status(name) is not None:
+            current_status = _label_to_status(name)
+            if current_status is not None and current_status == desired_status:
                 return gh_issue
 
         number = gh_issue.get("number")
         if number is None:
             return gh_issue
 
-        gh_state: str = gh_issue.get("state", "open")
-        status = _github_fallback_status(gh_state)
         label_names = [
             str(label.get("name"))
             for label in labels_raw
             if isinstance(label, dict) and label.get("name")
         ]
-        labels = self._labels_with_status(label_names, status)
+        labels = self._labels_with_status(label_names, desired_status)
 
         try:
             self._client.patch(
@@ -1520,14 +1529,14 @@ class GitHubIssueTracker:
         # treated as an unauthorized human edit even when the actor reported
         # by GitHub does not exactly match OOMPAH_BOT_LOGIN (e.g. GitHub App
         # login vs. PAT login differences).
-        self.record_trusted_status(int(number), status)
+        self.record_trusted_status(int(number), desired_status)
         logger.debug(
             "Backfilled oompah status label for %s/%s#%s: %s (label: %s)",
             self.owner,
             self.repo,
             number,
-            status,
-            _status_to_label(status),
+            desired_status,
+            _status_to_label(desired_status),
         )
 
         updated = dict(gh_issue)
