@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T04:57:51.407876Z'
+updated_at: '2026-06-20T04:57:53.504448Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
@@ -449,5 +449,10 @@ author: oompah
 created: 2026-06-20 04:49
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-06-20 04:57
+---
+Fixed two bugs: (1) OVA GitHub intake auth failure now surfaces as WARNING log + dashboard alert via TrackerAuthError. (2) Fixed orchestrator review-handoff loop: create_review now returns existing PR on 422 'already exists' response. 12 regression tests. 6963 tests pass.
 ---
 <!-- COMMENTS:END -->
