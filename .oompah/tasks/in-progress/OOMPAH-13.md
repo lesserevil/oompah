@@ -15,7 +15,7 @@ labels:
 - auth
 assignee: null
 created_at: '2026-06-20T03:02:36.629755Z'
-updated_at: '2026-06-20T03:44:36.994950Z'
+updated_at: '2026-06-20T03:44:53.048401Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,5 +69,10 @@ author: oompah
 created: 2026-06-20 03:44
 ---
 Discovery: Confirmed NOT a duplicate. Prior commits fixed drag/drop status-change paths but the intake action button path was still broken. In openDetailPanel(), intakeActor only used localStorage('oompah_intake_actor'); in performIntakeAction(), missing actor went straight to prompt(). The fix: (1) openDetailPanel now resolves project from currentProjects and uses effectiveIntakeActor = intakeActor || projectStatusActorLogin(project), (2) performIntakeAction moves projectId extraction to the top and inserts a projectStatusActorLogin(project) fallback before the prompt() call.
+---
+author: oompah
+created: 2026-06-20 03:44
+---
+Implementation: Changed oompah/templates/dashboard.html in two places. (1) openDetailPanel(): added 'const project = currentProjects.find(p => p.id === projectId) || null' and 'const effectiveIntakeActor = intakeActor || projectStatusActorLogin(project)', using effectiveIntakeActor instead of intakeActor for detailParams.actor. (2) performIntakeAction(): moved projectId extraction to the top of the function, added 'const project = currentProjects.find(p => p.id === projectId) || null; actor = projectStatusActorLogin(project)' as fallback before the prompt(). Updated existing test and added 4 new tests covering: fall-back to project status actor in openDetailPanel, project actor used without prompting in performIntakeAction, ordering (projectStatusActorLogin before prompt), oompah_md no-prompt path.
 ---
 <!-- COMMENTS:END -->
