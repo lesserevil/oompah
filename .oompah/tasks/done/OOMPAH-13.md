@@ -15,7 +15,7 @@ labels:
 - auth
 assignee: null
 created_at: '2026-06-20T03:02:36.629755Z'
-updated_at: '2026-06-20T03:45:34.187186Z'
+updated_at: '2026-06-20T03:45:36.916156Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -84,5 +84,10 @@ author: oompah
 created: 2026-06-20 03:45
 ---
 Completion: OOMPAH-13 is NOT a duplicate — no prior task addressed the intake action button path. Fixed in oompah/templates/dashboard.html: openDetailPanel() now uses effectiveIntakeActor = intakeActor || projectStatusActorLogin(project) for detail requests; performIntakeAction() resolves project status actor before prompting. 4 new regression tests added. All 6911 tests pass. Branch OOMPAH-13 pushed to origin.
+---
+author: oompah
+created: 2026-06-20 03:45
+---
+Not a duplicate. Fixed openDetailPanel() and performIntakeAction() to use projectStatusActorLogin(project) as default actor fallback. 4 new tests added. All 6911 tests pass.
 ---
 <!-- COMMENTS:END -->
