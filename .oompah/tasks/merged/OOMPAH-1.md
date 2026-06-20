@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1
 type: task
-status: Done
+status: Merged
 priority: 0
 title: 'fix CI on PR #303 (oompah/oompah/gh-302)'
 parent: null
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.647481Z'
-updated_at: '2026-06-20T02:14:02.591303Z'
+updated_at: '2026-06-20T14:45:18.969960Z'
 work_branch: oompah/oompah/gh-304
 target_branch: null
 review_url: null
