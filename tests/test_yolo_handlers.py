@@ -20,7 +20,7 @@ import pytest
 from oompah.config import ServiceConfig
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
-from oompah.statuses import NEEDS_CI_FIX
+from oompah.statuses import IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE
 
 
 def _make_config() -> ServiceConfig:
@@ -37,6 +37,7 @@ def _make_project(
     p.repo_url = repo_url
     p.name = "test-project"
     p.yolo = yolo
+    p.default_branch = "main"
     return p
 
 
@@ -482,11 +483,17 @@ class TestEpicBranchCiFailUsesEpicNotOrphan:
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
         tracker = MagicMock()
-        epic = MagicMock(identifier="TASK-706", labels=[], state="Backlog")
+        epic = MagicMock(
+            identifier="TASK-706",
+            id="TASK-706",
+            labels=[],
+            state="Backlog",
+            issue_type="epic",
+        )
         tracker.fetch_issue_detail.side_effect = lambda i: epic if i == "TASK-706" else None
         orch._project_trackers[project.id] = tracker
         orch._file_orphan_recovery_task = MagicMock()  # must NOT be used now
-        # Epic has a child → retry_ci routes to the sibling/parent path.
+        # Epic has a child → retry_ci routes to the epic/parent path.
         orch._fetch_epic_children = MagicMock(
             return_value=[MagicMock(identifier="TASK-706.1", state="Done", labels=[])]
         )
@@ -494,7 +501,7 @@ class TestEpicBranchCiFailUsesEpicNotOrphan:
         orch._yolo_retry_ci(project, review)
         orch._file_orphan_recovery_task.assert_not_called()
 
-    def test_epic_branch_parent_ci_fix_label_still_files_sibling(self, tmp_path):
+    def test_epic_branch_parent_ci_fix_label_marks_mature_epic(self, tmp_path):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
         tracker = MagicMock()
@@ -506,22 +513,23 @@ class TestEpicBranchCiFailUsesEpicNotOrphan:
             issue_type="epic",
         )
         tracker.fetch_issue_detail.side_effect = lambda i: epic if i == "TASK-706" else None
-        sibling = MagicMock(identifier="TASK-706.2")
-        tracker.create_issue.return_value = sibling
         orch._project_trackers[project.id] = tracker
         orch._file_orphan_recovery_task = MagicMock()
         orch._fetch_epic_children = MagicMock(
-            return_value=[MagicMock(identifier="TASK-706.1", state="Done", labels=[])]
+            return_value=[MagicMock(identifier="TASK-706.1", state=IN_REVIEW, labels=[])]
         )
         review = MagicMock(source_branch="epic-TASK-706", id="171", ci_status="failed")
 
         orch._yolo_retry_ci(project, review)
 
         orch._file_orphan_recovery_task.assert_not_called()
-        tracker.create_issue.assert_called_once()
-        assert tracker.create_issue.call_args.kwargs["parent"] == "TASK-706"
-        assert tracker.create_issue.call_args.kwargs["initial_status"] == NEEDS_CI_FIX
-        assert tracker.create_issue.call_args.kwargs["labels"] == ["ci-fix"]
+        tracker.create_issue.assert_not_called()
+        tracker.update_issue.assert_called_once_with(
+            "TASK-706",
+            status=NEEDS_CI_FIX,
+            priority="0",
+            **{"add-label": "ci-fix"},
+        )
 
     def test_true_orphan_still_files_recovery_task(self, tmp_path):
         project = _make_project()
@@ -536,9 +544,7 @@ class TestEpicBranchCiFailUsesEpicNotOrphan:
 
 
 class TestYoloNotifyConflictEpicBranch:
-    """A conflict on a shared/stacked EPIC branch must route into the
-    epic-rebase machinery (mark STALE → dispatchable P0 rebase sibling),
-    NOT mark the non-dispatchable epic 'Needs Rebase' (which loops forever)."""
+    """A conflict on a mature EPIC branch repairs the epic PR directly."""
 
     def _epic(self):
         epic = MagicMock()
@@ -549,9 +555,10 @@ class TestYoloNotifyConflictEpicBranch:
         epic.labels = []
         return epic
 
-    def test_epic_branch_conflict_files_p0_rebase_task_not_needs_rebase(self, tmp_path):
+    def test_mature_epic_branch_conflict_marks_epic_needs_rebase(self, tmp_path):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._set_epic_rebase_state = MagicMock()
         provider = MagicMock()
         provider.rebase_review.return_value = (
             False, "Rebase failed: merge conflicts require manual resolution",
@@ -561,20 +568,21 @@ class TestYoloNotifyConflictEpicBranch:
         )
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = self._epic()
-        # No existing rebase sibling.
-        with patch.object(orch, "_fetch_epic_children", return_value=[]):
+        with patch.object(
+            orch,
+            "_fetch_epic_children",
+            return_value=[MagicMock(identifier="TASK-18.1", state=IN_REVIEW, labels=[])],
+        ):
             orch._project_trackers[project.id] = tracker
             orch._yolo_notify_conflict(project, provider, "org/repo", "42")
 
-        # Filed a dispatchable P0 rebase sibling under the epic...
-        tracker.create_issue.assert_called_once()
-        kw = tracker.create_issue.call_args.kwargs
-        assert kw.get("priority") == 0
-        assert kw.get("parent") == "TASK-18"
-        # ...and did NOT mark the (non-dispatchable) epic Needs Rebase.
-        from oompah.statuses import NEEDS_REBASE
-        for c in tracker.update_issue.call_args_list:
-            assert c.kwargs.get("status") != NEEDS_REBASE
+        tracker.create_issue.assert_not_called()
+        tracker.update_issue.assert_called_once_with(
+            "TASK-18",
+            status=NEEDS_REBASE,
+            priority="0",
+            **{"add-label": "merge-conflict"},
+        )
 
     def test_epic_branch_conflict_idempotent_when_rebase_sibling_open(self, tmp_path):
         project = _make_project()

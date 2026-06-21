@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import fnmatch
 import subprocess
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 
 import pytest
 
@@ -26,6 +26,7 @@ from oompah.statuses import (
     MERGED,
     NEEDS_CI_FIX,
     NEEDS_HUMAN,
+    NEEDS_REBASE,
     OPEN,
 )
 
@@ -408,6 +409,59 @@ class TestSharedModeDispatchGating:
             assert orch._should_dispatch(parent) is False
         reason, _count = orch.state.reject_streak[parent.id]
         assert reason == "epic_rollup_parent"
+
+    def test_allows_mature_epic_needs_ci_fix_repair(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="TASK-738",
+            issue_type="epic",
+            state=NEEDS_CI_FIX,
+            labels=["ci-fix"],
+            work_branch="epic-TASK-738",
+        )
+        children = [
+            _make_issue(identifier="TASK-738.1", state=IN_REVIEW),
+            _make_issue(identifier="TASK-738.2", state=MERGED),
+        ]
+
+        with patch.object(orch, "_fetch_epic_children", return_value=children):
+            assert orch._should_dispatch(epic) is True
+
+    def test_rejects_epic_repair_when_children_not_review_ready(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="TASK-738",
+            issue_type="epic",
+            state=NEEDS_CI_FIX,
+            labels=["ci-fix"],
+            work_branch="epic-TASK-738",
+        )
+        child = _make_issue(identifier="TASK-738.1", state=OPEN)
+
+        with patch.object(orch, "_fetch_epic_children", return_value=[child]):
+            assert orch._should_dispatch(epic) is False
+        reason, _count = orch.state.reject_streak[epic.id]
+        assert reason == "epic"
+
+    def test_allows_mature_inferred_rollup_parent_needs_rebase(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        parent = _make_issue(
+            identifier="TASK-738",
+            issue_type="feature",
+            state=NEEDS_REBASE,
+            labels=["merge-conflict"],
+            work_branch="epic-TASK-738",
+        )
+        children = [
+            _make_issue(identifier="TASK-738.1", state=IN_REVIEW),
+            _make_issue(identifier="TASK-738.2", state=DONE),
+        ]
+
+        with patch.object(orch, "_fetch_epic_children", return_value=children):
+            assert orch._should_dispatch(parent) is True
 
     def test_rejects_when_sibling_running_in_shared_mode(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
@@ -906,6 +960,31 @@ class TestWorkspaceAllocation:
         assert wp == "/wt/per-task"
         assert epic is None
         orch.project_store.create_worktree.assert_called_once()
+
+    def test_mature_epic_repair_uses_epic_worktree(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.create_epic_worktree.return_value = "/wt/epic-TASK-738"
+        issue = _make_issue(
+            identifier="TASK-738",
+            issue_type="epic",
+            state=NEEDS_CI_FIX,
+            labels=["ci-fix"],
+            work_branch="epic-TASK-738",
+            project_id="proj-1",
+        )
+        children = [_make_issue(identifier="TASK-738.1", state=IN_REVIEW)]
+
+        with patch.object(orch, "_fetch_epic_children", return_value=children):
+            wp, epic = orch._create_workspace_for_issue(issue)
+
+        assert wp == "/wt/epic-TASK-738"
+        assert epic is issue
+        orch.project_store.create_epic_worktree.assert_called_once_with(
+            "proj-1",
+            "TASK-738",
+        )
+        orch.project_store.create_worktree.assert_not_called()
 
 
 # ------------------------------------------------------------- PR target test
@@ -2724,7 +2803,9 @@ class TestEpicRollupStatusReconciliation:
         tracker.update_issue.assert_called_once_with("child-1", status=IN_REVIEW)
         assert epic.state == NEEDS_CI_FIX
 
-    def test_existing_review_epic_syncs_late_done_child(self, tmp_path):
+    def test_existing_review_epic_syncs_late_done_child_and_promotes_epic(
+        self, tmp_path
+    ):
         orch, tracker = self._orch_with_tracker(tmp_path)
         epic = _make_issue(
             identifier="TRICKLE-1",
@@ -2756,11 +2837,45 @@ class TestEpicRollupStatusReconciliation:
         ):
             updated = orch._reconcile_epic_rollup_statuses([epic])
 
-        assert updated == 0
+        assert updated == 1
         has_branch_work.assert_called_once()
-        tracker.update_issue.assert_called_once_with("TRICKLE-5", status=IN_REVIEW)
+        assert tracker.update_issue.call_args_list == [
+            call("TRICKLE-5", status=IN_REVIEW),
+            call("TRICKLE-1", status=IN_REVIEW),
+        ]
         assert late_done.state == IN_REVIEW
-        assert epic.state == IN_PROGRESS
+        assert epic.state == IN_REVIEW
+
+    def test_existing_review_epic_with_review_ready_children_promotes_to_review(
+        self, tmp_path
+    ):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        epic = _make_issue(
+            identifier="TRICKLE-1",
+            issue_type="epic",
+            state=IN_PROGRESS,
+            work_branch="epic-TRICKLE-1",
+            review_url="https://github.com/org/repo/pull/267",
+        )
+        tracker.fetch_children.return_value = [
+            _make_issue(
+                identifier="TRICKLE-2",
+                state=IN_REVIEW,
+                parent_id=epic.identifier,
+            ),
+            _make_issue(
+                identifier="TRICKLE-7",
+                state=MERGED,
+                parent_id=epic.identifier,
+            ),
+        ]
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            updated = orch._reconcile_epic_rollup_statuses([epic])
+
+        assert updated == 1
+        tracker.update_issue.assert_called_once_with("TRICKLE-1", status=IN_REVIEW)
+        assert epic.state == IN_REVIEW
 
     def test_matching_rollup_status_is_not_rewritten(self, tmp_path):
         orch, tracker = self._orch_with_tracker(tmp_path)
@@ -2789,6 +2904,47 @@ class TestEpicRollupStatusReconciliation:
 
         assert updated == 0
         tracker.update_issue.assert_not_called()
+
+
+class TestEpicReviewRepairCompletion:
+    def test_finished_ci_repair_returns_epic_to_review(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        epic = _make_issue(
+            identifier="TASK-738",
+            issue_type="epic",
+            state=IN_PROGRESS,
+            labels=["ci-fix"],
+            work_branch="epic-TASK-738",
+            project_id="proj-1",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier=epic.identifier,
+            issue=epic,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+        children = [_make_issue(identifier="TASK-738.1", state=IN_REVIEW)]
+        orch._ensure_review_exists = MagicMock(return_value=True)
+
+        with patch.object(orch, "_fetch_epic_children", return_value=children):
+            result = orch._finish_epic_review_repair(
+                tracker,
+                entry,
+                epic,
+                "proj-1",
+            )
+
+        assert result is True
+        assert tracker.update_issue.call_args_list == [
+            call("TASK-738", **{"remove-label": "ci-fix"}),
+            call("TASK-738", status=IN_REVIEW),
+        ]
+        assert epic.state == IN_REVIEW
 
 
 class TestPushEpicBranch:

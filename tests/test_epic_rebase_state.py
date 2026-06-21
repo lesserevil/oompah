@@ -26,6 +26,7 @@ from oompah.config import ServiceConfig
 from oompah.epic_staleness import StalenessResult
 from oompah.models import EpicRebaseState, EpicRebaseStateEntry, Issue
 from oompah.orchestrator import Orchestrator
+from oompah.statuses import DONE, IN_REVIEW, NEEDS_REBASE
 
 
 def _make_issue(
@@ -489,3 +490,57 @@ class TestEpicStaleAlert:
         assert "last rebase run failed" in alert["action"]
         assert "finish or retry the rebase" in alert["action"]
         assert alert["message"] == f"{alert['title']}. {alert['action']}"
+
+# ---------------------------------------------------------------------------
+# Proactive rebase dispatch
+# ---------------------------------------------------------------------------
+
+
+class TestDispatchProactiveRebaseAgents:
+    def test_mature_epic_is_marked_needs_rebase_instead_of_helper(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        project = MagicMock()
+        project.id = "proj-1"
+        project.name = "oompah"
+        project.default_branch = "main"
+        orch.project_store.get.return_value = project
+        orch.project_store.epic_branch_name.side_effect = lambda ident: f"epic-{ident}"
+
+        issue = _make_issue("TASK-18", state="open", project_id="proj-1")
+        children = [
+            _make_issue(
+                "TASK-18.1",
+                state=IN_REVIEW,
+                issue_type="task",
+                project_id="proj-1",
+            ),
+            _make_issue(
+                "TASK-18.2",
+                state=DONE,
+                issue_type="task",
+                project_id="proj-1",
+            ),
+        ]
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._fetch_epic_children = MagicMock(return_value=children)
+        orch._should_dispatch_rebase_agent = MagicMock(return_value=True)
+        orch._epic_rebase_states["TASK-18"] = EpicRebaseStateEntry(
+            state=EpicRebaseState.STALE.value,
+            updated_at=time.time(),
+            project_id="proj-1",
+        )
+
+        filed = orch._dispatch_proactive_rebase_agents([issue])
+
+        assert filed == 1
+        tracker.create_issue.assert_not_called()
+        tracker.update_issue.assert_any_call(
+            "TASK-18",
+            status=NEEDS_REBASE,
+            priority="0",
+            **{"add-label": "merge-conflict"},
+        )

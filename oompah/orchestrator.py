@@ -180,6 +180,18 @@ _WORKTREE_CLEANUP_STATES: tuple[str, ...] = (MERGED, ARCHIVED)
 _WORKTREE_CLEANUP_STATE_KEYS: frozenset[str] = frozenset(
     _state_key(state) for state in _WORKTREE_CLEANUP_STATES
 )
+_EPIC_REVIEW_REPAIR_STATUSES: frozenset[str] = frozenset(
+    {NEEDS_CI_FIX, NEEDS_REBASE}
+)
+_EPIC_REVIEW_REPAIR_RUNNING_STATUSES: frozenset[str] = frozenset(
+    {NEEDS_CI_FIX, NEEDS_REBASE, IN_PROGRESS}
+)
+_EPIC_REVIEW_REPAIR_LABELS: frozenset[str] = frozenset(
+    {"ci-fix", "merge-conflict"}
+)
+_EPIC_REVIEW_READY_CHILD_STATES: frozenset[str] = frozenset(
+    {IN_REVIEW, DONE, MERGED, ARCHIVED}
+)
 
 
 def _is_cleanable_worktree_state(state: str | None) -> bool:
@@ -3430,7 +3442,9 @@ class Orchestrator:
                 current_status in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
                 or getattr(epic, "review_url", None)
                 or getattr(epic, "review_number", None)
-                or "epic:rebasing" in labels
+                or labels.intersection(
+                    {"epic:rebasing", "ci-fix", "merge-conflict"}
+                )
             )
             epic_branch = str(getattr(epic, "work_branch", "") or "").strip()
             if has_review_evidence and not epic_branch:
@@ -3460,6 +3474,12 @@ class Orchestrator:
                 child_states = [child.state for child in children]
 
             rolled = epic_rollup_state(child_states)
+            if (
+                has_review_evidence
+                and self._epic_children_complete_for_review_work(children)
+                and current_status not in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
+            ):
+                rolled = IN_REVIEW
             rolled_status = canonicalize_status(rolled)
             if (
                 not rolled
@@ -3787,6 +3807,79 @@ class Orchestrator:
         """Return True when tracker state shows this issue has children."""
         return bool(self._fetch_epic_children(issue))
 
+    def _is_epic_rollup_parent(
+        self,
+        issue: Issue,
+        children: list[Issue] | None = None,
+    ) -> bool:
+        """Return True when *issue* is the parent rollup for child work."""
+        if _is_epic_issue(issue):
+            return True
+        strategy = self._project_epic_strategy(issue.project_id)
+        if strategy not in ("stacked", "shared"):
+            return False
+        if children is not None:
+            return bool(children)
+        return self._issue_has_children(issue)
+
+    def _epic_children_complete_for_review_work(
+        self,
+        children: list[Issue] | tuple[Issue, ...],
+    ) -> bool:
+        """True when every actionable child has reached the epic-review phase."""
+        if not children:
+            return False
+        actionable = [
+            canonicalize_status(child.state)
+            for child in children
+            if canonicalize_status(child.state) not in {PROPOSED, DECOMPOSED}
+        ]
+        if not actionable:
+            return False
+        return all(
+            status in _EPIC_REVIEW_READY_CHILD_STATES
+            for status in actionable
+        )
+
+    def _is_mature_epic_review_issue(
+        self,
+        issue: Issue,
+        children: list[Issue] | None = None,
+    ) -> bool:
+        """Return True when an epic/rollup should be treated as review work."""
+        if children is None:
+            children = self._fetch_epic_children(issue)
+        return (
+            self._is_epic_rollup_parent(issue, children)
+            and self._epic_children_complete_for_review_work(children)
+        )
+
+    def _is_epic_review_repair_issue(
+        self,
+        issue: Issue,
+        *,
+        children: list[Issue] | None = None,
+        dispatch_gate: bool = False,
+    ) -> bool:
+        """True when *issue* is mature epic review work needing an agent repair.
+
+        ``dispatch_gate=True`` is stricter and only admits pre-dispatch repair
+        statuses.  Once claimed, oompah moves the issue to ``In Progress``; the
+        workspace and completion paths still need to recognize that same repair
+        run by its safety label.
+        """
+        status = canonicalize_status(issue.state)
+        labels = {str(label).strip().lower() for label in issue.labels or []}
+        if dispatch_gate:
+            if status not in _EPIC_REVIEW_REPAIR_STATUSES:
+                return False
+        elif (
+            status not in _EPIC_REVIEW_REPAIR_RUNNING_STATUSES
+            and labels.isdisjoint(_EPIC_REVIEW_REPAIR_LABELS)
+        ):
+            return False
+        return self._is_mature_epic_review_issue(issue, children)
+
     def _epic_branch_for_issue(self, epic: Issue) -> str:
         """Return the branch that should carry an epic rollup."""
         work_branch = getattr(epic, "work_branch", None)
@@ -4031,6 +4124,31 @@ class Orchestrator:
             workspace = self.workspace_mgr.create_for_issue(issue.identifier)
             self.workspace_mgr.run_before_run(workspace.path)
             return workspace.path, None
+
+        if self._is_epic_review_repair_issue(issue):
+            default_epic_branch = self.project_store.epic_branch_name(
+                issue.identifier
+            )
+            explicit_branch = (
+                str(getattr(issue, "work_branch", "") or "").strip()
+                or str(getattr(issue, "branch_name", "") or "").strip()
+            )
+            work_branch = explicit_branch or default_epic_branch
+            issue.work_branch = work_branch
+            issue.branch_name = work_branch
+            if work_branch == default_epic_branch:
+                wp = self.project_store.create_epic_worktree(
+                    issue.project_id,
+                    issue.identifier,
+                )
+                return wp, issue
+            wp = self.project_store.create_worktree(
+                issue.project_id,
+                issue.identifier,
+                base_branch=issue.target_branch,
+                branch_name=work_branch,
+            )
+            return wp, issue
 
         strategy = self._project_epic_strategy(issue.project_id)
         if strategy == "shared":
@@ -5495,14 +5613,13 @@ class Orchestrator:
         return False
 
     def _dispatch_proactive_rebase_agents(self, candidates: list[Issue]) -> int:
-        """File rebase tasks for stale epics that need a rebase agent.
+        """Mark stale review-ready epics for rebase, or file helper tasks.
 
         Iterates over ``candidates`` looking for epics in ``STALE`` or
         ``FAILED`` state (or ``REBASING`` when the in-flight timeout has
-        elapsed).  For each such epic that passes
-        :meth:`_should_dispatch_rebase_agent`, files a sibling task
-        task under the epic with the ``merge-conflict`` label so the
-        normal dispatch loop routes it to the merge-conflict focus.
+        elapsed).  Once all children have reached review/terminal states,
+        the epic itself is the dispatchable repair unit.  Earlier rollups
+        keep the legacy sibling task fallback.
 
         Idempotent: checks for an existing open ``merge-conflict``
         sibling before creating a new one.
@@ -5541,6 +5658,31 @@ class Orchestrator:
 
             try:
                 tracker = self._tracker_for_project(issue.project_id)
+                children = self._fetch_epic_children(issue)
+                if self._is_mature_epic_review_issue(issue, children):
+                    self._mark_epic_review_repair_issue(
+                        tracker,
+                        issue,
+                        status=NEEDS_REBASE,
+                        label="merge-conflict",
+                        source_branch=epic_branch,
+                        target_branch=target_branch,
+                        comment=(
+                            f"The epic branch `{epic_branch}` is stale: it has "
+                            f"fallen behind `{target_branch}`. Rebase the branch "
+                            f"onto `origin/{target_branch}`, resolve any "
+                            "conflicts, and force-push with "
+                            "`git push --force-with-lease`."
+                        ),
+                    )
+                    self._set_epic_rebase_state(
+                        issue.identifier,
+                        EpicRebaseState.REBASING,
+                        project_id=issue.project_id,
+                    )
+                    filed += 1
+                    continue
+
                 # Idempotency: don't file duplicate if an actionable rebase
                 # sibling already exists under this epic.
                 open_rebase = self._find_active_epic_rebase_sibling(
@@ -5621,6 +5763,72 @@ class Orchestrator:
             target_branch,
         )
 
+    def _mark_epic_review_repair_issue(
+        self,
+        tracker,
+        issue: Issue,
+        *,
+        status: str,
+        label: str,
+        source_branch: str | None = None,
+        target_branch: str | None = None,
+        review_id: str | None = None,
+        review_url: str | None = None,
+        comment: str | None = None,
+    ) -> None:
+        """Move a mature epic/rollup into a dispatchable repair state.
+
+        This is intentionally different from filing a sibling helper task:
+        once the children are complete, CI/rebase work belongs to the epic PR
+        itself and must run on the epic branch.
+        """
+        current_status = canonicalize_status(issue.state)
+        labels = {str(value).strip().lower() for value in issue.labels or []}
+        clean_source = str(source_branch or "").strip()
+        clean_target = str(target_branch or "").strip()
+        if clean_source:
+            issue.work_branch = clean_source
+            issue.branch_name = clean_source
+        if clean_target:
+            issue.target_branch = clean_target
+
+        if clean_source or clean_target or review_id or review_url:
+            self._write_review_metadata(
+                tracker,
+                issue.identifier,
+                review_id=str(review_id) if review_id else None,
+                review_url=review_url if isinstance(review_url, str) else None,
+                source_branch=clean_source or None,
+                target_branch=clean_target or None,
+            )
+
+        if current_status == status and label in labels:
+            if issue.id:
+                self.state.completed.discard(issue.id)
+            return
+
+        tracker.update_issue(
+            issue.identifier,
+            status=status,
+            priority="0",
+            **{"add-label": label},
+        )
+        issue.state = status
+        issue.priority = 0
+        current_labels = list(issue.labels or [])
+        if label not in current_labels:
+            issue.labels = current_labels + [label]
+        if issue.id:
+            self.state.completed.discard(issue.id)
+        if comment and label not in labels and current_status != status:
+            tracker.add_comment(issue.identifier, comment, author="oompah")
+        logger.info(
+            "Marked mature epic review issue %s as %s on branch %s",
+            issue.identifier,
+            status,
+            clean_source or getattr(issue, "work_branch", None) or "<default>",
+        )
+
     def _should_dispatch(self, issue: Issue) -> bool:
         def _reject(reason: str) -> bool:
             # Track consecutive rejections for stuck-issue detection
@@ -5654,10 +5862,15 @@ class Orchestrator:
             return _reject("project_paused")
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return _reject("missing_fields")
+        epic_review_repair = self._is_epic_review_repair_issue(
+            issue,
+            dispatch_gate=True,
+        )
         if (
             (issue.issue_type or "").strip().lower() != "epic"
             and self._project_epic_strategy(issue.project_id) in ("stacked", "shared")
             and self._issue_has_children(issue)
+            and not epic_review_repair
         ):
             return _reject("epic_rollup_parent")
         # Refuse to dispatch tasks with no body. A title alone is not enough
@@ -5666,13 +5879,19 @@ class Orchestrator:
         # for ad-hoc CLI testing. Operator either fills in the description,
         # closes the task, or defers it. Epics get a pass because they are
         # planned separately and may legitimately start as title-only.
-        if issue.issue_type != "epic" and not (issue.description or "").strip():
+        if (
+            (issue.issue_type or "").strip().lower() != "epic"
+            and not epic_review_repair
+            and not (issue.description or "").strip()
+        ):
             return _reject("empty_description")
-        # Never dispatch epics via normal dispatch — they are planned
-        # separately by _plan_open_epics / _should_dispatch_epic
-        if issue.issue_type == "epic":
+        # Planning epics are handled separately by
+        # _plan_open_epics/_should_dispatch_epic. Once every child is complete
+        # and the epic PR itself needs CI/rebase repair, the epic becomes the
+        # dispatchable unit so the agent fixes the existing epic branch.
+        if (issue.issue_type or "").strip().lower() == "epic" and not epic_review_repair:
             return _reject("epic")
-        if self._issue_requires_parent_epic(issue):
+        if not epic_review_repair and self._issue_requires_parent_epic(issue):
             if canonicalize_status(issue.state) != NEEDS_HUMAN:
                 self._mark_issue_needs_epic_parent(issue, issue.project_id)
             return _reject("missing_parent_epic")
@@ -5859,7 +6078,6 @@ class Orchestrator:
             # treating the candidate as a first dispatch is correct.
             if (
                 not self._has_explicit_handoff_label(issue)
-                and issue.issue_type != "epic"
                 and self._is_safety_critical_issue(issue)
             ):
                 acp_profile = self._find_acp_profile()
@@ -10266,15 +10484,11 @@ class Orchestrator:
                 )
                 return
 
-            # Shared/stacked EPIC branches: the epic itself is never run by the
-            # normal dispatch loop (issue_type == 'epic' is rejected), so marking
-            # the epic "Needs Rebase" loops forever and never resolves the
-            # conflict. File a dispatchable P0 rebase task directly (it works
-            # on the epic branch and opens no new PR). We do NOT route through the
-            # epic STALE rebase-state: that state is owned by the commit-distance
-            # staleness checker (_check_epic_staleness), which clears it every
-            # tick because a *content* conflict isn't "N commits behind" — a race
-            # that would prevent the task from ever being filed.
+            # Shared/stacked EPIC branches: once every child is complete, the
+            # epic PR itself is the repair unit. Mark the epic Needs Rebase so
+            # an agent runs directly on the epic branch. Before that point,
+            # keep the legacy helper-task fallback because the parent is still
+            # just a rollup over unfinished child work.
             #
             # Idempotency has two layers: (1) an existing actionable rebase
             # sibling means one is in flight; (2) a per-epic cooldown stops
@@ -10282,7 +10496,38 @@ class Orchestrator:
             # BEFORE the forge recomputes the PR's mergeability — otherwise the
             # sibling goes terminal, the check sees "nothing active", and a
             # duplicate is filed every tick until the conflict clears.
-            if issue.issue_type == "epic":
+            children = self._fetch_epic_children(issue)
+            if self._is_mature_epic_review_issue(issue, children):
+                self._mark_epic_review_repair_issue(
+                    tracker,
+                    issue,
+                    status=NEEDS_REBASE,
+                    label="merge-conflict",
+                    source_branch=source_branch,
+                    target_branch=target_branch or project.default_branch,
+                    review_id=review_id_str,
+                    review_url=getattr(review, "url", None),
+                    comment=(
+                        f"YOLO: Merge conflict detected on MR #{review_id}. "
+                        f"Rebase `{source_branch}` onto {target_branch} and "
+                        "resolve conflicts."
+                    ),
+                )
+                self._set_epic_rebase_state(
+                    issue.identifier,
+                    EpicRebaseState.REBASING,
+                    project_id=project.id,
+                )
+                self._epic_rebase_filed_at[issue.identifier] = time.monotonic()
+                logger.info(
+                    "YOLO: marked mature epic %s as P0 Needs Rebase "
+                    "(MR #%s branch conflict)",
+                    issue.identifier,
+                    review_id,
+                )
+                return
+
+            if self._is_epic_rollup_parent(issue, children):
                 # Force a fresh read so the idempotency check below sees a
                 # rebase sibling we filed on a previous tick (the per-tick read
                 # cache would otherwise miss it and we'd re-file every tick).
@@ -10313,7 +10558,8 @@ class Orchestrator:
                 self.state.completed.discard(issue.id)
                 logger.info(
                     "YOLO: filed P0 rebase task for epic %s (MR #%s branch "
-                    "conflict) — epics aren't dispatched directly",
+                    "conflict) — child work is not complete enough to dispatch "
+                    "the parent directly",
                     issue.identifier,
                     review_id,
                 )
@@ -10505,21 +10751,11 @@ class Orchestrator:
                     kind="ci-fix",
                 )
                 return
-            # If the matched task has children, the dispatcher will never
-            # dispatch the task itself — children-with-unmerged-reviews
-            # block the parent via the standard blocker chain, and
-            # epic-planner won't re-plan an already-planned task. This
-            # is independent of issue_type: a type=feature task with
-            # children behaves identically to a type=epic task from the
-            # dispatcher's perspective. Relabeling such a task ci-fix
-            # would silently strand the work forever — that's the live
-            # bug behind oompah-zlz_2-gf9 (trickle-rl5 is type=feature
-            # with 7 children, created via epic_planner but stamped as
-            # feature). File a sibling task task under the parent
-            # instead so an agent actually gets dispatched against the
-            # CI failure. See oompah-zlz_2-p4y, oompah-zlz_2-cd5
-            # (idempotency-via-sibling-presence), and oompah-zlz_2-gf9
-            # (behavioral has-children gate, not issue_type).
+            # If the matched parent has children, choose the repair unit based
+            # on maturity. Once every child is review-ready/terminal, the epic
+            # PR itself is the dispatchable unit and the agent should fix that
+            # branch. Before that point, keep the legacy helper-task fallback
+            # because the parent is still a rollup over unfinished child work.
             #
             # IMPORTANT: this check runs BEFORE the
             # already-labeled-ci-fix early-exit below. Without that
@@ -10530,6 +10766,32 @@ class Orchestrator:
             # oompah-zlz_2-cd5 fixes.
             children = self._fetch_epic_children(issue)
             if children:
+                if self._is_mature_epic_review_issue(issue, children):
+                    self._mark_epic_review_repair_issue(
+                        tracker,
+                        issue,
+                        status=NEEDS_CI_FIX,
+                        label="ci-fix",
+                        source_branch=source_branch,
+                        target_branch=getattr(review, "target_branch", None)
+                        or project.default_branch,
+                        review_id=str(getattr(review, "id", "") or ""),
+                        review_url=getattr(review, "url", None),
+                        comment=(
+                            f"YOLO: CI tests failed on MR #{review.id}. "
+                            "Fix the failing tests so this MR can merge. "
+                            "Do NOT rewrite the feature — only fix test failures. "
+                            "IMPORTANT: Paths in CI logs are not trustworthy. "
+                            "Run tests locally to get accurate paths and errors."
+                        ),
+                    )
+                    logger.info(
+                        "YOLO: marked mature epic %s as P0 ci-fix for MR #%s",
+                        issue.identifier,
+                        review.id,
+                    )
+                    return
+
                 sibling_title = f"CI fix: PR #{review.id} on branch {source_branch}"
 
                 def _is_ci_fix_sibling(child: Issue) -> bool:
@@ -10606,43 +10868,6 @@ class Orchestrator:
                 "ci-fix" in issue.labels or canonicalize_status(issue.state) == NEEDS_CI_FIX
             ):
                 return
-            # If the matched task is an epic with children, the dispatcher will
-            # never dispatch it (epics-with-children are gated out of both
-            # regular dispatch and epic-planner dispatch). Relabeling such an
-            # epic as ci-fix would silently strand the work forever. File a
-            # sibling task task under the epic instead so an agent actually
-            # gets dispatched against the CI failure. See oompah-zlz_2-p4y.
-            if issue.issue_type == "epic":
-                children = self._fetch_epic_children(issue)
-                if children:
-                    sibling_title = f"CI fix: PR #{review.id} on branch {source_branch}"
-                    sibling_description = (
-                        f"YOLO: CI tests failed on MR #{review.id} "
-                        f"(branch {source_branch}). The branch's primary "
-                        f"task {issue.identifier} is an epic with "
-                        f"{len(children)} children and won't be dispatched. "
-                        "This sibling task carries the actual fix work.\n\n"
-                        "Fix the failing tests so this MR can merge. "
-                        "Do NOT rewrite the feature — only fix test failures. "
-                        "IMPORTANT: Paths in CI logs are not trustworthy. "
-                        "Run tests locally to get accurate paths and errors."
-                    )
-                    sibling = tracker.create_issue(
-                        title=sibling_title,
-                        issue_type="task",
-                        description=sibling_description,
-                        priority=0,
-                        parent=issue.identifier,
-                        initial_status=NEEDS_CI_FIX,
-                        labels=["ci-fix"],
-                    )
-                    logger.info(
-                        "YOLO: filed sibling ci-fix task %s under epic %s for MR #%s",
-                        sibling.identifier,
-                        issue.identifier,
-                        review.id,
-                    )
-                    return
             tracker.update_issue(
                 issue.identifier,
                 status=NEEDS_CI_FIX,
@@ -12703,6 +12928,8 @@ class Orchestrator:
         labels = {l.lower() for l in (issue.labels or [])}
         if "merge-conflict" in labels or "ci-fix" in labels:
             return True
+        if canonicalize_status(issue.state) in _EPIC_REVIEW_REPAIR_STATUSES:
+            return True
         # Also match each Focus's keywords (whole-word, case-insensitive)
         # so tasks that describe the work but lack the label still get the carve-out.
         text = f"{issue.title or ''} {issue.description or ''}".lower()
@@ -12873,7 +13100,6 @@ class Orchestrator:
             if (
                 self._is_first_dispatch(issue, attempt, override_profile)
                 and not self._has_explicit_handoff_label(issue)
-                and issue.issue_type != "epic"
                 and self._is_safety_critical_issue(issue)
                 and not self._profile_is_acp(profile)
             ):
@@ -13018,6 +13244,19 @@ class Orchestrator:
             running_issue = post_update[0]
             if not running_issue.project_id:
                 running_issue.project_id = issue.project_id
+            for attr in (
+                "work_branch",
+                "branch_name",
+                "target_branch",
+                "review_url",
+                "review_number",
+            ):
+                if not getattr(running_issue, attr, None) and getattr(
+                    issue,
+                    attr,
+                    None,
+                ):
+                    setattr(running_issue, attr, getattr(issue, attr))
             if _state_key(running_issue.state) != "in_progress":
                 running_issue = replace(
                     running_issue,
@@ -14809,6 +15048,77 @@ class Orchestrator:
             )
         return result
 
+    def _finish_epic_review_repair(
+        self,
+        tracker,
+        entry: RunningEntry,
+        current: Issue,
+        project_id: str | None,
+    ) -> bool | None:
+        """Finalize a successful repair run on an epic review branch.
+
+        Returns ``None`` when ``current`` is not an epic repair issue,
+        ``True`` when it was returned to review, and ``False`` when review
+        handoff failed and the task should remain dispatchable.
+        """
+        if project_id and not current.project_id:
+            current.project_id = project_id
+        if entry.issue is not None:
+            if not current.issue_type:
+                current.issue_type = entry.issue.issue_type
+            merged_labels: list[str] = []
+            for label in list(current.labels or []) + list(entry.issue.labels or []):
+                if label not in merged_labels:
+                    merged_labels.append(label)
+            current.labels = merged_labels
+            if not getattr(current, "work_branch", None):
+                current.work_branch = getattr(entry.issue, "work_branch", None)
+            if not getattr(current, "branch_name", None):
+                current.branch_name = getattr(entry.issue, "branch_name", None)
+        if not self._is_epic_review_repair_issue(current):
+            return None
+
+        review_ready = self._ensure_review_exists(entry, project_id)
+        if not review_ready:
+            return False
+
+        labels = {str(label).strip().lower() for label in current.labels or []}
+        for label in sorted(labels.intersection(_EPIC_REVIEW_REPAIR_LABELS)):
+            try:
+                tracker.update_issue(
+                    current.identifier,
+                    **{"remove-label": label},
+                )
+            except Exception as exc:  # noqa: BLE001 - status handoff still matters
+                logger.debug(
+                    "Failed to remove repair label %s from %s: %s",
+                    label,
+                    current.identifier,
+                    exc,
+                )
+        try:
+            tracker.update_issue(current.identifier, status=IN_REVIEW)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Failed to return repaired epic %s to In Review: %s",
+                current.identifier,
+                exc,
+            )
+            return False
+
+        if "merge-conflict" in labels:
+            self._set_epic_rebase_state(
+                current.identifier,
+                EpicRebaseState.REBASED,
+                project_id=project_id,
+            )
+        current.state = IN_REVIEW
+        logger.info(
+            "Epic review repair completed for %s; returned to In Review",
+            current.identifier,
+        )
+        return True
+
     async def _on_worker_exit(
         self, issue_id: str, reason: str, error: str | None
     ) -> None:
@@ -14953,7 +15263,23 @@ class Orchestrator:
                     # YOLO merges the MR.  Don't count these toward the reopen
                     # limit; just mark completed and let YOLO handle the rest.
                     current_labels = {l.lower() for l in (current.labels or [])}
-                    if "merge-conflict" in current_labels or canonicalize_status(current.state) == NEEDS_REBASE:
+                    repair_finished = self._finish_epic_review_repair(
+                        tracker,
+                        entry,
+                        current,
+                        project_id,
+                    )
+                    if repair_finished is not None:
+                        if repair_finished:
+                            self.state.completed.add(issue_id)
+                            self.state.reopen_counts.pop(issue_id, None)
+                            self._verifier_reject_counts.pop(issue_id, None)
+                        else:
+                            self.state.completed.discard(issue_id)
+                    elif (
+                        "merge-conflict" in current_labels
+                        or canonicalize_status(current.state) == NEEDS_REBASE
+                    ):
                         logger.info(
                             "Merge-conflict agent completed for %s — "
                             "closing, awaiting YOLO merge",
