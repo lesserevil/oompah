@@ -1234,10 +1234,40 @@ class TestResetOrphanedInProgress:
 
         issue = _make_issue("epic-1", state="In Progress", issue_type="epic")
         issue.project_id = project.id
-        orch._reset_orphaned_in_progress([issue])
+        child = _make_issue("child-1", state="Open", parent_id=issue.identifier)
+        with patch.object(orch, "_fetch_epic_children", return_value=[child]):
+            orch._reset_orphaned_in_progress([issue])
 
         mock_tracker.update_issue.assert_not_called()
         assert issue.id not in orch._orphan_reset_counts
+
+    def test_resets_orphaned_epic_review_repair_to_needs_ci_fix(self, tmp_path):
+        project = _make_project(epic_strategy="shared")
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        issue = _make_issue(
+            "TRICKLE-1",
+            state="In Progress",
+            labels=["ci-fix"],
+            issue_type="epic",
+        )
+        issue.project_id = project.id
+        issue.work_branch = "epic-TRICKLE-1"
+        children = [
+            _make_issue("TRICKLE-2", state=IN_REVIEW, parent_id=issue.identifier),
+            _make_issue("TRICKLE-3", state=MERGED, parent_id=issue.identifier),
+        ]
+
+        with patch.object(orch, "_fetch_epic_children", return_value=children):
+            orch._reset_orphaned_in_progress([issue])
+
+        mock_tracker.update_issue.assert_called_once_with(
+            "TRICKLE-1",
+            status=NEEDS_CI_FIX,
+            priority="0",
+        )
 
     def test_resets_ci_fix_orphan_to_needs_ci_fix_p0(self, tmp_path):
         project = _make_project()
@@ -1423,6 +1453,50 @@ class TestBacklogStatusReconciliation:
 
         orch._terminate_running.assert_not_called()
         assert orch.state.running[issue.id].issue.state == "In Progress"
+
+    def test_reconcile_preserves_running_epic_repair_read_as_review(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue(
+            "TRICKLE-1",
+            state=IN_PROGRESS,
+            labels=["ci-fix"],
+            issue_type="epic",
+            project_id="proj-trickle",
+        )
+        fresh = _make_issue(
+            "TRICKLE-1",
+            state=IN_REVIEW,
+            labels=["ci-fix"],
+            issue_type="epic",
+            project_id="proj-trickle",
+        )
+        child = _make_issue(
+            "TRICKLE-2",
+            state=IN_REVIEW,
+            parent_id=issue.identifier,
+            project_id="proj-trickle",
+        )
+        tracker = MagicMock()
+        task = MagicMock()
+        task.done.return_value = True
+        orch.state.running[issue.id] = RunningEntry(
+            worker_task=task,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+        )
+        orch._fetch_running_states = MagicMock(return_value={issue.id: fresh})
+        orch._fetch_epic_children = MagicMock(return_value=[child])
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._terminate_running = AsyncMock()
+
+        asyncio.run(orch._reconcile())
+
+        orch._terminate_running.assert_not_called()
+        tracker.update_issue.assert_called_once_with("TRICKLE-1", status=IN_PROGRESS)
+        assert orch.state.running[issue.id].issue.state == IN_PROGRESS
 
 
 class TestShouldDispatchCompleted:

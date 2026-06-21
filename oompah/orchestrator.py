@@ -3494,6 +3494,34 @@ class Orchestrator:
 
             try:
                 tracker = self._tracker_for_issue(epic)
+                running_entry = self.state.running.get(epic.id or "")
+                if (
+                    running_entry
+                    and running_entry.issue
+                    and self._is_epic_review_repair_issue(
+                        running_entry.issue,
+                        children=children,
+                    )
+                ):
+                    logger.info(
+                        "Skipping rollup reconciliation for active epic repair %s",
+                        epic.identifier,
+                    )
+                    continue
+                refreshed = None
+                try:
+                    refreshed = tracker.fetch_issue_detail(epic.identifier)
+                except Exception:
+                    refreshed = None
+                if isinstance(refreshed, Issue) and self._is_epic_review_repair_issue(
+                    refreshed,
+                    children=children,
+                ):
+                    logger.info(
+                        "Skipping stale rollup reconciliation for active epic repair %s",
+                        epic.identifier,
+                    )
+                    continue
                 tracker.update_issue(epic.identifier, status=rolled)
                 epic.state = rolled
                 updated += 1
@@ -6452,9 +6480,11 @@ class Orchestrator:
             if _state_key(issue.state) != "in_progress":
                 continue
             if (issue.issue_type or "").strip().lower() == "epic":
-                # Epic state is a rollup of child state. The epic itself does not
-                # have a running agent, so orphan cleanup must not rewrite it.
-                continue
+                # Planning epic state is a rollup of child state. A mature
+                # epic review repair is different: the epic itself is the
+                # dispatch unit for CI/rebase work on the existing epic PR.
+                if not self._is_epic_review_repair_issue(issue):
+                    continue
             if issue.id in running_ids or issue.id in retry_ids:
                 continue
             if issue.id in claimed_ids:
@@ -16554,13 +16584,45 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 )
                 await self._terminate_running(issue_id, cleanup_workspace=True)
             else:
+                running_entry = self.state.running.get(issue_id)
+                repair_status = canonicalize_status(issue.state)
+                if (
+                    running_entry
+                    and repair_status in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
+                    and self._is_epic_review_repair_issue(issue)
+                ):
+                    logger.info(
+                        "Reconcile: preserving active epic repair issue_id=%s state=%s",
+                        issue_id,
+                        issue.state,
+                    )
+                    try:
+                        project_id = issue.project_id or (
+                            running_entry.issue.project_id
+                            if running_entry.issue
+                            else None
+                        )
+                        tracker = (
+                            self._tracker_for_project(project_id)
+                            if project_id
+                            else self.tracker
+                        )
+                        tracker.update_issue(issue.identifier, status=IN_PROGRESS)
+                        issue.state = IN_PROGRESS
+                    except Exception as exc:  # noqa: BLE001 - keep the repair alive
+                        logger.warning(
+                            "Failed to restore in-progress state for epic repair %s: %s",
+                            issue.identifier,
+                            exc,
+                        )
+                    self.state.running[issue_id].issue = issue
+                    continue
                 # Moved out of in_progress (to open, deferred, etc.) — stop agent
                 logger.warning(
                     "Reconcile: no longer in_progress issue_id=%s state=%s — terminating agent",
                     issue_id,
                     issue.state,
                 )
-                running_entry = self.state.running.get(issue_id)
                 await self._terminate_running(issue_id, cleanup_workspace=False)
                 # If state reverted to an active state (e.g. open), mark as claimed
                 # with a cooldown to prevent immediate re-dispatch loops

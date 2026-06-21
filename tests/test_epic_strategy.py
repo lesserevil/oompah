@@ -2877,6 +2877,46 @@ class TestEpicRollupStatusReconciliation:
         tracker.update_issue.assert_called_once_with("TRICKLE-1", status=IN_REVIEW)
         assert epic.state == IN_REVIEW
 
+    def test_stale_rollup_snapshot_does_not_overwrite_active_epic_repair(
+        self, tmp_path
+    ):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        stale_epic = _make_issue(
+            identifier="TRICKLE-1",
+            issue_type="epic",
+            state=IN_PROGRESS,
+            work_branch="epic-TRICKLE-1",
+            review_url="https://github.com/org/repo/pull/267",
+        )
+        current_epic = _make_issue(
+            identifier="TRICKLE-1",
+            issue_type="epic",
+            state=IN_PROGRESS,
+            labels=["ci-fix"],
+            work_branch="epic-TRICKLE-1",
+            review_url="https://github.com/org/repo/pull/267",
+        )
+        tracker.fetch_children.return_value = [
+            _make_issue(
+                identifier="TRICKLE-2",
+                state=IN_REVIEW,
+                parent_id=stale_epic.identifier,
+            ),
+            _make_issue(
+                identifier="TRICKLE-3",
+                state=MERGED,
+                parent_id=stale_epic.identifier,
+            ),
+        ]
+        tracker.fetch_issue_detail.return_value = current_epic
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            updated = orch._reconcile_epic_rollup_statuses([stale_epic])
+
+        assert updated == 0
+        tracker.update_issue.assert_not_called()
+        assert stale_epic.state == IN_PROGRESS
+
     def test_matching_rollup_status_is_not_rewritten(self, tmp_path):
         orch, tracker = self._orch_with_tracker(tmp_path)
         epic = _make_issue(identifier="epic-1", issue_type="epic", state=OPEN)
