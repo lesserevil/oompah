@@ -1173,6 +1173,22 @@ def _fetch_open_reviews_for_api(
     return results, reviews_by_project, successful_project_ids
 
 
+def _active_review_branches(orch: "Orchestrator") -> set[str]:
+    """Return source branches that currently have an active worker."""
+    branches: set[str] = set()
+    for entry in getattr(getattr(orch, "state", None), "running", {}).values():
+        issue = getattr(entry, "issue", None)
+        for value in (
+            getattr(issue, "work_branch", None),
+            getattr(issue, "branch_name", None),
+            getattr(issue, "identifier", None),
+            getattr(entry, "identifier", None),
+        ):
+            if isinstance(value, str) and value.strip():
+                branches.add(value.strip())
+    return branches
+
+
 def _sync_orchestrator_review_cache(
     orch: "Orchestrator",
     reviews_by_project: dict[str, list[ReviewRequest]],
@@ -6961,11 +6977,7 @@ async def api_list_reviews():
             projects
         )
         # Enrich reviews with agent status
-        active_branches = {
-            entry.issue.identifier
-            for entry in orch.state.running.values()
-            if entry.issue
-        }
+        active_branches = _active_review_branches(orch)
         # oompah-zlz_2-btf.2: surface YOLO repo-config errors on each PR
         # so the dashboard / per-PR detail can show why YOLO can't merge.
         repo_config_errors = getattr(orch, "_yolo_repo_config_errors", {}) or {}

@@ -9,6 +9,7 @@ page can display the underlying error message.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -215,6 +216,34 @@ class TestApiListReviewsRepoConfig:
         # PR #43: enriched.
         forty_three = next(p for p in payload if p["review"]["id"] == "43")
         assert forty_three["repo_config_error"] == "Auto merge not allowed"
+
+    def test_epic_work_branch_review_is_marked_agent_active(self, client):
+        """A running epic repair is keyed by issue id but acts on the epic branch."""
+        orch = _make_mock_orch()
+        issue = SimpleNamespace(
+            identifier="TRICKLE-1",
+            branch_name="epic-TRICKLE-1",
+            work_branch="epic-TRICKLE-1",
+        )
+        orch.state.running = {
+            "TRICKLE-1": SimpleNamespace(identifier="TRICKLE-1", issue=issue)
+        }
+        reviews = _make_review_dict("267")
+        reviews[0]["review"]["source_branch"] = "epic-TRICKLE-1"
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(
+                server_module,
+                "_fetch_open_reviews_for_api",
+                return_value=_make_fetch_result(reviews),
+            ),
+            patch.object(server_module._api_cache, "get", return_value=None),
+        ):
+            resp = client.get("/api/v1/reviews")
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()[0]["agent_active"] is True
 
 
 class TestApiListReviewsSyncsOrchestratorCache:
