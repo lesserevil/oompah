@@ -1922,13 +1922,12 @@ class TestYoloRetryCi:
         # NO sibling task is created
         tracker.create_issue.assert_not_called()
 
-    def test_already_labeled_ci_fix_is_noop_for_epic_with_children(self, tmp_path):
-        """If the epic-with-children is already labeled ci-fix from a prior
-        cycle that pre-dates this fix, we still skip relabel (idempotent
-        guard runs first). New sibling tasks will only be filed when the
-        task is freshly identified — the per-MR guard below test_only_one
-        ensures we don't spam, and any orphaned ci-fix-labeled epics are
-        a one-time manual cleanup."""
+    def test_already_labeled_ci_fix_epic_with_children_gets_sibling(self, tmp_path):
+        """A ci-fix label on a parent epic is not dispatchable by itself.
+
+        File a sibling task unless an active sibling already exists; otherwise
+        old parent labels strand the failed PR forever.
+        """
         project = _make_project()
         project.yolo = True
         orch = self._make_orchestrator(tmp_path, projects=[project])
@@ -1950,10 +1949,14 @@ class TestYoloRetryCi:
 
         orch._yolo_retry_ci(project, review)
 
-        # Idempotency guard fires first — no relabel, no sibling
         tracker.update_issue.assert_not_called()
         tracker.add_comment.assert_not_called()
-        tracker.create_issue.assert_not_called()
+        tracker.create_issue.assert_called_once()
+        kwargs = tracker.create_issue.call_args.kwargs
+        assert kwargs["title"] == "CI fix: PR #23 on branch trickle-rl5"
+        assert kwargs["parent"] == "trickle-rl5"
+        assert kwargs["initial_status"] == "Needs CI Fix"
+        assert kwargs["labels"] == ["ci-fix"]
 
 
 class TestYoloMergeConflictLabelClearing:

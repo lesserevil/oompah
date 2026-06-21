@@ -20,6 +20,7 @@ import pytest
 from oompah.config import ServiceConfig
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
+from oompah.statuses import NEEDS_CI_FIX
 
 
 def _make_config() -> ServiceConfig:
@@ -492,6 +493,35 @@ class TestEpicBranchCiFailUsesEpicNotOrphan:
         review = MagicMock(source_branch="epic-TASK-706", id="171", ci_status="failed")
         orch._yolo_retry_ci(project, review)
         orch._file_orphan_recovery_task.assert_not_called()
+
+    def test_epic_branch_parent_ci_fix_label_still_files_sibling(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        tracker = MagicMock()
+        epic = MagicMock(
+            identifier="TASK-706",
+            id="TASK-706",
+            labels=["ci-fix"],
+            state="In Review",
+            issue_type="epic",
+        )
+        tracker.fetch_issue_detail.side_effect = lambda i: epic if i == "TASK-706" else None
+        sibling = MagicMock(identifier="TASK-706.2")
+        tracker.create_issue.return_value = sibling
+        orch._project_trackers[project.id] = tracker
+        orch._file_orphan_recovery_task = MagicMock()
+        orch._fetch_epic_children = MagicMock(
+            return_value=[MagicMock(identifier="TASK-706.1", state="Done", labels=[])]
+        )
+        review = MagicMock(source_branch="epic-TASK-706", id="171", ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        orch._file_orphan_recovery_task.assert_not_called()
+        tracker.create_issue.assert_called_once()
+        assert tracker.create_issue.call_args.kwargs["parent"] == "TASK-706"
+        assert tracker.create_issue.call_args.kwargs["initial_status"] == NEEDS_CI_FIX
+        assert tracker.create_issue.call_args.kwargs["labels"] == ["ci-fix"]
 
     def test_true_orphan_still_files_recovery_task(self, tmp_path):
         project = _make_project()

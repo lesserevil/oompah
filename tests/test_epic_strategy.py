@@ -1942,19 +1942,32 @@ class TestOpenEpicMainPrs:
         provider = MagicMock()
         provider.list_merged_branches.return_value = set()
         provider.find_pr_for_branch.return_value = existing_review
+        tracker = MagicMock()
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
             patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch") as push,
-            patch.object(orch, "_tracker_for_project") as tracker_for_project,
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_sync_epic_review_child_states") as sync_children,
         ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 0
         provider.find_pr_for_branch.assert_called_once_with("org/repo", "epic-epic-1")
         provider.create_review.assert_not_called()
-        tracker_for_project.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        tracker.set_metadata_field.assert_any_call(
+            "epic-1",
+            "oompah.review_url",
+            "https://github.com/org/repo/pull/254",
+        )
+        tracker.set_metadata_field.assert_any_call(
+            "epic-1",
+            "oompah.review_number",
+            "254",
+        )
+        sync_children.assert_called_once_with("proj-1", epic, "epic-epic-1")
         push.assert_not_called()
 
     def test_existing_pr_missing_from_cache_advances_epic_to_in_review(
@@ -1987,6 +2000,7 @@ class TestOpenEpicMainPrs:
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch") as push,
             patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_sync_epic_review_child_states") as sync_children,
         ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 0
@@ -2011,8 +2025,120 @@ class TestOpenEpicMainPrs:
             "oompah.target_branch",
             "main",
         )
+        sync_children.assert_called_once_with("proj-1", epic, "epic-epic-1")
         provider.create_review.assert_not_called()
         push.assert_not_called()
+
+    def test_existing_epic_pr_moves_done_children_out_of_done(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        epic = _make_issue(
+            identifier="TRICKLE-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state=IN_REVIEW,
+        )
+        implemented = _make_issue(
+            identifier="TRICKLE-2",
+            state=DONE,
+            parent_id=epic.identifier,
+        )
+        missing = _make_issue(
+            identifier="TRICKLE-5",
+            state=DONE,
+            parent_id=epic.identifier,
+        )
+        rebase = _make_issue(
+            identifier="TRICKLE-7",
+            title="Rebase epic-TRICKLE-1 onto main",
+            state=DONE,
+            parent_id=epic.identifier,
+        )
+        already_open = _make_issue(
+            identifier="TRICKLE-8",
+            state=OPEN,
+            parent_id=epic.identifier,
+        )
+        tracker = MagicMock()
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(
+                orch,
+                "_fetch_epic_children",
+                return_value=[implemented, missing, rebase, already_open],
+            ),
+            patch.object(
+                orch,
+                "_done_review_child_has_epic_branch_work",
+                side_effect=[True, False],
+            ) as has_branch_work,
+        ):
+            orch._sync_epic_review_child_states(
+                "proj-1",
+                epic,
+                "epic-TRICKLE-1",
+            )
+
+        assert has_branch_work.call_count == 2
+        tracker.update_issue.assert_any_call("TRICKLE-2", status=IN_REVIEW)
+        tracker.update_issue.assert_any_call("TRICKLE-5", status=OPEN)
+        tracker.update_issue.assert_any_call("TRICKLE-7", status=MERGED)
+        assert tracker.update_issue.call_count == 3
+
+    def test_done_review_child_has_epic_branch_commit(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=oompah",
+                "-c",
+                "user.email=lesserevil@users.noreply.github.com",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "initial",
+            ],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(["git", "branch", "-m", "main"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "checkout", "-q", "-b", "epic-TRICKLE-1"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=oompah",
+                "-c",
+                "user.email=lesserevil@users.noreply.github.com",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "TRICKLE-2: Implement session resolver",
+            ],
+            cwd=repo,
+            check=True,
+        )
+
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        proj.repo_path = str(repo)
+        proj.default_branch = "main"
+
+        assert orch._done_review_child_has_epic_branch_work(
+            proj,
+            "epic-TRICKLE-1",
+            _make_issue(identifier="TRICKLE-2"),
+        )
+        assert not orch._done_review_child_has_epic_branch_work(
+            proj,
+            "epic-TRICKLE-1",
+            _make_issue(identifier="TRICKLE-5"),
+        )
 
     def test_defers_epic_pr_when_project_at_review_cap(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="stacked")
@@ -2162,7 +2288,9 @@ class TestOpenEpicMainPrs:
         remote_has_work.assert_called_once_with(proj, "main", "epic-epic-1")
         provider.create_review.assert_called_once()
         assert provider.create_review.call_args.args[2] == "epic-epic-1"
-        tracker.update_issue.assert_called_once_with("epic-1", status=IN_REVIEW)
+        tracker.update_issue.assert_any_call("epic-1", status=IN_REVIEW)
+        tracker.update_issue.assert_any_call("c1", status=OPEN)
+        assert tracker.update_issue.call_count == 2
 
     def test_push_failure_without_remote_work_opens_no_epic_pr(self, tmp_path):
         orch, _proj = self._setup(tmp_path, strategy="shared")

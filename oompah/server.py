@@ -2412,7 +2412,8 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
                     if (
                         current_status
                         in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE, NEEDS_HUMAN}
-                        and rolled_status == DONE
+                        and rolled_status
+                        and rolled_status != MERGED
                     ):
                         continue
                     if rolled:

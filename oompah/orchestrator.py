@@ -3441,7 +3441,8 @@ class Orchestrator:
                 or rolled_status == current_status
                 or (
                     current_status in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
-                    and rolled_status == DONE
+                    and rolled_status
+                    and rolled_status != MERGED
                 )
             ):
                 continue
@@ -4867,6 +4868,11 @@ class Orchestrator:
                     source_branch=epic_branch,
                     target_branch=target_branch,
                 )
+                self._sync_epic_review_child_states(
+                    project_id,
+                    issue,
+                    epic_branch,
+                )
             except Exception as exc:
                 logger.warning(
                     "Failed to write review metadata for epic %s: %s",
@@ -4923,11 +4929,10 @@ class Orchestrator:
         epic_branch: str,
     ) -> None:
         """Keep an epic task aligned when the review already exists."""
-        if canonicalize_status(issue.state) == IN_REVIEW:
-            return
         try:
             tracker = self._tracker_for_project(project_id)
-            tracker.update_issue(issue.identifier, status=IN_REVIEW)
+            if canonicalize_status(issue.state) != IN_REVIEW:
+                tracker.update_issue(issue.identifier, status=IN_REVIEW)
             self._write_review_metadata(
                 tracker,
                 issue.identifier,
@@ -4936,12 +4941,130 @@ class Orchestrator:
                 source_branch=getattr(review, "source_branch", None) or epic_branch,
                 target_branch=getattr(review, "target_branch", None),
             )
+            self._sync_epic_review_child_states(
+                project_id,
+                issue,
+                epic_branch,
+            )
         except Exception as exc:  # noqa: BLE001 - metadata alignment is best-effort
             logger.warning(
                 "Failed to sync existing epic PR metadata for %s: %s",
                 issue.identifier,
                 exc,
             )
+
+    def _sync_epic_review_child_states(
+        self,
+        project_id: str,
+        epic: Issue,
+        epic_branch: str,
+    ) -> None:
+        """Move Done epic children out of the non-terminal holding state.
+
+        ``Done`` means the child agent says its work is complete. Once the
+        epic has an open rollup PR, completed child implementation work is now
+        in review through that epic PR and should not remain visibly stranded
+        in Done. If a Done child has no evidence on the epic branch, reopen it
+        so an agent can do the missing work.
+        """
+        project = self.project_store.get(project_id)
+        if project is None:
+            return
+        try:
+            tracker = self._tracker_for_project(project_id)
+            children = self._fetch_epic_children(epic)
+        except Exception as exc:  # noqa: BLE001 - best-effort reconciliation
+            logger.debug(
+                "Failed to sync review child states for epic %s: %s",
+                epic.identifier,
+                exc,
+            )
+            return
+
+        for child in children:
+            if canonicalize_status(child.state) != DONE:
+                continue
+            if self._done_review_child_is_completed_maintenance(child):
+                next_status = MERGED
+                reason = "completed maintenance child"
+            elif self._done_review_child_has_epic_branch_work(
+                project,
+                epic_branch,
+                child,
+            ):
+                next_status = IN_REVIEW
+                reason = "covered by epic review branch"
+            else:
+                next_status = OPEN
+                reason = "no matching work found on epic review branch"
+            try:
+                tracker.update_issue(child.identifier, status=next_status)
+                logger.info(
+                    "Moved Done child %s under epic %s to %s (%s)",
+                    child.identifier,
+                    epic.identifier,
+                    next_status,
+                    reason,
+                )
+            except TrackerError as exc:
+                logger.debug(
+                    "Failed to move Done child %s under epic %s to %s: %s",
+                    child.identifier,
+                    epic.identifier,
+                    next_status,
+                    exc,
+                )
+
+    @staticmethod
+    def _done_review_child_is_completed_maintenance(child: Issue) -> bool:
+        """Return True for Done helper tasks that do not carry review code."""
+        title = str(child.title or "").strip().lower()
+        labels = {str(label).strip().lower() for label in child.labels or []}
+        if "ci-fix" in labels or "merge-conflict" in labels:
+            return False
+        return title.startswith("rebase ") and " onto " in title
+
+    def _done_review_child_has_epic_branch_work(
+        self,
+        project: Project,
+        epic_branch: str,
+        child: Issue,
+    ) -> bool:
+        """Return True when the epic review branch contains this child work."""
+        if child.work_branch or getattr(child, "review_url", None):
+            return True
+        repo_path = getattr(project, "repo_path", "") or ""
+        if not repo_path or not epic_branch:
+            return False
+        target_branch = getattr(project, "default_branch", None) or "main"
+        ranges = [
+            f"origin/{target_branch}..origin/{epic_branch}",
+            f"origin/{target_branch}..{epic_branch}",
+            f"{target_branch}..origin/{epic_branch}",
+            f"{target_branch}..{epic_branch}",
+        ]
+        needle = child.identifier.lower()
+        seen: set[str] = set()
+        for ref_range in ranges:
+            if ref_range in seen:
+                continue
+            seen.add(ref_range)
+            try:
+                result = subprocess.run(
+                    ["git", "log", "--format=%s", "--max-count=500", ref_range],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                continue
+            if result.returncode != 0:
+                continue
+            for line in result.stdout.splitlines():
+                if needle in line.lower():
+                    return True
+        return False
 
     def _remote_epic_branch_has_unmerged_work(
         self,
@@ -10407,18 +10530,6 @@ class Orchestrator:
                         "YOLO: ci-fix sibling %s already open under "
                         "%s — skipping duplicate",
                         existing_sibling.identifier,
-                        issue.identifier,
-                    )
-                    return
-                # Third idempotency signal: if the parent epic is already
-                # labeled ci-fix (e.g., a human operator or是一场 legacy
-                # YOLO cycle marked it before this fix shipped), treat it as
-                # "a fix was already tried" — don't stack a second sibling
-                # on top of an unacted-on label.
-                if "ci-fix" in issue.labels or canonicalize_status(issue.state) == NEEDS_CI_FIX:
-                    logger.debug(
-                        "YOLO: parent %s already labeled ci-fix "
-                        "(prior attempt) — skipping sibling",
                         issue.identifier,
                     )
                     return
