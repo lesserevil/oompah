@@ -1521,6 +1521,16 @@ class TestGhIssueToIssue:
         issue = self._convert(body=body)
         assert issue.target_branch == "release/1.2"
 
+    def test_review_metadata_maps_to_issue(self):
+        body = (
+            '<!-- oompah:metadata\n'
+            '{"review_url":"https://github.com/org/repo/pull/7",'
+            '"review_number":"7"}\n-->'
+        )
+        issue = self._convert(body=body)
+        assert issue.review_url == "https://github.com/org/repo/pull/7"
+        assert issue.review_number == "7"
+
     def test_release_pick_metadata_from_metadata(self):
         body = (
             '<!-- oompah:metadata\n'

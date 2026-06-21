@@ -101,13 +101,26 @@ class TestOompahMarkdownTrackerMutations:
         tracker.add_dependency(child.identifier, "REPO-99")
         tracker.add_label(child.identifier, "backend")
         tracker.set_metadata_field(child.identifier, "oompah.work_branch", "oompah/repo-1")
+        tracker.set_metadata_field(
+            child.identifier,
+            "oompah.review_url",
+            "https://github.com/org/repo/pull/7",
+        )
+        tracker.set_metadata_field(child.identifier, "oompah.review_number", "7")
 
         refreshed = tracker.fetch_issue_detail(child.identifier)
         assert refreshed.parent_id == parent.identifier
         assert refreshed.blocked_by[0].identifier == "REPO-99"
         assert "backend" in refreshed.labels
         assert refreshed.work_branch == "oompah/repo-1"
+        assert refreshed.review_url == "https://github.com/org/repo/pull/7"
+        assert refreshed.review_number == "7"
         assert tracker.get_metadata(child.identifier)["oompah.work_branch"] == "oompah/repo-1"
+        assert (
+            tracker.get_metadata(child.identifier)["oompah.review_url"]
+            == "https://github.com/org/repo/pull/7"
+        )
+        assert tracker.get_metadata(child.identifier)["oompah.review_number"] == "7"
 
         parent_refreshed = tracker.fetch_issue_detail(parent.identifier)
         parent_path = (

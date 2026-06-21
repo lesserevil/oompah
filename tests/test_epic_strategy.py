@@ -43,6 +43,9 @@ def _make_issue(
     project_id: str | None = "proj-1",
     priority: int | None = 2,
     labels: list[str] | None = None,
+    work_branch: str | None = None,
+    review_url: str | None = None,
+    review_number: str | None = None,
 ) -> Issue:
     return Issue(
         id=identifier,
@@ -55,6 +58,9 @@ def _make_issue(
         project_id=project_id,
         priority=priority,
         labels=labels or [],
+        work_branch=work_branch,
+        review_url=review_url,
+        review_number=review_number,
     )
 
 
@@ -2670,16 +2676,25 @@ class TestEpicRollupStatusReconciliation:
             identifier="epic-1",
             issue_type="epic",
             state=IN_REVIEW,
+            work_branch="epic-epic-1",
         )
         tracker.fetch_children.return_value = [
             _make_issue(identifier="child-1", state=DONE, parent_id=epic.identifier),
         ]
 
-        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(
+                orch,
+                "_done_review_child_has_epic_branch_work",
+                return_value=True,
+            ),
+        ):
             updated = orch._reconcile_epic_rollup_statuses([epic])
 
         assert updated == 0
-        tracker.update_issue.assert_not_called()
+        tracker.update_issue.assert_called_once_with("child-1", status=IN_REVIEW)
         assert epic.state == IN_REVIEW
 
     def test_ci_fix_epic_with_done_children_is_not_downgraded(self, tmp_path):
@@ -2688,17 +2703,64 @@ class TestEpicRollupStatusReconciliation:
             identifier="epic-1",
             issue_type="epic",
             state=NEEDS_CI_FIX,
+            work_branch="epic-epic-1",
         )
         tracker.fetch_children.return_value = [
             _make_issue(identifier="child-1", state=DONE, parent_id=epic.identifier),
         ]
 
-        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(
+                orch,
+                "_done_review_child_has_epic_branch_work",
+                return_value=True,
+            ),
+        ):
             updated = orch._reconcile_epic_rollup_statuses([epic])
 
         assert updated == 0
-        tracker.update_issue.assert_not_called()
+        tracker.update_issue.assert_called_once_with("child-1", status=IN_REVIEW)
         assert epic.state == NEEDS_CI_FIX
+
+    def test_existing_review_epic_syncs_late_done_child(self, tmp_path):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        epic = _make_issue(
+            identifier="TRICKLE-1",
+            issue_type="epic",
+            state=IN_PROGRESS,
+            work_branch="epic-TRICKLE-1",
+            review_url="https://github.com/org/repo/pull/267",
+        )
+        reviewed = _make_issue(
+            identifier="TRICKLE-2",
+            state=IN_REVIEW,
+            parent_id=epic.identifier,
+        )
+        late_done = _make_issue(
+            identifier="TRICKLE-5",
+            state=DONE,
+            parent_id=epic.identifier,
+        )
+        tracker.fetch_children.return_value = [reviewed, late_done]
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(
+                orch,
+                "_done_review_child_has_epic_branch_work",
+                return_value=True,
+            ) as has_branch_work,
+        ):
+            updated = orch._reconcile_epic_rollup_statuses([epic])
+
+        assert updated == 0
+        has_branch_work.assert_called_once()
+        tracker.update_issue.assert_called_once_with("TRICKLE-5", status=IN_REVIEW)
+        assert late_done.state == IN_REVIEW
+        assert epic.state == IN_PROGRESS
 
     def test_matching_rollup_status_is_not_rewritten(self, tmp_path):
         orch, tracker = self._orch_with_tracker(tmp_path)

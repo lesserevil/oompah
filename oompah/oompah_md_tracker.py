@@ -601,6 +601,12 @@ class OompahMarkdownTracker:
             work_branch=_optional_str(
                 meta.get("work_branch") or meta.get("oompah.work_branch")
             ),
+            review_url=_optional_str(
+                meta.get("review_url") or meta.get("oompah.review_url")
+            ),
+            review_number=_optional_str(
+                meta.get("review_number") or meta.get("oompah.review_number")
+            ),
             tracker_kind=TRACKER_KIND,
             tracker_owner=_optional_str(external_github.get("owner")),
             tracker_repo=_optional_str(external_github.get("repo")),

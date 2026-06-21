@@ -1327,6 +1327,10 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
     # for branch-to-issue resolution so callers do not need to guess the task
     # identifier from the branch name (TASK-462.1).
     work_branch: str | None = meta.get("work_branch") or None
+    review_url: str | None = meta.get("review_url") or meta.get("oompah.review_url")
+    review_number: str | None = (
+        meta.get("review_number") or meta.get("oompah.review_number")
+    )
     intake = meta.get("intake") or meta.get("oompah.intake")
     if not isinstance(intake, dict):
         intake = None
@@ -1351,6 +1355,8 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         project_id=project_id,
         target_branch=target_branch,
         work_branch=work_branch,
+        review_url=review_url,
+        review_number=review_number,
         backports=meta.get("backports", meta.get("oompah.backports")),
         backport_of=meta.get("backport_of", meta.get("oompah.backport_of")),
         release_pick_metadata_loaded=True,

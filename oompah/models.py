@@ -139,6 +139,8 @@ class Issue:
     issue_number: str | None = None
     display_identifier: str | None = None
     provider_url: str | None = None
+    review_url: str | None = None
+    review_number: str | None = None
     # GitHub login of the issue creator/requestor when supplied by the tracker.
     requestor_login: str | None = None
     # Managed code repository for this issue (e.g. "lesserevil/trickle").

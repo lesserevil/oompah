@@ -3424,6 +3424,32 @@ class Orchestrator:
             if not children:
                 continue
 
+            current_status = canonicalize_status(epic.state)
+            labels = {str(label).strip().lower() for label in epic.labels or []}
+            has_review_evidence = bool(
+                current_status in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
+                or getattr(epic, "review_url", None)
+                or getattr(epic, "review_number", None)
+                or "epic:rebasing" in labels
+            )
+            epic_branch = str(getattr(epic, "work_branch", "") or "").strip()
+            if has_review_evidence and not epic_branch:
+                try:
+                    epic_branch = self.project_store.epic_branch_name(epic.identifier)
+                except Exception:  # noqa: BLE001 - rollup reconciliation is best-effort
+                    epic_branch = ""
+            if (
+                has_review_evidence
+                and epic_branch
+                and any(canonicalize_status(child.state) == DONE for child in children)
+            ):
+                self._sync_epic_review_child_states(
+                    epic.project_id,
+                    epic,
+                    epic_branch,
+                    children=children,
+                )
+
             strategy = self._project_epic_strategy(epic.project_id)
             if strategy == "shared":
                 child_states = [
@@ -3434,7 +3460,6 @@ class Orchestrator:
                 child_states = [child.state for child in children]
 
             rolled = epic_rollup_state(child_states)
-            current_status = canonicalize_status(epic.state)
             rolled_status = canonicalize_status(rolled)
             if (
                 not rolled
@@ -4958,7 +4983,9 @@ class Orchestrator:
         project_id: str,
         epic: Issue,
         epic_branch: str,
-    ) -> None:
+        *,
+        children: list[Issue] | None = None,
+    ) -> int:
         """Move Done epic children out of the non-terminal holding state.
 
         ``Done`` means the child agent says its work is complete. Once the
@@ -4969,18 +4996,20 @@ class Orchestrator:
         """
         project = self.project_store.get(project_id)
         if project is None:
-            return
+            return 0
         try:
             tracker = self._tracker_for_project(project_id)
-            children = self._fetch_epic_children(epic)
+            if children is None:
+                children = self._fetch_epic_children(epic)
         except Exception as exc:  # noqa: BLE001 - best-effort reconciliation
             logger.debug(
                 "Failed to sync review child states for epic %s: %s",
                 epic.identifier,
                 exc,
             )
-            return
+            return 0
 
+        moved = 0
         for child in children:
             if canonicalize_status(child.state) != DONE:
                 continue
@@ -4999,6 +5028,8 @@ class Orchestrator:
                 reason = "no matching work found on epic review branch"
             try:
                 tracker.update_issue(child.identifier, status=next_status)
+                child.state = next_status
+                moved += 1
                 logger.info(
                     "Moved Done child %s under epic %s to %s (%s)",
                     child.identifier,
@@ -5014,6 +5045,7 @@ class Orchestrator:
                     next_status,
                     exc,
                 )
+        return moved
 
     @staticmethod
     def _done_review_child_is_completed_maintenance(child: Issue) -> bool:
