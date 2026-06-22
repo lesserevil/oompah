@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:43.935007Z'
-updated_at: '2026-06-22T02:36:17.193988Z'
+updated_at: '2026-06-22T02:36:25.139105Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -165,5 +165,15 @@ author: oompah
 created: 2026-06-22 02:36
 ---
 Expanded release smoke tests to cover oompah project-bootstrap --help; tests now fail if project-bootstrap is missing from the installed CLI. Follow-up OOMPAH-47 tracks the workflow file update that requires workflow-scoped PAT.
+---
+author: oompah
+created: 2026-06-22 02:36
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 47
+- Tokens: 82 in / 2.6K out [2.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 42s
+- Log: OOMPAH-24__20260622T022847Z.jsonl
 ---
 <!-- COMMENTS:END -->
