@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:28.394571Z'
-updated_at: '2026-06-22T14:52:27.295729Z'
+updated_at: '2026-06-22T14:52:29.533992Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,10 @@ author: oompah
 created: 2026-06-22 14:52
 ---
 Completion: OOMPAH-36 is complete. Changes made: (1) .gitignore - replaced 'Dolt database files (added by bd init)' and 'beads-jsonl-ignore (managed by oompah)' sections (including 'emergency recovery via bd bootstrap') with a single 'Historical: Dolt/beads files from the old task tracker' block explicitly stating 'beads and bd are no longer used'; (2) .gitattributes - replaced incorrect setup instructions (claiming _install_beads_merge_driver() auto-installs the driver — function no longer exists) with a 'Historical: merge driver for the old beads issue store' note. Docs and bootstrap templates were already clean. All searches for Backlog.md, backlog, beads, and bd now satisfy the HOW TO VERIFY criteria.
+---
+author: oompah
+created: 2026-06-22 14:52
+---
+Removed stale beads/bd references from .gitignore and .gitattributes by replacing instructional comments with explicit 'Historical: no longer used' notes. Docs and bootstrap templates were already clean. All searches for Backlog.md, backlog, beads, bd now find historical/internal migration notes only.
 ---
 <!-- COMMENTS:END -->
