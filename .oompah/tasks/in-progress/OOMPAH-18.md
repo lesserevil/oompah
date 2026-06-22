@@ -11,7 +11,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:52.001843Z'
-updated_at: '2026-06-22T01:52:49.597655Z'
+updated_at: '2026-06-22T01:53:08.770588Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-06-22 01:52
 ---
 VERIFICATION: All 8 tests in tests/test_cli_release_packaging.py pass (8 passed, 0 failed). Pre-existing failures in other test files are unrelated to this change. The workflow dispatch description (v0.1.0 → v1.0.0-draft or v1.0.0) cannot be updated in this branch due to PAT lacking workflow scope — this is a minor cosmetic hint string. A follow-up task will be filed.
+---
+author: oompah
+created: 2026-06-22 01:53
+---
+COMPLETION: Delivered 1.0 convention updates across docs and tests. docs/cli-release.md now documents the 1.0 release train (release/1.0 branch, v1.0.0-draft draft tag, v1.0.0 final tag) with draft and final release procedures; all examples use v1.0.0. docs/cli-install.md examples updated to v1.0.0. tests/test_cli_release_packaging.py updated to assert 1.0 examples and two new tests added. Minor follow-up OOMPAH-43 filed for the workflow dispatch description update that requires maintainer workflow scope.
 ---
 <!-- COMMENTS:END -->
