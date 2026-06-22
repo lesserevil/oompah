@@ -3442,9 +3442,7 @@ class Orchestrator:
                 current_status in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
                 or getattr(epic, "review_url", None)
                 or getattr(epic, "review_number", None)
-                or labels.intersection(
-                    {"epic:rebasing", "ci-fix", "merge-conflict"}
-                )
+                or labels.intersection({"ci-fix", "merge-conflict"})
             )
             epic_branch = str(getattr(epic, "work_branch", "") or "").strip()
             if has_review_evidence and not epic_branch:

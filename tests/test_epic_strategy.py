@@ -2810,6 +2810,32 @@ class TestEpicRollupStatusReconciliation:
         )
         assert epic.state == IN_PROGRESS
 
+    def test_rebasing_label_does_not_reopen_done_children(self, tmp_path):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            state=IN_PROGRESS,
+            labels=["epic:rebasing"],
+        )
+        tracker.fetch_children.return_value = [
+            _make_issue(identifier="child-1", state=DONE, parent_id=epic.identifier),
+        ]
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(
+                orch,
+                "_sync_epic_review_child_states",
+            ) as sync_children,
+        ):
+            updated = orch._reconcile_epic_rollup_statuses([epic])
+
+        assert updated == 1
+        sync_children.assert_not_called()
+        tracker.update_issue.assert_called_once_with(epic.identifier, status=DONE)
+        assert epic.state == DONE
+
     def test_ci_fix_epic_with_done_children_is_not_downgraded(self, tmp_path):
         orch, tracker = self._orch_with_tracker(tmp_path)
         epic = _make_issue(
