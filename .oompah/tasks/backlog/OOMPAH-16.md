@@ -7,13 +7,14 @@ title: Oompah 1.0 release readiness
 parent: null
 children:
 - OOMPAH-17
+- OOMPAH-22
 blocked_by: []
 labels:
 - release:1.0
 - draft
 assignee: null
 created_at: '2026-06-22T01:14:40.055430Z'
-updated_at: '2026-06-22T01:14:45.354668Z'
+updated_at: '2026-06-22T01:16:36.511562Z'
 work_branch: null
 target_branch: null
 review_url: null
