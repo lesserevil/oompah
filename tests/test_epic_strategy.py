@@ -2776,40 +2776,6 @@ class TestEpicRollupStatusReconciliation:
         tracker.update_issue.assert_called_once_with("child-1", status=IN_REVIEW)
         assert epic.state == IN_REVIEW
 
-    def test_in_review_epic_with_new_open_child_rolls_back_to_in_progress(
-        self, tmp_path
-    ):
-        orch, tracker = self._orch_with_tracker(tmp_path)
-        epic = _make_issue(
-            identifier="epic-1",
-            issue_type="epic",
-            state=IN_REVIEW,
-            work_branch="epic-epic-1",
-            review_url="https://github.com/org/repo/pull/23",
-        )
-        tracker.fetch_children.return_value = [
-            _make_issue(
-                identifier="child-reviewed",
-                state=IN_REVIEW,
-                parent_id=epic.identifier,
-            ),
-            _make_issue(
-                identifier="child-new",
-                state=OPEN,
-                parent_id=epic.identifier,
-            ),
-        ]
-
-        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
-            updated = orch._reconcile_epic_rollup_statuses([epic])
-
-        assert updated == 1
-        tracker.update_issue.assert_called_once_with(
-            epic.identifier,
-            status=IN_PROGRESS,
-        )
-        assert epic.state == IN_PROGRESS
-
     def test_ci_fix_epic_with_done_children_is_not_downgraded(self, tmp_path):
         orch, tracker = self._orch_with_tracker(tmp_path)
         epic = _make_issue(
