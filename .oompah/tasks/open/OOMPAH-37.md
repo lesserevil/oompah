@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-37
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Execute and verify the 1.0 release
 parent: OOMPAH-16
@@ -21,7 +21,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-06-22T01:17:30.687635Z'
-updated_at: '2026-06-22T15:50:59.977992Z'
+updated_at: '2026-06-22T16:55:02.781062Z'
 work_branch: null
 target_branch: null
 review_url: null
