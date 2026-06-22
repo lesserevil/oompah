@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "oompah"
-version = "0.1.0"
+version = "1.0.0"
 description = "An automation service that orchestrates coding agents to execute project work sourced from issue trackers"
 license = "MIT"
 requires-python = ">=3.11"

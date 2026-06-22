@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import zipfile
 from pathlib import Path
 import tomllib
 
@@ -8,6 +9,7 @@ import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+DIST_DIR = REPO_ROOT / "dist"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cli-release.yml"
 SCRIPT_PATH = REPO_ROOT / "scripts" / "render_cli_release_notes.py"
 
@@ -313,3 +315,199 @@ def test_render_notes_for_dist_accepts_draft_tag(tmp_path):
     # Artifacts are still the 1.0.0 wheel and sdist (built from project.version)
     assert "oompah-1.0.0-py3-none-any.whl" in notes
     assert "oompah-1.0.0.tar.gz" in notes
+
+
+def test_pyproject_version_is_1_0_0():
+    """Package metadata must be at 1.0.0 on the release branch."""
+    data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert data["project"]["version"] == "1.0.0", (
+        f"pyproject.toml project.version must be 1.0.0 on the release branch, "
+        f"got {data['project']['version']!r}"
+    )
+
+
+def test_release_note_generator_accepts_v1_0_0_tag(tmp_path):
+    """The release-note generator must agree v1.0.0 matches package version 1.0.0."""
+    module = _load_release_notes_module()
+    pyproject = tmp_path / "pyproject.toml"
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    pyproject.write_text(
+        '[project]\nname = "oompah"\nversion = "1.0.0"\n',
+        encoding="utf-8",
+    )
+    (dist / "oompah-1.0.0-py3-none-any.whl").write_text("", encoding="utf-8")
+    (dist / "oompah-1.0.0.tar.gz").write_text("", encoding="utf-8")
+
+    notes = module.render_release_notes_for_dist(
+        tag="v1.0.0",
+        pyproject_path=pyproject,
+        dist_dir=dist,
+    )
+
+    assert "oompah-1.0.0-py3-none-any.whl" in notes
+    assert "oompah-1.0.0.tar.gz" in notes
+    assert "v1.0.0" in notes
+
+
+def test_server_extras_complete_and_not_in_base_dependencies():
+    """Server-runtime packages must stay behind the server extra."""
+    data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    base_deps = data["project"]["dependencies"]
+    server_extras = data["project"]["optional-dependencies"]["server"]
+
+    assert base_deps == ["httpx>=0.27"], (
+        "Base dependencies must contain only 'httpx>=0.27' to keep the "
+        f"lightweight CLI install free of server runtime packages. Got: {base_deps!r}"
+    )
+
+    required_server_packages = [
+        "fastapi",
+        "uvicorn",
+        "jinja2",
+        "pyyaml",
+        "watchfiles",
+        "python-liquid",
+        "pyjwt",
+        "python-multipart",
+    ]
+    for pkg in required_server_packages:
+        found = any(dep.lower().startswith(pkg.lower()) for dep in server_extras)
+        assert found, (
+            f"Expected {pkg!r} in [project.optional-dependencies.server], "
+            f"but it was not found. Current server extras: {server_extras!r}"
+        )
+
+    for dep in server_extras:
+        pkg_name = dep.split("[")[0].split(">=")[0].split("==")[0].split(">")[0].strip()
+        assert pkg_name not in base_deps, (
+            f"Server-extra package {pkg_name!r} was found in base "
+            "[project.dependencies]. It must stay behind the server extra."
+        )
+
+
+def test_wheel_contains_required_cli_modules():
+    """The built wheel must include modules needed by the lightweight CLI."""
+    wheels = sorted(DIST_DIR.glob("oompah-*.whl"))
+    if not wheels:
+        import pytest
+
+        pytest.skip(
+            "No wheel found in dist/ -- build one with 'python -m build' "
+            "or 'pip wheel . -w dist --no-deps' to enable wheel-contents tests"
+        )
+
+    wheel_path = wheels[-1]
+    required_modules = [
+        "oompah/__init__.py",
+        "oompah/__main__.py",
+        "oompah/task_cli.py",
+        "oompah/project_bootstrap_cli.py",
+        "oompah/project_bootstrap/__init__.py",
+        "oompah/agent_instructions.py",
+        "oompah/project_bootstrap/templates/__init__.py",
+    ]
+
+    with zipfile.ZipFile(wheel_path) as whl:
+        names = whl.namelist()
+
+    missing = [m for m in required_modules if m not in names]
+    assert not missing, (
+        f"Wheel {wheel_path.name} is missing required CLI modules:\n"
+        + "\n".join(f"  - {m}" for m in missing)
+        + "\n\nWheel contents (oompah/ files):\n"
+        + "\n".join(f"  {n}" for n in sorted(names) if n.startswith("oompah/"))
+    )
+
+
+def test_cli_api_surface_doc_exists_and_covers_stable_surface():
+    """docs/cli-api-surface.md documents the 1.0 compatibility surface."""
+    doc_path = REPO_ROOT / "docs" / "cli-api-surface.md"
+    assert doc_path.exists(), (
+        "docs/cli-api-surface.md is missing. Create it to document the 1.0 "
+        "CLI and API compatibility surface."
+    )
+
+    text = doc_path.read_text(encoding="utf-8")
+
+    assert "OOMPAH_SERVER_URL" in text
+    assert "OOMPAH_SERVER_HOST" in text
+    assert "OOMPAH_SERVER_PORT" in text
+
+    stable_subcommands = [
+        "oompah task view",
+        "oompah task comment",
+        "oompah task create",
+        "oompah task child-create",
+        "oompah task set-status",
+        "oompah task add-label",
+        "oompah task remove-label",
+        "oompah task set-dependency",
+    ]
+    for cmd in stable_subcommands:
+        assert cmd in text
+
+    assert "oompah project-bootstrap" in text
+
+
+def test_cli_install_doc_uses_oompah_server_url_as_primary_agent_locator():
+    """docs/cli-install.md leads agent setup with OOMPAH_SERVER_URL."""
+    text = (REPO_ROOT / "docs" / "cli-install.md").read_text(encoding="utf-8")
+
+    assert "OOMPAH_SERVER_URL" in text
+    assert "OOMPAH_SERVER_HOST" not in text
+    assert "cli-api-surface.md" in text
+
+
+def test_wheel_does_not_contain_server_only_module_as_dep():
+    """The wheel metadata must not require server-runtime packages."""
+    wheels = sorted(DIST_DIR.glob("oompah-*.whl"))
+    if not wheels:
+        import pytest
+
+        pytest.skip(
+            "No wheel found in dist/ -- build one with 'python -m build' "
+            "or 'pip wheel . -w dist --no-deps' to enable wheel-metadata tests"
+        )
+
+    wheel_path = wheels[-1]
+    server_package_prefixes = [
+        "fastapi",
+        "uvicorn",
+        "jinja2",
+        "pyyaml",
+        "watchfiles",
+        "python-liquid",
+        "pyjwt",
+        "python-multipart",
+    ]
+
+    with zipfile.ZipFile(wheel_path) as whl:
+        metadata_path = next(
+            n for n in whl.namelist() if n.endswith(".dist-info/METADATA")
+        )
+        metadata_text = whl.read(metadata_path).decode("utf-8")
+
+    requires_dist = [
+        line.split("Requires-Dist:")[1].strip()
+        for line in metadata_text.splitlines()
+        if line.startswith("Requires-Dist:")
+    ]
+    unconditional = [r for r in requires_dist if "extra ==" not in r]
+
+    for req in unconditional:
+        req_name = (
+            req.split("[")[0]
+            .split(">=")[0]
+            .split("==")[0]
+            .split(">")[0]
+            .strip()
+            .lower()
+        )
+        for pkg in server_package_prefixes:
+            assert req_name != pkg.lower(), (
+                f"Wheel {wheel_path.name} METADATA lists {req!r} as an "
+                "unconditional Requires-Dist entry. Server-runtime packages "
+                "must be behind the 'server' extra marker."
+            )
