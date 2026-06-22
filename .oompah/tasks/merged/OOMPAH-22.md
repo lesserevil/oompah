@@ -14,7 +14,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:36.501719Z'
-updated_at: '2026-06-22T13:58:58.704372Z'
+updated_at: '2026-06-22T13:59:00.984383Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ The wheel installs without the service runtime dependency set, the expected CLI 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 13:59
+---
+YOLO: merged PR #346.
+---
+<!-- COMMENTS:END -->
