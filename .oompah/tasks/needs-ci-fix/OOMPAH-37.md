@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-37
 type: epic
-status: In Review
+status: Needs CI Fix
 priority: 1
 title: Execute and verify the 1.0 release
 parent: OOMPAH-16
@@ -22,7 +22,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:30.687635Z'
-updated_at: '2026-06-22T17:28:26.896317Z'
+updated_at: '2026-06-22T17:28:33.532433Z'
 work_branch: null
 target_branch: null
 review_url: null
