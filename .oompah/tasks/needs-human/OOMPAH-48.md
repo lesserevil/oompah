@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:46:23.693967Z'
-updated_at: '2026-06-22T02:48:08.496380Z'
+updated_at: '2026-06-22T02:48:10.675662Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ OOMPAH-47 completed the docs/cli-release.md update but cannot push changes to .g
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 02:48
+---
+Needs workflow-scoped PAT to push workflow file changes
+---
+<!-- COMMENTS:END -->
