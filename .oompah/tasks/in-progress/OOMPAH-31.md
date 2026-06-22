@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:08.467848Z'
-updated_at: '2026-06-22T14:16:41.103560Z'
+updated_at: '2026-06-22T14:19:19.891791Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,5 +62,10 @@ author: oompah
 created: 2026-06-22 14:16
 ---
 IMPLEMENTATION: Bootstrap apply completed for oompah project - applied 3 missing files (docs/README.md, plans/README.md, scripts/githooks/pre-commit). Bootstrap is now all-current. AGENTS.md template confirmed to use OOMPAH_TASK_AGENT_INSTRUCTIONS (v:2) - the 1.0 native tracker workflow. Now adding: (1) test for AGENTS.md template content validation (v:2 marker, 1.0 native workflow content), (2) oompah project-bootstrap --help smoke test to test_installed_cli_smoke.py.
+---
+author: oompah
+created: 2026-06-22 14:19
+---
+VERIFICATION: All 7118 tests pass (make test). New tests added: (1) test_agents_md_template_uses_1_0_native_tracker_workflow - validates AGENTS.md template uses BEGIN OOMPAH TASK INTEGRATION v:2 marker and 1.0 native workflow content, does not use GitHub Issues tracker; (2) test_apply_agents_md_template_is_current_after_apply - validates end-to-end apply produces 1.0-compliant AGENTS.md and bootstrap status reports it as current; (3) test_oompah_project_bootstrap_help_exits_zero - installed CLI smoke test for project-bootstrap --help showing status/preview/apply subcommands; (4) test_oompah_project_bootstrap_help_does_not_import_server_dependencies - validates CLI-only install works without server extras. All HOW TO VERIFY criteria met: oompah project (representative managed project) has status and preview checked, drift (3 missing files) is fixed, generated AGENTS.md matches 1.0 native tracker workflow.
 ---
 <!-- COMMENTS:END -->
