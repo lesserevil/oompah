@@ -270,9 +270,16 @@ class TestCountOpenReviews:
         }
         assert orch._count_open_reviews("proj-1") == 2
 
-    def test_webhook_healthy_cold_cache_fetches_reviews(
+    def test_webhook_healthy_cold_cache_skips_polling(
         self, tmp_path, monkeypatch
     ):
+        """Healthy-webhook projects are never polled, even with a cold cache.
+
+        Webhooks serve as the primary signal for healthy repos. When the
+        webhook is recent, we trust that any open-review state will arrive
+        via webhook delivery — polling the forge API is unnecessary and
+        should not happen.
+        """
         project = _make_project_mock("proj-1")
         project.last_webhook_received_at = datetime.now(timezone.utc)
         orch = _make_orchestrator(tmp_path, projects=[project])
@@ -291,8 +298,9 @@ class TestCountOpenReviews:
 
         result = asyncio.run(orch._fetch_all_reviews_bounded())
 
-        assert result == {"proj-1": provider.list_open_reviews.return_value}
-        provider.list_open_reviews.assert_called_once_with("org/repo")
+        # Healthy project with cold cache should return [] and NOT call provider
+        assert result == {"proj-1": []}
+        provider.list_open_reviews.assert_not_called()
 
     def test_webhook_healthy_warm_cache_reuses_reviews(
         self, tmp_path, monkeypatch

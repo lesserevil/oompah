@@ -3474,12 +3474,9 @@ class Orchestrator:
                 child_states = [child.state for child in children]
 
             rolled = epic_rollup_state(child_states)
-            children_complete_for_review = self._epic_children_complete_for_review_work(
-                children
-            )
             if (
                 has_review_evidence
-                and children_complete_for_review
+                and self._epic_children_complete_for_review_work(children)
                 and current_status not in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
             ):
                 rolled = IN_REVIEW
@@ -3491,7 +3488,6 @@ class Orchestrator:
                     current_status in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
                     and rolled_status
                     and rolled_status != MERGED
-                    and children_complete_for_review
                 )
             ):
                 continue
@@ -6415,10 +6411,10 @@ class Orchestrator:
 
         def _fetch_for_project(project) -> tuple[str, list]:
             project_id = str(project.id)
-            # Skip polling for webhook-healthy projects
-            if self.is_webhook_healthy(project_id) and _has_warm_reviews_cache(
-                project_id
-            ):
+            # Skip polling for webhook-healthy projects — webhooks are the
+            # primary signal for healthy repos; we should never call the
+            # forge API for them regardless of cache state.
+            if self.is_webhook_healthy(project_id):
                 return (project_id, _cached_reviews(project_id))
             provider = detect_provider(
                 project.repo_url, access_token=project.access_token
@@ -6467,10 +6463,10 @@ class Orchestrator:
 
         async def _fetch_one_project(project) -> tuple[str, list]:
             project_id = str(project.id)
-            # Skip polling for webhook-healthy projects
-            if self.is_webhook_healthy(project_id) and _has_warm_reviews_cache(
-                project_id
-            ):
+            # Skip polling for webhook-healthy projects — webhooks are the
+            # primary signal for healthy repos; we should never call the
+            # forge API for them regardless of cache state.
+            if self.is_webhook_healthy(project_id):
                 return (project_id, _cached_reviews(project_id))
 
             async def _coro() -> list:
