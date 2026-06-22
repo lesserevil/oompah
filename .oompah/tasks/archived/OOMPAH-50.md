@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-22T13:53:15.245662Z'
-updated_at: '2026-06-22T14:50:49.863449Z'
+updated_at: '2026-06-22T14:51:47.687043Z'
 work_branch: null
 target_branch: null
 review_url: null
