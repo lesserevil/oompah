@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:34.236540Z'
-updated_at: '2026-06-22T02:30:51.392885Z'
+updated_at: '2026-06-22T02:34:38.853040Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -152,5 +152,18 @@ author: oompah
 created: 2026-06-22 02:30
 ---
 Verification: All 7056 tests pass (28 skipped). The new tests test_release_docs_include_branch_cut_checklist and test_release_plan_includes_self_contained_branch_cut_checklist both pass, confirming the checklist content is present and correct in both docs/cli-release.md and plans/oompah-1.0-release.md.
+---
+author: oompah
+created: 2026-06-22 02:34
+---
+Completion: Added the release/1.0 branch cut checklist. Changes pushed to epic-OOMPAH-17:
+
+1. plans/oompah-1.0-release.md — Replaced the placeholder bullet list under '## Release Readiness Checklist' with a self-contained 7-step numbered checklist covering: (1) confirming main is clean, (2) cutting release/1.0, (3) setting version to 1.0.0, (4) running quality gates, (5) creating/force-moving v1.0.0-draft, (6) verifying draft artifacts, (7) preserving final tag immutability.
+
+2. docs/cli-release.md — Added 'Cut the release branch' section (pre-flight steps 1-4) and expanded 'Create a draft release' with artifact verification and final-tag immutability note.
+
+3. tests/test_cli_release_packaging.py — Added test_release_docs_include_branch_cut_checklist and test_release_plan_includes_self_contained_branch_cut_checklist to verify required content is present.
+
+All 7056 tests pass. The checklist is self-contained — a maintainer can follow it without any hidden context from this task.
 ---
 <!-- COMMENTS:END -->
