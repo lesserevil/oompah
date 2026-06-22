@@ -17,7 +17,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-06-22T01:17:10.735548Z'
-updated_at: '2026-06-22T15:05:44.111861Z'
+updated_at: '2026-06-22T15:05:46.414375Z'
 work_branch: epic-OOMPAH-32
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/350
@@ -130,5 +130,10 @@ author: oompah
 created: 2026-06-22 15:05
 ---
 Completion: Rebase onto origin/main complete. Branch epic-OOMPAH-32 is now 4 commits ahead, 0 behind main. All 7120 tests pass. Force-pushed successfully. PR created: https://github.com/lesserevil/oompah/pull/350. Moving task to In Review.
+---
+author: oompah
+created: 2026-06-22 15:05
+---
+Branch rebased onto origin/main. PR #350 created at https://github.com/lesserevil/oompah/pull/350. 4 real doc commits preserved: OOMPAH-34 operator runbook, OOMPAH-33 install/release docs, OOMPAH-35 onboarding checklist, OOMPAH-36 beads cleanup. All 7120 tests pass.
 ---
 <!-- COMMENTS:END -->
