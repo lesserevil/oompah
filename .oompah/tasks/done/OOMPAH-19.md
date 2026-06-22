@@ -12,7 +12,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:56.553408Z'
-updated_at: '2026-06-22T02:03:22.365652Z'
+updated_at: '2026-06-22T02:03:24.613916Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,5 +75,10 @@ author: oompah
 created: 2026-06-22 02:03
 ---
 COMPLETION: Delivered support for force-movable v1.0.0-draft release tags. Changes: (1) scripts/render_cli_release_notes.py — new is_draft_release_tag(tag, version) helper accepting only the explicit v{version}-draft form; validate_tag_matches_version updated to accept both final (v{version}) and draft (v{version}-draft) tags. (2) tests/test_cli_release_packaging.py — 9 new tests covering the full validation matrix. Not a duplicate of any existing task. Committed to epic-OOMPAH-17 branch (dae18fd), pushed and up to date with origin.
+---
+author: oompah
+created: 2026-06-22 02:03
+---
+Added is_draft_release_tag helper and updated validate_tag_matches_version in scripts/render_cli_release_notes.py to accept both v{version}-draft (force-movable draft) and v{version} (immutable final) tags. Added 9 tests covering all validation cases. All 7048 tests pass.
 ---
 <!-- COMMENTS:END -->
