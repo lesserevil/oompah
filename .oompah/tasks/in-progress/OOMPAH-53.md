@@ -10,13 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T15:30:30.201826Z'
-updated_at: '2026-06-22T15:50:28.842536Z'
+updated_at: '2026-06-22T15:50:33.940610Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 1d694fd9-96bf-4324-936e-c71b34b3eaea
+oompah.agent_run_id: 2eabdaa6-2252-48d7-b774-11952558fd98
 oompah.task_costs:
   total_input_tokens: 365704
   total_output_tokens: 7560
