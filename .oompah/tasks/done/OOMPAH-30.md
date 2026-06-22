@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:59.982565Z'
-updated_at: '2026-06-22T02:46:19.932813Z'
+updated_at: '2026-06-22T02:48:04.055113Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -169,5 +169,15 @@ author: oompah
 created: 2026-06-22 02:46
 ---
 Validated native-only decomposition boundaries: added allow_decomposition gate to process_epic_proposal_issue, added _issue_allows_native_decomposition to Orchestrator, and added 7 tests confirming GitHub Issues projects never decompose while native projects with GitHub intake decompose internally without creating GitHub sub-issues.
+---
+author: oompah
+created: 2026-06-22 02:48
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 100
+- Tokens: 153 in / 5.5K out [5.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 12s
+- Log: OOMPAH-30__20260622T022856Z.jsonl
 ---
 <!-- COMMENTS:END -->
