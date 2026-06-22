@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:23.758648Z'
-updated_at: '2026-06-22T02:03:30.777618Z'
+updated_at: '2026-06-22T02:03:43.922512Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ Implementation: Created docs/operator-runbook.md (608 lines) covering all requir
 7. Makefile quick reference, key files table, and state snapshot reference with Mermaid diagram.
 
 Committed and pushed to branch epic-OOMPAH-32.
+---
+author: oompah
+created: 2026-06-22 02:03
+---
+Verification: This is a documentation task — no code changes, no tests required. The runbook was validated by cross-referencing against: Makefile targets (start/stop/restart/graceful/status/logs), .env.example (all referenced vars exist), oompah/__main__.py (startup flags, error messages), oompah/repo_health.py (ensure_repo_sound logic), oompah/orchestrator.py (_should_dispatch reject reasons, stall/budget/stuck logic), oompah/server.py (health endpoints), and existing docs/webhook-forwarding.md (referenced in §6.4). All sections are verifiable by an operator without reading implementation code.
 ---
 <!-- COMMENTS:END -->
