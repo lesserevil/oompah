@@ -12,7 +12,7 @@ labels:
 - needs:human
 assignee: null
 created_at: '2026-06-22T02:11:02.984832Z'
-updated_at: '2026-06-22T02:11:27.731793Z'
+updated_at: '2026-06-22T02:11:30.040397Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,3 +51,11 @@ SOURCE: OOMPAH-43 (which was filed by OOMPAH-18 for the same reason).
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 02:11
+---
+Requires maintainer token with workflow scope to push .github/workflows/cli-release.yml
+---
+<!-- COMMENTS:END -->
