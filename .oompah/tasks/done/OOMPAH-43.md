@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:52:58.922363Z'
-updated_at: '2026-06-22T02:11:47.840281Z'
+updated_at: '2026-06-22T02:11:50.156346Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,10 @@ author: oompah
 created: 2026-06-22 02:11
 ---
 COMPLETION: Investigated and confirmed this is NOT a duplicate — it was intentionally filed by OOMPAH-18 because the workflow dispatch description change requires pushing to .github/workflows/cli-release.yml, which needs 'workflow' PAT scope. Confirmed the blocker still exists: the lesserevil token lacks workflow scope, and NVShawn (which has workflow scope) lacks push access to the repo. The exact one-line change is documented: description from 'e.g. v0.1.0' to 'e.g. v1.0.0-draft or v1.0.0'. Filed OOMPAH-46 as a Needs Human task with the exact diff and a companion test to add. Branch OOMPAH-43 pushed (clean, no workflow file changes). Closing this task.
+---
+author: oompah
+created: 2026-06-22 02:11
+---
+Confirmed not a duplicate of any existing task. Blocker confirmed: no available token has both workflow scope and push access to the repo. Exact change documented and OOMPAH-46 filed as Needs Human with the precise one-line diff and test to apply.
 ---
 <!-- COMMENTS:END -->
