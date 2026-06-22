@@ -9,7 +9,22 @@ import pytest
 import yaml
 
 from oompah.oompah_md_tracker import OompahMarkdownTracker
-from oompah.statuses import BACKLOG, DONE, OPEN
+from oompah.statuses import (
+    ARCHIVED,
+    BACKLOG,
+    DECOMPOSED,
+    DONE,
+    DUPLICATE_CANDIDATE,
+    IN_PROGRESS,
+    IN_REVIEW,
+    MERGED,
+    NEEDS_ANSWER,
+    NEEDS_CI_FIX,
+    NEEDS_HUMAN,
+    NEEDS_REBASE,
+    OPEN,
+    PROPOSED,
+)
 from oompah.tracker import TrackerError
 
 
@@ -424,3 +439,388 @@ class TestOompahMarkdownTrackerGitSync:
         assert not any("pull" in s and "rebase" in s for s in arg_strings), (
             f"Expected no 'git pull --rebase' in retry path, got: {arg_strings}"
         )
+
+
+# ---------------------------------------------------------------------------
+# OOMPAH-28: Comprehensive native tracker state transition audit
+# ---------------------------------------------------------------------------
+
+
+class TestOompahMarkdownTrackerAllStatusDirectories:
+    """Verify that every canonical status maps to the correct on-disk directory.
+
+    This test class directly covers the OOMPAH-28 audit requirement: each
+    named status in the 1.0 lifecycle must round-trip through the native
+    tracker by placing task files in the expected subdirectory of
+    ``.oompah/tasks``.
+    """
+
+    # Maps canonical status name → expected subdirectory under .oompah/tasks
+    _STATUS_DIR_MATRIX = [
+        (PROPOSED,           "proposed"),
+        (BACKLOG,            "backlog"),
+        (OPEN,               "open"),
+        (IN_PROGRESS,        "in-progress"),
+        (NEEDS_ANSWER,       "needs-answer"),
+        (NEEDS_HUMAN,        "needs-human"),
+        (NEEDS_CI_FIX,       "needs-ci-fix"),
+        (NEEDS_REBASE,       "needs-rebase"),
+        (IN_REVIEW,          "in-review"),
+        (DECOMPOSED,         "decomposed"),
+        (DUPLICATE_CANDIDATE, "duplicate-candidate"),
+        (DONE,               "done"),
+        (MERGED,             "merged"),
+        (ARCHIVED,           "archived"),
+    ]
+
+    @pytest.mark.parametrize("status,expected_dir", _STATUS_DIR_MATRIX)
+    def test_initial_status_places_file_in_correct_directory(
+        self, tmp_path, status, expected_dir
+    ):
+        """Creating a task with *status* must write the file under tasks/<expected_dir>/."""
+        tracker = _tracker(tmp_path)
+
+        issue = tracker.create_issue(f"Task for {status}", initial_status=status)
+
+        path = tmp_path / "repo" / ".oompah" / "tasks" / expected_dir / f"{issue.identifier}.md"
+        assert path.exists(), (
+            f"Expected file at tasks/{expected_dir}/{issue.identifier}.md "
+            f"for status {status!r}"
+        )
+        meta = _frontmatter(path)
+        assert meta["status"] == status
+
+    @pytest.mark.parametrize("status,expected_dir", _STATUS_DIR_MATRIX)
+    def test_update_status_moves_file_to_correct_directory(
+        self, tmp_path, status, expected_dir
+    ):
+        """Transitioning an existing task to *status* must move the file to
+        tasks/<expected_dir>/ and remove it from the old location."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue(f"Transition to {status}", initial_status=BACKLOG)
+        old_path = tmp_path / "repo" / ".oompah" / "tasks" / "backlog" / f"{issue.identifier}.md"
+        assert old_path.exists(), "Precondition: task starts in backlog/"
+
+        tracker.update_issue(issue.identifier, status=status)
+
+        new_path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / expected_dir / f"{issue.identifier}.md"
+        )
+        assert new_path.exists(), (
+            f"Expected file at tasks/{expected_dir}/{issue.identifier}.md "
+            f"after transitioning to {status!r}"
+        )
+        if expected_dir != "backlog":
+            assert not old_path.exists(), (
+                f"Old file at tasks/backlog/{issue.identifier}.md should have been removed "
+                f"when status moved to {status!r}"
+            )
+        refreshed = tracker.fetch_issue_detail(issue.identifier)
+        assert refreshed is not None
+        assert refreshed.state == status
+
+    @pytest.mark.parametrize("status,expected_dir", _STATUS_DIR_MATRIX)
+    def test_fetch_issue_detail_reads_from_any_status_directory(
+        self, tmp_path, status, expected_dir
+    ):
+        """fetch_issue_detail must locate and return a task in any status directory."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue(f"Findable task in {status}", initial_status=status)
+
+        found = tracker.fetch_issue_detail(issue.identifier)
+
+        assert found is not None, f"task with status {status!r} was not found"
+        assert found.state == status
+
+
+class TestOompahMarkdownTrackerFullLifecycle:
+    """Walk a task through the canonical 1.0 lifecycle end-to-end."""
+
+    def test_proposed_to_backlog_to_open_to_in_progress_to_in_review_to_merged(
+        self, tmp_path
+    ):
+        """Task advances through the normal feature-development lifecycle.
+
+        Each transition must move the file to the correct directory and
+        fetch_issue_detail must reflect the new state after each hop.
+        """
+        tracker = _tracker(tmp_path)
+        tasks_root = tmp_path / "repo" / ".oompah" / "tasks"
+
+        issue = tracker.create_issue("Feature work", initial_status=PROPOSED)
+        assert (tasks_root / "proposed" / f"{issue.identifier}.md").exists()
+
+        for status, expected_dir in [
+            (BACKLOG,       "backlog"),
+            (OPEN,          "open"),
+            (IN_PROGRESS,   "in-progress"),
+            (IN_REVIEW,     "in-review"),
+            (MERGED,        "merged"),
+        ]:
+            tracker.update_issue(issue.identifier, status=status)
+            path = tasks_root / expected_dir / f"{issue.identifier}.md"
+            assert path.exists(), (
+                f"Expected tasks/{expected_dir}/{issue.identifier}.md after moving to {status}"
+            )
+            refreshed = tracker.fetch_issue_detail(issue.identifier)
+            assert refreshed.state == status, (
+                f"Expected state {status!r}, got {refreshed.state!r}"
+            )
+
+    def test_task_can_be_archived_from_any_non_terminal_state(self, tmp_path):
+        """archive_issue must move any non-terminal task to archived/."""
+        tracker = _tracker(tmp_path)
+        tasks_root = tmp_path / "repo" / ".oompah" / "tasks"
+
+        for start_status, start_dir in [
+            (OPEN,        "open"),
+            (IN_PROGRESS, "in-progress"),
+            (NEEDS_HUMAN, "needs-human"),
+        ]:
+            issue = tracker.create_issue(
+                f"Archive from {start_status}", initial_status=start_status
+            )
+            assert (tasks_root / start_dir / f"{issue.identifier}.md").exists()
+
+            tracker.archive_issue(issue.identifier)
+
+            assert (tasks_root / "archived" / f"{issue.identifier}.md").exists(), (
+                f"Task should be in archived/ after archiving from {start_status}"
+            )
+            refreshed = tracker.fetch_issue_detail(issue.identifier)
+            assert refreshed.state == ARCHIVED
+
+    def test_terminal_state_retransition_is_allowed(self, tmp_path):
+        """Transitioning away from a terminal state (un-archiving/re-opening) must work.
+
+        The native tracker intentionally allows re-transition from terminal
+        states so operators can recover accidentally-closed or archived tasks.
+        """
+        tracker = _tracker(tmp_path)
+        tasks_root = tmp_path / "repo" / ".oompah" / "tasks"
+
+        issue = tracker.create_issue("Terminal re-transition", initial_status=DONE)
+        assert (tasks_root / "done" / f"{issue.identifier}.md").exists()
+
+        # Re-open from Done → Open
+        tracker.update_issue(issue.identifier, status=OPEN)
+        assert (tasks_root / "open" / f"{issue.identifier}.md").exists()
+        assert tracker.fetch_issue_detail(issue.identifier).state == OPEN
+
+        # Archive from Done
+        tracker.update_issue(issue.identifier, status=DONE)
+        tracker.update_issue(issue.identifier, status=ARCHIVED)
+        assert (tasks_root / "archived" / f"{issue.identifier}.md").exists()
+
+        # Un-archive back to Backlog
+        tracker.update_issue(issue.identifier, status=BACKLOG)
+        assert (tasks_root / "backlog" / f"{issue.identifier}.md").exists()
+        assert tracker.fetch_issue_detail(issue.identifier).state == BACKLOG
+
+
+class TestOompahMarkdownTrackerProposedStatus:
+    """Proposed tasks must be excluded from dispatch but visible in fetch_all_issues."""
+
+    def test_proposed_tasks_are_excluded_from_dispatch_candidates(self, tmp_path):
+        """fetch_candidate_issues must never return Proposed tasks."""
+        tracker = _tracker(tmp_path)
+        tracker.create_issue("Proposed task", initial_status=PROPOSED)
+        tracker.create_issue("Open task", initial_status=OPEN)
+
+        candidates = tracker.fetch_candidate_issues()
+
+        identifiers = [i.identifier for i in candidates]
+        assert "REPO-1" not in identifiers, "Proposed task must not be dispatched"
+        assert "REPO-2" in identifiers, "Open task must be available for dispatch"
+
+    def test_proposed_tasks_appear_in_fetch_all_issues(self, tmp_path):
+        """fetch_all_issues must include Proposed tasks (they are visible but not dispatchable)."""
+        tracker = _tracker(tmp_path)
+        tracker.create_issue("Proposed task", initial_status=PROPOSED)
+
+        all_issues = tracker.fetch_all_issues()
+
+        states = [i.state for i in all_issues]
+        assert PROPOSED in states, "Proposed task must appear in fetch_all_issues"
+
+    def test_proposed_tasks_appear_in_fetch_issues_by_states(self, tmp_path):
+        """fetch_issues_by_states([Proposed]) must return Proposed tasks."""
+        tracker = _tracker(tmp_path)
+        tracker.create_issue("Proposed task", initial_status=PROPOSED)
+        tracker.create_issue("Backlog task", initial_status=BACKLOG)
+
+        proposed = tracker.fetch_issues_by_states([PROPOSED])
+
+        assert len(proposed) == 1
+        assert proposed[0].state == PROPOSED
+
+
+class TestOompahMarkdownTrackerDecomposedAndDuplicateStatuses:
+    """Decomposed and Duplicate Candidate tasks must round-trip correctly."""
+
+    def test_decomposed_task_is_excluded_from_dispatch(self, tmp_path):
+        """Decomposed tasks must not be returned as dispatch candidates."""
+        tracker = _tracker(tmp_path)
+        tracker.create_issue("Decomposed", initial_status=DECOMPOSED)
+        tracker.create_issue("Open", initial_status=OPEN)
+
+        candidates = tracker.fetch_candidate_issues()
+
+        identifiers = [i.identifier for i in candidates]
+        assert "REPO-1" not in identifiers, "Decomposed task must not be dispatched"
+        assert "REPO-2" in identifiers
+
+    def test_duplicate_candidate_task_is_excluded_from_dispatch(self, tmp_path):
+        """Duplicate Candidate tasks must not be returned as dispatch candidates."""
+        tracker = _tracker(tmp_path)
+        tracker.create_issue("Duplicate Candidate task", initial_status=DUPLICATE_CANDIDATE)
+        tracker.create_issue("Open", initial_status=OPEN)
+
+        candidates = tracker.fetch_candidate_issues()
+
+        identifiers = [i.identifier for i in candidates]
+        assert "REPO-1" not in identifiers, "Duplicate Candidate task must not be dispatched"
+        assert "REPO-2" in identifiers
+
+    def test_decomposed_epic_children_carry_correct_state(self, tmp_path):
+        """An epic transitioned to Decomposed must still show Decomposed state."""
+        tracker = _tracker(tmp_path)
+        epic = tracker.create_issue("Big Epic", issue_type="epic", initial_status=BACKLOG)
+
+        tracker.update_issue(epic.identifier, status=DECOMPOSED)
+
+        refreshed = tracker.fetch_issue_detail(epic.identifier)
+        assert refreshed.state == DECOMPOSED
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "decomposed" / f"{epic.identifier}.md"
+        )
+        assert path.exists()
+
+
+class TestOompahMarkdownTrackerWaitingStatuses:
+    """Needs Answer / Needs Human tasks represent the 'awaiting' intake sub-states.
+
+    In the native tracker, 'awaiting owner' conceptually maps to Needs Human
+    and 'awaiting requestor' conceptually maps to Needs Answer.  Both must:
+    - place the task file in the correct directory
+    - be retrievable via fetch_issue_detail
+    - NOT appear as dispatch candidates
+    - be recoverable (transitionable back to Open or In Progress)
+    """
+
+    def test_needs_answer_task_lands_in_correct_directory(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Awaiting requestor", initial_status=NEEDS_ANSWER)
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "needs-answer" / f"{issue.identifier}.md"
+        )
+        assert path.exists()
+        assert tracker.fetch_issue_detail(issue.identifier).state == NEEDS_ANSWER
+
+    def test_needs_human_task_lands_in_correct_directory(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Awaiting owner", initial_status=NEEDS_HUMAN)
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "needs-human" / f"{issue.identifier}.md"
+        )
+        assert path.exists()
+        assert tracker.fetch_issue_detail(issue.identifier).state == NEEDS_HUMAN
+
+    def test_needs_answer_is_not_a_dispatch_candidate(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        tracker.create_issue("Awaiting requestor", initial_status=NEEDS_ANSWER)
+        candidates = tracker.fetch_candidate_issues()
+        assert candidates == []
+
+    def test_needs_human_is_not_a_dispatch_candidate(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        tracker.create_issue("Awaiting owner", initial_status=NEEDS_HUMAN)
+        candidates = tracker.fetch_candidate_issues()
+        assert candidates == []
+
+    def test_mark_needs_human_transitions_task_and_adds_comment(self, tmp_path):
+        """mark_needs_human convenience method must update status and add a comment."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("In progress task", initial_status=IN_PROGRESS)
+
+        tracker.mark_needs_human(issue.identifier, "Needs owner decision on approach.")
+
+        refreshed = tracker.fetch_issue_detail(issue.identifier)
+        assert refreshed.state == NEEDS_HUMAN
+        comments = tracker.fetch_comments(issue.identifier)
+        assert any("Needs owner decision" in c["text"] for c in comments)
+
+    def test_needs_answer_task_can_return_to_in_progress(self, tmp_path):
+        """A task blocked on an answer can be recovered to In Progress."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Blocked task", initial_status=NEEDS_ANSWER)
+
+        tracker.update_issue(issue.identifier, status=IN_PROGRESS)
+
+        refreshed = tracker.fetch_issue_detail(issue.identifier)
+        assert refreshed.state == IN_PROGRESS
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "in-progress" / f"{issue.identifier}.md"
+        )
+        assert path.exists()
+
+    def test_needs_human_task_can_return_to_open(self, tmp_path):
+        """A task waiting on a human can be returned to Open after the human acts."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Waiting for decision", initial_status=NEEDS_HUMAN)
+
+        tracker.update_issue(issue.identifier, status=OPEN)
+
+        refreshed = tracker.fetch_issue_detail(issue.identifier)
+        assert refreshed.state == OPEN
+        path = tmp_path / "repo" / ".oompah" / "tasks" / "open" / f"{issue.identifier}.md"
+        assert path.exists()
+
+
+class TestOompahMarkdownTrackerReviewPipelineStatuses:
+    """In Review / Needs CI Fix / Needs Rebase cover the PR-review pipeline."""
+
+    def test_in_review_task_lands_in_in_review_directory(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Under review", initial_status=IN_REVIEW)
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "in-review" / f"{issue.identifier}.md"
+        )
+        assert path.exists()
+        assert tracker.fetch_issue_detail(issue.identifier).state == IN_REVIEW
+
+    def test_needs_ci_fix_task_lands_in_needs_ci_fix_directory(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("CI failing", initial_status=NEEDS_CI_FIX)
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "needs-ci-fix" / f"{issue.identifier}.md"
+        )
+        assert path.exists()
+        assert tracker.fetch_issue_detail(issue.identifier).state == NEEDS_CI_FIX
+
+    def test_needs_rebase_task_lands_in_needs_rebase_directory(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Conflicting PR", initial_status=NEEDS_REBASE)
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "needs-rebase" / f"{issue.identifier}.md"
+        )
+        assert path.exists()
+        assert tracker.fetch_issue_detail(issue.identifier).state == NEEDS_REBASE
+
+    def test_review_pipeline_full_path_in_progress_to_merged(self, tmp_path):
+        """Task walks through In Progress → In Review → Needs CI Fix → In Review → Merged."""
+        tracker = _tracker(tmp_path)
+        tasks_root = tmp_path / "repo" / ".oompah" / "tasks"
+        issue = tracker.create_issue("PR lifecycle", initial_status=IN_PROGRESS)
+
+        for status, expected_dir in [
+            (IN_REVIEW,     "in-review"),
+            (NEEDS_CI_FIX,  "needs-ci-fix"),
+            (IN_REVIEW,     "in-review"),
+            (MERGED,        "merged"),
+        ]:
+            tracker.update_issue(issue.identifier, status=status)
+            assert (tasks_root / expected_dir / f"{issue.identifier}.md").exists(), (
+                f"Expected tasks/{expected_dir}/{issue.identifier}.md after moving to {status}"
+            )
+            assert tracker.fetch_issue_detail(issue.identifier).state == status

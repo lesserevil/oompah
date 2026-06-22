@@ -612,6 +612,7 @@ def test_orchestrator_processes_oversized_proposed_issues():
     source = _source_issue()
     tracker = FakeTracker([source])
     orch = Orchestrator.__new__(Orchestrator)
+    orch.config = SimpleNamespace(tracker_kind="oompah_md")
     orch.project_store = MagicMock()
     orch.project_store.list_all.return_value = []
     orch.tracker = tracker
@@ -631,6 +632,7 @@ def test_orchestrator_auto_decomposes_oversized_proposed_issues_for_yolo_project
     project = SimpleNamespace(id="proj", yolo=True, intake_auto_promote=True)
     tracker = FakeTracker([source])
     orch = Orchestrator.__new__(Orchestrator)
+    orch.config = SimpleNamespace(tracker_kind="oompah_md")
     orch.project_store = MagicMock()
     orch.project_store.list_all.return_value = [project]
     orch.project_store.get.return_value = project
@@ -649,6 +651,80 @@ def test_orchestrator_auto_decomposes_oversized_proposed_issues_for_yolo_project
     assert orch._last_epic_proposal_metrics["comment_posted_count"] == 0
 
 
+def test_orchestrator_disables_epic_proposals_for_github_issue_projects():
+    source = _source_issue(project_id="proj", tracker_kind="github_issues")
+    project = SimpleNamespace(
+        id="proj",
+        yolo=True,
+        intake_auto_promote=True,
+        tracker_kind="github_issues",
+    )
+    tracker = FakeTracker([source])
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.config = SimpleNamespace(tracker_kind="oompah_md")
+    orch.project_store = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch.project_store.get.return_value = project
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch.tracker = tracker
+
+    processed = orch._process_epic_proposals()
+
+    assert processed == [source]
+    orch._tracker_for_project.assert_called()
+    assert EPIC_PROPOSAL_METADATA_KEY not in tracker.metadata[source.identifier]
+    assert tracker.create_calls == []
+    assert tracker.comments == []
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    assert readiness.decomposition_status == DecompositionStatus.PENDING
+    assert orch._last_epic_proposal_metrics["proposed_count"] == 1
+    assert orch._last_epic_proposal_metrics["processed_count"] == 1
+    assert orch._last_epic_proposal_metrics["created_count"] == 0
+    assert orch._last_epic_proposal_metrics["applied_count"] == 0
+
+
+def test_orchestrator_native_github_intake_reuses_imported_task_as_epic():
+    source = _source_issue(project_id="proj", tracker_kind="oompah_md")
+    project = SimpleNamespace(
+        id="proj",
+        yolo=True,
+        intake_auto_promote=True,
+        tracker_kind="oompah_md",
+        github_issue_intake_enabled=True,
+    )
+    tracker = FakeTracker([source])
+    tracker.set_metadata_field(
+        source.identifier,
+        "oompah.external.github",
+        {"id": "example-org/oompah#500"},
+    )
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.config = SimpleNamespace(tracker_kind="oompah_md")
+    orch.project_store = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch.project_store.get.return_value = project
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch.tracker = tracker
+
+    processed = orch._process_epic_proposals()
+
+    assert processed == [source]
+    assert tracker.issues[source.identifier].issue_type == "epic"
+    assert tracker.issues[source.identifier].state == PROPOSED
+    assert tracker.issues[source.identifier].title.startswith("Epic:")
+
+    proposal = tracker.metadata[source.identifier][EPIC_PROPOSAL_METADATA_KEY]
+    assert len(tracker.create_calls) == len(proposal["children"])
+    assert not any(call["issue_type"] == "epic" for call in tracker.create_calls)
+    assert tracker.parent_links == [
+        (call["identifier"], source.identifier) for call in tracker.create_calls
+    ]
+
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    assert readiness.decomposition_status == DecompositionStatus.ACCEPTED
+    assert orch._last_epic_proposal_metrics["applied_count"] == 1
+
+
 def test_orchestrator_skips_proposed_intake_for_paused_projects():
     source = _source_issue(project_id="proj")
     project = SimpleNamespace(
@@ -659,6 +735,7 @@ def test_orchestrator_skips_proposed_intake_for_paused_projects():
     )
     tracker = FakeTracker([source])
     orch = Orchestrator.__new__(Orchestrator)
+    orch.config = SimpleNamespace(tracker_kind="oompah_md")
     orch.project_store = MagicMock()
     orch.project_store.list_all.return_value = [project]
     orch.project_store.get.return_value = project
@@ -695,6 +772,7 @@ Oompah should detect the stale dispatch loop and recover or alert clearly.
     )
     tracker = FakeTracker([source])
     orch = Orchestrator.__new__(Orchestrator)
+    orch.config = SimpleNamespace(tracker_kind="oompah_md")
     orch.project_store = MagicMock()
     orch.project_store.list_all.return_value = []
     orch.tracker = tracker
@@ -741,6 +819,7 @@ oompah templates.
     )
     tracker = FakeTracker([source])
     orch = Orchestrator.__new__(Orchestrator)
+    orch.config = SimpleNamespace(tracker_kind="oompah_md")
     orch.project_store = MagicMock()
     orch.project_store.list_all.return_value = []
     orch.tracker = tracker
@@ -785,6 +864,7 @@ oompah templates.
     )
     tracker = FakeTracker([source])
     orch = Orchestrator.__new__(Orchestrator)
+    orch.config = SimpleNamespace(tracker_kind="oompah_md")
     orch.project_store = MagicMock()
     orch.project_store.list_all.return_value = []
     orch.project_store.get.return_value = SimpleNamespace(intake_auto_promote=False)
