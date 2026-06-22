@@ -16,11 +16,10 @@ blocked_by:
 - OOMPAH-22
 - OOMPAH-27
 - OOMPAH-32
-labels:
-- draft
+labels: []
 assignee: null
 created_at: '2026-06-22T01:17:30.687635Z'
-updated_at: '2026-06-22T01:20:20.981079Z'
+updated_at: '2026-06-22T01:32:13.475854Z'
 work_branch: null
 target_branch: null
 review_url: null
