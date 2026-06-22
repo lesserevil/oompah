@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:41.668460Z'
-updated_at: '2026-06-22T01:53:53.367265Z'
+updated_at: '2026-06-22T01:54:55.850269Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-06-22 01:53
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 01:54
+---
+UNDERSTANDING: This is NOT a duplicate. OOMPAH-23 is the specific task that actually bumps pyproject.toml project.version from 0.1.0 to 1.0.0. Checked all candidates: OOMPAH-18 (Done, updated docs/tests only), OOMPAH-21 (checklist docs, doesn't make the change), OOMPAH-38 (full quality gate, depends on this being done). None cover the actual pyproject.toml version bump. Proceeding to implement.
 ---
 <!-- COMMENTS:END -->
