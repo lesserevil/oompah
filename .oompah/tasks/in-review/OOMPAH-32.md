@@ -17,7 +17,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-06-22T01:17:10.735548Z'
-updated_at: '2026-06-22T15:05:55.750535Z'
+updated_at: '2026-06-22T15:05:58.139604Z'
 work_branch: epic-OOMPAH-32
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/350
@@ -28,6 +28,22 @@ oompah.target_branch: main
 oompah.agent_run_id: da39e503-7103-4261-b2f9-0e9494bea8a5
 oompah.review_url: https://github.com/lesserevil/oompah/pull/350
 oompah.review_number: '350'
+oompah.task_costs:
+  total_input_tokens: 30
+  total_output_tokens: 6477
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 30
+      output_tokens: 6477
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: unknown
+    input_tokens: 30
+    output_tokens: 6477
+    cost_usd: 0.0
+    recorded_at: '2026-06-22T15:05:55.114180+00:00'
 ---
 ## Summary
 
