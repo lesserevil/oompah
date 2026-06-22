@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T15:30:30.201826Z'
-updated_at: '2026-06-22T15:32:14.718531Z'
+updated_at: '2026-06-22T15:32:17.009037Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,5 +77,10 @@ author: oompah
 created: 2026-06-22 15:31
 ---
 Agent completed without closing this issue (73s (147061 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-06-22 15:32
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
