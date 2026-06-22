@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:34.236540Z'
-updated_at: '2026-06-22T02:34:44.229807Z'
+updated_at: '2026-06-22T02:34:46.419015Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -165,5 +165,10 @@ Completion: Added the release/1.0 branch cut checklist. Changes pushed to epic-O
 3. tests/test_cli_release_packaging.py — Added test_release_docs_include_branch_cut_checklist and test_release_plan_includes_self_contained_branch_cut_checklist to verify required content is present.
 
 All 7056 tests pass. The checklist is self-contained — a maintainer can follow it without any hidden context from this task.
+---
+author: oompah
+created: 2026-06-22 02:34
+---
+Added self-contained release/1.0 branch cut checklist to plans/oompah-1.0-release.md and docs/cli-release.md, covering all 7 required areas. Added two tests verifying checklist content. All 7056 tests pass.
 ---
 <!-- COMMENTS:END -->
