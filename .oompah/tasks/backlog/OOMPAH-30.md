@@ -6,11 +6,12 @@ priority: 1
 title: Validate native-only decomposition boundaries
 parent: OOMPAH-27
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-29
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:59.982565Z'
-updated_at: '2026-06-22T01:16:59.982565Z'
+updated_at: '2026-06-22T01:18:13.256609Z'
 work_branch: null
 target_branch: null
 review_url: null
