@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:46.207414Z'
-updated_at: '2026-06-22T02:36:36.025499Z'
+updated_at: '2026-06-22T02:40:52.197891Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-06-22 02:36
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 02:40
+---
+UNDERSTANDING: Not a duplicate. Searched existing tasks for 'wheel', 'lightweight', 'server extra', 'dependency boundary'. No existing task covers comprehensive dependency boundary verification. OOMPAH-7 (Merged) set up release packaging; OOMPAH-8 (Merged) added basic smoke tests; OOMPAH-24 (Done) expanded smoke tests for project-bootstrap. None specifically verify: (1) ALL server-only packages (not just watchfiles) are blocked from CLI import path, or (2) wheel contents include all required CLI modules. Proceeding to implement: add comprehensive server-dep blocking tests + wheel contents test to test_installed_cli_smoke.py and test_cli_release_packaging.py.
 ---
 <!-- COMMENTS:END -->
