@@ -11,7 +11,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:52.001843Z'
-updated_at: '2026-06-22T01:53:31.420901Z'
+updated_at: '2026-06-22T01:53:33.540979Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -98,5 +98,15 @@ author: oompah
 created: 2026-06-22 01:53
 ---
 Updated docs/cli-release.md (1.0 release train section + v1.0.0 examples), docs/cli-install.md (v1.0.0 examples), and tests/test_cli_release_packaging.py (v1.0.0 assertions + 2 new tests for draft/final tag convention). All 8 cli_release tests pass. Follow-up OOMPAH-43 filed for workflow dispatch description (requires maintainer with workflow scope).
+---
+author: oompah
+created: 2026-06-22 01:53
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 59
+- Tokens: 99 in / 2.6K out [2.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 10s
+- Log: OOMPAH-18__20260622T013529Z.jsonl
 ---
 <!-- COMMENTS:END -->
