@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:35:48.855045Z'
-updated_at: '2026-06-22T02:37:59.151320Z'
+updated_at: '2026-06-22T02:38:31.663973Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,15 @@ author: oompah
 created: 2026-06-22 02:37
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 02:38
+---
+UNDERSTANDING: This is NOT a duplicate. OOMPAH-24 was the original task that expanded smoke tests for project-bootstrap but explicitly could not update .github/workflows/cli-release.yml due to PAT scope limitations. OOMPAH-47 is the explicitly-created follow-up to complete that remaining work. 
+
+Plan:
+1. Add 'oompah project-bootstrap --help' after 'oompah task --help' in .github/workflows/cli-release.yml (Verify wheel console script step)
+2. Add assertion 'assert "oompah project-bootstrap --help" in text' to test_release_workflow_is_tag_or_manual_github_release_only in tests/test_cli_release_packaging.py
+3. Update the description paragraph in docs/cli-release.md to include 'oompah project-bootstrap --help' in both the workflow description and the manual verification section
 ---
 <!-- COMMENTS:END -->
