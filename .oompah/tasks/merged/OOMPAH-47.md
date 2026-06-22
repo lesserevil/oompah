@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-47
 type: task
-status: In Review
+status: Merged
 priority: null
 title: Add oompah project-bootstrap --help to cli-release.yml workflow smoke checks
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:35:48.855045Z'
-updated_at: '2026-06-22T02:49:57.675143Z'
+updated_at: '2026-06-22T04:28:38.967712Z'
 work_branch: OOMPAH-47
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/343
