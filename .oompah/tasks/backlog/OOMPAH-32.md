@@ -7,12 +7,13 @@ title: Finish 1.0 operator and project docs
 parent: OOMPAH-16
 children:
 - OOMPAH-33
+- OOMPAH-34
 blocked_by: []
 labels:
 - draft
 assignee: null
 created_at: '2026-06-22T01:17:10.735548Z'
-updated_at: '2026-06-22T01:17:15.181071Z'
+updated_at: '2026-06-22T01:17:23.771392Z'
 work_branch: null
 target_branch: null
 review_url: null
