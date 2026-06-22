@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T15:33:00.392057Z'
+updated_at: '2026-06-22T15:48:17.626094Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,5 +51,15 @@ author: oompah
 created: 2026-06-22 15:33
 ---
 UNDERSTANDING: Not a duplicate. OOMPAH-40 is step E3 in the 1.0 release plan (plans/oompah-1.0-release.md#release-execution-and-verification). OOMPAH-39 (E2) is now Done. All other tasks are distinct: OOMPAH-38=E1, OOMPAH-41=E4, OOMPAH-42=E5. Proceeding with E3 work: identify what changes were applied to release/1.0 during OOMPAH-39 that need to be synced back to main, and check for any remaining draft-verification findings.
+---
+author: oompah
+created: 2026-06-22 15:48
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 54
+- Tokens: 80 in / 2.8K out [2.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 16m 16s
+- Log: OOMPAH-40__20260622T153205Z.jsonl
 ---
 <!-- COMMENTS:END -->
