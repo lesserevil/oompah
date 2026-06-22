@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:26.082104Z'
-updated_at: '2026-06-22T14:25:10.554708Z'
+updated_at: '2026-06-22T14:25:24.331137Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-06-22 14:25
 ---
 Verification: docs/managed-project-onboarding.md committed (a5a19386) and pushed to origin/epic-OOMPAH-32. Document is 355 lines covering all six checklist sections. No code changes were made — this is a documentation-only deliverable, so no unit tests were needed. Cross-checked content against native-markdown-tracker.md, github-issue-intake.md, project-bootstrap.md, operator-runbook.md, and cli-install.md for accuracy. The checklist allows a new managed project to be added and reviewed while paused, satisfying the HOW TO VERIFY condition.
+---
+author: oompah
+created: 2026-06-22 14:25
+---
+Completion: Created docs/managed-project-onboarding.md — the managed-project onboarding checklist for 1.0. The document walks operators through: (1) prerequisites, (2) registering a project in paused state, (3) native tracker expectations and verification, (4) optional GitHub Issues intake setup, (5) project bootstrap and AGENTS.md refresh, and (6) a systematic paused-project review before unpausing. Includes a Mermaid flow diagram and a troubleshooting table. Satisfies Epic D3 from plans/oompah-1.0-release.md. No duplicate found during investigation.
 ---
 <!-- COMMENTS:END -->
