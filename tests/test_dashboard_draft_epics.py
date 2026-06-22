@@ -1,8 +1,9 @@
 """Tests for draft epic visibility in the flat kanban view.
 
 Covers:
-  1. renderFlatView() filter logic — draft epics pass through, non-draft epics are excluded
-  2. col-count reflects only the filtered (non-draft-epic) set
+  1. renderFlatView() filter logic — draft epics pass through, active parent
+     epics stay out of work-card columns, and merge-flow epics can appear
+  2. col-count reflects only the filtered work-card set
   3. createCard() Draft Epic badge — HTML structure, CSS class, condition, accessibility
   4. .draft-epic-badge CSS styling (distinct from .merged-badge)
   5. Server-side API data shape — labels and issue_type are included so the
@@ -155,41 +156,36 @@ def _make_issue(
 class TestRenderFlatViewFilter:
     """Verify the filter expression in renderFlatView allows draft epics through."""
 
-    def test_filter_excludes_non_draft_epics(self, render_flat_body):
-        """The filter must exclude swimlane parents (epics) unless they have 'draft' label."""
-        # The filter uses !isSwimlaneParent(i) || includes('draft')
+    def test_filter_uses_work_card_helper(self, render_flat_body):
+        """The flat view must use the centralized work-card eligibility helper."""
         assert re.search(
-            r"filter\(.*!isSwimlaneParent\(",
+            r"filter\(\s*i\s*=>\s*shouldShowIssueAsWorkCard\(i\)\s*\)",
             render_flat_body,
-        ), "renderFlatView must filter out swimlane parents (epics) via !isSwimlaneParent()"
+        ), "renderFlatView must filter cards through shouldShowIssueAsWorkCard"
 
-    def test_filter_includes_draft_epics_via_or_clause(self, render_flat_body):
-        """The filter must allow through epics that include the 'draft' label."""
-        assert "draft" in render_flat_body, (
-            "renderFlatView filter must reference 'draft' to pass draft epics through"
-        )
-        # The OR branch should include draft label check
+    def test_helper_excludes_active_finalized_parent_epics(self, script):
+        """Finalized parent epics must not be work cards while children are active."""
         assert re.search(
-            r"!isSwimlaneParent\(.*?\).*\|\|.*draft",
-            render_flat_body,
+            r"function shouldShowIssueAsWorkCard\(issue\).*?!isSwimlaneParent\(issue\).*?hasDraftLabel\(issue\).*?isEpicMergeFlowCard\(issue\)",
+            script,
             re.DOTALL,
-        ), "renderFlatView filter must OR-include draft epics"
+        ), "shouldShowIssueAsWorkCard must only allow non-parents, draft epics, or merge-flow epics"
 
-    def test_filter_uses_labels_includes_pattern(self, render_flat_body):
-        """The filter must use .includes('draft') on labels array."""
+    def test_helper_uses_labels_includes_pattern(self, script):
+        """The draft-label helper must use .includes('draft') on labels array."""
         assert re.search(
             r"labels.*\|\|\s*\[\s*\]\)\.includes\(['\"]draft['\"]\)",
-            render_flat_body,
+            script,
         ) or re.search(
             r"labels.*includes\(['\"]draft['\"]\)",
-            render_flat_body,
+            script,
         ), "renderFlatView filter must use .includes('draft') on labels array"
 
-    def test_filter_handles_missing_labels_with_default_array(self, render_flat_body):
-        """The filter must use (labels || []) to safely handle issues without labels."""
+    def test_helper_handles_missing_labels_with_default_array(self, script):
+        """The draft-label helper must use (labels || []) to safely handle issues without labels."""
         assert re.search(
             r"\(.*labels\s*\|\|\s*\[\s*\]\)",
-            render_flat_body,
+            script,
         ), "renderFlatView filter must use '|| []' to handle missing labels"
 
     def test_filter_named_issues_variable(self, render_flat_body):
@@ -199,17 +195,32 @@ class TestRenderFlatViewFilter:
             render_flat_body,
         ), "renderFlatView must store filtered issues in 'const issues = allInCol.filter(...)'"
 
-    def test_filter_correct_full_expression(self, render_flat_body):
-        """The filter expression must use isSwimlaneParent with draft exception."""
-        # Expected: filter(i => !isSwimlaneParent(i) || (i.labels || []).includes('draft'))
+    def test_helper_requires_merge_flow_for_finalized_parent_epics(self, script):
+        """A finalized parent epic card must be in the rollup PR/CI/merge path."""
         assert re.search(
-            r"filter\(\s*i\s*=>\s*!isSwimlaneParent\(i\)"
-            r"\s*\|\|\s*\(i\.labels\s*\|\|\s*\[\s*\]\)\.includes\(['\"]draft['\"]\)\s*\)",
-            render_flat_body,
+            r"const mergeFlowStates = \['Done', 'In Review', 'Needs CI Fix', 'Needs Rebase'\];",
+            script,
         ), (
-            "renderFlatView filter must be: "
-            "filter(i => !isSwimlaneParent(i) || (i.labels || []).includes('draft'))"
+            "finalized parent epics should only appear as work cards during "
+            "Done/In Review/CI/rebase flow"
         )
+
+    def test_helper_requires_merge_ready_children(self, script):
+        """A finalized parent epic card must have no active child work."""
+        assert "function childCountsAreMergeReady" in script
+        for state in (
+            "Proposed",
+            "Backlog",
+            "Open",
+            "In Progress",
+            "Needs Answer",
+            "Needs Human",
+            "Needs CI Fix",
+            "Needs Rebase",
+            "In Review",
+        ):
+            assert f"'{state}'" in script
+        assert "completedChildren > 0" in script
 
     def test_col_count_uses_issues_length(self, render_flat_body):
         """The column count badge must reflect issues.length (filtered count)."""
@@ -222,14 +233,7 @@ class TestRenderFlatViewFilter:
         ), "col-count must display issues.length (filtered count including draft epics)"
 
     def test_non_draft_epics_excluded_semantically(self, render_flat_body):
-        """Confirm the filter semantics: swimlane parent without draft → excluded; with draft → included."""
-        # The filter is: !isSwimlaneParent(i) || (labels||[]).includes('draft')
-        # For a plain epic (isSwimlaneParent=true, labels=[]):
-        #   false || false → false → excluded ✓
-        # For a draft epic (isSwimlaneParent=true, labels=['draft']):
-        #   false || true → true → included ✓
-        # For a task (isSwimlaneParent=false):
-        #   true → true → included ✓
+        """Confirm flat view delegates epic-card semantics to the helper."""
         filter_match = re.search(
             r"const\s+issues\s*=\s*allInCol\.filter\((.*?)\)\s*;",
             render_flat_body,
@@ -237,13 +241,7 @@ class TestRenderFlatViewFilter:
         )
         assert filter_match, "Could not find 'const issues = allInCol.filter(...)' statement"
         expr = filter_match.group(1)
-        # Must contain the negated swimlane parent check OR has-draft
-        assert "isSwimlaneParent" in expr, (
-            "Filter must use isSwimlaneParent() to identify epics/swimlane parents"
-        )
-        assert "draft" in expr, (
-            "Filter must reference 'draft' for the draft epic exception"
-        )
+        assert "shouldShowIssueAsWorkCard" in expr
 
 
 # ===========================================================================
@@ -851,22 +849,21 @@ class TestRegressionFilterExpression:
 
     def test_filter_allows_non_epic_issues_through(self, render_flat_body):
         """The filter must still allow all non-swimlane-parent issues through."""
-        # The filter condition is: !isSwimlaneParent(i) || ...
-        # For non-epics/non-parents, the first clause (true) short-circuits -> included
+        # The centralized helper keeps the flat render expression small while
+        # preserving the non-parent pass-through behavior.
         assert re.search(
-            r"!isSwimlaneParent\(i\)",
+            r"shouldShowIssueAsWorkCard\(i\)",
             render_flat_body,
-        ), "Filter must use !isSwimlaneParent(i) as the base condition for non-parents"
+        ), "Filter must use shouldShowIssueAsWorkCard for card eligibility"
 
-    def test_filter_or_clause_provides_draft_exception(self, render_flat_body):
-        """The filter must have an OR clause to include draft epics."""
+    def test_helper_provides_draft_exception(self, script):
+        """The helper must include draft epics even though normal parent epics are hidden."""
         assert re.search(
-            r"!isSwimlaneParent\(i\)\s*\|\|.*draft",
-            render_flat_body,
+            r"if \(hasDraftLabel\(issue\)\) return true;",
+            script,
             re.DOTALL,
         ), (
-            "Filter must include || clause for draft epics. "
-            "Expected: !isSwimlaneParent(i) || (i.labels || []).includes('draft')"
+            "shouldShowIssueAsWorkCard must explicitly allow draft epics"
         )
 
 

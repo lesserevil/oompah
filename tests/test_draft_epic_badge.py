@@ -347,20 +347,19 @@ class TestDraftEpicDraggability:
         )
         assert render_match, "Could not find renderFlatView function"
         body = render_match.group(1)
-        # The filter must handle draft epics (allow them through).
-        # Look for the filter line that uses isSwimlaneParent — it should have a draft exception.
-        filter_match = re.search(
-            r"\.filter\(.*?isSwimlaneParent.*?draft.*?\)",
-            body,
+        assert "shouldShowIssueAsWorkCard" in body, (
+            "renderFlatView must use the work-card helper that handles draft epics"
+        )
+        helper_match = re.search(
+            r"function shouldShowIssueAsWorkCard\(issue\)\s*\{(.*?)\n\}",
+            script,
             re.DOTALL,
         )
-        assert filter_match, (
-            "renderFlatView must have an isSwimlaneParent filter that handles draft epics"
+        assert helper_match, "Could not find shouldShowIssueAsWorkCard helper"
+        helper_code = helper_match.group(1)
+        assert "hasDraftLabel(issue)" in helper_code, (
+            "shouldShowIssueAsWorkCard must allow draft epics through"
         )
-        filter_code = filter_match.group(0)
-        # The filter should include an exception for draft label
-        assert "draft" in filter_code, \
-            "renderFlatView filter must allow draft epics through (check for 'draft' label)"
 
     def test_setupDropZone_handles_drag_drop(self, script):
         """setupDropZone() must handle the drop event to enable moving cards between columns."""
