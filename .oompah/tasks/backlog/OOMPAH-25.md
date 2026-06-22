@@ -6,11 +6,12 @@ priority: 1
 title: Verify lightweight wheel contents and dependency boundary
 parent: OOMPAH-22
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-24
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:46.207414Z'
-updated_at: '2026-06-22T01:16:46.207414Z'
+updated_at: '2026-06-22T01:18:06.444818Z'
 work_branch: null
 target_branch: null
 review_url: null
