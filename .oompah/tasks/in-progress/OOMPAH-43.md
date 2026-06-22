@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:52:58.922363Z'
-updated_at: '2026-06-22T02:08:10.177381Z'
+updated_at: '2026-06-22T02:08:16.359797Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-06-22 02:08
 ---
 IMPLEMENTATION: Updated .github/workflows/cli-release.yml workflow_dispatch input description from 'e.g. v0.1.0' to 'e.g. v1.0.0-draft or v1.0.0'. Added new test test_release_workflow_dispatch_description_shows_v1_examples in tests/test_cli_release_packaging.py to assert the description contains both 'v1.0.0-draft' and 'v1.0.0' strings, locking in the correct example going forward.
+---
+author: oompah
+created: 2026-06-22 02:08
+---
+VERIFICATION: All 7 tests in tests/test_cli_release_packaging.py pass (7 passed, 0 failed), including the new test_release_workflow_dispatch_description_shows_v1_examples.
 ---
 <!-- COMMENTS:END -->
