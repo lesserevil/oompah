@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:52:58.922363Z'
-updated_at: '2026-06-22T02:01:33.570186Z'
+updated_at: '2026-06-22T02:01:35.766193Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ The cli-release.yml workflow_dispatch input description still says 'e.g. v0.1.0'
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 02:01
+---
+Agent dispatched (profile: default)
+---
+<!-- COMMENTS:END -->
