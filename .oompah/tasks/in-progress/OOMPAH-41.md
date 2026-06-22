@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:48.285544Z'
-updated_at: '2026-06-22T17:02:45.863377Z'
+updated_at: '2026-06-22T17:03:05.759218Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-06-22 17:02
 ---
 DISCOVERY: Confirmed not a duplicate — OOMPAH-41 is the unique E4 step. Current state: release/1.0 HEAD is 4dd36017 (OOMPAH-40: Fix draft-release findings and sync back to main). v1.0.0-draft tag exists on origin pointing to same commit. v1.0.0 final tag does NOT exist yet on origin. pyproject.toml version = '1.0.0' on release/1.0. Plan: create immutable v1.0.0 tag pointing to 4dd36017, push to origin (triggers CLI Release workflow), verify GitHub Release artifacts.
+---
+author: oompah
+created: 2026-06-22 17:03
+---
+IMPLEMENTATION: Created immutable v1.0.0 tag pointing to commit 4dd36017 (release/1.0 HEAD, OOMPAH-40 fixes included) and pushed to origin. The CLI Release workflow has been triggered by the tag push. Monitoring workflow completion and will verify: (1) no force-push capability on the tag, (2) GitHub Release v1.0.0 with wheel/sdist artifacts and release notes.
 ---
 <!-- COMMENTS:END -->
