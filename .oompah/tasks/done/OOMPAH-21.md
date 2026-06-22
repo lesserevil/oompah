@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-21
 type: task
-status: In Progress
+status: Done
 priority: 2
 title: Add the release/1.0 branch cut checklist
 parent: OOMPAH-17
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:34.236540Z'
-updated_at: '2026-06-22T02:34:38.853040Z'
+updated_at: '2026-06-22T02:34:44.229807Z'
 work_branch: null
 target_branch: null
 review_url: null
