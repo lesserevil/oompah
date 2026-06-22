@@ -60,10 +60,16 @@ default install supports the task CLI without requiring the service runtime:
 |---------|--------------|
 | `oompah --help` | Show CLI help |
 | `oompah task <subcommand>` | Manage tasks in a running oompah server |
+| `oompah project-bootstrap <subcommand>` | Inspect or apply oompah's managed-project bootstrap templates |
 
 The `oompah task` subcommand is the one managed-project contributors and agents
 use. It connects to a running oompah server (default port 8080) and does not
 require local service configuration.
+
+The `oompah project-bootstrap` subcommand can be used by project owners to
+create or refresh baseline `AGENTS.md`, `docs/`, `plans/`, Makefile, and
+githook scaffolding from oompah's bundled templates. See
+[`project-bootstrap.md`](project-bootstrap.md).
 
 ## Dependency isolation
 

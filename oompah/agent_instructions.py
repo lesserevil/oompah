@@ -234,6 +234,11 @@ _OOMPAH_TASK_BLOCK_RE = re.compile(
     r"<!-- END OOMPAH TASK INTEGRATION -->",
     re.DOTALL,
 )
+_LEGACY_BOOTSTRAP_GITHUB_SECTION_RE = re.compile(
+    r"## Issue Tracking with GitHub Issues\n.*?"
+    r"(?=\n## (?:Documentation must match code|Use Makefile Targets|Test Coverage Required|Session Completion)|\Z)",
+    re.DOTALL,
+)
 def render_github_issues_agent_instructions() -> str:
     """Return the canonical AGENTS.md GitHub Issues task-tracking block."""
 
@@ -253,6 +258,13 @@ def _replace_managed_task_block(text: str, replacement: str) -> str:
     for regex in (_OOMPAH_TASK_BLOCK_RE, _GITHUB_BLOCK_RE):
         if regex.search(updated):
             return regex.sub(replacement.strip(), updated, count=1)
+
+    if _LEGACY_BOOTSTRAP_GITHUB_SECTION_RE.search(updated):
+        return _LEGACY_BOOTSTRAP_GITHUB_SECTION_RE.sub(
+            replacement.strip() + "\n",
+            updated,
+            count=1,
+        )
 
     suffix = "" if updated.endswith("\n") else "\n"
     return updated + suffix + "\n" + replacement.strip() + "\n"

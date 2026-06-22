@@ -78,9 +78,19 @@ def main() -> None:
         _task_main(sys.argv[2:])
         return
 
+    if len(sys.argv) > 1 and sys.argv[1] == "project-bootstrap":
+        from oompah.project_bootstrap_cli import main as _project_bootstrap_main
+        _project_bootstrap_main(sys.argv[2:])
+        return
+
     parser = argparse.ArgumentParser(
         prog="oompah",
         description="Orchestrate coding agents to execute project work",
+        epilog=(
+            "Special subcommands: "
+            "oompah task ...; "
+            "oompah project-bootstrap ..."
+        ),
     )
     parser.add_argument(
         "workflow",

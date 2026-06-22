@@ -128,6 +128,32 @@ Use Makefile targets.
     assert updated.count("BEGIN OOMPAH TASK INTEGRATION") == 1
 
 
+def test_update_oompah_task_replaces_legacy_bootstrap_github_section():
+    original = """# Agent Instructions
+
+## Issue Tracking with GitHub Issues
+
+This project uses **GitHub Issues** for ALL task tracking.
+
+Do not use Backlog.md, the `backlog` CLI, `bd`, beads, TodoWrite,
+TaskCreate, standalone markdown TODO lists, or another tracker for
+project work.
+
+## Documentation must match code
+
+Docs are part of the contract.
+"""
+
+    updated, changed = update_agents_text_for_oompah_tasks(original)
+
+    assert changed is True
+    assert "BEGIN OOMPAH TASK INTEGRATION" in updated
+    assert "This project uses **GitHub Issues** for ALL task tracking" not in updated
+    assert "Do not use Backlog.md" not in updated
+    assert "## Documentation must match code" in updated
+    assert "Docs are part of the contract." in updated
+
+
 def test_update_existing_github_block_is_idempotent():
     original, changed = update_agents_text_for_github_issues("# Rules\n")
     assert changed is True

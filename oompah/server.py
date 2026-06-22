@@ -3000,6 +3000,161 @@ async def api_issue_templates_apply(project_id: str):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Project bootstrap endpoints
+# ---------------------------------------------------------------------------
+
+
+def _bootstrap_drift_json(entry) -> dict:
+    payload = {
+        "path": entry.path,
+        "is_current": entry.is_current,
+        "protected": entry.protected,
+    }
+    if entry.diff:
+        payload["diff"] = entry.diff
+    if entry.reason:
+        payload["reason"] = entry.reason
+    return payload
+
+
+@app.get("/api/v1/projects/{project_id}/bootstrap/status")
+async def api_project_bootstrap_status(project_id: str):
+    """Report whether a managed repo has current oompah bootstrap files."""
+
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+        repo_path = getattr(project, "repo_path", None)
+        if not repo_path:
+            return JSONResponse(
+                {"error": {"code": "no_repo", "message": "project has no local repo path"}},
+                status_code=400,
+            )
+
+        from oompah.project_bootstrap import check_project_bootstrap_drift
+
+        status = await asyncio.to_thread(check_project_bootstrap_drift, repo_path)
+        return JSONResponse(
+            {
+                "all_current": status.all_current,
+                "drifted": [_bootstrap_drift_json(d) for d in status.drifted],
+                "current": [_bootstrap_drift_json(d) for d in status.current],
+                "protected": [_bootstrap_drift_json(d) for d in status.protected],
+            }
+        )
+    except Exception as exc:
+        logger.error("bootstrap/status API error for %s: %s", project_id, exc)
+        return JSONResponse(
+            {"error": {"code": "lookup_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.get("/api/v1/projects/{project_id}/bootstrap/preview")
+async def api_project_bootstrap_preview(project_id: str):
+    """Return a unified diff previewing pending project bootstrap updates."""
+
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+        repo_path = getattr(project, "repo_path", None)
+        if not repo_path:
+            return JSONResponse(
+                {"error": {"code": "no_repo", "message": "project has no local repo path"}},
+                status_code=400,
+            )
+
+        from oompah.project_bootstrap import preview_project_bootstrap_updates
+
+        diff = await asyncio.to_thread(preview_project_bootstrap_updates, repo_path)
+        return JSONResponse({"diff": diff})
+    except Exception as exc:
+        logger.error("bootstrap/preview API error for %s: %s", project_id, exc)
+        return JSONResponse(
+            {"error": {"code": "preview_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.post("/api/v1/projects/{project_id}/bootstrap/apply")
+async def api_project_bootstrap_apply(project_id: str):
+    """Apply oompah project bootstrap files to a managed project and commit/push."""
+
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+        repo_path = getattr(project, "repo_path", None)
+        if not repo_path:
+            return JSONResponse(
+                {"error": {"code": "no_repo", "message": "project has no local repo path"}},
+                status_code=400,
+            )
+
+        from oompah.project_bootstrap import apply_project_bootstrap_updates
+
+        result = await asyncio.to_thread(
+            apply_project_bootstrap_updates,
+            repo_path,
+            git_user_name=getattr(project, "git_user_name", None),
+            git_user_email=getattr(project, "git_user_email", None),
+            branch=getattr(project, "default_branch", None) or "main",
+        )
+        if result.error:
+            if "Refused" in result.error and "uncommitted changes" in result.error:
+                return JSONResponse(
+                    {"error": {"code": "dirty_worktree", "message": result.error}},
+                    status_code=409,
+                )
+            return JSONResponse(
+                {"error": {"code": "apply_failed", "message": result.error}},
+                status_code=500,
+            )
+
+        logger.info(
+            "Project bootstrap applied for project %s: %s (sha=%s pushed=%s)",
+            project_id,
+            result.applied,
+            result.commit_sha,
+            result.pushed,
+        )
+        return JSONResponse(
+            {
+                "applied": result.applied,
+                "skipped": result.skipped,
+                "protected": result.protected,
+                "commit_sha": result.commit_sha,
+                "pushed": result.pushed,
+            }
+        )
+    except Exception as exc:
+        logger.error("bootstrap/apply API error for %s: %s", project_id, exc)
+        return JSONResponse(
+            {"error": {"code": "apply_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end project bootstrap endpoints)
+# ---------------------------------------------------------------------------
+
+
 @app.patch("/api/v1/issues/{identifier}")
 async def api_update_issue(identifier: str, request: Request):
     """Update an issue's state, priority, or title.
