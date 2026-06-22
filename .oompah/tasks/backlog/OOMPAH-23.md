@@ -6,11 +6,12 @@ priority: 1
 title: Bump release-branch package metadata to 1.0.0
 parent: OOMPAH-22
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-18
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:41.668460Z'
-updated_at: '2026-06-22T01:16:41.668460Z'
+updated_at: '2026-06-22T01:17:55.630099Z'
 work_branch: null
 target_branch: null
 review_url: null
