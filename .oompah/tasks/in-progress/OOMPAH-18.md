@@ -11,7 +11,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:52.001843Z'
-updated_at: '2026-06-22T01:35:25.515162Z'
+updated_at: '2026-06-22T01:38:05.366579Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-06-22 01:35
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 01:38
+---
+UNDERSTANDING: This is NOT a duplicate. OOMPAH-18 is a unique child of epic OOMPAH-17 with specific scope: update docs, tests, and workflow examples from 0.1.0 to 1.0 convention (release/1.0 branch, v1.0.0-draft draft tag, v1.0.0 final tag). No existing merged or done task covers this work. Proceeding to implement. Files to update: docs/cli-release.md (v0.1.0 → v1.0.0 throughout + add draft-tag workflow), docs/cli-install.md (v0.1.0 → v1.0.0), .github/workflows/cli-release.yml (dispatch description), tests/test_cli_release_packaging.py (assertions updated to 1.0 examples + new draft-tag coverage test).
 ---
 <!-- COMMENTS:END -->
