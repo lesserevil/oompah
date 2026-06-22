@@ -14,9 +14,10 @@ children:
 blocked_by: []
 labels:
 - merge-conflict
+- epic:rebasing
 assignee: null
 created_at: '2026-06-22T01:17:10.735548Z'
-updated_at: '2026-06-22T14:59:14.365659Z'
+updated_at: '2026-06-22T14:59:16.634153Z'
 work_branch: epic-OOMPAH-32
 target_branch: main
 review_url: null
