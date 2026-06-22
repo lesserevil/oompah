@@ -1,7 +1,11 @@
 ---
 id: OOMPAH-29
 type: task
+<<<<<<<< HEAD:.oompah/tasks/done/OOMPAH-29.md
 status: Done
+========
+status: In Review
+>>>>>>>> origin/epic-OOMPAH-16:.oompah/tasks/in-review/OOMPAH-29.md
 priority: 1
 title: Audit GitHub Issues intake reconciliation
 parent: OOMPAH-27
@@ -11,7 +15,11 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:57.697390Z'
+<<<<<<<< HEAD:.oompah/tasks/done/OOMPAH-29.md
 updated_at: '2026-06-22T02:04:15.681816Z'
+========
+updated_at: '2026-06-22T02:52:57.449938Z'
+>>>>>>>> origin/epic-OOMPAH-16:.oompah/tasks/in-review/OOMPAH-29.md
 work_branch: null
 target_branch: null
 review_url: null

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-22
 type: epic
-status: In Progress
+status: Done
 priority: 1
 title: Lock the 1.0 CLI and package contract
 parent: OOMPAH-16
@@ -14,7 +14,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:36.501719Z'
-updated_at: '2026-06-22T02:07:12.178438Z'
+updated_at: '2026-06-22T03:01:06.792380Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,4 +36,3 @@ The wheel installs without the service runtime dependency set, the expected CLI 
 - [ ] Define acceptance criteria.
 
 ## Notes
-

@@ -31,8 +31,9 @@ index credentials.
 
 The workflow checks out the tag, validates that the checkout is exactly that
 tag, builds `dist/*.whl` and `dist/*.tar.gz`, smoke-installs the lightweight
-CLI wheel, runs `oompah --help` and `oompah task --help`, then creates or
-updates the GitHub Release for that tag.
+CLI wheel, runs `oompah --help`, `oompah task --help`, and
+`oompah project-bootstrap --help`, then creates or updates the GitHub Release
+for that tag.
 
 ## Verify a release
 
