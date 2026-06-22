@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:57.697390Z'
-updated_at: '2026-06-22T02:01:44.671888Z'
+updated_at: '2026-06-22T02:03:20.153555Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-06-22 02:01
 ---
 Implementation: Added 4 new tests to tests/test_github_intake_bridge.py covering all remaining reconciliation gaps:\n\n1. test_reopened_github_webhook_moves_existing_archived_task_to_proposed — webhook issues.reopened on an existing archived task moves it to Proposed (case 3, webhook path).\n2. test_reopened_github_webhook_creates_task_when_not_previously_imported — webhook issues.reopened with no existing native task creates a new Proposed task when intake validation passes (case 3, no-prior-import branch).\n3. test_closed_external_issue_without_native_task_creates_nothing — polling a closed GitHub issue with no existing native task must not create one (case 2 edge case).\n4. test_closed_github_issue_is_idempotent_on_already_archived_native_task — repeated close event on an already-ARCHIVED native task produces no update_issue call (case 2 idempotency).\n\nAll 35 tests in the file pass. No code changes needed — the implementation was already correct; only test coverage was missing.
+---
+author: oompah
+created: 2026-06-22 02:03
+---
+Verification: Full test suite passes. 7105 passed, 28 skipped (was 7100 + 4 new = 7104, +1 from another concurrent change). All 35 tests in test_github_intake_bridge.py pass.
 ---
 <!-- COMMENTS:END -->
