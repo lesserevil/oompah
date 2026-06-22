@@ -7,10 +7,11 @@ title: Lock the 1.0 CLI and package contract
 parent: OOMPAH-16
 children: []
 blocked_by: []
-labels: []
+labels:
+- draft
 assignee: null
 created_at: '2026-06-22T01:16:36.501719Z'
-updated_at: '2026-06-22T01:16:36.501719Z'
+updated_at: '2026-06-22T01:16:38.620706Z'
 work_branch: null
 target_branch: null
 review_url: null
