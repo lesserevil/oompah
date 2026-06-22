@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-29
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Audit GitHub Issues intake reconciliation
 parent: OOMPAH-27
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:57.697390Z'
-updated_at: '2026-06-22T01:35:35.316609Z'
+updated_at: '2026-06-22T01:43:01.986014Z'
 work_branch: null
 target_branch: null
 review_url: null
