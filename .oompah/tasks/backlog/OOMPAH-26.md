@@ -6,11 +6,12 @@ priority: 2
 title: Document the 1.0 CLI and API compatibility surface
 parent: OOMPAH-22
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-25
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:48.515360Z'
-updated_at: '2026-06-22T01:16:48.515360Z'
+updated_at: '2026-06-22T01:18:08.714419Z'
 work_branch: null
 target_branch: null
 review_url: null
