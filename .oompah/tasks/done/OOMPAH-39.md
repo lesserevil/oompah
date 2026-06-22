@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:37.381380Z'
-updated_at: '2026-06-22T15:31:34.818738Z'
+updated_at: '2026-06-22T15:31:42.975416Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,5 +76,15 @@ author: oompah
 created: 2026-06-22 15:31
 ---
 v1.0.0-draft tag created and pushed to origin/release/1.0 (21033827). GitHub Release v1.0.0-draft created with wheel+sdist artifacts and generated install notes. Workstream A changes (OOMPAH-18/19/21/22) applied to release/1.0. Local validation: build, wheel smoke test, release notes generation all pass. 23/25 test_cli_release_packaging tests pass.
+---
+author: oompah
+created: 2026-06-22 15:31
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 145
+- Tokens: 218 in / 8.7K out [8.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 29m 7s
+- Log: OOMPAH-39__20260622T150240Z.jsonl
 ---
 <!-- COMMENTS:END -->
