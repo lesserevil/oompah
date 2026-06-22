@@ -177,7 +177,11 @@ def test_release_docs_describe_draft_and_final_tag_convention():
     assert "immutable" in text or "must not be force-moved" in text or "must never be force-moved" in text
 
 
-def test_release_workflow_dispatch_mentions_draft_and_final_tag_examples():
+def test_release_workflow_accepts_any_version_tag():
+    """Workflow tag trigger covers all version tags including draft and final forms."""
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = yaml.safe_load(text)
+    triggers = workflow.get("on") or workflow.get(True)
 
-    assert "v1.0.0-draft" in text or "v1.0.0" in text
+    # The v* wildcard must cover both v1.0.0-draft and v1.0.0
+    assert "v*" in triggers["push"]["tags"]
