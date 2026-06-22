@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:35.091778Z'
-updated_at: '2026-06-22T14:58:35.985682Z'
+updated_at: '2026-06-22T14:59:21.468591Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-06-22 14:58
 ---
 DISCOVERY: Not a duplicate. Confirmed unique task. Prerequisite code changes from blockers (OOMPAH-21 branch checklist, OOMPAH-26 API surface docs, OOMPAH-31 bootstrap validation, OOMPAH-36 beads cleanup) are on epic branches (epic-OOMPAH-16, epic-OOMPAH-27, epic-OOMPAH-32) but not yet merged to origin/main. Plan: create release/1.0 from origin/epic-OOMPAH-27 (most complete: has OOMPAH-21/22/26/28/29/30/31/47), cherry-pick OOMPAH-36 change (commit 45e07c5c from epic-OOMPAH-32), bump pyproject.toml to 1.0.0, run make test + make check-secrets per the documented quality gate.
+---
+author: oompah
+created: 2026-06-22 14:59
+---
+IMPLEMENTATION: Created release/1.0 branch from origin/epic-OOMPAH-27 (most complete state with OOMPAH-21/22/26/28-31/47 work included), cherry-picked OOMPAH-36 (commit 45e07c5c - stale beads cleanup), bumped pyproject.toml to 1.0.0, updated uv.lock, and pushed release/1.0 to origin. Running quality gate now: make test + make check-secrets.
 ---
 <!-- COMMENTS:END -->
