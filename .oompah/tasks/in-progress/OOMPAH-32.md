@@ -17,7 +17,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-06-22T01:17:10.735548Z'
-updated_at: '2026-06-22T15:01:12.167138Z'
+updated_at: '2026-06-22T15:01:58.677208Z'
 work_branch: epic-OOMPAH-32
 target_branch: main
 review_url: null
@@ -108,5 +108,10 @@ author: oompah
 created: 2026-06-22 15:01
 ---
 Understanding: This branch (epic-OOMPAH-32) is stale and has fallen behind origin/main. My role as Merge Conflict Resolver is to fetch origin, rebase this branch onto origin/main, resolve any conflicts, run tests, and force-push. No new code changes — conflict resolution only.
+---
+author: oompah
+created: 2026-06-22 15:01
+---
+Discovery: Branch has 265 commits on top of a merge base that is 359 commits behind origin/main. Key file changes: docs/cli-install.md, docs/cli-release.md, docs/managed-project-onboarding.md, docs/operator-runbook.md (the documentation work), plus .gitattributes/.gitignore, oompah/orchestrator.py, and .oompah/tasks/ metadata. Starting rebase now.
 ---
 <!-- COMMENTS:END -->
