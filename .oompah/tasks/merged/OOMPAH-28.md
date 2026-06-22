@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-28
 type: task
-status: In Review
+status: Merged
 priority: 1
 title: Audit native tracker state transitions for 1.0
 parent: OOMPAH-27
