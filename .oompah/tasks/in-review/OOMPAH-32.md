@@ -12,11 +12,10 @@ children:
 - OOMPAH-36
 - OOMPAH-45
 blocked_by: []
-labels:
-- epic:rebasing
+labels: []
 assignee: null
 created_at: '2026-06-22T01:17:10.735548Z'
-updated_at: '2026-06-22T14:58:42.057833Z'
+updated_at: '2026-06-22T14:58:44.868258Z'
 work_branch: null
 target_branch: null
 review_url: null
