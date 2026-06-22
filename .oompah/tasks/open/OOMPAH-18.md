@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-18
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Update release docs, tests, and workflow examples for 1.0
 parent: OOMPAH-17
@@ -11,7 +11,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:52.001843Z'
-updated_at: '2026-06-22T01:14:54.338791Z'
+updated_at: '2026-06-22T01:35:04.900077Z'
 work_branch: null
 target_branch: null
 review_url: null
