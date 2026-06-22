@@ -133,7 +133,7 @@ it is pushed.
    The tag must match `project.version` with a leading `v`. For example,
    `project.version = "1.0.0"` must use tag `v1.0.0`.
 
-4. Watch **Actions > CLI Release**. You can also run the workflow manually with
+2. Watch **Actions > CLI Release**. You can also run the workflow manually with
    an existing tag through **Run workflow** and the `tag` input.
 
 The workflow checks out the tag, validates that the checkout is exactly that

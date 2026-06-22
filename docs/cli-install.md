@@ -34,6 +34,16 @@ pipx install "git+https://github.com/lesserevil/oompah@v1.0.0"
 Replace `v1.0.0` with the tag listed on the
 [GitHub Releases page](https://github.com/lesserevil/oompah/releases).
 
+To install a draft release candidate, use the `v1.0.0-draft` tag:
+
+```bash
+uv tool install "git+https://github.com/lesserevil/oompah@v1.0.0-draft"
+pipx install "git+https://github.com/lesserevil/oompah@v1.0.0-draft"
+```
+
+Note: `v1.0.0-draft` is a force-movable tag. Reinstall it to pick up the
+latest draft candidate.
+
 ## Install from a release wheel artifact
 
 GitHub Releases attach wheel artifacts. You can install directly from the

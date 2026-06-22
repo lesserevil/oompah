@@ -1,14 +1,10 @@
 
-# Dolt database files (added by bd init)
+# Historical: Dolt/beads files from the old task tracker (pre-.oompah/tasks).
+# beads and bd are no longer used; oompah now uses .oompah/tasks exclusively.
+# These patterns are kept so local copies of the old .beads/ directory remain
+# untracked if present on migrated machines.
 .dolt/
 *.db
-
-# beads-jsonl-ignore (managed by oompah)
-# Beads JSONL backups — dolt sync (refs/dolt/data) is the source of truth.
-# Tracking these in git creates a redundant second copy that conflicts
-# whenever two PRs touch beads simultaneously. See oompah-zlz_2-mp4v.
-# The files themselves still exist locally (export.auto=true) for
-# emergency recovery via `bd bootstrap`.
 .beads/*.jsonl
 .beads/backup/
 
@@ -38,5 +34,5 @@ build/
 *.log
 *.pid
 
-# Beads / Dolt files (added by bd init)
+# Historical: beads/Dolt credential key from the old task tracker.
 .beads-credential-key
