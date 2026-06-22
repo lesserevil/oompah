@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:08.467848Z'
-updated_at: '2026-06-22T14:19:19.891791Z'
+updated_at: '2026-06-22T14:20:29.973600Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-06-22 14:19
 ---
 VERIFICATION: All 7118 tests pass (make test). New tests added: (1) test_agents_md_template_uses_1_0_native_tracker_workflow - validates AGENTS.md template uses BEGIN OOMPAH TASK INTEGRATION v:2 marker and 1.0 native workflow content, does not use GitHub Issues tracker; (2) test_apply_agents_md_template_is_current_after_apply - validates end-to-end apply produces 1.0-compliant AGENTS.md and bootstrap status reports it as current; (3) test_oompah_project_bootstrap_help_exits_zero - installed CLI smoke test for project-bootstrap --help showing status/preview/apply subcommands; (4) test_oompah_project_bootstrap_help_does_not_import_server_dependencies - validates CLI-only install works without server extras. All HOW TO VERIFY criteria met: oompah project (representative managed project) has status and preview checked, drift (3 missing files) is fixed, generated AGENTS.md matches 1.0 native tracker workflow.
+---
+author: oompah
+created: 2026-06-22 14:20
+---
+COMPLETION: Bootstrap flows validated for the oompah managed project (representative project). Delivered: (1) Applied 3 missing bootstrap files: docs/README.md, plans/README.md, scripts/githooks/pre-commit - oompah project now bootstrap-current. (2) Confirmed AGENTS.md uses 1.0 native tracker workflow (OOMPAH TASK INTEGRATION v:2). (3) Added 4 new tests: template content validation, end-to-end apply validation, installed CLI smoke test for project-bootstrap --help, and server-dependency isolation test. (4) Filed OOMPAH-52 for follow-up: installed oompah binary (uv tool install) doesn't include project-bootstrap support and needs reinstall. All 7118 tests pass. HOW TO VERIFY criteria met: oompah managed project has status/preview checked, drift fixed, generated instructions match 1.0 native tracker workflow. Not a duplicate.
 ---
 <!-- COMMENTS:END -->
