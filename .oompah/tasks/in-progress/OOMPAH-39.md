@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:37.381380Z'
-updated_at: '2026-06-22T15:10:02.731003Z'
+updated_at: '2026-06-22T15:14:23.469344Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-06-22 15:10
 ---
 DISCOVERY: Not a duplicate. OOMPAH-39 is step E2 (Create and verify v1.0.0-draft release). Key finding: release/1.0 was created from epic-OOMPAH-27 but is missing commit dae18fd4 (OOMPAH-19: Support force-movable v1.0.0-draft release tag in validation). Without this, render_cli_release_notes.py fails with ValueError when tag=v1.0.0-draft != v1.0.0. Both file versions on release/1.0 (scripts/render_cli_release_notes.py=9d06fd44, tests/test_cli_release_packaging.py=0262d1be) exactly match the pre-state of dae18fd4, so cherry-pick will apply cleanly. Plan: (1) cherry-pick dae18fd4 onto release/1.0, (2) push release/1.0, (3) create+push v1.0.0-draft tag, (4) wait for CLI Release workflow, (5) verify draft artifacts.
+---
+author: oompah
+created: 2026-06-22 15:14
+---
+IMPLEMENTATION: Applied workstream A release train changes to release/1.0. Changes: (1) scripts/render_cli_release_notes.py — added is_draft_release_tag() and updated validate_tag_matches_version() to accept v1.0.0-draft (OOMPAH-19); (2) tests/test_cli_release_packaging.py — brought in OOMPAH-18/19/22 tests; (3) docs/cli-release.md — 1.0 train procedures (OOMPAH-18); (4) docs/cli-api-surface.md — new API compat surface doc (OOMPAH-22); (5) docs/cli-install.md — OOMPAH_SERVER_URL + cli-api-surface reference (OOMPAH-22); (6) plans/oompah-1.0-release.md — full branch-cut checklist (OOMPAH-21). All 23 test_cli_release_packaging tests pass. Committed to release/1.0 (21033827), pushed. Created and pushed v1.0.0-draft tag pointing to 21033827. CLI Release workflow triggered.
 ---
 <!-- COMMENTS:END -->
