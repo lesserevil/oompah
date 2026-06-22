@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:52:58.922363Z'
-updated_at: '2026-06-22T02:01:37.984054Z'
+updated_at: '2026-06-22T02:03:28.336688Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-06-22 02:01
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 02:03
+---
+UNDERSTANDING: This is NOT a duplicate. OOMPAH-18 was a broader 1.0 update task that explicitly deferred the workflow dispatch description change (v0.1.0 → v1.0.0-draft or v1.0.0) because it lacked PAT workflow scope. OOMPAH-43 is the follow-up filed to complete that specific change. The task is straightforward: update the 'description' field in the workflow_dispatch input in .github/workflows/cli-release.yml. Proceeding to implement.
 ---
 <!-- COMMENTS:END -->
