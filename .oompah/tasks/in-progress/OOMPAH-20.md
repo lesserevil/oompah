@@ -12,7 +12,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:15:01.066849Z'
-updated_at: '2026-06-22T02:05:29.995096Z'
+updated_at: '2026-06-22T02:08:04.839105Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,5 +57,10 @@ author: oompah
 created: 2026-06-22 02:05
 ---
 DISCOVERY: Confirmed NOT a duplicate. No existing merged, done, or in-progress task covers CI trigger changes for release branches. OOMPAH-18 (done) only updated docs/tests/examples — it did not touch ci.yml triggers. The current .github/workflows/ci.yml only triggers on main: push, pull_request, and merge_group all target [main]. Need to add release/* to all three trigger patterns. This is the only change needed to satisfy the acceptance criteria.
+---
+author: oompah
+created: 2026-06-22 02:08
+---
+IMPLEMENTATION: Added release/* branch patterns to all three trigger events in .github/workflows/ci.yml (push, pull_request, merge_group). The main branch patterns are preserved. Also added tests/test_ci_workflow.py with 5 tests validating: YAML validity, push/pull_request/merge_group each include release/*, and main is still covered.
 ---
 <!-- COMMENTS:END -->
