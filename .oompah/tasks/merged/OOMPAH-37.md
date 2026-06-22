@@ -24,7 +24,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-06-22T01:17:30.687635Z'
-updated_at: '2026-06-22T17:38:34.602550Z'
+updated_at: '2026-06-22T17:38:36.862660Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,3 +47,11 @@ release/1.0 is cut, v1.0.0-draft is verified, findings are fixed, v1.0.0 is publ
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 17:38
+---
+YOLO: merged PR #351.
+---
+<!-- COMMENTS:END -->
