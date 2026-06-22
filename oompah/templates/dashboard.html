@@ -2831,6 +2831,49 @@ function isSwimlaneParent(issue) {
   return issue.issue_type === 'epic' || !!issue.children_counts;
 }
 
+function hasDraftLabel(issue) {
+  return (issue.labels || []).includes('draft');
+}
+
+function childCountsAreMergeReady(counts) {
+  const c = counts || {};
+  const activeStates = [
+    'Proposed',
+    'Backlog',
+    'Open',
+    'In Progress',
+    'Needs Answer',
+    'Needs Human',
+    'Needs CI Fix',
+    'Needs Rebase',
+    'In Review',
+    'Duplicate Candidate',
+  ];
+  const hasActiveChild = activeStates.some(state => (c[state] || 0) > 0);
+  const completedChildren =
+    (c['Done'] || 0) +
+    (c['Merged'] || 0) +
+    (c['Archived'] || 0) +
+    (c['Decomposed'] || 0);
+  return !hasActiveChild && completedChildren > 0;
+}
+
+function isEpicMergeFlowCard(issue) {
+  if (!isSwimlaneParent(issue) || hasDraftLabel(issue)) return false;
+  const state = columnKeyForStatus(issue.state || issue.tracker_state);
+  const mergeFlowStates = ['Done', 'In Review', 'Needs CI Fix', 'Needs Rebase'];
+  return mergeFlowStates.includes(state) && childCountsAreMergeReady(issue.children_counts);
+}
+
+function shouldShowIssueAsWorkCard(issue) {
+  // Finalized parent epics are swimlane headers while child work is active.
+  // They become work cards only once all child work is complete and the
+  // epic itself is in the rollup PR/CI/merge path.
+  if (!isSwimlaneParent(issue)) return true;
+  if (hasDraftLabel(issue)) return true;
+  return isEpicMergeFlowCard(issue);
+}
+
 // Get epic/parent info by ID from flat list.
 //
 // Native task ids (e.g. "task-270") are only unique WITHIN a project,
@@ -2941,9 +2984,7 @@ function renderBoard(data) {
 function renderFlatView(board, data) {
   for (const col of visibleColumns(data)) {
     const allInCol = data[col] || [];
-    // Filter out non-draft epics in flat view — they appear as swimlane headers
-    // Draft epics are shown as cards so they're visible before they have children
-    const issues = allInCol.filter(i => !isSwimlaneParent(i) || (i.labels || []).includes('draft'));
+    const issues = allInCol.filter(i => shouldShowIssueAsWorkCard(i));
     const column = document.createElement('div');
     column.className = 'column';
     column.dataset.state = col;
@@ -3437,8 +3478,7 @@ function setupColumnDrag(header, sourceState, epicId) {
 
 function getCardsInColumn(state, epicId) {
   // Get visible cards in a column, scoped by epicId (swimlane) or project filter (flat)
-  // Non-draft parents are swimlane headers; draft parents appear as cards in flat view
-  const issues = (boardData[state] || []).filter(i => !isSwimlaneParent(i) || (i.labels || []).includes('draft'));
+  const issues = (boardData[state] || []).filter(i => shouldShowIssueAsWorkCard(i));
   if (epicId === null) {
     // Flat view — all visible (already filtered by project)
     return issues;
@@ -3496,7 +3536,7 @@ function setupDropZone(body) {
       // Same column — reorder by priority
       if (!activeIndicator) return;
       const dropPos = parseInt(activeIndicator.dataset.position, 10);
-      const colIssues = (boardData[targetState] || []).filter(i => !isSwimlaneParent(i));
+      const colIssues = (boardData[targetState] || []).filter(i => shouldShowIssueAsWorkCard(i));
       // Exclude the dragged card from the list to compute neighbors
       const others = colIssues.filter(i => i.identifier !== identifier);
       // Clamp drop position after removing the dragged card

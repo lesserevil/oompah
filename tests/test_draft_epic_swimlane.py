@@ -235,11 +235,11 @@ class TestGetCardsInColumnDraftEpics:
         )
         assert filter_match, "Could not find 'issues = ...' filter in getCardsInColumn"
         filter_line = filter_match.group(0)
-        assert "draft" in filter_line, \
-            "Base issues filter must allow draft epics through"
+        assert "shouldShowIssueAsWorkCard" in filter_line, \
+            "Base issues filter must delegate draft and merge-flow epic handling"
 
-    def test_base_filter_uses_swimlane_parent_check(self, script):
-        """Base issues filter must use isSwimlaneParent to exclude non-draft parents."""
+    def test_base_filter_uses_work_card_helper(self, script):
+        """Base issues filter must use the centralized work-card helper."""
         body = self._get_function_body(script)
         filter_match = re.search(
             r"(?:const|let|var)\s+issues\s*=.*?\.filter\(.*?\);",
@@ -248,21 +248,20 @@ class TestGetCardsInColumnDraftEpics:
         )
         assert filter_match
         filter_line = filter_match.group(0)
-        assert "isSwimlaneParent" in filter_line, \
-            "Base filter must use isSwimlaneParent"
+        assert "shouldShowIssueAsWorkCard" in filter_line, \
+            "Base filter must use shouldShowIssueAsWorkCard"
 
     def test_base_filter_handles_missing_labels(self, script):
-        """Base filter must safely handle missing labels."""
-        body = self._get_function_body(script)
-        filter_match = re.search(
-            r"(?:const|let|var)\s+issues\s*=.*?\.filter\(.*?\);",
-            body,
+        """The delegated draft-label helper must safely handle missing labels."""
+        helper_match = re.search(
+            r"function hasDraftLabel\(issue\)\s*\{(.*?)\n\}",
+            script,
             re.DOTALL,
         )
-        assert filter_match
-        filter_line = filter_match.group(0)
-        assert "|| []" in filter_line or "||[]" in filter_line, \
-            "Base filter must handle missing labels with '|| []' pattern"
+        assert helper_match, "Could not find hasDraftLabel helper"
+        helper_line = helper_match.group(0)
+        assert "|| []" in helper_line or "||[]" in helper_line, \
+            "Draft-label helper must handle missing labels with '|| []' pattern"
 
     def test_orphans_branch_builds_epicIds_from_non_draft_epics(self, script):
         """In the _orphans branch, epicIds must only contain non-draft epic IDs."""
@@ -319,7 +318,8 @@ class TestDraftEpicFilterConsistency:
             re.DOTALL,
         )
         assert get_cards_match
-        assert "draft" in get_cards_match.group(0)
+        assert "shouldShowIssueAsWorkCard" in get_cards_match.group(0)
+        assert "hasDraftLabel" in script
 
     def test_both_orphan_filters_handle_draft_epics(self, script):
         """Both the orphans in renderSwimlaneView and _orphans in getCardsInColumn must handle draft."""
