@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:50.933134Z'
-updated_at: '2026-06-22T17:39:45.223914Z'
+updated_at: '2026-06-22T17:39:47.554041Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -142,5 +142,10 @@ author: oompah
 created: 2026-06-22 17:39
 ---
 UNDERSTANDING: This is a re-dispatch because the previous agent completed all smoke checks but did not close the task. All 4 check categories already verified PASSED in the prior run: Git tag install, wheel install, CLI help commands, managed-project bootstrap, and server dep isolation. Closing the task now.
+---
+author: oompah
+created: 2026-06-22 17:39
+---
+All post-release smoke checks passed in first agent run (2026-06-22): Git tag install from v1.0.0, wheel install from GitHub Release, oompah --help / task --help / project-bootstrap --help all exit 0, managed-project bootstrap status/preview all-current, server dep isolation (fastapi/uvicorn not importable from CLI wheel) confirmed. No blocking findings. v1.0.0 release at https://github.com/lesserevil/oompah/releases/tag/v1.0.0 is verified.
 ---
 <!-- COMMENTS:END -->
