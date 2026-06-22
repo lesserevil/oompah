@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T15:31:49.823249Z'
+updated_at: '2026-06-22T15:32:01.478844Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Draft findings are either fixed and verified or explicitly documented as non-blo
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 15:32
+---
+Agent dispatched (profile: default)
+---
+<!-- COMMENTS:END -->
