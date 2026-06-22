@@ -7,13 +7,14 @@ title: Define and harden the 1.0 release train
 parent: OOMPAH-16
 children:
 - OOMPAH-18
+- OOMPAH-19
 blocked_by: []
 labels:
 - draft
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:45.345931Z'
-updated_at: '2026-06-22T01:14:52.006604Z'
+updated_at: '2026-06-22T01:14:56.558370Z'
 work_branch: null
 target_branch: null
 review_url: null
