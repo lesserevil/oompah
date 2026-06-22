@@ -177,6 +177,49 @@ def test_release_docs_describe_draft_and_final_tag_convention():
     assert "immutable" in text or "must not be force-moved" in text or "must never be force-moved" in text
 
 
+def test_release_docs_include_branch_cut_checklist():
+    text = (REPO_ROOT / "docs" / "cli-release.md").read_text(encoding="utf-8")
+
+    for required in [
+        "git switch main",
+        "git status --short",
+        "git switch -c release/1.0 main",
+        'project.version = "1.0.0"',
+        "uv lock",
+        "make test",
+        "make check-secrets",
+        "git tag -f v1.0.0-draft",
+        "https://github.com/lesserevil/oompah/releases/tag/v1.0.0-draft",
+        'uv tool install --force "git+https://github.com/lesserevil/oompah@v1.0.0-draft"',
+        "releases/download/v1.0.0-draft/oompah-1.0.0-py3-none-any.whl",
+        "oompah-1.0.0-py3-none-any.whl",
+        "oompah-1.0.0.tar.gz",
+        "never delete, force-push, or retarget `v1.0.0`",
+    ]:
+        assert required in text
+
+
+def test_release_plan_includes_self_contained_branch_cut_checklist():
+    text = (REPO_ROOT / "plans" / "oompah-1.0-release.md").read_text(
+        encoding="utf-8"
+    )
+
+    for required in [
+        "Use this checklist immediately before creating or moving `v1.0.0-draft`.",
+        "git pull --ff-only origin main",
+        "git log --oneline HEAD..origin/main",
+        "git log --oneline origin/main..HEAD",
+        "git push -u origin release/1.0",
+        "version = \"1.0.0\"",
+        "git push -f origin refs/tags/v1.0.0-draft",
+        "Actions > CLI Release",
+        "uv tool install --force",
+        "Do not create `v1.0.0` until draft verification passes.",
+        "never delete, force-push, or retarget the final tag",
+    ]:
+        assert required in text
+
+
 def test_release_workflow_accepts_any_version_tag():
     """Workflow tag trigger covers all version tags including draft and final forms."""
     text = WORKFLOW_PATH.read_text(encoding="utf-8")

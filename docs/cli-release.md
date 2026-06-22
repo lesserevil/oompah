@@ -19,6 +19,53 @@ The 1.0 release uses a stable release branch with distinct draft and final tags:
 Maintainers may force-move `v1.0.0-draft` while iterating on release
 candidates. The final `v1.0.0` tag must never be force-moved.
 
+## Cut the release branch
+
+Run this checklist before creating the first `v1.0.0-draft` release.
+
+1. Confirm `main` is clean and current:
+
+   ```bash
+   git fetch origin --prune
+   git switch main
+   git pull --ff-only origin main
+   git status --short
+   git log --oneline HEAD..origin/main
+   git log --oneline origin/main..HEAD
+   ```
+
+   `git status --short` and both `git log` commands must produce no output.
+
+2. Cut and push `release/1.0` from that clean `main`:
+
+   ```bash
+   git switch -c release/1.0 main
+   git push -u origin release/1.0
+   ```
+
+3. Confirm the release branch package metadata is set to
+   `project.version = "1.0.0"` in `pyproject.toml`. If it is not, update
+   `pyproject.toml`, refresh `uv.lock`, commit the change on `release/1.0`, and
+   push the branch:
+
+   ```bash
+   uv lock
+   git add pyproject.toml uv.lock
+   git commit -m "Set package version to 1.0.0"
+   git push origin release/1.0
+   ```
+
+4. Run the quality gates on `release/1.0`:
+
+   ```bash
+   make test
+   make check-secrets
+   git status --short
+   ```
+
+   Do not create or move `v1.0.0-draft` unless the quality gates pass and the
+   release branch is clean.
+
 ## Create a draft release
 
 1. Check out the `release/1.0` branch and ensure `project.version = "1.0.0"` in
@@ -39,6 +86,31 @@ candidates. The final `v1.0.0` tag must never be force-moved.
 
 4. Watch **Actions > CLI Release**. The workflow creates or updates the GitHub
    Release for `v1.0.0-draft`.
+
+5. Verify the draft artifacts from:
+
+   ```text
+   https://github.com/lesserevil/oompah/releases/tag/v1.0.0-draft
+   ```
+
+   The draft release must include `oompah-1.0.0-py3-none-any.whl`,
+   `oompah-1.0.0.tar.gz`, generated notes for `v1.0.0-draft`, and GitHub tag
+   and wheel install commands. Install from both the draft tag and the wheel
+   artifact in a clean tool environment:
+
+   ```bash
+   uv tool install --force "git+https://github.com/lesserevil/oompah@v1.0.0-draft"
+   oompah --help
+   oompah task --help
+
+   uv tool install --force "https://github.com/lesserevil/oompah/releases/download/v1.0.0-draft/oompah-1.0.0-py3-none-any.whl"
+   oompah --help
+   oompah task --help
+   ```
+
+Only `v1.0.0-draft` may be force-moved. Do not create `v1.0.0` until draft
+verification passes, and never delete, force-push, or retarget `v1.0.0` after
+it is pushed.
 
 ## Create a final release
 
