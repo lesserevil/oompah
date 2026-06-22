@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:52:58.922363Z'
-updated_at: '2026-06-22T02:08:16.359797Z'
+updated_at: '2026-06-22T02:11:41.211830Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-06-22 02:08
 ---
 VERIFICATION: All 7 tests in tests/test_cli_release_packaging.py pass (7 passed, 0 failed), including the new test_release_workflow_dispatch_description_shows_v1_examples.
+---
+author: oompah
+created: 2026-06-22 02:11
+---
+COMPLETION: Investigated and confirmed this is NOT a duplicate — it was intentionally filed by OOMPAH-18 because the workflow dispatch description change requires pushing to .github/workflows/cli-release.yml, which needs 'workflow' PAT scope. Confirmed the blocker still exists: the lesserevil token lacks workflow scope, and NVShawn (which has workflow scope) lacks push access to the repo. The exact one-line change is documented: description from 'e.g. v0.1.0' to 'e.g. v1.0.0-draft or v1.0.0'. Filed OOMPAH-46 as a Needs Human task with the exact diff and a companion test to add. Branch OOMPAH-43 pushed (clean, no workflow file changes). Closing this task.
 ---
 <!-- COMMENTS:END -->
