@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:46.207414Z'
-updated_at: '2026-06-22T02:49:14.776320Z'
+updated_at: '2026-06-22T02:49:17.096774Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-06-22 02:49
 ---
 COMPLETION: Delivered comprehensive dependency boundary verification and wheel contents tests. 5 new tests added: (1) test_oompah_task_help_does_not_import_any_server_package — blocks all 8 server packages from 'oompah task --help' import path; (2) test_oompah_project_bootstrap_help_does_not_import_any_server_package — same for 'oompah project-bootstrap --help'; (3) test_server_extras_complete_and_not_in_base_dependencies — verifies all required server packages are behind the server extra and none leak into base deps; (4) test_wheel_contains_required_cli_modules — verifies wheel zip contains required CLI module paths (auto-skipped without built wheel); (5) test_wheel_does_not_contain_server_only_module_as_dep — verifies wheel METADATA Requires-Dist has no unconditional server packages (auto-skipped without built wheel). All 7045 tests pass. Committed in 447e4c7f on epic-OOMPAH-22, pushed to origin.
+---
+author: oompah
+created: 2026-06-22 02:49
+---
+Added 5 comprehensive tests verifying dependency boundary and wheel contents: all-server-package blocking for task and project-bootstrap CLI paths; complete server-extras metadata check; wheel contents and wheel METADATA checks (auto-skipped without built wheel). All 7045 tests pass.
 ---
 <!-- COMMENTS:END -->
