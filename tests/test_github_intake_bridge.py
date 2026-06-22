@@ -1106,3 +1106,181 @@ def test_poll_non_auth_error_still_returns_zero_and_does_not_reraise(monkeypatch
 
     assert result == 0
     assert native.issues == {}
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation audit — all three external-issue state changes (OOMPAH-29)
+# ---------------------------------------------------------------------------
+# Expected behavior:
+#   1. Open external issue without an internal task → creates internal Proposed task.
+#   2. Closed external issue archives a non-terminal internal task.
+#   3. Reopened external issue returns the internal task to Proposed and runs
+#      the normal intake flow.
+# Cases 1 and 2 are covered above (polling + webhook paths).  The tests below
+# fill the remaining gaps for case 3 (reopened webhook path) and two
+# idempotency edge cases for case 2.
+# ---------------------------------------------------------------------------
+
+
+def test_reopened_github_webhook_moves_existing_archived_task_to_proposed(monkeypatch):
+    """Webhook issues.reopened on an externally-archived native task moves it to Proposed.
+
+    This is the webhook counterpart of
+    test_reopened_github_issue_moves_externally_archived_task_to_proposed (polling path).
+    Case 3 of the reconciliation spec — verified via the webhook path.
+    """
+    native = FakeNativeTracker()
+    issue = native.create_issue("Imported", initial_status=ARCHIVED)
+    native.set_metadata_field(
+        issue.identifier,
+        "oompah.external.github",
+        {
+            "id": "example-org/app#7",
+            "last_github_state": "closed",
+            "external_closed_at": "2026-06-19T00:00:00+00:00",
+            "last_synced_status": ARCHIVED,
+            "imported_comment_ids": [],
+        },
+    )
+    github = FakeGitHubTracker([_github_issue(description=_valid_description())])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+    event = WebhookEvent(
+        provider="github",
+        event_type="issues",
+        action="reopened",
+        repo_slug="example-org/app",
+        issue_number="7",
+        raw={
+            "issue": {
+                "number": 7,
+                "state": "open",
+                "title": "Report export fails",
+                "body": _valid_description(),
+                "user": {"login": "alice"},
+                "labels": [],
+                "closed_at": None,
+                "html_url": "https://github.com/example-org/app/issues/7",
+            }
+        },
+    )
+
+    handle_github_issue_event_for_native_project(_orch(native), event, _project())
+
+    assert native.issues[issue.identifier].state == PROPOSED
+    assert (issue.identifier, {"status": PROPOSED}) in native.update_calls
+    metadata = native.metadata[issue.identifier]["oompah.external.github"]
+    assert metadata["last_github_state"] == "open"
+    assert metadata["last_synced_status"] == PROPOSED
+    assert "external_reopened_at" in metadata
+
+
+def test_reopened_github_webhook_creates_task_when_not_previously_imported(monkeypatch):
+    """Webhook issues.reopened creates a new native task when no prior import exists.
+
+    Simulates: issue was closed before passing intake (so no native task was ever
+    created), then the issue is reopened.  The normal intake flow runs and creates
+    a Proposed task when the issue now passes validation.
+    Case 3 of the reconciliation spec — no-existing-task branch.
+    """
+    native = FakeNativeTracker()
+    github = FakeGitHubTracker([_github_issue(description=_valid_description())])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+    event = WebhookEvent(
+        provider="github",
+        event_type="issues",
+        action="reopened",
+        repo_slug="example-org/app",
+        issue_number="7",
+        raw={
+            "issue": {
+                "number": 7,
+                "state": "open",
+                "title": "Report export fails",
+                "body": _valid_description(),
+                "user": {"login": "alice"},
+                "labels": [],
+                "closed_at": None,
+                "html_url": "https://github.com/example-org/app/issues/7",
+            }
+        },
+    )
+
+    handle_github_issue_event_for_native_project(_orch(native), event, _project())
+
+    assert len(native.issues) == 1
+    task = next(iter(native.issues.values()))
+    assert task.state == PROPOSED
+    assert "external:github" in task.labels
+
+
+def test_closed_external_issue_without_native_task_creates_nothing(monkeypatch):
+    """Polling a closed GitHub issue with no existing native task must not create one.
+
+    Verifies that close reconciliation is a no-op when there is nothing to archive.
+    Case 2 edge case: closed issue, no prior import.
+    """
+    native = FakeNativeTracker()
+    github = FakeGitHubTracker(
+        [
+            _github_issue(
+                state="closed",
+                closed_at=datetime(2026, 6, 19, tzinfo=timezone.utc),
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+
+    imported = poll_github_issue_intake_project(_orch(native), _project())
+
+    assert imported == 0
+    assert native.issues == {}
+    assert native.update_calls == []
+
+
+def test_closed_github_issue_is_idempotent_on_already_archived_native_task(monkeypatch):
+    """Polling a closed GitHub issue when native task is already Archived does nothing.
+
+    A repeated close event must not trigger an extra update_issue call — ARCHIVED is
+    a terminal state and must not be re-archived.
+    Case 2 edge case: idempotency for already-terminal tasks.
+    """
+    native = FakeNativeTracker()
+    issue = native.create_issue("Imported", initial_status=ARCHIVED)
+    native.set_metadata_field(
+        issue.identifier,
+        "oompah.external.github",
+        {
+            "id": "example-org/app#7",
+            "last_github_state": "closed",
+            "external_closed_at": "2026-06-19T00:00:00+00:00",
+            "last_synced_status": ARCHIVED,
+            "imported_comment_ids": [],
+        },
+    )
+    github = FakeGitHubTracker(
+        [
+            _github_issue(
+                state="closed",
+                closed_at=datetime(2026, 6, 19, tzinfo=timezone.utc),
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+
+    poll_github_issue_intake_project(_orch(native), _project())
+
+    assert native.issues[issue.identifier].state == ARCHIVED
+    # No update_issue call: task is already in a terminal state.
+    assert native.update_calls == []
