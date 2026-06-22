@@ -6,11 +6,12 @@ priority: 1
 title: Validate project bootstrap flows across managed projects
 parent: OOMPAH-27
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-26
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:08.467848Z'
-updated_at: '2026-06-22T01:17:08.467848Z'
+updated_at: '2026-06-22T01:18:15.493825Z'
 work_branch: null
 target_branch: null
 review_url: null
