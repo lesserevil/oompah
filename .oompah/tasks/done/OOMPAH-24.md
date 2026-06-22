@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:43.935007Z'
-updated_at: '2026-06-22T02:36:14.987853Z'
+updated_at: '2026-06-22T02:36:17.193988Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ author: oompah
 created: 2026-06-22 02:36
 ---
 COMPLETION: Release smoke tests expanded to cover 'oompah project-bootstrap --help'. Tests fail if the project-bootstrap command is missing from the installed CLI. Committed in cc44907 on epic-OOMPAH-22. Follow-up OOMPAH-47 tracks adding the same command to the GitHub Actions workflow file (requires workflow-scoped PAT).
+---
+author: oompah
+created: 2026-06-22 02:36
+---
+Expanded release smoke tests to cover oompah project-bootstrap --help; tests now fail if project-bootstrap is missing from the installed CLI. Follow-up OOMPAH-47 tracks the workflow file update that requires workflow-scoped PAT.
 ---
 <!-- COMMENTS:END -->
