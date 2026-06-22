@@ -12,7 +12,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:56.553408Z'
-updated_at: '2026-06-22T01:56:17.147252Z'
+updated_at: '2026-06-22T01:58:16.257416Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,5 +60,10 @@ author: oompah
 created: 2026-06-22 01:56
 ---
 DISCOVERY: Key code is in scripts/render_cli_release_notes.py — validate_tag_matches_version(tag, version) only accepts tag == f'v{version}'. For v1.0.0-draft with project.version=1.0.0 it raises ValueError. Also need to add test coverage in tests/test_cli_release_packaging.py. Existing test test_release_notes_renderer_rejects_version_mismatched_tag checks 'expected v1.2.3' is in the error string — this will still pass after change since the new message includes that substring. No workflow file changes needed (PAT scope restriction from OOMPAH-18 still applies). Branch: epic-OOMPAH-17.
+---
+author: oompah
+created: 2026-06-22 01:58
+---
+IMPLEMENTATION: Modified scripts/render_cli_release_notes.py — added is_draft_release_tag(tag, version) helper that returns True only for the explicit v{version}-draft form (e.g. v1.0.0-draft for version 1.0.0). Updated validate_tag_matches_version to accept both the final tag (v{version}) and the draft tag (v{version}-draft) while still rejecting anything else. Added 9 new tests in tests/test_cli_release_packaging.py covering: final tag accepted, draft tag accepted, mismatched final tag rejected, wrong-version draft tag rejected, is_draft_release_tag true/false/false-rc1, and full render_notes_for_dist with draft tag. All 7048 tests pass.
 ---
 <!-- COMMENTS:END -->
