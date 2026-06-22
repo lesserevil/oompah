@@ -17,16 +17,17 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-06-22T01:16:50.891544Z'
-updated_at: '2026-06-22T14:36:39.134821Z'
+updated_at: '2026-06-22T14:36:41.404134Z'
 work_branch: epic-OOMPAH-27
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/348
-review_number: null
+review_number: '348'
 merged_at: null
 oompah.work_branch: epic-OOMPAH-27
 oompah.target_branch: main
 oompah.agent_run_id: cfb3411d-2787-4d9d-8bb0-e5b4ec44258a
 oompah.review_url: https://github.com/lesserevil/oompah/pull/348
+oompah.review_number: '348'
 ---
 ## Summary
 
