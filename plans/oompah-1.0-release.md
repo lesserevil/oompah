@@ -178,12 +178,114 @@ Acceptance criteria:
 
 ## Release Readiness Checklist
 
-- No release-blocking tests are skipped or failing without an explicit documented
-  reason.
-- The service can restart cleanly from the documented command path.
-- The UI shows native oompah tasks consistently across status columns.
-- Existing managed projects have current bootstrap-generated instructions or a
-  documented reason for drift.
-- GitHub Issues intake has a reconciliation path for open, closed, and reopened
-  external issues.
-- Release artifacts can be installed on a clean machine using only GitHub URLs.
+Use this checklist immediately before creating or moving `v1.0.0-draft`.
+
+1. Confirm `main` is clean and current.
+
+   ```bash
+   git fetch origin --prune
+   git switch main
+   git pull --ff-only origin main
+   git status --short
+   git log --oneline HEAD..origin/main
+   git log --oneline origin/main..HEAD
+   ```
+
+   `git status --short` and both `git log` commands must produce no output
+   before the release branch is cut. If any command reports local changes,
+   unpushed commits, or missing upstream commits, stop and resolve that drift on
+   `main` first.
+
+2. Cut `release/1.0` from that clean `main`.
+
+   For the initial branch cut:
+
+   ```bash
+   git switch -c release/1.0 main
+   git push -u origin release/1.0
+   ```
+
+   If `release/1.0` already exists because the checklist is being repeated,
+   update the existing branch instead of recreating it:
+
+   ```bash
+   git fetch origin release/1.0
+   git switch release/1.0
+   git pull --ff-only origin release/1.0
+   ```
+
+3. Set and commit the package version on `release/1.0`.
+
+   Confirm `pyproject.toml` has the release version:
+
+   ```toml
+   version = "1.0.0"
+   ```
+
+   If it does not, update `pyproject.toml`, refresh `uv.lock`, and commit the
+   version change on `release/1.0`:
+
+   ```bash
+   uv lock
+   git status --short
+   git add pyproject.toml uv.lock
+   git commit -m "Set package version to 1.0.0"
+   git push origin release/1.0
+   ```
+
+4. Run the release-branch quality gates.
+
+   ```bash
+   make test
+   make check-secrets
+   git status --short
+   ```
+
+   Do not tag a draft until the quality gates pass and `git status --short`
+   confirms the release branch is clean.
+
+5. Create or force-move only the draft tag.
+
+   ```bash
+   git tag -f v1.0.0-draft -m "oompah v1.0.0-draft"
+   git push -f origin refs/tags/v1.0.0-draft
+   ```
+
+   `v1.0.0-draft` is intentionally force-movable while release candidates are
+   being corrected. Re-run this step after fixing draft findings on
+   `release/1.0`.
+
+6. Verify the draft GitHub Release artifacts.
+
+   Watch **Actions > CLI Release** for the `v1.0.0-draft` run and then inspect:
+
+   ```text
+   https://github.com/lesserevil/oompah/releases/tag/v1.0.0-draft
+   ```
+
+   The draft release must include:
+
+   - `oompah-1.0.0-py3-none-any.whl`
+   - `oompah-1.0.0.tar.gz`
+   - generated release notes for `v1.0.0-draft`
+   - Git tag and wheel install commands that point at GitHub, not PyPI
+
+   Verify both install paths from a clean machine or disposable tool
+   environment:
+
+   ```bash
+   uv tool install --force "git+https://github.com/lesserevil/oompah@v1.0.0-draft"
+   oompah --help
+   oompah task --help
+
+   uv tool install --force "https://github.com/lesserevil/oompah/releases/download/v1.0.0-draft/oompah-1.0.0-py3-none-any.whl"
+   oompah --help
+   oompah task --help
+   ```
+
+7. Preserve final tag immutability.
+
+   Do not create `v1.0.0` until draft verification passes. Once `v1.0.0` is
+   pushed, it is immutable: never delete, force-push, or retarget the final tag.
+   If a final-tag mistake is discovered, stop and document the release
+   remediation plan instead of moving the tag.

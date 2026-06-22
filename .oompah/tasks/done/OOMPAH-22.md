@@ -1,7 +1,11 @@
 ---
 id: OOMPAH-22
 type: epic
+<<<<<<<< HEAD:.oompah/tasks/in-progress/OOMPAH-22.md
+status: In Progress
+========
 status: Done
+>>>>>>>> origin/epic-OOMPAH-16:.oompah/tasks/done/OOMPAH-22.md
 priority: 1
 title: Lock the 1.0 CLI and package contract
 parent: OOMPAH-16
@@ -14,7 +18,11 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:36.501719Z'
+<<<<<<<< HEAD:.oompah/tasks/in-progress/OOMPAH-22.md
+updated_at: '2026-06-22T02:07:12.178438Z'
+========
 updated_at: '2026-06-22T03:01:06.792380Z'
+>>>>>>>> origin/epic-OOMPAH-16:.oompah/tasks/done/OOMPAH-22.md
 work_branch: null
 target_branch: null
 review_url: null
