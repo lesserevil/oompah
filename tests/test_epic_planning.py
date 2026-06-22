@@ -24,6 +24,7 @@ def _make_issue(
     project_id: str | None = None,
     title: str | None = None,
     description: str = "Test issue body — passes the empty-description gate.",
+    tracker_kind: str | None = None,
 ) -> Issue:
     return Issue(
         id=identifier,
@@ -35,6 +36,7 @@ def _make_issue(
         priority=priority,
         labels=labels or [],
         project_id=project_id,
+        tracker_kind=tracker_kind,
     )
 
 
@@ -508,6 +510,58 @@ class TestEpicPlanningInTick:
 
 class TestAutoDecomposition:
     """Tests for issue auto-decomposition child creation."""
+
+    def test_should_decompose_skips_github_issue_tracker_tasks(self, tmp_path):
+        """Direct GitHub-backed tasks should not create GitHub child issues."""
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(
+            "example-org/oompah#500",
+            tracker_kind="github_issues",
+            labels=[],
+        )
+
+        assert orch._should_decompose(
+            issue,
+            orch.config.decompose_after_attempts,
+        ) is False
+
+    def test_should_decompose_allows_native_project_tasks_without_issue_kind(self, tmp_path):
+        """Native project metadata controls decomposition when issue records omit kind."""
+        project = _make_project()
+        project.tracker_kind = "oompah_md"
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue(
+            "TASK-500",
+            project_id=project.id,
+            tracker_kind=None,
+            labels=[],
+        )
+
+        assert orch._should_decompose(
+            issue,
+            orch.config.decompose_after_attempts,
+            project_id=project.id,
+        ) is True
+
+    def test_should_decompose_skips_github_issue_project_tasks_without_issue_kind(
+        self, tmp_path
+    ):
+        """Project tracker kind blocks decomposition even when issue kind is absent."""
+        project = _make_project()
+        project.tracker_kind = "github_issues"
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue(
+            "example-org/oompah#500",
+            project_id=project.id,
+            tracker_kind=None,
+            labels=[],
+        )
+
+        assert orch._should_decompose(
+            issue,
+            orch.config.decompose_after_attempts,
+            project_id=project.id,
+        ) is False
 
     def test_creates_children_with_parent_at_creation(self, tmp_path):
         """Decomposition should create child tasks under the parent immediately."""

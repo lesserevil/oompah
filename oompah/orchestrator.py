@@ -11243,6 +11243,40 @@ class Orchestrator:
         }
         return candidates
 
+    @staticmethod
+    def _is_native_decomposition_tracker_kind(kind: str | None) -> bool:
+        return (kind or "").strip().lower() in {"oompah_md", "oompah.md", "oompah"}
+
+    def _resolved_project_tracker_kind(self, project: object) -> str | None:
+        project_kind = getattr(project, "tracker_kind", None)
+        if isinstance(project_kind, str) and project_kind.strip():
+            return project_kind
+        return getattr(self.config, "tracker_kind", None)
+
+    def _project_allows_native_decomposition(self, project: object) -> bool:
+        return self._is_native_decomposition_tracker_kind(
+            self._resolved_project_tracker_kind(project)
+        )
+
+    def _issue_allows_native_decomposition(
+        self, issue: Issue, project_id: str | None = None
+    ) -> bool:
+        effective_project_id = project_id or issue.project_id
+        if effective_project_id:
+            try:
+                project = self.project_store.get(effective_project_id)
+            except Exception:
+                project = None
+            if project is not None:
+                return self._project_allows_native_decomposition(project)
+
+        tracker_kind = getattr(issue, "tracker_kind", None)
+        if tracker_kind:
+            return self._is_native_decomposition_tracker_kind(tracker_kind)
+        return self._is_native_decomposition_tracker_kind(
+            getattr(self.config, "tracker_kind", None)
+        )
+
     def _fetch_proposed_issues(self) -> list[Issue]:
         """Fetch Proposed issues for intake processing.
 
@@ -11296,6 +11330,7 @@ class Orchestrator:
             "error_count": 0,
         }
         for issue in issues:
+            allow_decomposition = self._issue_allows_native_decomposition(issue)
             tracker = (
                 self._tracker_for_project(issue.project_id)
                 if issue.project_id
@@ -11315,6 +11350,7 @@ class Orchestrator:
                     tracker,
                     issue,
                     auto_promote=auto_promote,
+                    allow_decomposition=allow_decomposition,
                     project=project,
                 )
             except Exception as exc:  # noqa: BLE001
@@ -15827,7 +15863,7 @@ class Orchestrator:
             delay = self._backoff_delay(next_attempt)
 
             # Check if we should decompose instead of retrying
-            if self._should_decompose(entry.issue, next_attempt):
+            if self._should_decompose(entry.issue, next_attempt, project_id=project_id):
                 asyncio.ensure_future(
                     self._trigger_decomposition(
                         issue_id,
@@ -16182,9 +16218,13 @@ class Orchestrator:
     # Auto-decomposition
     # ------------------------------------------------------------------
 
-    def _should_decompose(self, issue: Issue, next_attempt: int) -> bool:
+    def _should_decompose(
+        self, issue: Issue, next_attempt: int, project_id: str | None = None
+    ) -> bool:
         """Check whether an issue should be auto-decomposed instead of retried."""
         if next_attempt < self.config.decompose_after_attempts:
+            return False
+        if not self._issue_allows_native_decomposition(issue, project_id=project_id):
             return False
         if "decomposed" in issue.labels or "no-decompose" in issue.labels:
             return False
