@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:10:46.422112Z'
-updated_at: '2026-06-22T14:06:17.084616Z'
+updated_at: '2026-06-22T14:06:20.370830Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-06-22 14:06
 ---
 Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-44 (Push ci.yml release/* trigger update (requires workflow scope)), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-06-22 14:06
+---
+This task requires a maintainer credential with GitHub workflow scope to update .github/workflows/ci.yml. It is not dispatchable to the normal agent token.
 ---
 <!-- COMMENTS:END -->
