@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:35:48.855045Z'
-updated_at: '2026-06-22T02:38:31.663973Z'
+updated_at: '2026-06-22T02:38:58.201069Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,13 @@ Plan:
 1. Add 'oompah project-bootstrap --help' after 'oompah task --help' in .github/workflows/cli-release.yml (Verify wheel console script step)
 2. Add assertion 'assert "oompah project-bootstrap --help" in text' to test_release_workflow_is_tag_or_manual_github_release_only in tests/test_cli_release_packaging.py
 3. Update the description paragraph in docs/cli-release.md to include 'oompah project-bootstrap --help' in both the workflow description and the manual verification section
+---
+author: oompah
+created: 2026-06-22 02:38
+---
+DISCOVERY & IMPLEMENTATION: Three files modified:
+1. .github/workflows/cli-release.yml — added 'oompah project-bootstrap --help' after 'oompah task --help' in the 'Verify wheel console script' step
+2. tests/test_cli_release_packaging.py — added assertion 'assert "oompah project-bootstrap --help" in text' to test_release_workflow_is_tag_or_manual_github_release_only
+3. docs/cli-release.md — updated workflow description paragraph and manual verification section to include 'oompah project-bootstrap --help'
 ---
 <!-- COMMENTS:END -->
