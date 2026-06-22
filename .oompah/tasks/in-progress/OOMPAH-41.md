@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:48.285544Z'
-updated_at: '2026-06-22T17:11:32.404763Z'
+updated_at: '2026-06-22T17:18:46.645034Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -132,5 +132,15 @@ author: oompah
 created: 2026-06-22 17:11
 ---
 VERIFICATION IN PROGRESS: The v1.0.0 tag (commit 4dd36017) is confirmed on origin. The CLI Release workflow (run #27969964556) was triggered at 17:03 by the tag push and is currently queued. Monitoring for completion — will verify: (1) workflow success, (2) GitHub Release v1.0.0 with wheel+sdist artifacts, (3) release notes identify v1.0.0.
+---
+author: oompah
+created: 2026-06-22 17:18
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 11
+- Tokens: 25 in / 381 out [406 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 1s
+- Log: OOMPAH-41__20260622T171049Z.jsonl
 ---
 <!-- COMMENTS:END -->
