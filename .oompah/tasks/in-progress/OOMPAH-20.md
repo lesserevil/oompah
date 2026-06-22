@@ -12,7 +12,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:15:01.066849Z'
-updated_at: '2026-06-22T02:08:04.839105Z'
+updated_at: '2026-06-22T02:08:12.577632Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,5 +62,10 @@ author: oompah
 created: 2026-06-22 02:08
 ---
 IMPLEMENTATION: Added release/* branch patterns to all three trigger events in .github/workflows/ci.yml (push, pull_request, merge_group). The main branch patterns are preserved. Also added tests/test_ci_workflow.py with 5 tests validating: YAML validity, push/pull_request/merge_group each include release/*, and main is still covered.
+---
+author: oompah
+created: 2026-06-22 02:08
+---
+VERIFICATION: All 5 new CI workflow tests pass (test_ci_workflow_yaml_is_valid, test_ci_workflow_push_includes_release_branches, test_ci_workflow_pull_request_includes_release_branches, test_ci_workflow_merge_group_includes_release_branches, test_ci_workflow_still_covers_main). Full test suite: 7048 passed, 28 skipped, pre-existing failures unrelated to this change.
 ---
 <!-- COMMENTS:END -->
