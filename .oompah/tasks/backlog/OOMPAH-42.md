@@ -6,11 +6,12 @@ priority: 1
 title: Run post-release install and bootstrap smoke checks
 parent: OOMPAH-37
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-41
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:50.933134Z'
-updated_at: '2026-06-22T01:17:50.933134Z'
+updated_at: '2026-06-22T01:19:11.701177Z'
 work_branch: null
 target_branch: null
 review_url: null
