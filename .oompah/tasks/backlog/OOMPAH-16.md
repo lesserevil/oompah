@@ -5,14 +5,15 @@ status: Backlog
 priority: 1
 title: Oompah 1.0 release readiness
 parent: null
-children: []
+children:
+- OOMPAH-17
 blocked_by: []
 labels:
 - release:1.0
 - draft
 assignee: null
 created_at: '2026-06-22T01:14:40.055430Z'
-updated_at: '2026-06-22T01:14:42.289526Z'
+updated_at: '2026-06-22T01:14:45.354668Z'
 work_branch: null
 target_branch: null
 review_url: null
