@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-17
 type: epic
-status: Done
+status: In Review
 priority: 1
 title: Define and harden the 1.0 release train
 parent: OOMPAH-16
@@ -15,7 +15,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:45.345931Z'
-updated_at: '2026-06-22T02:37:57.031443Z'
+updated_at: '2026-06-22T13:51:20.383153Z'
 work_branch: null
 target_branch: null
 review_url: null
