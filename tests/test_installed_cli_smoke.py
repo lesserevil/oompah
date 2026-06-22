@@ -172,6 +172,71 @@ class TestCurrentInstallSmoke:
             f"Expected task subcommand names in 'oompah task --help' output, got: {output!r}"
         )
 
+    def test_oompah_project_bootstrap_help_exits_zero(self):
+        """``oompah project-bootstrap --help`` must exit 0 and list subcommands.
+
+        This validates the bootstrap CLI dispatch path (OOMPAH-31): the
+        installed entry point must recognize 'project-bootstrap' as a
+        subcommand and route to the project_bootstrap_cli module.
+        """
+        oompah = str(_current_oompah_bin())
+        result = subprocess.run(
+            [oompah, "project-bootstrap", "--help"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            f"oompah project-bootstrap --help exited {result.returncode}.\n"
+            f"stderr: {result.stderr}\nstdout: {result.stdout}"
+        )
+        output = result.stdout + result.stderr
+        assert all(sub in output for sub in ("status", "preview", "apply")), (
+            "Expected project-bootstrap subcommand names (status, preview, apply) in "
+            f"'oompah project-bootstrap --help' output, got: {output!r}"
+        )
+
+    def test_oompah_project_bootstrap_help_does_not_import_server_dependencies(self):
+        """``oompah project-bootstrap --help`` must not import server-only packages.
+
+        The bootstrap CLI path must remain usable from a CLI-only install that
+        does not have the server runtime extras installed.
+        """
+        code = """
+import builtins
+import sys
+
+real_import = builtins.__import__
+
+_SERVER_PACKAGES = frozenset([
+    "fastapi", "uvicorn", "jinja2", "yaml", "watchfiles", "jwt", "liquid", "multipart",
+])
+
+def guarded_import(name, *args, **kwargs):
+    root = name.split(".")[0]
+    if root in _SERVER_PACKAGES:
+        raise ImportError(f"blocked server-only dependency: {name!r}")
+    return real_import(name, *args, **kwargs)
+
+builtins.__import__ = guarded_import
+
+from oompah.__main__ import main
+
+sys.argv = ["oompah", "project-bootstrap", "--help"]
+try:
+    main()
+except SystemExit as exc:
+    raise SystemExit(exc.code)
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            "oompah project-bootstrap --help imported a server-only dependency.\n"
+            f"stderr: {result.stderr}\nstdout: {result.stdout}"
+        )
+
     def test_oompah_task_view_help_exits_zero(self):
         """``oompah task view --help`` must exit 0."""
         oompah = str(_current_oompah_bin())
