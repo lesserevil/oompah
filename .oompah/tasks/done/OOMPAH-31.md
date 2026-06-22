@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:08.467848Z'
-updated_at: '2026-06-22T14:20:39.177410Z'
+updated_at: '2026-06-22T14:20:47.077033Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,5 +77,15 @@ author: oompah
 created: 2026-06-22 14:20
 ---
 Validated bootstrap flows for oompah managed project: status/preview/apply all work correctly, AGENTS.md template uses 1.0 native tracker workflow (v:2), applied 3 missing bootstrap files, added 4 new tests. Filed OOMPAH-52 for installed CLI reinstall guidance. All 7118 tests pass.
+---
+author: oompah
+created: 2026-06-22 14:20
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 89
+- Tokens: 158 in / 4.8K out [5.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 3s
+- Log: OOMPAH-31__20260622T140751Z.jsonl
 ---
 <!-- COMMENTS:END -->
