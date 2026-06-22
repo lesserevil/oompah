@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:35.091778Z'
-updated_at: '2026-06-22T15:02:00.976565Z'
+updated_at: '2026-06-22T15:02:10.484955Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,5 +69,10 @@ author: oompah
 created: 2026-06-22 15:02
 ---
 VERIFICATION: Quality gate PASSED on release/1.0.\n\n- make test: 7118 passed, 28 skipped, 13 warnings in 102.23s. Zero failures.\n- make check-secrets: Clean. No secrets found (one script warning about null bytes, not an issue).\n- git status --short: Empty — working tree clean.\n- pyproject.toml: version = '1.0.0' confirmed on origin/release/1.0.\n\nAll HOW TO VERIFY criteria met:\n  1. release/1.0 exists on origin ✓\n  2. package metadata prepared for 1.0.0 ✓\n  3. documented quality gate (make test + make check-secrets) passes ✓
+---
+author: oompah
+created: 2026-06-22 15:02
+---
+COMPLETION: release/1.0 is cut and the full quality gate passes.\n\nDelivered:\n1. Created release/1.0 branch from origin/epic-OOMPAH-27 (includes OOMPAH-21 branch checklist, OOMPAH-22 CLI lock, OOMPAH-26 API surface docs, OOMPAH-28-31 managed workflow validation, OOMPAH-47 bootstrap smoke tests).\n2. Cherry-picked OOMPAH-36 (stale beads cleanup in .gitignore and .gitattributes, commit 45e07c5c).\n3. Bumped pyproject.toml from 0.1.0 to 1.0.0, refreshed uv.lock.\n4. Pushed release/1.0 to origin.\n5. Quality gate: make test (7118 passed, 0 failed) + make check-secrets (clean).\n\nNot a duplicate. This is the unique E1 task in the release execution epic.
 ---
 <!-- COMMENTS:END -->
