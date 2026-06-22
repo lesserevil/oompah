@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-35
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Write the managed-project onboarding checklist
 parent: OOMPAH-32
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:26.082104Z'
-updated_at: '2026-06-22T14:25:24.331137Z'
+updated_at: '2026-06-22T14:25:30.140809Z'
 work_branch: null
 target_branch: null
 review_url: null
