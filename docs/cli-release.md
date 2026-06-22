@@ -7,26 +7,61 @@ tagged source state and attaches them to the matching GitHub Release.
 The workflow does not publish to a package index and does not require package
 index credentials.
 
+## 1.0 Release Train
+
+The 1.0 release uses a stable branch, a movable draft tag, and an immutable
+final tag:
+
+| Artifact | Value |
+|---|---|
+| Release branch | `release/1.0` |
+| Draft release tag | `v1.0.0-draft` |
+| Final release tag | `v1.0.0` |
+| Package version | `1.0.0` |
+
+**Draft tags** (`v1.0.0-draft`) are intentionally force-movable. Maintainers
+may retag and rerun the workflow while iterating on release candidates. The
+workflow marks draft-tag releases as a GitHub prerelease.
+
+**Final tags** (`v1.0.0`) are immutable once published. Do not force-move a
+final release tag.
+
 ## Create a release
 
-1. Update `project.version` in `pyproject.toml`.
+### Draft release
+
+1. Update `project.version` in `pyproject.toml` to `1.0.0`.
 2. Run the quality gate:
 
    ```bash
    make test
    ```
 
-3. Create and push a matching version tag:
+3. Create and push the draft tag (force-movable; rerun as needed):
 
    ```bash
-   git tag -a v0.1.0 -m "oompah v0.1.0"
-   git push origin v0.1.0
+   git tag -f v1.0.0-draft -m "oompah v1.0.0-draft"
+   git push -f origin v1.0.0-draft
+   ```
+
+4. Watch **Actions > CLI Release**. The workflow creates or updates a GitHub
+   prerelease for `v1.0.0-draft`.
+
+### Final release
+
+Once draft verification passes, create the immutable final tag:
+
+1. Create and push the final tag (do **not** force-move this):
+
+   ```bash
+   git tag -a v1.0.0 -m "oompah v1.0.0"
+   git push origin v1.0.0
    ```
 
    The tag must match `project.version` with a leading `v`. For example,
-   `project.version = "0.1.0"` must use tag `v0.1.0`.
+   `project.version = "1.0.0"` must use tag `v1.0.0`.
 
-4. Watch **Actions > CLI Release**. You can also run the workflow manually with
+2. Watch **Actions > CLI Release**. You can also run the workflow manually with
    an existing tag through **Run workflow** and the `tag` input.
 
 The workflow checks out the tag, validates that the checkout is exactly that
@@ -40,21 +75,21 @@ for that tag.
 Download the release artifacts from:
 
 ```text
-https://github.com/lesserevil/oompah/releases/tag/v0.1.0
+https://github.com/lesserevil/oompah/releases/tag/v1.0.0
 ```
 
 Install from the tag:
 
 ```bash
-uv tool install "git+https://github.com/lesserevil/oompah@v0.1.0"
-pipx install "git+https://github.com/lesserevil/oompah@v0.1.0"
+uv tool install "git+https://github.com/lesserevil/oompah@v1.0.0"
+pipx install "git+https://github.com/lesserevil/oompah@v1.0.0"
 ```
 
 Install from the wheel artifact:
 
 ```bash
-uv tool install "https://github.com/lesserevil/oompah/releases/download/v0.1.0/oompah-0.1.0-py3-none-any.whl"
-pipx install "https://github.com/lesserevil/oompah/releases/download/v0.1.0/oompah-0.1.0-py3-none-any.whl"
+uv tool install "https://github.com/lesserevil/oompah/releases/download/v1.0.0/oompah-1.0.0-py3-none-any.whl"
+pipx install "https://github.com/lesserevil/oompah/releases/download/v1.0.0/oompah-1.0.0-py3-none-any.whl"
 ```
 
 Verify the installed console script:

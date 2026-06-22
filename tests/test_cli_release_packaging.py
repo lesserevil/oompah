@@ -27,27 +27,27 @@ def test_release_notes_include_exact_tag_and_artifact_install_commands():
     module = _load_release_notes_module()
 
     notes = module.render_release_notes(
-        tag="v0.1.0",
-        wheel_name="oompah-0.1.0-py3-none-any.whl",
-        sdist_name="oompah-0.1.0.tar.gz",
+        tag="v1.0.0",
+        wheel_name="oompah-1.0.0-py3-none-any.whl",
+        sdist_name="oompah-1.0.0.tar.gz",
     )
 
     assert (
-        'uv tool install "git+https://github.com/lesserevil/oompah@v0.1.0"'
+        'uv tool install "git+https://github.com/lesserevil/oompah@v1.0.0"'
         in notes
     )
     assert (
-        'pipx install "git+https://github.com/lesserevil/oompah@v0.1.0"'
+        'pipx install "git+https://github.com/lesserevil/oompah@v1.0.0"'
         in notes
     )
     assert (
         'uv tool install "https://github.com/lesserevil/oompah/releases/download/'
-        'v0.1.0/oompah-0.1.0-py3-none-any.whl"'
+        'v1.0.0/oompah-1.0.0-py3-none-any.whl"'
         in notes
     )
     assert (
         'pipx install "https://github.com/lesserevil/oompah/releases/download/'
-        'v0.1.0/oompah-0.1.0-py3-none-any.whl"'
+        'v1.0.0/oompah-1.0.0-py3-none-any.whl"'
         in notes
     )
     assert "task CLI release" in notes
@@ -141,24 +141,24 @@ def test_release_workflow_is_tag_or_manual_github_release_only():
 def test_release_docs_cover_tag_creation_and_verification_commands():
     text = (REPO_ROOT / "docs" / "cli-release.md").read_text(encoding="utf-8")
 
-    assert 'git tag -a v0.1.0 -m "oompah v0.1.0"' in text
+    assert 'git tag -a v1.0.0 -m "oompah v1.0.0"' in text
     assert "Actions > CLI Release" in text
     assert (
-        'uv tool install "git+https://github.com/lesserevil/oompah@v0.1.0"'
+        'uv tool install "git+https://github.com/lesserevil/oompah@v1.0.0"'
         in text
     )
     assert (
-        'pipx install "git+https://github.com/lesserevil/oompah@v0.1.0"'
+        'pipx install "git+https://github.com/lesserevil/oompah@v1.0.0"'
         in text
     )
     assert (
         'uv tool install "https://github.com/lesserevil/oompah/releases/download/'
-        'v0.1.0/oompah-0.1.0-py3-none-any.whl"'
+        'v1.0.0/oompah-1.0.0-py3-none-any.whl"'
         in text
     )
     assert (
         'pipx install "https://github.com/lesserevil/oompah/releases/download/'
-        'v0.1.0/oompah-0.1.0-py3-none-any.whl"'
+        'v1.0.0/oompah-1.0.0-py3-none-any.whl"'
         in text
     )
     assert "standalone `oompah task` client" in text
@@ -227,3 +227,53 @@ def test_install_docs_cover_upgrade_from_pre_project_bootstrap_install():
     assert "project-bootstrap" in text.lower()
     # Must mention project_bootstrap module (the Python module name used in error context)
     assert "project_bootstrap" in text
+
+
+def test_release_docs_describe_draft_and_final_tag_convention():
+    text = (REPO_ROOT / "docs" / "cli-release.md").read_text(encoding="utf-8")
+
+    # 1.0 release train section
+    assert "release/1.0" in text
+    assert "v1.0.0-draft" in text
+    assert "force-movable" in text.lower() or "force-move" in text.lower()
+    assert "immutable" in text
+
+    # Draft tag push command
+    assert "git tag -f v1.0.0-draft" in text
+    assert "git push -f origin v1.0.0-draft" in text
+
+
+def test_install_docs_cover_tag_and_wheel_installs_for_v1():
+    text = (REPO_ROOT / "docs" / "cli-install.md").read_text(encoding="utf-8")
+
+    # v1.0.0 tag install
+    assert (
+        'uv tool install "git+https://github.com/lesserevil/oompah@v1.0.0"'
+        in text
+    )
+    assert (
+        'pipx install "git+https://github.com/lesserevil/oompah@v1.0.0"'
+        in text
+    )
+
+    # v1.0.0 wheel install
+    assert (
+        'uv tool install "https://github.com/lesserevil/oompah/releases/download/'
+        'v1.0.0/oompah-1.0.0-py3-none-any.whl"'
+        in text
+    )
+    assert (
+        'pipx install "https://github.com/lesserevil/oompah/releases/download/'
+        'v1.0.0/oompah-1.0.0-py3-none-any.whl"'
+        in text
+    )
+
+    # Draft tag install example
+    assert "v1.0.0-draft" in text
+
+    # No PyPI install instructions (the docs may mention "no PyPI" but must not instruct
+    # users to install from PyPI)
+    assert "pip install oompah" not in text
+    assert "pypi.org" not in text.lower()
+    # The doc should explicitly say GitHub-only, no PyPI
+    assert "github only" in text.lower() or "github-only" in text.lower()
