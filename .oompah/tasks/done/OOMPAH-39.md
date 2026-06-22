@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:37.381380Z'
-updated_at: '2026-06-22T15:31:32.569844Z'
+updated_at: '2026-06-22T15:31:34.818738Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-06-22 15:31
 ---
 COMPLETION: Delivered the v1.0.0-draft release.\n\n1. Applied workstream A release train changes to release/1.0 (commit 21033827): is_draft_release_tag + validate_tag_matches_version update, updated docs/cli-release.md with 1.0 train procedures, new docs/cli-api-surface.md, updated docs/cli-install.md and plans/oompah-1.0-release.md with branch-cut checklist.\n\n2. Created and pushed v1.0.0-draft tag (force-movable) pointing to release/1.0 HEAD.\n\n3. Created GitHub Release v1.0.0-draft with:\n   - Prerelease flag set (not draft, not final)\n   - Assets: oompah-1.0.0-py3-none-any.whl, oompah-1.0.0.tar.gz\n   - Generated notes with tag and wheel install commands\n   - URL: https://github.com/lesserevil/oompah/releases/tag/v1.0.0-draft\n\n4. Local validation: build, smoke install, release notes generation all pass. 23/25 test_cli_release_packaging tests pass.\n\n5. Not a duplicate of any existing task. This is the unique E2 step in the release execution epic.
+---
+author: oompah
+created: 2026-06-22 15:31
+---
+v1.0.0-draft tag created and pushed to origin/release/1.0 (21033827). GitHub Release v1.0.0-draft created with wheel+sdist artifacts and generated install notes. Workstream A changes (OOMPAH-18/19/21/22) applied to release/1.0. Local validation: build, wheel smoke test, release notes generation all pass. 23/25 test_cli_release_packaging tests pass.
 ---
 <!-- COMMENTS:END -->
