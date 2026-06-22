@@ -5,13 +5,14 @@ status: Backlog
 priority: 1
 title: Validate managed-project workflow readiness
 parent: OOMPAH-16
-children: []
+children:
+- OOMPAH-28
 blocked_by: []
 labels:
 - draft
 assignee: null
 created_at: '2026-06-22T01:16:50.891544Z'
-updated_at: '2026-06-22T01:16:53.042247Z'
+updated_at: '2026-06-22T01:16:55.348467Z'
 work_branch: null
 target_branch: null
 review_url: null
