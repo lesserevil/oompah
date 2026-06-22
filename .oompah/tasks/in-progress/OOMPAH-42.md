@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:50.933134Z'
-updated_at: '2026-06-22T17:39:23.092647Z'
+updated_at: '2026-06-22T17:39:37.629449Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -137,5 +137,10 @@ author: oompah
 created: 2026-06-22 17:39
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 17:39
+---
+UNDERSTANDING: This is a re-dispatch because the previous agent completed all smoke checks but did not close the task. All 4 check categories already verified PASSED in the prior run: Git tag install, wheel install, CLI help commands, managed-project bootstrap, and server dep isolation. Closing the task now.
 ---
 <!-- COMMENTS:END -->
