@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:52:58.922363Z'
-updated_at: '2026-06-22T02:07:07.644658Z'
+updated_at: '2026-06-22T02:08:10.177381Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-06-22 02:07
 ---
 DISCOVERY: This is not a duplicate. OOMPAH-43 is a deliberate follow-up from OOMPAH-18 (Done). OOMPAH-18 reverted the workflow file change because the PAT lacked workflow scope, and filed this task for a maintainer to complete it. Target: .github/workflows/cli-release.yml line — description: 'Existing release tag to package, e.g. v0.1.0' → 'e.g. v1.0.0-draft or v1.0.0'. Current test file (on main, pre-OOMPAH-18 merge) has no assertion on the dispatch description string. Will add a test to lock in the new description.
+---
+author: oompah
+created: 2026-06-22 02:08
+---
+IMPLEMENTATION: Updated .github/workflows/cli-release.yml workflow_dispatch input description from 'e.g. v0.1.0' to 'e.g. v1.0.0-draft or v1.0.0'. Added new test test_release_workflow_dispatch_description_shows_v1_examples in tests/test_cli_release_packaging.py to assert the description contains both 'v1.0.0-draft' and 'v1.0.0' strings, locking in the correct example going forward.
 ---
 <!-- COMMENTS:END -->
