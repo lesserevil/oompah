@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:43.935007Z'
-updated_at: '2026-06-22T02:28:45.823468Z'
+updated_at: '2026-06-22T02:35:57.472195Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -143,5 +143,17 @@ author: oompah
 created: 2026-06-22 02:28
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 02:35
+---
+VERIFICATION: All 18 tests in test_cli_release_packaging.py and test_installed_cli_smoke.py pass (6 wheel-isolated tests skipped as expected without a built dist/*.whl).
+
+Delivered:
+- tests/test_installed_cli_smoke.py: two new tests covering 'oompah project-bootstrap --help' (current editable install + isolated venv)
+- tests/test_cli_release_packaging.py: assertion that docs/cli-release.md mentions 'oompah project-bootstrap --help'  
+- docs/cli-release.md: 'oompah project-bootstrap --help' added to the manual verification section
+
+Not deliverable (token lacks workflow scope): adding the same smoke command to .github/workflows/cli-release.yml — filed as OOMPAH-47 for a human or workflow-scoped PAT to complete.
 ---
 <!-- COMMENTS:END -->
