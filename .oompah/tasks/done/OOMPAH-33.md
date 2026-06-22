@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-33
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Refresh install and release docs for v1.0.0
 parent: OOMPAH-32
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:15.169120Z'
-updated_at: '2026-06-22T03:02:31.181643Z'
+updated_at: '2026-06-22T03:02:36.921394Z'
 work_branch: null
 target_branch: null
 review_url: null
