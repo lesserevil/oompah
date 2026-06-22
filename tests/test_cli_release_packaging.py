@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import zipfile
 from pathlib import Path
 import tomllib
 
@@ -8,6 +9,7 @@ import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+DIST_DIR = REPO_ROOT / "dist"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cli-release.yml"
 SCRIPT_PATH = REPO_ROOT / "scripts" / "render_cli_release_notes.py"
 
@@ -197,3 +199,160 @@ def test_release_note_generator_accepts_v1_0_0_tag(tmp_path):
     assert "oompah-1.0.0-py3-none-any.whl" in notes
     assert "oompah-1.0.0.tar.gz" in notes
     assert "v1.0.0" in notes
+
+
+def test_server_extras_complete_and_not_in_base_dependencies():
+    """ALL server-runtime packages must be behind the server extra, not in base deps.
+
+    This is a comprehensive check that the dependency boundary is correct:
+    every package from the ``server`` extra is verified to be absent from the
+    base ``[project.dependencies]`` list.  Adding a server package to base
+    deps would force it on every CLI-only user, breaking the lightweight
+    install contract.
+    """
+    data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    base_deps = data["project"]["dependencies"]
+    server_extras = data["project"]["optional-dependencies"]["server"]
+
+    # The base dependency list must contain only httpx (the HTTP client used
+    # by the task CLI to talk to the oompah server).
+    assert base_deps == ["httpx>=0.27"], (
+        f"Base dependencies must contain only 'httpx>=0.27' to keep the "
+        f"lightweight CLI install free of server runtime packages.  "
+        f"Got: {base_deps!r}"
+    )
+
+    # All known server-runtime package name prefixes (PEP 508 names,
+    # lowercased) must appear in the server extra.
+    required_server_packages = [
+        "fastapi",
+        "uvicorn",
+        "jinja2",
+        "pyyaml",
+        "watchfiles",
+        "python-liquid",
+        "pyjwt",
+        "python-multipart",
+    ]
+    for pkg in required_server_packages:
+        found = any(
+            dep.lower().startswith(pkg.lower()) for dep in server_extras
+        )
+        assert found, (
+            f"Expected {pkg!r} in [project.optional-dependencies.server], "
+            f"but it was not found.  Server-runtime packages must stay behind "
+            f"the server extra.  Current server extras: {server_extras!r}"
+        )
+
+    # None of the server extra packages must leak into base deps.
+    for dep in server_extras:
+        # Strip version specifiers to get the package name portion.
+        pkg_name = dep.split("[")[0].split(">=")[0].split("==")[0].split(">")[0].strip()
+        assert pkg_name not in base_deps, (
+            f"Server-extra package {pkg_name!r} was found in base "
+            f"[project.dependencies].  It must stay behind the server extra "
+            f"to keep CLI-only installs lightweight."
+        )
+
+
+def test_wheel_contains_required_cli_modules():
+    """The built wheel must include all modules needed by the lightweight CLI.
+
+    Verifies that ``oompah task`` and ``oompah project-bootstrap`` module
+    paths are present inside the wheel archive.  Skipped automatically when
+    no wheel exists in ``dist/`` so the normal development cycle (no wheel
+    pre-built) is not disrupted.
+
+    A wheel is a zip archive.  The expected paths mirror the package layout
+    under ``[tool.hatch.build.targets.wheel] packages = ["oompah"]``.
+    """
+    wheels = sorted(DIST_DIR.glob("oompah-*.whl"))
+    if not wheels:
+        import pytest
+        pytest.skip(
+            "No wheel found in dist/ -- build one with 'python -m build' "
+            "or 'pip wheel . -w dist --no-deps' to enable wheel-contents tests"
+        )
+
+    wheel_path = wheels[-1]
+
+    # Required modules for the two supported CLI commands.
+    required_modules = [
+        "oompah/__init__.py",
+        "oompah/__main__.py",
+        "oompah/task_cli.py",
+        "oompah/project_bootstrap_cli.py",
+        "oompah/project_bootstrap/__init__.py",
+        "oompah/agent_instructions.py",
+        "oompah/project_bootstrap/templates/__init__.py",
+    ]
+
+    with zipfile.ZipFile(wheel_path) as whl:
+        names = whl.namelist()
+
+    missing = [m for m in required_modules if m not in names]
+    assert not missing, (
+        f"Wheel {wheel_path.name} is missing required CLI modules:\n"
+        + "\n".join(f"  - {m}" for m in missing)
+        + f"\n\nWheel contents (oompah/ files):\n"
+        + "\n".join(f"  {n}" for n in sorted(names) if n.startswith("oompah/"))
+    )
+
+
+def test_wheel_does_not_contain_server_only_module_as_dep():
+    """The wheel metadata must not list any server-runtime package as a required dep.
+
+    Parses the METADATA file inside the built wheel (a zip archive) and
+    checks that none of the ``Requires-Dist`` entries are server-runtime
+    packages.  Skipped when no wheel is present in ``dist/``.
+    """
+    wheels = sorted(DIST_DIR.glob("oompah-*.whl"))
+    if not wheels:
+        import pytest
+        pytest.skip(
+            "No wheel found in dist/ -- build one with 'python -m build' "
+            "or 'pip wheel . -w dist --no-deps' to enable wheel-metadata tests"
+        )
+
+    wheel_path = wheels[-1]
+
+    server_package_prefixes = [
+        "fastapi",
+        "uvicorn",
+        "jinja2",
+        "pyyaml",
+        "watchfiles",
+        "python-liquid",
+        "pyjwt",
+        "python-multipart",
+    ]
+
+    with zipfile.ZipFile(wheel_path) as whl:
+        # METADATA lives in <name>-<version>.dist-info/METADATA
+        metadata_path = next(
+            n for n in whl.namelist()
+            if n.endswith(".dist-info/METADATA")
+        )
+        metadata_text = whl.read(metadata_path).decode("utf-8")
+
+    requires_dist = [
+        line.split("Requires-Dist:")[1].strip()
+        for line in metadata_text.splitlines()
+        if line.startswith("Requires-Dist:")
+    ]
+
+    # Only unconditional (no extra marker) requirements are checked.
+    # Conditional extras are allowed to list server packages.
+    unconditional = [r for r in requires_dist if 'extra ==' not in r]
+
+    for req in unconditional:
+        req_name = req.split("[")[0].split(">=")[0].split("==")[0].split(">")[0].strip().lower()
+        for pkg in server_package_prefixes:
+            assert req_name != pkg.lower(), (
+                f"Wheel {wheel_path.name} METADATA lists {req!r} as an "
+                f"unconditional Requires-Dist entry.  Server-runtime packages "
+                f"must be behind the 'server' extra marker, not required for "
+                f"all installs.  This would force the server runtime on "
+                f"lightweight CLI users."
+            )

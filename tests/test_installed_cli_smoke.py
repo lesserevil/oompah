@@ -304,6 +304,102 @@ except SystemExit as exc:
             f"stderr: {result.stderr}\nstdout: {result.stdout}"
         )
 
+    def test_oompah_task_help_does_not_import_any_server_package(self):
+        """``oompah task --help`` must not import any package from the server extra.
+
+        This is a comprehensive boundary check: ALL packages listed in the
+        ``[project.optional-dependencies.server]`` section of pyproject.toml
+        (fastapi, uvicorn, jinja2, pyyaml/yaml, watchfiles, PyJWT/jwt,
+        python-liquid/liquid, python-multipart/multipart) are blocked.  The
+        test fails if any of them are imported at ``oompah task --help`` time,
+        confirming the server extra boundary is intact for the CLI-only path.
+        """
+        code = """
+import builtins
+import sys
+
+real_import = builtins.__import__
+
+# All top-level import names for packages in the server extra.
+_SERVER_PACKAGES = frozenset([
+    "fastapi", "uvicorn", "jinja2", "yaml", "watchfiles", "jwt", "liquid", "multipart",
+])
+
+def guarded_import(name, *args, **kwargs):
+    root = name.split(".")[0]
+    if root in _SERVER_PACKAGES:
+        raise ImportError(f"blocked server-only dependency: {name!r}")
+    return real_import(name, *args, **kwargs)
+
+builtins.__import__ = guarded_import
+
+from oompah.__main__ import main
+
+sys.argv = ["oompah", "task", "--help"]
+try:
+    main()
+except SystemExit as exc:
+    raise SystemExit(exc.code)
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            "oompah task --help imported a server-only dependency from the "
+            "server extra.  The CLI-only path must not pull in fastapi, uvicorn, "
+            "jinja2, pyyaml, watchfiles, PyJWT, python-liquid, or "
+            "python-multipart.\n"
+            f"stderr: {result.stderr}\nstdout: {result.stdout}"
+        )
+
+    def test_oompah_project_bootstrap_help_does_not_import_any_server_package(self):
+        """``oompah project-bootstrap --help`` must not import any server extra package.
+
+        Mirrors the comprehensive server-boundary check for the project-bootstrap
+        CLI path.  All packages from ``[project.optional-dependencies.server]``
+        are blocked; the test fails if any of them are imported.
+        """
+        code = """
+import builtins
+import sys
+
+real_import = builtins.__import__
+
+_SERVER_PACKAGES = frozenset([
+    "fastapi", "uvicorn", "jinja2", "yaml", "watchfiles", "jwt", "liquid", "multipart",
+])
+
+def guarded_import(name, *args, **kwargs):
+    root = name.split(".")[0]
+    if root in _SERVER_PACKAGES:
+        raise ImportError(f"blocked server-only dependency: {name!r}")
+    return real_import(name, *args, **kwargs)
+
+builtins.__import__ = guarded_import
+
+from oompah.__main__ import main
+
+sys.argv = ["oompah", "project-bootstrap", "--help"]
+try:
+    main()
+except SystemExit as exc:
+    raise SystemExit(exc.code)
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            "oompah project-bootstrap --help imported a server-only dependency "
+            "from the server extra.  The CLI-only path must not pull in fastapi, "
+            "uvicorn, jinja2, pyyaml, watchfiles, PyJWT, python-liquid, or "
+            "python-multipart.\n"
+            f"stderr: {result.stderr}\nstdout: {result.stdout}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # TestIsolatedVenvSmoke
