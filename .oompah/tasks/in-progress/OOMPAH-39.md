@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-39
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Create and verify the v1.0.0-draft release
 parent: OOMPAH-37
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:37.381380Z'
-updated_at: '2026-06-22T01:36:05.225148Z'
+updated_at: '2026-06-22T15:02:31.673435Z'
 work_branch: null
 target_branch: null
 review_url: null
