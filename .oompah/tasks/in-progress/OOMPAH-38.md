@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:35.091778Z'
-updated_at: '2026-06-22T16:49:44.811381Z'
+updated_at: '2026-06-22T16:49:48.174750Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -637,5 +637,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 5s
 - Log: OOMPAH-38__20260622T164739Z.jsonl
+---
+author: oompah
+created: 2026-06-22 16:49
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
