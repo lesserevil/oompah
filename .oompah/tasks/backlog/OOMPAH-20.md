@@ -6,12 +6,13 @@ priority: 1
 title: Run CI for release branches
 parent: OOMPAH-17
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-18
 labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:15:01.066849Z'
-updated_at: '2026-06-22T01:15:03.418660Z'
+updated_at: '2026-06-22T01:15:13.618965Z'
 work_branch: null
 target_branch: null
 review_url: null
