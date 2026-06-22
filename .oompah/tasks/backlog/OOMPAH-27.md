@@ -7,12 +7,13 @@ title: Validate managed-project workflow readiness
 parent: OOMPAH-16
 children:
 - OOMPAH-28
+- OOMPAH-29
 blocked_by: []
 labels:
 - draft
 assignee: null
 created_at: '2026-06-22T01:16:50.891544Z'
-updated_at: '2026-06-22T01:16:55.348467Z'
+updated_at: '2026-06-22T01:16:57.708029Z'
 work_branch: null
 target_branch: null
 review_url: null
