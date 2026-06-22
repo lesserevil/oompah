@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-16
 type: epic
-status: Backlog
+status: In Progress
 priority: 1
 title: Oompah 1.0 release readiness
 parent: null
@@ -16,7 +16,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:40.055430Z'
-updated_at: '2026-06-22T01:32:01.253720Z'
+updated_at: '2026-06-22T01:36:59.900134Z'
 work_branch: null
 target_branch: null
 review_url: null
