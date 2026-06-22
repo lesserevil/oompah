@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-29
 type: task
-status: In Review
+status: Merged
 priority: 1
 title: Audit GitHub Issues intake reconciliation
 parent: OOMPAH-27
