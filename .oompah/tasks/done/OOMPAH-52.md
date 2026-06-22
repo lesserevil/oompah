@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T14:20:20.212899Z'
-updated_at: '2026-06-22T14:51:14.647123Z'
+updated_at: '2026-06-22T14:51:22.493666Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,5 +69,15 @@ author: oompah
 created: 2026-06-22 14:51
 ---
 Documented project-bootstrap reinstall requirement in docs/cli-install.md, scripts/render_cli_release_notes.py, and docs/cli-release.md. Added 3 new tests. All 7044 tests pass.
+---
+author: oompah
+created: 2026-06-22 14:51
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 46
+- Tokens: 69 in / 2.2K out [2.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 21m 21s
+- Log: OOMPAH-52__20260622T143005Z.jsonl
 ---
 <!-- COMMENTS:END -->
