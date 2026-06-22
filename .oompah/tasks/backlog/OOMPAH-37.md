@@ -5,13 +5,14 @@ status: Backlog
 priority: 1
 title: Execute and verify the 1.0 release
 parent: OOMPAH-16
-children: []
+children:
+- OOMPAH-38
 blocked_by: []
 labels:
 - draft
 assignee: null
 created_at: '2026-06-22T01:17:30.687635Z'
-updated_at: '2026-06-22T01:17:32.779399Z'
+updated_at: '2026-06-22T01:17:35.104428Z'
 work_branch: null
 target_branch: null
 review_url: null
