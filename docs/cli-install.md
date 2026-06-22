@@ -25,13 +25,13 @@ pipx install git+https://github.com/lesserevil/oompah
 
 ```bash
 # uv tool (recommended)
-uv tool install "git+https://github.com/lesserevil/oompah@v0.1.0"
+uv tool install "git+https://github.com/lesserevil/oompah@v1.0.0"
 
 # pipx
-pipx install "git+https://github.com/lesserevil/oompah@v0.1.0"
+pipx install "git+https://github.com/lesserevil/oompah@v1.0.0"
 ```
 
-Replace `v0.1.0` with the tag listed on the
+Replace `v1.0.0` with the tag listed on the
 [GitHub Releases page](https://github.com/lesserevil/oompah/releases).
 
 ## Install from a release wheel artifact
@@ -40,8 +40,8 @@ GitHub Releases attach wheel artifacts. You can install directly from the
 artifact URL:
 
 ```bash
-uv tool install "https://github.com/lesserevil/oompah/releases/download/v0.1.0/oompah-0.1.0-py3-none-any.whl"
-pipx install "https://github.com/lesserevil/oompah/releases/download/v0.1.0/oompah-0.1.0-py3-none-any.whl"
+uv tool install "https://github.com/lesserevil/oompah/releases/download/v1.0.0/oompah-1.0.0-py3-none-any.whl"
+pipx install "https://github.com/lesserevil/oompah/releases/download/v1.0.0/oompah-1.0.0-py3-none-any.whl"
 ```
 
 ## Verify the install

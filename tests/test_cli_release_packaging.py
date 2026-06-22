@@ -27,27 +27,27 @@ def test_release_notes_include_exact_tag_and_artifact_install_commands():
     module = _load_release_notes_module()
 
     notes = module.render_release_notes(
-        tag="v0.1.0",
-        wheel_name="oompah-0.1.0-py3-none-any.whl",
-        sdist_name="oompah-0.1.0.tar.gz",
+        tag="v1.0.0",
+        wheel_name="oompah-1.0.0-py3-none-any.whl",
+        sdist_name="oompah-1.0.0.tar.gz",
     )
 
     assert (
-        'uv tool install "git+https://github.com/lesserevil/oompah@v0.1.0"'
+        'uv tool install "git+https://github.com/lesserevil/oompah@v1.0.0"'
         in notes
     )
     assert (
-        'pipx install "git+https://github.com/lesserevil/oompah@v0.1.0"'
+        'pipx install "git+https://github.com/lesserevil/oompah@v1.0.0"'
         in notes
     )
     assert (
         'uv tool install "https://github.com/lesserevil/oompah/releases/download/'
-        'v0.1.0/oompah-0.1.0-py3-none-any.whl"'
+        'v1.0.0/oompah-1.0.0-py3-none-any.whl"'
         in notes
     )
     assert (
         'pipx install "https://github.com/lesserevil/oompah/releases/download/'
-        'v0.1.0/oompah-0.1.0-py3-none-any.whl"'
+        'v1.0.0/oompah-1.0.0-py3-none-any.whl"'
         in notes
     )
     assert "task CLI release" in notes
@@ -141,25 +141,43 @@ def test_release_workflow_is_tag_or_manual_github_release_only():
 def test_release_docs_cover_tag_creation_and_verification_commands():
     text = (REPO_ROOT / "docs" / "cli-release.md").read_text(encoding="utf-8")
 
-    assert 'git tag -a v0.1.0 -m "oompah v0.1.0"' in text
+    assert 'git tag -a v1.0.0 -m "oompah v1.0.0"' in text
     assert "Actions > CLI Release" in text
     assert (
-        'uv tool install "git+https://github.com/lesserevil/oompah@v0.1.0"'
+        'uv tool install "git+https://github.com/lesserevil/oompah@v1.0.0"'
         in text
     )
     assert (
-        'pipx install "git+https://github.com/lesserevil/oompah@v0.1.0"'
+        'pipx install "git+https://github.com/lesserevil/oompah@v1.0.0"'
         in text
     )
     assert (
         'uv tool install "https://github.com/lesserevil/oompah/releases/download/'
-        'v0.1.0/oompah-0.1.0-py3-none-any.whl"'
+        'v1.0.0/oompah-1.0.0-py3-none-any.whl"'
         in text
     )
     assert (
         'pipx install "https://github.com/lesserevil/oompah/releases/download/'
-        'v0.1.0/oompah-0.1.0-py3-none-any.whl"'
+        'v1.0.0/oompah-1.0.0-py3-none-any.whl"'
         in text
     )
     assert "standalone `oompah task` client" in text
     assert "does not install or configure" in text
+
+
+def test_release_docs_describe_draft_and_final_tag_convention():
+    text = (REPO_ROOT / "docs" / "cli-release.md").read_text(encoding="utf-8")
+
+    # Docs must describe the 1.0 release train conventions
+    assert "release/1.0" in text
+    assert "v1.0.0-draft" in text
+    assert "v1.0.0" in text
+    # Draft tag is force-movable; final tag is immutable
+    assert "force-move" in text or "force-movable" in text
+    assert "immutable" in text or "must not be force-moved" in text or "must never be force-moved" in text
+
+
+def test_release_workflow_dispatch_mentions_draft_and_final_tag_examples():
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "v1.0.0-draft" in text or "v1.0.0" in text
