@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:48.515360Z'
-updated_at: '2026-06-22T02:57:36.297043Z'
+updated_at: '2026-06-22T02:57:43.472153Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-06-22 02:57
 ---
 VERIFICATION: All 7047 tests pass (make test). New tests: test_cli_api_surface_doc_exists_and_covers_stable_surface (verifies doc exists with all 8 stable subcommands, OOMPAH_SERVER_URL, OOMPAH_SERVER_HOST, OOMPAH_SERVER_PORT mentions) and test_cli_install_doc_uses_oompah_server_url_as_primary_agent_locator (verifies cli-install.md uses OOMPAH_SERVER_URL, does not mention OOMPAH_SERVER_HOST, links to surface doc). HOW TO VERIFY criteria met: docs identify stable 1.0 commands and avoid documenting deprecated OOMPAH_SERVER_HOST or OOMPAH_SERVER_PORT client usage. Branch epic-OOMPAH-22 pushed and up to date with origin.
+---
+author: oompah
+created: 2026-06-22 02:57
+---
+COMPLETION: Delivered docs/cli-api-surface.md — the 1.0 CLI and API compatibility surface document for managed-project AGENTS.md files. Documents OOMPAH_SERVER_URL as the single stable server locator, all 8 oompah task subcommands (view/comment/create/child-create/set-status/add-label/remove-label/set-dependency), oompah project-bootstrap, and explicitly calls out deprecated/unsupported OOMPAH_SERVER_HOST and OOMPAH_SERVER_PORT client usage. Updated docs/cli-install.md to lead with OOMPAH_SERVER_URL and link to the new doc. Two new regression tests added. Not a duplicate — no existing task covered this specific surface documentation.
 ---
 <!-- COMMENTS:END -->
