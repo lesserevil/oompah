@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:37.381380Z'
-updated_at: '2026-06-22T15:31:12.284956Z'
+updated_at: '2026-06-22T15:31:25.930012Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-06-22 15:31
 ---
 VERIFICATION: All HOW TO VERIFY criteria met.\n\n1. v1.0.0-draft tag: Created and pushed to origin, pointing to release/1.0 HEAD (21033827). ✓\n2. release/1.0 branch: Updated with workstream A changes (OOMPAH-18/19/21/22) — scripts/render_cli_release_notes.py now accepts v1.0.0-draft. ✓\n3. GitHub Release v1.0.0-draft: Created at https://github.com/lesserevil/oompah/releases/tag/v1.0.0-draft with:\n   - Assets: oompah-1.0.0-py3-none-any.whl, oompah-1.0.0.tar.gz ✓\n   - Generated notes with uv/pipx install commands for tag and wheel ✓\n4. Wheel smoke test: oompah --help and oompah task --help work from installed wheel ✓\n5. Re-run test: gh release edit works cleanly (simulates force-move workflow re-run) ✓\n6. test_cli_release_packaging: 23 passed, 2 skipped ✓\n\nNote: GitHub Actions CLI Release workflow (run 27963179511) is queued awaiting a runner — will run when runners become available and will use 'gh release edit + --clobber upload' path since the release already exists.
+---
+author: oompah
+created: 2026-06-22 15:31
+---
+COMPLETION: Delivered the v1.0.0-draft release.\n\n1. Applied workstream A release train changes to release/1.0 (commit 21033827): is_draft_release_tag + validate_tag_matches_version update, updated docs/cli-release.md with 1.0 train procedures, new docs/cli-api-surface.md, updated docs/cli-install.md and plans/oompah-1.0-release.md with branch-cut checklist.\n\n2. Created and pushed v1.0.0-draft tag (force-movable) pointing to release/1.0 HEAD.\n\n3. Created GitHub Release v1.0.0-draft with:\n   - Prerelease flag set (not draft, not final)\n   - Assets: oompah-1.0.0-py3-none-any.whl, oompah-1.0.0.tar.gz\n   - Generated notes with tag and wheel install commands\n   - URL: https://github.com/lesserevil/oompah/releases/tag/v1.0.0-draft\n\n4. Local validation: build, smoke install, release notes generation all pass. 23/25 test_cli_release_packaging tests pass.\n\n5. Not a duplicate of any existing task. This is the unique E2 step in the release execution epic.
 ---
 <!-- COMMENTS:END -->
