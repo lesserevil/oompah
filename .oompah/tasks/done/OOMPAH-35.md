@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:26.082104Z'
-updated_at: '2026-06-22T14:25:30.140809Z'
+updated_at: '2026-06-22T14:25:32.351189Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-06-22 14:25
 ---
 Completion: Created docs/managed-project-onboarding.md — the managed-project onboarding checklist for 1.0. The document walks operators through: (1) prerequisites, (2) registering a project in paused state, (3) native tracker expectations and verification, (4) optional GitHub Issues intake setup, (5) project bootstrap and AGENTS.md refresh, and (6) a systematic paused-project review before unpausing. Includes a Mermaid flow diagram and a troubleshooting table. Satisfies Epic D3 from plans/oompah-1.0-release.md. No duplicate found during investigation.
+---
+author: oompah
+created: 2026-06-22 14:25
+---
+Created docs/managed-project-onboarding.md: the full managed-project onboarding checklist for 1.0, covering prerequisites, project registration (paused), native tracker expectations, optional GitHub Issues intake, project bootstrap and AGENTS.md update, and initial paused-project review before unpause. Satisfies Epic D3.
 ---
 <!-- COMMENTS:END -->
