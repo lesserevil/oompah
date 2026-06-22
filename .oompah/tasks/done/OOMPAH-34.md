@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:23.758648Z'
-updated_at: '2026-06-22T02:04:02.310844Z'
+updated_at: '2026-06-22T02:04:04.685517Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -81,5 +81,10 @@ author: oompah
 created: 2026-06-22 02:03
 ---
 Completion: docs/operator-runbook.md delivered. Covers: configuration (.env required/tuned vars, WORKFLOW.md, per-project JSON), installation, start/stop/restart/graceful, health checks (make status, GET /api/v1/state, port, providers), managed repo soundness (automatic repo_heal + manual git checks + .oompah/tasks integrity), and 7 troubleshooting scenarios for common stuck states. An operator can verify the service is running and identify any common stuck state using only this runbook. No duplicate found.
+---
+author: oompah
+created: 2026-06-22 02:04
+---
+Wrote docs/operator-runbook.md: 608-line runbook covering configuration, start/restart, health checks, managed repo soundness, and 7 troubleshooting scenarios for common stuck states. No duplicate found.
 ---
 <!-- COMMENTS:END -->
