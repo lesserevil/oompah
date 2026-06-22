@@ -9,9 +9,10 @@ children: []
 blocked_by: []
 labels:
 - draft
+- release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:45.345931Z'
-updated_at: '2026-06-22T01:14:47.515983Z'
+updated_at: '2026-06-22T01:14:49.734804Z'
 work_branch: null
 target_branch: null
 review_url: null
