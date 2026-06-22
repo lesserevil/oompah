@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:48.515360Z'
-updated_at: '2026-06-22T02:57:28.233788Z'
+updated_at: '2026-06-22T02:57:36.297043Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-06-22 02:57
 ---
 IMPLEMENTATION: Created docs/cli-api-surface.md as the definitive 1.0 compatibility surface document. It declares: (1) OOMPAH_SERVER_URL as the single stable client-side server locator with default http://127.0.0.1:8080; (2) all 8 stable oompah task subcommands (view, comment, create, child-create, set-status, add-label, remove-label, set-dependency) with usage patterns matching AGENTS.md templates; (3) oompah project-bootstrap as stable; (4) explicit 'not supported' section calling out OOMPAH_SERVER_HOST (does not exist) and OOMPAH_SERVER_PORT (service variable, not client locator). Updated docs/cli-install.md Agent usage section to lead with OOMPAH_SERVER_URL, add a note explaining OOMPAH_SERVER_PORT is not a client variable, and link to the new surface doc. Added two tests to tests/test_cli_release_packaging.py to prevent regression.
+---
+author: oompah
+created: 2026-06-22 02:57
+---
+VERIFICATION: All 7047 tests pass (make test). New tests: test_cli_api_surface_doc_exists_and_covers_stable_surface (verifies doc exists with all 8 stable subcommands, OOMPAH_SERVER_URL, OOMPAH_SERVER_HOST, OOMPAH_SERVER_PORT mentions) and test_cli_install_doc_uses_oompah_server_url_as_primary_agent_locator (verifies cli-install.md uses OOMPAH_SERVER_URL, does not mention OOMPAH_SERVER_HOST, links to surface doc). HOW TO VERIFY criteria met: docs identify stable 1.0 commands and avoid documenting deprecated OOMPAH_SERVER_HOST or OOMPAH_SERVER_PORT client usage. Branch epic-OOMPAH-22 pushed and up to date with origin.
 ---
 <!-- COMMENTS:END -->
