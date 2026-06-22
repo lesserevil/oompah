@@ -2,7 +2,7 @@
 id: OOMPAH-43
 type: task
 status: Backlog
-priority: null
+priority: 3
 title: Update workflow dispatch description from v0.1.0 to v1.0.0 example
 parent: null
 children: []
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:52:58.922363Z'
-updated_at: '2026-06-22T01:52:58.922363Z'
+updated_at: '2026-06-22T01:54:08.776525Z'
 work_branch: null
 target_branch: null
 review_url: null
