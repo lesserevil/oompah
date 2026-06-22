@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-30
 type: task
-status: Done
+status: In Review
 priority: 1
 title: Validate native-only decomposition boundaries
 parent: OOMPAH-27
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:59.982565Z'
-updated_at: '2026-06-22T14:07:28.743815Z'
+updated_at: '2026-06-22T14:07:54.775560Z'
 work_branch: null
 target_branch: null
 review_url: null
