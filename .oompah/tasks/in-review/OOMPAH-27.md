@@ -12,10 +12,11 @@ children:
 - OOMPAH-31
 - OOMPAH-49
 blocked_by: []
-labels: []
+labels:
+- epic:stale
 assignee: null
 created_at: '2026-06-22T01:16:50.891544Z'
-updated_at: '2026-06-22T14:29:12.508876Z'
+updated_at: '2026-06-22T14:29:14.800502Z'
 work_branch: null
 target_branch: null
 review_url: null
