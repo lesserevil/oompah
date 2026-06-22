@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-20
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Run CI for release branches
 parent: OOMPAH-17
@@ -12,7 +12,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:15:01.066849Z'
-updated_at: '2026-06-22T01:49:36.588450Z'
+updated_at: '2026-06-22T02:03:38.582310Z'
 work_branch: null
 target_branch: null
 review_url: null
