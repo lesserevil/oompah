@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T14:20:20.212899Z'
-updated_at: '2026-06-22T14:30:04.322302Z'
+updated_at: '2026-06-22T14:30:14.886666Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-06-22 14:30
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 14:30
+---
+Understanding: This issue reports that operators who installed oompah via 'uv tool install' before the project-bootstrap feature was added will have a stale binary that lacks the project_bootstrap/ module and project-bootstrap CLI dispatch. The fix is for operators to reinstall, and we need to document this in release notes and the operator runbook. My role is Duplicate Investigator — I'll first search for existing tasks covering the same ground before doing any implementation.
 ---
 <!-- COMMENTS:END -->
