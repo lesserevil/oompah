@@ -12,7 +12,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:15:01.066849Z'
-updated_at: '2026-06-22T02:04:35.958491Z'
+updated_at: '2026-06-22T02:05:29.995096Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-06-22 02:04
 ---
 Understanding: OOMPAH-20 asks to add release/* branch patterns to CI triggers so the quality gate runs for release branches and PRs targeting them. As Duplicate Investigator, I will first search for any existing issues covering this same CI trigger change before implementing. Checking .oompah/tasks and plans for overlapping issues now.
+---
+author: oompah
+created: 2026-06-22 02:05
+---
+DISCOVERY: Confirmed NOT a duplicate. No existing merged, done, or in-progress task covers CI trigger changes for release branches. OOMPAH-18 (done) only updated docs/tests/examples — it did not touch ci.yml triggers. The current .github/workflows/ci.yml only triggers on main: push, pull_request, and merge_group all target [main]. Need to add release/* to all three trigger patterns. This is the only change needed to satisfy the acceptance criteria.
 ---
 <!-- COMMENTS:END -->
