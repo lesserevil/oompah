@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:23.758648Z'
-updated_at: '2026-06-22T01:56:27.753067Z'
+updated_at: '2026-06-22T02:03:30.777618Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,20 @@ author: oompah
 created: 2026-06-22 01:56
 ---
 Discovery: OOMPAH-34 is unique — no duplicate exists. Key findings from codebase exploration: (1) Makefile provides start/stop/restart/graceful/status/logs targets; (2) All config goes in .env (reference: .env.example); (3) Health check via GET /api/v1/state and 'make status'; (4) Managed repo soundness via ensure_repo_sound() in oompah/repo_health.py — runs automatically as the 'repo_heal' maintenance job; (5) Stuck states: budget_exceeded, paused (global/per-project), stalled agents, reject_streak for stuck issues, stuck_epic alerts, provider failures; (6) Webhook degradation shows in dashboard alerts and log. Writing the runbook now at docs/operator-runbook.md.
+---
+author: oompah
+created: 2026-06-22 02:03
+---
+Implementation: Created docs/operator-runbook.md (608 lines) covering all required areas:
+
+1. Configuration — .env (required + commonly-tuned vars), WORKFLOW.md hot-reload behavior, per-project settings via dashboard only.
+2. Installation — make setup (idempotent), make install-gh-extensions.
+3. Start/stop/restart — make start/stop/restart/graceful with guidance on when to use hard vs graceful restart.
+4. Health checks — make status, GET /api/v1/state with key field table, port check, make logs, provider health test endpoint.
+5. Managed repo soundness — describes what repo_heal maintenance job does automatically; manual git checks for branch, merge/rebase-in-progress, .oompah/tasks directory layout, worktree inspection.
+6. Troubleshooting — covers no dispatch (6 ordered checks), reject streak (table of reasons+fixes), stalled agents, webhook degradation, stuck epics, bad checkout manual recovery, and 5 unexpected-exit causes.
+7. Makefile quick reference, key files table, and state snapshot reference with Mermaid diagram.
+
+Committed and pushed to branch epic-OOMPAH-32.
 ---
 <!-- COMMENTS:END -->
