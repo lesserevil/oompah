@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-34
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Write the 1.0 service operator runbook
 parent: OOMPAH-32
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:23.758648Z'
-updated_at: '2026-06-22T01:18:30.766584Z'
+updated_at: '2026-06-22T01:35:53.212622Z'
 work_branch: null
 target_branch: null
 review_url: null
