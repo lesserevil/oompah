@@ -12,7 +12,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:56.553408Z'
-updated_at: '2026-06-22T01:53:37.868967Z'
+updated_at: '2026-06-22T01:53:40.034790Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,3 +39,11 @@ Automated tests cover both v1.0.0-draft and v1.0.0. Final release validation sti
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 01:53
+---
+Agent dispatched (profile: default)
+---
+<!-- COMMENTS:END -->
