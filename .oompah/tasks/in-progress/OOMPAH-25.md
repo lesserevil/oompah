@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:46.207414Z'
-updated_at: '2026-06-22T02:44:29.444231Z'
+updated_at: '2026-06-22T02:48:17.033434Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-06-22 02:44
 ---
 DISCOVERY: No existing test verifies wheel contents (which Python modules are included in the wheel). Existing tests check: (1) basic smoke (help exits zero), (2) watchfiles is blocked from CLI path, (3) pyproject.toml base deps = only httpx. Missing coverage: (a) ALL server packages (fastapi, uvicorn, jinja2, yaml/pyyaml, watchfiles, jwt/PyJWT, liquid/python-liquid, multipart/python-multipart) must be blocked from 'oompah task' and 'oompah project-bootstrap' import paths; (b) wheel contents (zipfile namelist) should include all required CLI modules (task_cli, project_bootstrap_cli, project_bootstrap, agent_instructions, etc.) when a wheel is present in dist/. Adding both to tests/test_installed_cli_smoke.py and tests/test_cli_release_packaging.py.
+---
+author: oompah
+created: 2026-06-22 02:48
+---
+IMPLEMENTATION: Added 5 new tests across 2 files to verify the dependency boundary and wheel contents. (1) tests/test_installed_cli_smoke.py: test_oompah_task_help_does_not_import_any_server_package and test_oompah_project_bootstrap_help_does_not_import_any_server_package — comprehensive server dep blocking tests that guard all 8 server packages (fastapi, uvicorn, jinja2, yaml/pyyaml, watchfiles, jwt/PyJWT, liquid/python-liquid, multipart/python-multipart) not just watchfiles. (2) tests/test_cli_release_packaging.py: test_server_extras_complete_and_not_in_base_dependencies (verifies ALL server packages are in server extra and base deps = only httpx); test_wheel_contains_required_cli_modules (checks wheel zip contains all required CLI module paths — skipped without wheel); test_wheel_does_not_contain_server_only_module_as_dep (checks METADATA Requires-Dist has no unconditional server packages — skipped without wheel).
 ---
 <!-- COMMENTS:END -->
