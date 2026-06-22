@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T16:00:07.742596Z'
+updated_at: '2026-06-22T16:05:39.707949Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -123,5 +123,10 @@ author: oompah
 created: 2026-06-22 16:00
 ---
 DISCOVERY: Two issues found after cherry-picking commit 21033827 onto main.\n\n1. test_pyproject_version_is_1_0_0 FAILS: main still has version 0.1.0; need to also cherry-pick the version bump commit (d6faeace).\n\n2. test_orchestrator_webhook_health.py::TestFetchAllReviewsSkipsHealthy (2 failures): Pre-existing bug on both main and release/1.0. _fetch_all_reviews() only skips healthy projects when they have warm cache entries. Tests expect healthy projects to ALWAYS be skipped (never call provider), returning [] if no cache. Fix: change condition from 'is_webhook_healthy AND warm_cache' to 'is_webhook_healthy' only.
+---
+author: oompah
+created: 2026-06-22 16:05
+---
+IMPLEMENTATION: Three changes made to main:\n\n1. Cherry-picked OOMPAH-39 workstream A changes (commit 21033827) — adds is_draft_release_tag(), draft tag support in validate_tag_matches_version(), docs/cli-api-surface.md, updated cli-install.md, cli-release.md, plans/oompah-1.0-release.md. Resolved conflicts by taking release/1.0 version (supersedes upgrade guidance from OOMPAH-52).\n\n2. Cherry-picked version bump (d6faeace) — bumps pyproject.toml version from 0.1.0 to 1.0.0 on main.\n\n3. Fixed pre-existing webhook health bug in orchestrator.py: _fetch_all_reviews() and _fetch_all_reviews_bounded() were skipping healthy projects ONLY when warm cache existed. New behavior: healthy projects are never polled regardless of cache state. Updated test_submit_queue_concurrency.py::test_webhook_healthy_cold_cache_fetches_reviews to test correct new behavior.
 ---
 <!-- COMMENTS:END -->
