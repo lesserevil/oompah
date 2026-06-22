@@ -17,7 +17,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-06-22T01:16:50.891544Z'
-updated_at: '2026-06-22T14:29:28.408815Z'
+updated_at: '2026-06-22T14:29:30.641295Z'
 work_branch: epic-OOMPAH-27
 target_branch: main
 review_url: null
@@ -91,5 +91,10 @@ Unmerged commits: 4 commits
   fa7ce9e6 OOMPAH-28: Add comprehensive native tracker state transition tests
 
 Required: restore or recreate the PR/MR for this branch, then move the task back to In Review after the review exists.
+---
+author: oompah
+created: 2026-06-22 14:29
+---
+The epic branch `epic-OOMPAH-27` is stale: it has fallen behind `main`. Rebase the branch onto `origin/main`, resolve any conflicts, and force-push with `git push --force-with-lease`.
 ---
 <!-- COMMENTS:END -->
