@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-30
 type: task
-status: In Review
+status: Merged
 priority: 1
 title: Validate native-only decomposition boundaries
 parent: OOMPAH-27
