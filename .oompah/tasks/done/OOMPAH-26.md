@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:48.515360Z'
-updated_at: '2026-06-22T02:57:51.697566Z'
+updated_at: '2026-06-22T02:57:59.551149Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,5 +76,15 @@ author: oompah
 created: 2026-06-22 02:57
 ---
 Created docs/cli-api-surface.md documenting the 1.0 CLI and API compatibility surface: OOMPAH_SERVER_URL as the single stable server locator, all 8 stable oompah task subcommands, oompah project-bootstrap, and explicit deprecation notices for OOMPAH_SERVER_HOST and OOMPAH_SERVER_PORT as client variables. Updated docs/cli-install.md and added two regression tests. All 7047 tests pass.
+---
+author: oompah
+created: 2026-06-22 02:57
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 74
+- Tokens: 112 in / 3.2K out [3.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 26s
+- Log: OOMPAH-26__20260622T024937Z.jsonl
 ---
 <!-- COMMENTS:END -->
