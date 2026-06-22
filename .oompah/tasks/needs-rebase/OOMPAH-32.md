@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-32
 type: epic
-status: Open
-priority: 1
+status: Needs Rebase
+priority: 0
 title: Finish 1.0 operator and project docs
 parent: OOMPAH-16
 children:
@@ -14,9 +14,10 @@ children:
 blocked_by: []
 labels:
 - epic:stale
+- merge-conflict
 assignee: null
 created_at: '2026-06-22T01:17:10.735548Z'
-updated_at: '2026-06-22T14:58:54.077684Z'
+updated_at: '2026-06-22T14:58:56.346912Z'
 work_branch: epic-OOMPAH-32
 target_branch: main
 review_url: null
