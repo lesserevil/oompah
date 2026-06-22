@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T14:20:20.212899Z'
-updated_at: '2026-06-22T14:51:12.388207Z'
+updated_at: '2026-06-22T14:51:14.647123Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,10 @@ author: oompah
 created: 2026-06-22 14:51
 ---
 Completion: Documented the project-bootstrap reinstall requirement for operators with stale uv-tool installs. Delivered: (1) docs/cli-install.md — new 'Upgrading an existing install' section explaining that pre-project-bootstrap installs fail with 'unrecognized arguments: status .' and need 'uv tool upgrade oompah' or '--reinstall'. (2) scripts/render_cli_release_notes.py — added 'Upgrading from an earlier install' section to generated release notes, with reinstall command pinned to the specific release tag; also added 'oompah project-bootstrap --help' to the verify block. (3) docs/cli-release.md — added callout in the Release notes section explaining when to include upgrade guidance and specifically noting the project-bootstrap reinstall requirement. (4) tests/test_cli_release_packaging.py — 3 new tests verifying the upgrade guidance appears in generated release notes and install docs. All 7044 tests pass.
+---
+author: oompah
+created: 2026-06-22 14:51
+---
+Documented project-bootstrap reinstall requirement in docs/cli-install.md, scripts/render_cli_release_notes.py, and docs/cli-release.md. Added 3 new tests. All 7044 tests pass.
 ---
 <!-- COMMENTS:END -->
