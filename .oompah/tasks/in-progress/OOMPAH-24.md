@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:43.935007Z'
-updated_at: '2026-06-22T02:20:20.228502Z'
+updated_at: '2026-06-22T02:21:20.809177Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,5 +97,10 @@ author: oompah
 created: 2026-06-22 02:20
 ---
 UNDERSTANDING: Not a duplicate. OOMPAH-8 covers existing root/task smoke checks; OOMPAH-25, OOMPAH-31, and OOMPAH-42 cover broader wheel/bootstrap/post-release work. OOMPAH-24 specifically adds installed CLI smoke coverage for 'oompah project-bootstrap --help'. Plan: inspect current partial edits, add focused coverage, run relevant tests, commit/push, and close.
+---
+author: oompah
+created: 2026-06-22 02:21
+---
+DISCOVERY: Relevant coverage is in tests/test_installed_cli_smoke.py: current editable install smoke checks always run, and isolated wheel smoke checks run when dist/*.whl exists. The CLI dispatch path is oompah/__main__.py -> oompah/project_bootstrap_cli.py. Existing release workflow/docs only covered oompah --help and oompah task --help; project-bootstrap help was the missing installed CLI smoke command.
 ---
 <!-- COMMENTS:END -->
