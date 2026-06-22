@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:59.982565Z'
-updated_at: '2026-06-22T02:28:54.642380Z'
+updated_at: '2026-06-22T02:38:10.759026Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,22 @@ author: oompah
 created: 2026-06-22 02:28
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 02:38
+---
+Understanding: This task is to validate that decomposition boundaries are correctly enforced — specifically that (1) GitHub Issues tracker projects never trigger decomposition in GitHub, and (2) when native oompah projects use GitHub intake, decomposed children are created ONLY in the native tracker, never back in GitHub Issues.
+
+Discovery: The code already has guards in place:
+- Orchestrator._issue_allows_native_decomposition() blocks decomposition for tracker_kind=github_issues projects
+- _process_epic_proposals passes allow_decomposition=False for GitHub tracker projects
+- apply_epic_proposal creates children via tracker.create_issue() which uses only the native tracker
+- sync_github_issue_intake_statuses_for_project skips any issue without oompah.external.github metadata (so children are always skipped)
+
+Tests already exist:
+- test_orchestrator_disables_epic_proposals_for_github_issue_projects (ensures no decomposition for github_issues tracker)
+- test_orchestrator_native_github_intake_reuses_imported_task_as_epic (ensures native decomposition works for imported GitHub issues)
+
+What's missing: An end-to-end test explicitly confirming that after decomposition, sync_github_issue_intake_statuses_for_project only processes the epic (with external metadata), not the children (without external metadata). This is the definitive proof that a decomposition bomb in GitHub is impossible.
 ---
 <!-- COMMENTS:END -->
