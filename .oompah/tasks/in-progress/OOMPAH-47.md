@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:35:48.855045Z'
-updated_at: '2026-06-22T02:38:58.201069Z'
+updated_at: '2026-06-22T02:48:19.218008Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,5 +57,18 @@ DISCOVERY & IMPLEMENTATION: Three files modified:
 1. .github/workflows/cli-release.yml — added 'oompah project-bootstrap --help' after 'oompah task --help' in the 'Verify wheel console script' step
 2. tests/test_cli_release_packaging.py — added assertion 'assert "oompah project-bootstrap --help" in text' to test_release_workflow_is_tag_or_manual_github_release_only
 3. docs/cli-release.md — updated workflow description paragraph and manual verification section to include 'oompah project-bootstrap --help'
+---
+author: oompah
+created: 2026-06-22 02:48
+---
+VERIFICATION: Tests pass (7039 passed, 28 skipped). docs/cli-release.md change pushed to OOMPAH-47 branch.
+
+The workflow file (.github/workflows/cli-release.yml) + corresponding test assertion changes cannot be pushed due to PAT workflow scope restriction — same issue as OOMPAH-24. These two changes (which must go together) are tracked in OOMPAH-48 (Needs Human).
+
+Exact diff ready to apply:
+- .github/workflows/cli-release.yml: add 'oompah project-bootstrap --help' after 'oompah task --help'
+- tests/test_cli_release_packaging.py: assert 'oompah project-bootstrap --help' in workflow text
+
+Changes remain as working-directory modifications on the OOMPAH-47 branch.
 ---
 <!-- COMMENTS:END -->
