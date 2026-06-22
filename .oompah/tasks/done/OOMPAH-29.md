@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:57.697390Z'
-updated_at: '2026-06-22T14:07:21.320655Z'
+updated_at: '2026-06-22T14:07:23.951568Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 0s
 - Log: OOMPAH-29__20260622T015323Z.jsonl
+---
+author: oompah
+created: 2026-06-22 14:07
+---
+No open review PR is active for this child task. Its shared-epic work is complete, so it should remain Done and unblock dependent work until the parent epic enters review.
 ---
 <!-- COMMENTS:END -->
