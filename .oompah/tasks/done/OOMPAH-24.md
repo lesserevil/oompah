@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-24
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Expand release smoke tests for project-bootstrap
 parent: OOMPAH-22
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:43.935007Z'
-updated_at: '2026-06-22T02:36:09.334485Z'
+updated_at: '2026-06-22T02:36:14.987853Z'
 work_branch: null
 target_branch: null
 review_url: null
