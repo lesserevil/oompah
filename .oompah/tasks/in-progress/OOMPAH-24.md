@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:43.935007Z'
-updated_at: '2026-06-22T02:35:57.472195Z'
+updated_at: '2026-06-22T02:36:09.334485Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -155,5 +155,10 @@ Delivered:
 - docs/cli-release.md: 'oompah project-bootstrap --help' added to the manual verification section
 
 Not deliverable (token lacks workflow scope): adding the same smoke command to .github/workflows/cli-release.yml — filed as OOMPAH-47 for a human or workflow-scoped PAT to complete.
+---
+author: oompah
+created: 2026-06-22 02:36
+---
+COMPLETION: Release smoke tests expanded to cover 'oompah project-bootstrap --help'. Tests fail if the project-bootstrap command is missing from the installed CLI. Committed in cc44907 on epic-OOMPAH-22. Follow-up OOMPAH-47 tracks adding the same command to the GitHub Actions workflow file (requires workflow-scoped PAT).
 ---
 <!-- COMMENTS:END -->
