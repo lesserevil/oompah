@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-34
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Write the 1.0 service operator runbook
 parent: OOMPAH-32
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:23.758648Z'
-updated_at: '2026-06-22T02:03:53.067778Z'
+updated_at: '2026-06-22T02:04:02.310844Z'
 work_branch: null
 target_branch: null
 review_url: null
