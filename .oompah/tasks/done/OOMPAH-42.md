@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:50.933134Z'
-updated_at: '2026-06-22T17:39:47.554041Z'
+updated_at: '2026-06-22T17:39:53.335549Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -147,5 +147,15 @@ author: oompah
 created: 2026-06-22 17:39
 ---
 All post-release smoke checks passed in first agent run (2026-06-22): Git tag install from v1.0.0, wheel install from GitHub Release, oompah --help / task --help / project-bootstrap --help all exit 0, managed-project bootstrap status/preview all-current, server dep isolation (fastapi/uvicorn not importable from CLI wheel) confirmed. No blocking findings. v1.0.0 release at https://github.com/lesserevil/oompah/releases/tag/v1.0.0 is verified.
+---
+author: oompah
+created: 2026-06-22 17:39
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 2
+- Tokens: 10 in / 87 out [97 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 32s
+- Log: OOMPAH-42__20260622T173924Z.jsonl
 ---
 <!-- COMMENTS:END -->
