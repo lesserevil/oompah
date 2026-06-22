@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:59.982565Z'
-updated_at: '2026-06-22T02:46:17.730303Z'
+updated_at: '2026-06-22T02:46:19.932813Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -164,5 +164,10 @@ Implementation complete. Summary of changes delivered on branch epic-OOMPAH-27:
 - tests/test_github_intake_bridge.py: test_native_decomposition_never_uses_github_tracker_for_children — children created by apply_epic_proposal have no oompah.external.github metadata
 
 **Verification:** 7112 tests pass (make test). A large external GitHub issue produces exactly one linked internal epic; decomposed children live only in .oompah/tasks and are never visible in GitHub Issues.
+---
+author: oompah
+created: 2026-06-22 02:46
+---
+Validated native-only decomposition boundaries: added allow_decomposition gate to process_epic_proposal_issue, added _issue_allows_native_decomposition to Orchestrator, and added 7 tests confirming GitHub Issues projects never decompose while native projects with GitHub intake decompose internally without creating GitHub sub-issues.
 ---
 <!-- COMMENTS:END -->
