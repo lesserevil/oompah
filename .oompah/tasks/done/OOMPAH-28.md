@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:55.337471Z'
-updated_at: '2026-06-22T01:53:01.833871Z'
+updated_at: '2026-06-22T01:53:03.977172Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,5 +118,15 @@ author: oompah
 created: 2026-06-22 01:52
 ---
 Audited all 14 canonical native tracker state transitions. All _STATUS_DIRS mappings are correct. Transition gate applies to both GitHub Issues and native oompah_md tracker. Terminal re-transition is intentionally allowed. Added 62 new tests covering the full status matrix — all 77 tests in test_oompah_md_tracker.py pass. No release-blocking gaps found.
+---
+author: oompah
+created: 2026-06-22 01:53
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 71
+- Tokens: 112 in / 3.3K out [3.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 17m 15s
+- Log: OOMPAH-28__20260622T013552Z.jsonl
 ---
 <!-- COMMENTS:END -->
