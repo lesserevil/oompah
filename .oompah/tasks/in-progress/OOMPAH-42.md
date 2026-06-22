@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:50.933134Z'
-updated_at: '2026-06-22T17:24:41.125584Z'
+updated_at: '2026-06-22T17:25:37.653532Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-06-22 17:24
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 17:25
+---
+UNDERSTANDING: Not a duplicate. OOMPAH-42 is the unique E5 step in the 1.0 release plan. All other release tasks are distinct: OOMPAH-38=E1 (Done), OOMPAH-39=E2 (Done), OOMPAH-40=E3 (Done), OOMPAH-41=E4 (Done, v1.0.0 published at https://github.com/lesserevil/oompah/releases/tag/v1.0.0). No other task covers post-release smoke checks from the published artifacts. Plan: (1) Git tag install from v1.0.0, (2) Wheel install from GitHub Release, (3) CLI/task/project-bootstrap --help checks, (4) managed-project bootstrap preview/status. Proceeding with E5 work.
 ---
 <!-- COMMENTS:END -->
