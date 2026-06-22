@@ -1128,6 +1128,7 @@ def process_epic_proposal_issue(
     author: str = "oompah",
     auto_promote: bool = True,
     auto_decompose: bool = False,
+    allow_decomposition: bool = True,
     project: Any = None,
 ) -> EpicProposalEnsureResult | EpicProposalApplyResult | IntakeValidationProcessResult | None:
     """Run intake validation and decomposition handling for one Proposed issue."""
@@ -1148,7 +1149,7 @@ def process_epic_proposal_issue(
         return None
 
     ensured = None
-    if not _is_epic_issue(issue) and not forced_leaf:
+    if allow_decomposition and not _is_epic_issue(issue) and not forced_leaf:
         ensured = ensure_epic_proposal(
             tracker,
             issue,
