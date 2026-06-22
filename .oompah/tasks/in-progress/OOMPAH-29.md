@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:57.697390Z'
-updated_at: '2026-06-22T01:53:17.613783Z'
+updated_at: '2026-06-22T01:54:15.028913Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-06-22 01:53
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 01:54
+---
+Understanding: OOMPAH-29 is NOT a duplicate. Duplicate investigation complete — no existing task covers this specific scope. Sibling OOMPAH-28 covered native tracker state transitions; OOMPAH-29 is specifically about GitHub Issues intake reconciliation for the three external-issue state changes: open (creates internal Proposed task), closed (archives non-terminal internal task), reopened (returns to Proposed and re-runs intake flow). Proceeding with audit of github_intake_bridge.py and related code to verify all three cases are handled and tested.
 ---
 <!-- COMMENTS:END -->
