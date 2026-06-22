@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:23.758648Z'
-updated_at: '2026-06-22T01:53:28.399794Z'
+updated_at: '2026-06-22T01:54:31.940373Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-06-22 01:53
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 01:54
+---
+Understanding: OOMPAH-34 asks for a 1.0 service operator runbook covering configuration, start/restart, health checks, managed repo soundness checks, and basic troubleshooting. Duplicate investigation complete — no duplicate exists. The sibling tasks (OOMPAH-33, 35, 36) cover different doc areas. This is a distinct docs task. Blocker OOMPAH-28 is Done. Proceeding with the runbook by exploring the service codebase, Makefile, .env.example, and existing docs.
 ---
 <!-- COMMENTS:END -->
