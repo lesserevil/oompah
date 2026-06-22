@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:35.091778Z'
-updated_at: '2026-06-22T16:31:37.799144Z'
+updated_at: '2026-06-22T16:31:40.064272Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -275,5 +275,10 @@ author: oompah
 created: 2026-06-22 16:31
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 16:31
+---
+release/1.0 cut from epic-OOMPAH-27 + OOMPAH-36 cherry-pick. Bumped version to 1.0.0. Quality gate: 7118 tests passed, 0 failures; secrets scan clean. release/1.0 exists on origin with package version 1.0.0.
 ---
 <!-- COMMENTS:END -->
