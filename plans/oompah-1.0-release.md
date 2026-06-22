@@ -15,6 +15,10 @@ installation story. The release train uses:
 The release should not publish to PyPI. The supported install paths are GitHub
 tag installs and GitHub Release wheel installs.
 
+Draft release tags are intentionally movable. Maintainers may force-move
+`v1.0.0-draft` while iterating on release candidates. Final release tags are
+immutable and must not be force-moved.
+
 ## Goals
 
 - Make the native `.oompah` markdown tracker the default 1.0 task system.
@@ -52,6 +56,8 @@ Acceptance criteria:
 - The release workflow accepts `v1.0.0-draft` for draft validation and
   `v1.0.0` for final validation.
 - Draft tags produce GitHub draft or prerelease output as appropriate.
+- Draft tags can be force-moved and rerun without confusing final-release
+  validation.
 - Final tags require exact agreement with `project.version`.
 - Release notes and tests use 1.0 examples.
 
@@ -122,8 +128,8 @@ Acceptance criteria:
 
 - A1. Update release docs, tests, and workflow examples to the 1.0 branch and
   tag convention.
-- A2. Teach release validation to accept `v1.0.0-draft` while preserving strict
-  final tag validation.
+- A2. Teach release validation to accept force-movable `v1.0.0-draft` tags while
+  preserving strict final tag validation.
 - A3. Add CI coverage for `release/*` branches.
 - A4. Add a release branch cut checklist for `release/1.0`.
 
