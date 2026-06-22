@@ -8,10 +8,11 @@ parent: OOMPAH-27
 children: []
 blocked_by:
 - OOMPAH-26
+- OOMPAH-30
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:08.467848Z'
-updated_at: '2026-06-22T01:18:15.493825Z'
+updated_at: '2026-06-22T01:18:17.727218Z'
 work_branch: null
 target_branch: null
 review_url: null
