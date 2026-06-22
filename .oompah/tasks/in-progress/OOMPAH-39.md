@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:37.381380Z'
-updated_at: '2026-06-22T15:14:23.469344Z'
+updated_at: '2026-06-22T15:31:12.284956Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-06-22 15:14
 ---
 IMPLEMENTATION: Applied workstream A release train changes to release/1.0. Changes: (1) scripts/render_cli_release_notes.py — added is_draft_release_tag() and updated validate_tag_matches_version() to accept v1.0.0-draft (OOMPAH-19); (2) tests/test_cli_release_packaging.py — brought in OOMPAH-18/19/22 tests; (3) docs/cli-release.md — 1.0 train procedures (OOMPAH-18); (4) docs/cli-api-surface.md — new API compat surface doc (OOMPAH-22); (5) docs/cli-install.md — OOMPAH_SERVER_URL + cli-api-surface reference (OOMPAH-22); (6) plans/oompah-1.0-release.md — full branch-cut checklist (OOMPAH-21). All 23 test_cli_release_packaging tests pass. Committed to release/1.0 (21033827), pushed. Created and pushed v1.0.0-draft tag pointing to 21033827. CLI Release workflow triggered.
+---
+author: oompah
+created: 2026-06-22 15:31
+---
+VERIFICATION: All HOW TO VERIFY criteria met.\n\n1. v1.0.0-draft tag: Created and pushed to origin, pointing to release/1.0 HEAD (21033827). ✓\n2. release/1.0 branch: Updated with workstream A changes (OOMPAH-18/19/21/22) — scripts/render_cli_release_notes.py now accepts v1.0.0-draft. ✓\n3. GitHub Release v1.0.0-draft: Created at https://github.com/lesserevil/oompah/releases/tag/v1.0.0-draft with:\n   - Assets: oompah-1.0.0-py3-none-any.whl, oompah-1.0.0.tar.gz ✓\n   - Generated notes with uv/pipx install commands for tag and wheel ✓\n4. Wheel smoke test: oompah --help and oompah task --help work from installed wheel ✓\n5. Re-run test: gh release edit works cleanly (simulates force-move workflow re-run) ✓\n6. test_cli_release_packaging: 23 passed, 2 skipped ✓\n\nNote: GitHub Actions CLI Release workflow (run 27963179511) is queued awaiting a runner — will run when runners become available and will use 'gh release edit + --clobber upload' path since the release already exists.
 ---
 <!-- COMMENTS:END -->
