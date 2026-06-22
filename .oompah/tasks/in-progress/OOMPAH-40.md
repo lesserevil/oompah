@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T16:08:59.757316Z'
+updated_at: '2026-06-22T16:09:02.028656Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -134,5 +134,15 @@ author: oompah
 created: 2026-06-22 16:05
 ---
 IMPLEMENTATION: Three changes made to main:\n\n1. Cherry-picked OOMPAH-39 workstream A changes (commit 21033827) — adds is_draft_release_tag(), draft tag support in validate_tag_matches_version(), docs/cli-api-surface.md, updated cli-install.md, cli-release.md, plans/oompah-1.0-release.md. Resolved conflicts by taking release/1.0 version (supersedes upgrade guidance from OOMPAH-52).\n\n2. Cherry-picked version bump (d6faeace) — bumps pyproject.toml version from 0.1.0 to 1.0.0 on main.\n\n3. Fixed pre-existing webhook health bug in orchestrator.py: _fetch_all_reviews() and _fetch_all_reviews_bounded() were skipping healthy projects ONLY when warm cache existed. New behavior: healthy projects are never polled regardless of cache state. Updated test_submit_queue_concurrency.py::test_webhook_healthy_cold_cache_fetches_reviews to test correct new behavior.
+---
+author: oompah
+created: 2026-06-22 16:09
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 108
+- Tokens: 187 in / 5.6K out [5.8K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 14s
+- Log: OOMPAH-40__20260622T155049Z.jsonl
 ---
 <!-- COMMENTS:END -->
