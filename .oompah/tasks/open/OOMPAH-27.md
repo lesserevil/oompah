@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-27
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Validate managed-project workflow readiness
 parent: OOMPAH-16
@@ -16,7 +16,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-06-22T01:16:50.891544Z'
-updated_at: '2026-06-22T02:53:01.787917Z'
+updated_at: '2026-06-22T14:22:17.738159Z'
 work_branch: null
 target_branch: null
 review_url: null
