@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:08.467848Z'
-updated_at: '2026-06-22T14:09:20.400957Z'
+updated_at: '2026-06-22T14:12:45.198801Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-06-22 14:09
 ---
 UNDERSTANDING: Not a duplicate. Searched all tasks for overlap: OOMPAH-42 covers post-release bootstrap smoke checks after v1.0.0 ships; OOMPAH-24/25/47 covered release packaging smoke tests; OOMPAH-26 documented the 1.0 CLI surface (now Merged); OOMPAH-30 validated decomposition boundaries (In Review). None covers pre-release validation of the bootstrap status/preview/apply flows against managed projects. Blockers OOMPAH-26 (Merged) and OOMPAH-30 (In Review, work complete) are resolved. Plan: (1) run 'oompah project-bootstrap status/preview .' on the current repo to validate the CLI works end-to-end, (2) inspect the generated AGENTS.md template to confirm it uses the 1.0 native oompah task workflow (OOMPAH_TASK_AGENT_INSTRUCTIONS), (3) check the bootstrap apply --dry-run path, (4) file follow-up tasks for any drift.
+---
+author: oompah
+created: 2026-06-22 14:12
+---
+DISCOVERY: Validated bootstrap flows against the oompah managed project (the only locally accessible managed project; trickle and ova are external GitHub repos). Findings: (1) STATUS flow works correctly via 'python3 -m oompah project-bootstrap status .' — reports 3 missing files (docs/README.md, plans/README.md, scripts/githooks/pre-commit), 2 project-owned protected files (Makefile, .gitignore), and AGENTS.md as current. (2) PREVIEW flow works correctly — shows unified diffs for the 3 missing files. (3) APPLY --dry-run flow works correctly — lists files that would be written. (4) AGENTS.md template uses OOMPAH_TASK_AGENT_INSTRUCTIONS (v:2), which is the correct 1.0 native tracker workflow. AGENTS.md in this repo is already current. (5) KEY ISSUE: The installed 'oompah' binary (/home/shedwards/.local/bin/oompah, via 'uv tool install') is an older version that lacks project_bootstrap/ and project_bootstrap_cli.py modules. 'oompah project-bootstrap status .' fails. Only 'python3 -m oompah project-bootstrap' (using the development worktree) works. This means any operator who installed oompah before the project-bootstrap feature was added cannot use the CLI. Plan: (a) apply bootstrap to oompah repo to fix the 3-file drift, (b) file follow-up for the stale installed binary issue.
 ---
 <!-- COMMENTS:END -->
