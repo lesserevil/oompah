@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:23.758648Z'
-updated_at: '2026-06-22T02:03:43.922512Z'
+updated_at: '2026-06-22T02:03:53.067778Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,5 +76,10 @@ author: oompah
 created: 2026-06-22 02:03
 ---
 Verification: This is a documentation task — no code changes, no tests required. The runbook was validated by cross-referencing against: Makefile targets (start/stop/restart/graceful/status/logs), .env.example (all referenced vars exist), oompah/__main__.py (startup flags, error messages), oompah/repo_health.py (ensure_repo_sound logic), oompah/orchestrator.py (_should_dispatch reject reasons, stall/budget/stuck logic), oompah/server.py (health endpoints), and existing docs/webhook-forwarding.md (referenced in §6.4). All sections are verifiable by an operator without reading implementation code.
+---
+author: oompah
+created: 2026-06-22 02:03
+---
+Completion: docs/operator-runbook.md delivered. Covers: configuration (.env required/tuned vars, WORKFLOW.md, per-project JSON), installation, start/stop/restart/graceful, health checks (make status, GET /api/v1/state, port, providers), managed repo soundness (automatic repo_heal + manual git checks + .oompah/tasks integrity), and 7 troubleshooting scenarios for common stuck states. An operator can verify the service is running and identify any common stuck state using only this runbook. No duplicate found.
 ---
 <!-- COMMENTS:END -->
