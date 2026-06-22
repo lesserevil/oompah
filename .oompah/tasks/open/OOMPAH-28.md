@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-28
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Audit native tracker state transitions for 1.0
 parent: OOMPAH-27
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:55.337471Z'
-updated_at: '2026-06-22T01:16:55.337471Z'
+updated_at: '2026-06-22T01:35:32.094454Z'
 work_branch: null
 target_branch: null
 review_url: null
