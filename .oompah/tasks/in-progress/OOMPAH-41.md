@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:48.285544Z'
-updated_at: '2026-06-22T17:10:07.669583Z'
+updated_at: '2026-06-22T17:10:10.042075Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -112,5 +112,10 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 13s
 - Log: OOMPAH-41__20260622T170956Z.jsonl
+---
+author: oompah
+created: 2026-06-22 17:10
+---
+Agent completed without closing this issue (13s). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
