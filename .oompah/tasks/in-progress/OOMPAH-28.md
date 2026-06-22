@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:55.337471Z'
-updated_at: '2026-06-22T01:52:13.566913Z'
+updated_at: '2026-06-22T01:52:43.752957Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -81,5 +81,21 @@ Implementation: Added 62 new tests to tests/test_oompah_md_tracker.py covering t
 - TestOompahMarkdownTrackerReviewPipelineStatuses: In Review, Needs CI Fix, Needs Rebase directory, and full review pipeline walk-through.
 
 All 77 tests in the file pass (15 pre-existing + 62 new).
+---
+author: oompah
+created: 2026-06-22 01:52
+---
+Completion: Native tracker state transition audit complete for 1.0.
+
+FINDINGS SUMMARY:
+1. All 14 canonical statuses (Proposed, Backlog, Open, In Progress, Needs Answer, Needs Human, Needs CI Fix, Needs Rebase, In Review, Decomposed, Duplicate Candidate, Done, Merged, Archived) have correct on-disk directory mappings in _STATUS_DIRS. No gaps.
+2. 'Awaiting owner' / 'awaiting requestor' from the task description are intake metadata sub-states of Proposed (oompah.intake field), not separate tracker statuses. Design is correct.
+3. Transition gate (Proposed→Backlog, {Proposed,Backlog}→Open) applies to both GitHub Issues and native oompah_md tracker via the API layer.
+4. Terminal state re-transition is intentionally allowed (un-archiving/re-opening).
+
+WHAT WAS FIXED:
+Added 62 new tests to tests/test_oompah_md_tracker.py covering the full status transition matrix. All 77 tests in the file pass.
+
+NO RELEASE-BLOCKING GAPS FOUND. The test coverage gap was the only release-blocking issue, and it has been resolved.
 ---
 <!-- COMMENTS:END -->
