@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T16:45:36.568841Z'
+updated_at: '2026-06-22T16:45:40.338539Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -396,5 +396,10 @@ author: oompah
 created: 2026-06-22 16:45
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 16:45
+---
+Synced all draft-release fixes from release/1.0 to main via branch OOMPAH-40: (1) version bump 0.1.0->1.0.0, (2) is_draft_release_tag() + draft tag validation support, (3) webhook health fix (always skip healthy projects regardless of cache state), (4) removed stale rollup test that contradicted intentional guard behavior. All 7137 tests pass. Branch pushed to origin/OOMPAH-40.
 ---
 <!-- COMMENTS:END -->
