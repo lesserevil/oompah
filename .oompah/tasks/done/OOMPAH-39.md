@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:37.381380Z'
-updated_at: '2026-06-22T16:29:52.897869Z'
+updated_at: '2026-06-22T16:30:00.823923Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -179,5 +179,15 @@ author: oompah
 created: 2026-06-22 16:29
 ---
 v1.0.0-draft GitHub Release created and verified at https://github.com/lesserevil/oompah/releases/tag/v1.0.0-draft with oompah-1.0.0-py3-none-any.whl + oompah-1.0.0.tar.gz artifacts and generated install notes. Workstream A changes (OOMPAH-18/19/21/22) applied to release/1.0 (commit 21033827). 23/25 test_cli_release_packaging tests pass. All HOW TO VERIFY criteria met.
+---
+author: oompah
+created: 2026-06-22 16:30
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 3
+- Tokens: 15 in / 69 out [84 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 37s
+- Log: OOMPAH-39__20260622T162929Z.jsonl
 ---
 <!-- COMMENTS:END -->
