@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:43.935007Z'
-updated_at: '2026-06-22T02:22:09.040593Z'
+updated_at: '2026-06-22T02:28:02.277448Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,10 @@ author: oompah
 created: 2026-06-22 02:22
 ---
 IMPLEMENTATION: Added project-bootstrap help coverage in three places: the CLI release workflow now runs 'oompah project-bootstrap --help' after installing the built wheel; docs/cli-release.md lists that smoke command in the workflow and manual verification steps; tests now assert the workflow/docs include it and test both current-install and isolated-wheel 'oompah project-bootstrap --help' output for status/preview/apply subcommands.
+---
+author: oompah
+created: 2026-06-22 02:28
+---
+Agent completed successfully in 616s (3872016 tokens)
 ---
 <!-- COMMENTS:END -->
