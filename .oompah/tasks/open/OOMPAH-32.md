@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-32
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Finish 1.0 operator and project docs
 parent: OOMPAH-16
@@ -14,7 +14,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:10.735548Z'
-updated_at: '2026-06-22T01:53:55.588789Z'
+updated_at: '2026-06-22T02:04:47.482133Z'
 work_branch: null
 target_branch: null
 review_url: null
