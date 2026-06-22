@@ -11,7 +11,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:52.001843Z'
-updated_at: '2026-06-22T01:38:20.847137Z'
+updated_at: '2026-06-22T01:52:40.757513Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,5 +62,10 @@ author: oompah
 created: 2026-06-22 01:38
 ---
 DISCOVERY: Key files identified. docs/cli-release.md has v0.1.0 in all examples (tag creation, verify URL, uv/pipx install commands). docs/cli-install.md has v0.1.0 in tag and wheel install examples. .github/workflows/cli-release.yml uses 'e.g. v0.1.0' in dispatch description. tests/test_cli_release_packaging.py has two functions with 0.1.0: test_release_notes_include_exact_tag_and_artifact_install_commands (tests renderer with v0.1.0) and test_release_docs_cover_tag_creation_and_verification_commands (asserts docs contain v0.1.0). No tests yet cover the v1.0.0-draft draft-tag convention or the release/1.0 branch. Plan: update all examples to v1.0.0, add draft-tag workflow to cli-release.md, add draft-tag coverage to tests.
+---
+author: oompah
+created: 2026-06-22 01:52
+---
+IMPLEMENTATION: Updated 4 files for 1.0 convention. (1) docs/cli-release.md: replaced all v0.1.0 examples with v1.0.0 and added 1.0 release train section documenting release/1.0 branch, v1.0.0-draft (force-movable) and v1.0.0 (immutable) tags with separate draft vs. final release procedures. (2) docs/cli-install.md: replaced v0.1.0 examples with v1.0.0 in tag and wheel install commands. (3) tests/test_cli_release_packaging.py: updated test_release_notes_include_exact_tag_and_artifact_install_commands to use v1.0.0; updated test_release_docs_cover_tag_creation_and_verification_commands to assert v1.0.0; added test_release_docs_describe_draft_and_final_tag_convention (checks docs mention release/1.0, v1.0.0-draft, force-movable, immutable); added test_release_workflow_accepts_any_version_tag. (4) .github/workflows/cli-release.yml: workflow dispatch description update deferred to a maintainer (PAT lacks workflow scope) — file reverted, test updated to check v* wildcard instead.
 ---
 <!-- COMMENTS:END -->
