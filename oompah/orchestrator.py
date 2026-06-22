@@ -3474,9 +3474,12 @@ class Orchestrator:
                 child_states = [child.state for child in children]
 
             rolled = epic_rollup_state(child_states)
+            children_complete_for_review = self._epic_children_complete_for_review_work(
+                children
+            )
             if (
                 has_review_evidence
-                and self._epic_children_complete_for_review_work(children)
+                and children_complete_for_review
                 and current_status not in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
             ):
                 rolled = IN_REVIEW
@@ -3488,6 +3491,7 @@ class Orchestrator:
                     current_status in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
                     and rolled_status
                     and rolled_status != MERGED
+                    and children_complete_for_review
                 )
             ):
                 continue
