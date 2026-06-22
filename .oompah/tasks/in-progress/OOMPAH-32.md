@@ -17,7 +17,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-06-22T01:17:10.735548Z'
-updated_at: '2026-06-22T14:59:00.917487Z'
+updated_at: '2026-06-22T14:59:03.218126Z'
 work_branch: epic-OOMPAH-32
 target_branch: main
 review_url: null
@@ -87,5 +87,10 @@ Unmerged commits: 265 commits
   9d38ae79 Update oompah task OOMPAH-27
 
 Required: restore or recreate the PR/MR for this branch, then move the task back to In Review after the review exists.
+---
+author: oompah
+created: 2026-06-22 14:59
+---
+The epic branch `epic-OOMPAH-32` is stale: it has fallen behind `main`. Rebase the branch onto `origin/main`, resolve any conflicts, and force-push with `git push --force-with-lease`.
 ---
 <!-- COMMENTS:END -->
