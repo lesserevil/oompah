@@ -16,13 +16,14 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-06-22T01:16:50.891544Z'
-updated_at: '2026-06-22T14:29:21.584122Z'
+updated_at: '2026-06-22T14:29:23.883423Z'
 work_branch: epic-OOMPAH-27
-target_branch: null
+target_branch: main
 review_url: null
 review_number: null
 merged_at: null
 oompah.work_branch: epic-OOMPAH-27
+oompah.target_branch: main
 ---
 ## Summary
 
