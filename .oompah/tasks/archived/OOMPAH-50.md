@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-50
 type: bug
-status: Proposed
+status: Archived
 priority: 2
 title: '[backend:webhooks] WebhookForwarder: disabling webhook forwarding for project
   oompah: gh: Not Found (HTTP 404)'
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-22T13:53:15.245662Z'
-updated_at: '2026-06-22T13:53:19.758653Z'
+updated_at: '2026-06-22T14:50:22.417068Z'
 work_branch: null
 target_branch: null
 review_url: null
