@@ -12,11 +12,10 @@ children:
 - OOMPAH-36
 - OOMPAH-45
 blocked_by: []
-labels:
-- epic:rebasing
+labels: []
 assignee: null
 created_at: '2026-06-22T01:17:10.735548Z'
-updated_at: '2026-06-22T15:06:05.297870Z'
+updated_at: '2026-06-22T15:06:07.684860Z'
 work_branch: epic-OOMPAH-32
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/350
