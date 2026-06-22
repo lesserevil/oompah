@@ -6,11 +6,12 @@ priority: 2
 title: Add the release/1.0 branch cut checklist
 parent: OOMPAH-17
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-19
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:34.236540Z'
-updated_at: '2026-06-22T01:16:34.236540Z'
+updated_at: '2026-06-22T01:17:53.307942Z'
 work_branch: null
 target_branch: null
 review_url: null
