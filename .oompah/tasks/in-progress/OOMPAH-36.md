@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:28.394571Z'
-updated_at: '2026-06-22T14:37:02.585081Z'
+updated_at: '2026-06-22T14:37:12.615182Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-06-22 14:37
 ---
 Discovery: Confirmed this is NOT a duplicate. Investigation summary: (1) bootstrap templates (oompah/project_bootstrap/templates/__init__.py) were already clean — no beads/Backlog.md references; (2) agent_instructions.py templates were already clean; (3) all docs in docs/ were clean; (4) plans/oompah-1.0-release.md correctly labels them as historical/deprecated; (5) .gitignore had operational beads comments referencing 'bd init' and 'bd bootstrap' that appeared instructional; (6) .gitattributes had incorrect docs claiming _install_beads_merge_driver() was auto-called (that function no longer exists). Changes needed: update .gitignore and .gitattributes comments to be clearly historical migration notes.
+---
+author: oompah
+created: 2026-06-22 14:37
+---
+Implementation: Updated .gitignore and .gitattributes. In .gitignore: replaced 'Dolt database files (added by bd init)' and 'beads-jsonl-ignore (managed by oompah)' sections (which included 'emergency recovery via bd bootstrap') with a single 'Historical: Dolt/beads files from the old task tracker (pre-.oompah/tasks)' block explicitly saying 'beads and bd are no longer used'; did the same for .beads-credential-key. In .gitattributes: replaced the setup instructions (which incorrectly claimed _install_beads_merge_driver() auto-installs the driver) with a 'Historical: merge driver for the old beads issue store' note explicitly stating beads is no longer used and the driver is NOT installed automatically. All patterns retained for backward compat. No code changes needed — docs and templates were already clean.
 ---
 <!-- COMMENTS:END -->
