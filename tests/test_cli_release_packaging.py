@@ -163,3 +163,36 @@ def test_release_docs_cover_tag_creation_and_verification_commands():
     )
     assert "standalone `oompah task` client" in text
     assert "does not install or configure" in text
+
+
+def test_pyproject_version_is_1_0_0():
+    """Package metadata must be at 1.0.0 on the release branch."""
+    data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert data["project"]["version"] == "1.0.0", (
+        f"pyproject.toml project.version must be 1.0.0 on the release branch, "
+        f"got {data['project']['version']!r}"
+    )
+
+
+def test_release_note_generator_accepts_v1_0_0_tag(tmp_path):
+    """The release-note generator must agree that v1.0.0 matches package version 1.0.0."""
+    module = _load_release_notes_module()
+    pyproject = tmp_path / "pyproject.toml"
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    pyproject.write_text(
+        '[project]\nname = "oompah"\nversion = "1.0.0"\n',
+        encoding="utf-8",
+    )
+    (dist / "oompah-1.0.0-py3-none-any.whl").write_text("", encoding="utf-8")
+    (dist / "oompah-1.0.0.tar.gz").write_text("", encoding="utf-8")
+
+    notes = module.render_release_notes_for_dist(
+        tag="v1.0.0",
+        pyproject_path=pyproject,
+        dist_dir=dist,
+    )
+
+    assert "oompah-1.0.0-py3-none-any.whl" in notes
+    assert "oompah-1.0.0.tar.gz" in notes
+    assert "v1.0.0" in notes
