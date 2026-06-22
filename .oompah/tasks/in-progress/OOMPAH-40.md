@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T16:18:21.374955Z'
+updated_at: '2026-06-22T16:19:39.835625Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -159,5 +159,10 @@ author: oompah
 created: 2026-06-22 16:18
 ---
 UNDERSTANDING (Run #3): Previous agents applied all fixes to release/1.0 (commit 4dd36017) but terminated before syncing to main. Main still has version 0.1.0, no draft tag support, and the pre-existing webhook health bug. Need to: (1) create OOMPAH-40 branch from origin/main, (2) cherry-pick d6faeace (version bump), 21033827 (workstream A: is_draft_release_tag, docs), and 4dd36017 (webhook health fix), (3) run tests, (4) push and close.
+---
+author: oompah
+created: 2026-06-22 16:19
+---
+IMPLEMENTATION: Cherry-picked 3 commits from release/1.0 onto new OOMPAH-40 branch (from origin/main):\n1. d6faeace: version bump 0.1.0 -> 1.0.0 (pyproject.toml + uv.lock)\n2. 21033827: workstream A changes (is_draft_release_tag, draft tag support, docs/cli-api-surface.md, updated cli-install.md/cli-release.md, plans/oompah-1.0-release.md, test updates) - conflicts resolved by taking release/1.0 version\n3. 4dd36017: webhook health fix (orchestrator.py: always skip healthy projects regardless of cache state; test renamed/updated) - conflicts resolved by taking release/1.0 version. Running tests now.
 ---
 <!-- COMMENTS:END -->
