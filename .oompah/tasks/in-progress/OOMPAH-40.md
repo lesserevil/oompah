@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-40
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Fix draft-release findings and sync them back to main
 parent: OOMPAH-37
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T16:50:39.706622Z'
+updated_at: '2026-06-22T16:51:56.090894Z'
 work_branch: null
 target_branch: null
 review_url: null
