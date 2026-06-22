@@ -6,11 +6,12 @@ priority: 1
 title: Fix draft-release findings and sync them back to main
 parent: OOMPAH-37
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-39
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T01:17:39.633849Z'
+updated_at: '2026-06-22T01:19:07.118179Z'
 work_branch: null
 target_branch: null
 review_url: null
