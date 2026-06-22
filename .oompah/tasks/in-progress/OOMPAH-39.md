@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:37.381380Z'
-updated_at: '2026-06-22T15:02:33.947832Z'
+updated_at: '2026-06-22T15:02:36.319351Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ The draft GitHub Release contains expected wheel/source artifacts, generated not
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 15:02
+---
+Agent dispatched (profile: default)
+---
+<!-- COMMENTS:END -->
