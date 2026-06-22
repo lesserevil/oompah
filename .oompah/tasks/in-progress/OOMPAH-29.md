@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:57.697390Z'
-updated_at: '2026-06-22T01:53:11.083204Z'
+updated_at: '2026-06-22T01:53:13.272498Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,3 +40,11 @@ Tests or documented manual checks cover all three cases.
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 01:53
+---
+Agent dispatched (profile: default)
+---
+<!-- COMMENTS:END -->
