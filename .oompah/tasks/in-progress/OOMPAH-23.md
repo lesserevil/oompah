@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:41.668460Z'
-updated_at: '2026-06-22T01:54:55.850269Z'
+updated_at: '2026-06-22T01:56:35.720626Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-06-22 01:54
 ---
 UNDERSTANDING: This is NOT a duplicate. OOMPAH-23 is the specific task that actually bumps pyproject.toml project.version from 0.1.0 to 1.0.0. Checked all candidates: OOMPAH-18 (Done, updated docs/tests only), OOMPAH-21 (checklist docs, doesn't make the change), OOMPAH-38 (full quality gate, depends on this being done). None cover the actual pyproject.toml version bump. Proceeding to implement.
+---
+author: oompah
+created: 2026-06-22 01:56
+---
+DISCOVERY: This is NOT a duplicate — no other task makes the actual pyproject.toml version change. Working on branch epic-OOMPAH-22 (the parent epic's branch for OOMPAH-22). Current pyproject.toml has version = "0.1.0"; needs to be changed to "1.0.0". The render_cli_release_notes.py script reads project.version and validates tag must equal v{version}, so after the bump, running the workflow with tag v1.0.0 will agree. No existing test asserts pyproject.toml version is 1.0.0 — will add one. Will also verify existing tests still pass.
 ---
 <!-- COMMENTS:END -->
