@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T15:50:48.049782Z'
+updated_at: '2026-06-22T15:52:21.314203Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,10 @@ author: oompah
 created: 2026-06-22 15:50
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 15:52
+---
+UNDERSTANDING: E3 task confirmed not a duplicate. OOMPAH-39 (E2) applied Epic A workstream changes to release/1.0 as commit 21033827 (scripts/render_cli_release_notes.py draft tag support, updated test suite, docs/cli-api-surface.md new file, updated docs/cli-release.md, docs/cli-install.md, plans/oompah-1.0-release.md). These changes do NOT exist on main. Plan: cherry-pick commit 21033827 from release/1.0 onto main via this branch, run tests, push. Current worktree is on epic-OOMPAH-37 (behind origin/main by 27 commits). Will pull to update then cherry-pick.
 ---
 <!-- COMMENTS:END -->
