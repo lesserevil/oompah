@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-26
 type: task
-status: Backlog
+status: Open
 priority: 2
 title: Document the 1.0 CLI and API compatibility surface
 parent: OOMPAH-22
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:48.515360Z'
-updated_at: '2026-06-22T01:18:08.714419Z'
+updated_at: '2026-06-22T01:36:19.108246Z'
 work_branch: null
 target_branch: null
 review_url: null
