@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:35:48.855045Z'
-updated_at: '2026-06-22T02:48:19.218008Z'
+updated_at: '2026-06-22T02:48:25.935706Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,5 +70,12 @@ Exact diff ready to apply:
 - tests/test_cli_release_packaging.py: assert 'oompah project-bootstrap --help' in workflow text
 
 Changes remain as working-directory modifications on the OOMPAH-47 branch.
+---
+author: oompah
+created: 2026-06-22 02:48
+---
+COMPLETION: 
+- docs/cli-release.md: updated to include 'oompah project-bootstrap --help' in both the workflow description paragraph and the manual verification section — committed and pushed to OOMPAH-47 branch.
+- .github/workflows/cli-release.yml + test assertion: both changes are prepared but require a workflow-scoped PAT to push. Tracked in OOMPAH-48 (Needs Human). The changes are confirmed correct and all tests pass with the full set of changes applied locally.
 ---
 <!-- COMMENTS:END -->
