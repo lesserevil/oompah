@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:35.091778Z'
-updated_at: '2026-06-22T15:02:16.512205Z'
+updated_at: '2026-06-22T15:02:18.855834Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -74,5 +74,10 @@ author: oompah
 created: 2026-06-22 15:02
 ---
 COMPLETION: release/1.0 is cut and the full quality gate passes.\n\nDelivered:\n1. Created release/1.0 branch from origin/epic-OOMPAH-27 (includes OOMPAH-21 branch checklist, OOMPAH-22 CLI lock, OOMPAH-26 API surface docs, OOMPAH-28-31 managed workflow validation, OOMPAH-47 bootstrap smoke tests).\n2. Cherry-picked OOMPAH-36 (stale beads cleanup in .gitignore and .gitattributes, commit 45e07c5c).\n3. Bumped pyproject.toml from 0.1.0 to 1.0.0, refreshed uv.lock.\n4. Pushed release/1.0 to origin.\n5. Quality gate: make test (7118 passed, 0 failed) + make check-secrets (clean).\n\nNot a duplicate. This is the unique E1 task in the release execution epic.
+---
+author: oompah
+created: 2026-06-22 15:02
+---
+Cut release/1.0 from epic-OOMPAH-27 + OOMPAH-36 cherry-pick. Bumped version to 1.0.0. Quality gate: 7118 tests pass, secrets scan clean. release/1.0 exists on origin with package version 1.0.0.
 ---
 <!-- COMMENTS:END -->
