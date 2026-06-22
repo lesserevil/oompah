@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:08.467848Z'
-updated_at: '2026-06-22T14:20:36.809164Z'
+updated_at: '2026-06-22T14:20:39.177410Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-06-22 14:20
 ---
 COMPLETION: Bootstrap flows validated for the oompah managed project (representative project). Delivered: (1) Applied 3 missing bootstrap files: docs/README.md, plans/README.md, scripts/githooks/pre-commit - oompah project now bootstrap-current. (2) Confirmed AGENTS.md uses 1.0 native tracker workflow (OOMPAH TASK INTEGRATION v:2). (3) Added 4 new tests: template content validation, end-to-end apply validation, installed CLI smoke test for project-bootstrap --help, and server-dependency isolation test. (4) Filed OOMPAH-52 for follow-up: installed oompah binary (uv tool install) doesn't include project-bootstrap support and needs reinstall. All 7118 tests pass. HOW TO VERIFY criteria met: oompah managed project has status/preview checked, drift fixed, generated instructions match 1.0 native tracker workflow. Not a duplicate.
+---
+author: oompah
+created: 2026-06-22 14:20
+---
+Validated bootstrap flows for oompah managed project: status/preview/apply all work correctly, AGENTS.md template uses 1.0 native tracker workflow (v:2), applied 3 missing bootstrap files, added 4 new tests. Filed OOMPAH-52 for installed CLI reinstall guidance. All 7118 tests pass.
 ---
 <!-- COMMENTS:END -->
