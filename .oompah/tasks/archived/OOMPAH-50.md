@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-22T13:53:15.245662Z'
-updated_at: '2026-06-22T14:50:22.417068Z'
+updated_at: '2026-06-22T14:50:26.996837Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,3 +93,11 @@ The operation in `backend:webhooks` should complete successfully, or degrade gra
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 14:50
+---
+Archived as a duplicate stale auto-filed webhook error. The same dedupe fingerprint also created OOMPAH-51, and the underlying webhook 404 has not recurred since the transient restart window.
+---
+<!-- COMMENTS:END -->
