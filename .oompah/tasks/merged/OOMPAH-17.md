@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-17
 type: epic
-status: In Review
+status: Merged
 priority: 1
 title: Define and harden the 1.0 release train
 parent: OOMPAH-16
@@ -15,7 +15,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:45.345931Z'
-updated_at: '2026-06-22T13:51:34.262724Z'
+updated_at: '2026-06-22T14:04:37.384731Z'
 work_branch: epic-OOMPAH-17
 target_branch: epic-OOMPAH-16
 review_url: https://github.com/lesserevil/oompah/pull/344
