@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-28
 type: task
-status: Done
+status: In Review
 priority: 1
 title: Audit native tracker state transitions for 1.0
 parent: OOMPAH-27
