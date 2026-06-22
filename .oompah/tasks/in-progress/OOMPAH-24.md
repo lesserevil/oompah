@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:43.935007Z'
-updated_at: '2026-06-22T02:17:44.124022Z'
+updated_at: '2026-06-22T02:17:46.262113Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -82,5 +82,10 @@ author: oompah
 created: 2026-06-22 02:17
 ---
 Agent completed without closing this issue (750s (4392647 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-06-22 02:17
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
