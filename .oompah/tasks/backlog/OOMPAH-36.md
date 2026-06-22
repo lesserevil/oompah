@@ -6,11 +6,12 @@ priority: 1
 title: Remove stale Backlog.md and beads instructions from docs and templates
 parent: OOMPAH-32
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-35
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:28.394571Z'
-updated_at: '2026-06-22T01:17:28.394571Z'
+updated_at: '2026-06-22T01:18:46.306012Z'
 work_branch: null
 target_branch: null
 review_url: null
