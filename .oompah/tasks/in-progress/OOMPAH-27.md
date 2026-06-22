@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-27
 type: epic
-status: In Review
+status: In Progress
 priority: 0
 title: Validate managed-project workflow readiness
 parent: OOMPAH-16
@@ -17,7 +17,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-06-22T01:16:50.891544Z'
-updated_at: '2026-06-22T14:36:48.160325Z'
+updated_at: '2026-06-22T14:36:50.459192Z'
 work_branch: epic-OOMPAH-27
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/348
