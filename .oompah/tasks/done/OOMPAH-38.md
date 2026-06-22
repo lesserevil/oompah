@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:35.091778Z'
-updated_at: '2026-06-22T16:29:14.081525Z'
+updated_at: '2026-06-22T16:29:16.565940Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,13 +22,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 58b0acbf-ab75-4079-a8be-c9b9f73a300a
 oompah.task_costs:
-  total_input_tokens: 162
-  total_output_tokens: 5022
+  total_input_tokens: 171
+  total_output_tokens: 5046
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 162
-      output_tokens: 5022
+      input_tokens: 171
+      output_tokens: 5046
       cost_usd: 0.0
   runs:
   - profile: default
@@ -55,6 +55,12 @@ oompah.task_costs:
     output_tokens: 24
     cost_usd: 0.0
     recorded_at: '2026-06-22T16:27:03.279358+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 9
+    output_tokens: 24
+    cost_usd: 0.0
+    recorded_at: '2026-06-22T16:29:13.462295+00:00'
 ---
 ## Summary
 
