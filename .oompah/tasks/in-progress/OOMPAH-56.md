@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T17:28:26.868503Z'
-updated_at: '2026-06-22T17:28:55.637583Z'
+updated_at: '2026-06-22T17:29:08.661485Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-06-22 17:28
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 17:29
+---
+Understanding: This task asks me to rebase epic-OOMPAH-37 onto origin/epic-OOMPAH-16 and force-push. As a Duplicate Investigator, I must first check whether a similar rebase task for these same epic branches already exists before performing any work.
 ---
 <!-- COMMENTS:END -->
