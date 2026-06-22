@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:15.169120Z'
-updated_at: '2026-06-22T02:59:52.503475Z'
+updated_at: '2026-06-22T03:00:23.591697Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-06-22 02:59
 ---
 UNDERSTANDING: Confirmed NOT a duplicate. OOMPAH-18 (plan A1: update docs/tests from 0.1.0 to 1.0 convention) is Done but its changes are not yet on main — docs/cli-install.md and docs/cli-release.md still show v0.1.0. OOMPAH-33 is plan D1 (Refresh install and release docs for GitHub-only 1.0 release), a child of the operator docs epic OOMPAH-32. Work: update both install and release docs to use v1.0.0 / v1.0.0-draft examples, ensure no PyPI publishing instructions remain, ensure both Git tag and GitHub Release wheel install paths are documented.
+---
+author: oompah
+created: 2026-06-22 03:00
+---
+DISCOVERY: docs/cli-release.md and docs/cli-install.md both still use v0.1.0 examples throughout. tests/test_cli_release_packaging.py asserts for v0.1.0 in the docs. OOMPAH-18 did the same work on a separate branch that was never merged to main. Plan: (1) update docs/cli-release.md to v1.0.0 examples + add 1.0 release train section (release/1.0 branch, v1.0.0-draft draft tag, v1.0.0 final tag), (2) update docs/cli-install.md to v1.0.0 examples + note v1.0.0-draft, (3) update test assertions to match v1.0.0 and add test for draft/final convention.
 ---
 <!-- COMMENTS:END -->
