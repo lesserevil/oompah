@@ -84,7 +84,31 @@ pipx install "{wheel_url}"
 ```bash
 oompah --help
 oompah task --help
+oompah project-bootstrap --help
 ```
+
+## Upgrading from an earlier install
+
+If you installed oompah before the `project-bootstrap` subcommand was added,
+your binary may lack the `project_bootstrap` module. Running
+`oompah project-bootstrap status .` on a stale install fails with
+`unrecognized arguments: status .`.
+
+Run one of the following to update:
+
+```bash
+# Preferred: upgrade in place
+uv tool upgrade oompah
+
+# Alternative: force a full reinstall from this tag
+uv tool install --reinstall "{tag_url}"
+
+# pipx equivalent
+pipx upgrade oompah
+```
+
+Verify the upgrade with `oompah project-bootstrap --help`. If the output lists
+`status`, `preview`, and `apply`, the upgrade was successful.
 
 ## Artifacts
 
