@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:48.285544Z'
-updated_at: '2026-06-22T17:24:19.698423Z'
+updated_at: '2026-06-22T17:24:22.009483Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -206,5 +206,10 @@ VERIFICATION COMPLETE: All v1.0.0 release criteria satisfied.
 4. ARTIFACT SMOKE TEST PASSED: Installed wheel in fresh venv, both 'oompah --help' and 'oompah task --help' work correctly.
 
 All HOW TO VERIFY criteria from the task description are met.
+---
+author: oompah
+created: 2026-06-22 17:24
+---
+v1.0.0 final tag (commit 4dd36017) confirmed immutable on origin. GitHub Release v1.0.0 created at https://github.com/lesserevil/oompah/releases/tag/v1.0.0 with wheel+sdist artifacts and release notes identifying v1.0.0. Wheel smoke test passed — both oompah and oompah task console scripts verified.
 ---
 <!-- COMMENTS:END -->
