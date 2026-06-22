@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:46.207414Z'
-updated_at: '2026-06-22T02:48:17.033434Z'
+updated_at: '2026-06-22T02:48:23.633221Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-06-22 02:48
 ---
 IMPLEMENTATION: Added 5 new tests across 2 files to verify the dependency boundary and wheel contents. (1) tests/test_installed_cli_smoke.py: test_oompah_task_help_does_not_import_any_server_package and test_oompah_project_bootstrap_help_does_not_import_any_server_package — comprehensive server dep blocking tests that guard all 8 server packages (fastapi, uvicorn, jinja2, yaml/pyyaml, watchfiles, jwt/PyJWT, liquid/python-liquid, multipart/python-multipart) not just watchfiles. (2) tests/test_cli_release_packaging.py: test_server_extras_complete_and_not_in_base_dependencies (verifies ALL server packages are in server extra and base deps = only httpx); test_wheel_contains_required_cli_modules (checks wheel zip contains all required CLI module paths — skipped without wheel); test_wheel_does_not_contain_server_only_module_as_dep (checks METADATA Requires-Dist has no unconditional server packages — skipped without wheel).
+---
+author: oompah
+created: 2026-06-22 02:48
+---
+VERIFICATION: All tests pass. Full suite: 7045 passed, 31 skipped, 12 warnings. New tests: 3 passing (comprehensive server dep blocking for task and project-bootstrap, complete server extras metadata check) + 2 correctly skipped (wheel contents and wheel metadata checks — skip when dist/*.whl absent, will activate in release CI after 'python -m build').
 ---
 <!-- COMMENTS:END -->
