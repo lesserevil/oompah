@@ -163,3 +163,67 @@ def test_release_docs_cover_tag_creation_and_verification_commands():
     )
     assert "standalone `oompah task` client" in text
     assert "does not install or configure" in text
+
+
+def test_release_notes_include_upgrade_and_reinstall_guidance():
+    """Release notes must include an upgrade section for stale installs.
+
+    Operators who installed oompah before the project-bootstrap feature was
+    added have a binary that lacks project_bootstrap/. The release notes must
+    tell them to run ``uv tool upgrade oompah`` or reinstall.
+    """
+    module = _load_release_notes_module()
+
+    notes = module.render_release_notes(
+        tag="v1.0.0",
+        wheel_name="oompah-1.0.0-py3-none-any.whl",
+        sdist_name="oompah-1.0.0.tar.gz",
+    )
+
+    # Must mention the upgrade command
+    assert "uv tool upgrade oompah" in notes
+    # Must mention --reinstall as an alternative
+    assert "--reinstall" in notes
+    # Must reference the upgrade section heading
+    assert "Upgrading" in notes
+    # Must include project-bootstrap in the verify block
+    assert "oompah project-bootstrap --help" in notes
+
+
+def test_release_notes_upgrade_section_references_tag_install():
+    """The reinstall command in release notes must reference the release tag.
+
+    Operators should reinstall from the tagged release, not from untagged main.
+    """
+    module = _load_release_notes_module()
+
+    notes = module.render_release_notes(
+        tag="v1.0.0",
+        wheel_name="oompah-1.0.0-py3-none-any.whl",
+        sdist_name="oompah-1.0.0.tar.gz",
+    )
+
+    # The reinstall command must pin to the specific release tag
+    assert (
+        'uv tool install --reinstall "git+https://github.com/lesserevil/oompah@v1.0.0"'
+        in notes
+    )
+
+
+def test_install_docs_cover_upgrade_from_pre_project_bootstrap_install():
+    """docs/cli-install.md must document the project-bootstrap reinstall requirement.
+
+    Any operator who installed before project-bootstrap was added will have a
+    stale binary that fails with 'unrecognized arguments: status .' when running
+    'oompah project-bootstrap status .'.
+    """
+    text = (REPO_ROOT / "docs" / "cli-install.md").read_text(encoding="utf-8")
+
+    # Must describe the upgrade path
+    assert "uv tool upgrade oompah" in text
+    # Must mention --reinstall as an alternative
+    assert "--reinstall" in text
+    # Must mention project-bootstrap in the upgrade context
+    assert "project-bootstrap" in text.lower()
+    # Must mention project_bootstrap module (the Python module name used in error context)
+    assert "project_bootstrap" in text

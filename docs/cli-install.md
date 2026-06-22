@@ -107,6 +107,36 @@ oompah task --port 9000 view owner/repo#123
 oompah task --server http://192.168.1.10:8080 view owner/repo#123
 ```
 
+## Upgrading an existing install
+
+If you installed oompah before the `project-bootstrap` subcommand was shipped,
+your binary may lack the `project_bootstrap` module. Running
+`oompah project-bootstrap status .` on a stale install fails with
+`unrecognized arguments: status .` because the older `__main__.py` has no
+project-bootstrap dispatch block.
+
+Upgrade with either of these commands:
+
+```bash
+# Preferred: upgrade in place (uv tool)
+uv tool upgrade oompah
+
+# Alternative: force a full reinstall from the latest main branch
+uv tool install --reinstall git+https://github.com/lesserevil/oompah
+
+# pipx equivalent
+pipx upgrade oompah
+```
+
+Then verify that the `project-bootstrap` subcommand is available:
+
+```bash
+oompah project-bootstrap --help
+```
+
+If `--help` prints the `status`, `preview`, and `apply` subcommands, the
+upgrade was successful.
+
 ## Packaging design
 
 See [`plans/cli-packaging-boundary.md`](../plans/cli-packaging-boundary.md) for

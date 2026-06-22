@@ -76,3 +76,20 @@ from a cloned repository with `uv pip install -e '.[server]'` or use
 The workflow generates release notes with the exact tag and wheel artifact name
 from the built `dist/` directory. The generated notes include the `uv tool` and
 `pipx` install commands for both the Git tag and the wheel artifact URL.
+
+The generated notes also include an **Upgrading from an earlier install**
+section. This section is important whenever a release adds new CLI subcommands
+or modules that were absent in older installed binaries — operators who upgrade
+in-place via `uv tool upgrade oompah` will pick up the new code automatically,
+but operators with stale installs need to be told explicitly.
+
+Notable upgrade requirement: the `project-bootstrap` subcommand (`oompah
+project-bootstrap status/preview/apply`) was added after 1.0. Any operator
+who installed oompah before that feature shipped must reinstall to get the
+`project_bootstrap` module:
+
+```bash
+uv tool upgrade oompah
+# or
+uv tool install --reinstall git+https://github.com/lesserevil/oompah
+```
