@@ -12,7 +12,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:56.553408Z'
-updated_at: '2026-06-22T02:01:42.523585Z'
+updated_at: '2026-06-22T02:03:14.536904Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,5 +70,10 @@ author: oompah
 created: 2026-06-22 02:01
 ---
 VERIFICATION: All 7048 tests pass (make test). New tests added: test_validate_tag_final_form_accepted, test_validate_tag_draft_form_accepted, test_validate_tag_rejects_mismatched_final_tag, test_validate_tag_rejects_wrong_version_draft_tag, test_is_draft_release_tag_true_for_draft_form, test_is_draft_release_tag_false_for_final_form, test_is_draft_release_tag_false_for_other_prerelease, test_render_notes_for_dist_accepts_draft_tag. Existing test test_release_notes_renderer_rejects_version_mismatched_tag still passes (error message extended but substring match still holds).
+---
+author: oompah
+created: 2026-06-22 02:03
+---
+COMPLETION: Delivered support for force-movable v1.0.0-draft release tags. Changes: (1) scripts/render_cli_release_notes.py — new is_draft_release_tag(tag, version) helper accepting only the explicit v{version}-draft form; validate_tag_matches_version updated to accept both final (v{version}) and draft (v{version}-draft) tags. (2) tests/test_cli_release_packaging.py — 9 new tests covering the full validation matrix. Not a duplicate of any existing task. Committed to epic-OOMPAH-17 branch (dae18fd), pushed and up to date with origin.
 ---
 <!-- COMMENTS:END -->
