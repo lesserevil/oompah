@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:34.236540Z'
-updated_at: '2026-06-22T02:28:39.308324Z'
+updated_at: '2026-06-22T02:30:51.392885Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -147,5 +147,10 @@ author: oompah
 created: 2026-06-22 02:28
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 02:30
+---
+Verification: All 7056 tests pass (28 skipped). The new tests test_release_docs_include_branch_cut_checklist and test_release_plan_includes_self_contained_branch_cut_checklist both pass, confirming the checklist content is present and correct in both docs/cli-release.md and plans/oompah-1.0-release.md.
 ---
 <!-- COMMENTS:END -->
