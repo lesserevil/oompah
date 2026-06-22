@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:50.933134Z'
-updated_at: '2026-06-22T17:27:40.630360Z'
+updated_at: '2026-06-22T17:27:42.882580Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -96,5 +96,10 @@ COMPLETION: Post-release install and bootstrap smoke checks complete. All 4 chec
 5. Server dep isolation: fastapi/uvicorn not importable from lightweight wheel install (correct)
 
 v1.0.0 release at https://github.com/lesserevil/oompah/releases/tag/v1.0.0 is verified. Epic OOMPAH-37 (Execute and verify the 1.0 release) can now be closed.
+---
+author: oompah
+created: 2026-06-22 17:27
+---
+All post-release smoke checks passed: Git tag install, wheel install, oompah --help, oompah task --help, oompah project-bootstrap --help, managed-project bootstrap status/preview — all exit 0 with correct output. No blocking findings. v1.0.0 release verified.
 ---
 <!-- COMMENTS:END -->
