@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T14:20:20.212899Z'
-updated_at: '2026-06-22T14:47:41.074956Z'
+updated_at: '2026-06-22T14:50:59.639194Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-06-22 14:47
 ---
 Implementation plan: (1) Add 'Upgrading an existing install' section to docs/cli-install.md — explains that pre-project-bootstrap installs need 'uv tool upgrade oompah' or '--reinstall'. (2) Add upgrade notice to scripts/render_cli_release_notes.py so the 1.0 release notes include the reinstall call-out. (3) Add note in docs/cli-release.md that release notes should call out reinstall requirements for major feature additions. (4) Add test in test_cli_release_packaging.py that verifies the upgrade section appears in generated release notes.
+---
+author: oompah
+created: 2026-06-22 14:50
+---
+Verification: All 7044 tests pass (make test). The 3 new tests all pass: test_release_notes_include_upgrade_and_reinstall_guidance, test_release_notes_upgrade_section_references_tag_install, test_install_docs_cover_upgrade_from_pre_project_bootstrap_install. Not a duplicate — explicitly filed by OOMPAH-31 as a follow-up.
 ---
 <!-- COMMENTS:END -->
