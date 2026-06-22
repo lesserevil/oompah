@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-19
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Support force-movable 1.0 draft release tags
 parent: OOMPAH-17
@@ -12,7 +12,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:56.553408Z'
-updated_at: '2026-06-22T02:03:14.536904Z'
+updated_at: '2026-06-22T02:03:22.365652Z'
 work_branch: null
 target_branch: null
 review_url: null
