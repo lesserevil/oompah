@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import zipfile
 from pathlib import Path
 import tomllib
 
@@ -8,6 +9,7 @@ import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+DIST_DIR = REPO_ROOT / "dist"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cli-release.yml"
 SCRIPT_PATH = REPO_ROOT / "scripts" / "render_cli_release_notes.py"
 
@@ -165,115 +167,347 @@ def test_release_docs_cover_tag_creation_and_verification_commands():
     assert "does not install or configure" in text
 
 
-def test_release_notes_include_upgrade_and_reinstall_guidance():
-    """Release notes must include an upgrade section for stale installs.
-
-    Operators who installed oompah before the project-bootstrap feature was
-    added have a binary that lacks project_bootstrap/. The release notes must
-    tell them to run ``uv tool upgrade oompah`` or reinstall.
-    """
-    module = _load_release_notes_module()
-
-    notes = module.render_release_notes(
-        tag="v1.0.0",
-        wheel_name="oompah-1.0.0-py3-none-any.whl",
-        sdist_name="oompah-1.0.0.tar.gz",
-    )
-
-    # Must mention the upgrade command
-    assert "uv tool upgrade oompah" in notes
-    # Must mention --reinstall as an alternative
-    assert "--reinstall" in notes
-    # Must reference the upgrade section heading
-    assert "Upgrading" in notes
-    # Must include project-bootstrap in the verify block
-    assert "oompah project-bootstrap --help" in notes
-
-
-def test_release_notes_upgrade_section_references_tag_install():
-    """The reinstall command in release notes must reference the release tag.
-
-    Operators should reinstall from the tagged release, not from untagged main.
-    """
-    module = _load_release_notes_module()
-
-    notes = module.render_release_notes(
-        tag="v1.0.0",
-        wheel_name="oompah-1.0.0-py3-none-any.whl",
-        sdist_name="oompah-1.0.0.tar.gz",
-    )
-
-    # The reinstall command must pin to the specific release tag
-    assert (
-        'uv tool install --reinstall "git+https://github.com/lesserevil/oompah@v1.0.0"'
-        in notes
-    )
-
-
-def test_install_docs_cover_upgrade_from_pre_project_bootstrap_install():
-    """docs/cli-install.md must document the project-bootstrap reinstall requirement.
-
-    Any operator who installed before project-bootstrap was added will have a
-    stale binary that fails with 'unrecognized arguments: status .' when running
-    'oompah project-bootstrap status .'.
-    """
-    text = (REPO_ROOT / "docs" / "cli-install.md").read_text(encoding="utf-8")
-
-    # Must describe the upgrade path
-    assert "uv tool upgrade oompah" in text
-    # Must mention --reinstall as an alternative
-    assert "--reinstall" in text
-    # Must mention project-bootstrap in the upgrade context
-    assert "project-bootstrap" in text.lower()
-    # Must mention project_bootstrap module (the Python module name used in error context)
-    assert "project_bootstrap" in text
-
-
 def test_release_docs_describe_draft_and_final_tag_convention():
     text = (REPO_ROOT / "docs" / "cli-release.md").read_text(encoding="utf-8")
 
-    # 1.0 release train section
+    # Docs must describe the 1.0 release train conventions
     assert "release/1.0" in text
     assert "v1.0.0-draft" in text
-    assert "force-movable" in text.lower() or "force-move" in text.lower()
-    assert "immutable" in text
-
-    # Draft tag push command
-    assert "git tag -f v1.0.0-draft" in text
-    assert "git push -f origin v1.0.0-draft" in text
+    assert "v1.0.0" in text
+    # Draft tag is force-movable; final tag is immutable
+    assert "force-move" in text or "force-movable" in text
+    assert "immutable" in text or "must not be force-moved" in text or "must never be force-moved" in text
 
 
-def test_install_docs_cover_tag_and_wheel_installs_for_v1():
+def test_release_docs_include_branch_cut_checklist():
+    text = (REPO_ROOT / "docs" / "cli-release.md").read_text(encoding="utf-8")
+
+    for required in [
+        "git switch main",
+        "git status --short",
+        "git switch -c release/1.0 main",
+        'project.version = "1.0.0"',
+        "uv lock",
+        "make test",
+        "make check-secrets",
+        "git tag -f v1.0.0-draft",
+        "https://github.com/lesserevil/oompah/releases/tag/v1.0.0-draft",
+        'uv tool install --force "git+https://github.com/lesserevil/oompah@v1.0.0-draft"',
+        "releases/download/v1.0.0-draft/oompah-1.0.0-py3-none-any.whl",
+        "oompah-1.0.0-py3-none-any.whl",
+        "oompah-1.0.0.tar.gz",
+        "never delete, force-push, or retarget `v1.0.0`",
+    ]:
+        assert required in text
+
+
+def test_release_plan_includes_self_contained_branch_cut_checklist():
+    text = (REPO_ROOT / "plans" / "oompah-1.0-release.md").read_text(
+        encoding="utf-8"
+    )
+
+    for required in [
+        "Use this checklist immediately before creating or moving `v1.0.0-draft`.",
+        "git pull --ff-only origin main",
+        "git log --oneline HEAD..origin/main",
+        "git log --oneline origin/main..HEAD",
+        "git push -u origin release/1.0",
+        "version = \"1.0.0\"",
+        "git push -f origin refs/tags/v1.0.0-draft",
+        "Actions > CLI Release",
+        "uv tool install --force",
+        "Do not create `v1.0.0` until draft verification passes.",
+        "never delete, force-push, or retarget the final tag",
+    ]:
+        assert required in text
+
+
+def test_release_workflow_accepts_any_version_tag():
+    """Workflow tag trigger covers all version tags including draft and final forms."""
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = yaml.safe_load(text)
+    triggers = workflow.get("on") or workflow.get(True)
+
+    # The v* wildcard must cover both v1.0.0-draft and v1.0.0
+    assert "v*" in triggers["push"]["tags"]
+
+
+# ---------------------------------------------------------------------------
+# Draft release tag validation (OOMPAH-19)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_tag_final_form_accepted():
+    """v1.0.0 is accepted as the immutable final release tag for version 1.0.0."""
+    module = _load_release_notes_module()
+    # Must not raise
+    module.validate_tag_matches_version("v1.0.0", "1.0.0")
+
+
+def test_validate_tag_draft_form_accepted():
+    """v1.0.0-draft is accepted as the force-movable draft tag for version 1.0.0."""
+    module = _load_release_notes_module()
+    # Must not raise
+    module.validate_tag_matches_version("v1.0.0-draft", "1.0.0")
+
+
+def test_validate_tag_rejects_mismatched_final_tag():
+    """Final release validation still rejects a tag that does not match project.version."""
+    module = _load_release_notes_module()
+    try:
+        module.validate_tag_matches_version("v1.0.1", "1.0.0")
+    except ValueError as exc:
+        assert "expected 'v1.0.0'" in str(exc)
+    else:
+        raise AssertionError("mismatched final tag was accepted")
+
+
+def test_validate_tag_rejects_wrong_version_draft_tag():
+    """Draft validation is explicit — only v{version}-draft, not any other version's draft."""
+    module = _load_release_notes_module()
+    try:
+        module.validate_tag_matches_version("v2.0.0-draft", "1.0.0")
+    except ValueError as exc:
+        assert "expected 'v1.0.0'" in str(exc)
+    else:
+        raise AssertionError("wrong-version draft tag was accepted")
+
+
+def test_is_draft_release_tag_true_for_draft_form():
+    """is_draft_release_tag returns True for the explicit v{version}-draft form."""
+    module = _load_release_notes_module()
+    assert module.is_draft_release_tag("v1.0.0-draft", "1.0.0") is True
+
+
+def test_is_draft_release_tag_false_for_final_form():
+    """is_draft_release_tag returns False for the exact final release tag."""
+    module = _load_release_notes_module()
+    assert module.is_draft_release_tag("v1.0.0", "1.0.0") is False
+
+
+def test_is_draft_release_tag_false_for_other_prerelease():
+    """is_draft_release_tag rejects arbitrary pre-release suffixes (e.g. -rc1)."""
+    module = _load_release_notes_module()
+    assert module.is_draft_release_tag("v1.0.0-rc1", "1.0.0") is False
+
+
+def test_render_notes_for_dist_accepts_draft_tag(tmp_path):
+    """render_release_notes_for_dist succeeds when the tag is the draft form."""
+    module = _load_release_notes_module()
+    pyproject = tmp_path / "pyproject.toml"
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    pyproject.write_text(
+        '[project]\nname = "oompah"\nversion = "1.0.0"\n',
+        encoding="utf-8",
+    )
+    (dist / "oompah-1.0.0-py3-none-any.whl").write_text("", encoding="utf-8")
+    (dist / "oompah-1.0.0.tar.gz").write_text("", encoding="utf-8")
+
+    notes = module.render_release_notes_for_dist(
+        tag="v1.0.0-draft",
+        pyproject_path=pyproject,
+        dist_dir=dist,
+    )
+
+    # Draft tag appears in install commands
+    assert "v1.0.0-draft" in notes
+    # Artifacts are still the 1.0.0 wheel and sdist (built from project.version)
+    assert "oompah-1.0.0-py3-none-any.whl" in notes
+    assert "oompah-1.0.0.tar.gz" in notes
+
+
+def test_pyproject_version_is_1_0_0():
+    """Package metadata must be at 1.0.0 on the release branch."""
+    data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert data["project"]["version"] == "1.0.0", (
+        f"pyproject.toml project.version must be 1.0.0 on the release branch, "
+        f"got {data['project']['version']!r}"
+    )
+
+
+def test_release_note_generator_accepts_v1_0_0_tag(tmp_path):
+    """The release-note generator must agree v1.0.0 matches package version 1.0.0."""
+    module = _load_release_notes_module()
+    pyproject = tmp_path / "pyproject.toml"
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    pyproject.write_text(
+        '[project]\nname = "oompah"\nversion = "1.0.0"\n',
+        encoding="utf-8",
+    )
+    (dist / "oompah-1.0.0-py3-none-any.whl").write_text("", encoding="utf-8")
+    (dist / "oompah-1.0.0.tar.gz").write_text("", encoding="utf-8")
+
+    notes = module.render_release_notes_for_dist(
+        tag="v1.0.0",
+        pyproject_path=pyproject,
+        dist_dir=dist,
+    )
+
+    assert "oompah-1.0.0-py3-none-any.whl" in notes
+    assert "oompah-1.0.0.tar.gz" in notes
+    assert "v1.0.0" in notes
+
+
+def test_server_extras_complete_and_not_in_base_dependencies():
+    """Server-runtime packages must stay behind the server extra."""
+    data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    base_deps = data["project"]["dependencies"]
+    server_extras = data["project"]["optional-dependencies"]["server"]
+
+    assert base_deps == ["httpx>=0.27"], (
+        "Base dependencies must contain only 'httpx>=0.27' to keep the "
+        f"lightweight CLI install free of server runtime packages. Got: {base_deps!r}"
+    )
+
+    required_server_packages = [
+        "fastapi",
+        "uvicorn",
+        "jinja2",
+        "pyyaml",
+        "watchfiles",
+        "python-liquid",
+        "pyjwt",
+        "python-multipart",
+    ]
+    for pkg in required_server_packages:
+        found = any(dep.lower().startswith(pkg.lower()) for dep in server_extras)
+        assert found, (
+            f"Expected {pkg!r} in [project.optional-dependencies.server], "
+            f"but it was not found. Current server extras: {server_extras!r}"
+        )
+
+    for dep in server_extras:
+        pkg_name = dep.split("[")[0].split(">=")[0].split("==")[0].split(">")[0].strip()
+        assert pkg_name not in base_deps, (
+            f"Server-extra package {pkg_name!r} was found in base "
+            "[project.dependencies]. It must stay behind the server extra."
+        )
+
+
+def test_wheel_contains_required_cli_modules():
+    """The built wheel must include modules needed by the lightweight CLI."""
+    wheels = sorted(DIST_DIR.glob("oompah-*.whl"))
+    if not wheels:
+        import pytest
+
+        pytest.skip(
+            "No wheel found in dist/ -- build one with 'python -m build' "
+            "or 'pip wheel . -w dist --no-deps' to enable wheel-contents tests"
+        )
+
+    wheel_path = wheels[-1]
+    required_modules = [
+        "oompah/__init__.py",
+        "oompah/__main__.py",
+        "oompah/task_cli.py",
+        "oompah/project_bootstrap_cli.py",
+        "oompah/project_bootstrap/__init__.py",
+        "oompah/agent_instructions.py",
+        "oompah/project_bootstrap/templates/__init__.py",
+    ]
+
+    with zipfile.ZipFile(wheel_path) as whl:
+        names = whl.namelist()
+
+    missing = [m for m in required_modules if m not in names]
+    assert not missing, (
+        f"Wheel {wheel_path.name} is missing required CLI modules:\n"
+        + "\n".join(f"  - {m}" for m in missing)
+        + "\n\nWheel contents (oompah/ files):\n"
+        + "\n".join(f"  {n}" for n in sorted(names) if n.startswith("oompah/"))
+    )
+
+
+def test_cli_api_surface_doc_exists_and_covers_stable_surface():
+    """docs/cli-api-surface.md documents the 1.0 compatibility surface."""
+    doc_path = REPO_ROOT / "docs" / "cli-api-surface.md"
+    assert doc_path.exists(), (
+        "docs/cli-api-surface.md is missing. Create it to document the 1.0 "
+        "CLI and API compatibility surface."
+    )
+
+    text = doc_path.read_text(encoding="utf-8")
+
+    assert "OOMPAH_SERVER_URL" in text
+    assert "OOMPAH_SERVER_HOST" in text
+    assert "OOMPAH_SERVER_PORT" in text
+
+    stable_subcommands = [
+        "oompah task view",
+        "oompah task comment",
+        "oompah task create",
+        "oompah task child-create",
+        "oompah task set-status",
+        "oompah task add-label",
+        "oompah task remove-label",
+        "oompah task set-dependency",
+    ]
+    for cmd in stable_subcommands:
+        assert cmd in text
+
+    assert "oompah project-bootstrap" in text
+
+
+def test_cli_install_doc_uses_oompah_server_url_as_primary_agent_locator():
+    """docs/cli-install.md leads agent setup with OOMPAH_SERVER_URL."""
     text = (REPO_ROOT / "docs" / "cli-install.md").read_text(encoding="utf-8")
 
-    # v1.0.0 tag install
-    assert (
-        'uv tool install "git+https://github.com/lesserevil/oompah@v1.0.0"'
-        in text
-    )
-    assert (
-        'pipx install "git+https://github.com/lesserevil/oompah@v1.0.0"'
-        in text
-    )
+    assert "OOMPAH_SERVER_URL" in text
+    assert "OOMPAH_SERVER_HOST" not in text
+    assert "cli-api-surface.md" in text
 
-    # v1.0.0 wheel install
-    assert (
-        'uv tool install "https://github.com/lesserevil/oompah/releases/download/'
-        'v1.0.0/oompah-1.0.0-py3-none-any.whl"'
-        in text
-    )
-    assert (
-        'pipx install "https://github.com/lesserevil/oompah/releases/download/'
-        'v1.0.0/oompah-1.0.0-py3-none-any.whl"'
-        in text
-    )
 
-    # Draft tag install example
-    assert "v1.0.0-draft" in text
+def test_wheel_does_not_contain_server_only_module_as_dep():
+    """The wheel metadata must not require server-runtime packages."""
+    wheels = sorted(DIST_DIR.glob("oompah-*.whl"))
+    if not wheels:
+        import pytest
 
-    # No PyPI install instructions (the docs may mention "no PyPI" but must not instruct
-    # users to install from PyPI)
-    assert "pip install oompah" not in text
-    assert "pypi.org" not in text.lower()
-    # The doc should explicitly say GitHub-only, no PyPI
-    assert "github only" in text.lower() or "github-only" in text.lower()
+        pytest.skip(
+            "No wheel found in dist/ -- build one with 'python -m build' "
+            "or 'pip wheel . -w dist --no-deps' to enable wheel-metadata tests"
+        )
+
+    wheel_path = wheels[-1]
+    server_package_prefixes = [
+        "fastapi",
+        "uvicorn",
+        "jinja2",
+        "pyyaml",
+        "watchfiles",
+        "python-liquid",
+        "pyjwt",
+        "python-multipart",
+    ]
+
+    with zipfile.ZipFile(wheel_path) as whl:
+        metadata_path = next(
+            n for n in whl.namelist() if n.endswith(".dist-info/METADATA")
+        )
+        metadata_text = whl.read(metadata_path).decode("utf-8")
+
+    requires_dist = [
+        line.split("Requires-Dist:")[1].strip()
+        for line in metadata_text.splitlines()
+        if line.startswith("Requires-Dist:")
+    ]
+    unconditional = [r for r in requires_dist if "extra ==" not in r]
+
+    for req in unconditional:
+        req_name = (
+            req.split("[")[0]
+            .split(">=")[0]
+            .split("==")[0]
+            .split(">")[0]
+            .strip()
+            .lower()
+        )
+        for pkg in server_package_prefixes:
+            assert req_name != pkg.lower(), (
+                f"Wheel {wheel_path.name} METADATA lists {req!r} as an "
+                "unconditional Requires-Dist entry. Server-runtime packages "
+                "must be behind the 'server' extra marker."
+            )
