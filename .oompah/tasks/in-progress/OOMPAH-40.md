@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T15:52:21.314203Z'
+updated_at: '2026-06-22T16:00:07.742596Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,5 +118,10 @@ author: oompah
 created: 2026-06-22 15:52
 ---
 UNDERSTANDING: E3 task confirmed not a duplicate. OOMPAH-39 (E2) applied Epic A workstream changes to release/1.0 as commit 21033827 (scripts/render_cli_release_notes.py draft tag support, updated test suite, docs/cli-api-surface.md new file, updated docs/cli-release.md, docs/cli-install.md, plans/oompah-1.0-release.md). These changes do NOT exist on main. Plan: cherry-pick commit 21033827 from release/1.0 onto main via this branch, run tests, push. Current worktree is on epic-OOMPAH-37 (behind origin/main by 27 commits). Will pull to update then cherry-pick.
+---
+author: oompah
+created: 2026-06-22 16:00
+---
+DISCOVERY: Two issues found after cherry-picking commit 21033827 onto main.\n\n1. test_pyproject_version_is_1_0_0 FAILS: main still has version 0.1.0; need to also cherry-pick the version bump commit (d6faeace).\n\n2. test_orchestrator_webhook_health.py::TestFetchAllReviewsSkipsHealthy (2 failures): Pre-existing bug on both main and release/1.0. _fetch_all_reviews() only skips healthy projects when they have warm cache entries. Tests expect healthy projects to ALWAYS be skipped (never call provider), returning [] if no cache. Fix: change condition from 'is_webhook_healthy AND warm_cache' to 'is_webhook_healthy' only.
 ---
 <!-- COMMENTS:END -->
