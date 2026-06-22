@@ -12,7 +12,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:56.553408Z'
-updated_at: '2026-06-22T01:56:07.161804Z'
+updated_at: '2026-06-22T01:56:17.147252Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,5 +55,10 @@ author: oompah
 created: 2026-06-22 01:56
 ---
 UNDERSTANDING: Confirmed NOT a duplicate. OOMPAH-19 is a distinct child of epic OOMPAH-17 with specific scope: modify the release validation logic in scripts/render_cli_release_notes.py to explicitly accept v1.0.0-draft as a valid draft release tag (when project.version == 1.0.0), while preserving strict rejection of mismatched final tags. OOMPAH-18 (sibling task, now done) updated docs/tests/workflow examples but did NOT modify the validation logic itself. The key function is validate_tag_matches_version which currently only accepts exact match v{version}. Plan: (1) add is_draft_release_tag helper, (2) update validate_tag_matches_version to accept explicit draft form, (3) add tests for both v1.0.0-draft and v1.0.0 paths.
+---
+author: oompah
+created: 2026-06-22 01:56
+---
+DISCOVERY: Key code is in scripts/render_cli_release_notes.py — validate_tag_matches_version(tag, version) only accepts tag == f'v{version}'. For v1.0.0-draft with project.version=1.0.0 it raises ValueError. Also need to add test coverage in tests/test_cli_release_packaging.py. Existing test test_release_notes_renderer_rejects_version_mismatched_tag checks 'expected v1.2.3' is in the error string — this will still pass after change since the new message includes that substring. No workflow file changes needed (PAT scope restriction from OOMPAH-18 still applies). Branch: epic-OOMPAH-17.
 ---
 <!-- COMMENTS:END -->
