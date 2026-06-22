@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T16:15:33.493526Z'
+updated_at: '2026-06-22T16:18:21.374955Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-06-22 16:15
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 16:18
+---
+UNDERSTANDING (Run #3): Previous agents applied all fixes to release/1.0 (commit 4dd36017) but terminated before syncing to main. Main still has version 0.1.0, no draft tag support, and the pre-existing webhook health bug. Need to: (1) create OOMPAH-40 branch from origin/main, (2) cherry-pick d6faeace (version bump), 21033827 (workstream A: is_draft_release_tag, docs), and 4dd36017 (webhook health fix), (3) run tests, (4) push and close.
 ---
 <!-- COMMENTS:END -->
