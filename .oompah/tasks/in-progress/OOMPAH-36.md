@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:28.394571Z'
-updated_at: '2026-06-22T14:32:20.848028Z'
+updated_at: '2026-06-22T14:37:02.585081Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-06-22 14:32
 ---
 Understanding: OOMPAH-36 is NOT a duplicate — no other task covers removing stale beads/Backlog.md instructions from docs and templates. OOMPAH-35 (Done) covered writing the onboarding checklist; this task is about cleaning up stale instructions. Investigation found: (1) bootstrap templates (oompah/project_bootstrap/templates/__init__.py) are already clean; (2) agent_instructions.py templates are clean; (3) user-facing docs in docs/ are clean; (4) plans/oompah-1.0-release.md references them correctly as historical/deprecated; (5) .gitignore/.gitattributes have infrastructure entries for .beads/ backward compat, with comments that reference 'bd init'/'bd bootstrap' but in explanatory context. The .gitattributes comment is outdated: it says oompah/projects.py calls _install_beads_merge_driver() but that function no longer exists. Plan: update .gitignore and .gitattributes comments to be clearly historical migration notes so all searches satisfy the HOW TO VERIFY criteria.
+---
+author: oompah
+created: 2026-06-22 14:37
+---
+Discovery: Confirmed this is NOT a duplicate. Investigation summary: (1) bootstrap templates (oompah/project_bootstrap/templates/__init__.py) were already clean — no beads/Backlog.md references; (2) agent_instructions.py templates were already clean; (3) all docs in docs/ were clean; (4) plans/oompah-1.0-release.md correctly labels them as historical/deprecated; (5) .gitignore had operational beads comments referencing 'bd init' and 'bd bootstrap' that appeared instructional; (6) .gitattributes had incorrect docs claiming _install_beads_merge_driver() was auto-called (that function no longer exists). Changes needed: update .gitignore and .gitattributes comments to be clearly historical migration notes.
 ---
 <!-- COMMENTS:END -->
