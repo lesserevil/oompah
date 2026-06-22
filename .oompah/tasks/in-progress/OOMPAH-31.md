@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-31
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Validate project bootstrap flows across managed projects
 parent: OOMPAH-27
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:08.467848Z'
-updated_at: '2026-06-22T01:49:49.687891Z'
+updated_at: '2026-06-22T14:07:39.871667Z'
 work_branch: null
 target_branch: null
 review_url: null
