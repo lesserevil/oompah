@@ -185,3 +185,88 @@ def test_release_workflow_accepts_any_version_tag():
 
     # The v* wildcard must cover both v1.0.0-draft and v1.0.0
     assert "v*" in triggers["push"]["tags"]
+
+
+# ---------------------------------------------------------------------------
+# Draft release tag validation (OOMPAH-19)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_tag_final_form_accepted():
+    """v1.0.0 is accepted as the immutable final release tag for version 1.0.0."""
+    module = _load_release_notes_module()
+    # Must not raise
+    module.validate_tag_matches_version("v1.0.0", "1.0.0")
+
+
+def test_validate_tag_draft_form_accepted():
+    """v1.0.0-draft is accepted as the force-movable draft tag for version 1.0.0."""
+    module = _load_release_notes_module()
+    # Must not raise
+    module.validate_tag_matches_version("v1.0.0-draft", "1.0.0")
+
+
+def test_validate_tag_rejects_mismatched_final_tag():
+    """Final release validation still rejects a tag that does not match project.version."""
+    module = _load_release_notes_module()
+    try:
+        module.validate_tag_matches_version("v1.0.1", "1.0.0")
+    except ValueError as exc:
+        assert "expected 'v1.0.0'" in str(exc)
+    else:
+        raise AssertionError("mismatched final tag was accepted")
+
+
+def test_validate_tag_rejects_wrong_version_draft_tag():
+    """Draft validation is explicit — only v{version}-draft, not any other version's draft."""
+    module = _load_release_notes_module()
+    try:
+        module.validate_tag_matches_version("v2.0.0-draft", "1.0.0")
+    except ValueError as exc:
+        assert "expected 'v1.0.0'" in str(exc)
+    else:
+        raise AssertionError("wrong-version draft tag was accepted")
+
+
+def test_is_draft_release_tag_true_for_draft_form():
+    """is_draft_release_tag returns True for the explicit v{version}-draft form."""
+    module = _load_release_notes_module()
+    assert module.is_draft_release_tag("v1.0.0-draft", "1.0.0") is True
+
+
+def test_is_draft_release_tag_false_for_final_form():
+    """is_draft_release_tag returns False for the exact final release tag."""
+    module = _load_release_notes_module()
+    assert module.is_draft_release_tag("v1.0.0", "1.0.0") is False
+
+
+def test_is_draft_release_tag_false_for_other_prerelease():
+    """is_draft_release_tag rejects arbitrary pre-release suffixes (e.g. -rc1)."""
+    module = _load_release_notes_module()
+    assert module.is_draft_release_tag("v1.0.0-rc1", "1.0.0") is False
+
+
+def test_render_notes_for_dist_accepts_draft_tag(tmp_path):
+    """render_release_notes_for_dist succeeds when the tag is the draft form."""
+    module = _load_release_notes_module()
+    pyproject = tmp_path / "pyproject.toml"
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    pyproject.write_text(
+        '[project]\nname = "oompah"\nversion = "1.0.0"\n',
+        encoding="utf-8",
+    )
+    (dist / "oompah-1.0.0-py3-none-any.whl").write_text("", encoding="utf-8")
+    (dist / "oompah-1.0.0.tar.gz").write_text("", encoding="utf-8")
+
+    notes = module.render_release_notes_for_dist(
+        tag="v1.0.0-draft",
+        pyproject_path=pyproject,
+        dist_dir=dist,
+    )
+
+    # Draft tag appears in install commands
+    assert "v1.0.0-draft" in notes
+    # Artifacts are still the 1.0.0 wheel and sdist (built from project.version)
+    assert "oompah-1.0.0-py3-none-any.whl" in notes
+    assert "oompah-1.0.0.tar.gz" in notes
