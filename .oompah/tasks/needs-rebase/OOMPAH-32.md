@@ -17,7 +17,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-06-22T01:17:10.735548Z'
-updated_at: '2026-06-22T14:58:56.346912Z'
+updated_at: '2026-06-22T14:58:58.684300Z'
 work_branch: epic-OOMPAH-32
 target_branch: main
 review_url: null
@@ -46,6 +46,28 @@ Docs describe the current native tracker, GitHub-only release, service operation
 <!-- COMMENTS:BEGIN -->
 author: oompah
 created: 2026-06-22 14:57
+---
+Review reconciliation reopened this task because it was marked In Review but no open review artifact exists.
+
+No PR/MR for this branch was found.
+Branch: `epic-OOMPAH-32`
+Target branch: `main`
+Unmerged commits: 265 commits
+  45e07c5c OOMPAH-36: Mark stale beads/bd references as historical in .gitignore and .gitattributes
+  89473ee0 Comment on oompah task OOMPAH-36
+  a858a72d Comment on oompah task OOMPAH-27
+  96176e29 Comment on oompah task OOMPAH-52
+  efda52ac Comment on oompah task OOMPAH-52
+  7c40d817 Comment on oompah task OOMPAH-52
+  fce91d6d Update metadata for oompah task OOMPAH-52
+  fe047c6b Update oompah task OOMPAH-52
+  887152a6 Update oompah task OOMPAH-52
+  9d38ae79 Update oompah task OOMPAH-27
+
+Required: restore or recreate the PR/MR for this branch, then move the task back to In Review after the review exists.
+---
+author: oompah
+created: 2026-06-22 14:58
 ---
 Review reconciliation reopened this task because it was marked In Review but no open review artifact exists.
 
