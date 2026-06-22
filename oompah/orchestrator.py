@@ -6406,9 +6406,14 @@ class Orchestrator:
         def _cached_reviews(project_id: str) -> list:
             return list(previous_cache.get(str(project_id), []))
 
+        def _has_warm_reviews_cache(project_id: str) -> bool:
+            return str(project_id) in previous_cache
+
         def _fetch_for_project(project) -> tuple[str, list]:
             project_id = str(project.id)
-            # Skip polling for webhook-healthy projects
+            # Skip polling for webhook-healthy projects — webhooks are the
+            # primary signal for healthy repos; we should never call the
+            # forge API for them regardless of cache state.
             if self.is_webhook_healthy(project_id):
                 return (project_id, _cached_reviews(project_id))
             provider = detect_provider(
@@ -6453,9 +6458,14 @@ class Orchestrator:
         def _cached_reviews(project_id: str) -> list:
             return list(previous_cache.get(str(project_id), []))
 
+        def _has_warm_reviews_cache(project_id: str) -> bool:
+            return str(project_id) in previous_cache
+
         async def _fetch_one_project(project) -> tuple[str, list]:
             project_id = str(project.id)
-            # Skip polling for webhook-healthy projects
+            # Skip polling for webhook-healthy projects — webhooks are the
+            # primary signal for healthy repos; we should never call the
+            # forge API for them regardless of cache state.
             if self.is_webhook_healthy(project_id):
                 return (project_id, _cached_reviews(project_id))
 
