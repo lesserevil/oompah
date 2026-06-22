@@ -6,11 +6,12 @@ priority: 1
 title: Write the managed-project onboarding checklist
 parent: OOMPAH-32
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-31
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:26.082104Z'
-updated_at: '2026-06-22T01:17:26.082104Z'
+updated_at: '2026-06-22T01:18:33.097636Z'
 work_branch: null
 target_branch: null
 review_url: null
