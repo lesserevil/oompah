@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:15.169120Z'
-updated_at: '2026-06-22T03:02:36.921394Z'
+updated_at: '2026-06-22T03:02:39.182254Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-06-22 03:02
 ---
 COMPLETION: Delivered v1.0.0 install and release doc refresh. docs/cli-release.md now documents the 1.0 release train (release/1.0 branch, v1.0.0-draft force-movable draft tag, v1.0.0 immutable final tag) with draft and final release procedures; all examples use v1.0.0. docs/cli-install.md examples updated to v1.0.0, v1.0.0-draft example added; GitHub-only / no PyPI statement was already present. tests/test_cli_release_packaging.py updated to assert v1.0.0 examples and 2 new tests added. All 8 tests pass. Branch pushed: epic-OOMPAH-32.
+---
+author: oompah
+created: 2026-06-22 03:02
+---
+Refreshed install and release docs for v1.0.0: updated examples from v0.1.0 to v1.0.0, added 1.0 release train section (release/1.0, v1.0.0-draft, v1.0.0), v1.0.0-draft install example added, tests updated and passing.
 ---
 <!-- COMMENTS:END -->
