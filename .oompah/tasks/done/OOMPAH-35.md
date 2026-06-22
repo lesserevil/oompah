@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:26.082104Z'
-updated_at: '2026-06-22T14:25:32.351189Z'
+updated_at: '2026-06-22T14:25:40.230377Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,5 +76,15 @@ author: oompah
 created: 2026-06-22 14:25
 ---
 Created docs/managed-project-onboarding.md: the full managed-project onboarding checklist for 1.0, covering prerequisites, project registration (paused), native tracker expectations, optional GitHub Issues intake, project bootstrap and AGENTS.md update, and initial paused-project review before unpause. Satisfies Epic D3.
+---
+author: oompah
+created: 2026-06-22 14:25
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 50
+- Tokens: 83 in / 2.3K out [2.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 43s
+- Log: OOMPAH-35__20260622T142100Z.jsonl
 ---
 <!-- COMMENTS:END -->
