@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:50.933134Z'
-updated_at: '2026-06-22T17:24:36.671525Z'
+updated_at: '2026-06-22T17:24:38.946670Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Post-release verification results are recorded on this task, including any follo
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 17:24
+---
+Agent dispatched (profile: default)
+---
+<!-- COMMENTS:END -->
