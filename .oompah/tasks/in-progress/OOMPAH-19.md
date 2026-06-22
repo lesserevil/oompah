@@ -12,7 +12,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:56.553408Z'
-updated_at: '2026-06-22T01:53:44.298630Z'
+updated_at: '2026-06-22T01:56:07.161804Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,5 +50,10 @@ author: oompah
 created: 2026-06-22 01:53
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 01:56
+---
+UNDERSTANDING: Confirmed NOT a duplicate. OOMPAH-19 is a distinct child of epic OOMPAH-17 with specific scope: modify the release validation logic in scripts/render_cli_release_notes.py to explicitly accept v1.0.0-draft as a valid draft release tag (when project.version == 1.0.0), while preserving strict rejection of mismatched final tags. OOMPAH-18 (sibling task, now done) updated docs/tests/workflow examples but did NOT modify the validation logic itself. The key function is validate_tag_matches_version which currently only accepts exact match v{version}. Plan: (1) add is_draft_release_tag helper, (2) update validate_tag_matches_version to accept explicit draft form, (3) add tests for both v1.0.0-draft and v1.0.0 paths.
 ---
 <!-- COMMENTS:END -->
