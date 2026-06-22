@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:57.697390Z'
-updated_at: '2026-06-22T02:03:57.618794Z'
+updated_at: '2026-06-22T02:03:59.879944Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,5 +76,10 @@ author: oompah
 created: 2026-06-22 02:03
 ---
 Completion: GitHub Issues intake reconciliation audit complete for OOMPAH-29.\n\nFINDINGS SUMMARY:\n1. All three reconciliation cases are correctly implemented in github_intake_bridge.py — no production code bugs found.\n2. Open external issue → creates Proposed internal task (both polling and webhook paths).\n3. Closed external issue → archives non-terminal internal task; terminal tasks (Merged, Archived) are never re-archived.\n4. Reopened external issue → moves Archived task back to Proposed; if no prior import, runs intake flow and creates new Proposed task.\n\nWHAT WAS ADDED:\nAdded 4 new tests to tests/test_github_intake_bridge.py (35 tests total, all pass):\n- test_reopened_github_webhook_moves_existing_archived_task_to_proposed (case 3, webhook path)\n- test_reopened_github_webhook_creates_task_when_not_previously_imported (case 3, no-prior-import)\n- test_closed_external_issue_without_native_task_creates_nothing (case 2 edge case)\n- test_closed_github_issue_is_idempotent_on_already_archived_native_task (case 2 idempotency)\n\nAll 7105 tests in the full suite pass. Branch epic-OOMPAH-27 pushed.
+---
+author: oompah
+created: 2026-06-22 02:03
+---
+Audited GitHub Issues intake reconciliation for open, closed, and reopened external issues. All three cases correctly implemented. Added 4 tests to cover webhook reopened path, closed-with-no-existing-task, and closed-idempotency gaps. 35 tests pass, full suite 7105 passed.
 ---
 <!-- COMMENTS:END -->
