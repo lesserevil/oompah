@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:55.337471Z'
-updated_at: '2026-06-22T01:40:59.682563Z'
+updated_at: '2026-06-22T01:52:13.566913Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,5 +67,19 @@ Discovery: Completed the audit of native tracker state transitions. Key findings
 5. No guard prevents re-transitioning from terminal states (Done/Merged/Archived) back to non-terminal states in the native tracker — this is intentional (to allow un-archiving) but should be tested.
 
 Fix: Adding comprehensive status transition tests to test_oompah_md_tracker.py.
+---
+author: oompah
+created: 2026-06-22 01:52
+---
+Implementation: Added 62 new tests to tests/test_oompah_md_tracker.py covering the complete native tracker status transition matrix:
+
+- TestOompahMarkdownTrackerAllStatusDirectories: Parametrized over all 14 canonical statuses. Tests initial creation, update-and-move, and read-back for every status → directory mapping.
+- TestOompahMarkdownTrackerFullLifecycle: Proposed → Backlog → Open → In Progress → In Review → Merged end-to-end; archive-from-any-state; terminal state re-transition.
+- TestOompahMarkdownTrackerProposedStatus: Proposed tasks excluded from dispatch, visible in fetch_all/fetch_by_states.
+- TestOompahMarkdownTrackerDecomposedAndDuplicateStatuses: Decomposed and Duplicate Candidate excluded from dispatch.
+- TestOompahMarkdownTrackerWaitingStatuses: Needs Answer (awaiting requestor) and Needs Human (awaiting owner) directory, dispatch exclusion, mark_needs_human, and re-transition back to In Progress/Open.
+- TestOompahMarkdownTrackerReviewPipelineStatuses: In Review, Needs CI Fix, Needs Rebase directory, and full review pipeline walk-through.
+
+All 77 tests in the file pass (15 pre-existing + 62 new).
 ---
 <!-- COMMENTS:END -->
