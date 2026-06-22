@@ -11,7 +11,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:52.001843Z'
-updated_at: '2026-06-22T01:53:19.760306Z'
+updated_at: '2026-06-22T01:53:21.925233Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,5 +77,10 @@ author: oompah
 created: 2026-06-22 01:53
 ---
 COMPLETION: Delivered 1.0 convention updates across docs and tests. docs/cli-release.md now documents the 1.0 release train (release/1.0 branch, v1.0.0-draft draft tag, v1.0.0 final tag) with draft and final release procedures; all examples use v1.0.0. docs/cli-install.md examples updated to v1.0.0. tests/test_cli_release_packaging.py updated to assert 1.0 examples and two new tests added. Minor follow-up OOMPAH-43 filed for the workflow dispatch description update that requires maintainer workflow scope.
+---
+author: oompah
+created: 2026-06-22 01:53
+---
+Updated docs/cli-release.md (1.0 release train section + v1.0.0 examples), docs/cli-install.md (v1.0.0 examples), and tests/test_cli_release_packaging.py (v1.0.0 assertions + 2 new tests for draft/final tag convention). All 8 cli_release tests pass. Follow-up OOMPAH-43 filed for workflow dispatch description (requires maintainer with workflow scope).
 ---
 <!-- COMMENTS:END -->
