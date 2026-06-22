@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T14:20:20.212899Z'
-updated_at: '2026-06-22T14:36:29.050808Z'
+updated_at: '2026-06-22T14:47:41.074956Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-06-22 14:36
 ---
 Discovery: OOMPAH-52 is NOT a duplicate — it was explicitly filed by the OOMPAH-31 agent as a follow-up after discovering the stale binary issue during validation. No other task covers documenting the reinstall requirement for operators. The work is: (1) add an 'Upgrading from pre-1.0 installs' section to docs/cli-install.md covering the project-bootstrap reinstall requirement, and (2) add a note to the release notes section of docs/cli-release.md. There is no operator runbook doc yet (D2 from oompah-1.0-release.md), so I'll focus on the install/release docs where an upgrade notice belongs.
+---
+author: oompah
+created: 2026-06-22 14:47
+---
+Implementation plan: (1) Add 'Upgrading an existing install' section to docs/cli-install.md — explains that pre-project-bootstrap installs need 'uv tool upgrade oompah' or '--reinstall'. (2) Add upgrade notice to scripts/render_cli_release_notes.py so the 1.0 release notes include the reinstall call-out. (3) Add note in docs/cli-release.md that release notes should call out reinstall requirements for major feature additions. (4) Add test in test_cli_release_packaging.py that verifies the upgrade section appears in generated release notes.
 ---
 <!-- COMMENTS:END -->
