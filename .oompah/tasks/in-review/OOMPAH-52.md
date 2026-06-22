@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-52
 type: task
-status: Done
+status: In Review
 priority: null
 title: Update oompah uv-tool install to include project-bootstrap support
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T14:20:20.212899Z'
-updated_at: '2026-06-22T14:51:24.687811Z'
+updated_at: '2026-06-22T14:51:58.165105Z'
 work_branch: null
 target_branch: null
 review_url: null
