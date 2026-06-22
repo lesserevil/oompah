@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:15.169120Z'
-updated_at: '2026-06-22T03:02:13.755191Z'
+updated_at: '2026-06-22T03:02:31.181643Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-06-22 03:02
 ---
 VERIFICATION: All 8 tests in tests/test_cli_release_packaging.py pass (8 passed, 0 failed). New tests test_release_docs_describe_draft_and_final_tag_convention and test_install_docs_cover_tag_and_wheel_installs_for_v1 both pass.
+---
+author: oompah
+created: 2026-06-22 03:02
+---
+COMPLETION: Delivered v1.0.0 install and release doc refresh. docs/cli-release.md now documents the 1.0 release train (release/1.0 branch, v1.0.0-draft force-movable draft tag, v1.0.0 immutable final tag) with draft and final release procedures; all examples use v1.0.0. docs/cli-install.md examples updated to v1.0.0, v1.0.0-draft example added; GitHub-only / no PyPI statement was already present. tests/test_cli_release_packaging.py updated to assert v1.0.0 examples and 2 new tests added. All 8 tests pass. Branch pushed: epic-OOMPAH-32.
 ---
 <!-- COMMENTS:END -->
