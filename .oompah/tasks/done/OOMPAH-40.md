@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T16:26:19.464330Z'
+updated_at: '2026-06-22T16:26:21.785023Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -174,5 +174,10 @@ author: oompah
 created: 2026-06-22 16:26
 ---
 COMPLETION: Synced all draft-release fixes from release/1.0 to main via branch OOMPAH-40.\n\n1. Version bump (d6faeace): pyproject.toml bumped 0.1.0 -> 1.0.0\n2. Workstream A changes (21033827): is_draft_release_tag() + draft tag validation, docs/cli-api-surface.md, updated cli-install.md/cli-release.md, plans/oompah-1.0-release.md, test updates\n3. Webhook health fix (4dd36017): orchestrator _fetch_all_reviews/_fetch_all_reviews_bounded now always skip healthy projects regardless of cache state; test updated\n4. Test cleanup: removed test_in_review_epic_with_new_open_child_rolls_back_to_in_progress which tested behavior intentionally prevented by the rollup guard (aligned with release/1.0 which also removed this test)\n\nAll 7137 tests pass. Branch pushed to origin/OOMPAH-40.
+---
+author: oompah
+created: 2026-06-22 16:26
+---
+Synced draft-release fixes to main: version bump 0.1.0->1.0.0, is_draft_release_tag support, webhook health bug fix, stale rollup test removal. All 7137 tests pass. Branch OOMPAH-40 pushed.
 ---
 <!-- COMMENTS:END -->
