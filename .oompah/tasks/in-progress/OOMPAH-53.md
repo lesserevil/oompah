@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T15:30:30.201826Z'
-updated_at: '2026-06-22T15:34:06.451643Z'
+updated_at: '2026-06-22T15:34:08.663327Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,5 +108,10 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 36s
 - Log: OOMPAH-53__20260622T153220Z.jsonl
+---
+author: oompah
+created: 2026-06-22 15:34
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
