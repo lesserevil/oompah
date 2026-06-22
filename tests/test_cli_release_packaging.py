@@ -300,6 +300,92 @@ def test_wheel_contains_required_cli_modules():
     )
 
 
+def test_cli_api_surface_doc_exists_and_covers_stable_surface():
+    """docs/cli-api-surface.md must exist and document the 1.0 compatibility surface.
+
+    Verifies that:
+    - The document exists at the expected path.
+    - OOMPAH_SERVER_URL is identified as the canonical server locator.
+    - OOMPAH_SERVER_HOST and OOMPAH_SERVER_PORT are called out as unsupported
+      client-side locators.
+    - All stable oompah task subcommands used in AGENTS.md templates are listed.
+    - oompah project-bootstrap is documented as a stable top-level command.
+    """
+    doc_path = REPO_ROOT / "docs" / "cli-api-surface.md"
+    assert doc_path.exists(), (
+        "docs/cli-api-surface.md is missing.  "
+        "Create it to document the 1.0 CLI and API compatibility surface."
+    )
+
+    text = doc_path.read_text(encoding="utf-8")
+
+    # OOMPAH_SERVER_URL must be the canonical server locator
+    assert "OOMPAH_SERVER_URL" in text, (
+        "docs/cli-api-surface.md must document OOMPAH_SERVER_URL as the "
+        "canonical server locator."
+    )
+
+    # Deprecated / unsupported client-side variables must be called out
+    assert "OOMPAH_SERVER_HOST" in text, (
+        "docs/cli-api-surface.md must mention OOMPAH_SERVER_HOST to clarify "
+        "it is not supported."
+    )
+    assert "OOMPAH_SERVER_PORT" in text, (
+        "docs/cli-api-surface.md must mention OOMPAH_SERVER_PORT and clarify "
+        "it is a service variable, not a client-side server locator."
+    )
+
+    # All stable oompah task subcommands expected in AGENTS.md templates
+    stable_subcommands = [
+        "oompah task view",
+        "oompah task comment",
+        "oompah task create",
+        "oompah task child-create",
+        "oompah task set-status",
+        "oompah task add-label",
+        "oompah task remove-label",
+        "oompah task set-dependency",
+    ]
+    for cmd in stable_subcommands:
+        assert cmd in text, (
+            f"docs/cli-api-surface.md must document '{cmd}' as a stable 1.0 "
+            f"command used in managed-project AGENTS.md files."
+        )
+
+    # oompah project-bootstrap must be documented as a stable top-level command
+    assert "oompah project-bootstrap" in text, (
+        "docs/cli-api-surface.md must document 'oompah project-bootstrap' as "
+        "a stable top-level command."
+    )
+
+
+def test_cli_install_doc_uses_oompah_server_url_as_primary_agent_locator():
+    """docs/cli-install.md Agent usage section must lead with OOMPAH_SERVER_URL.
+
+    The install doc must not instruct agents to use OOMPAH_SERVER_HOST or
+    OOMPAH_SERVER_PORT as client-side server locators.
+    """
+    text = (REPO_ROOT / "docs" / "cli-install.md").read_text(encoding="utf-8")
+
+    # OOMPAH_SERVER_URL must appear in the agent usage section
+    assert "OOMPAH_SERVER_URL" in text, (
+        "docs/cli-install.md must document OOMPAH_SERVER_URL in the agent "
+        "usage section."
+    )
+
+    # Must not tell agents to use OOMPAH_SERVER_HOST (unsupported)
+    assert "OOMPAH_SERVER_HOST" not in text, (
+        "docs/cli-install.md must not document OOMPAH_SERVER_HOST — it is "
+        "not a supported client-side server locator."
+    )
+
+    # Must link to the compatibility surface doc
+    assert "cli-api-surface.md" in text, (
+        "docs/cli-install.md must link to docs/cli-api-surface.md for the "
+        "full 1.0 compatibility surface."
+    )
+
+
 def test_wheel_does_not_contain_server_only_module_as_dep():
     """The wheel metadata must not list any server-runtime package as a required dep.
 
