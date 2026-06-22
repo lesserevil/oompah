@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:48.515360Z'
-updated_at: '2026-06-22T02:49:35.796809Z'
+updated_at: '2026-06-22T02:51:49.878257Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-06-22 02:49
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 02:51
+---
+UNDERSTANDING: Not a duplicate. Searched all tasks for overlap (OOMPAH-9 updated AGENTS.md templates for optional CLI use; OOMPAH-18 updated version-number examples; neither creates a dedicated 1.0 CLI/API compatibility surface doc). OOMPAH-33 is blocked by OOMPAH-26, confirming it's distinct work. Plan: create docs/cli-api-surface.md documenting (1) OOMPAH_SERVER_URL as the canonical server locator, (2) the stable oompah task subcommands (view, comment, create, child-create, set-status, add-label, remove-label, set-dependency), (3) oompah project-bootstrap as the other stable top-level command, and (4) what NOT to depend on (no OOMPAH_SERVER_HOST, OOMPAH_SERVER_PORT is the service's own port — not a client-side server locator). Also update docs/cli-install.md 'Agent usage' section to clarify OOMPAH_SERVER_URL is the single stable locator.
 ---
 <!-- COMMENTS:END -->
