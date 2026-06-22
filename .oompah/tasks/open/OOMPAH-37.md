@@ -17,10 +17,11 @@ blocked_by:
 - OOMPAH-22
 - OOMPAH-27
 - OOMPAH-32
-labels: []
+labels:
+- epic:stale
 assignee: null
 created_at: '2026-06-22T01:17:30.687635Z'
-updated_at: '2026-06-22T16:55:21.967129Z'
+updated_at: '2026-06-22T16:55:24.959869Z'
 work_branch: null
 target_branch: null
 review_url: null
