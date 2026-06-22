@@ -3474,9 +3474,12 @@ class Orchestrator:
                 child_states = [child.state for child in children]
 
             rolled = epic_rollup_state(child_states)
+            children_complete_for_review = self._epic_children_complete_for_review_work(
+                children
+            )
             if (
                 has_review_evidence
-                and self._epic_children_complete_for_review_work(children)
+                and children_complete_for_review
                 and current_status not in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
             ):
                 rolled = IN_REVIEW
@@ -3488,6 +3491,7 @@ class Orchestrator:
                     current_status in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
                     and rolled_status
                     and rolled_status != MERGED
+                    and children_complete_for_review
                 )
             ):
                 continue
@@ -4939,6 +4943,15 @@ class Orchestrator:
             # fallback can verify whether an already-pushed remote epic branch
             # has unmerged work to review.
             target_branch = self._resolve_epic_target_branch(issue, project)
+            if not self._ensure_review_target_branch_exists(project, target_branch):
+                logger.warning(
+                    "Deferred epic PR for %s on %s: target branch %s is not "
+                    "available",
+                    issue.identifier,
+                    project.name,
+                    target_branch,
+                )
+                continue
 
             # Push the epic branch from the shared epic worktree (shared
             # mode) or from the project's main repo path (stacked mode —
@@ -5309,6 +5322,134 @@ class Orchestrator:
             if parent_epic is not None:
                 return self._epic_branch_for_issue(parent_epic)
         return project.default_branch
+
+    def _remote_branch_exists(self, repo_path: str, branch: str) -> bool:
+        """Return True when ``origin`` already has ``branch``."""
+        try:
+            result = subprocess.run(
+                ["git", "ls-remote", "--heads", "origin", branch],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except Exception:
+            return False
+        return result.returncode == 0 and bool(result.stdout.strip())
+
+    def _local_ref_exists(self, repo_path: str, ref: str) -> bool:
+        """Return True when ``ref`` resolves to a local commit."""
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"{ref}^{{commit}}",
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except Exception:
+            return False
+        return result.returncode == 0
+
+    def _ensure_review_target_branch_exists(
+        self,
+        project: Any,
+        target_branch: str,
+    ) -> bool:
+        """Ensure a non-default review target branch exists on ``origin``.
+
+        Nested shared epics use the parent epic branch as the child epic PR
+        base. GitHub rejects PR creation with ``base invalid`` when that
+        branch has not been pushed yet, so create the empty parent branch from
+        the default branch before opening the child epic PR.
+        """
+        target_branch = (target_branch or "").strip()
+        if not target_branch:
+            return False
+
+        default_branch = str(
+            getattr(project, "default_branch", None)
+            or getattr(project, "branch", None)
+            or "main"
+        ).strip()
+        if target_branch == default_branch:
+            return True
+
+        repo_path = getattr(project, "repo_path", None)
+        if not repo_path or not os.path.isdir(repo_path):
+            logger.warning(
+                "Cannot ensure review target branch %s: repo path is missing",
+                target_branch,
+            )
+            return False
+
+        if self._remote_branch_exists(repo_path, target_branch):
+            return True
+
+        subprocess.run(
+            ["git", "fetch", "origin", default_branch],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+
+        if self._local_ref_exists(repo_path, f"refs/heads/{target_branch}"):
+            source_ref = f"refs/heads/{target_branch}"
+        elif self._local_ref_exists(repo_path, f"refs/remotes/origin/{default_branch}"):
+            source_ref = f"refs/remotes/origin/{default_branch}"
+        elif self._local_ref_exists(repo_path, f"refs/heads/{default_branch}"):
+            source_ref = f"refs/heads/{default_branch}"
+        else:
+            logger.warning(
+                "Cannot create review target branch %s: no default branch ref "
+                "%s is available",
+                target_branch,
+                default_branch,
+            )
+            return False
+
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "push",
+                    "origin",
+                    f"{source_ref}:refs/heads/{target_branch}",
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to create review target branch %s from %s: %s",
+                target_branch,
+                source_ref,
+                exc,
+            )
+            return False
+
+        if result.returncode != 0:
+            logger.warning(
+                "Failed to create review target branch %s from %s: %s",
+                target_branch,
+                source_ref,
+                result.stderr.strip() or result.stdout.strip(),
+            )
+            return False
+        return True
 
     def _fast_forward_shared_epic_worktree_if_clean(
         self,
@@ -6269,10 +6410,15 @@ class Orchestrator:
         def _cached_reviews(project_id: str) -> list:
             return list(previous_cache.get(str(project_id), []))
 
+        def _has_warm_reviews_cache(project_id: str) -> bool:
+            return str(project_id) in previous_cache
+
         def _fetch_for_project(project) -> tuple[str, list]:
             project_id = str(project.id)
             # Skip polling for webhook-healthy projects
-            if self.is_webhook_healthy(project_id):
+            if self.is_webhook_healthy(project_id) and _has_warm_reviews_cache(
+                project_id
+            ):
                 return (project_id, _cached_reviews(project_id))
             provider = detect_provider(
                 project.repo_url, access_token=project.access_token
@@ -6316,10 +6462,15 @@ class Orchestrator:
         def _cached_reviews(project_id: str) -> list:
             return list(previous_cache.get(str(project_id), []))
 
+        def _has_warm_reviews_cache(project_id: str) -> bool:
+            return str(project_id) in previous_cache
+
         async def _fetch_one_project(project) -> tuple[str, list]:
             project_id = str(project.id)
             # Skip polling for webhook-healthy projects
-            if self.is_webhook_healthy(project_id):
+            if self.is_webhook_healthy(project_id) and _has_warm_reviews_cache(
+                project_id
+            ):
                 return (project_id, _cached_reviews(project_id))
 
             async def _coro() -> list:
@@ -11106,6 +11257,40 @@ class Orchestrator:
         }
         return candidates
 
+    @staticmethod
+    def _is_native_decomposition_tracker_kind(kind: str | None) -> bool:
+        return (kind or "").strip().lower() in {"oompah_md", "oompah.md", "oompah"}
+
+    def _resolved_project_tracker_kind(self, project: object) -> str | None:
+        project_kind = getattr(project, "tracker_kind", None)
+        if isinstance(project_kind, str) and project_kind.strip():
+            return project_kind
+        return getattr(self.config, "tracker_kind", None)
+
+    def _project_allows_native_decomposition(self, project: object) -> bool:
+        return self._is_native_decomposition_tracker_kind(
+            self._resolved_project_tracker_kind(project)
+        )
+
+    def _issue_allows_native_decomposition(
+        self, issue: Issue, project_id: str | None = None
+    ) -> bool:
+        effective_project_id = project_id or issue.project_id
+        if effective_project_id:
+            try:
+                project = self.project_store.get(effective_project_id)
+            except Exception:
+                project = None
+            if project is not None:
+                return self._project_allows_native_decomposition(project)
+
+        tracker_kind = getattr(issue, "tracker_kind", None)
+        if tracker_kind:
+            return self._is_native_decomposition_tracker_kind(tracker_kind)
+        return self._is_native_decomposition_tracker_kind(
+            getattr(self.config, "tracker_kind", None)
+        )
+
     def _fetch_proposed_issues(self) -> list[Issue]:
         """Fetch Proposed issues for intake processing.
 
@@ -11159,6 +11344,7 @@ class Orchestrator:
             "error_count": 0,
         }
         for issue in issues:
+            allow_decomposition = self._issue_allows_native_decomposition(issue)
             tracker = (
                 self._tracker_for_project(issue.project_id)
                 if issue.project_id
@@ -11178,6 +11364,7 @@ class Orchestrator:
                     tracker,
                     issue,
                     auto_promote=auto_promote,
+                    allow_decomposition=allow_decomposition,
                     project=project,
                 )
             except Exception as exc:  # noqa: BLE001
@@ -15690,7 +15877,7 @@ class Orchestrator:
             delay = self._backoff_delay(next_attempt)
 
             # Check if we should decompose instead of retrying
-            if self._should_decompose(entry.issue, next_attempt):
+            if self._should_decompose(entry.issue, next_attempt, project_id=project_id):
                 asyncio.ensure_future(
                     self._trigger_decomposition(
                         issue_id,
@@ -16045,9 +16232,13 @@ class Orchestrator:
     # Auto-decomposition
     # ------------------------------------------------------------------
 
-    def _should_decompose(self, issue: Issue, next_attempt: int) -> bool:
+    def _should_decompose(
+        self, issue: Issue, next_attempt: int, project_id: str | None = None
+    ) -> bool:
         """Check whether an issue should be auto-decomposed instead of retried."""
         if next_attempt < self.config.decompose_after_attempts:
+            return False
+        if not self._issue_allows_native_decomposition(issue, project_id=project_id):
             return False
         if "decomposed" in issue.labels or "no-decompose" in issue.labels:
             return False

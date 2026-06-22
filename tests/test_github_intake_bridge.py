@@ -1106,3 +1106,346 @@ def test_poll_non_auth_error_still_returns_zero_and_does_not_reraise(monkeypatch
 
     assert result == 0
     assert native.issues == {}
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation audit — all three external-issue state changes (OOMPAH-29)
+# ---------------------------------------------------------------------------
+# Expected behavior:
+#   1. Open external issue without an internal task → creates internal Proposed task.
+#   2. Closed external issue archives a non-terminal internal task.
+#   3. Reopened external issue returns the internal task to Proposed and runs
+#      the normal intake flow.
+# Cases 1 and 2 are covered above (polling + webhook paths).  The tests below
+# fill the remaining gaps for case 3 (reopened webhook path) and two
+# idempotency edge cases for case 2.
+# ---------------------------------------------------------------------------
+
+
+def test_reopened_github_webhook_moves_existing_archived_task_to_proposed(monkeypatch):
+    """Webhook issues.reopened on an externally-archived native task moves it to Proposed.
+
+    This is the webhook counterpart of
+    test_reopened_github_issue_moves_externally_archived_task_to_proposed (polling path).
+    Case 3 of the reconciliation spec — verified via the webhook path.
+    """
+    native = FakeNativeTracker()
+    issue = native.create_issue("Imported", initial_status=ARCHIVED)
+    native.set_metadata_field(
+        issue.identifier,
+        "oompah.external.github",
+        {
+            "id": "example-org/app#7",
+            "last_github_state": "closed",
+            "external_closed_at": "2026-06-19T00:00:00+00:00",
+            "last_synced_status": ARCHIVED,
+            "imported_comment_ids": [],
+        },
+    )
+    github = FakeGitHubTracker([_github_issue(description=_valid_description())])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+    event = WebhookEvent(
+        provider="github",
+        event_type="issues",
+        action="reopened",
+        repo_slug="example-org/app",
+        issue_number="7",
+        raw={
+            "issue": {
+                "number": 7,
+                "state": "open",
+                "title": "Report export fails",
+                "body": _valid_description(),
+                "user": {"login": "alice"},
+                "labels": [],
+                "closed_at": None,
+                "html_url": "https://github.com/example-org/app/issues/7",
+            }
+        },
+    )
+
+    handle_github_issue_event_for_native_project(_orch(native), event, _project())
+
+    assert native.issues[issue.identifier].state == PROPOSED
+    assert (issue.identifier, {"status": PROPOSED}) in native.update_calls
+    metadata = native.metadata[issue.identifier]["oompah.external.github"]
+    assert metadata["last_github_state"] == "open"
+    assert metadata["last_synced_status"] == PROPOSED
+    assert "external_reopened_at" in metadata
+
+
+def test_reopened_github_webhook_creates_task_when_not_previously_imported(monkeypatch):
+    """Webhook issues.reopened creates a new native task when no prior import exists.
+
+    Simulates: issue was closed before passing intake (so no native task was ever
+    created), then the issue is reopened.  The normal intake flow runs and creates
+    a Proposed task when the issue now passes validation.
+    Case 3 of the reconciliation spec — no-existing-task branch.
+    """
+    native = FakeNativeTracker()
+    github = FakeGitHubTracker([_github_issue(description=_valid_description())])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+    event = WebhookEvent(
+        provider="github",
+        event_type="issues",
+        action="reopened",
+        repo_slug="example-org/app",
+        issue_number="7",
+        raw={
+            "issue": {
+                "number": 7,
+                "state": "open",
+                "title": "Report export fails",
+                "body": _valid_description(),
+                "user": {"login": "alice"},
+                "labels": [],
+                "closed_at": None,
+                "html_url": "https://github.com/example-org/app/issues/7",
+            }
+        },
+    )
+
+    handle_github_issue_event_for_native_project(_orch(native), event, _project())
+
+    assert len(native.issues) == 1
+    task = next(iter(native.issues.values()))
+    assert task.state == PROPOSED
+    assert "external:github" in task.labels
+
+
+def test_closed_external_issue_without_native_task_creates_nothing(monkeypatch):
+    """Polling a closed GitHub issue with no existing native task must not create one.
+
+    Verifies that close reconciliation is a no-op when there is nothing to archive.
+    Case 2 edge case: closed issue, no prior import.
+    """
+    native = FakeNativeTracker()
+    github = FakeGitHubTracker(
+        [
+            _github_issue(
+                state="closed",
+                closed_at=datetime(2026, 6, 19, tzinfo=timezone.utc),
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+
+    imported = poll_github_issue_intake_project(_orch(native), _project())
+
+    assert imported == 0
+    assert native.issues == {}
+    assert native.update_calls == []
+
+
+def test_closed_github_issue_is_idempotent_on_already_archived_native_task(monkeypatch):
+    """Polling a closed GitHub issue when native task is already Archived does nothing.
+
+    A repeated close event must not trigger an extra update_issue call — ARCHIVED is
+    a terminal state and must not be re-archived.
+    Case 2 edge case: idempotency for already-terminal tasks.
+    """
+    native = FakeNativeTracker()
+    issue = native.create_issue("Imported", initial_status=ARCHIVED)
+    native.set_metadata_field(
+        issue.identifier,
+        "oompah.external.github",
+        {
+            "id": "example-org/app#7",
+            "last_github_state": "closed",
+            "external_closed_at": "2026-06-19T00:00:00+00:00",
+            "last_synced_status": ARCHIVED,
+            "imported_comment_ids": [],
+        },
+    )
+    github = FakeGitHubTracker(
+        [
+            _github_issue(
+                state="closed",
+                closed_at=datetime(2026, 6, 19, tzinfo=timezone.utc),
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+
+    poll_github_issue_intake_project(_orch(native), _project())
+
+    assert native.issues[issue.identifier].state == ARCHIVED
+    # No update_issue call: task is already in a terminal state.
+    assert native.update_calls == []
+
+
+# ---------------------------------------------------------------------------
+# Decomposition boundary validation (OOMPAH-30)
+# ---------------------------------------------------------------------------
+# Confirms that when a large imported GitHub issue is decomposed into native
+# children, the children do NOT get pushed back to GitHub as new issues.
+# This validates that there is no "decomposition bomb" in GitHub Issues.
+#
+# Expected behavior:
+#   1. A large GitHub issue is imported as a single native epic task.
+#   2. The native epic is decomposed into child tasks (in the native tracker).
+#   3. Children have no oompah.external.github metadata.
+#   4. sync_github_issue_intake_statuses_for_project only syncs the epic, not
+#      the children — scanned count equals 1 regardless of child count.
+# ---------------------------------------------------------------------------
+
+
+def test_decomposed_children_are_not_synced_to_github(monkeypatch):
+    """Children created by native decomposition must not be synced back to GitHub.
+
+    The status-sync pass must only process issues that carry oompah.external.github
+    metadata (i.e. the original imported epic).  Decomposed children are pure
+    native tasks and must not appear in GitHub as sub-issues.
+
+    This is the definitive 'no decomposition bomb' guard.
+    """
+    native = FakeNativeTracker()
+
+    # Simulate an imported GitHub issue that was promoted to an epic.
+    epic = native.create_issue("Epic: Report export overhaul", initial_status=PROPOSED)
+    native.set_metadata_field(
+        epic.identifier,
+        "oompah.external.github",
+        {
+            "id": "example-org/app#7",
+            "last_synced_status": PROPOSED,
+            "imported_comment_ids": [],
+        },
+    )
+
+    # Simulate 3 native children created by decomposition — no external metadata.
+    child_a = native.create_issue("Implement export streaming", initial_status=PROPOSED)
+    child_b = native.create_issue("Add pagination for large exports", initial_status=PROPOSED)
+    child_c = native.create_issue("Write regression tests for export path", initial_status=PROPOSED)
+
+    # Verify children have no external metadata (as apply_epic_proposal creates them).
+    for child in [child_a, child_b, child_c]:
+        assert "oompah.external.github" not in native.metadata.get(child.identifier, {})
+
+    github = FakeGitHubTracker([_github_issue()])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+
+    metrics = sync_github_issue_intake_statuses_for_project(_orch(native), _project())
+
+    # Only the epic (with external metadata) should be scanned.
+    assert metrics["scanned"] == 1
+    # No status change → no comments or closures.
+    assert metrics["commented"] == 0
+    assert metrics["closed"] == 0
+    assert metrics["errors"] == 0
+    # The GitHub tracker must not have received any create_issue calls.
+    assert not hasattr(github, "create_calls") or github.create_calls == []
+    # The GitHub tracker must not have received any comments about child tasks.
+    github_comments_about_children = [
+        comment
+        for comment in github.comments
+        if any(
+            child.identifier in comment[1]
+            for child in [child_a, child_b, child_c]
+        )
+    ]
+    assert github_comments_about_children == [], (
+        "Status sync should never mention decomposed native children in GitHub"
+    )
+
+
+def test_native_decomposition_never_uses_github_tracker_for_children(monkeypatch):
+    """When a native project decomposes an imported issue, children go to native tracker only.
+
+    Validates that apply_epic_proposal creates children via the native tracker, never
+    via a GitHub tracker.  A GitHub tracker passed to the function must never receive
+    a create_issue call.
+    """
+    from oompah.epic_proposal import (
+        apply_epic_proposal,
+        ensure_epic_proposal,
+    )
+    from oompah.intake_schema import DecompositionStatus, parse_intake_metadata, intake_to_raw
+
+    # Simulate a native task (imported from GitHub) using the FakeNativeTracker.
+    native = FakeNativeTracker()
+
+    # Build an oversized source issue that will trigger decomposition.
+    source = Issue(
+        id="TASK-100",
+        identifier="TASK-100",
+        title="Overhaul the export pipeline",
+        description="""
+## Problem
+The report export pipeline fails for large datasets, is slow, and lacks proper
+error recovery. Customers are unable to export month-end reports on time.
+
+## Desired Behavior
+The pipeline should handle large datasets efficiently, stream results without
+loading everything into memory, and recover gracefully from partial failures.
+
+## Acceptance Criteria
+- Large exports complete without memory errors
+- Export streaming is implemented and tested
+- Pagination for large result sets is added
+- Regression tests cover the failure paths
+- Error recovery logic is documented and verified
+""".strip(),
+        state=PROPOSED,
+        issue_type="task",
+        labels=["external:github"],
+        tracker_kind="oompah_md",
+    )
+    native.issues[source.identifier] = source
+
+    # Set external GitHub metadata on the source (as if imported from GitHub).
+    native.set_metadata_field(
+        source.identifier,
+        "oompah.external.github",
+        {"id": "example-org/app#99"},
+    )
+
+    # Generate and accept a decomposition proposal.
+    ensured = ensure_epic_proposal(native, source, requestor="alice")
+    assert ensured is not None, "Expected oversized issue to trigger decomposition proposal"
+
+    readiness = parse_intake_metadata(native.metadata[source.identifier]["oompah.intake"])
+    readiness.decomposition_status = DecompositionStatus.ACCEPTED
+    native.set_metadata_field(source.identifier, "oompah.intake", intake_to_raw(readiness))
+
+    # Apply decomposition — children should appear in native tracker only.
+    result = apply_epic_proposal(native, source)
+
+    assert result.skipped_reason is None, f"Apply unexpectedly skipped: {result.skipped_reason}"
+    assert result.created_child_count > 0, "Expected at least one child task to be created"
+
+    child_identifiers = list(result.child_identifiers)
+    assert len(child_identifiers) > 0
+
+    # Children must exist in the native tracker.
+    for child_id in child_identifiers:
+        assert child_id in native.issues, f"Child {child_id} not found in native tracker"
+
+    # Children must NOT have oompah.external.github metadata.
+    for child_id in child_identifiers:
+        child_meta = native.metadata.get(child_id, {})
+        assert "oompah.external.github" not in child_meta, (
+            f"Child {child_id} must not have external GitHub metadata — "
+            "decomposed children must live only in the native tracker"
+        )
+
+    # The epic (source) MUST still have its external GitHub metadata.
+    epic_meta = native.metadata.get(source.identifier, {})
+    assert "oompah.external.github" in epic_meta, (
+        "Epic must retain its oompah.external.github metadata for status sync"
+    )

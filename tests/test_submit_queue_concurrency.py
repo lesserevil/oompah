@@ -14,9 +14,11 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import tempfile
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -267,6 +269,50 @@ class TestCountOpenReviews:
             ]
         }
         assert orch._count_open_reviews("proj-1") == 2
+
+    def test_webhook_healthy_cold_cache_fetches_reviews(
+        self, tmp_path, monkeypatch
+    ):
+        project = _make_project_mock("proj-1")
+        project.last_webhook_received_at = datetime.now(timezone.utc)
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {}
+
+        provider = MagicMock()
+        provider.list_open_reviews.return_value = [_make_review("1")]
+        monkeypatch.setattr(
+            "oompah.orchestrator.detect_provider",
+            lambda *a, **k: provider,
+        )
+        monkeypatch.setattr(
+            "oompah.orchestrator.extract_repo_slug",
+            lambda _url: "org/repo",
+        )
+
+        result = asyncio.run(orch._fetch_all_reviews_bounded())
+
+        assert result == {"proj-1": provider.list_open_reviews.return_value}
+        provider.list_open_reviews.assert_called_once_with("org/repo")
+
+    def test_webhook_healthy_warm_cache_reuses_reviews(
+        self, tmp_path, monkeypatch
+    ):
+        project = _make_project_mock("proj-1")
+        project.last_webhook_received_at = datetime.now(timezone.utc)
+        cached = [_make_review("1")]
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {"proj-1": cached}
+
+        provider = MagicMock()
+        monkeypatch.setattr(
+            "oompah.orchestrator.detect_provider",
+            lambda *a, **k: provider,
+        )
+
+        result = asyncio.run(orch._fetch_all_reviews_bounded())
+
+        assert result == {"proj-1": cached}
+        provider.list_open_reviews.assert_not_called()
 
     def test_three_non_draft_returns_three(self, tmp_path):
         orch = _make_orchestrator(tmp_path)

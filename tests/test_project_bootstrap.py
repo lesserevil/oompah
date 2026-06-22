@@ -315,3 +315,66 @@ def test_main_dispatches_project_bootstrap_without_server_dependencies(monkeypat
     main_mod.main()
 
     assert called["argv"] == ["status", "."]
+
+
+def test_agents_md_template_uses_1_0_native_tracker_workflow() -> None:
+    """AGENTS.md bootstrap template must use the 1.0 native oompah task workflow.
+
+    This validates the HOW TO VERIFY criterion for OOMPAH-31: the generated
+    AGENTS.md instructions must match the 1.0 native tracker workflow
+    (OOMPAH TASK INTEGRATION v:2), NOT the GitHub Issues workflow.
+    """
+    from oompah.project_bootstrap.templates import AGENTS_MD
+
+    # Must carry the 1.0 native tracker integration marker (v:2)
+    assert "BEGIN OOMPAH TASK INTEGRATION v:2" in AGENTS_MD, (
+        "AGENTS.md template must use the 1.0 native tracker workflow marker "
+        "'BEGIN OOMPAH TASK INTEGRATION v:2'"
+    )
+
+    # Must mention native .oompah/tasks storage — the 1.0 canonical tracker
+    assert ".oompah/tasks" in AGENTS_MD, (
+        "AGENTS.md template must reference .oompah/tasks as the canonical tracker"
+    )
+
+    # Must describe GitHub Issues as intake, not as the primary tracker
+    assert "GitHub Issues are customer-facing intake" in AGENTS_MD, (
+        "AGENTS.md template must describe GitHub Issues as customer-facing intake, "
+        "not as the primary task tracker"
+    )
+
+    # Must NOT use the GitHub Issues integration marker (wrong tracker)
+    assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" not in AGENTS_MD, (
+        "AGENTS.md template must not embed the GitHub Issues tracker block — "
+        "the 1.0 native workflow uses 'BEGIN OOMPAH TASK INTEGRATION v:2'"
+    )
+
+
+def test_apply_agents_md_template_is_current_after_apply(tmp_path: Path) -> None:
+    """After apply, AGENTS.md must contain the 1.0 native tracker marker.
+
+    Validates the end-to-end bootstrap apply path generates instructions that
+    match the 1.0 native tracker workflow as required by OOMPAH-31.
+    """
+    repo = _make_repo(tmp_path)
+
+    result = apply_project_bootstrap_updates(repo, commit=False, push=False)
+
+    assert result.error == ""
+    assert "AGENTS.md" in result.applied
+
+    agents_text = (repo / "AGENTS.md").read_text(encoding="utf-8")
+
+    # Confirm 1.0 native tracker workflow is present
+    assert "BEGIN OOMPAH TASK INTEGRATION v:2" in agents_text
+    assert ".oompah/tasks" in agents_text
+    assert "GitHub Issues are customer-facing intake" in agents_text
+
+    # Confirm the bootstrap status reports AGENTS.md as current after apply
+    status = check_project_bootstrap_drift(repo)
+    agents_drift = {d.path: d for d in (status.drifted + status.current + status.protected)}
+    assert "AGENTS.md" in agents_drift
+    agents_entry = agents_drift["AGENTS.md"]
+    assert agents_entry.is_current, (
+        "AGENTS.md should be current immediately after bootstrap apply"
+    )

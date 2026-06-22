@@ -1,11 +1,7 @@
 ---
 id: OOMPAH-29
 type: task
-<<<<<<<< HEAD:.oompah/tasks/done/OOMPAH-29.md
-status: Done
-========
-status: In Review
->>>>>>>> origin/epic-OOMPAH-16:.oompah/tasks/in-review/OOMPAH-29.md
+status: Merged
 priority: 1
 title: Audit GitHub Issues intake reconciliation
 parent: OOMPAH-27
@@ -15,11 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:57.697390Z'
-<<<<<<<< HEAD:.oompah/tasks/done/OOMPAH-29.md
 updated_at: '2026-06-22T02:04:15.681816Z'
-========
-updated_at: '2026-06-22T02:52:57.449938Z'
->>>>>>>> origin/epic-OOMPAH-16:.oompah/tasks/in-review/OOMPAH-29.md
 work_branch: null
 target_branch: null
 review_url: null
@@ -115,5 +107,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 0s
 - Log: OOMPAH-29__20260622T015323Z.jsonl
+---
+author: oompah
+created: 2026-06-22 14:07
+---
+No open review PR is active for this child task. Its shared-epic work is complete, so it should remain Done and unblock dependent work until the parent epic enters review.
 ---
 <!-- COMMENTS:END -->

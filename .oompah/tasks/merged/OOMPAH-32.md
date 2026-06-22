@@ -1,0 +1,175 @@
+---
+id: OOMPAH-32
+type: epic
+status: Merged
+priority: 0
+title: Finish 1.0 operator and project docs
+parent: OOMPAH-16
+children:
+- OOMPAH-33
+- OOMPAH-34
+- OOMPAH-35
+- OOMPAH-36
+- OOMPAH-45
+- OOMPAH-53
+blocked_by: []
+labels:
+- epic:rebased
+assignee: null
+created_at: '2026-06-22T01:17:10.735548Z'
+updated_at: '2026-06-22T16:05:29.141024Z'
+work_branch: epic-OOMPAH-32
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/350
+review_number: '350'
+merged_at: null
+oompah.work_branch: epic-OOMPAH-32
+oompah.target_branch: main
+oompah.agent_run_id: da39e503-7103-4261-b2f9-0e9494bea8a5
+oompah.review_url: https://github.com/lesserevil/oompah/pull/350
+oompah.review_number: '350'
+oompah.task_costs:
+  total_input_tokens: 30
+  total_output_tokens: 6477
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 30
+      output_tokens: 6477
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: unknown
+    input_tokens: 30
+    output_tokens: 6477
+    cost_usd: 0.0
+    recorded_at: '2026-06-22T15:05:55.114180+00:00'
+---
+## Summary
+
+Plan: plans/oompah-1.0-release.md#epic-d-finish-10-operator-and-project-docs
+
+WHAT TO DO
+Finish the operator and managed-project documentation needed for a 1.0 release.
+
+DONE WHEN
+Docs describe the current native tracker, GitHub-only release, service operation, and managed-project onboarding paths without stale Backlog.md or beads instructions.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 14:57
+---
+Review reconciliation reopened this task because it was marked In Review but no open review artifact exists.
+
+No PR/MR for this branch was found.
+Branch: `epic-OOMPAH-32`
+Target branch: `main`
+Unmerged commits: 265 commits
+  45e07c5c OOMPAH-36: Mark stale beads/bd references as historical in .gitignore and .gitattributes
+  89473ee0 Comment on oompah task OOMPAH-36
+  a858a72d Comment on oompah task OOMPAH-27
+  96176e29 Comment on oompah task OOMPAH-52
+  efda52ac Comment on oompah task OOMPAH-52
+  7c40d817 Comment on oompah task OOMPAH-52
+  fce91d6d Update metadata for oompah task OOMPAH-52
+  fe047c6b Update oompah task OOMPAH-52
+  887152a6 Update oompah task OOMPAH-52
+  9d38ae79 Update oompah task OOMPAH-27
+
+Required: restore or recreate the PR/MR for this branch, then move the task back to In Review after the review exists.
+---
+author: oompah
+created: 2026-06-22 14:58
+---
+Review reconciliation reopened this task because it was marked In Review but no open review artifact exists.
+
+No PR/MR for this branch was found.
+Branch: `epic-OOMPAH-32`
+Target branch: `main`
+Unmerged commits: 265 commits
+  45e07c5c OOMPAH-36: Mark stale beads/bd references as historical in .gitignore and .gitattributes
+  89473ee0 Comment on oompah task OOMPAH-36
+  a858a72d Comment on oompah task OOMPAH-27
+  96176e29 Comment on oompah task OOMPAH-52
+  efda52ac Comment on oompah task OOMPAH-52
+  7c40d817 Comment on oompah task OOMPAH-52
+  fce91d6d Update metadata for oompah task OOMPAH-52
+  fe047c6b Update oompah task OOMPAH-52
+  887152a6 Update oompah task OOMPAH-52
+  9d38ae79 Update oompah task OOMPAH-27
+
+Required: restore or recreate the PR/MR for this branch, then move the task back to In Review after the review exists.
+---
+author: oompah
+created: 2026-06-22 14:59
+---
+The epic branch `epic-OOMPAH-32` is stale: it has fallen behind `main`. Rebase the branch onto `origin/main`, resolve any conflicts, and force-push with `git push --force-with-lease`.
+---
+author: oompah
+created: 2026-06-22 14:59
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-06-22 14:59
+---
+Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-06-22 15:01
+---
+Understanding: This branch (epic-OOMPAH-32) is stale and has fallen behind origin/main. My role as Merge Conflict Resolver is to fetch origin, rebase this branch onto origin/main, resolve any conflicts, run tests, and force-push. No new code changes — conflict resolution only.
+---
+author: oompah
+created: 2026-06-22 15:01
+---
+Discovery: Branch has 265 commits on top of a merge base that is 359 commits behind origin/main. Key file changes: docs/cli-install.md, docs/cli-release.md, docs/managed-project-onboarding.md, docs/operator-runbook.md (the documentation work), plus .gitattributes/.gitignore, oompah/orchestrator.py, and .oompah/tasks/ metadata. Starting rebase now.
+---
+author: oompah
+created: 2026-06-22 15:04
+---
+Implementation: Rebased epic-OOMPAH-32 onto origin/main. The branch had 265 commits, but 261 were task metadata commits already present in main — they were skipped. Only 4 real code commits were replayed: OOMPAH-34 (operator runbook), OOMPAH-33 (install/release docs refresh), OOMPAH-35 (managed-project onboarding checklist), OOMPAH-36 (.gitignore/.gitattributes beads cleanup). No conflicts arose during the rebase.
+---
+author: oompah
+created: 2026-06-22 15:04
+---
+Verification: All 7120 tests pass (28 skipped, 14 warnings — pre-existing). Force-push succeeded: 45e07c5c -> b5685c4b. Branch is now 4 commits ahead of origin/main, 0 behind.
+---
+author: oompah
+created: 2026-06-22 15:05
+---
+Completion: Rebase onto origin/main complete. Branch epic-OOMPAH-32 is now 4 commits ahead, 0 behind main. All 7120 tests pass. Force-pushed successfully. PR created: https://github.com/lesserevil/oompah/pull/350. Moving task to In Review.
+---
+author: oompah
+created: 2026-06-22 15:05
+---
+Branch rebased onto origin/main. PR #350 created at https://github.com/lesserevil/oompah/pull/350. 4 real doc commits preserved: OOMPAH-34 operator runbook, OOMPAH-33 install/release docs, OOMPAH-35 onboarding checklist, OOMPAH-36 beads cleanup. All 7120 tests pass.
+---
+author: oompah
+created: 2026-06-22 15:05
+---
+Agent completed successfully in 408s (6507 tokens)
+---
+author: oompah
+created: 2026-06-22 15:06
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/default]
+- Turns: 60, Tool calls: 35
+- Tokens: 30 in / 6.5K out [6.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 48s
+- Log: OOMPAH-32__20260622T145916Z.jsonl
+---
+author: oompah
+created: 2026-06-22 15:53
+---
+YOLO: merged PR #350.
+---
+<!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-23
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Bump release-branch package metadata to 1.0.0
 parent: OOMPAH-22
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:41.668460Z'
-updated_at: '2026-06-22T02:04:33.614382Z'
+updated_at: '2026-06-22T13:59:11.356044Z'
 work_branch: null
 target_branch: null
 review_url: null

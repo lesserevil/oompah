@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-37
 type: epic
-status: Open
+status: In Progress
 priority: 1
 title: Execute and verify the 1.0 release
 parent: OOMPAH-16
@@ -11,15 +11,17 @@ children:
 - OOMPAH-40
 - OOMPAH-41
 - OOMPAH-42
+- OOMPAH-54
 blocked_by:
 - OOMPAH-17
 - OOMPAH-22
 - OOMPAH-27
 - OOMPAH-32
-labels: []
+labels:
+- epic:rebasing
 assignee: null
 created_at: '2026-06-22T01:17:30.687635Z'
-updated_at: '2026-06-22T01:37:06.684517Z'
+updated_at: '2026-06-22T15:50:59.977992Z'
 work_branch: null
 target_branch: null
 review_url: null

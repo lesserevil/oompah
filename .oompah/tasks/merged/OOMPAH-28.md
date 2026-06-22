@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-28
 type: task
-status: In Review
+status: Merged
 priority: 1
 title: Audit native tracker state transitions for 1.0
 parent: OOMPAH-27
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:55.337471Z'
-updated_at: '2026-06-22T02:52:55.221143Z'
+updated_at: '2026-06-22T01:53:03.977172Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 17m 15s
 - Log: OOMPAH-28__20260622T013552Z.jsonl
+---
+author: oompah
+created: 2026-06-22 14:07
+---
+No open review PR is active for this child task. Its shared-epic work is complete, so it should remain Done and unblock dependent work until the parent epic enters review.
 ---
 <!-- COMMENTS:END -->
