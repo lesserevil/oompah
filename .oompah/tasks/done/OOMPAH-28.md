@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:55.337471Z'
-updated_at: '2026-06-22T01:52:51.771513Z'
+updated_at: '2026-06-22T01:52:53.852248Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,5 +97,10 @@ WHAT WAS FIXED:
 Added 62 new tests to tests/test_oompah_md_tracker.py covering the full status transition matrix. All 77 tests in the file pass.
 
 NO RELEASE-BLOCKING GAPS FOUND. The test coverage gap was the only release-blocking issue, and it has been resolved.
+---
+author: oompah
+created: 2026-06-22 01:52
+---
+Audited all 14 canonical native tracker state transitions. All _STATUS_DIRS mappings are correct. Transition gate applies to both GitHub Issues and native oompah_md tracker. Terminal re-transition is intentionally allowed. Added 62 new tests covering the full status matrix — all 77 tests in test_oompah_md_tracker.py pass. No release-blocking gaps found.
 ---
 <!-- COMMENTS:END -->
