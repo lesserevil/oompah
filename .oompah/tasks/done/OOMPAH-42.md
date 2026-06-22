@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:50.933134Z'
-updated_at: '2026-06-22T17:27:42.882580Z'
+updated_at: '2026-06-22T17:27:50.619383Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -101,5 +101,15 @@ author: oompah
 created: 2026-06-22 17:27
 ---
 All post-release smoke checks passed: Git tag install, wheel install, oompah --help, oompah task --help, oompah project-bootstrap --help, managed-project bootstrap status/preview — all exit 0 with correct output. No blocking findings. v1.0.0 release verified.
+---
+author: oompah
+created: 2026-06-22 17:27
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 38
+- Tokens: 62 in / 1.8K out [1.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 12s
+- Log: OOMPAH-42__20260622T172442Z.jsonl
 ---
 <!-- COMMENTS:END -->
