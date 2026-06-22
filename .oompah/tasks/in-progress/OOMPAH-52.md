@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T14:20:20.212899Z'
-updated_at: '2026-06-22T14:30:14.886666Z'
+updated_at: '2026-06-22T14:36:29.050808Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-06-22 14:30
 ---
 Understanding: This issue reports that operators who installed oompah via 'uv tool install' before the project-bootstrap feature was added will have a stale binary that lacks the project_bootstrap/ module and project-bootstrap CLI dispatch. The fix is for operators to reinstall, and we need to document this in release notes and the operator runbook. My role is Duplicate Investigator — I'll first search for existing tasks covering the same ground before doing any implementation.
+---
+author: oompah
+created: 2026-06-22 14:36
+---
+Discovery: OOMPAH-52 is NOT a duplicate — it was explicitly filed by the OOMPAH-31 agent as a follow-up after discovering the stale binary issue during validation. No other task covers documenting the reinstall requirement for operators. The work is: (1) add an 'Upgrading from pre-1.0 installs' section to docs/cli-install.md covering the project-bootstrap reinstall requirement, and (2) add a note to the release notes section of docs/cli-release.md. There is no operator runbook doc yet (D2 from oompah-1.0-release.md), so I'll focus on the install/release docs where an upgrade notice belongs.
 ---
 <!-- COMMENTS:END -->
