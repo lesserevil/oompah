@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:41.668460Z'
-updated_at: '2026-06-22T02:01:47.042246Z'
+updated_at: '2026-06-22T02:03:55.309802Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-06-22 02:01
 ---
 VERIFICATION: All 8 tests in tests/test_cli_release_packaging.py pass (0 failures). Full test suite: 7040 passed, 28 skipped, 13 warnings. No pre-existing failures introduced.
+---
+author: oompah
+created: 2026-06-22 02:03
+---
+COMPLETION: Bumped pyproject.toml project.version from 0.1.0 to 1.0.0, updated uv.lock to match. Added test_pyproject_version_is_1_0_0 (asserts version == 1.0.0 directly) and test_release_note_generator_accepts_v1_0_0_tag (verifies workflow/generator agreement). All 8 cli_release tests pass; full suite 7040 passed. Branch epic-OOMPAH-22 pushed to origin.
 ---
 <!-- COMMENTS:END -->
