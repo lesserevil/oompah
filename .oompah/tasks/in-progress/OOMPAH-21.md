@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:34.236540Z'
-updated_at: '2026-06-22T02:21:47.814219Z'
+updated_at: '2026-06-22T02:23:19.595264Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -106,5 +106,10 @@ author: oompah
 created: 2026-06-22 02:21
 ---
 Understanding: I will first check for duplicate release-branch checklist tasks, then update the 1.0 release plan with a self-contained branch-cut checklist covering main cleanliness, release/1.0 creation, versioning, quality gates, draft tag movement, artifact verification, and final tag immutability.
+---
+author: oompah
+created: 2026-06-22 02:23
+---
+Discovery: Not a duplicate. OOMPAH-18 updated 1.0 examples, OOMPAH-19 handled draft-tag validation, OOMPAH-38/OOMPAH-39/OOMPAH-41 are release execution tasks, and OOMPAH-17 is the parent epic. OOMPAH-21 is the distinct checklist documentation/test task. Prior local edits already add the checklist in docs/cli-release.md and plans/oompah-1.0-release.md with coverage in tests/test_cli_release_packaging.py; I am reviewing and verifying those now.
 ---
 <!-- COMMENTS:END -->
