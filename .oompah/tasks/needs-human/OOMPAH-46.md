@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-46
 type: task
-status: Backlog
+status: Needs Human
 priority: null
 title: 'Maintainer: update workflow dispatch description to v1.0.0 examples (needs
   workflow PAT scope)'
@@ -12,7 +12,7 @@ labels:
 - needs:human
 assignee: null
 created_at: '2026-06-22T02:11:02.984832Z'
-updated_at: '2026-06-22T02:11:20.909628Z'
+updated_at: '2026-06-22T02:11:27.731793Z'
 work_branch: null
 target_branch: null
 review_url: null
