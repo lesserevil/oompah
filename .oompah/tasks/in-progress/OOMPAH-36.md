@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:28.394571Z'
-updated_at: '2026-06-22T14:47:47.846536Z'
+updated_at: '2026-06-22T14:51:53.141899Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,5 +97,10 @@ author: oompah
 created: 2026-06-22 14:47
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 14:51
+---
+Verification: All HOW TO VERIFY criteria are met. Searches for Backlog.md, backlog, beads, and bd now find only: (1) historical/migration notes in .gitignore and .gitattributes with explicit 'no longer used' language; (2) design doc references in plans/oompah-1.0-release.md calling them 'historical'; (3) test fixtures in tests/test_agent_instructions.py that test the migration function (verifying that old text is replaced, not instructing users to use them); (4) unrelated occurrences like oompah:status:n labels in test fixtures. No user-facing docs, bootstrap templates, or agent instruction templates contain any remaining Backlog.md or beads instructions. Commit 45e07c5c on epic-OOMPAH-32 (already pushed) covers the changes.
 ---
 <!-- COMMENTS:END -->
