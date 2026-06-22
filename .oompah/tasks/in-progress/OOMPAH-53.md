@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T15:30:30.201826Z'
-updated_at: '2026-06-22T15:34:54.355047Z'
+updated_at: '2026-06-22T15:49:02.888449Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-06-22 15:34
 ---
 Discovery: OOMPAH-45 (Merged) previously covered the same task of rebasing epic-OOMPAH-32 onto main — but it's already merged. OOMPAH-53 is a NEW occurrence: the branch has fallen behind main again since OOMPAH-45 was completed. This is NOT a duplicate. OOMPAH-45 notes warn that the managed worktree has read-only git metadata and a writable temp clone was needed. Proceeding with the rebase using the same approach.
+---
+author: oompah
+created: 2026-06-22 15:49
+---
+Implementation: Rebased epic-OOMPAH-32 onto origin/main. There was one conflict in tests/test_cli_release_packaging.py between HEAD (OOMPAH-52 upgrade-guidance tests) and incoming commit eaabff91 (OOMPAH-33 draft/final-tag tests). Resolved by keeping both test sets. Force-pushed with --force-with-lease to origin/epic-OOMPAH-32.
 ---
 <!-- COMMENTS:END -->
