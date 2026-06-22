@@ -11,7 +11,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:52.001843Z'
-updated_at: '2026-06-22T01:38:05.366579Z'
+updated_at: '2026-06-22T01:38:20.847137Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,5 +57,10 @@ author: oompah
 created: 2026-06-22 01:38
 ---
 UNDERSTANDING: This is NOT a duplicate. OOMPAH-18 is a unique child of epic OOMPAH-17 with specific scope: update docs, tests, and workflow examples from 0.1.0 to 1.0 convention (release/1.0 branch, v1.0.0-draft draft tag, v1.0.0 final tag). No existing merged or done task covers this work. Proceeding to implement. Files to update: docs/cli-release.md (v0.1.0 → v1.0.0 throughout + add draft-tag workflow), docs/cli-install.md (v0.1.0 → v1.0.0), .github/workflows/cli-release.yml (dispatch description), tests/test_cli_release_packaging.py (assertions updated to 1.0 examples + new draft-tag coverage test).
+---
+author: oompah
+created: 2026-06-22 01:38
+---
+DISCOVERY: Key files identified. docs/cli-release.md has v0.1.0 in all examples (tag creation, verify URL, uv/pipx install commands). docs/cli-install.md has v0.1.0 in tag and wheel install examples. .github/workflows/cli-release.yml uses 'e.g. v0.1.0' in dispatch description. tests/test_cli_release_packaging.py has two functions with 0.1.0: test_release_notes_include_exact_tag_and_artifact_install_commands (tests renderer with v0.1.0) and test_release_docs_cover_tag_creation_and_verification_commands (asserts docs contain v0.1.0). No tests yet cover the v1.0.0-draft draft-tag convention or the release/1.0 branch. Plan: update all examples to v1.0.0, add draft-tag workflow to cli-release.md, add draft-tag coverage to tests.
 ---
 <!-- COMMENTS:END -->
