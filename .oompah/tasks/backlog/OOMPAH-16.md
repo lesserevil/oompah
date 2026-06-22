@@ -14,10 +14,9 @@ children:
 blocked_by: []
 labels:
 - release:1.0
-- draft
 assignee: null
 created_at: '2026-06-22T01:14:40.055430Z'
-updated_at: '2026-06-22T01:17:30.701308Z'
+updated_at: '2026-06-22T01:32:01.253720Z'
 work_branch: null
 target_branch: null
 review_url: null
