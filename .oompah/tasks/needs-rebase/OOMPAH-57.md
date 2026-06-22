@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T17:28:58.912284Z'
-updated_at: '2026-06-22T17:28:58.912284Z'
+updated_at: '2026-06-22T17:32:20.448640Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ This task was auto-filed because epic OOMPAH-37 was detected as stale. Do NOT cr
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 17:32
+---
+This task is a duplicate of OOMPAH-56. Both tasks describe the same operation: rebase epic-OOMPAH-37 onto epic-OOMPAH-16. OOMPAH-56 (lower ID, created first) is the original and is already In Progress. Archiving this task as duplicate-of:OOMPAH-56.
+---
+<!-- COMMENTS:END -->
