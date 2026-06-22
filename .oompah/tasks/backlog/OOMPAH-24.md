@@ -6,11 +6,12 @@ priority: 1
 title: Expand release smoke tests for project-bootstrap
 parent: OOMPAH-22
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-23
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:43.935007Z'
-updated_at: '2026-06-22T01:16:43.935007Z'
+updated_at: '2026-06-22T01:18:04.123212Z'
 work_branch: null
 target_branch: null
 review_url: null
