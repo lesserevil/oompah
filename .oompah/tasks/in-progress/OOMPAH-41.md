@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:48.285544Z'
-updated_at: '2026-06-22T17:09:37.157428Z'
+updated_at: '2026-06-22T17:09:39.399536Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,5 +77,15 @@ author: oompah
 created: 2026-06-22 17:03
 ---
 IMPLEMENTATION: Created immutable v1.0.0 tag pointing to commit 4dd36017 (release/1.0 HEAD, OOMPAH-40 fixes included) and pushed to origin. The CLI Release workflow has been triggered by the tag push. Monitoring workflow completion and will verify: (1) no force-push capability on the tag, (2) GitHub Release v1.0.0 with wheel/sdist artifacts and release notes.
+---
+author: oompah
+created: 2026-06-22 17:09
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 35
+- Tokens: 57 in / 1.9K out [2.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 36s
+- Log: OOMPAH-41__20260622T170105Z.jsonl
 ---
 <!-- COMMENTS:END -->
