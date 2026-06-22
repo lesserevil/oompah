@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-47
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Add oompah project-bootstrap --help to cli-release.yml workflow smoke checks
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:35:48.855045Z'
-updated_at: '2026-06-22T02:35:48.855045Z'
+updated_at: '2026-06-22T02:37:45.505335Z'
 work_branch: null
 target_branch: null
 review_url: null
