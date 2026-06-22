@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:35.091778Z'
-updated_at: '2026-06-22T14:53:48.866467Z'
+updated_at: '2026-06-22T14:58:35.985682Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-06-22 14:53
 ---
 UNDERSTANDING: Not a duplicate. Confirmed no other task covers 'Cut release/1.0 and run the full quality gate' - this is distinct release execution work (Epic E, step E1). All four blockers are resolved (OOMPAH-21/26/31 Merged; OOMPAH-36 In Review with work complete). Proceeding with: (1) check main is clean, (2) cut release/1.0 from main, (3) bump package version to 1.0.0, (4) run the full quality gate. HOW TO VERIFY: release/1.0 exists on origin, package metadata shows 1.0.0, tests pass.
+---
+author: oompah
+created: 2026-06-22 14:58
+---
+DISCOVERY: Not a duplicate. Confirmed unique task. Prerequisite code changes from blockers (OOMPAH-21 branch checklist, OOMPAH-26 API surface docs, OOMPAH-31 bootstrap validation, OOMPAH-36 beads cleanup) are on epic branches (epic-OOMPAH-16, epic-OOMPAH-27, epic-OOMPAH-32) but not yet merged to origin/main. Plan: create release/1.0 from origin/epic-OOMPAH-27 (most complete: has OOMPAH-21/22/26/28/29/30/31/47), cherry-pick OOMPAH-36 change (commit 45e07c5c from epic-OOMPAH-32), bump pyproject.toml to 1.0.0, run make test + make check-secrets per the documented quality gate.
 ---
 <!-- COMMENTS:END -->
