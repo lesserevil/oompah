@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-27
 type: epic
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Validate managed-project workflow readiness
 parent: OOMPAH-16
@@ -17,7 +17,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-06-22T01:16:50.891544Z'
-updated_at: '2026-06-22T14:29:26.089926Z'
+updated_at: '2026-06-22T14:29:28.408815Z'
 work_branch: epic-OOMPAH-27
 target_branch: main
 review_url: null
