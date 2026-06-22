@@ -12,7 +12,7 @@ labels:
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:15:01.066849Z'
-updated_at: '2026-06-22T02:11:16.332285Z'
+updated_at: '2026-06-22T02:11:18.699908Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-06-22 02:11
 ---
 COMPLETION: Implemented the ci.yml trigger changes and wrote 5 tests in tests/test_ci_workflow.py (all pushed to epic-OOMPAH-17). The PAT lacks workflow scope to push .github/workflows/ci.yml — same constraint as OOMPAH-18/OOMPAH-43. Filed OOMPAH-44 for a maintainer to push the ci.yml change. The exact diff is documented in OOMPAH-44. Tests are on the branch and will pass once ci.yml is updated. This issue is NOT a duplicate — no other task covered CI trigger changes for release branches.
+---
+author: oompah
+created: 2026-06-22 02:11
+---
+Added release/* patterns to ci.yml (all 3 trigger events) and 5 tests in tests/test_ci_workflow.py. Tests pushed to epic-OOMPAH-17. ci.yml push blocked by PAT workflow scope — OOMPAH-44 filed for maintainer.
 ---
 <!-- COMMENTS:END -->
