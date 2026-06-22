@@ -25,13 +25,13 @@ pipx install git+https://github.com/lesserevil/oompah
 
 ```bash
 # uv tool (recommended)
-uv tool install "git+https://github.com/lesserevil/oompah@v0.1.0"
+uv tool install "git+https://github.com/lesserevil/oompah@v1.0.0"
 
 # pipx
-pipx install "git+https://github.com/lesserevil/oompah@v0.1.0"
+pipx install "git+https://github.com/lesserevil/oompah@v1.0.0"
 ```
 
-Replace `v0.1.0` with the tag listed on the
+Replace `v1.0.0` with the tag listed on the
 [GitHub Releases page](https://github.com/lesserevil/oompah/releases).
 
 ## Install from a release wheel artifact
@@ -40,8 +40,8 @@ GitHub Releases attach wheel artifacts. You can install directly from the
 artifact URL:
 
 ```bash
-uv tool install "https://github.com/lesserevil/oompah/releases/download/v0.1.0/oompah-0.1.0-py3-none-any.whl"
-pipx install "https://github.com/lesserevil/oompah/releases/download/v0.1.0/oompah-0.1.0-py3-none-any.whl"
+uv tool install "https://github.com/lesserevil/oompah/releases/download/v1.0.0/oompah-1.0.0-py3-none-any.whl"
+pipx install "https://github.com/lesserevil/oompah/releases/download/v1.0.0/oompah-1.0.0-py3-none-any.whl"
 ```
 
 ## Verify the install
@@ -93,19 +93,31 @@ project contributors who only need `oompah task` do not need the server extra.
 ## Agent usage
 
 Agents running inside a managed-project worktree use `oompah task` to interact
-with the oompah server. The server URL defaults to `http://127.0.0.1:8080`;
-override it with:
+with the oompah server. Set **`OOMPAH_SERVER_URL`** to point the CLI at the
+correct server — this is the stable, canonical way to configure the server
+location:
 
 ```bash
-# Override the full server URL
-OOMPAH_SERVER_URL=http://127.0.0.1:9000 oompah task view owner/repo#123
-
-# Override just the port for a single command (server runs on localhost)
-oompah task --port 9000 view owner/repo#123
-
-# Override the full server URL for a single command
-oompah task --server http://192.168.1.10:8080 view owner/repo#123
+export OOMPAH_SERVER_URL="http://127.0.0.1:8080"
+oompah task view <task-id>
 ```
+
+The default when `OOMPAH_SERVER_URL` is unset is `http://127.0.0.1:8080`.
+
+> **Note:** `OOMPAH_SERVER_PORT` is a *service* configuration variable that
+> controls which port the oompah server listens on. It is **not** a client-side
+> server locator — setting it in an agent environment has no effect on where
+> `oompah task` sends requests. Use `OOMPAH_SERVER_URL` instead.
+
+See [`docs/cli-api-surface.md`](cli-api-surface.md) for the full 1.0
+compatibility surface, including the stable `oompah task` subcommands and what
+managed-project `AGENTS.md` files may safely depend on.
+
+## Compatibility surface
+
+The stable 1.0 CLI and API surface — the commands and environment variables that
+managed-project `AGENTS.md` files may depend on — is documented in
+[`docs/cli-api-surface.md`](cli-api-surface.md).
 
 ## Packaging design
 

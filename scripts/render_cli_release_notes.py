@@ -23,13 +23,31 @@ def load_project_version(pyproject_path: Path) -> str:
     return version
 
 
+def is_draft_release_tag(tag: str, version: str) -> bool:
+    """Return True if *tag* is the explicit force-movable draft form for *version*.
+
+    The only accepted draft form is ``v{version}-draft`` — e.g. ``v1.0.0-draft``
+    for a project whose ``project.version`` is ``1.0.0``.  Broader wildcards such
+    as ``v*-draft`` are intentionally rejected so this predicate cannot silently
+    weaken final-release validation.
+    """
+    return tag == f"v{version}-draft"
+
+
 def validate_tag_matches_version(tag: str, version: str) -> None:
+    """Raise ValueError unless *tag* is the final or draft release tag for *version*.
+
+    Accepted forms:
+    - ``v{version}``        — immutable final release tag
+    - ``v{version}-draft``  — force-movable draft tag used during RC iteration
+    """
     expected = f"v{version}"
-    if tag != expected:
-        raise ValueError(
-            f"release tag {tag!r} does not match pyproject version {version!r}; "
-            f"expected {expected!r}"
-        )
+    if tag == expected or is_draft_release_tag(tag, version):
+        return
+    raise ValueError(
+        f"release tag {tag!r} does not match pyproject version {version!r}; "
+        f"expected {expected!r} or {expected!r}-draft"
+    )
 
 
 def _find_one(dist_dir: Path, pattern: str, artifact_kind: str) -> Path:
