@@ -16,6 +16,8 @@ Two test classes cover different installation surfaces:
 Acceptance criteria verified here:
 - Tests fail if the console script entry point is missing or broken.
 - Tests fail if ``oompah task`` cannot be invoked after package installation.
+- Tests fail if ``oompah project-bootstrap`` cannot be invoked after package
+  installation.
 - Server URL/port flag parsing is exercised without a live server.
 """
 
@@ -170,6 +172,24 @@ class TestCurrentInstallSmoke:
         # The task subcommand help must mention at least one known subcommand
         assert any(sub in output for sub in ("view", "comment", "create", "set-status")), (
             f"Expected task subcommand names in 'oompah task --help' output, got: {output!r}"
+        )
+
+    def test_oompah_project_bootstrap_help_exits_zero(self):
+        """``oompah project-bootstrap --help`` must exit 0 and list subcommands."""
+        oompah = str(_current_oompah_bin())
+        result = subprocess.run(
+            [oompah, "project-bootstrap", "--help"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            f"oompah project-bootstrap --help exited {result.returncode}.\n"
+            f"stderr: {result.stderr}\nstdout: {result.stdout}"
+        )
+        output = result.stdout + result.stderr
+        assert all(sub in output for sub in ("status", "preview", "apply")), (
+            "Expected project-bootstrap subcommand names in "
+            f"'oompah project-bootstrap --help' output, got: {output!r}"
         )
 
     def test_oompah_task_view_help_exits_zero(self):
@@ -339,6 +359,23 @@ class TestIsolatedVenvSmoke:
         assert any(sub in output for sub in ("view", "comment", "create", "set-status")), (
             f"Expected task subcommand names in isolated 'oompah task --help' output, "
             f"got: {output!r}"
+        )
+
+    def test_isolated_oompah_project_bootstrap_help_exits_zero(self, isolated_venv):
+        """``oompah project-bootstrap --help`` exits 0 from isolated venv install."""
+        result = subprocess.run(
+            [isolated_venv["oompah"], "project-bootstrap", "--help"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            f"oompah project-bootstrap --help exited {result.returncode} in isolated venv.\n"
+            f"stderr: {result.stderr}\nstdout: {result.stdout}"
+        )
+        output = result.stdout + result.stderr
+        assert all(sub in output for sub in ("status", "preview", "apply")), (
+            "Expected project-bootstrap subcommand names in isolated "
+            f"'oompah project-bootstrap --help' output, got: {output!r}"
         )
 
     def test_isolated_oompah_task_port_flag_help_exits_zero(self, isolated_venv):

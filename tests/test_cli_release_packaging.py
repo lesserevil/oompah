@@ -162,6 +162,7 @@ def test_release_docs_cover_tag_creation_and_verification_commands():
         in text
     )
     assert "standalone `oompah task` client" in text
+    assert "oompah project-bootstrap --help" in text
     assert "does not install or configure" in text
 
 

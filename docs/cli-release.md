@@ -61,6 +61,7 @@ Verify the installed console script:
 ```bash
 oompah --help
 oompah task --help
+oompah project-bootstrap --help
 ```
 
 The default release artifact is for managed-project contributors and agents. It
