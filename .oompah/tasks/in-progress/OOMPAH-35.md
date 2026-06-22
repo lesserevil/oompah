@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:26.082104Z'
-updated_at: '2026-06-22T14:24:28.293962Z'
+updated_at: '2026-06-22T14:25:10.554708Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-06-22 14:24
 ---
 Implementation: Created docs/managed-project-onboarding.md (355 lines). The checklist covers all five required areas: (1) Prerequisites — service health, GitHub access, webhook extension; (2) Project registration paused via dashboard or API; (3) Native tracker expectations — .oompah/tasks layout, write behavior, initialization verification; (4) Optional GitHub Issues intake — enable, configure authorized actors, verify; (5) Project bootstrap and AGENTS.md — preview/apply CLI and API paths, what gets updated, dirty worktree safety; (6) Initial paused-project review — task queue, bootstrap status, service health checks, then unpause steps. Includes a Mermaid flow summary and a troubleshooting table.
+---
+author: oompah
+created: 2026-06-22 14:25
+---
+Verification: docs/managed-project-onboarding.md committed (a5a19386) and pushed to origin/epic-OOMPAH-32. Document is 355 lines covering all six checklist sections. No code changes were made — this is a documentation-only deliverable, so no unit tests were needed. Cross-checked content against native-markdown-tracker.md, github-issue-intake.md, project-bootstrap.md, operator-runbook.md, and cli-install.md for accuracy. The checklist allows a new managed project to be added and reviewed while paused, satisfying the HOW TO VERIFY condition.
 ---
 <!-- COMMENTS:END -->
