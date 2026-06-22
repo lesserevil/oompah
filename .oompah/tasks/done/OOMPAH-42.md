@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-42
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Run post-release install and bootstrap smoke checks
 parent: OOMPAH-37
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:50.933134Z'
-updated_at: '2026-06-22T17:39:37.629449Z'
+updated_at: '2026-06-22T17:39:45.223914Z'
 work_branch: null
 target_branch: null
 review_url: null
