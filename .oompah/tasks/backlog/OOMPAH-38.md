@@ -6,11 +6,12 @@ priority: 1
 title: Cut release/1.0 and run the full quality gate
 parent: OOMPAH-37
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-21
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:35.091778Z'
-updated_at: '2026-06-22T01:17:35.091778Z'
+updated_at: '2026-06-22T01:18:48.648159Z'
 work_branch: null
 target_branch: null
 review_url: null
