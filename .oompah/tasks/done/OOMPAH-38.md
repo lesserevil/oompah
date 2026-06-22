@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:35.091778Z'
-updated_at: '2026-06-22T16:13:43.039433Z'
+updated_at: '2026-06-22T16:13:45.288213Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,5 +120,10 @@ author: oompah
 created: 2026-06-22 16:13
 ---
 COMPLETION (re-verified): All work from Run #1 is confirmed intact on origin/release/1.0. Branch exists, pyproject.toml shows version = '1.0.0', quality gate (7118 tests passed, secrets scan clean) was verified in the prior run. Closing task now — the only missing step was setting status to Done.
+---
+author: oompah
+created: 2026-06-22 16:13
+---
+release/1.0 cut from epic-OOMPAH-27 + OOMPAH-36 cherry-pick. Version bumped to 1.0.0. Quality gate: 7118 tests passed, secrets scan clean. Branch exists on origin with package version 1.0.0.
 ---
 <!-- COMMENTS:END -->
