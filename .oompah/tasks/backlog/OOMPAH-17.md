@@ -12,11 +12,10 @@ children:
 - OOMPAH-21
 blocked_by: []
 labels:
-- draft
 - release:1.0
 assignee: null
 created_at: '2026-06-22T01:14:45.345931Z'
-updated_at: '2026-06-22T01:16:34.241641Z'
+updated_at: '2026-06-22T01:32:03.547845Z'
 work_branch: null
 target_branch: null
 review_url: null
