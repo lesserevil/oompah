@@ -4939,6 +4939,15 @@ class Orchestrator:
             # fallback can verify whether an already-pushed remote epic branch
             # has unmerged work to review.
             target_branch = self._resolve_epic_target_branch(issue, project)
+            if not self._ensure_review_target_branch_exists(project, target_branch):
+                logger.warning(
+                    "Deferred epic PR for %s on %s: target branch %s is not "
+                    "available",
+                    issue.identifier,
+                    project.name,
+                    target_branch,
+                )
+                continue
 
             # Push the epic branch from the shared epic worktree (shared
             # mode) or from the project's main repo path (stacked mode —
@@ -5309,6 +5318,134 @@ class Orchestrator:
             if parent_epic is not None:
                 return self._epic_branch_for_issue(parent_epic)
         return project.default_branch
+
+    def _remote_branch_exists(self, repo_path: str, branch: str) -> bool:
+        """Return True when ``origin`` already has ``branch``."""
+        try:
+            result = subprocess.run(
+                ["git", "ls-remote", "--heads", "origin", branch],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except Exception:
+            return False
+        return result.returncode == 0 and bool(result.stdout.strip())
+
+    def _local_ref_exists(self, repo_path: str, ref: str) -> bool:
+        """Return True when ``ref`` resolves to a local commit."""
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"{ref}^{{commit}}",
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except Exception:
+            return False
+        return result.returncode == 0
+
+    def _ensure_review_target_branch_exists(
+        self,
+        project: Any,
+        target_branch: str,
+    ) -> bool:
+        """Ensure a non-default review target branch exists on ``origin``.
+
+        Nested shared epics use the parent epic branch as the child epic PR
+        base. GitHub rejects PR creation with ``base invalid`` when that
+        branch has not been pushed yet, so create the empty parent branch from
+        the default branch before opening the child epic PR.
+        """
+        target_branch = (target_branch or "").strip()
+        if not target_branch:
+            return False
+
+        default_branch = str(
+            getattr(project, "default_branch", None)
+            or getattr(project, "branch", None)
+            or "main"
+        ).strip()
+        if target_branch == default_branch:
+            return True
+
+        repo_path = getattr(project, "repo_path", None)
+        if not repo_path or not os.path.isdir(repo_path):
+            logger.warning(
+                "Cannot ensure review target branch %s: repo path is missing",
+                target_branch,
+            )
+            return False
+
+        if self._remote_branch_exists(repo_path, target_branch):
+            return True
+
+        subprocess.run(
+            ["git", "fetch", "origin", default_branch],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+
+        if self._local_ref_exists(repo_path, f"refs/heads/{target_branch}"):
+            source_ref = f"refs/heads/{target_branch}"
+        elif self._local_ref_exists(repo_path, f"refs/remotes/origin/{default_branch}"):
+            source_ref = f"refs/remotes/origin/{default_branch}"
+        elif self._local_ref_exists(repo_path, f"refs/heads/{default_branch}"):
+            source_ref = f"refs/heads/{default_branch}"
+        else:
+            logger.warning(
+                "Cannot create review target branch %s: no default branch ref "
+                "%s is available",
+                target_branch,
+                default_branch,
+            )
+            return False
+
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "push",
+                    "origin",
+                    f"{source_ref}:refs/heads/{target_branch}",
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to create review target branch %s from %s: %s",
+                target_branch,
+                source_ref,
+                exc,
+            )
+            return False
+
+        if result.returncode != 0:
+            logger.warning(
+                "Failed to create review target branch %s from %s: %s",
+                target_branch,
+                source_ref,
+                result.stderr.strip() or result.stdout.strip(),
+            )
+            return False
+        return True
 
     def _fast_forward_shared_epic_worktree_if_clean(
         self,

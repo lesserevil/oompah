@@ -3431,6 +3431,11 @@ class TestNestedEpicMergeChain:
             patch.object(orch, "_fetch_epic_children", return_value=[task]),
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
             patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch.object(
+                orch,
+                "_ensure_review_target_branch_exists",
+                return_value=True,
+            ) as ensure_target,
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch"),
@@ -3441,6 +3446,96 @@ class TestNestedEpicMergeChain:
         kwargs = provider.create_review.call_args.kwargs
         # Child epic B's PR must target A's branch, not main
         assert kwargs.get("target_branch") == "epic-epic-A"
+        ensure_target.assert_called_once_with(proj, "epic-epic-A")
+
+    def test_child_epic_pr_defers_when_parent_branch_unavailable(self, tmp_path):
+        """B's completion PR waits when A's target branch cannot be created."""
+        orch, proj = self._setup_nested(tmp_path)
+        parent_epic = _make_issue(
+            identifier="epic-A",
+            issue_type="epic",
+            parent_id=None,
+            project_id="proj-1",
+            state="open",
+        )
+        child_epic = _make_issue(
+            identifier="epic-B",
+            issue_type="epic",
+            parent_id="epic-A",
+            project_id="proj-1",
+            state="open",
+            title="Child epic B",
+        )
+        task = _make_issue(identifier="task-1", state="closed")
+        provider = MagicMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = parent_epic
+
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[task]),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch.object(
+                orch,
+                "_ensure_review_target_branch_exists",
+                return_value=False,
+            ) as ensure_target,
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch") as push_epic_branch,
+        ):
+            opened = orch._open_epic_main_prs([child_epic])
+
+        assert opened == 0
+        ensure_target.assert_called_once_with(proj, "epic-epic-A")
+        push_epic_branch.assert_not_called()
+        provider.create_review.assert_not_called()
+
+    def test_ensure_review_target_branch_exists_creates_missing_origin_branch(
+        self,
+        tmp_path,
+    ):
+        """Missing parent epic target branches are created from origin/main."""
+        orch, proj = self._setup_nested(tmp_path)
+        remote = tmp_path / "remote.git"
+        repo = tmp_path / "repo"
+        subprocess.run(
+            ["git", "init", "-q", "--bare", "--initial-branch=main", str(remote)],
+            check=True,
+        )
+        subprocess.run(["git", "clone", "-q", str(remote), str(repo)], check=True)
+        (repo / "README.md").write_text("initial\n")
+        subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=oompah",
+                "-c",
+                "user.email=lesserevil@users.noreply.github.com",
+                "commit",
+                "-m",
+                "init",
+            ],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(["git", "push", "origin", "main"], cwd=repo, check=True)
+        proj.repo_path = str(repo)
+        proj.default_branch = "main"
+        proj.branch = "main"
+
+        assert orch._ensure_review_target_branch_exists(proj, "epic-epic-A")
+
+        result = subprocess.run(
+            ["git", "ls-remote", "--heads", "origin", "epic-epic-A"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=True,
+        )
+        assert "refs/heads/epic-epic-A" in result.stdout
 
     def test_top_level_epic_pr_still_targets_main(self, tmp_path):
         """A's completion PR targets project.branch (main), not any parent branch."""
@@ -3501,6 +3596,11 @@ class TestNestedEpicMergeChain:
             patch.object(orch, "_fetch_epic_children", return_value=[task]),
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
             patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch.object(
+                orch,
+                "_ensure_review_target_branch_exists",
+                return_value=True,
+            ) as ensure_target,
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch"),
@@ -3511,6 +3611,7 @@ class TestNestedEpicMergeChain:
         kwargs = provider.create_review.call_args.kwargs
         # C's PR must target B's branch
         assert kwargs.get("target_branch") == "epic-epic-B"
+        ensure_target.assert_called_once_with(proj, "epic-epic-B")
 
     def test_flat_mode_child_epic_still_targets_main(self, tmp_path):
         """flat mode: child epic's PR targets main regardless of nesting."""
