@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:15.169120Z'
-updated_at: '2026-06-22T03:02:08.368523Z'
+updated_at: '2026-06-22T03:02:13.755191Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,5 +62,10 @@ author: oompah
 created: 2026-06-22 03:02
 ---
 IMPLEMENTATION: Updated 3 files. (1) docs/cli-release.md: replaced all v0.1.0 examples with v1.0.0; added '1.0 Release Train' section documenting release/1.0 branch, force-movable v1.0.0-draft draft tag, and immutable v1.0.0 final tag with separate draft vs. final release procedures. (2) docs/cli-install.md: replaced v0.1.0 with v1.0.0 in all tag and wheel install examples; added v1.0.0-draft install example with note about force-movable nature. Both docs already stated 'GitHub only — no PyPI release'. (3) tests/test_cli_release_packaging.py: updated test_release_notes_include_exact_tag_and_artifact_install_commands and test_release_docs_cover_tag_creation_and_verification_commands to assert v1.0.0; added test_release_docs_describe_draft_and_final_tag_convention; added test_install_docs_cover_tag_and_wheel_installs_for_v1.
+---
+author: oompah
+created: 2026-06-22 03:02
+---
+VERIFICATION: All 8 tests in tests/test_cli_release_packaging.py pass (8 passed, 0 failed). New tests test_release_docs_describe_draft_and_final_tag_convention and test_install_docs_cover_tag_and_wheel_installs_for_v1 both pass.
 ---
 <!-- COMMENTS:END -->
