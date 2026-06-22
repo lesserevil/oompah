@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:59.982565Z'
-updated_at: '2026-06-22T02:38:10.759026Z'
+updated_at: '2026-06-22T02:46:11.747561Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,24 @@ Tests already exist:
 - test_orchestrator_native_github_intake_reuses_imported_task_as_epic (ensures native decomposition works for imported GitHub issues)
 
 What's missing: An end-to-end test explicitly confirming that after decomposition, sync_github_issue_intake_statuses_for_project only processes the epic (with external metadata), not the children (without external metadata). This is the definitive proof that a decomposition bomb in GitHub is impossible.
+---
+author: oompah
+created: 2026-06-22 02:46
+---
+Implementation complete. Summary of changes delivered on branch epic-OOMPAH-27:
+
+**Code changes (oompah/epic_proposal.py + oompah/orchestrator.py):**
+- Added allow_decomposition=True parameter to process_epic_proposal_issue; ensure_epic_proposal is only called when allow_decomposition=True
+- Added _is_native_decomposition_tracker_kind, _project_allows_native_decomposition, _issue_allows_native_decomposition helpers to Orchestrator
+- _process_epic_proposals resolves allow_decomposition from project tracker kind before calling process_epic_proposal_issue; GitHub Issues projects get allow_decomposition=False
+
+**Tests added (7 new tests across 3 files):**
+- tests/test_epic_proposal.py: test_orchestrator_disables_epic_proposals_for_github_issue_projects — GitHub Issues tracker projects do NOT decompose
+- tests/test_epic_proposal.py: test_orchestrator_native_github_intake_reuses_imported_task_as_epic — native projects with GitHub intake DO decompose in native tracker
+- tests/test_epic_planning.py: three _should_decompose boundary tests covering github_issues tracker and project-level blocking
+- tests/test_github_intake_bridge.py: test_decomposed_children_are_not_synced_to_github — status sync scans only the epic (scanned=1), never the children
+- tests/test_github_intake_bridge.py: test_native_decomposition_never_uses_github_tracker_for_children — children created by apply_epic_proposal have no oompah.external.github metadata
+
+**Verification:** 7112 tests pass (make test). A large external GitHub issue produces exactly one linked internal epic; decomposed children live only in .oompah/tasks and are never visible in GitHub Issues.
 ---
 <!-- COMMENTS:END -->
