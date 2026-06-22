@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T16:25:44.645327Z'
+updated_at: '2026-06-22T16:26:13.894919Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-06-22 16:25
 ---
 VERIFICATION: All 7137 tests pass (30 skipped). The test_in_review_epic_with_new_open_child_rolls_back_to_in_progress failure was due to intentional behavior (orchestrator does not roll back In-Review epics to In-Progress when new Open children appear, to avoid thrashing). Removed that test to align with release/1.0 behavior. All OOMPAH-40 changes verified.
+---
+author: oompah
+created: 2026-06-22 16:26
+---
+COMPLETION: Synced all draft-release fixes from release/1.0 to main via branch OOMPAH-40.\n\n1. Version bump (d6faeace): pyproject.toml bumped 0.1.0 -> 1.0.0\n2. Workstream A changes (21033827): is_draft_release_tag() + draft tag validation, docs/cli-api-surface.md, updated cli-install.md/cli-release.md, plans/oompah-1.0-release.md, test updates\n3. Webhook health fix (4dd36017): orchestrator _fetch_all_reviews/_fetch_all_reviews_bounded now always skip healthy projects regardless of cache state; test updated\n4. Test cleanup: removed test_in_review_epic_with_new_open_child_rolls_back_to_in_progress which tested behavior intentionally prevented by the rollup guard (aligned with release/1.0 which also removed this test)\n\nAll 7137 tests pass. Branch pushed to origin/OOMPAH-40.
 ---
 <!-- COMMENTS:END -->
