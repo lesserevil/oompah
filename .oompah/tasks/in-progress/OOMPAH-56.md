@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T17:28:26.868503Z'
-updated_at: '2026-06-22T17:33:32.042968Z'
+updated_at: '2026-06-22T17:38:39.186850Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-06-22 17:33
 ---
 Implementation: Proceeding with rebase of epic-OOMPAH-37 (d44e029a, ancestor of main) onto origin/epic-OOMPAH-16 (e9f4c154). epic-OOMPAH-16 has 240 commits not in epic-OOMPAH-37 (release features: OOMPAH-21/22 plus sub-epic merges). epic-OOMPAH-37 has 344 commits to replay (mostly task metadata from when it was rebased onto main in OOMPAH-54). Conflicts likely in .oompah/tasks files. Starting rebase now.
+---
+author: oompah
+created: 2026-06-22 17:38
+---
+Verification: Rebase completed successfully. Confirmed: origin/epic-OOMPAH-16 (e9f4c154) IS now an ancestor of origin/epic-OOMPAH-37 (9150367b). 339 commits from epic-OOMPAH-37 sit on top of epic-OOMPAH-16. The code fix 'Fix epic review rollback when children change' (originally 0b239e8f, now f4a6adb8 after rebase) is preserved. Force-push with --force-with-lease succeeded: d44e029a -> 9150367b. Also archived OOMPAH-57 as duplicate-of:OOMPAH-56.
 ---
 <!-- COMMENTS:END -->
