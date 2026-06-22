@@ -5,13 +5,14 @@ status: Backlog
 priority: 1
 title: Lock the 1.0 CLI and package contract
 parent: OOMPAH-16
-children: []
+children:
+- OOMPAH-23
 blocked_by: []
 labels:
 - draft
 assignee: null
 created_at: '2026-06-22T01:16:36.501719Z'
-updated_at: '2026-06-22T01:16:38.620706Z'
+updated_at: '2026-06-22T01:16:41.678547Z'
 work_branch: null
 target_branch: null
 review_url: null
