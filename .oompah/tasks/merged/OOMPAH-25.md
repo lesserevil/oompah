@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-25
 type: task
-status: In Review
+status: Merged
 priority: 1
 title: Verify lightweight wheel contents and dependency boundary
 parent: OOMPAH-22
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:46.207414Z'
-updated_at: '2026-06-22T13:52:30.623731Z'
+updated_at: '2026-06-22T13:59:27.834463Z'
 work_branch: null
 target_branch: null
 review_url: null
