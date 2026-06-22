@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T01:52:58.922363Z'
-updated_at: '2026-06-22T02:03:28.336688Z'
+updated_at: '2026-06-22T02:07:07.644658Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-06-22 02:03
 ---
 UNDERSTANDING: This is NOT a duplicate. OOMPAH-18 was a broader 1.0 update task that explicitly deferred the workflow dispatch description change (v0.1.0 → v1.0.0-draft or v1.0.0) because it lacked PAT workflow scope. OOMPAH-43 is the follow-up filed to complete that specific change. The task is straightforward: update the 'description' field in the workflow_dispatch input in .github/workflows/cli-release.yml. Proceeding to implement.
+---
+author: oompah
+created: 2026-06-22 02:07
+---
+DISCOVERY: This is not a duplicate. OOMPAH-43 is a deliberate follow-up from OOMPAH-18 (Done). OOMPAH-18 reverted the workflow file change because the PAT lacked workflow scope, and filed this task for a maintainer to complete it. Target: .github/workflows/cli-release.yml line — description: 'Existing release tag to package, e.g. v0.1.0' → 'e.g. v1.0.0-draft or v1.0.0'. Current test file (on main, pre-OOMPAH-18 merge) has no assertion on the dispatch description string. Will add a test to lock in the new description.
 ---
 <!-- COMMENTS:END -->
