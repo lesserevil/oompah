@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-32
 type: epic
-status: In Progress
+status: In Review
 priority: 0
 title: Finish 1.0 operator and project docs
 parent: OOMPAH-16
@@ -17,7 +17,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-06-22T01:17:10.735548Z'
-updated_at: '2026-06-22T15:05:40.651633Z'
+updated_at: '2026-06-22T15:05:44.111861Z'
 work_branch: epic-OOMPAH-32
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/350
