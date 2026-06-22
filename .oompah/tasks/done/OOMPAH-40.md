@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:39.633849Z'
-updated_at: '2026-06-22T16:42:33.380924Z'
+updated_at: '2026-06-22T16:42:42.649210Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -370,5 +370,15 @@ author: oompah
 created: 2026-06-22 16:42
 ---
 Synced all draft-release fixes from release/1.0 to main: (1) version bump 0.1.0->1.0.0, (2) is_draft_release_tag() + draft tag validation support, (3) webhook health fix (always skip healthy projects regardless of cache state), (4) removed stale rollup test. All 7137 tests pass. Branch OOMPAH-40 pushed to origin.
+---
+author: oompah
+created: 2026-06-22 16:42
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 4
+- Tokens: 15 in / 276 out [291 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 43s
+- Log: OOMPAH-40__20260622T164208Z.jsonl
 ---
 <!-- COMMENTS:END -->
