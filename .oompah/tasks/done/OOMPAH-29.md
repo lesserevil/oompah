@@ -108,4 +108,9 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Exit: terminated, Duration: 11m 0s
 - Log: OOMPAH-29__20260622T015323Z.jsonl
 ---
+author: oompah
+created: 2026-06-22 14:07
+---
+No open review PR is active for this child task. Its shared-epic work is complete, so it should remain Done and unblock dependent work until the parent epic enters review.
+---
 <!-- COMMENTS:END -->
