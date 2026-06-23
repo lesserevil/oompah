@@ -7887,6 +7887,8 @@ class Orchestrator:
             if not project_uses_github_issue_intake(project):
                 continue
             metrics["projects"] += 1
+            project_name = getattr(project, "name", "?")
+            auth_alert_source = f"github_intake_auth:{project_name}"
             try:
                 metrics["imported"] += poll_github_issue_intake_project(self, project)
                 status_metrics = sync_github_issue_intake_statuses_for_project(
@@ -7897,17 +7899,18 @@ class Orchestrator:
                 metrics["status_commented"] += int(status_metrics.get("commented", 0))
                 metrics["status_closed"] += int(status_metrics.get("closed", 0))
                 metrics["errors"] += int(status_metrics.get("errors", 0))
+                self._alerts = [
+                    a for a in self._alerts if a.get("source") != auth_alert_source
+                ]
             except TrackerAuthError as exc:
                 metrics["errors"] += 1
-                project_name = getattr(project, "name", "?")
-                source = f"github_intake_auth:{project_name}"
                 self._alerts = [
-                    a for a in self._alerts if a.get("source") != source
+                    a for a in self._alerts if a.get("source") != auth_alert_source
                 ]
                 self._alerts.append(
                     {
                         "level": "error",
-                        "source": source,
+                        "source": auth_alert_source,
                         "title": (
                             f"GitHub intake authentication failure for project "
                             f"{project_name!r}"
