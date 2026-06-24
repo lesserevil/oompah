@@ -12,12 +12,22 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-24T15:44:04.912463Z'
-updated_at: '2026-06-24T15:44:04.912463Z'
+updated_at: '2026-06-24T15:44:07.002307Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.external.github:
+  id: lesserevil/oompah#360
+  owner: lesserevil
+  repo: oompah
+  number: '360'
+  url: https://github.com/lesserevil/oompah/issues/360
+  requestor_login: NVShawn
+  imported_comment_ids: []
+  last_synced_status: Proposed
+  last_synced_at: '2026-06-24T15:44:06.376810+00:00'
 ---
 ## Summary
 
