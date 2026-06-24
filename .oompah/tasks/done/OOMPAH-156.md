@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-156
 type: bug
-status: In Progress
+status: Done
 priority: null
 title: Deduplicate auto-filed internal error tasks before creating new tasks
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-24T16:39:49.133027Z'
-updated_at: '2026-06-24T16:48:00.643219Z'
+updated_at: '2026-06-24T16:49:43.454591Z'
 work_branch: null
 target_branch: null
 review_url: null
