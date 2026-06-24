@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-24T16:39:49.133027Z'
-updated_at: '2026-06-24T16:49:53.228469Z'
+updated_at: '2026-06-24T16:49:55.723849Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -168,5 +168,10 @@ Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 53s
 - Log: OOMPAH-156__20260624T164802Z.jsonl
+---
+author: oompah
+created: 2026-06-24 16:49
+---
+Implemented durable error_watcher duplicate suppression by scanning existing non-terminal tasks for the same dedup fingerprint, commenting on duplicates, and covering cross-instance suppression with tests. Landed in ddaa481e.
 ---
 <!-- COMMENTS:END -->
