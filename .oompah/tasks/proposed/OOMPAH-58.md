@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-24T15:41:50.764079Z'
-updated_at: '2026-06-24T15:41:55.527380Z'
+updated_at: '2026-06-24T16:52:43.918614Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -91,3 +91,11 @@ The operation in `backend:webhooks` should complete successfully, or degrade gra
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-24 16:52
+---
+Deduping existing Proposed backlog for error_watcher fingerprint fab624f77cb2c7ae. Keeping OOMPAH-58 as the canonical task and archiving the duplicate Proposed tasks OOMPAH-59 through OOMPAH-155.
+---
+<!-- COMMENTS:END -->
