@@ -11,7 +11,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-06-24T16:39:49.133027Z'
-updated_at: '2026-06-24T16:40:34.366172Z'
+updated_at: '2026-06-24T16:40:36.592475Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Internal backend errors from error_watcher should only create one task per stabl
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-24 16:40
+---
+Agent dispatched (profile: deep)
+---
+<!-- COMMENTS:END -->
