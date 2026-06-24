@@ -7,11 +7,10 @@ title: Add archive action to task detail UI
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:frontend
+labels: []
 assignee: null
 created_at: '2026-06-24T16:39:56.675340Z'
-updated_at: '2026-06-24T16:40:50.276599Z'
+updated_at: '2026-06-24T16:40:52.447154Z'
 work_branch: null
 target_branch: null
 review_url: null
