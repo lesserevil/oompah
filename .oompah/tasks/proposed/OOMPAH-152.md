@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-24T16:30:50.565034Z'
-updated_at: '2026-06-24T16:30:52.839845Z'
+updated_at: '2026-06-24T16:30:55.997151Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,6 +34,16 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: fail
   last_validated_at: '2026-06-24T16:30:51.959293+00:00'
+oompah.external.github:
+  id: lesserevil/oompah#399
+  owner: lesserevil
+  repo: oompah
+  number: '399'
+  url: https://github.com/lesserevil/oompah/issues/399
+  requestor_login: NVShawn
+  imported_comment_ids: []
+  last_synced_status: Proposed
+  last_synced_at: '2026-06-24T16:30:52.180649+00:00'
 ---
 ## Summary
 
