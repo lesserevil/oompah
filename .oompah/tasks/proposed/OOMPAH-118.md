@@ -12,12 +12,22 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-24T16:19:08.270221Z'
-updated_at: '2026-06-24T16:19:08.270221Z'
+updated_at: '2026-06-24T16:19:10.517676Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.external.github:
+  id: lesserevil/oompah#394
+  owner: lesserevil
+  repo: oompah
+  number: '394'
+  url: https://github.com/lesserevil/oompah/issues/394
+  requestor_login: NVShawn
+  imported_comment_ids: []
+  last_synced_status: Proposed
+  last_synced_at: '2026-06-24T16:19:09.841097+00:00'
 ---
 ## Summary
 
