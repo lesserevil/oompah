@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-24T16:39:56.675340Z'
-updated_at: '2026-06-24T16:46:54.433951Z'
+updated_at: '2026-06-24T16:46:56.664866Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -127,5 +127,15 @@ author: oompah
 created: 2026-06-24 16:44
 ---
 Duplicate Investigation: Confirmed NOT a duplicate. Searched all tasks for 'archive action', 'cancel', 'task detail UI', and 'will not do'. No existing or previously-handled task covers adding an archive/cancel control to the task detail view. Proceeding with implementation. Plan: (1) find the task detail UI template/component, (2) identify where other action buttons are rendered, (3) add Archive/Will not do button calling the task status API to set Archived, (4) add confirmation for safety, (5) write tests for button rendering and API call.
+---
+author: oompah
+created: 2026-06-24 16:46
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 68
+- Tokens: 72 in / 2.3K out [2.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 26s
+- Log: OOMPAH-157__20260624T164432Z.jsonl
 ---
 <!-- COMMENTS:END -->
