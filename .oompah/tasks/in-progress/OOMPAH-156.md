@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-156
 type: bug
-status: Backlog
+status: In Progress
 priority: null
 title: Deduplicate auto-filed internal error tasks before creating new tasks
 parent: null
@@ -11,7 +11,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-06-24T16:39:49.133027Z'
-updated_at: '2026-06-24T16:39:49.133027Z'
+updated_at: '2026-06-24T16:40:03.921043Z'
 work_branch: null
 target_branch: null
 review_url: null
