@@ -19,6 +19,7 @@ from oompah.error_watcher import (
     _extract_message,
     _priority_for_level,
 )
+from oompah.models import Issue
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +142,54 @@ class TestErrorWatcher:
         watcher.report_error("test", "error one")
         watcher.report_error("test", "error two")
         assert tracker.create_issue.call_count == 2
+
+    def test_existing_non_terminal_error_task_suppresses_fresh_watcher_create(self):
+        tracker = MagicMock()
+        existing_watcher = ErrorWatcher(tracker)
+        fp = existing_watcher._fingerprint("test", "same persisted error")
+        tracker.fetch_all_issues.return_value = [
+            Issue(
+                id="task-123",
+                identifier="TASK-123",
+                title="[test] same persisted error",
+                description=f"*Auto-filed by oompah error_watcher*\n- dedup_fingerprint: {fp}",
+                state="Proposed",
+            )
+        ]
+
+        fresh_watcher = ErrorWatcher(tracker)
+        result = fresh_watcher.report_error("test", "same persisted error")
+
+        assert result is None
+        tracker.create_issue.assert_not_called()
+        tracker.add_comment.assert_called_once()
+        assert tracker.add_comment.call_args.args[0] == "TASK-123"
+        assert "Duplicate error_watcher occurrence suppressed" in tracker.add_comment.call_args.args[1]
+        assert next(iter(fresh_watcher._seen.values())).task_id == "TASK-123"
+
+    def test_existing_terminal_error_task_does_not_suppress_new_create(self):
+        tracker = MagicMock()
+        issue = MagicMock()
+        issue.identifier = "TASK-999"
+        tracker.create_issue.return_value = issue
+        existing_watcher = ErrorWatcher(tracker)
+        fp = existing_watcher._fingerprint("test", "same persisted error")
+        tracker.fetch_all_issues.return_value = [
+            Issue(
+                id="task-123",
+                identifier="TASK-123",
+                title="[test] same persisted error",
+                description=f"*Auto-filed by oompah error_watcher*\n- dedup_fingerprint: {fp}",
+                state="Archived",
+            )
+        ]
+
+        fresh_watcher = ErrorWatcher(tracker)
+        result = fresh_watcher.report_error("test", "same persisted error")
+
+        assert result == "TASK-999"
+        tracker.create_issue.assert_called_once()
+        tracker.add_comment.assert_not_called()
 
     def test_tracker_failure_returns_none(self):
         tracker = MagicMock()

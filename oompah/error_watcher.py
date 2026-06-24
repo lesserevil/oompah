@@ -25,6 +25,7 @@ from dataclasses import dataclass
 
 from watchfiles import awatch
 
+from oompah.statuses import is_terminal_status
 from oompah.tracker import TrackerProtocol
 
 logger = logging.getLogger(__name__)
@@ -163,6 +164,26 @@ class ErrorWatcher:
         # Evict old entries if we're at capacity
         if len(self._seen) >= _MAX_FINGERPRINTS:
             self._evict_oldest()
+
+        existing_id = self._find_existing_error_task(fp)
+        if existing_id:
+            self._seen[fp] = _ErrorRecord(
+                fingerprint=fp,
+                last_created=now,
+                task_id=existing_id,
+                issue_id=issue_id,
+            )
+            self._comment_on_duplicate_error(
+                existing_id,
+                source,
+                message,
+                issue_id=issue_id,
+            )
+            logger.info(
+                "Deduplicated error task for [%s] %s against existing %s",
+                source, message[:80], existing_id,
+            )
+            return None
 
         # Create the task
         title = f"[{source}] {message}"
@@ -435,6 +456,54 @@ class ErrorWatcher:
             meta_lines.append(f"- error_class: {error_class}")
 
         return "".join(parts) + "\n".join(meta_lines)
+
+    def _find_existing_error_task(self, fp: str) -> str | None:
+        """Return a non-terminal auto-filed task already tracking ``fp``.
+
+        The in-memory dedup table prevents bursts within one process. This
+        tracker scan prevents a restart or a second watcher from creating a
+        duplicate task for the same durable error_watcher fingerprint.
+        """
+        try:
+            issues = list(self._tracker.fetch_all_issues())
+        except Exception as exc:
+            logger.debug("Failed to scan existing error tasks: %s", exc)
+            return None
+
+        needle = f"dedup_fingerprint: {fp}"
+        for issue in issues:
+            if is_terminal_status(getattr(issue, "state", None)):
+                continue
+            description = str(getattr(issue, "description", "") or "")
+            if needle in description:
+                return str(getattr(issue, "identifier", "") or "")
+        return None
+
+    def _comment_on_duplicate_error(
+        self,
+        identifier: str,
+        source: str,
+        message: str,
+        *,
+        issue_id: str | None = None,
+    ) -> None:
+        """Best-effort audit trail for a duplicate error occurrence."""
+        if not identifier:
+            return
+        comment = (
+            "Duplicate error_watcher occurrence suppressed; this task already "
+            f"tracks the same dedup fingerprint.\n\nSource: `{source}`\n\n"
+            f"Message: {message}"
+        )
+        if issue_id:
+            comment += f"\n\nSource issue: `{issue_id}`"
+        try:
+            self._tracker.add_comment(identifier, comment, author="oompah")
+        except Exception as exc:
+            logger.debug(
+                "Could not comment on duplicate error task %s: %s",
+                identifier, exc,
+            )
 
     def _fingerprint(
         self,

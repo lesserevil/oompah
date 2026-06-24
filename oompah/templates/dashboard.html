@@ -752,6 +752,13 @@
     .intake-action-button.owner-action {
       border-color: rgba(210,153,34,0.45);
     }
+    .detail-action-button.destructive-action {
+      width: 100%;
+      min-height: 32px;
+      font-size: 0.74rem;
+      border-color: rgba(248,81,73,0.45);
+      color: var(--red);
+    }
     .intake-action-empty {
       color: var(--text-muted);
       font-size: 0.74rem;
@@ -4133,6 +4140,29 @@ function renderIntakeActions(detail) {
   `;
 }
 
+function renderArchiveAction(detail) {
+  if (!detail) return '';
+  const state = statusKey(detail.state);
+  if (['done', 'merged', 'archived'].includes(state)) return '';
+  return `
+    <div class="detail-field detail-archive-action">
+      <div class="detail-field-label">Close</div>
+      <button class="detail-action-button destructive-action" onclick="archiveIssueFromDetail('${esc(detail.identifier)}')">Archive</button>
+    </div>
+  `;
+}
+
+async function archiveIssueFromDetail(identifier) {
+  const body = document.getElementById('detail-panel-body');
+  const projectId = body ? body.dataset.projectId : '';
+  if (!confirm('Archive this task as will not do / cancelled?')) return;
+  const ok = await updateIssue(identifier, {status: 'Archived', project_id: projectId});
+  if (!ok) return;
+  await openDetailPanel(identifier);
+  const data = await fetchIssues();
+  if (data) renderBoard(data);
+}
+
 async function performIntakeAction(identifier, action) {
   const projectId = document.getElementById('detail-panel-body').dataset.projectId;
   let actor = intakeActorLogin();
@@ -4291,6 +4321,7 @@ async function openDetailPanel(identifier) {
   }
 
   html += renderIntakeActions(detail);
+  html += renderArchiveAction(detail);
 
   if (detail.parent_id) {
     const epic = getEpicById(detail.parent_id, detail.project_id);

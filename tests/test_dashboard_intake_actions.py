@@ -126,6 +126,29 @@ class TestDashboardIntakeActions:
         assert "perms.can_promote_to_backlog" in body
         assert "Promote to Backlog" in body
 
+    def test_detail_panel_renders_archive_action(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "openDetailPanel")
+
+        assert "renderArchiveAction(detail)" in body
+
+    def test_archive_action_hidden_for_terminal_tasks(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "renderArchiveAction")
+
+        assert "['done', 'merged', 'archived'].includes(state)" in body
+        assert "Archive" in body
+        assert "archiveIssueFromDetail" in body
+
+    def test_archive_action_sets_archived_status(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "archiveIssueFromDetail")
+
+        assert "confirm('Archive this task as will not do / cancelled?')" in body
+        assert "updateIssue(identifier, {status: 'Archived', project_id: projectId})" in body
+        assert "await openDetailPanel(identifier)" in body
+        assert "if (data) renderBoard(data)" in body
+
     def test_perform_intake_action_posts_to_intake_endpoint(self):
         script = _load_dashboard_script()
         body = _function_body(script, "performIntakeAction")
