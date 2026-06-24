@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-58
 type: task
-status: Proposed
+status: Archived
 priority: null
 title: '[backend:webhooks] WebhookForwarder: disabling webhook forwarding for project
   trickle: gh: Not Found (HTTP 404)'
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-24T15:41:50.764079Z'
-updated_at: '2026-06-24T16:52:43.918614Z'
+updated_at: '2026-06-24T16:59:02.098096Z'
 work_branch: null
 target_branch: null
 review_url: null
