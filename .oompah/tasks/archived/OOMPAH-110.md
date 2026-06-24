@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-24T15:52:45.452664Z'
-updated_at: '2026-06-24T16:53:12.489372Z'
+updated_at: '2026-06-24T16:53:14.731452Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -81,3 +81,11 @@ The operation in `backend:webhooks` should complete successfully, or degrade gra
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-24 16:53
+---
+Archived as a duplicate of OOMPAH-58. Existing Proposed dedupe cleanup for error_watcher fingerprint fab624f77cb2c7ae.
+---
+<!-- COMMENTS:END -->
