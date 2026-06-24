@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-24T16:39:56.675340Z'
-updated_at: '2026-06-24T16:50:12.830595Z'
+updated_at: '2026-06-24T16:50:14.979745Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,10 @@ Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 0s
 - Log: OOMPAH-157__20260624T164814Z.jsonl
+---
+author: oompah
+created: 2026-06-24 16:50
+---
+Added an Archive action to non-terminal task detail views with confirmation, status update to Archived, detail refresh, board refresh, and dashboard tests. Landed in ddaa481e.
 ---
 <!-- COMMENTS:END -->
