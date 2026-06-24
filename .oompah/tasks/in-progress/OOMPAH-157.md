@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-157
 type: bug
-status: Open
+status: In Progress
 priority: null
 title: Add archive action to task detail UI
 parent: null
@@ -11,7 +11,7 @@ labels:
 - needs:frontend
 assignee: null
 created_at: '2026-06-24T16:39:56.675340Z'
-updated_at: '2026-06-24T16:40:16.749114Z'
+updated_at: '2026-06-24T16:40:38.738623Z'
 work_branch: null
 target_branch: null
 review_url: null
