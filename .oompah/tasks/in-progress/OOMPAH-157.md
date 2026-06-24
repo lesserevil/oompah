@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-24T16:39:56.675340Z'
-updated_at: '2026-06-24T16:40:52.447154Z'
+updated_at: '2026-06-24T16:41:01.396223Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-06-24 16:40
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-06-24 16:41
+---
+Understanding: This task requires adding an Archive/Will not do action to the task detail UI. The UI currently has actions like Request Changes, Override Readiness, and Promote to Backlog, but lacks an archive/cancel option. Plan: (1) Find the task detail UI template/component, (2) Identify where other action buttons are rendered, (3) Add an Archive button that calls the existing task status API to set status to Archived, (4) Add confirmation dialog for safety, (5) Write tests covering button rendering and API call.
 ---
 <!-- COMMENTS:END -->
