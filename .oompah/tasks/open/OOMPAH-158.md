@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-158
 type: bug
-status: Backlog
+status: Open
 priority: null
 title: Make GitHub intake import parsing tolerant of Markdown issue bodies
 parent: null
@@ -11,7 +11,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-26T22:14:16.817361Z'
+updated_at: '2026-06-26T22:29:48.717381Z'
 work_branch: null
 target_branch: null
 review_url: null
