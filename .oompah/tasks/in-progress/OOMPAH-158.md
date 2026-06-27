@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-27T03:30:08.789692Z'
+updated_at: '2026-06-27T03:35:37.023283Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-06-27 03:30
 ---
 Discovery: Root cause identified. When a GitHub issue body contains H2 Markdown headings (## Summary, ## Acceptance Criteria, etc.), the native_description_for_github_issue function embeds them in the native task's ## Summary section. The oompah_md_tracker._section() regex uses (?=^##\s+|\Z) as lookahead to stop at the next H2 heading. When the GitHub body starts with ## Summary, the outer ## Summary section body is EMPTY (the regex sees the inner ## Summary immediately). So issue.description = None. The orchestrator then runs validate_issue(description=None) on the proposed native task, which correctly reports all fields as missing, and _update_intake_metadata writes those to oompah.intake. Fix: in _native_description_for_github_issue, downgrade H1/H2 headings in the GitHub body to H3+ before embedding. The validator's _section_re matches #{1,6} (H1-H6) so it still finds ### Acceptance Criteria etc. The _section() regex only stops at ^##\s+ so H3+ headings don't break the Summary section boundary. Two files to change: github_intake_bridge.py (add heading demotion), tests/test_github_intake_bridge.py (add regression test).
+---
+author: oompah
+created: 2026-06-27 03:35
+---
+Implementation: Fixed in oompah/github_intake_bridge.py. Added _demote_h1_h2_headings(body) helper that uses re.sub with ^(#{1,2})\s+(.+)$ to convert H1/H2 headings to H3+. Modified _native_description_for_github_issue to apply heading demotion before embedding the GitHub body in the native task's ## Summary section. Added 13 regression tests in TestDemoteH1H2Headings and TestNativeDescriptionMarkdownBody covering: unit tests for _demote_h1_h2_headings (H1/H2 demoted, H3+ unchanged, empty string, mixed), end-to-end that _section(body, 'Summary') returns non-null when GitHub body has ## headings, and that validate_issue passes for the demoted content. The fix is backward-compatible: GitHub bodies without H2 headings are passed through unchanged.
 ---
 <!-- COMMENTS:END -->
