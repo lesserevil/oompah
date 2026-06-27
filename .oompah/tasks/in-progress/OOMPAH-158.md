@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-27T03:36:10.572140Z'
+updated_at: '2026-06-27T03:36:20.188171Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -81,5 +81,10 @@ author: oompah
 created: 2026-06-27 03:36
 ---
 Verification: All tests pass. 50/50 in test_github_intake_bridge.py (includes 13 new regression tests). 201/201 across intake bridge + intake schema + intake comments + issue validator test files. Full suite: 7144 passed, 2 pre-existing unrelated failures in test_orchestrator_webhook_health.py (confirmed pre-existing before this branch). Branch OOMPAH-158 pushed to origin.
+---
+author: oompah
+created: 2026-06-27 03:36
+---
+Completion: Delivered fix for OOMPAH-158. Root cause: GitHub issue bodies with H2 Markdown headings (## Summary, ## Acceptance Criteria) caused null description when imported as native tasks. The native tracker's _section() regex stops at ^##\s+ boundaries, so nested H2 headings inside the ## Summary section returned empty content. Fix: added _demote_h1_h2_headings() to github_intake_bridge.py that demotes H1/H2 headings to H3 before embedding in the native task body. H3 headings don't trigger the section boundary regex but are still recognized by the validator's #{1,6} pattern. Result: (1) imported native task description is non-null, (2) validate_issue sees acceptance_criteria and problem_statement in demoted content and returns ready=True, (3) oompah.intake.missing_fields is no longer incorrectly populated. 13 regression tests added. All 7144 tests pass (2 pre-existing failures in unrelated module). Branch pushed to origin/OOMPAH-158.
 ---
 <!-- COMMENTS:END -->
