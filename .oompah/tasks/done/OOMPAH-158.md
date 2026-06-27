@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-27T03:36:28.345279Z'
+updated_at: '2026-06-27T03:36:36.123273Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -91,5 +91,15 @@ author: oompah
 created: 2026-06-27 03:36
 ---
 Fixed GitHub intake import for Markdown bodies with H2 headings. Added _demote_h1_h2_headings() helper + 13 regression tests. issue.description is now non-null; validate_issue passes; missing_fields no longer incorrectly populated.
+---
+author: oompah
+created: 2026-06-27 03:36
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 107
+- Tokens: 169 in / 5.2K out [5.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 15m 37s
+- Log: OOMPAH-158__20260627T032105Z.jsonl
 ---
 <!-- COMMENTS:END -->
