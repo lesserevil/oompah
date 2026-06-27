@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-7
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Add GitHub-only CLI release packaging
 parent: null
@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.705105Z'
-updated_at: '2026-06-20T14:51:48.239886Z'
+updated_at: '2026-06-27T15:24:36.038817Z'
 work_branch: null
 target_branch: null
 review_url: null
