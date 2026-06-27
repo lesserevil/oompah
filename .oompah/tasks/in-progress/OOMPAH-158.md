@@ -11,7 +11,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-27T03:20:57.328559Z'
+updated_at: '2026-06-27T03:20:59.536459Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,3 +50,12 @@ GitHub intake import should preserve and parse Markdown issue bodies robustly en
 - [ ] Define acceptance criteria.
 
 ## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-27 03:20
+---
+Agent dispatched (profile: deep)
+---
+<!-- COMMENTS:END -->
