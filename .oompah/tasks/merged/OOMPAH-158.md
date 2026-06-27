@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-27T03:47:26.112173Z'
+updated_at: '2026-06-27T03:47:28.304943Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/400
@@ -139,5 +139,10 @@ author: oompah
 created: 2026-06-27 03:46
 ---
 Understanding: CI fails on 2 tests in TestFetchAllReviewsSkipsHealthy. These are pre-existing failures on main caused by commit daa798e7 ('Fix cold review cache polling') which changed _fetch_all_reviews() behavior: healthy projects are now polled when their reviews cache is cold (previously they were always skipped). The tests test_skips_healthy_project_no_api_called and test_mixed_healthy_and_unhealthy were written with the old always-skip semantics. Fix: prime the healthy project's _reviews_cache with an empty list before calling _fetch_all_reviews(). With a warm (empty) cache, the condition 'is_webhook_healthy AND _has_warm_reviews_cache' is True, so the healthy project is correctly skipped — detect_provider not called, result is [].
+---
+author: oompah
+created: 2026-06-27 03:47
+---
+YOLO: merged PR #400.
 ---
 <!-- COMMENTS:END -->
