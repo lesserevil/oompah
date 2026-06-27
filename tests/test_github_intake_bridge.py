@@ -10,7 +10,9 @@ from unittest.mock import patch
 import pytest
 
 from oompah.github_intake_bridge import (
+    _demote_h1_h2_headings,
     _github_issue_from_event,
+    _native_description_for_github_issue,
     _reconcile_native_type_and_labels,
     ensure_native_issue_for_github_issue,
     handle_github_issue_event_for_native_project,
@@ -1449,3 +1451,229 @@ loading everything into memory, and recover gracefully from partial failures.
     assert "oompah.external.github" in epic_meta, (
         "Epic must retain its oompah.external.github metadata for status sync"
     )
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for OOMPAH-158: Markdown body heading demotion
+# ---------------------------------------------------------------------------
+
+def _markdown_github_issue(**overrides) -> Issue:
+    """GitHub issue whose body uses H2 headings (## Summary, ## Acceptance Criteria, etc.)."""
+    body = (
+        "## Summary\n"
+        "The installer should be able to run silently without presenting any UI.\n\n"
+        "## Required behavior\n"
+        "- Running the installer with `--quiet` must suppress all dialog boxes\n"
+        "- The installer must not require user interaction when called from a script\n\n"
+        "## Acceptance Criteria\n"
+        "- `--quiet` flag suppresses all UI dialogs during installation\n"
+        "- Silent installation can be triggered from a CI pipeline without user input\n"
+        "- A regression test verifies the silent install path end-to-end\n\n"
+        "## Notes\n"
+        "This is needed for enterprise deployment automation.\n"
+    )
+    defaults = {
+        "id": "NVIDIA-Omniverse/trickle#268",
+        "identifier": "NVIDIA-Omniverse/trickle#268",
+        "title": "Support quiet/silent installer option",
+        "description": body,
+        "state": "open",
+        "issue_type": "task",
+        "tracker_kind": "github_issues",
+        "tracker_owner": "NVIDIA-Omniverse",
+        "tracker_repo": "trickle",
+        "issue_number": "268",
+        "provider_url": "https://github.com/NVIDIA-Omniverse/trickle/issues/268",
+        "requestor_login": "dev-user",
+    }
+    defaults.update(overrides)
+    return Issue(**defaults)
+
+
+def _h2_lines(text: str) -> list[str]:
+    """Return lines that start with exactly '## ' (H2 headings)."""
+    return [l for l in text.splitlines() if l.startswith("## ")]
+
+
+def _h1_lines(text: str) -> list[str]:
+    """Return lines that start with exactly '# ' (H1 headings, not ## or ###)."""
+    return [l for l in text.splitlines() if l.startswith("# ")]
+
+
+def _h3_lines(text: str) -> list[str]:
+    """Return lines that start with exactly '### ' (H3 headings)."""
+    return [l for l in text.splitlines() if l.startswith("### ")]
+
+
+class TestDemoteH1H2Headings:
+    """Unit tests for _demote_h1_h2_headings."""
+
+    def test_h2_demoted_to_h3(self):
+        body = "## Summary\n\nThis is the summary.\n"
+        result = _demote_h1_h2_headings(body)
+        assert any(l == "### Summary" for l in result.splitlines())
+        assert _h2_lines(result) == []
+
+    def test_h1_demoted_to_h3(self):
+        body = "# Title\n\nContent here.\n"
+        result = _demote_h1_h2_headings(body)
+        assert any(l == "### Title" for l in result.splitlines())
+        assert _h1_lines(result) == []
+
+    def test_h3_unchanged(self):
+        body = "### Sub-section\n\nContent.\n"
+        result = _demote_h1_h2_headings(body)
+        assert result == body
+
+    def test_h4_unchanged(self):
+        body = "#### Deep section\n\nContent.\n"
+        result = _demote_h1_h2_headings(body)
+        assert result == body
+
+    def test_mixed_headings(self):
+        body = (
+            "## Summary\n\nOverview.\n\n"
+            "### Details\n\nNested detail.\n\n"
+            "## Acceptance Criteria\n\n- AC1\n- AC2\n"
+        )
+        result = _demote_h1_h2_headings(body)
+        lines = result.splitlines()
+        assert "### Summary" in lines
+        assert "### Acceptance Criteria" in lines
+        assert "### Details" in lines
+        # No bare H2 lines from original should remain
+        assert _h2_lines(result) == []
+
+    def test_no_headings_unchanged(self):
+        body = "This is plain text without any headings.\n- bullet1\n- bullet2\n"
+        result = _demote_h1_h2_headings(body)
+        assert result == body
+
+    def test_empty_string(self):
+        assert _demote_h1_h2_headings("") == ""
+
+    def test_heading_text_preserved(self):
+        body = "## Acceptance Criteria\n\n- AC1\n"
+        result = _demote_h1_h2_headings(body)
+        assert any(l == "### Acceptance Criteria" for l in result.splitlines())
+        assert "- AC1" in result
+
+
+class TestNativeDescriptionMarkdownBody:
+    """Regression tests for OOMPAH-158: GitHub bodies with H2 headings."""
+
+    def test_h2_headings_demoted_in_native_description(self):
+        """H2 headings in GitHub body are demoted to H3 in the native description."""
+        issue = _markdown_github_issue()
+        desc = _native_description_for_github_issue(issue)
+        lines = desc.splitlines()
+        # H2 headings from the body must be demoted to H3
+        assert "### Summary" in lines
+        assert "### Acceptance Criteria" in lines
+        # The only H2 line permitted is '## External GitHub Issue' (added by us)
+        h2_lines_from_body = [
+            l for l in lines
+            if l.startswith("## ") and "External GitHub Issue" not in l
+        ]
+        assert h2_lines_from_body == [], (
+            f"Found unexpected H2 headings in native description: {h2_lines_from_body!r}"
+        )
+
+    def test_native_description_non_null_when_body_has_h2_summary(self):
+        """Importing a GitHub body with ## Summary does not produce null description.
+
+        This is the core regression for OOMPAH-158: when the GitHub issue body
+        starts with '## Summary', the resulting native task must expose a
+        non-null description (not truncated to empty by the Summary section
+        boundary regex).
+        """
+        from oompah.oompah_md_tracker import _section
+
+        issue = _markdown_github_issue()
+        native_desc = _native_description_for_github_issue(issue)
+
+        # Simulate how _initial_body wraps the description in the native task body.
+        native_body = f"## Summary\n\n{native_desc}\n\n## Acceptance Criteria\n\n- [ ] Define acceptance criteria.\n\n## Notes\n\n"
+        # _section should extract a non-empty Summary section
+        extracted = _section(native_body, "Summary")
+        assert extracted is not None, (
+            "issue.description must not be None for GitHub-intake tasks with "
+            "structured Markdown bodies — OOMPAH-158 regression"
+        )
+        assert len(extracted.strip()) > 0
+
+    def test_validator_passes_for_markdown_github_body(self):
+        """validate_issue sees acceptance_criteria and problem_statement in demoted body.
+
+        This is the end-to-end intake regression: a GitHub issue with structured
+        Markdown sections (## Summary, ## Acceptance Criteria) must pass
+        validate_issue after heading demotion.
+        """
+        from oompah.oompah_md_tracker import _section
+        from oompah.issue_validator import validate_issue
+
+        issue = _markdown_github_issue()
+        native_desc = _native_description_for_github_issue(issue)
+
+        # Simulate _initial_body wrapping
+        native_body = (
+            f"## Summary\n\n{native_desc}\n\n"
+            "## Acceptance Criteria\n\n- [ ] Define acceptance criteria.\n\n"
+            "## Notes\n\n"
+        )
+        extracted_description = _section(native_body, "Summary")
+        assert extracted_description is not None
+
+        result = validate_issue(
+            title=issue.title,
+            description=extracted_description,
+            issue_type=issue.issue_type,
+            labels=issue.labels,
+        )
+        assert result.ready, (
+            f"validate_issue should pass for a well-formed GitHub intake body. "
+            f"Missing fields: {[f.field for f in result.missing_fields]}"
+        )
+        assert result.missing_fields == []
+
+    def test_plain_text_body_unchanged(self):
+        """GitHub body without headings is passed through unchanged."""
+        issue = _github_issue(
+            description="Exporting a large report returns a 500 error.\n",
+        )
+        desc = _native_description_for_github_issue(issue)
+        # Plain text should be preserved as-is
+        assert "Exporting a large report returns a 500 error." in desc
+
+    def test_import_creates_task_with_non_null_description(self):
+        """ensure_native_issue_for_github_issue stores a non-null description.
+
+        Tests the full import path using FakeNativeTracker to verify that
+        a GitHub issue with H2 headings creates a native task whose description
+        (the ## Summary section content) is non-null.
+        """
+        native = FakeNativeTracker()
+        github = FakeGitHubTracker([_markdown_github_issue()])
+
+        created = ensure_native_issue_for_github_issue(
+            native,
+            github,
+            _markdown_github_issue(),
+        )
+
+        assert created is not None
+        # The description stored by FakeNativeTracker is the full native description
+        # (as passed to create_issue) — it must be non-null and contain content.
+        assert created.description is not None
+        assert len((created.description or "").strip()) > 0
+        # H2 headings from the original body should NOT appear undemoted in description
+        desc = created.description or ""
+        # Acceptance Criteria from the GitHub body should appear as ### not ##
+        desc_lines = desc.splitlines()
+        h2_non_external = [
+            l for l in desc_lines
+            if l.startswith("## ") and "External GitHub Issue" not in l
+        ]
+        assert h2_non_external == [], (
+            f"Unexpected H2 headings (from GitHub body) in native description: {h2_non_external!r}"
+        )
