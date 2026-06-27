@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-27T03:47:30.516350Z'
+updated_at: '2026-06-27T03:47:38.372606Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/400
@@ -149,5 +149,15 @@ author: oompah
 created: 2026-06-27 03:47
 ---
 Implementation: Fixed 2 pre-existing test failures in tests/test_orchestrator_webhook_health.py::TestFetchAllReviewsSkipsHealthy. Root cause: commit daa798e7 changed _fetch_all_reviews() to poll healthy projects when their reviews cache is cold (to prime the cache on first tick). Tests test_skips_healthy_project_no_api_called and test_mixed_healthy_and_unhealthy were written for the old always-skip behavior. Fix: added orch._reviews_cache = {'healthy': []} in both tests before _fetch_all_reviews() is called, so the warm-cache condition is satisfied and the healthy project is correctly skipped. Branch pushed, CI re-running on PR #400.
+---
+author: oompah
+created: 2026-06-27 03:47
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 49
+- Tokens: 78 in / 2.3K out [2.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 54s
+- Log: OOMPAH-158__20260627T034249Z.jsonl
 ---
 <!-- COMMENTS:END -->
