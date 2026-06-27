@@ -8,6 +8,7 @@ changes back to the originating GitHub issue as comments/closure.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -374,10 +375,52 @@ def _external_metadata_from_issue(github_issue: Issue) -> dict[str, Any]:
     }
 
 
+_H1_H2_RE = re.compile(r"^(#{1,2})\s+(.+)$", re.MULTILINE)
+
+
+def _demote_h1_h2_headings(body: str) -> str:
+    """Demote H1 and H2 Markdown headings in *body* to H3.
+
+    The native oompah Markdown tracker uses H2 headings (``##``) as top-level
+    section delimiters (``## Summary``, ``## Acceptance Criteria``, etc.).  When
+    a GitHub issue body is embedded inside the native task's ``## Summary``
+    section, any H2 headings in the body would be mistaken for section boundaries
+    by the ``_section()`` regex — causing the Summary section to appear empty
+    and ``issue.description`` to be ``None``.
+
+    Demoting H1/H2 headings to H3 (``###``) avoids this collision while
+    preserving the structural information:
+
+    - The ``_section()`` regex (``^##\\s+``) stops only at *exactly* two hash
+      characters, so H3+ headings are safely included in the Summary body.
+    - The intake validator's ``_section_re`` patterns use ``#{1,6}``, so H3
+      headings for ``### Summary``, ``### Acceptance Criteria``, etc. are still
+      recognised by the validator.
+
+    H3 and deeper headings are left unchanged.
+    """
+    def _replace(m: re.Match) -> str:
+        hashes = m.group(1)
+        text = m.group(2)
+        demoted = "#" * max(3, len(hashes))
+        return f"{demoted} {text}"
+
+    return _H1_H2_RE.sub(_replace, body)
+
+
 def _native_description_for_github_issue(github_issue: Issue) -> str:
+    """Build the description stored in the native task for a GitHub intake issue.
+
+    The GitHub issue body is embedded in the native task's ``## Summary``
+    section.  Any H1/H2 headings in the body are demoted to H3 so they do not
+    conflict with the native task's own H2 section delimiters (which would
+    cause ``_section(body, "Summary")`` to return an empty string and expose a
+    ``null`` description through the API).
+    """
     lines: list[str] = []
     if github_issue.description:
-        lines.append(github_issue.description.strip())
+        demoted = _demote_h1_h2_headings(github_issue.description.strip())
+        lines.append(demoted)
         lines.append("")
     lines.append("## External GitHub Issue")
     if github_issue.provider_url:
