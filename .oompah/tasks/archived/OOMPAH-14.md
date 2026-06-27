@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-14
 type: bug
-status: Merged
+status: Archived
 priority: 1
 title: Preserve GitHub issue labels and type during native intake webhooks
 parent: null
@@ -15,7 +15,7 @@ labels:
 - metadata
 assignee: null
 created_at: '2026-06-20T03:03:06.527980Z'
-updated_at: '2026-06-20T04:21:09.579257Z'
+updated_at: '2026-06-27T04:53:04.320783Z'
 work_branch: OOMPAH-14
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/339
