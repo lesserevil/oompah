@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-27T03:35:37.023283Z'
+updated_at: '2026-06-27T03:36:10.572140Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,5 +76,10 @@ author: oompah
 created: 2026-06-27 03:35
 ---
 Implementation: Fixed in oompah/github_intake_bridge.py. Added _demote_h1_h2_headings(body) helper that uses re.sub with ^(#{1,2})\s+(.+)$ to convert H1/H2 headings to H3+. Modified _native_description_for_github_issue to apply heading demotion before embedding the GitHub body in the native task's ## Summary section. Added 13 regression tests in TestDemoteH1H2Headings and TestNativeDescriptionMarkdownBody covering: unit tests for _demote_h1_h2_headings (H1/H2 demoted, H3+ unchanged, empty string, mixed), end-to-end that _section(body, 'Summary') returns non-null when GitHub body has ## headings, and that validate_issue passes for the demoted content. The fix is backward-compatible: GitHub bodies without H2 headings are passed through unchanged.
+---
+author: oompah
+created: 2026-06-27 03:36
+---
+Verification: All tests pass. 50/50 in test_github_intake_bridge.py (includes 13 new regression tests). 201/201 across intake bridge + intake schema + intake comments + issue validator test files. Full suite: 7144 passed, 2 pre-existing unrelated failures in test_orchestrator_webhook_health.py (confirmed pre-existing before this branch). Branch OOMPAH-158 pushed to origin.
 ---
 <!-- COMMENTS:END -->
