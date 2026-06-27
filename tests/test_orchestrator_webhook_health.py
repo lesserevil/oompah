@@ -179,6 +179,11 @@ class TestFetchAllReviewsSkipsHealthy:
             repo_url="https://github.com/org/repo",
         )
         orch = _make_orchestrator_with_store([proj])
+        # Prime the cache so the healthy project qualifies for the skip path.
+        # _fetch_all_reviews only skips polling when the project is both
+        # webhook-healthy AND has a warm cache; without priming, a cold cache
+        # still triggers a single poll to populate it.
+        orch._reviews_cache = {"healthy": []}
         with patch(
             "oompah.orchestrator.detect_provider"
         ) as mock_detect:
@@ -310,6 +315,10 @@ class TestFetchAllReviewsSkipsHealthy:
             )
         ]
         orch = _make_orchestrator_with_store([healthy_proj, unhealthy_proj])
+        # Prime the healthy project's cache so it qualifies for the skip path.
+        # _fetch_all_reviews only skips polling when the project is both
+        # webhook-healthy AND has a warm cache.
+        orch._reviews_cache = {"healthy": []}
         with patch(
             "oompah.orchestrator.detect_provider", return_value=mock_provider
         ):
