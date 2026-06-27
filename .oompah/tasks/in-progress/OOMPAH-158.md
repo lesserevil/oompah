@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-27T03:42:41.879746Z'
+updated_at: '2026-06-27T03:42:44.152100Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/400
@@ -124,5 +124,10 @@ author: oompah
 created: 2026-06-27 03:42
 ---
 YOLO: CI tests failed on MR #400. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-06-27 03:42
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
