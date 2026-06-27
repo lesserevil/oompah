@@ -11,7 +11,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-26T22:29:48.717381Z'
+updated_at: '2026-06-27T03:20:50.719859Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,6 +20,7 @@ merged_at: null
 ---
 ## Summary
 
+GitHub issue intake should preserve and parse structured Markdown issue bodies so imported tasks expose a non-empty description and required-field validation sees Summary, work details, and acceptance criteria content.
 ## Problem
 GitHub issue intake can import a well-structured GitHub issue into a native oompah task, but the resulting task/detail API may expose a null or empty normalized description and stale intake metadata that incorrectly marks required fields as missing.
 
@@ -48,4 +49,3 @@ GitHub intake import should preserve and parse Markdown issue bodies robustly en
 - [ ] Define acceptance criteria.
 
 ## Notes
-
