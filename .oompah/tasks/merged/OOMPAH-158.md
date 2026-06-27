@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-158
 type: bug
-status: In Progress
+status: Merged
 priority: 0
 title: Make GitHub intake import parsing tolerant of Markdown issue bodies
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-27T03:46:32.287986Z'
+updated_at: '2026-06-27T03:47:26.112173Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/400
