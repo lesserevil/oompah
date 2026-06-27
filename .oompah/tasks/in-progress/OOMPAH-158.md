@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-27T03:21:03.800378Z'
+updated_at: '2026-06-27T03:22:32.865560Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-06-27 03:21
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-27 03:22
+---
+Understanding: OOMPAH-158 is NOT a duplicate. Searched all merged and archived tasks for related topics (intake validation, Markdown parsing, GitHub import body parsing, description null, missing_fields). Closest candidates OOMPAH-15 (auto-generated tasks failing intake) and OOMPAH-11 (issue template refresh) both address different problems. No existing task covers the bug where GitHub issue intake imports a well-structured Markdown body but the native task ends up with null description and the intake validator incorrectly reports acceptance_criteria/problem_statement/work_description as missing. Plan: (1) explore github_intake_bridge.py and related files to understand how the GitHub issue body is stored during import, (2) find the intake validator to see how it reads the body, (3) identify the root cause (body not being stored, or validator not reading it correctly), (4) implement a fix with regression tests.
 ---
 <!-- COMMENTS:END -->
