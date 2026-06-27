@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-27T03:42:15.726122Z'
+updated_at: '2026-06-27T03:42:18.134502Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/400
@@ -119,5 +119,10 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 15m 37s
 - Log: OOMPAH-158__20260627T032105Z.jsonl
+---
+author: oompah
+created: 2026-06-27 03:42
+---
+YOLO: CI tests failed on MR #400. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
