@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.667753Z'
-updated_at: '2026-06-27T15:24:29.544756Z'
+updated_at: '2026-06-27T15:26:04.265485Z'
 work_branch: oompah/oompah/gh-328
 target_branch: null
 review_url: null
@@ -26,8 +26,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/328
   requestor_login: lesserevil
   imported_comment_ids: []
-  last_synced_status: Merged
-  last_synced_at: '2026-06-20T14:47:24.528297+00:00'
+  last_synced_status: Archived
+  last_synced_at: '2026-06-27T15:26:03.551995+00:00'
   migrated_at: '2026-06-20T02:13:20.671998Z'
   migrated_from_tracker: github_issues
   external_state: open
