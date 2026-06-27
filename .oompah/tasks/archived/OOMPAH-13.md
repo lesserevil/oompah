@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-13
 type: bug
-status: Merged
+status: Archived
 priority: 1
 title: Use project status actor by default for dashboard intake actions
 parent: null
@@ -15,7 +15,7 @@ labels:
 - auth
 assignee: null
 created_at: '2026-06-20T03:02:36.629755Z'
-updated_at: '2026-06-20T04:10:29.440590Z'
+updated_at: '2026-06-27T04:53:02.246447Z'
 work_branch: OOMPAH-13
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/338
