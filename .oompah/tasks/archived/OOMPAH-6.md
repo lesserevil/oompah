@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-27T05:58:36.776387Z'
+updated_at: '2026-06-27T05:59:04.202745Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
@@ -25,8 +25,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/334
   requestor_login: lesserevil
   imported_comment_ids: []
-  last_synced_status: Merged
-  last_synced_at: '2026-06-20T05:17:59.232247+00:00'
+  last_synced_status: Archived
+  last_synced_at: '2026-06-27T05:59:03.542571+00:00'
   migrated_at: '2026-06-20T02:13:20.699738Z'
   migrated_from_tracker: github_issues
   external_state: open
