@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-27T03:47:38.372606Z'
+updated_at: '2026-06-27T03:47:40.529671Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/400
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: c93f248d-7b05-4df2-8b8b-1d3795d5c64b
 oompah.task_costs:
-  total_input_tokens: 169
-  total_output_tokens: 5224
+  total_input_tokens: 247
+  total_output_tokens: 7556
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 169
-      output_tokens: 5224
+      input_tokens: 247
+      output_tokens: 7556
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -34,6 +34,12 @@ oompah.task_costs:
     output_tokens: 5224
     cost_usd: 0.0
     recorded_at: '2026-06-27T03:36:35.393307+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 78
+    output_tokens: 2332
+    cost_usd: 0.0
+    recorded_at: '2026-06-27T03:47:37.699117+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/400
 ---
 ## Summary
