@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-2
 type: task
-status: Merged
+status: Archived
 priority: 0
 title: 'fix CI on PR #319 (epic-lesserevil_oompah_312)'
 parent: null
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.660543Z'
-updated_at: '2026-06-20T14:46:48.667528Z'
+updated_at: '2026-06-27T15:24:27.360661Z'
 work_branch: oompah/oompah/gh-321
 target_branch: null
 review_url: null
