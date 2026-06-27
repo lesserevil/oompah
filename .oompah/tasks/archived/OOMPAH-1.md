@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.647481Z'
-updated_at: '2026-06-27T15:24:25.035903Z'
+updated_at: '2026-06-27T15:25:56.201543Z'
 work_branch: oompah/oompah/gh-304
 target_branch: null
 review_url: null
@@ -27,8 +27,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/304
   requestor_login: lesserevil
   imported_comment_ids: []
-  last_synced_status: Merged
-  last_synced_at: '2026-06-20T14:46:04.007127+00:00'
+  last_synced_status: Archived
+  last_synced_at: '2026-06-27T15:25:55.534384+00:00'
   migrated_at: '2026-06-20T02:13:20.651651Z'
   migrated_from_tracker: github_issues
   external_state: open
