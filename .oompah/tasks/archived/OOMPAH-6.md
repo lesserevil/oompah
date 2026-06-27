@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-6
 type: bug
-status: Merged
+status: Archived
 priority: 0
 title: Fix OVA GitHub issue intake authentication failure
 parent: null
@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T05:18:01.899431Z'
+updated_at: '2026-06-27T05:58:36.776387Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
