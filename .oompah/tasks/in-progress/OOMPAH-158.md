@@ -7,11 +7,10 @@ title: Make GitHub intake import parsing tolerant of Markdown issue bodies
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:backend
+labels: []
 assignee: null
 created_at: '2026-06-26T22:14:16.817361Z'
-updated_at: '2026-06-27T03:21:01.654872Z'
+updated_at: '2026-06-27T03:21:03.800378Z'
 work_branch: null
 target_branch: null
 review_url: null
