@@ -11,7 +11,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-06-29T14:14:18.023111Z'
-updated_at: '2026-06-29T14:19:31.616864Z'
+updated_at: '2026-06-29T14:19:34.971404Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -63,3 +63,11 @@ This is a feature follow-up from OOMPAH-158 and the TRICKLE-8 re-evaluation. Kee
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-29 14:19
+---
+Agent dispatched (profile: standard)
+---
+<!-- COMMENTS:END -->
