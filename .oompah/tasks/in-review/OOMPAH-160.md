@@ -10,11 +10,11 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:46:06.483875Z'
-updated_at: '2026-06-29T15:46:01.689305Z'
+updated_at: '2026-06-29T15:46:03.961261Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/402
-review_number: null
+review_number: '402'
 merged_at: null
 oompah.agent_run_id: 402f1d0d-b767-4c2d-8e21-47d392862319
 oompah.task_costs:
@@ -34,6 +34,7 @@ oompah.task_costs:
     cost_usd: 0.0
     recorded_at: '2026-06-29T15:44:40.925616+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/402
+oompah.review_number: '402'
 ---
 ## Summary
 
