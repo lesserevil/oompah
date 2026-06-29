@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:14:18.023111Z'
-updated_at: '2026-06-29T14:43:37.203795Z'
+updated_at: '2026-06-29T14:43:39.454907Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -98,5 +98,10 @@ author: oompah
 created: 2026-06-29 14:43
 ---
 Completion: OOMPAH-159 delivered. Implemented: (1) oompah/intake_normalizer.py — pure normalize_body() + normalize_native_task() integration helper; (2) Updated _section_nonempty() in issue_validator.py to treat oompah:placeholder markers as empty; (3) Fixed inline_ac_re false-positive with ^ anchor; (4) Added get_raw_body()/set_raw_body() to OompahMarkdownTracker; (5) Hooked normalize_native_task() into process_epic_proposal_issue() before validate_issue(); (6) 46 regression tests. All acceptance criteria met: pure normalizer, content preserved, marked placeholders, validator ignores them, runs before Proposed->Backlog promotion, GitHub issue bodies not rewritten, 46 tests cover TRICKLE-8/placeholder/promotion/GitHub-intake cases. Branch OOMPAH-159 pushed to origin.
+---
+author: oompah
+created: 2026-06-29 14:43
+---
+Delivered intake normalization: new oompah/intake_normalizer.py pure module, placeholder-aware _section_nonempty(), get_raw_body/set_raw_body on OompahMarkdownTracker, normalization hooked into process_epic_proposal_issue(), 46 regression tests. All AC met. 7192/7192 tests pass.
 ---
 <!-- COMMENTS:END -->
