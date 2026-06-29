@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-26
 type: task
-status: Merged
+status: Archived
 priority: 2
 title: Document the 1.0 CLI and API compatibility surface
 parent: OOMPAH-22
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:48.515360Z'
-updated_at: '2026-06-22T13:59:30.187081Z'
+updated_at: '2026-06-29T14:44:39.040468Z'
 work_branch: null
 target_branch: null
 review_url: null
