@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-52
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Update oompah uv-tool install to include project-bootstrap support
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T14:20:20.212899Z'
-updated_at: '2026-06-22T15:21:04.656136Z'
+updated_at: '2026-06-29T15:47:03.351581Z'
 work_branch: OOMPAH-52
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/349
