@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:14:18.023111Z'
-updated_at: '2026-06-29T14:33:04.062191Z'
+updated_at: '2026-06-29T14:42:31.263680Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,5 +83,10 @@ author: oompah
 created: 2026-06-29 14:33
 ---
 Discovery: Full codebase architecture mapped. Key findings: (1) issue.description = content of ## Summary section in the native task body; validator scans description for H3+ headings; (2) TRICKLE-8 root cause was H2 headings inside ## Summary breaking _section() — fixed in OOMPAH-158 for new imports; old tasks may still be malformed; (3) process_epic_proposal_issue() in epic_proposal.py is the intake processing entry point for Proposed tasks — normalization should run here before validate_issue(); (4) Placeholder format: <!-- oompah:placeholder field='...' --> within section body; validator's _section_nonempty() needs one-line update to recognize it; (5) Normalizer design: pure function normalize_body(body, issue_type) -> (normalized_body, was_changed) that scans ALL headings in body, maps them to canonical fields, builds normalized ## Summary with H3 subsections, adds marked placeholders for missing required fields; (6) Integration: add get_raw_body/set_raw_body to OompahMarkdownTracker; normalize_native_task() integration function; (7) GitHub intake: normalization only touches native tasks, never the external GitHub issue body.
+---
+author: oompah
+created: 2026-06-29 14:42
+---
+Implementation: Delivered OOMPAH-159. Changes: (1) oompah/intake_normalizer.py — new pure parser/normalizer module; normalize_body(body, issue_type) extracts all headings from the full raw body, maps them to canonical fields (same keyword lists as issue_validator), builds normalized ## Summary with H3 sub-sections, inserts <!-- oompah:placeholder field='...' --> markers for missing required fields, preserves unrecognized sections in ## Notes, keeps ## External GitHub Issue and ## Comments verbatim; normalize_native_task() integration helper is a no-op for non-native trackers so GitHub issue bodies are never rewritten; (2) oompah/issue_validator.py — _section_nonempty() now returns False when section body contains <!-- oompah:placeholder marker; inline_ac_re regex anchored with ^ to prevent HTML comment dashes from falsely matching; (3) oompah/oompah_md_tracker.py — added get_raw_body() and set_raw_body() public methods for full-body access; (4) oompah/epic_proposal.py — process_epic_proposal_issue() now calls normalize_native_task() before validate_issue(), re-fetches the issue if normalized; (5) tests/test_intake_normalizer.py — 46 new tests covering TRICKLE-8 regression, placeholder insertion, idempotency, heading aliases, GitHub intake no-body-rewrite.
 ---
 <!-- COMMENTS:END -->
