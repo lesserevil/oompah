@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:46:06.483875Z'
-updated_at: '2026-06-29T15:43:45.037994Z'
+updated_at: '2026-06-29T15:44:19.161373Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,5 +85,10 @@ author: oompah
 created: 2026-06-29 15:43
 ---
 Verification: Full test suite passed. 7213 passed, 0 failed, 28 skipped. New tests: 21 total — 15 in test_oompah_md_tracker.py (TestAtomicWrite, TestCorruptFileHandling, TestImportIndex) and 6 in test_github_intake_bridge.py (TestCorruptFileDeduplication). Key results: (1) Atomic write — test_write_failure_leaves_original_file_intact verifies Path.replace failure does not corrupt original; test_write_does_not_use_md_suffix_for_temp_files verifies temp files use .tmp suffix. (2) Corrupt file handling — test_next_identifier_skips_corrupt_file_stem verifies TRICKLE-8 ID-reuse prevention; test_corrupt_file_appears_in_list_corrupt_stubs verifies corrupt detection. (3) Import index — test_record_external_import_creates_index_file, test_import_index_survives_task_file_corruption, test_index_file_is_written_atomically. (4) TRICKLE-8 regression — test_corrupt_task_file_blocks_reimport verifies in-progress file corruption + poll = no new Proposed task; test_poll_does_not_create_duplicate_when_task_is_corrupt verifies poll_github_issue_intake_project returns 0 imports; test_clean_reimport_allowed_when_task_file_deleted verifies clean-delete allows fresh import.
+---
+author: oompah
+created: 2026-06-29 15:44
+---
+Completion: OOMPAH-160 delivered. All 5 acceptance criteria met: (1) Atomic writes — _write_markdown() uses tempfile + fsync + Path.replace; disk-full can no longer empty a task file. (2) Write failure regression test — test_write_failure_leaves_original_file_intact patches Path.replace to raise and verifies original unchanged. (3) Intake duplicate detection — _find_native_issue_for_external() checks import index + corrupt stubs; returns _blocked_reimport sentinel when corrupt file found; ensure_native_issue_for_github_issue() respects sentinel. (4) Corrupt file alerting — _read_records() logs repair instructions with git-show recovery command; list_corrupt_stubs() exposes them for callers. (5) TRICKLE-8 regression tests — test_corrupt_task_file_blocks_reimport + test_poll_does_not_create_duplicate_when_task_is_corrupt cover the exact failure mode. Zero-byte file ID no longer reused (_next_identifier scans all stems). Branch OOMPAH-160 pushed to origin. All 7213 tests pass.
 ---
 <!-- COMMENTS:END -->
