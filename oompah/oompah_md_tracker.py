@@ -11,6 +11,7 @@ import logging
 import os
 import re
 import subprocess
+import tempfile
 import threading
 import time
 from datetime import datetime, timezone
@@ -49,6 +50,7 @@ logger = logging.getLogger(__name__)
 TRACKER_KIND = "oompah_md"
 TASKS_DIR = ".oompah/tasks"
 DEFAULT_TASK_PREFIX = "TASK"
+_IMPORT_INDEX_FILE = "external-imports.yml"
 _YAML_SAFE_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 _STATUS_DIRS: dict[str, str] = {
@@ -132,11 +134,54 @@ def _read_markdown(path: Path) -> tuple[dict[str, Any], str]:
     return meta, content[body_start:]
 
 
-def _write_markdown(path: Path, meta: dict[str, Any], body: str) -> None:
+def _atomic_write(path: Path, content: str) -> None:
+    """Write *content* to *path* using a temporary file + atomic rename.
+
+    The destination file is NEVER left empty or partially written.  If any
+    error occurs before the full payload is durable, the original *path* is
+    left intact (or absent if it did not exist before the call).
+
+    Sequence:
+    1. Create a temp file in the *same* directory as *path* (so both are on the
+       same filesystem, guaranteeing that ``os.replace`` is an atomic rename).
+    2. Write the full payload and fsync (best-effort — not all VMs expose it).
+    3. Rename the temp file over *path* atomically.
+    4. On any failure, delete the temp file and re-raise.
+
+    Note: Uses ``.tmp`` suffix (not ``.md``) so that stale temp files left by
+    a crash are never picked up by the ``*/*.md`` glob in :meth:`_read_records`.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path: Path | None = None
+    try:
+        fd, tmp_str = tempfile.mkstemp(
+            dir=path.parent, prefix=".oompah_tmp_", suffix=".tmp"
+        )
+        tmp_path = Path(tmp_str)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(content)
+                fh.flush()
+                try:
+                    os.fsync(fh.fileno())
+                except OSError:
+                    pass  # fsync is best-effort; not all filesystems support it
+        except BaseException:
+            tmp_path.unlink(missing_ok=True)
+            tmp_path = None
+            raise
+        tmp_path.replace(path)
+        tmp_path = None
+    except OSError as exc:
+        if tmp_path is not None:
+            tmp_path.unlink(missing_ok=True)
+        raise
+
+
+def _write_markdown(path: Path, meta: dict[str, Any], body: str) -> None:
     payload = yaml.safe_dump(dict(meta), sort_keys=False, allow_unicode=False)
     try:
-        path.write_text(f"---\n{payload}---\n{body}", encoding="utf-8")
+        _atomic_write(path, f"---\n{payload}---\n{body}")
     except OSError as exc:
         raise TrackerError(f"Cannot write native task {path}: {exc}") from exc
 
@@ -161,6 +206,7 @@ class OompahMarkdownTracker:
         self.git_sync = bool(git_sync)
         self._write_lock = threading.RLock()
         self._read_cache: list[dict[str, Any]] | None = None
+        self._corrupt_stubs: list[dict[str, Any]] | None = None
         self._read_cache_guard = threading.Lock()
 
     @property
@@ -509,6 +555,81 @@ class OompahMarkdownTracker:
     def invalidate_read_cache(self) -> None:
         with self._read_cache_guard:
             self._read_cache = None
+            self._corrupt_stubs = None
+
+    def list_corrupt_stubs(self) -> list[dict[str, Any]]:
+        """Return the list of corrupt or unreadable task file stubs.
+
+        Each stub is a dict with:
+
+        - ``path``: :class:`~pathlib.Path` to the corrupt file.
+        - ``stem``: filename stem without the ``.md`` extension — this is the
+          task identifier the file was written for.
+
+        The list is populated as a side effect of :meth:`fetch_all_issues` (or
+        any method that calls ``_read_records``).  Call this after any fetch to
+        surface corrupt file alerts before dispatching work.
+        """
+        # Ensure the cache is populated (which also populates _corrupt_stubs).
+        self._read_records()
+        with self._read_cache_guard:
+            stubs = self._corrupt_stubs
+        return list(stubs) if stubs is not None else []
+
+    # ------------------------------------------------------------------
+    # Import index: maps external GitHub issue IDs to native task IDs.
+    # This lightweight index file survives task-file corruption so intake
+    # can detect reimport attempts even when the task file is unreadable.
+    # ------------------------------------------------------------------
+
+    @property
+    def _import_index_path(self) -> Path:
+        return self.tasks_root / _IMPORT_INDEX_FILE
+
+    def _read_import_index(self) -> dict[str, str]:
+        """Return the ``external_id → task_id`` import index, or ``{}``."""
+        path = self._import_index_path
+        if not path.exists():
+            return {}
+        try:
+            raw = yaml.load(path.read_text(encoding="utf-8"), Loader=_YAML_SAFE_LOADER)
+        except (OSError, yaml.YAMLError):
+            return {}
+        if not isinstance(raw, dict):
+            return {}
+        return {str(k): str(v) for k, v in raw.items() if k and v}
+
+    def record_external_import(self, external_id: str, task_id: str) -> None:
+        """Record that *external_id* has been imported as native task *task_id*.
+
+        The mapping is persisted to the import index file so that even if the
+        native task file later becomes corrupt or unreadable, intake can detect
+        the prior import and avoid creating a duplicate.
+        """
+        eid = str(external_id or "").strip()
+        tid = str(task_id or "").strip()
+        if not eid or not tid:
+            return
+        with self._write_lock:
+            index = self._read_import_index()
+            if index.get(eid) == tid:
+                return  # Already recorded — nothing to do.
+            index[eid] = tid
+            payload = yaml.safe_dump(dict(sorted(index.items())), allow_unicode=False)
+            try:
+                _atomic_write(self._import_index_path, payload)
+            except OSError as exc:
+                logger.warning(
+                    "github_intake: failed to write import index for %s→%s: %s",
+                    eid, tid, exc,
+                )
+
+    def find_imported_task_id_for_external(self, external_id: str) -> str | None:
+        """Return the task ID previously recorded for *external_id*, or ``None``."""
+        eid = str(external_id or "").strip()
+        if not eid:
+            return None
+        return self._read_import_index().get(eid)
 
     def _apply_field(
         self,
@@ -644,16 +765,26 @@ class OompahMarkdownTracker:
         if cached is not None:
             return cached
         records: list[dict[str, Any]] = []
+        corrupt_stubs: list[dict[str, Any]] = []
         if self.tasks_root.is_dir():
             for path in sorted(self.tasks_root.glob("*/*.md")):
                 try:
                     meta, body = _read_markdown(path)
                 except TrackerError as exc:
-                    logger.warning("Skipping invalid native oompah task %s: %s", path, exc)
+                    logger.warning(
+                        "Corrupt native oompah task %s: %s — "
+                        "the scheduler will not dispatch this task until it is repaired. "
+                        "Restore the file from a backup or git history "
+                        "(e.g. `git show HEAD:.oompah/tasks/%s/%s.md > %s`).",
+                        path, exc,
+                        path.parent.name, path.stem, path,
+                    )
+                    corrupt_stubs.append({"path": path, "stem": path.stem})
                     continue
                 records.append({"path": path, "meta": meta, "body": body})
         with self._read_cache_guard:
             self._read_cache = records
+            self._corrupt_stubs = corrupt_stubs
         return records
 
     def _read_record(self, identifier: str) -> dict[str, Any] | None:
@@ -701,10 +832,21 @@ class OompahMarkdownTracker:
         prefix = self._task_prefix()
         max_seen = 0
         pattern = re.compile(rf"^{re.escape(prefix)}-(\d+)$", re.I)
+        # Check valid records (parsed front matter).
         for rec in self._read_records():
             match = pattern.match(str(rec["meta"].get("id") or ""))
             if match:
                 max_seen = max(max_seen, int(match.group(1)))
+        # Also scan ALL .md file stems — including corrupt/unreadable files —
+        # so that a corrupted task file cannot cause its ID to be recycled for
+        # a brand-new task.  This is the primary guard against the TRICKLE-8
+        # failure mode where a zero-byte in-progress file was invisible to the
+        # valid-record scan and its ID was reused for a fresh Proposed import.
+        if self.tasks_root.is_dir():
+            for path in self.tasks_root.glob("*/*.md"):
+                stem_match = pattern.match(path.stem)
+                if stem_match:
+                    max_seen = max(max_seen, int(stem_match.group(1)))
         return f"{prefix}-{max_seen + 1}"
 
     def _active_status(self) -> str:

@@ -153,6 +153,38 @@ def _find_native_issue_for_external(
         metadata = _get_external_metadata(native_tracker, issue.identifier)
         if str(metadata.get("id") or "").strip().lower() == external_id.lower():
             return issue, metadata
+
+    # Valid-task scan found nothing.  Check the import index for a prior import
+    # whose task file may have become corrupt or unreadable.
+    find_fn = getattr(native_tracker, "find_imported_task_id_for_external", None)
+    if callable(find_fn):
+        known_task_id = find_fn(external_id)
+        if known_task_id:
+            # The import index says this external issue was already imported.
+            # Determine whether the task file is corrupt (vs. cleanly deleted).
+            list_corrupt_fn = getattr(native_tracker, "list_corrupt_stubs", None)
+            if callable(list_corrupt_fn):
+                corrupt_stems = {stub["stem"].lower() for stub in list_corrupt_fn()}
+                if known_task_id.lower() in corrupt_stems:
+                    logger.warning(
+                        "github_intake: external issue %s was previously imported as "
+                        "native task %s but that task file is corrupt/unreadable. "
+                        "Blocking reimport to prevent a duplicate task. "
+                        "Restore or repair the file to resume: "
+                        "`git show HEAD:.oompah/tasks/*/%s.md` "
+                        "or delete it to allow a fresh import.",
+                        external_id, known_task_id, known_task_id,
+                    )
+                    return None, {"_blocked_reimport": True, "_known_task_id": known_task_id}
+            # Import index has an entry but file is not in corrupt stubs — it may
+            # have been cleanly deleted.  Allow reimport so the task can be
+            # recreated (the operator intentionally removed it).
+            logger.debug(
+                "github_intake: import index entry %s→%s found but task file is "
+                "absent (not in corrupt stubs); allowing reimport.",
+                external_id, known_task_id,
+            )
+
     return None, {}
 
 
@@ -449,6 +481,11 @@ def ensure_native_issue_for_github_issue(
             metadata,
         )
 
+    # A corrupt task file was found for this external issue — do not create a
+    # duplicate.  The operator must repair or remove the corrupt file first.
+    if metadata.get("_blocked_reimport"):
+        return None
+
     if _github_issue_is_closed(github_issue):
         return None
 
@@ -474,6 +511,18 @@ def ensure_native_issue_for_github_issue(
     metadata = _external_metadata_from_issue(github_issue)
     _set_external_metadata(native_tracker, created.identifier, metadata)
     created = native_tracker.fetch_issue_detail(created.identifier) or created
+
+    # Record the import in the index so a future file-corruption event cannot
+    # cause a duplicate reimport of the same external GitHub issue.
+    record_fn = getattr(native_tracker, "record_external_import", None)
+    if callable(record_fn):
+        try:
+            record_fn(external_id, created.identifier)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "github_intake: failed to record import index entry %s→%s: %s",
+                external_id, created.identifier, exc,
+            )
 
     if post_import_comment:
         try:

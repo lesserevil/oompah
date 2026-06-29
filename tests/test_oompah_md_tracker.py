@@ -824,3 +824,319 @@ class TestOompahMarkdownTrackerReviewPipelineStatuses:
                 f"Expected tasks/{expected_dir}/{issue.identifier}.md after moving to {status}"
             )
             assert tracker.fetch_issue_detail(issue.identifier).state == status
+
+
+# ---------------------------------------------------------------------------
+# Atomic write tests
+# ---------------------------------------------------------------------------
+
+
+class TestAtomicWrite:
+    """_write_markdown must use atomic rename so a failed write never corrupts
+    the original file."""
+
+    def test_write_failure_leaves_original_file_intact(self, tmp_path):
+        """When Path.replace raises (e.g. disk full after temp write), the
+        original task file must remain untouched."""
+        from unittest.mock import patch
+        import pathlib
+
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Original task")
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "backlog"
+            / f"{issue.identifier}.md"
+        )
+        original_content = path.read_text(encoding="utf-8")
+        assert original_content.startswith("---\n")
+
+        # Patch Path.replace to simulate a failure during the rename step.
+        original_replace = pathlib.Path.replace
+
+        def failing_replace(self_path, target):
+            raise OSError("Simulated disk full")
+
+        with patch.object(pathlib.Path, "replace", failing_replace):
+            with pytest.raises(TrackerError, match="Cannot write native task"):
+                tracker.update_issue(issue.identifier, description="NEW content")
+
+        # The original file must be unchanged.
+        assert path.read_text(encoding="utf-8") == original_content
+
+    def test_write_failure_does_not_leave_temp_files_behind(self, tmp_path):
+        """A failed write must clean up any temp file it created."""
+        from unittest.mock import patch
+        import pathlib
+
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Temp cleanup test")
+        tasks_dir = tmp_path / "repo" / ".oompah" / "tasks" / "backlog"
+
+        original_replace = pathlib.Path.replace
+
+        def failing_replace(self_path, target):
+            raise OSError("Simulated failure")
+
+        with patch.object(pathlib.Path, "replace", failing_replace):
+            with pytest.raises(TrackerError):
+                tracker.update_issue(issue.identifier, description="trigger write")
+
+        # No .tmp orphan files should remain.
+        tmp_files = list(tasks_dir.glob(".oompah_tmp_*.tmp"))
+        assert tmp_files == [], f"Orphan temp files found: {tmp_files}"
+
+    def test_successful_write_replaces_file_content(self, tmp_path):
+        """A successful write must produce the expected file content."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Replace me", description="Original description")
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "backlog"
+            / f"{issue.identifier}.md"
+        )
+        assert issue.description == "Original description"
+
+        tracker.update_issue(issue.identifier, description="Updated description")
+
+        refreshed = tracker.fetch_issue_detail(issue.identifier)
+        assert refreshed is not None
+        assert refreshed.description == "Updated description"
+        # Verify the file on disk reflects the update.
+        assert "Updated description" in path.read_text(encoding="utf-8")
+
+    def test_write_does_not_use_md_suffix_for_temp_files(self, tmp_path):
+        """Temp files during write must NOT use .md suffix to avoid being
+        picked up by the */*.md glob in _read_records."""
+        from unittest.mock import patch
+        import pathlib
+
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Glob safety")
+        tasks_dir = tmp_path / "repo" / ".oompah" / "tasks" / "backlog"
+
+        def capturing_replace(self_path, target):
+            # Record the temp file name, then succeed.
+            capturing_replace.tmp_names.append(self_path.name)
+            original_replace(self_path, target)
+
+        original_replace = pathlib.Path.replace
+        capturing_replace.tmp_names = []
+
+        with patch.object(pathlib.Path, "replace", capturing_replace):
+            tracker.update_issue(issue.identifier, description="trigger write")
+
+        for name in capturing_replace.tmp_names:
+            assert not name.endswith(".md"), (
+                f"Temp file used .md suffix: {name!r} — would be picked up by */*.md glob"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Corrupt file handling tests
+# ---------------------------------------------------------------------------
+
+
+class TestCorruptFileHandling:
+    """Tests for corrupt/unreadable task file detection and ID-reuse prevention."""
+
+    def test_corrupt_file_does_not_block_valid_tasks(self, tmp_path):
+        """A corrupt task file must not prevent valid tasks from being fetched."""
+        tracker = _tracker(tmp_path)
+        valid = tracker.create_issue("Valid task")
+        # Corrupt the file by zeroing it.
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "backlog"
+            / f"{valid.identifier}.md"
+        )
+        path.write_text("", encoding="utf-8")
+
+        # Create a second, fully valid task.
+        second = tracker.create_issue("Second task")
+        tracker.invalidate_read_cache()
+
+        issues = tracker.fetch_all_issues()
+        ids = {i.identifier for i in issues}
+        assert second.identifier in ids
+        # The corrupt first task is NOT in the valid list.
+        assert valid.identifier not in ids
+
+    def test_corrupt_file_appears_in_list_corrupt_stubs(self, tmp_path):
+        """Corrupt task files must be listed by list_corrupt_stubs()."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Will be corrupted")
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "backlog"
+            / f"{issue.identifier}.md"
+        )
+        path.write_text("", encoding="utf-8")  # Zero bytes — no front matter
+        tracker.invalidate_read_cache()
+
+        tracker.fetch_all_issues()  # Populates corrupt stubs
+        stubs = tracker.list_corrupt_stubs()
+
+        assert len(stubs) == 1
+        assert stubs[0]["stem"] == issue.identifier
+
+    def test_zero_byte_task_file_appears_in_corrupt_stubs(self, tmp_path):
+        """Exactly-zero-byte files are treated as corrupt (missing front matter)."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Zero byte test")
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "backlog"
+            / f"{issue.identifier}.md"
+        )
+        assert path.stat().st_size > 0
+        path.write_bytes(b"")  # Explicitly zero out
+        assert path.stat().st_size == 0
+        tracker.invalidate_read_cache()
+
+        tracker.fetch_all_issues()
+        stubs = tracker.list_corrupt_stubs()
+
+        assert any(s["stem"] == issue.identifier for s in stubs)
+
+    def test_next_identifier_skips_corrupt_file_stem(self, tmp_path):
+        """_next_identifier must not reuse the ID of a corrupt file.
+
+        This is the primary guard against the TRICKLE-8 failure mode: a
+        zero-byte in-progress file becomes invisible to _read_records but its
+        stem (REPO-1) should still prevent REPO-1 from being assigned to a
+        brand-new task.
+        """
+        tracker = _tracker(tmp_path)
+        # Create REPO-1 and then corrupt it.
+        issue = tracker.create_issue("Will be corrupted")
+        assert issue.identifier == "REPO-1"
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "backlog"
+            / f"{issue.identifier}.md"
+        )
+        path.write_text("", encoding="utf-8")
+        tracker.invalidate_read_cache()
+
+        # Valid records scan sees nothing (REPO-1 is corrupt).
+        valid_ids = {i.identifier for i in tracker.fetch_all_issues()}
+        assert "REPO-1" not in valid_ids
+
+        # But _next_identifier must scan file stems and skip REPO-1.
+        second = tracker.create_issue("New task after corruption")
+        assert second.identifier == "REPO-2", (
+            f"Expected REPO-2 but got {second.identifier!r} — "
+            "corrupt file stem REPO-1 should not be reused"
+        )
+
+    def test_invalidate_read_cache_also_clears_corrupt_stubs(self, tmp_path):
+        """invalidate_read_cache must clear both read cache and corrupt stubs."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Will be corrupted")
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "backlog"
+            / f"{issue.identifier}.md"
+        )
+        path.write_text("", encoding="utf-8")
+        tracker.invalidate_read_cache()
+        tracker.fetch_all_issues()
+        assert len(tracker.list_corrupt_stubs()) == 1
+
+        # After repairing the file and invalidating the cache, stubs should be empty.
+        from oompah.oompah_md_tracker import _write_markdown
+        meta = {"id": issue.identifier, "status": "Backlog", "title": "Repaired"}
+        _write_markdown(path, meta, "## Summary\n\nRepaired.\n")
+        tracker.invalidate_read_cache()
+        tracker.fetch_all_issues()
+        assert tracker.list_corrupt_stubs() == []
+
+
+# ---------------------------------------------------------------------------
+# Import index tests
+# ---------------------------------------------------------------------------
+
+
+class TestImportIndex:
+    """Tests for the external-imports.yml import index."""
+
+    def test_record_external_import_creates_index_file(self, tmp_path):
+        """record_external_import must persist the mapping to the index file."""
+        import yaml
+
+        tracker = _tracker(tmp_path)
+        tracker.create_issue("Imported task")  # Ensure tasks_root exists.
+        tracker.record_external_import("example-org/app#42", "REPO-1")
+
+        index_path = tmp_path / "repo" / ".oompah" / "tasks" / "external-imports.yml"
+        assert index_path.exists()
+        data = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+        assert data["example-org/app#42"] == "REPO-1"
+
+    def test_find_imported_task_id_for_external_returns_recorded_id(self, tmp_path):
+        """find_imported_task_id_for_external must return the last recorded ID."""
+        tracker = _tracker(tmp_path)
+        tracker.create_issue("Imported task")
+        tracker.record_external_import("example-org/app#42", "REPO-1")
+
+        result = tracker.find_imported_task_id_for_external("example-org/app#42")
+        assert result == "REPO-1"
+
+    def test_find_imported_task_id_returns_none_for_unknown(self, tmp_path):
+        """find_imported_task_id_for_external returns None for unknown external IDs."""
+        tracker = _tracker(tmp_path)
+        result = tracker.find_imported_task_id_for_external("never-seen/repo#999")
+        assert result is None
+
+    def test_record_external_import_is_idempotent(self, tmp_path):
+        """Calling record_external_import twice with the same args must not
+        produce duplicate entries."""
+        import yaml
+
+        tracker = _tracker(tmp_path)
+        tracker.create_issue("Task")
+        tracker.record_external_import("org/repo#1", "REPO-1")
+        tracker.record_external_import("org/repo#1", "REPO-1")
+
+        index_path = tmp_path / "repo" / ".oompah" / "tasks" / "external-imports.yml"
+        data = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+        assert list(data.keys()).count("org/repo#1") == 1
+
+    def test_import_index_survives_task_file_corruption(self, tmp_path):
+        """The import index file itself is not affected when a task file is
+        corrupted."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Task will be corrupted")
+        tracker.record_external_import("example-org/app#99", issue.identifier)
+
+        # Corrupt the task file.
+        path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "backlog"
+            / f"{issue.identifier}.md"
+        )
+        path.write_text("", encoding="utf-8")
+        tracker.invalidate_read_cache()
+
+        # Import index still resolves the mapping.
+        result = tracker.find_imported_task_id_for_external("example-org/app#99")
+        assert result == issue.identifier
+
+    def test_index_file_is_written_atomically(self, tmp_path):
+        """record_external_import must use atomic write (no truncation-before-write)."""
+        from unittest.mock import patch
+        import pathlib
+
+        tracker = _tracker(tmp_path)
+        tracker.create_issue("Task")
+        # Write a first entry successfully.
+        tracker.record_external_import("org/repo#1", "REPO-1")
+
+        index_path = tmp_path / "repo" / ".oompah" / "tasks" / "external-imports.yml"
+        original_content = index_path.read_text(encoding="utf-8")
+
+        original_replace = pathlib.Path.replace
+
+        def failing_replace(self_path, target):
+            raise OSError("Simulated disk full")
+
+        # A failed write of a second entry must not corrupt the first entry.
+        # record_external_import swallows the OSError and logs a warning so
+        # the caller is not disrupted.  The original index content must survive.
+        with patch.object(pathlib.Path, "replace", failing_replace):
+            tracker.record_external_import("org/repo#2", "REPO-2")  # fails silently
+
+        assert index_path.read_text(encoding="utf-8") == original_content
