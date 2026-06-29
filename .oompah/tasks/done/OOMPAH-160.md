@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:46:06.483875Z'
-updated_at: '2026-06-29T15:44:46.556934Z'
+updated_at: '2026-06-29T15:44:48.793999Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,5 +126,21 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 17m 48s
 - Log: OOMPAH-160__20260629T152659Z.jsonl
+---
+author: oompah
+created: 2026-06-29 15:44
+---
+Close refused by orchestrator: branch `OOMPAH-160` has 1 commit not on `main` and no open PR targets `main` from this branch.
+
+Diagnostic:
+  Unmerged commits: 1
+    8b3b197c OOMPAH-160: Make native task writes atomic and block intake reimports for corrupt tasks
+  Open PRs from this branch: 0
+  Merged PRs from this branch: 0
+
+Required: open a PR before closing.
+  gh pr create --base main --head OOMPAH-160 --title "OOMPAH-160: Make native task writes atomic and block intake reimports for corrupt tasks" --body "..."
+
+Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
 ---
 <!-- COMMENTS:END -->
