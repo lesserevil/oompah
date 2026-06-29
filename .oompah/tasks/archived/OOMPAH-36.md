@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-36
 type: task
-status: Merged
+status: Archived
 priority: 1
 title: Remove stale Backlog.md and beads instructions from docs and templates
 parent: OOMPAH-32
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:28.394571Z'
-updated_at: '2026-06-22T15:53:54.816571Z'
+updated_at: '2026-06-29T16:52:38.587937Z'
 work_branch: null
 target_branch: null
 review_url: null
