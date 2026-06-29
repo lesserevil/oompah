@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:46:06.483875Z'
-updated_at: '2026-06-29T15:46:23.482611Z'
+updated_at: '2026-06-29T15:46:25.859671Z'
 work_branch: OOMPAH-160
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/402
@@ -166,5 +166,10 @@ author: oompah
 created: 2026-06-29 15:46
 ---
 Atomic writes (tempfile+fsync+rename), corrupt file tracking/alerting, ID-reuse prevention, external import index, and intake reimport blocking delivered. 21 regression tests including TRICKLE-8 failure mode. All 7213 tests pass. PR: https://github.com/lesserevil/oompah/pull/402
+---
+author: oompah
+created: 2026-06-29 15:46
+---
+YOLO: merged PR #402.
 ---
 <!-- COMMENTS:END -->
