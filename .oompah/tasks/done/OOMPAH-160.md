@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-160
 type: bug
-status: In Progress
+status: Done
 priority: null
 title: Make native task writes atomic and block intake reimports for corrupt tasks
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:46:06.483875Z'
-updated_at: '2026-06-29T15:44:19.161373Z'
+updated_at: '2026-06-29T15:44:27.443590Z'
 work_branch: null
 target_branch: null
 review_url: null
