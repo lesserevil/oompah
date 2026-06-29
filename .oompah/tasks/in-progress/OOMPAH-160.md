@@ -7,11 +7,10 @@ title: Make native task writes atomic and block intake reimports for corrupt tas
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:backend
+labels: []
 assignee: null
 created_at: '2026-06-29T14:46:06.483875Z'
-updated_at: '2026-06-29T15:26:55.595909Z'
+updated_at: '2026-06-29T15:26:57.801298Z'
 work_branch: null
 target_branch: null
 review_url: null
