@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:46:06.483875Z'
-updated_at: '2026-06-29T15:27:41.401987Z'
+updated_at: '2026-06-29T15:35:17.923289Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,5 +70,10 @@ author: oompah
 created: 2026-06-29 15:27
 ---
 Understanding: OOMPAH-160 is NOT a duplicate. Searched all merged/archived tasks for atomic writes, write_text, corrupt files, reimport, disk-full. OOMPAH-158 (Merged) fixed H2 heading parsing in intake import; OOMPAH-159 (Merged) added intake body normalization. Neither addresses write atomicity or corrupt-file reimport prevention. This is a new bug with two distinct fix areas: (1) oompah_md_tracker.py uses path.write_text() which truncates-before-write — must switch to write-to-tempfile + rename; (2) GitHub issue intake lookup skips corrupt/unreadable native task files and treats the external GitHub issue as unimported — must detect corrupt files and skip reimport. Plan: (1) explore oompah_md_tracker.py for write_text calls; (2) explore github_intake_bridge.py for existing import lookup; (3) implement atomic write helper; (4) add corrupt-file detection to intake lookup; (5) add alerting for corrupt files; (6) write regression tests including TRICKLE-8 failure mode.
+---
+author: oompah
+created: 2026-06-29 15:35
+---
+Discovery: Root causes and affected code confirmed. (1) oompah/oompah_md_tracker.py:_write_markdown() uses path.write_text() which truncates-before-write — zero-byte file if disk fills. Fix: _atomic_write() helper using tempfile.mkstemp + Path.replace(). NOTE: Python 3.12 glob('*.md') includes dotfiles, so temp files must use '.tmp' not '.md' suffix. (2) _read_records() silently skips corrupt files — scheduler/intake lose the task. Fix: track corrupt stubs in _corrupt_stubs, improve log message with repair instructions. (3) _next_identifier() only scans valid records — corrupt file ID (TRICKLE-8) reused for new task. Fix: also scan all file stems. (4) _find_native_issue_for_external() in github_intake_bridge.py only checks valid tasks — corrupt file means external issue appears un-imported. Fix: add import-index file (.oompah/tasks/external-imports.yml) mapping external_id -> task_id, updated atomically on each import. When valid task lookup fails but index has a match AND the task file is corrupt, block reimport and log repair alert. (5) ensure_native_issue_for_github_issue() does not record in import index. Fix: call record_external_import() after creating a new task. Implementation plan: 13 changes to oompah_md_tracker.py + 2 changes to github_intake_bridge.py + regression tests.
 ---
 <!-- COMMENTS:END -->
