@@ -483,6 +483,29 @@ class OompahMarkdownTracker:
     def is_archived(self, issue: Issue) -> bool:
         return canonicalize_status(issue.state) == ARCHIVED
 
+    def get_raw_body(self, identifier: str) -> str | None:
+        """Return the full raw body string for a native task, or ``None``."""
+        rec = self._read_record(identifier)
+        return str(rec["body"]) if rec else None
+
+    def set_raw_body(self, identifier: str, body: str) -> None:
+        """Replace the entire body of a native task with *body*.
+
+        Unlike :meth:`update_issue` (which only replaces the ``## Summary``
+        section), this method writes the complete new body verbatim.  It is
+        used by the intake normalizer to restructure malformed task bodies.
+        """
+        with self._write_lock:
+            self._prepare_default_branch_for_write()
+            rec = self._read_record_uncached(identifier)
+            if not rec:
+                raise TrackerError(f"Native oompah task not found: {identifier}")
+            meta = dict(rec["meta"])
+            meta["updated_at"] = _now_iso()
+            _write_markdown(Path(rec["path"]), meta, body)
+            self.invalidate_read_cache()
+            self._commit_and_push(f"Normalize native oompah task {meta['id']}")
+
     def invalidate_read_cache(self) -> None:
         with self._read_cache_guard:
             self._read_cache = None

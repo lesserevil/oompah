@@ -1135,6 +1135,23 @@ def process_epic_proposal_issue(
     if project is not None and bool(getattr(project, "yolo", False)):
         auto_decompose = True
 
+    # Normalize the native task body before validation so that malformed or
+    # inconsistent body shapes (e.g. nested H2 headings, missing required
+    # sections) are resolved into the canonical template first.  This is a
+    # no-op for GitHub-tracker issues — only native oompah Markdown tasks
+    # that expose get_raw_body / set_raw_body are rewritten.
+    from oompah.intake_normalizer import normalize_native_task
+
+    was_normalized = normalize_native_task(
+        tracker,
+        issue.identifier,
+        issue_type=issue.issue_type or "task",
+    )
+    if was_normalized:
+        refreshed = tracker.fetch_issue_detail(issue.identifier)
+        if refreshed is not None:
+            issue = refreshed
+
     validation = validate_issue(
         title=issue.title,
         description=issue.description,

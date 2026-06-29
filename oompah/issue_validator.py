@@ -278,9 +278,15 @@ def _section_nonempty(description: str, section_key: str) -> bool:
 
     Trivial content: the body is empty, ``TBD``, ``TODO``, or ``N/A``
     (case-insensitive, optionally with surrounding whitespace/punctuation).
+    Machine-marked placeholders (``<!-- oompah:placeholder … -->``) are also
+    treated as absent so they never falsely satisfy a required-field check.
     """
     body = _section_body(description, section_key)
     if not body:
+        return False
+    # Machine-marked placeholders inserted by the intake normalizer are treated
+    # as missing content, not as user-provided information.
+    if "<!-- oompah:placeholder" in body:
         return False
     stripped = body.strip(" \t\n\r-*_#|.")
     trivial = re.fullmatch(r"(?:tbd|todo|n/?a|none|unknown|\?+)", stripped, re.IGNORECASE)
@@ -553,9 +559,12 @@ def _validate_common(title: str, description: str) -> list[MissingField]:
 
     # Acceptance criteria.
     if not _section_nonempty(description, "acceptance_criteria"):
-        # Fallback: a bullet list mentioning "should" or "must" inline.
+        # Fallback: a bullet list at the start of a line with substance.
+        # The ^[-*] anchor is important: it prevents HTML comment content
+        # (e.g. <!-- oompah:placeholder --> markers) from falsely satisfying
+        # this check by matching the '--' inside the comment delimiters.
         inline_ac_re = re.compile(
-            r"[-*]\s+.{15,}",  # At least one bullet with substance
+            r"^[-*]\s+.{15,}",  # At least one bullet with substance
             re.MULTILINE,
         )
         inline_ac_matches = inline_ac_re.findall(description)
