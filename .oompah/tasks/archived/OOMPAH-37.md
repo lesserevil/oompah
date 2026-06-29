@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-37
 type: epic
-status: Merged
+status: Archived
 priority: 1
 title: Execute and verify the 1.0 release
 parent: OOMPAH-16
@@ -24,7 +24,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-06-22T01:17:30.687635Z'
-updated_at: '2026-06-22T17:40:12.548607Z'
+updated_at: '2026-06-29T17:58:12.607333Z'
 work_branch: null
 target_branch: null
 review_url: null
