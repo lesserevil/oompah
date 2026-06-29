@@ -7,11 +7,10 @@ title: Normalize Proposed task bodies during intake validation
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:backend
+labels: []
 assignee: null
 created_at: '2026-06-29T14:14:18.023111Z'
-updated_at: '2026-06-29T14:19:38.152912Z'
+updated_at: '2026-06-29T14:19:41.394131Z'
 work_branch: null
 target_branch: null
 review_url: null
