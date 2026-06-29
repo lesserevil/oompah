@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-42
 type: task
-status: Merged
+status: Archived
 priority: 1
 title: Run post-release install and bootstrap smoke checks
 parent: OOMPAH-37
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:50.933134Z'
-updated_at: '2026-06-22T17:40:15.277845Z'
+updated_at: '2026-06-29T17:58:24.335931Z'
 work_branch: null
 target_branch: null
 review_url: null
