@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:14:18.023111Z'
-updated_at: '2026-06-29T14:43:20.751626Z'
+updated_at: '2026-06-29T14:43:30.010109Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,5 +93,10 @@ author: oompah
 created: 2026-06-29 14:43
 ---
 Verification: Full test suite run passed. 7192 tests passed, 0 failures, 28 skipped. New tests: 46 in tests/test_intake_normalizer.py covering all acceptance criteria. Key test results: (1) TRICKLE-8 regression — normalize_body() correctly extracts content from malformed nested H2 bodies where _section() returns None; (2) Placeholder insertion — missing required fields get <!-- oompah:placeholder --> markers; (3) Validator ignores placeholders — _section_nonempty() returns False for placeholder content; validate_issue() reports missing fields; (4) GitHub intake no-rewrite — normalize_native_task() is a no-op for trackers without get_raw_body/set_raw_body (all GitHubIssueTracker instances); (5) Idempotency — canonical bodies are unchanged on second normalization. Also fixed a pre-existing bug: inline_ac_re in _validate_common() was matching HTML comment dashes; anchored with ^ to prevent false positives.
+---
+author: oompah
+created: 2026-06-29 14:43
+---
+Completion: OOMPAH-159 delivered. Implemented: (1) oompah/intake_normalizer.py — pure normalize_body() + normalize_native_task() integration helper; (2) Updated _section_nonempty() in issue_validator.py to treat oompah:placeholder markers as empty; (3) Fixed inline_ac_re false-positive with ^ anchor; (4) Added get_raw_body()/set_raw_body() to OompahMarkdownTracker; (5) Hooked normalize_native_task() into process_epic_proposal_issue() before validate_issue(); (6) 46 regression tests. All acceptance criteria met: pure normalizer, content preserved, marked placeholders, validator ignores them, runs before Proposed->Backlog promotion, GitHub issue bodies not rewritten, 46 tests cover TRICKLE-8/placeholder/promotion/GitHub-intake cases. Branch OOMPAH-159 pushed to origin.
 ---
 <!-- COMMENTS:END -->
