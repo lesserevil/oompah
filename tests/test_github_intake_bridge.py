@@ -1677,3 +1677,189 @@ class TestNativeDescriptionMarkdownBody:
         assert h2_non_external == [], (
             f"Unexpected H2 headings (from GitHub body) in native description: {h2_non_external!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Corrupt-file deduplication tests (TRICKLE-8 regression)
+# ---------------------------------------------------------------------------
+
+
+class FakeNativeTrackerWithCorruptSupport(FakeNativeTracker):
+    """Extends FakeNativeTracker with import-index and corrupt-stub support."""
+
+    def __init__(self):
+        super().__init__()
+        self._import_index: dict[str, str] = {}
+        self._corrupt_stems: set[str] = frozenset()
+
+    def record_external_import(self, external_id: str, task_id: str) -> None:
+        self._import_index[str(external_id)] = str(task_id)
+
+    def find_imported_task_id_for_external(self, external_id: str) -> str | None:
+        return self._import_index.get(str(external_id))
+
+    def list_corrupt_stubs(self) -> list[dict]:
+        return [{"stem": s, "path": f".oompah/tasks/in-progress/{s}.md"}
+                for s in self._corrupt_stems]
+
+    def simulate_file_corruption(self, task_id: str) -> None:
+        """Mark a task file as corrupt (simulates zero-byte file scenario)."""
+        self._corrupt_stems = frozenset(list(self._corrupt_stems) + [task_id])
+        # Remove from issues so it behaves like _read_records skipping it.
+        self.issues.pop(task_id, None)
+
+
+class TestCorruptFileDeduplication:
+    """GitHub intake must not reimport an external issue whose native task file
+    is corrupt.  This is the TRICKLE-8 regression suite."""
+
+    def _trickle8_github_issue(self) -> Issue:
+        """The GitHub issue that triggered the TRICKLE-8 incident."""
+        return Issue(
+            id="NVIDIA-Omniverse/trickle#268",
+            identifier="NVIDIA-Omniverse/trickle#268",
+            title="Add quiet install mode",
+            description=(
+                "## Problem\n"
+                "Installer is noisy on CI.\n\n"
+                "## Acceptance Criteria\n"
+                "- [ ] Silent install flag added.\n"
+            ),
+            state="open",
+            issue_type="task",
+            tracker_kind="github_issues",
+            tracker_owner="NVIDIA-Omniverse",
+            tracker_repo="trickle",
+            issue_number="268",
+            provider_url="https://github.com/NVIDIA-Omniverse/trickle/issues/268",
+            requestor_login="alice",
+        )
+
+    def _github_tracker_for_trickle(self) -> FakeGitHubTracker:
+        return FakeGitHubTracker([self._trickle8_github_issue()])
+
+    def test_ensure_native_records_in_import_index(self):
+        """ensure_native_issue_for_github_issue must call record_external_import
+        after creating a new native task."""
+        native = FakeNativeTrackerWithCorruptSupport()
+        github = self._github_tracker_for_trickle()
+        gh_issue = self._trickle8_github_issue()
+
+        created = ensure_native_issue_for_github_issue(native, github, gh_issue)
+
+        assert created is not None
+        recorded = native.find_imported_task_id_for_external(gh_issue.identifier)
+        assert recorded == created.identifier, (
+            "Import index must be updated after ensure_native_issue_for_github_issue"
+        )
+
+    def test_corrupt_task_file_blocks_reimport(self):
+        """When an in-progress task's file becomes corrupt/zero-byte, a
+        subsequent poll of the same GitHub issue must NOT create a new Proposed
+        task.  This is the TRICKLE-8 failure mode regression."""
+        native = FakeNativeTrackerWithCorruptSupport()
+        github = self._github_tracker_for_trickle()
+        gh_issue = self._trickle8_github_issue()
+
+        # Step 1: Initial import — TRICKLE-8 equivalent.
+        created = ensure_native_issue_for_github_issue(native, github, gh_issue)
+        assert created is not None
+        original_id = created.identifier
+
+        # Step 2: Simulate disk-full / zero-byte corruption.
+        native.simulate_file_corruption(original_id)
+
+        # Step 3: Poll runs again for the same GitHub issue.
+        result = ensure_native_issue_for_github_issue(native, github, gh_issue)
+
+        # No new task must be created.
+        all_tasks = list(native.issues.values())
+        assert result is None, (
+            "ensure_native_issue_for_github_issue must return None when "
+            "the task file is corrupt (not create a duplicate)"
+        )
+        assert all_tasks == [], (
+            f"No valid tasks should exist after corruption — found: "
+            f"{[t.identifier for t in all_tasks]}"
+        )
+
+    def test_corrupt_task_does_not_appear_in_fetch_all(self):
+        """After file corruption, fetch_all_issues_enriched must not include the
+        corrupt task (it's invisible to the valid-task scan)."""
+        native = FakeNativeTrackerWithCorruptSupport()
+        github = self._github_tracker_for_trickle()
+        gh_issue = self._trickle8_github_issue()
+
+        created = ensure_native_issue_for_github_issue(native, github, gh_issue)
+        native.simulate_file_corruption(created.identifier)
+
+        all_issues = native.fetch_all_issues_enriched()
+        ids = {i.identifier for i in all_issues}
+        assert created.identifier not in ids
+
+    def test_poll_does_not_create_duplicate_when_task_is_corrupt(self):
+        """poll_github_issue_intake_project must not create a duplicate Proposed
+        task when the in-progress task file is corrupt."""
+        native = FakeNativeTrackerWithCorruptSupport()
+        github = self._github_tracker_for_trickle()
+        gh_issue = self._trickle8_github_issue()
+
+        # Initial import.
+        created = ensure_native_issue_for_github_issue(native, github, gh_issue)
+        assert created is not None
+        original_id = created.identifier
+
+        # Simulate corruption.
+        native.simulate_file_corruption(original_id)
+
+        # Poll runs.
+        count = poll_github_issue_intake_project(_orch(native), _project())
+
+        # Must not have imported anything new.
+        assert count == 0, (
+            f"poll must return 0 new imports when the task file is corrupt, got {count}"
+        )
+        assert not native.issues, (
+            f"No new tasks should be created, found: {list(native.issues)}"
+        )
+
+    def test_clean_reimport_allowed_when_task_file_deleted(self):
+        """If a task file is cleanly deleted (not corrupt — not in corrupt stubs),
+        a fresh import IS allowed so the task can be recreated."""
+        native = FakeNativeTrackerWithCorruptSupport()
+        github = self._github_tracker_for_trickle()
+        gh_issue = self._trickle8_github_issue()
+
+        # First import.
+        first = ensure_native_issue_for_github_issue(native, github, gh_issue)
+        assert first is not None
+        first_id = first.identifier
+        # Cleanly delete the task (operator removed it).
+        del native.issues[first_id]
+        # Corrupt stubs do NOT include this task — it was cleanly deleted.
+        assert not native._corrupt_stems
+
+        # Second import should succeed.
+        second = ensure_native_issue_for_github_issue(native, github, gh_issue)
+        assert second is not None, (
+            "A fresh import must be allowed when the task was cleanly deleted "
+            "(no corrupt stub)"
+        )
+
+    def test_find_native_issue_returns_blocked_when_corrupt_stub_found(self):
+        """_find_native_issue_for_external must return (None, {_blocked_reimport: True})
+        when the import index has a mapping but the task file is corrupt."""
+        from oompah.github_intake_bridge import _find_native_issue_for_external
+
+        native = FakeNativeTrackerWithCorruptSupport()
+        github = self._github_tracker_for_trickle()
+        gh_issue = self._trickle8_github_issue()
+
+        # Import, then corrupt.
+        created = ensure_native_issue_for_github_issue(native, github, gh_issue)
+        native.simulate_file_corruption(created.identifier)
+
+        issue, metadata = _find_native_issue_for_external(native, gh_issue.identifier)
+        assert issue is None
+        assert metadata.get("_blocked_reimport") is True
+        assert metadata.get("_known_task_id") == created.identifier
