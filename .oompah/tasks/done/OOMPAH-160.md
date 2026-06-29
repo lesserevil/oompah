@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:46:06.483875Z'
-updated_at: '2026-06-29T15:46:16.708330Z'
+updated_at: '2026-06-29T15:46:18.996387Z'
 work_branch: OOMPAH-160
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/402
@@ -161,5 +161,10 @@ author: oompah
 created: 2026-06-29 15:46
 ---
 PR opened: https://github.com/lesserevil/oompah/pull/402. All implementation was completed in Run #1: atomic writes, corrupt file tracking, ID-reuse prevention, import index, intake reimport blocking, and 21 regression tests (all 7213 pass). This run only needed to create the missing PR before closing.
+---
+author: oompah
+created: 2026-06-29 15:46
+---
+Atomic writes (tempfile+fsync+rename), corrupt file tracking/alerting, ID-reuse prevention, external import index, and intake reimport blocking delivered. 21 regression tests including TRICKLE-8 failure mode. All 7213 tests pass. PR: https://github.com/lesserevil/oompah/pull/402
 ---
 <!-- COMMENTS:END -->
