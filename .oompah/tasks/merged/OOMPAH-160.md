@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-160
 type: bug
-status: In Review
+status: Merged
 priority: null
 title: Make native task writes atomic and block intake reimports for corrupt tasks
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:46:06.483875Z'
-updated_at: '2026-06-29T15:46:44.619689Z'
+updated_at: '2026-06-29T15:47:07.363671Z'
 work_branch: OOMPAH-160
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/402
