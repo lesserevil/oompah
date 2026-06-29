@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:46:06.483875Z'
-updated_at: '2026-06-29T15:44:27.443590Z'
+updated_at: '2026-06-29T15:44:29.720075Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -90,5 +90,10 @@ author: oompah
 created: 2026-06-29 15:44
 ---
 Completion: OOMPAH-160 delivered. All 5 acceptance criteria met: (1) Atomic writes — _write_markdown() uses tempfile + fsync + Path.replace; disk-full can no longer empty a task file. (2) Write failure regression test — test_write_failure_leaves_original_file_intact patches Path.replace to raise and verifies original unchanged. (3) Intake duplicate detection — _find_native_issue_for_external() checks import index + corrupt stubs; returns _blocked_reimport sentinel when corrupt file found; ensure_native_issue_for_github_issue() respects sentinel. (4) Corrupt file alerting — _read_records() logs repair instructions with git-show recovery command; list_corrupt_stubs() exposes them for callers. (5) TRICKLE-8 regression tests — test_corrupt_task_file_blocks_reimport + test_poll_does_not_create_duplicate_when_task_is_corrupt cover the exact failure mode. Zero-byte file ID no longer reused (_next_identifier scans all stems). Branch OOMPAH-160 pushed to origin. All 7213 tests pass.
+---
+author: oompah
+created: 2026-06-29 15:44
+---
+Implemented atomic task writes (_atomic_write via tempfile+rename), corrupt file tracking (list_corrupt_stubs), ID-reuse prevention (_next_identifier scans all stems), external import index (record_external_import/find_imported_task_id_for_external), intake reimport blocking (_blocked_reimport sentinel). 21 regression tests. 7213/7213 tests pass.
 ---
 <!-- COMMENTS:END -->
