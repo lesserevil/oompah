@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-21
 type: task
-status: Merged
+status: Archived
 priority: 2
 title: Add the release/1.0 branch cut checklist
 parent: OOMPAH-17
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:16:34.236540Z'
-updated_at: '2026-06-22T14:05:05.414539Z'
+updated_at: '2026-06-29T14:44:19.112698Z'
 work_branch: null
 target_branch: null
 review_url: null
