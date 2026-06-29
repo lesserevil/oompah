@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:14:18.023111Z'
-updated_at: '2026-06-29T14:19:41.394131Z'
+updated_at: '2026-06-29T14:21:28.898963Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -73,5 +73,10 @@ author: oompah
 created: 2026-06-29 14:19
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-29 14:21
+---
+Understanding: OOMPAH-159 is NOT a duplicate. OOMPAH-158 (Merged) fixed the H2 heading parsing issue in GitHub intake. OOMPAH-159 is a new feature that adds a normalization step on top: parse any body shape into the canonical oompah task template, insert marked placeholders for missing sections, ensure validators ignore those placeholders, and run this as part of Proposed→Backlog promotion. Searching merged/archived tasks found no existing normalization-related work. Plan: (1) explore intake validator, oompah_md_tracker, and github_intake_bridge to understand current body structure and validation flow; (2) implement a pure normalizer in its own module; (3) hook it into the Proposed intake revalidation pipeline; (4) add regression tests for TRICKLE-8-style bodies, placeholders, GitHub intake behavior; (5) commit and push.
 ---
 <!-- COMMENTS:END -->
