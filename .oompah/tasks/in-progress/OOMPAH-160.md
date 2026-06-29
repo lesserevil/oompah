@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:46:06.483875Z'
-updated_at: '2026-06-29T15:43:32.868844Z'
+updated_at: '2026-06-29T15:43:45.037994Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -80,5 +80,10 @@ author: oompah
 created: 2026-06-29 15:43
 ---
 Implementation: Changes delivered across 2 files + 2 test files. (1) oompah/oompah_md_tracker.py: Added _atomic_write() helper (tempfile.mkstemp → write → fsync → Path.replace), updated _write_markdown() to use it, updated _read_records() to track corrupt stubs with actionable repair log messages, updated invalidate_read_cache() to also clear corrupt stubs, added list_corrupt_stubs() public method, updated _next_identifier() to scan ALL file stems (not just valid records) preventing corrupt-file ID reuse (TRICKLE-8 root cause), added import-index support: _IMPORT_INDEX_FILE constant, _import_index_path property, _read_import_index(), record_external_import(), find_imported_task_id_for_external(). (2) oompah/github_intake_bridge.py: Updated _find_native_issue_for_external() to check import index + corrupt stubs after valid-task scan fails, returning (None, {_blocked_reimport: True}) when corrupt file detected. Updated ensure_native_issue_for_github_issue() to check _blocked_reimport sentinel (no new task created) and to call record_external_import() after successful creation. (3) 15 new tests in test_oompah_md_tracker.py: TestAtomicWrite (4), TestCorruptFileHandling (5), TestImportIndex (6). (4) 6 new tests in test_github_intake_bridge.py: TestCorruptFileDeduplication including TRICKLE-8 regression.
+---
+author: oompah
+created: 2026-06-29 15:43
+---
+Verification: Full test suite passed. 7213 passed, 0 failed, 28 skipped. New tests: 21 total — 15 in test_oompah_md_tracker.py (TestAtomicWrite, TestCorruptFileHandling, TestImportIndex) and 6 in test_github_intake_bridge.py (TestCorruptFileDeduplication). Key results: (1) Atomic write — test_write_failure_leaves_original_file_intact verifies Path.replace failure does not corrupt original; test_write_does_not_use_md_suffix_for_temp_files verifies temp files use .tmp suffix. (2) Corrupt file handling — test_next_identifier_skips_corrupt_file_stem verifies TRICKLE-8 ID-reuse prevention; test_corrupt_file_appears_in_list_corrupt_stubs verifies corrupt detection. (3) Import index — test_record_external_import_creates_index_file, test_import_index_survives_task_file_corruption, test_index_file_is_written_atomically. (4) TRICKLE-8 regression — test_corrupt_task_file_blocks_reimport verifies in-progress file corruption + poll = no new Proposed task; test_poll_does_not_create_duplicate_when_task_is_corrupt verifies poll_github_issue_intake_project returns 0 imports; test_clean_reimport_allowed_when_task_file_deleted verifies clean-delete allows fresh import.
 ---
 <!-- COMMENTS:END -->
