@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:46:06.483875Z'
-updated_at: '2026-06-29T15:46:30.618815Z'
+updated_at: '2026-06-29T15:46:32.935512Z'
 work_branch: OOMPAH-160
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/402
@@ -18,13 +18,13 @@ review_number: '402'
 merged_at: null
 oompah.agent_run_id: 402f1d0d-b767-4c2d-8e21-47d392862319
 oompah.task_costs:
-  total_input_tokens: 50
-  total_output_tokens: 47913
+  total_input_tokens: 60
+  total_output_tokens: 50758
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 50
-      output_tokens: 47913
+      input_tokens: 60
+      output_tokens: 50758
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -33,6 +33,12 @@ oompah.task_costs:
     output_tokens: 47913
     cost_usd: 0.0
     recorded_at: '2026-06-29T15:44:40.925616+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 10
+    output_tokens: 2845
+    cost_usd: 0.0
+    recorded_at: '2026-06-29T15:46:25.931388+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/402
 oompah.review_number: '402'
 oompah.work_branch: OOMPAH-160
