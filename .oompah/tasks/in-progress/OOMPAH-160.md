@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:46:06.483875Z'
-updated_at: '2026-06-29T15:26:57.801298Z'
+updated_at: '2026-06-29T15:27:41.401987Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,5 +65,10 @@ author: oompah
 created: 2026-06-29 15:26
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-29 15:27
+---
+Understanding: OOMPAH-160 is NOT a duplicate. Searched all merged/archived tasks for atomic writes, write_text, corrupt files, reimport, disk-full. OOMPAH-158 (Merged) fixed H2 heading parsing in intake import; OOMPAH-159 (Merged) added intake body normalization. Neither addresses write atomicity or corrupt-file reimport prevention. This is a new bug with two distinct fix areas: (1) oompah_md_tracker.py uses path.write_text() which truncates-before-write — must switch to write-to-tempfile + rename; (2) GitHub issue intake lookup skips corrupt/unreadable native task files and treats the external GitHub issue as unimported — must detect corrupt files and skip reimport. Plan: (1) explore oompah_md_tracker.py for write_text calls; (2) explore github_intake_bridge.py for existing import lookup; (3) implement atomic write helper; (4) add corrupt-file detection to intake lookup; (5) add alerting for corrupt files; (6) write regression tests including TRICKLE-8 failure mode.
 ---
 <!-- COMMENTS:END -->
