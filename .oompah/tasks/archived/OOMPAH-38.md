@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-38
 type: task
-status: Merged
+status: Archived
 priority: 1
 title: Cut release/1.0 and run the full quality gate
 parent: OOMPAH-37
@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-06-22T01:17:35.091778Z'
-updated_at: '2026-06-22T17:38:52.145733Z'
+updated_at: '2026-06-29T17:58:14.961087Z'
 work_branch: null
 target_branch: null
 review_url: null
