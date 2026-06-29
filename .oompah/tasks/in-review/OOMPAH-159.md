@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-159
 type: feature
-status: Done
+status: In Review
 priority: null
 title: Normalize Proposed task bodies during intake validation
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:14:18.023111Z'
-updated_at: '2026-06-29T14:43:49.687001Z'
+updated_at: '2026-06-29T14:43:51.899161Z'
 work_branch: null
 target_branch: null
 review_url: null
