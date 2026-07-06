@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-159
 type: feature
-status: Merged
+status: Archived
 priority: null
 title: Normalize Proposed task bodies during intake validation
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-29T14:14:18.023111Z'
-updated_at: '2026-06-29T14:51:37.176064Z'
+updated_at: '2026-07-06T15:40:37.709728Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/401
