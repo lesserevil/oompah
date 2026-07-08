@@ -97,6 +97,16 @@ def test_rendered_oompah_task_instructions_use_native_markdown_store():
     assert "GitHub Fallback" not in rendered
 
 
+def test_rendered_oompah_task_instructions_allow_untracked_design_plans():
+    rendered = render_oompah_task_agent_instructions()
+
+    assert "Planning Does Not Require a Task" in rendered
+    assert "captured in `plans/` without creating a corresponding" in rendered
+    assert "they are not task trackers" in rendered
+    assert "when implementation work is accepted" in rendered
+    assert "does not prohibit design documents in `plans/`" in rendered
+
+
 def test_update_oompah_task_replaces_github_block():
     original, changed = update_agents_text_for_github_issues("# Rules\n")
     assert changed is True

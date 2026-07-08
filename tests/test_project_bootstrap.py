@@ -69,6 +69,22 @@ def test_apply_writes_missing_files_without_commit(tmp_path: Path) -> None:
     assert (repo / "plans/README.md").exists()
 
 
+def test_bootstrap_distinguishes_plans_from_tracked_tasks(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path)
+
+    result = apply_project_bootstrap_updates(repo, commit=False, push=False)
+
+    assert result.error == ""
+    agents = (repo / "AGENTS.md").read_text(encoding="utf-8")
+    plans = (repo / "plans/README.md").read_text(encoding="utf-8")
+    assert "Planning Does Not Require a Task" in agents
+    assert "does not prohibit design documents in `plans/`" in agents
+    assert "Plans Are Not Tasks" in plans
+    assert "does not require a corresponding\noompah task" in plans
+    assert "when implementation begins" in plans
+    assert "not a substitute task\ntracker" in plans
+
+
 def test_existing_project_owned_files_are_protected(tmp_path: Path) -> None:
     repo = _make_repo(tmp_path)
     makefile = repo / "Makefile"

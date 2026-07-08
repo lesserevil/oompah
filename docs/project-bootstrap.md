@@ -18,6 +18,10 @@ Project bootstrap covers these files:
 
 `AGENTS.md` is special: when it already exists, oompah updates only the
 oompah-managed task-tracking section and preserves the rest of the file.
+That managed section distinguishes design plans from tracked implementation:
+contributors may create or update documents under `plans/` without first
+creating an oompah task. Tasks remain the canonical record once work is
+accepted or needs status, ownership, dependencies, or orchestration.
 
 Other files are only updated when they are missing or when they already carry
 an oompah bootstrap marker. Existing project-owned files without that marker
@@ -61,4 +65,3 @@ git identity and default branch, matching the issue-template refresh workflow.
 
 Oompah refuses to overwrite bootstrap-managed paths with uncommitted changes.
 Commit or stash those changes first, then rerun the bootstrap apply operation.
-

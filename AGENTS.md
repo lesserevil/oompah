@@ -13,6 +13,19 @@ task status, parent/child relationships, dependencies, comments, and
 git-backed `.oompah/tasks` files consistent. Humans and agents may inspect
 `.oompah/tasks`, but oompah should be the only writer.
 
+### Planning Does Not Require a Task
+
+Design work may be captured in `plans/` without creating a corresponding
+oompah task. Plans describe possible approaches, architecture, or future work;
+they are not task trackers and do not imply that the work has been accepted or
+scheduled.
+
+Create an oompah task when implementation work is accepted or needs status,
+ownership, dependencies, or orchestration. A task may link to a plan instead of
+copying the plan into task metadata. Checklists in a plan are specification or
+acceptance-criteria aids, not task status. The prohibition on standalone
+Markdown TODO lists does not prohibit design documents in `plans/`.
+
 ### Install the Task CLI
 
 The CLI is distributed from GitHub, not PyPI. The default GitHub install is the
