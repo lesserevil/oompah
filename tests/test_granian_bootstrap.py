@@ -297,6 +297,38 @@ class TestSetupServicesSuccess:
 class TestMainServerArgument:
     """main() accepts --server {uvicorn,granian} without error."""
 
+    def test_restart_execv_args_empty_restarts_server(self):
+        """Upgraded legacy no-arg services must not re-exec into top-level help."""
+        from oompah.__main__ import _restart_execv_args
+
+        assert _restart_execv_args([]) == ["server"]
+
+    def test_restart_execv_args_paused_only_restarts_server(self):
+        """Dropping --paused must still leave an explicit service command."""
+        from oompah.__main__ import _restart_execv_args
+
+        assert _restart_execv_args(["--paused"]) == ["server"]
+
+    def test_restart_execv_args_preserves_server_subcommand(self):
+        """Explicit server invocations survive restart unchanged except --paused."""
+        from oompah.__main__ import _restart_execv_args
+
+        assert _restart_execv_args(["server", "--paused", "--port", "8090"]) == [
+            "server",
+            "--port",
+            "8090",
+        ]
+
+    def test_restart_execv_args_preserves_legacy_server_args(self):
+        """Legacy server forms with workflow/options still restart as server mode."""
+        from oompah.__main__ import _restart_execv_args
+
+        assert _restart_execv_args(["WORKFLOW.md", "--paused", "--port", "8090"]) == [
+            "WORKFLOW.md",
+            "--port",
+            "8090",
+        ]
+
     def test_bare_oompah_prints_help_without_starting_server(
         self, monkeypatch, capsys
     ):

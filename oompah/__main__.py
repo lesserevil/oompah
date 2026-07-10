@@ -71,6 +71,14 @@ def _check_granian_workers_constraint(server: str, workers: int) -> None:
         sys.exit(1)
 
 
+def _restart_execv_args(argv: list[str]) -> list[str]:
+    """Return CLI args to preserve service mode across in-process restarts."""
+    execv_args = [arg for arg in argv if arg != "--paused"]
+    if not execv_args:
+        return ["server"]
+    return execv_args
+
+
 def _build_server_parser(
     *, prog: str = "oompah", include_subcommands: bool = True
 ) -> argparse.ArgumentParser:
@@ -269,7 +277,7 @@ def main() -> None:
         if restart:
             # Drop --paused from the re-exec argv so an in-process restart
             # doesn't keep forcing pause when the user had already resumed.
-            execv_args = [a for a in sys.argv[1:] if a != "--paused"]
+            execv_args = _restart_execv_args(sys.argv[1:])
             logger.info("Restarting via os.execv: %s %s", sys.executable, execv_args)
             os.execv(sys.executable, [sys.executable, "-m", "oompah"] + execv_args)
         break
@@ -348,7 +356,7 @@ def _run_granian(
     # Check for restart sentinel written by the lifespan _supervise task.
     if os.path.exists(_GRANIAN_RESTART_SENTINEL):
         os.remove(_GRANIAN_RESTART_SENTINEL)
-        execv_args = [a for a in sys.argv[1:] if a != "--paused"]
+        execv_args = _restart_execv_args(sys.argv[1:])
         logger.info(
             "Restart sentinel found; re-executing: %s %s",
             sys.executable, execv_args,
