@@ -1,11 +1,12 @@
 """Tests for draft epic kanban visibility in swimlane view.
 
 Draft epics (issue_type === 'epic' with 'draft' in labels) should:
-- NOT appear as swimlane headers in renderSwimlaneView()
-- Appear as regular cards in the Unassigned/orphans swimlane
+- Appear as swimlane headers in renderSwimlaneView() when they have visible child work
+- Keep the Draft badge and Finalize action in the swimlane header
+- Appear as regular cards only when they are not rendered as swimlane parents
 - Show the 'Draft Epic' badge via createCard()
 - Be included in getCardsInColumn() results (not filtered out)
-- Be included in orphan swimlane results in getCardsInColumn()
+- Be excluded from orphan swimlane results when rendered as swimlane headers
 
 Regular (non-draft) epics should:
 - Still appear as swimlane headers
@@ -51,7 +52,7 @@ def script(html):
 # ---------------------------------------------------------------------------
 
 class TestRenderSwimlaneViewEpicFilter:
-    """Verify that renderSwimlaneView() excludes draft epics from swimlane headers."""
+    """Verify that renderSwimlaneView() includes draft epics as swimlane headers."""
 
     def _get_render_body(self, script: str) -> str:
         match = re.search(
@@ -62,10 +63,9 @@ class TestRenderSwimlaneViewEpicFilter:
         assert match, "Could not find renderSwimlaneView function"
         return match.group(1)
 
-    def test_epics_filter_excludes_draft_label(self, script):
-        """The epics array in renderSwimlaneView must exclude epics with the 'draft' label."""
+    def test_epics_filter_does_not_exclude_draft_label(self, script):
+        """The epics array in renderSwimlaneView must not filter out draft epics."""
         body = self._get_render_body(script)
-        # Find the line that builds the epics array
         epics_line_match = re.search(
             r"(?:const|let|var)\s+allEpics\s*=\s*allIssuesFlat\.filter\(.*?\);",
             body,
@@ -73,9 +73,9 @@ class TestRenderSwimlaneViewEpicFilter:
         )
         assert epics_line_match, "Could not find 'epics = allIssuesFlat.filter(...)' assignment"
         epics_line = epics_line_match.group(0)
-        # Must exclude draft epics
-        assert "draft" in epics_line, \
-            "epics filter must exclude draft epics (check for 'draft' label)"
+        assert "draft" not in epics_line, (
+            "allEpics must include draft epics so draft status does not break hierarchy"
+        )
 
     def test_epics_filter_uses_swimlane_parent_check(self, script):
         """The epics array filter must use isSwimlaneParent to identify parent issues."""
@@ -90,8 +90,8 @@ class TestRenderSwimlaneViewEpicFilter:
         assert "isSwimlaneParent" in epics_line, \
             "epics filter must use isSwimlaneParent to identify parent issues"
 
-    def test_epics_filter_uses_negation_for_draft(self, script):
-        """The epics filter must negate the draft condition (exclude items WITH draft label)."""
+    def test_epics_filter_has_no_draft_negation(self, script):
+        """The epics filter must not negate the draft condition."""
         body = self._get_render_body(script)
         epics_line_match = re.search(
             r"(?:const|let|var)\s+allEpics\s*=\s*allIssuesFlat\.filter\(.*?\);",
@@ -100,22 +100,17 @@ class TestRenderSwimlaneViewEpicFilter:
         )
         assert epics_line_match
         epics_line = epics_line_match.group(0)
-        # Should use negation (!) to exclude draft epics
-        assert "!" in epics_line, \
-            "epics filter must use negation (!) to exclude draft epics from headers"
+        assert "!" not in epics_line, (
+            "allEpics must not use negation to exclude draft epics from headers"
+        )
 
-    def test_epics_filter_handles_missing_labels(self, script):
-        """The epics filter must safely handle issues with no labels array."""
+    def test_rendered_epics_are_filtered_by_visible_counts(self, script):
+        """Draft and non-draft epics only render as lanes when they have visible child work."""
         body = self._get_render_body(script)
-        epics_line_match = re.search(
-            r"(?:const|let|var)\s+allEpics\s*=\s*allIssuesFlat\.filter\(.*?\);",
+        assert re.search(
+            r"(?:const|let|var)\s+epics\s*=\s*allEpics\.filter\(epicHasVisibleCounts\)",
             body,
-            re.DOTALL,
-        )
-        assert epics_line_match
-        epics_line = epics_line_match.group(0)
-        assert "|| []" in epics_line or "||[]" in epics_line, \
-            "epics filter must use '|| []' to safely handle missing labels"
+        ), "rendered epics must be allEpics filtered by epicHasVisibleCounts"
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +118,7 @@ class TestRenderSwimlaneViewEpicFilter:
 # ---------------------------------------------------------------------------
 
 class TestRenderSwimlaneViewOrphansFilter:
-    """Verify that the orphans filter in renderSwimlaneView() includes draft epics."""
+    """Verify that the orphans filter does not swallow valid draft epic hierarchies."""
 
     def _get_render_body(self, script: str) -> str:
         match = re.search(
@@ -148,8 +143,8 @@ class TestRenderSwimlaneViewOrphansFilter:
         assert "epic" in body, "isSwimlaneParent must check for 'epic' type"
         assert "children_counts" in body, "isSwimlaneParent must check children_counts"
 
-    def test_orphans_filter_includes_draft_epics(self, script):
-        """Orphans filter must allow draft epics (issue_type === 'epic' with 'draft' label)."""
+    def test_orphans_filter_uses_work_card_helper(self, script):
+        """Orphans filter must delegate draft-card eligibility to shouldShowIssueAsWorkCard."""
         body = self._get_render_body(script)
         orphans_line_match = re.search(
             r"(?:const|let|var)\s+orphans\s*=\s*allIssuesFlat\.filter\(.*?\);",
@@ -158,11 +153,26 @@ class TestRenderSwimlaneViewOrphansFilter:
         )
         assert orphans_line_match, "Could not find 'orphans = allIssuesFlat.filter(...)' assignment"
         orphans_line = orphans_line_match.group(0)
-        assert "draft" in orphans_line, \
-            "orphans filter must include draft epics (check for 'draft' label)"
+        assert "shouldShowIssueAsWorkCard" in orphans_line, (
+            "orphans filter must use the work-card helper for draft-card eligibility"
+        )
+
+    def test_orphans_filter_excludes_rendered_swimlane_parents(self, script):
+        """Draft epics rendered as swimlane parents must not also appear as Unassigned cards."""
+        body = self._get_render_body(script)
+        orphans_line_match = re.search(
+            r"(?:const|let|var)\s+orphans\s*=\s*allIssuesFlat\.filter\(.*?\);",
+            body,
+            re.DOTALL,
+        )
+        assert orphans_line_match
+        orphans_line = orphans_line_match.group(0)
+        assert "renderedEpicKeys" in orphans_line, (
+            "orphans filter must exclude epics that are already rendered as swimlanes"
+        )
 
     def test_orphans_filter_not_simple_epic_exclusion(self, script):
-        """Orphans filter must NOT be a simple 'issue_type !== epic' — it needs draft exception."""
+        """Orphans filter must not be a simple issue_type exclusion."""
         body = self._get_render_body(script)
         orphans_line_match = re.search(
             r"(?:const|let|var)\s+orphans\s*=\s*allIssuesFlat\.filter\(.*?\);",
@@ -171,26 +181,12 @@ class TestRenderSwimlaneViewOrphansFilter:
         )
         assert orphans_line_match
         orphans_line = orphans_line_match.group(0)
-        # Must NOT be the simple pattern that just excludes all epics
-        # (i.e. must have more than just !== 'epic' check)
-        assert "draft" in orphans_line, \
-            "Simple '!== epic' filter would miss draft epics — 'draft' must be mentioned"
-
-    def test_orphans_filter_handles_missing_labels(self, script):
-        """Orphans filter must safely handle issues without labels."""
-        body = self._get_render_body(script)
-        orphans_line_match = re.search(
-            r"(?:const|let|var)\s+orphans\s*=\s*allIssuesFlat\.filter\(.*?\);",
-            body,
-            re.DOTALL,
+        assert "issue_type !== 'epic'" not in orphans_line, (
+            "orphans filter must be based on parent relationships, not epic type"
         )
-        assert orphans_line_match
-        orphans_line = orphans_line_match.group(0)
-        assert "|| []" in orphans_line or "||[]" in orphans_line, \
-            "orphans filter must use '|| []' to safely handle missing labels"
 
     def test_orphans_filter_still_excludes_parent_with_known_epic(self, script):
-        """Orphans filter must still exclude issues whose parent is a non-draft epic."""
+        """Orphans filter must exclude issues whose parent is any known epic."""
         body = self._get_render_body(script)
         orphans_line_match = re.search(
             r"(?:const|let|var)\s+orphans\s*=\s*allIssuesFlat\.filter\(.*?\);",
@@ -203,9 +199,62 @@ class TestRenderSwimlaneViewOrphansFilter:
         # known epics. Keyed by the composite (project_id, id) key
         # `epicKeys` / `parentKeyOf` — bare ids collide across projects.
         assert "epicKeys" in orphans_line, \
-            "orphans filter must use epicKeys to exclude children of non-draft epics"
+            "orphans filter must use epicKeys to exclude children of known epics"
         assert "parent_id" in orphans_line or "parentKeyOf" in orphans_line, \
             "orphans filter must check the issue's parent"
+
+
+# ---------------------------------------------------------------------------
+# renderSwimlaneView — nested epic children
+# ---------------------------------------------------------------------------
+
+class TestRenderSwimlaneViewNestedEpics:
+    """Verify nested epic relationships are visible in the by-epic view."""
+
+    def _get_render_body(self, script: str) -> str:
+        match = re.search(
+            r"function renderSwimlaneView\(.*?\)\s*\{(.*)",
+            script,
+            re.DOTALL,
+        )
+        assert match, "Could not find renderSwimlaneView function"
+        return match.group(1)
+
+    def test_swimlane_children_do_not_filter_out_epic_children(self, script):
+        """Immediate child epics should render as cards in their parent epic lane."""
+        body = self._get_render_body(script)
+        children_line_match = re.search(
+            r"(?:const|let|var)\s+children\s*=\s*allIssuesFlat\.filter\(.*?\);",
+            body,
+            re.DOTALL,
+        )
+        assert children_line_match, "Could not find children filter in renderSwimlaneView"
+        children_line = children_line_match.group(0)
+        assert "parentKeyOf(i) === ek" in children_line
+        assert "!isSwimlaneParent" not in children_line, (
+            "nested epic children must not be filtered out of their parent lane"
+        )
+
+    def test_specific_swimlane_cards_are_scoped_by_parent_only(self, script):
+        """Column drag in a swimlane should operate on all visible immediate children."""
+        func_match = re.search(
+            r"function getCardsInColumn\(.*?\)\s*\{(.*?)\n\}",
+            script,
+            re.DOTALL,
+        )
+        assert func_match, "Could not find getCardsInColumn function"
+        body = func_match.group(1)
+        specific_branch = re.search(
+            r"// Specific epic swimlane.*?return issues\.filter\(.*?\);",
+            body,
+            re.DOTALL,
+        )
+        assert specific_branch, "Could not find specific swimlane branch"
+        branch = specific_branch.group(0)
+        assert "parentKeyOf(i) === epicId" in branch
+        assert "shouldShowIssueAsWorkCard" not in branch, (
+            "specific swimlanes must include immediate epic children, not only flat work cards"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -263,8 +312,8 @@ class TestGetCardsInColumnDraftEpics:
         assert "|| []" in helper_line or "||[]" in helper_line, \
             "Draft-label helper must handle missing labels with '|| []' pattern"
 
-    def test_orphans_branch_builds_epicIds_from_non_draft_epics(self, script):
-        """In the _orphans branch, epicIds must only contain non-draft epic IDs."""
+    def test_orphans_branch_builds_epicIds_from_all_epics(self, script):
+        """In the _orphans branch, epicKeys must include draft and non-draft epic IDs."""
         body = self._get_function_body(script)
         # Find the _orphans branch
         orphans_branch_match = re.search(
@@ -274,12 +323,20 @@ class TestGetCardsInColumnDraftEpics:
         )
         assert orphans_branch_match, "Could not find _orphans branch in getCardsInColumn"
         orphans_branch = orphans_branch_match.group(0)
-        # epicIds should be built from non-draft epics
-        assert "draft" in orphans_branch, \
-            "_orphans branch epicIds must exclude draft epics"
+        all_epics_match = re.search(
+            r"(?:const|let|var)\s+allEpics\s*=\s*allIssuesFlat\.filter\(.*?\);",
+            orphans_branch,
+            re.DOTALL,
+        )
+        assert all_epics_match, "Could not find allEpics assignment in _orphans branch"
+        all_epics_line = all_epics_match.group(0)
+        assert "isSwimlaneParent" in all_epics_line
+        assert "draft" not in all_epics_line, (
+            "_orphans epicKeys must not exclude draft epics"
+        )
 
-    def test_orphans_branch_negates_draft_in_epicIds_set(self, script):
-        """The epicIds set in _orphans must filter OUT draft epics (negation)."""
+    def test_orphans_branch_excludes_rendered_epics(self, script):
+        """The _orphans branch must exclude epics rendered as swimlane headers."""
         body = self._get_function_body(script)
         orphans_branch_match = re.search(
             r"epicId === '_orphans'.*?(?=} else \{|return issues\.filter)",
@@ -288,9 +345,9 @@ class TestGetCardsInColumnDraftEpics:
         )
         assert orphans_branch_match, "Could not find _orphans branch"
         orphans_branch = orphans_branch_match.group(0)
-        # Should use negation for draft check
-        assert "!" in orphans_branch, \
-            "_orphans epicIds must negate draft condition to exclude draft epics from the set"
+        assert "renderedEpicKeys" in orphans_branch, (
+            "_orphans must exclude epics already rendered as swimlane headers"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -300,29 +357,50 @@ class TestGetCardsInColumnDraftEpics:
 class TestDraftEpicFilterConsistency:
     """Verify that draft epic handling is consistent across rendering functions."""
 
-    def test_renderSwimlaneView_and_getCardsInColumn_both_use_draft_check(self, script):
-        """Both renderSwimlaneView and getCardsInColumn must reference 'draft' label."""
+    def test_renderSwimlaneView_and_getCardsInColumn_include_draft_epic_parents(self, script):
+        """Both render paths must build epic keys without filtering out draft epics."""
         # renderSwimlaneView epics filter
         render_epics_match = re.search(
-            r"function renderSwimlaneView.*?(?:const|let|var)\s+epics\s*=.*?;",
-            script,
+            r"(?:const|let|var)\s+allEpics\s*=\s*allIssuesFlat\.filter\(.*?\);",
+            self._render_body(script),
             re.DOTALL,
         )
         assert render_epics_match
-        assert "draft" in render_epics_match.group(0)
+        assert "draft" not in render_epics_match.group(0)
 
-        # getCardsInColumn base filter
+        # getCardsInColumn orphan branch
         get_cards_match = re.search(
-            r"function getCardsInColumn.*?(?:const|let|var)\s+issues\s*=.*?;",
+            r"function getCardsInColumn\(.*?\)\s*\{(.*?)\n\}",
             script,
             re.DOTALL,
         )
         assert get_cards_match
-        assert "shouldShowIssueAsWorkCard" in get_cards_match.group(0)
-        assert "hasDraftLabel" in script
+        get_cards_body = get_cards_match.group(1)
+        orphans_branch = re.search(
+            r"epicId === '_orphans'.*?(?=} else \{|return issues\.filter)",
+            get_cards_body,
+            re.DOTALL,
+        )
+        assert orphans_branch
+        all_epics_match = re.search(
+            r"(?:const|let|var)\s+allEpics\s*=\s*allIssuesFlat\.filter\(.*?\);",
+            orphans_branch.group(0),
+            re.DOTALL,
+        )
+        assert all_epics_match
+        assert "draft" not in all_epics_match.group(0)
 
-    def test_both_orphan_filters_handle_draft_epics(self, script):
-        """Both the orphans in renderSwimlaneView and _orphans in getCardsInColumn must handle draft."""
+    def _render_body(self, script: str) -> str:
+        match = re.search(
+            r"function renderSwimlaneView\(.*?\)\s*\{(.*)",
+            script,
+            re.DOTALL,
+        )
+        assert match
+        return match.group(1)
+
+    def test_both_orphan_filters_exclude_rendered_epics(self, script):
+        """Both the orphans in renderSwimlaneView and _orphans in getCardsInColumn must avoid duplicate lane/card rendering."""
         # renderSwimlaneView orphans
         render_match = re.search(
             r"function renderSwimlaneView.*?(?:const|let|var)\s+orphans\s*=.*?;",
@@ -330,7 +408,7 @@ class TestDraftEpicFilterConsistency:
             re.DOTALL,
         )
         assert render_match
-        assert "draft" in render_match.group(0)
+        assert "renderedEpicKeys" in render_match.group(0)
 
         # getCardsInColumn _orphans branch
         func_match = re.search(
@@ -342,7 +420,7 @@ class TestDraftEpicFilterConsistency:
         body = func_match.group(1)
         orphans_branch = re.search(r"_orphans.*?return issues\.filter", body, re.DOTALL)
         assert orphans_branch
-        assert "draft" in orphans_branch.group(0)
+        assert "renderedEpicKeys" in orphans_branch.group(0)
 
     def test_draft_epic_badge_shown_in_createCard(self, script):
         """createCard() must have draftEpicBadgeHtml logic (the badge for draft epic cards)."""
@@ -352,7 +430,7 @@ class TestDraftEpicFilterConsistency:
             "createCard must include 'Draft Epic' text in the badge"
 
     def test_orphans_swimlane_rendered_in_swimlane_view(self, script):
-        """renderSwimlaneView must render the Unassigned swimlane for orphans."""
+        """renderSwimlaneView must render the Unassigned swimlane for true orphans."""
         render_match = re.search(
             r"function renderSwimlaneView\(.*?\)\s*\{(.*)",
             script,
@@ -361,7 +439,7 @@ class TestDraftEpicFilterConsistency:
         assert render_match
         body = render_match.group(1)
         assert "Unassigned" in body, \
-            "renderSwimlaneView must render an 'Unassigned' swimlane for orphans/draft epics"
+            "renderSwimlaneView must render an 'Unassigned' swimlane for true orphans"
         assert "orphans" in body, \
             "renderSwimlaneView must use the orphans array for the Unassigned swimlane"
 

@@ -3050,26 +3050,36 @@ function epicHasVisibleCounts(epic) {
 }
 
 function renderSwimlaneView(board, data) {
-  // Collect non-draft epics as swimlane headers; draft epics appear as cards in the orphan swimlane
-  const allEpics = allIssuesFlat.filter(i => isSwimlaneParent(i) && !(i.labels || []).includes('draft'));
+  // Every epic/parent with visible child work gets a swimlane, including
+  // draft epics. Draft status affects badges and workflow, not hierarchy.
+  const allEpics = allIssuesFlat.filter(i => isSwimlaneParent(i));
   // Key epics by (project_id, id): bare ids collide across projects. Keep
   // ALL epics here (incl. hidden ones) so a hidden epic's children aren't
   // mis-classified as orphans and leaked into the orphan lane.
   const epicKeys = new Set(allEpics.map(issueKey));
-  // Orphans: non-parent issues with no parent, PLUS draft parents (shown as cards)
-  const orphans = allIssuesFlat.filter(i => (!isSwimlaneParent(i) || (i.labels || []).includes('draft')) && (!i.parent_id || !epicKeys.has(parentKeyOf(i))));
 
   // Only render lanes for epics with visible work — hide "0 / 0 / 0 / 0"
   // epics (fully merged/archived or empty); their terminal children drop
   // out with them.
   const epics = allEpics.filter(epicHasVisibleCounts);
+  const renderedEpicKeys = new Set(epics.map(issueKey));
+  // Orphans: work cards with no parent, or whose parent is not a known
+  // swimlane parent. A rendered parent appears as its swimlane header, not
+  // as a duplicate card in Unassigned.
+  const orphans = allIssuesFlat.filter(i =>
+    shouldShowIssueAsWorkCard(i)
+    && !renderedEpicKeys.has(issueKey(i))
+    && (!i.parent_id || !epicKeys.has(parentKeyOf(i)))
+  );
 
   // Render each epic as a swimlane
   for (const epic of epics) {
     const ek = issueKey(epic);
     // Scope children to the SAME project as the epic — a same-numbered
-    // task in another project must not appear under this lane.
-    const children = allIssuesFlat.filter(i => parentKeyOf(i) === ek && !isSwimlaneParent(i));
+    // task in another project must not appear under this lane. Include
+    // immediate child epics as cards so nested epic relationships remain
+    // visible in the parent lane.
+    const children = allIssuesFlat.filter(i => parentKeyOf(i) === ek);
     const counts = epic.children_counts || {};
     // Auto-collapse inactive epics unless the user has explicitly toggled this swimlane
     const autoCollapse = isEpicInactive(epic);
@@ -3485,16 +3495,23 @@ function setupColumnDrag(header, sourceState, epicId) {
 
 function getCardsInColumn(state, epicId) {
   // Get visible cards in a column, scoped by epicId (swimlane) or project filter (flat)
-  const issues = (boardData[state] || []).filter(i => shouldShowIssueAsWorkCard(i));
+  const issues = boardData[state] || [];
   if (epicId === null) {
     // Flat view — all visible (already filtered by project)
-    return issues;
+    return issues.filter(i => shouldShowIssueAsWorkCard(i));
   } else if (epicId === '_orphans') {
-    // Orphan swimlane — items with no parent or parent not a non-draft
+    // Orphan swimlane — visible work cards with no parent or parent not a
     // swimlane parent. Keyed by (project_id, id) to avoid cross-project
-    // id collisions.
-    const epicKeys = new Set(allIssuesFlat.filter(i => isSwimlaneParent(i) && !(i.labels || []).includes('draft')).map(issueKey));
-    return issues.filter(i => !i.parent_id || !epicKeys.has(parentKeyOf(i)));
+    // id collisions. Draft epics with visible children are swimlane parents,
+    // not Unassigned cards.
+    const allEpics = allIssuesFlat.filter(i => isSwimlaneParent(i));
+    const epicKeys = new Set(allEpics.map(issueKey));
+    const renderedEpicKeys = new Set(allEpics.filter(epicHasVisibleCounts).map(issueKey));
+    return issues.filter(i =>
+      shouldShowIssueAsWorkCard(i)
+      && !renderedEpicKeys.has(issueKey(i))
+      && (!i.parent_id || !epicKeys.has(parentKeyOf(i)))
+    );
   } else {
     // Specific epic swimlane — epicId is a composite (project_id, id) key.
     return issues.filter(i => parentKeyOf(i) === epicId);
