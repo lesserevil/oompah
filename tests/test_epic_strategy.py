@@ -2560,6 +2560,7 @@ class TestDeferredDoneReviews:
             issue,
             "proj-1",
             "task-1",
+            rollup_strategy=None,
         )
         orch._done_issue_has_unmerged_review_work.assert_called_once_with(
             issue,
@@ -2584,6 +2585,39 @@ class TestDeferredDoneReviews:
 
         tracker.update_issue.assert_called_once_with("task-1", status=MERGED)
         orch._ensure_review_exists.assert_not_called()
+
+    def test_stacked_done_child_with_merged_branch_stays_done(self, tmp_path):
+        proj = _make_project_record(epic_strategy="stacked")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        orch._merged_branches = {"task-1"}
+        issue = _make_issue(
+            identifier="task-1",
+            state=DONE,
+            parent_id="epic-1",
+            project_id="proj-1",
+        )
+        parent = _make_issue(identifier="epic-1", issue_type="epic")
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [issue]
+        tracker.fetch_issue_detail.return_value = parent
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._merged_branch_tip_landed = MagicMock(return_value=True)
+        orch._done_issue_branch_tip_landed = MagicMock(return_value=True)
+        orch._ensure_review_exists = MagicMock(return_value=True)
+
+        orch._open_deferred_done_reviews()
+
+        tracker.update_issue.assert_not_called()
+        orch._ensure_review_exists.assert_not_called()
+        orch._done_issue_branch_tip_landed.assert_not_called()
+        orch._merged_branch_tip_landed.assert_called_once_with(
+            proj,
+            issue,
+            "proj-1",
+            "task-1",
+            rollup_strategy="stacked",
+        )
 
     def test_done_task_review_handoff_skips_project_at_capacity(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")

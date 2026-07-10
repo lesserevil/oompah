@@ -7756,11 +7756,11 @@ class Orchestrator:
                 ):
                     continue
                 branch = self._branch_for_issue(issue, project)
-                if (
-                    issue.parent_id
-                    and self._epic_rollup_child_strategy(issue, project_id)
-                    == "shared"
-                ):
+                rollup_strategy = self._epic_rollup_child_strategy(
+                    issue,
+                    project_id,
+                )
+                if issue.parent_id and rollup_strategy == "shared":
                     continue
                 if (
                     branch
@@ -7770,8 +7770,11 @@ class Orchestrator:
                         issue,
                         project_id,
                         branch,
+                        rollup_strategy=rollup_strategy,
                     )
                 ):
+                    if rollup_strategy == "stacked":
+                        continue
                     try:
                         tracker.update_issue(issue.identifier, status=MERGED)
                         logger.info(
@@ -7787,6 +7790,8 @@ class Orchestrator:
                         )
                     continue
                 if self._done_issue_branch_tip_landed(issue, project, project_id):
+                    if rollup_strategy == "stacked":
+                        continue
                     try:
                         tracker.update_issue(issue.identifier, status=MERGED)
                         logger.info(
@@ -7901,6 +7906,15 @@ class Orchestrator:
             branch,
         )
         if commit_error:
+            if strategy == "stacked" and parent_epic is not None:
+                default_landed = self._stacked_child_default_landing_status(
+                    project,
+                    issue,
+                    branch,
+                    target_branch,
+                )
+                if default_landed is not None:
+                    return default_landed
             logger.debug(
                 "Done landed check skipped for %s branch=%s base=%s: %s",
                 issue.identifier,
@@ -7909,7 +7923,18 @@ class Orchestrator:
                 commit_error,
             )
             return False
-        return ahead <= 0
+        if ahead <= 0:
+            return True
+        if strategy == "stacked" and parent_epic is not None:
+            default_landed = self._stacked_child_default_landing_status(
+                project,
+                issue,
+                branch,
+                target_branch,
+            )
+            if default_landed is not None:
+                return default_landed
+        return False
 
     def _maybe_run_merged_labels(self) -> None:
         """Periodically label merged issues/epics and reconcile stale In Review tasks.
@@ -8619,6 +8644,47 @@ class Orchestrator:
                 return True
         return False
 
+    def _stacked_child_default_landing_status(
+        self,
+        project: Project,
+        issue: Issue,
+        branch: str,
+        target_branch: str,
+    ) -> bool | None:
+        """Return whether a stacked child bypass landed directly on default."""
+        default_branch = getattr(project, "default_branch", None) or "main"
+        if target_branch == default_branch:
+            return None
+
+        ahead, _commit_lines, commit_error = self._count_review_branch_ahead(
+            project,
+            default_branch,
+            branch,
+        )
+        if commit_error:
+            return None
+        if ahead <= 0:
+            logger.info(
+                "Treating stacked child %s branch=%s as landed: branch is "
+                "contained in default branch %s although expected target was %s",
+                issue.identifier,
+                branch,
+                default_branch,
+                target_branch,
+            )
+            return True
+        logger.info(
+            "Skipping stacked child merged-branch promotion for %s branch=%s: "
+            "current tip is %d commit(s) ahead of default branch %s and "
+            "expected target %s",
+            issue.identifier,
+            branch,
+            ahead,
+            default_branch,
+            target_branch,
+        )
+        return False
+
     def _merged_branch_tip_landed(
         self,
         project: Project,
@@ -8663,6 +8729,15 @@ class Orchestrator:
             branch,
         )
         if commit_error:
+            if rollup_strategy == "stacked":
+                default_landed = self._stacked_child_default_landing_status(
+                    project,
+                    issue,
+                    branch,
+                    target_branch,
+                )
+                if default_landed is not None:
+                    return default_landed
             logger.warning(
                 "Skipping merged-branch promotion for %s branch=%s: could not "
                 "verify current branch tip against %s: %s",
@@ -8673,6 +8748,15 @@ class Orchestrator:
             )
             return False
         if ahead > 0:
+            if rollup_strategy == "stacked":
+                default_landed = self._stacked_child_default_landing_status(
+                    project,
+                    issue,
+                    branch,
+                    target_branch,
+                )
+                if default_landed is not None:
+                    return default_landed
             logger.info(
                 "Skipping merged-branch promotion for %s branch=%s: current "
                 "tip is %d commit(s) ahead of %s despite stale merged history",
