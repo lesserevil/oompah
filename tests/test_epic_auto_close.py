@@ -886,9 +886,56 @@ class TestStackedModeEpic:
             a.get("source") == f"stuck_epic:{epic.identifier}" for a in orch._alerts
         )
 
-    def test_stacked_child_merged_to_wrong_branch_is_stuck(self, tmp_path):
-        """In stacked mode, a child merged to main (not the epic branch)
-        is treated as stuck — the child broke the merge train."""
+    def test_stacked_child_merged_directly_to_main_is_landed_bypass(self, tmp_path):
+        """A stacked child already merged to the final target is landed.
+
+        This is not the intended merge-train shape, but the code is already
+        downstream of the epic branch.  Keep the epic pending for its own rollup
+        instead of arming an unmerged-child alert that cannot be repaired by
+        merging the child again.
+        """
+        project = _make_project()
+        project.epic_strategy = "stacked"
+        epic = _make_issue(
+            "epic-mt",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
+        )
+        children = [
+            _make_issue("c1", state="closed", branch_name="c1"),
+        ]
+        tracker = MagicMock()
+        tracker.fetch_children.return_value = children
+
+        def _find(repo, branch):
+            if branch == "c1":
+                return _make_review(
+                    number=1,
+                    state="merged",
+                    source_branch="c1",
+                    target_branch="main",
+                )
+            return None
+
+        provider = MagicMock()
+        provider.find_pr_for_branch.side_effect = _find
+
+        orch = _make_orch(tmp_path, project=project, tracker=tracker)
+        orch.project_store.epic_branch_name = MagicMock(
+            return_value="epic-epic-mt",
+        )
+        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+            closed = orch._epic_auto_close_check(epic)
+
+        assert closed is False
+        tracker.close_issue.assert_not_called()
+        assert not any(
+            a.get("source") == f"stuck_epic:{epic.identifier}" for a in orch._alerts
+        )
+
+    def test_stacked_child_merged_to_unrelated_branch_is_stuck(self, tmp_path):
+        """In stacked mode, a child merged to an unrelated branch is stuck."""
         project = _make_project()
         project.epic_strategy = "stacked"
         epic = _make_issue(
@@ -907,7 +954,7 @@ class TestStackedModeEpic:
             number=1,
             state="merged",
             source_branch="c1",
-            target_branch="main",  # Should have been epic-epic-mt
+            target_branch="release/oops",  # Should have been epic-epic-mt or main
         )
 
         orch = _make_orch(tmp_path, project=project, tracker=tracker)

@@ -1105,6 +1105,11 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         )
         with (
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(
+                orch,
+                "_ensure_review_target_branch_exists",
+                return_value=True,
+            ) as ensure_target_branch,
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
         ):
@@ -1114,6 +1119,7 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         # Branch name uses the project_store helper, which mocks return
         # f"epic-{epic_id}".  Stacked mode targets the epic branch.
         assert kwargs.get("target_branch") == "epic-epic-1"
+        ensure_target_branch.assert_called_once_with(proj, "epic-epic-1")
 
     def test_reopens_when_review_creation_fails_for_unmerged_branch(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")
@@ -1517,6 +1523,11 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         )
         with (
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(
+                orch,
+                "_ensure_review_target_branch_exists",
+                return_value=True,
+            ) as ensure_target_branch,
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
         ):
@@ -1526,6 +1537,7 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         kwargs = call.kwargs
         # Stacked child always targets the epic branch, not issue.target_branch
         assert kwargs.get("target_branch") == "epic-epic-1"
+        ensure_target_branch.assert_called_once_with(proj, "epic-epic-1")
 
 
 # --------------------------------------------------- epic completion + PR open
@@ -2626,6 +2638,38 @@ class TestDeferredDoneReviews:
             orch._open_deferred_done_reviews()
 
         orch._ensure_review_exists.assert_not_called()
+
+    def test_stacked_done_child_unmerged_work_ensures_epic_branch(self, tmp_path):
+        proj = _make_project_record(epic_strategy="stacked")
+        orch = _make_orch(tmp_path, projects=[proj])
+        issue = _make_issue(
+            identifier="task-1",
+            state=DONE,
+            parent_id="epic-1",
+            project_id="proj-1",
+        )
+        parent = _make_issue(identifier="epic-1", issue_type="epic")
+
+        with (
+            patch.object(orch, "_resolve_parent_epic", return_value=parent),
+            patch.object(
+                orch,
+                "_ensure_review_target_branch_exists",
+                return_value=True,
+            ) as ensure_target_branch,
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(2, ["abc123 feature"], ""),
+            ),
+        ):
+            has_work = orch._done_issue_has_unmerged_review_work(
+                issue,
+                proj,
+                "proj-1",
+            )
+
+        assert has_work is True
+        ensure_target_branch.assert_called_once_with(proj, "epic-epic-1")
 
     def test_done_task_with_landed_branch_is_marked_merged(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")

@@ -4409,6 +4409,19 @@ class Orchestrator:
                     merged_summaries.append(
                         f"{child.identifier} (merged via PR #{review.id})"
                     )
+                elif (
+                    strategy in ("stacked", "shared")
+                    and merged_target == target_branch
+                ):
+                    # The child bypassed the epic branch and landed directly on
+                    # the epic's final target.  That is not the intended stack
+                    # shape, but it is already merged downstream, so keeping the
+                    # epic permanently stuck would only require manual tracker
+                    # surgery.
+                    merged_summaries.append(
+                        f"{child.identifier} (merged directly to "
+                        f"{target_branch} via PR #{review.id})"
+                    )
                 else:
                     # Merged but to an unexpected branch.
                     unmerged_children.append((child, review))
@@ -7308,6 +7321,19 @@ class Orchestrator:
         elif entry.issue and entry.issue.target_branch:
             target_branch = entry.issue.target_branch
 
+        if strategy == "stacked" and parent_epic is not None:
+            if not self._ensure_review_target_branch_exists(project, target_branch):
+                self._reopen_missing_review(
+                    entry,
+                    project_id,
+                    branch,
+                    target_branch,
+                    0,
+                    [],
+                    f"target branch `{target_branch}` is not available",
+                )
+                return False
+
         # Check if a review already exists for this branch
         reviews = getattr(self, "_reviews_cache", {}).get(project_id, [])
         for r in reviews:
@@ -7814,6 +7840,10 @@ class Orchestrator:
             target_branch = self._epic_branch_for_issue(parent_epic)
         elif issue.target_branch:
             target_branch = issue.target_branch
+
+        if strategy == "stacked" and parent_epic is not None:
+            if not self._ensure_review_target_branch_exists(project, target_branch):
+                return False
 
         try:
             from oompah.close_gate import _count_commits_ahead
