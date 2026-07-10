@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-10T17:20:29.690205Z'
-updated_at: '2026-07-10T17:26:21.691361Z'
+updated_at: '2026-07-10T17:27:26.821299Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,15 @@ author: oompah
 created: 2026-07-10 17:26
 ---
 Implementation: _should_dispatch now bypasses the configured branch allowlist only when target_branch exactly equals ProjectStore.epic_branch_name(issue.parent_id). Added regression coverage for Needs CI Fix and Needs Rebase plus a negative mismatched epic-* target.
+---
+author: oompah
+created: 2026-07-10 17:27
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/default]
+- Turns: 0, Tool calls: 24
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 52s
+- Log: OOMPAH-163__20260710T172139Z.jsonl
 ---
 <!-- COMMENTS:END -->
