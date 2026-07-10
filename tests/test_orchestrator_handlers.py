@@ -4173,6 +4173,74 @@ class TestNeedsHumanTransitions:
             for comment in comments
         )
 
+    def test_stacked_child_completed_without_landing_checks_epic_branch(self, tmp_path):
+        project = _make_project("proj-1")
+        project.repo_path = str(tmp_path)
+        project.default_branch = "main"
+        project.epic_strategy = "stacked"
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.config.agent_profiles = [
+            AgentProfile(name="default", command="agent"),
+            AgentProfile(name="standard", command="agent"),
+        ]
+        orch.project_store.epic_branch_name.side_effect = (
+            lambda identifier: f"epic-{identifier}"
+        )
+        parent = _make_issue(
+            "EPIC-1",
+            state="Open",
+            issue_type="epic",
+            project_id="proj-1",
+        )
+        issue = _make_issue("TASK-1", state="In Progress", project_id="proj-1")
+        issue.parent_id = parent.identifier
+        issue.branch_name = issue.identifier
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="default",
+        )
+        orch.state.running[issue.id] = entry
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        orch._post_comment = MagicMock()
+        tracker = MagicMock()
+
+        def fetch_issue_detail(identifier: str):
+            if identifier == issue.identifier:
+                return issue
+            if identifier == parent.identifier:
+                return parent
+            return None
+
+        tracker.fetch_issue_detail.side_effect = fetch_issue_detail
+        tracker.mark_needs_human = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        landing_result = MagicMock()
+        landing_result.allowed = False
+        landing_result.branch_on_origin = False
+        landing_result.commits_on_origin = 0
+        landing_result.local_only_commits = 0
+        landing_result.skip_reason = ""
+        landing_result.effective_branch = "epic-EPIC-1"
+
+        with patch(
+            "oompah.landing_gate.check_landing_gate",
+            return_value=landing_result,
+        ) as check_landing_gate:
+            asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+
+        check_landing_gate.assert_called_once()
+        assert check_landing_gate.call_args.kwargs["base_branch"] == "main"
+        assert check_landing_gate.call_args.kwargs["effective_branch"] == "epic-EPIC-1"
+        retry = orch.state.retry_attempts[issue.id]
+        assert retry.error == "completed_without_landing"
+
 
 class TestRetryTimerSpecificIssueLookup:
     """Retry timers must find already-owned issues outside the candidate set."""

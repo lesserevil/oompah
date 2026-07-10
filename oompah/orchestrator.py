@@ -15608,16 +15608,17 @@ class Orchestrator:
                                     check_landing_gate,
                                 )
 
-                                # For shared-epic children, work lands on the
-                                # parent epic's branch (e.g. epic-TASK-706) not
-                                # on the child's own branch (e.g. TASK-706.1).
+                                # For stacked/shared epic children, work lands
+                                # against the parent epic's branch (e.g.
+                                # epic-TASK-706), not directly against the
+                                # project default branch.
                                 # Resolve and pass the effective landing branch
                                 # so the gate checks the right ref.
                                 lg_effective_branch: str | None = None
-                                if (
-                                    self._project_epic_strategy(project_id) == "shared"
-                                    and (entry.issue.parent_id or "").strip()
-                                ):
+                                strategy = self._project_epic_strategy(project_id)
+                                if strategy in ("stacked", "shared") and (
+                                    entry.issue.parent_id or ""
+                                ).strip():
                                     _parent_epic = self._resolve_parent_epic(
                                         entry.issue
                                     )
