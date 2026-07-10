@@ -10,7 +10,8 @@ works inside or how it might work in the future, see [`../plans/`](../plans/).
 
 ## Contents
 
-Add project-specific documentation here as user-visible surfaces appear.
+- [Task and Epic Workflow](task-epic-workflow.md) - lifecycle of tasks,
+  epics, dispatch, review repair, and epic branches.
 
 ## Keeping Docs In Sync
 
