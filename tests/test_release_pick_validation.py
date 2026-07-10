@@ -52,6 +52,8 @@ def _issue(
     target_branch: str | None = None,
     labels: list[str] | None = None,
     project_id: str = "proj-1",
+    parent_id: str | None = None,
+    state: str = "open",
 ) -> Issue:
     """Build a minimal Issue for testing."""
     return Issue(
@@ -59,10 +61,11 @@ def _issue(
         identifier=identifier,
         title="Test issue",
         description="A test issue",
-        state="open",
+        state=state,
         target_branch=target_branch,
         labels=labels or [],
         project_id=project_id,
+        parent_id=parent_id,
     )
 
 
@@ -142,6 +145,48 @@ def test_untracked_branch_target_is_preserved():
     proj = _project()
     result = validate_release_pick_target(issue, proj)
     assert result.target_branch == "invalid/branch"
+
+
+def test_generated_epic_target_branch_bypasses_branch_patterns():
+    """Oompah-owned epic branches do not need to be listed in project.branches."""
+    issue = _issue(
+        identifier="COROOT-21",
+        target_branch="epic-COROOT-5",
+        parent_id="COROOT-5",
+        labels=["ci-fix"],
+    )
+    proj = _project(branches=["main"], default_branch="main")
+    result = validate_release_pick_target(issue, proj)
+    assert result.valid is True
+    assert result.target_branch == "epic-COROOT-5"
+    assert result.reason == ""
+
+
+def test_epic_like_target_branch_must_match_parent_id():
+    """Only the generated branch for this issue's parent bypasses validation."""
+    issue = _issue(
+        identifier="COROOT-21",
+        target_branch="epic-COROOT-5",
+        parent_id="COROOT-6",
+        labels=["ci-fix"],
+    )
+    proj = _project(branches=["main"], default_branch="main")
+    result = validate_release_pick_target(issue, proj)
+    assert result.valid is False
+    assert result.reason == "untracked_branch"
+
+
+def test_generated_epic_target_branch_uses_sanitized_parent_id():
+    """The bypass mirrors ProjectStore.epic_branch_name sanitization."""
+    issue = _issue(
+        identifier="TASK-2",
+        target_branch="epic-parent_2",
+        parent_id="parent/2",
+    )
+    proj = _project(branches=["main"], default_branch="main")
+    result = validate_release_pick_target(issue, proj)
+    assert result.valid is True
+    assert result.target_branch == "epic-parent_2"
 
 
 # ---------------------------------------------------------------------------
@@ -470,7 +515,7 @@ def _make_orchestrator_with_project(project: Project):
     config = ServiceConfig(
         agent_command="echo",
         tracker_kind="oompah_md",
-        tracker_active_states=["open"],
+        tracker_active_states=["open", "Needs CI Fix", "Needs Rebase"],
         tracker_terminal_states=["done"],
     )
 
@@ -533,6 +578,29 @@ def test_should_dispatch_allows_valid_release_branch():
     # The issue may fail for other reasons (budget, slots, etc.) but
     # invalid_target_branch should NOT be the reason
     reason, _ = orch.state.reject_streak.get("TASK-12", ("", 0))
+    assert "invalid_target_branch" not in reason
+
+
+@pytest.mark.parametrize("state,label", [
+    ("Needs CI Fix", "ci-fix"),
+    ("Needs Rebase", "merge-conflict"),
+])
+def test_should_dispatch_allows_repair_task_on_generated_epic_branch(state, label):
+    """P0 repair tasks can run on oompah-generated stacked epic branches."""
+    proj = _project(branches=["main"], default_branch="main")
+    proj.epic_strategy = "stacked"
+    orch = _make_orchestrator_with_project(proj)
+    issue = _issue(
+        identifier="COROOT-21",
+        target_branch="epic-COROOT-5",
+        parent_id="COROOT-5",
+        labels=[label],
+        project_id="proj-1",
+        state=state,
+    )
+    issue.priority = 0
+    orch._should_dispatch(issue)
+    reason, _ = orch.state.reject_streak.get("COROOT-21", ("", 0))
     assert "invalid_target_branch" not in reason
 
 

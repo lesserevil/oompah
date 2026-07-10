@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from oompah.models import Issue, Project
+from oompah.projects import _sanitize_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,9 @@ def validate_release_pick_target(
         # No target_branch set → not a release-pick context; skip
         return ReleaseBranchValidationResult(valid=True, target_branch=None)
 
+    if _is_generated_epic_target_branch(issue, target):
+        return ReleaseBranchValidationResult(valid=True, target_branch=target)
+
     # ------------------------------------------------------------------
     # 1. Branch-pattern check — the target must match at least one of
     #    the project's configured patterns (e.g. "release/*", "main").
@@ -179,6 +183,15 @@ def validate_release_pick_target(
             )
 
     return ReleaseBranchValidationResult(valid=True, target_branch=target)
+
+
+def _is_generated_epic_target_branch(issue: Issue, target_branch: str) -> bool:
+    """Return True for oompah-owned epic branches generated from parent_id."""
+    parent_id = (getattr(issue, "parent_id", None) or "").strip()
+    if not parent_id:
+        return False
+    expected = f"epic-{_sanitize_identifier(parent_id)}"
+    return target_branch == expected
 
 
 def validate_backports_list(
