@@ -19,6 +19,7 @@ from oompah.projects import (
     github_owner_repo_from_url,
     _is_github_backed,
     _is_ref_namespace_conflict_error,
+    _is_stale_worktree_remove_error,
     _is_transient_git_config_lock_error,
     _is_worktree_branch_already_used_error,
     _repo_name_from_url,
@@ -725,3 +726,190 @@ class TestCreateWorktreeWithExplicitBranchName:
             )
 
         assert result == wt_path
+
+
+class TestRemoveWorktreeCleanup:
+    def _store_and_project(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-clean",
+            name="cleanrepo",
+            repo_url="https://example.com/cleanrepo.git",
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+        return store, project
+
+    def test_stale_remove_error_detector(self):
+        assert _is_stale_worktree_remove_error(
+            "fatal: '/tmp/wt' is not a working tree"
+        )
+        assert _is_stale_worktree_remove_error(
+            "fatal: not a git repository: /tmp/wt/.git"
+        )
+        assert not _is_stale_worktree_remove_error(
+            "fatal: cannot remove a locked working tree"
+        )
+
+    def test_remove_worktree_falls_back_for_stale_registered_dir(self, tmp_path):
+        store, project = self._store_and_project(tmp_path)
+        wt_path = store.worktree_path_for(project.id, "TASK-1")
+        os.makedirs(wt_path)
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append(list(args))
+            if args[:3] == ["git", "worktree", "remove"]:
+                raise subprocess.CalledProcessError(
+                    returncode=128,
+                    cmd=args,
+                    stderr=f"fatal: '{wt_path}' is not a working tree",
+                )
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            store.remove_worktree(project.id, "TASK-1")
+
+        assert not os.path.exists(wt_path)
+        assert ["git", "worktree", "prune"] in calls
+
+    def test_remove_worktree_preserves_locked_dir(self, tmp_path):
+        store, project = self._store_and_project(tmp_path)
+        wt_path = store.worktree_path_for(project.id, "TASK-1")
+        os.makedirs(wt_path)
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "remove"]:
+                raise subprocess.CalledProcessError(
+                    returncode=128,
+                    cmd=args,
+                    stderr="fatal: cannot remove a locked working tree",
+                )
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            with pytest.raises(ProjectError):
+                store.remove_worktree(project.id, "TASK-1")
+
+        assert os.path.isdir(wt_path)
+
+    def test_remove_worktree_refuses_valid_worktree_from_another_repo(self, tmp_path):
+        store, project = self._store_and_project(tmp_path)
+        wt_path = store.worktree_path_for(project.id, "TASK-1")
+        os.makedirs(wt_path)
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "remove"]:
+                raise subprocess.CalledProcessError(
+                    returncode=128,
+                    cmd=args,
+                    stderr=f"fatal: '{wt_path}' is not a working tree",
+                )
+            if args[:3] == ["git", "-C", wt_path]:
+                return MagicMock(returncode=0, stdout="true\n", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            with pytest.raises(ProjectError, match="valid Git worktree"):
+                store.remove_worktree(project.id, "TASK-1")
+
+        assert os.path.isdir(wt_path)
+
+    def test_remove_missing_worktree_prunes_git_metadata(self, tmp_path):
+        store, project = self._store_and_project(tmp_path)
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append(list(args))
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            store.remove_worktree(project.id, "TASK-1")
+
+        assert calls == [["git", "worktree", "prune"]]
+
+    def test_remove_epic_worktree_falls_back_for_stale_dir(self, tmp_path):
+        store, project = self._store_and_project(tmp_path)
+        wt_path = store.epic_worktree_path_for(project.id, "TASK-EPIC")
+        os.makedirs(wt_path)
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "remove"]:
+                raise subprocess.CalledProcessError(
+                    returncode=128,
+                    cmd=args,
+                    stderr=f"fatal: '{wt_path}' is not a working tree",
+                )
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            store.remove_epic_worktree(project.id, "TASK-EPIC")
+
+        assert not os.path.exists(wt_path)
+
+    def test_cleanup_stale_worktree_dirs_removes_only_unregistered_children(
+        self, tmp_path
+    ):
+        store, project = self._store_and_project(tmp_path)
+        active = store.worktree_path_for(project.id, "TASK-ACTIVE")
+        stale_a = store.worktree_path_for(project.id, "TASK-STALE-A")
+        stale_b = store.worktree_path_for(project.id, "TASK-STALE-B")
+        os.makedirs(active)
+        os.makedirs(stale_a)
+        os.makedirs(stale_b)
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "list"]:
+                return MagicMock(
+                    returncode=0,
+                    stdout=f"worktree {active}\nHEAD abc123\n",
+                    stderr="",
+                )
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            removed, deferred = store.cleanup_stale_worktree_dirs(
+                project.id, limit=1
+            )
+
+        assert removed == 1
+        assert deferred is True
+        assert os.path.isdir(active)
+        assert not os.path.exists(stale_a)
+        assert os.path.isdir(stale_b)
+
+    def test_cleanup_stale_worktree_dirs_preserves_valid_unregistered_worktree(
+        self, tmp_path
+    ):
+        store, project = self._store_and_project(tmp_path)
+        active = store.worktree_path_for(project.id, "TASK-ACTIVE")
+        valid_other = store.worktree_path_for(project.id, "TASK-OTHER-REPO")
+        stale = store.worktree_path_for(project.id, "TASK-STALE")
+        os.makedirs(active)
+        os.makedirs(valid_other)
+        os.makedirs(stale)
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "list"]:
+                return MagicMock(
+                    returncode=0,
+                    stdout=f"worktree {active}\nHEAD abc123\n",
+                    stderr="",
+                )
+            if args[:3] == ["git", "-C", valid_other]:
+                return MagicMock(returncode=0, stdout="true\n", stderr="")
+            if args[:3] == ["git", "-C", stale]:
+                return MagicMock(returncode=128, stdout="", stderr="not a git repo")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            removed, deferred = store.cleanup_stale_worktree_dirs(project.id)
+
+        assert removed == 1
+        assert deferred is False
+        assert os.path.isdir(active)
+        assert os.path.isdir(valid_other)
+        assert not os.path.exists(stale)

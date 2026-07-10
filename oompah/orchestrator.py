@@ -1655,6 +1655,27 @@ class Orchestrator:
             )
         )
 
+    def _cleanup_stale_project_worktree_dirs(
+        self, project: Any, limit: int
+    ) -> tuple[int, bool]:
+        """Remove stale managed worktree directories when ProjectStore supports it."""
+        if limit <= 0:
+            return 0, True
+        cleanup = getattr(type(self.project_store), "cleanup_stale_worktree_dirs", None)
+        if cleanup is None:
+            return 0, False
+        try:
+            return self.project_store.cleanup_stale_worktree_dirs(
+                project.id, limit=limit
+            )
+        except ProjectError as exc:
+            logger.warning(
+                "Stale worktree directory cleanup failed for project %s: %s",
+                project.name,
+                exc,
+            )
+            return 0, False
+
     def _cleanup_terminal_worktrees(self, projects: list | None = None) -> int:
         """Remove workspaces/worktrees for issues safe to discard.
 
@@ -1732,6 +1753,26 @@ class Orchestrator:
                                 exc,
                             )
                         last_processed_key = issue_key
+                    remaining = limit - cleaned
+                    if remaining > 0:
+                        stale_cleaned, stale_deferred = (
+                            self._cleanup_stale_project_worktree_dirs(
+                                project, remaining
+                            )
+                        )
+                        cleaned += stale_cleaned
+                        if stale_deferred:
+                            self._set_maintenance_cursor(
+                                "worktree_cleanup", last_processed_key
+                            )
+                            self._maintenance_status["worktree_cleanup"] = {
+                                "last_run_at": datetime.now(timezone.utc).isoformat(),
+                                "cleaned": cleaned,
+                                "limit": limit,
+                                "deferred": True,
+                                "cursor": last_processed_key,
+                            }
+                            return cleaned
                 except (TrackerError, ProjectError) as exc:
                     logger.warning(
                         "Terminal worktree cleanup failed for project %s: %s",

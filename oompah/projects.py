@@ -209,6 +209,60 @@ def _is_transient_git_config_lock_error(stderr: str) -> bool:
     return "could not lock config file" in stderr
 
 
+def _is_stale_worktree_remove_error(stderr: str) -> bool:
+    """Return True when ``git worktree remove`` failed because the directory
+    is no longer a valid registered worktree.
+
+    These directories can be left behind after interrupted cleanup or manual
+    deletion of entries under ``.git/worktrees``.  Once Git no longer owns the
+    path, ``git worktree remove --force`` cannot remove it, so ProjectStore
+    falls back to deleting the exact managed directory on disk.
+    """
+    text = (stderr or "").lower()
+    return any(
+        marker in text
+        for marker in (
+            "is not a working tree",
+            "not a working tree",
+            "not a git repository",
+            "gitdir file points to non-existent location",
+            "invalid gitfile",
+            "validation failed",
+        )
+    )
+
+
+def _safe_remove_managed_dir(path: str, managed_root: str) -> None:
+    """Remove ``path`` only when it is a direct managed worktree directory."""
+    abs_path = os.path.abspath(path)
+    abs_root = os.path.abspath(managed_root)
+    if os.path.islink(abs_path):
+        raise ProjectError(f"Refusing to remove symlinked worktree path: {path}")
+    try:
+        common = os.path.commonpath([abs_root, abs_path])
+    except ValueError as exc:
+        raise ProjectError(f"Refusing to remove path outside worktree root: {path}") from exc
+    if common != abs_root or abs_path == abs_root:
+        raise ProjectError(f"Refusing to remove path outside worktree root: {path}")
+    if os.path.dirname(abs_path) != abs_root:
+        raise ProjectError(f"Refusing to remove nested worktree path: {path}")
+    shutil.rmtree(abs_path)
+
+
+def _is_git_working_tree(path: str) -> bool:
+    """Return True when ``path`` is still a usable Git working tree."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", path, "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        return False
+    return result.returncode == 0 and result.stdout.strip().lower() == "true"
+
+
 def _is_ref_namespace_conflict_error(stderr: str, branch_name: str) -> bool:
     """Return True if ``stderr`` indicates a git ref-namespace conflict for
     ``branch_name``.
@@ -1227,6 +1281,43 @@ class ProjectStore:
         """
         return f"epic-{_sanitize_identifier(epic_identifier)}"
 
+    def _project_worktree_root(self, project: Project) -> str:
+        return os.path.join(self.worktree_root, _sanitize_identifier(project.name))
+
+    def _prune_git_worktrees(self, repo_path: str) -> None:
+        try:
+            subprocess.run(
+                ["git", "worktree", "prune"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+            logger.debug("git worktree prune failed for %s", repo_path, exc_info=True)
+
+    def _registered_worktree_paths(self, repo_path: str) -> set[str]:
+        try:
+            result = subprocess.run(
+                ["git", "worktree", "list", "--porcelain"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=30,
+            )
+        except subprocess.CalledProcessError as exc:
+            stderr = exc.stderr.strip()[:500] if exc.stderr else ""
+            raise ProjectError(f"git worktree list failed: {stderr}")
+        except subprocess.TimeoutExpired:
+            raise ProjectError("git worktree list timed out")
+
+        paths: set[str] = set()
+        for line in result.stdout.splitlines():
+            if line.startswith("worktree "):
+                paths.add(os.path.realpath(line[len("worktree ") :]))
+        return paths
+
     def create_epic_worktree(self, project_id: str, epic_identifier: str) -> str:
         """Create or reuse a shared epic worktree (for ``epic_strategy='shared'``
         and the long-lived epic branch under ``epic_strategy='stacked'``).
@@ -1431,6 +1522,7 @@ class ProjectStore:
 
         wt_path = self.epic_worktree_path_for(project_id, epic_identifier)
         if not os.path.isdir(wt_path):
+            self._prune_git_worktrees(project.repo_path)
             return
 
         try:
@@ -1444,9 +1536,17 @@ class ProjectStore:
             )
         except subprocess.CalledProcessError as exc:
             stderr = exc.stderr.strip()[:500] if exc.stderr else ""
-            raise ProjectError(f"git worktree remove failed: {stderr}")
+            if not _is_stale_worktree_remove_error(stderr):
+                raise ProjectError(f"git worktree remove failed: {stderr}")
+            if _is_git_working_tree(wt_path):
+                raise ProjectError(
+                    f"Refusing to remove valid Git worktree not owned by project: {wt_path}"
+                )
+            _safe_remove_managed_dir(wt_path, self._project_worktree_root(project))
         except subprocess.TimeoutExpired:
             raise ProjectError("git worktree remove timed out")
+        finally:
+            self._prune_git_worktrees(project.repo_path)
         logger.info("Epic worktree removed path=%s", wt_path)
 
     def create_worktree(
@@ -1690,6 +1790,7 @@ class ProjectStore:
 
         wt_path = self.worktree_path_for(project_id, issue_identifier)
         if not os.path.isdir(wt_path):
+            self._prune_git_worktrees(project.repo_path)
             return
 
         try:
@@ -1703,18 +1804,80 @@ class ProjectStore:
             )
         except subprocess.CalledProcessError as exc:
             stderr = exc.stderr.strip()[:500] if exc.stderr else ""
-            raise ProjectError(f"git worktree remove failed: {stderr}")
+            if not _is_stale_worktree_remove_error(stderr):
+                raise ProjectError(f"git worktree remove failed: {stderr}")
+            if _is_git_working_tree(wt_path):
+                raise ProjectError(
+                    f"Refusing to remove valid Git worktree not owned by project: {wt_path}"
+                )
+            _safe_remove_managed_dir(wt_path, self._project_worktree_root(project))
         except subprocess.TimeoutExpired:
             raise ProjectError("git worktree remove timed out")
+        finally:
+            self._prune_git_worktrees(project.repo_path)
 
         logger.info("Worktree removed path=%s", wt_path)
+
+    def cleanup_stale_worktree_dirs(
+        self, project_id: str, limit: int | None = None
+    ) -> tuple[int, bool]:
+        """Remove managed worktree directories Git no longer registers.
+
+        Returns ``(removed_count, deferred)``.  ``deferred`` is true when the
+        caller-provided limit was reached before all stale directories were
+        removed.
+        """
+        with self.project_write_lock(project_id):
+            return self._cleanup_stale_worktree_dirs_locked(project_id, limit)
+
+    def _cleanup_stale_worktree_dirs_locked(
+        self, project_id: str, limit: int | None = None
+    ) -> tuple[int, bool]:
+        project = self._projects.get(project_id)
+        if not project:
+            raise ProjectError(f"Unknown project: {project_id}")
+        if limit is not None and limit <= 0:
+            return 0, True
+
+        project_root = self._project_worktree_root(project)
+        self._prune_git_worktrees(project.repo_path)
+        if not os.path.isdir(project_root):
+            return 0, False
+
+        registered = self._registered_worktree_paths(project.repo_path)
+        removed = 0
+        deferred = False
+        for entry in sorted(os.listdir(project_root)):
+            path = os.path.join(project_root, entry)
+            if not os.path.isdir(path) or os.path.islink(path):
+                continue
+            if os.path.realpath(path) in registered:
+                continue
+            if _is_git_working_tree(path):
+                logger.warning(
+                    "Skipping unregistered but valid Git worktree path=%s",
+                    path,
+                )
+                continue
+            if limit is not None and removed >= limit:
+                deferred = True
+                break
+            _safe_remove_managed_dir(path, project_root)
+            removed += 1
+            logger.info("Removed stale worktree directory path=%s", path)
+
+        try:
+            os.rmdir(project_root)
+        except OSError:
+            pass
+        return removed, deferred
 
     def list_worktrees(self, project_id: str) -> list[str]:
         project = self._projects.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
 
-        wt_root = os.path.join(self.worktree_root, _sanitize_identifier(project.name))
+        wt_root = self._project_worktree_root(project)
         if not os.path.isdir(wt_root):
             return []
 

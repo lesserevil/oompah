@@ -1335,6 +1335,24 @@ class TestHandleAutoUpdate:
 class TestTerminalWorktreeCleanup:
     """Terminal task cleanup removes only discardable worktrees."""
 
+    class StaleCleanupStore:
+        def __init__(self, projects, cleanup_result=(0, False)):
+            self._projects = list(projects)
+            self.cleanup_result = cleanup_result
+            self.cleanup_calls = []
+            self.remove_worktree = MagicMock()
+            self.remove_epic_worktree = MagicMock()
+
+        def list_all(self):
+            return list(self._projects)
+
+        def get(self, project_id):
+            return next((p for p in self._projects if p.id == project_id), None)
+
+        def cleanup_stale_worktree_dirs(self, project_id, limit=None):
+            self.cleanup_calls.append((project_id, limit))
+            return self.cleanup_result
+
     def test_cleanup_terminal_worktrees_removes_only_merged_and_archived_project_worktrees(
         self, tmp_path
     ):
@@ -1358,6 +1376,64 @@ class TestTerminalWorktreeCleanup:
             (project.id, "TASK-2"),
             (project.id, "TASK-3"),
         ]
+
+    def test_cleanup_terminal_worktrees_sweeps_stale_dirs_with_remaining_budget(
+        self, tmp_path
+    ):
+        project = _make_project()
+        store = self.StaleCleanupStore([project], cleanup_result=(2, False))
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store = store
+        orch.config.worktree_cleanup_batch_size = 3
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state="Merged", project_id=project.id),
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 3
+        store.remove_worktree.assert_called_once_with(project.id, "TASK-1")
+        assert store.cleanup_calls == [(project.id, 2)]
+
+    def test_cleanup_terminal_worktrees_reports_deferred_stale_dir_sweep(
+        self, tmp_path
+    ):
+        project = _make_project()
+        store = self.StaleCleanupStore([project], cleanup_result=(1, True))
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store = store
+        orch.config.worktree_cleanup_batch_size = 1
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = []
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 1
+        assert store.cleanup_calls == [(project.id, 1)]
+        assert orch._maintenance_status["worktree_cleanup"]["deferred"] is True
+
+    def test_cleanup_terminal_worktrees_skips_stale_sweep_without_budget(
+        self, tmp_path
+    ):
+        project = _make_project()
+        store = self.StaleCleanupStore([project], cleanup_result=(1, True))
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store = store
+        orch.config.worktree_cleanup_batch_size = 1
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state="Merged", project_id=project.id),
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 1
+        assert store.cleanup_calls == []
+        assert orch._maintenance_status["worktree_cleanup"]["deferred"] is False
 
     def test_cleanup_terminal_worktrees_continues_after_remove_error(self, tmp_path):
         project = _make_project()
