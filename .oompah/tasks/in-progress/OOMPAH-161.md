@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-10T02:17:34.435583Z'
-updated_at: '2026-07-10T02:34:17.657973Z'
+updated_at: '2026-07-10T02:37:26.369329Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -106,5 +106,14 @@ author: oompah
 created: 2026-07-10 02:34
 ---
 Understanding: This issue reports a 'Create issue API error: Unknown project: coroot' from backend:server. My role is Duplicate Investigator. I'll search existing tasks for similar errors involving unknown projects or the 'coroot' project name before deciding whether to implement anything or archive as a duplicate.
+---
+author: oompah
+created: 2026-07-10 02:37
+---
+Discovery: No duplicate found. Fingerprint 40762b6cac23a669 appears only in OOMPAH-161. No other tasks in archived/in-progress/needs-human mention 'backend:server', 'Create issue API', 'Unknown project', or 'coroot'.
+
+Root cause: The 'coroot' project exists (id='proj-ed624f39', name='coroot') but api_create_issue in server.py calls _get_tracker(orch, project_id) where project_id='coroot' (project name). project_store.get() only looks up by internal ID ('proj-ed624f39'), not by name, so it returns None and raises ProjectError('Unknown project: coroot').
+
+Fix: Add project-name fallback to ProjectStore.get_by_name() or have api_create_issue resolve project names to IDs before passing to _tracker_for_project. This is a new bug distinct from the webhook/trickle errors seen in other archived tasks.
 ---
 <!-- COMMENTS:END -->
