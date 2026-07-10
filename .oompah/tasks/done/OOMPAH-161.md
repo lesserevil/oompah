@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-161
 type: task
-status: In Progress
+status: Done
 priority: null
 title: '[backend:server] Create issue API error: Unknown project: coroot'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-10T02:17:34.435583Z'
-updated_at: '2026-07-10T02:42:17.517850Z'
+updated_at: '2026-07-10T02:42:23.270295Z'
 work_branch: null
 target_branch: null
 review_url: null
