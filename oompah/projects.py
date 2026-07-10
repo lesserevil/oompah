@@ -687,6 +687,18 @@ class ProjectStore:
     def get(self, project_id: str) -> Project | None:
         return self._projects.get(project_id)
 
+    def find_by_name(self, name: str) -> Project | None:
+        """Return the project with the given name, or None if not found.
+
+        This is a secondary lookup by human-readable project name (e.g.
+        ``"coroot"``) for callers that have a name but not an internal ID.
+        IDs always take precedence — use :meth:`get` when you have the ID.
+        """
+        for p in self._projects.values():
+            if p.name == name:
+                return p
+        return None
+
     def project_write_lock(self, project_id: str) -> threading.RLock:
         """Return the per-project write lock for *project_id*.
 

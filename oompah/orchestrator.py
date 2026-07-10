@@ -1527,14 +1527,25 @@ class Orchestrator:
         an explicit kind fall back to the global service ``tracker_kind``
         Cache is project-scoped; ``_project_trackers`` is keyed by
         ``project_id`` so each project has its own instance.
+
+        As a convenience, ``project_id`` may also be a project *name*
+        (e.g. ``"coroot"``).  When the ID lookup fails, a secondary
+        name-based lookup is attempted so callers that hold the human-
+        readable name do not need to resolve it to the internal ID first.
+        The tracker cache is always keyed by canonical ID.
         """
         if project_id in self._project_trackers:
             return self._project_trackers[project_id]
         project = self.project_store.get(project_id)
         if not project:
+            # Fall back to name-based lookup for callers that supply a
+            # human-readable project name instead of the internal ID.
+            project = self.project_store.find_by_name(project_id)
+        if not project:
             raise ProjectError(f"Unknown project: {project_id}")
         tracker = self._new_tracker_for_project(project)
-        self._project_trackers[project_id] = tracker
+        # Always cache by canonical ID so subsequent lookups hit the fast path.
+        self._project_trackers[project.id] = tracker
         return tracker
 
     def _tracker_for_issue(self, issue: Issue) -> TrackerProtocol:
