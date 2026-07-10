@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-10T02:17:34.435583Z'
-updated_at: '2026-07-10T02:41:36.650477Z'
+updated_at: '2026-07-10T02:42:09.405831Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,5 +126,13 @@ Changes made:
 2. oompah/orchestrator.py: Updated _tracker_for_project() to fall back to find_by_name() when the ID lookup returns None, so callers passing the project name 'coroot' instead of 'proj-ed624f39' no longer raise ProjectError. The cache is keyed by canonical ID after resolution.
 3. tests/test_tracker_for_project_name_fallback.py: 7 new tests covering ID/name lookup, cache keying, error case, and the API endpoint.
 4. tests/test_projects.py: 7 new tests for ProjectStore.find_by_name().
+---
+author: oompah
+created: 2026-07-10 02:42
+---
+Verification: All 7249 existing tests pass plus 14 new tests:
+- 7 tests for ProjectStore.find_by_name() in tests/test_projects.py
+- 7 tests for _tracker_for_project name fallback and API endpoint in tests/test_tracker_for_project_name_fallback.py
+No regressions.
 ---
 <!-- COMMENTS:END -->
