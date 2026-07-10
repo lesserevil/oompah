@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-10T17:20:29.690205Z'
-updated_at: '2026-07-10T17:29:06.972371Z'
+updated_at: '2026-07-10T17:29:09.384025Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,10 @@ Run #1 [attempt=1, profile=deep, role=deep -> Codex/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 52s
 - Log: OOMPAH-163__20260710T172139Z.jsonl
+---
+author: oompah
+created: 2026-07-10 17:29
+---
+Fixed dispatch target validation so oompah-generated epic branches (target_branch == epic-<parent_id>) bypass the project branches allowlist while mismatched or operator-specified branches remain validated. Added release-pick validation and _should_dispatch regressions for Needs CI Fix/Needs Rebase child repairs. Verification: make test passed with 7466 passed, 5 skipped. Deployed by restarting the server to pid 3885560; coroot repairs that were previously blocked are now dispatching (COROOT-19/COROOT-20 Needs Rebase running, COROOT-21 Needs CI Fix dispatched).
 ---
 <!-- COMMENTS:END -->
