@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-10T02:17:34.435583Z'
-updated_at: '2026-07-10T02:34:05.748135Z'
+updated_at: '2026-07-10T02:34:17.657973Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -101,5 +101,10 @@ author: oompah
 created: 2026-07-10 02:34
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-10 02:34
+---
+Understanding: This issue reports a 'Create issue API error: Unknown project: coroot' from backend:server. My role is Duplicate Investigator. I'll search existing tasks for similar errors involving unknown projects or the 'coroot' project name before deciding whether to implement anything or archive as a duplicate.
 ---
 <!-- COMMENTS:END -->
