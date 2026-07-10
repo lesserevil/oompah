@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-10T02:17:34.435583Z'
-updated_at: '2026-07-10T02:42:23.270295Z'
+updated_at: '2026-07-10T02:42:25.607059Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,10 @@ Root cause: api_create_issue received project_id='coroot' (the project name) but
 Fix: Added ProjectStore.find_by_name() and updated Orchestrator._tracker_for_project() to fall back to name-based lookup when ID lookup returns None. The tracker cache is keyed by canonical ID after resolution.
 
 Branch OOMPAH-161 pushed. 14 new tests added. All 7249 tests pass.
+---
+author: oompah
+created: 2026-07-10 02:42
+---
+Fixed: Added ProjectStore.find_by_name() and updated _tracker_for_project() to fall back to name lookup, resolving 'Unknown project: coroot' when project name was passed instead of internal ID. 14 new tests; all 7249 pass.
 ---
 <!-- COMMENTS:END -->
