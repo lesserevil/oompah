@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-10T02:17:34.435583Z'
-updated_at: '2026-07-10T02:42:09.405831Z'
+updated_at: '2026-07-10T02:42:17.517850Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -134,5 +134,16 @@ Verification: All 7249 existing tests pass plus 14 new tests:
 - 7 tests for ProjectStore.find_by_name() in tests/test_projects.py
 - 7 tests for _tracker_for_project name fallback and API endpoint in tests/test_tracker_for_project_name_fallback.py
 No regressions.
+---
+author: oompah
+created: 2026-07-10 02:42
+---
+Completion: Not a duplicate. Identified and fixed the root cause.
+
+Root cause: api_create_issue received project_id='coroot' (the project name) but project_store.get() only looked up by internal ID ('proj-ed624f39'), returning None and raising ProjectError('Unknown project: coroot').
+
+Fix: Added ProjectStore.find_by_name() and updated Orchestrator._tracker_for_project() to fall back to name-based lookup when ID lookup returns None. The tracker cache is keyed by canonical ID after resolution.
+
+Branch OOMPAH-161 pushed. 14 new tests added. All 7249 tests pass.
 ---
 <!-- COMMENTS:END -->
