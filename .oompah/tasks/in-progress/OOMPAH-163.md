@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-10T17:20:29.690205Z'
-updated_at: '2026-07-10T17:21:32.801742Z'
+updated_at: '2026-07-10T17:21:35.151045Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Stacked/shared child tasks can carry oompah-generated target branches like epic-
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-10 17:21
+---
+Agent dispatched (profile: deep)
+---
+<!-- COMMENTS:END -->
