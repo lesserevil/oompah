@@ -225,11 +225,11 @@ oompah supports two ASGI server backends:
 | Backend | How to enable | Notes |
 |---------|--------------|-------|
 | `uvicorn` | Default | Stable, battle-tested. Default until Granian integration is fully hardened. |
-| `granian` | `--server granian` or `OOMPAH_SERVER_BACKEND=granian` | Rust/Tokio ASGI server; opt-in while the integration is hardened. |
+| `granian` | `server --server granian` or `OOMPAH_SERVER_BACKEND=granian` | Rust/Tokio ASGI server; opt-in while the integration is hardened. |
 
 ```bash
 # Start with the Granian backend (opt-in)
-oompah --server granian WORKFLOW.md
+oompah server --server granian WORKFLOW.md
 
 # Or set in .env for persistent use
 echo "OOMPAH_SERVER_BACKEND=granian" >> .env
@@ -245,11 +245,11 @@ backend is selected:
 
 ```bash
 # This is rejected at startup with a clear error:
-oompah --server granian --workers 2
+oompah server --server granian --workers 2
 
 # Correct usage:
-oompah --server granian              # workers defaults to 1
-oompah --server granian --workers 1  # explicit 1 is also fine
+oompah server --server granian              # workers defaults to 1
+oompah server --server granian --workers 1  # explicit 1 is also fine
 ```
 
 - **`/`** — Kanban board with drag-and-drop, agent status, cost tracking

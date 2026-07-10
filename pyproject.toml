@@ -41,7 +41,7 @@ codex = [
 ]
 # Granian ASGI server: opt-in replacement for uvicorn (--server granian).
 # Granian is a Rust/Tokio ASGI server with ~+23% HTTP throughput vs uvicorn
-# in single-worker mode.  Must be installed to use `oompah --server granian`
+# in single-worker mode.  Must be installed to use `oompah server --server granian`
 # or `make run-granian`.
 granian = [
     "granian>=1.0",

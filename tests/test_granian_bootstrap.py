@@ -297,6 +297,78 @@ class TestSetupServicesSuccess:
 class TestMainServerArgument:
     """main() accepts --server {uvicorn,granian} without error."""
 
+    def test_bare_oompah_prints_help_without_starting_server(
+        self, monkeypatch, capsys
+    ):
+        """Running ``oompah`` with no args shows command help and returns."""
+        monkeypatch.setattr(sys, "argv", ["oompah"])
+
+        with (
+            patch(
+                "oompah.__main__._load_startup_env",
+                side_effect=AssertionError("server startup should not run"),
+            ),
+            patch(
+                "oompah.__main__._run",
+                side_effect=AssertionError("server startup should not run"),
+            ),
+        ):
+            import oompah.__main__ as main_mod
+
+            main_mod.main()
+
+        output = capsys.readouterr().out
+        assert "usage:" in output
+        assert "oompah server" in output
+        assert "oompah task --help" in output
+        assert "oompah project-bootstrap --help" in output
+
+    def test_server_subcommand_starts_default_workflow(
+        self, tmp_path, monkeypatch
+    ):
+        """``oompah server`` is the explicit form for service startup."""
+        wf = tmp_path / "WORKFLOW.md"
+        wf.write_text("tracker:\n  kind: oompah_md\n")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(sys, "argv", ["oompah", "server"])
+
+        called: list[tuple[Any, ...]] = []
+
+        async def _fake_run(*args, **kwargs):
+            called.append((args, kwargs))
+            return False
+
+        with (
+            patch("oompah.__main__._load_startup_env", return_value=0),
+            patch("oompah.__main__._run", side_effect=_fake_run),
+        ):
+            import oompah.__main__ as main_mod
+
+            main_mod._run = _fake_run
+            main_mod.main()
+
+        assert len(called) == 1
+        args, kwargs = called[0]
+        assert args[0] == str(wf)
+        assert args[1] is None
+        assert kwargs["server_backend"] == "uvicorn"
+
+    def test_server_subcommand_help_exits_zero(self, monkeypatch, capsys):
+        """``oompah server --help`` prints server-specific help."""
+        monkeypatch.setattr(sys, "argv", ["oompah", "server", "--help"])
+
+        with pytest.raises(SystemExit) as exc_info:
+            import oompah.__main__ as main_mod
+
+            main_mod.main()
+
+        assert exc_info.value.code == 0
+        output = capsys.readouterr().out
+        assert "usage:" in output
+        assert "oompah server" in output
+        assert "--paused" in output
+        assert "--server" in output
+
     def test_default_server_is_uvicorn(self, tmp_path, monkeypatch):
         """Omitting --server uses uvicorn (asyncio.run called)."""
         wf = tmp_path / "WORKFLOW.md"

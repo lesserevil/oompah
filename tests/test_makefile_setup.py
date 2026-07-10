@@ -58,7 +58,8 @@ def test_make_start_uses_setsid_with_devnull_stdin():
     """
     text = _makefile_text()
 
-    assert "setsid $(PYTHON) -m oompah" in text
+    assert "setsid $(PYTHON) -m oompah server" in text
+    assert "nohup $(PYTHON) -m oompah server" in text
     assert "</dev/null" in text
 
 

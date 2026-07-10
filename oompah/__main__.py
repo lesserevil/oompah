@@ -23,6 +23,7 @@ def _load_startup_env(env_file: str) -> int:
 
 
 _VALID_SERVER_BACKENDS = ("uvicorn", "granian")
+_SERVER_SUBCOMMANDS = {"server", "serve", "run"}
 
 
 def _resolve_server_backend(cli_value: str | None) -> str:
@@ -70,27 +71,56 @@ def _check_granian_workers_constraint(server: str, workers: int) -> None:
         sys.exit(1)
 
 
-def main() -> None:
-    # Dispatch 'oompah task ...' to the task CLI module before touching the
-    # server argparse so help text and error messages are clean.
-    if len(sys.argv) > 1 and sys.argv[1] == "task":
-        from oompah.task_cli import main as _task_main
-        _task_main(sys.argv[2:])
-        return
+def _build_server_parser(
+    *, prog: str = "oompah", include_subcommands: bool = True
+) -> argparse.ArgumentParser:
+    if include_subcommands:
+        usage = "\n".join(
+            [
+                "oompah [--help]",
+                "       oompah server [WORKFLOW.md] [server options]",
+                "       oompah [WORKFLOW.md] [server options]",
+                "       oompah task ...",
+                "       oompah project-bootstrap ...",
+            ]
+        )
+        epilog = """\
+Common commands:
+  oompah                         Show this help.
+  oompah server                  Start the web server with ./WORKFLOW.md.
+  oompah server WORKFLOW.md      Start the web server with an explicit workflow.
+  oompah task --help             Manage native oompah tasks through a running server.
+  oompah project-bootstrap --help
+                                 Inspect or install project AGENTS.md integration.
 
-    if len(sys.argv) > 1 and sys.argv[1] == "project-bootstrap":
-        from oompah.project_bootstrap_cli import main as _project_bootstrap_main
-        _project_bootstrap_main(sys.argv[2:])
-        return
+Examples:
+  oompah server --port 8090
+  oompah server --paused
+  oompah server --server granian WORKFLOW.md
+  OOMPAH_SERVER_URL=http://127.0.0.1:8090 oompah task view TASK-1
+
+Legacy server form is still supported:
+  oompah WORKFLOW.md --port 8090
+  oompah --server granian WORKFLOW.md
+"""
+    else:
+        usage = f"{prog} [WORKFLOW.md] [server options]"
+        epilog = """\
+Examples:
+  oompah server --port 8090
+  oompah server --paused
+  oompah server --server granian WORKFLOW.md
+"""
 
     parser = argparse.ArgumentParser(
-        prog="oompah",
-        description="Orchestrate coding agents to execute project work",
-        epilog=(
-            "Special subcommands: "
-            "oompah task ...; "
-            "oompah project-bootstrap ..."
+        prog=prog,
+        usage=usage,
+        description=(
+            "Oompah runs the local orchestration service and provides "
+            "task-management helper commands."
         ),
+        epilog=epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "workflow",
@@ -142,7 +172,40 @@ def main() -> None:
             "Must be 1 when --server granian is used."
         ),
     )
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    # Dispatch 'oompah task ...' to the task CLI module before touching the
+    # server argparse so help text and error messages are clean.
+    raw_args = sys.argv[1:]
+    if raw_args and raw_args[0] == "task":
+        from oompah.task_cli import main as _task_main
+        _task_main(raw_args[1:])
+        return
+
+    if raw_args and raw_args[0] == "project-bootstrap":
+        from oompah.project_bootstrap_cli import main as _project_bootstrap_main
+        _project_bootstrap_main(raw_args[1:])
+        return
+
+    if not raw_args:
+        parser = _build_server_parser()
+        parser.print_help()
+        return
+
+    explicit_server = raw_args[0] in _SERVER_SUBCOMMANDS
+    if explicit_server:
+        prog = f"oompah {raw_args[0]}"
+        parse_args = raw_args[1:]
+    else:
+        prog = "oompah"
+        parse_args = raw_args
+    parser = _build_server_parser(
+        prog=prog,
+        include_subcommands=not explicit_server,
+    )
+    args = parser.parse_args(parse_args)
 
     try:
         import watchfiles  # noqa: F401

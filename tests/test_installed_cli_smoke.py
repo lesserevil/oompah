@@ -143,6 +143,25 @@ class TestCurrentInstallSmoke:
             f"Expected 'oompah' in --help output, got: {output!r}"
         )
 
+    def test_bare_oompah_prints_help_exits_zero(self):
+        """``oompah`` with no args must show help instead of starting the server."""
+        oompah = str(_current_oompah_bin())
+        result = subprocess.run(
+            [oompah],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        assert result.returncode == 0, (
+            f"bare oompah exited {result.returncode}.\n"
+            f"stderr: {result.stderr}\nstdout: {result.stdout}"
+        )
+        output = result.stdout + result.stderr
+        assert "usage:" in output.lower()
+        assert "oompah server" in output
+        assert "oompah task --help" in output
+        assert "HTTP server starting" not in output
+
     def test_oompah_help_contains_usage(self):
         """``oompah --help`` output must contain the word 'usage'."""
         oompah = str(_current_oompah_bin())
@@ -346,6 +365,39 @@ except SystemExit as exc:
         )
         assert result.returncode == 0, (
             "oompah --help imported a server-only dependency.\n"
+            f"stderr: {result.stderr}\nstdout: {result.stdout}"
+        )
+
+    def test_bare_oompah_help_does_not_import_server_dependencies(self):
+        """Bare top-level help must work from a CLI-only install."""
+        code = """
+import builtins
+import sys
+
+real_import = builtins.__import__
+
+def guarded_import(name, *args, **kwargs):
+    if name == "watchfiles" or name.startswith("watchfiles."):
+        raise ImportError("blocked server-only dependency")
+    return real_import(name, *args, **kwargs)
+
+builtins.__import__ = guarded_import
+
+from oompah.__main__ import main
+
+sys.argv = ["oompah"]
+try:
+    main()
+except SystemExit as exc:
+    raise SystemExit(exc.code)
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            "bare oompah help imported a server-only dependency.\n"
             f"stderr: {result.stderr}\nstdout: {result.stdout}"
         )
 

@@ -115,13 +115,13 @@ running, `make start` is a no-op.
 To start in the foreground instead:
 
 ```bash
-.venv/bin/python -m oompah
+.venv/bin/python -m oompah server
 ```
 
 To start paused (no agents dispatched until you resume):
 
 ```bash
-.venv/bin/python -m oompah --paused
+.venv/bin/python -m oompah server --paused
 ```
 
 ### Stop the service

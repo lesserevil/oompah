@@ -88,9 +88,9 @@ start: setup
 			exit 1; \
 		fi; \
 		if command -v setsid >/dev/null 2>&1; then \
-			setsid $(PYTHON) -m oompah >> $(LOG_FILE) 2>&1 </dev/null & \
+			setsid $(PYTHON) -m oompah server >> $(LOG_FILE) 2>&1 </dev/null & \
 		else \
-			nohup $(PYTHON) -m oompah >> $(LOG_FILE) 2>&1 </dev/null & \
+			nohup $(PYTHON) -m oompah server >> $(LOG_FILE) 2>&1 </dev/null & \
 		fi; \
 		NEWPID=$$!; \
 		echo $$NEWPID > $(PID_FILE); \
@@ -140,7 +140,7 @@ run-granian:
 		echo "granian is not installed. Run: uv pip install -e '.[server,granian]'"; \
 		exit 1; \
 	fi
-	$(PYTHON) -m oompah --server granian
+	$(PYTHON) -m oompah server --server granian
 
 graceful:
 	@curl -sf -X POST http://0.0.0.0:$(PORT)/api/v1/orchestrator/restart \
