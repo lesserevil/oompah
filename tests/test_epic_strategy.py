@@ -2126,7 +2126,7 @@ class TestOpenEpicMainPrs:
         provider.create_review.assert_not_called()
         push.assert_not_called()
 
-    def test_existing_epic_pr_moves_done_children_out_of_done(self, tmp_path):
+    def test_existing_epic_pr_leaves_shared_children_done(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="shared")
         epic = _make_issue(
             identifier="TRICKLE-1",
@@ -2176,10 +2176,13 @@ class TestOpenEpicMainPrs:
             )
 
         assert has_branch_work.call_count == 2
-        tracker.update_issue.assert_any_call("TRICKLE-2", status=IN_REVIEW)
+        assert (
+            call("TRICKLE-2", status=IN_REVIEW)
+            not in tracker.update_issue.call_args_list
+        )
         tracker.update_issue.assert_any_call("TRICKLE-5", status=OPEN)
         tracker.update_issue.assert_any_call("TRICKLE-7", status=MERGED)
-        assert tracker.update_issue.call_count == 3
+        assert tracker.update_issue.call_count == 2
 
     def test_done_review_child_has_epic_branch_commit(self, tmp_path):
         repo = tmp_path / "repo"

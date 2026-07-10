@@ -5208,17 +5208,20 @@ class Orchestrator:
         *,
         children: list[Issue] | None = None,
     ) -> int:
-        """Move Done epic children out of the non-terminal holding state.
+        """Reconcile Done epic children after the epic review PR exists.
 
         ``Done`` means the child agent says its work is complete. Once the
-        epic has an open rollup PR, completed child implementation work is now
+        epic has an open rollup PR, stacked-mode child implementation work is
         in review through that epic PR and should not remain visibly stranded
-        in Done. If a Done child has no evidence on the epic branch, reopen it
-        so an agent can do the missing work.
+        in Done. Shared-mode children are already complete once their work is
+        on the epic branch; the epic owns the review/CI/rebase state. If a Done
+        child has no evidence on the epic branch, reopen it so an agent can do
+        the missing work.
         """
         project = self.project_store.get(project_id)
         if project is None:
             return 0
+        strategy = self._project_epic_strategy(project_id)
         try:
             tracker = self._tracker_for_project(project_id)
             if children is None:
@@ -5243,6 +5246,15 @@ class Orchestrator:
                 epic_branch,
                 child,
             ):
+                if strategy == "shared":
+                    logger.info(
+                        "Leaving Done child %s under shared epic %s in Done "
+                        "(covered by epic review branch %s)",
+                        child.identifier,
+                        epic.identifier,
+                        epic_branch,
+                    )
+                    continue
                 next_status = IN_REVIEW
                 reason = "covered by epic review branch"
             else:
@@ -8508,12 +8520,31 @@ class Orchestrator:
                     project_id,
                 )
                 if rollup_strategy == "shared":
-                    logger.debug(
-                        "Skipping stale In Review reconciliation for %s: "
-                        "epic_strategy=shared uses the epic rollup review, "
-                        "not a child PR",
-                        issue.identifier,
-                    )
+                    parent_epic = self._resolve_parent_epic(issue)
+                    epic_branch = ""
+                    if parent_epic is not None:
+                        try:
+                            epic_branch = self._epic_branch_for_issue(parent_epic)
+                        except Exception as exc:  # noqa: BLE001 - best effort
+                            logger.debug(
+                                "Failed to resolve epic branch for shared child "
+                                "%s during stale In Review reconciliation: %s",
+                                issue.identifier,
+                                exc,
+                            )
+                    if epic_branch and self._done_review_child_has_epic_branch_work(
+                        project,
+                        epic_branch,
+                        issue,
+                    ):
+                        self._mark_stale_in_review_done(tracker, issue, epic_branch)
+                    else:
+                        logger.debug(
+                            "Leaving shared child %s in In Review: no open child "
+                            "PR exists, but no matching work was found on the "
+                            "epic review branch",
+                            issue.identifier,
+                        )
                     continue
 
                 if branch in merged_branches and self._merged_branch_tip_landed(
@@ -8834,11 +8865,12 @@ class Orchestrator:
         issue: Issue,
         branch: str,
     ) -> None:
-        """Mark a stacked-epic child ``Done`` after its child PR merges.
+        """Mark an epic child ``Done`` once its work is on the epic branch.
 
-        Stacked children merge into the epic branch first. They are complete
-        for purposes of opening the epic rollup PR, but they are not globally
-        ``Merged`` until that epic branch lands.
+        Stacked children merge into the epic branch first. Shared children work
+        directly on that branch. In both cases they are complete for purposes
+        of opening the epic rollup PR, but they are not globally ``Merged``
+        until that epic branch lands.
         """
         try:
             tracker.update_issue(issue.identifier, status=DONE)

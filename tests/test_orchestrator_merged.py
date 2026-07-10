@@ -831,10 +831,16 @@ class TestReconcileStaleInReviewTasks:
         assert "0e6fd90 TASK-737: Close task as Done" in comment
         assert orch._count_review_branch_ahead.call_count == 2
 
-    def test_shared_epic_child_without_child_pr_waits_for_epic_review(self, tmp_path):
+    def test_shared_epic_child_without_child_pr_becomes_done_when_on_epic_branch(
+        self,
+        tmp_path,
+    ):
         project = _make_project(epic_strategy="shared")
         project.repo_path = str(tmp_path)
         orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.epic_branch_name.side_effect = (
+            lambda ident: f"epic-{ident}"
+        )
         orch._reviews_cache = {project.id: []}
         orch._merged_branches = set()
 
@@ -854,9 +860,19 @@ class TestReconcileStaleInReviewTasks:
         mock_tracker.fetch_issue_detail.return_value = parent
         orch._project_trackers[project.id] = mock_tracker
 
-        orch._reconcile_stale_in_review_tasks()
+        with patch.object(
+            orch,
+            "_done_review_child_has_epic_branch_work",
+            return_value=True,
+        ) as has_epic_branch_work:
+            orch._reconcile_stale_in_review_tasks()
 
-        mock_tracker.update_issue.assert_not_called()
+        has_epic_branch_work.assert_called_once_with(
+            project,
+            "epic-EPIC-1",
+            child,
+        )
+        mock_tracker.update_issue.assert_called_once_with("TASK-1", status=DONE)
         mock_tracker.add_comment.assert_not_called()
 
     @patch("oompah.close_gate._count_commits_ahead")
