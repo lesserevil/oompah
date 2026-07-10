@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-10T17:20:29.690205Z'
-updated_at: '2026-07-10T17:23:12.539923Z'
+updated_at: '2026-07-10T17:26:09.425586Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-10 17:21
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-10 17:26
+---
+Understanding: The dispatch-wide target_branch allowlist blocks stacked/shared repair tasks whose target is the generated parent epic branch. I will reproduce the rejection, allow only the exact branch generated from parent_id, retain validation for all other targets, and cover Needs CI Fix/Needs Rebase with regression tests.
 ---
 <!-- COMMENTS:END -->
