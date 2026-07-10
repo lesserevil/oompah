@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-10T02:17:34.435583Z'
-updated_at: '2026-07-10T02:37:49.089012Z'
+updated_at: '2026-07-10T02:41:36.650477Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -115,5 +115,16 @@ Discovery: No duplicate found. Fingerprint 40762b6cac23a669 appears only in OOMP
 Root cause: The 'coroot' project exists (id='proj-ed624f39', name='coroot') but api_create_issue in server.py calls _get_tracker(orch, project_id) where project_id='coroot' (project name). project_store.get() only looks up by internal ID ('proj-ed624f39'), not by name, so it returns None and raises ProjectError('Unknown project: coroot').
 
 Fix: Add project-name fallback to ProjectStore.get_by_name() or have api_create_issue resolve project names to IDs before passing to _tracker_for_project. This is a new bug distinct from the webhook/trickle errors seen in other archived tasks.
+---
+author: oompah
+created: 2026-07-10 02:41
+---
+Implementation: Not a duplicate — no existing task covers this error.
+
+Changes made:
+1. oompah/projects.py: Added ProjectStore.find_by_name(name) method for secondary lookup by human-readable project name.
+2. oompah/orchestrator.py: Updated _tracker_for_project() to fall back to find_by_name() when the ID lookup returns None, so callers passing the project name 'coroot' instead of 'proj-ed624f39' no longer raise ProjectError. The cache is keyed by canonical ID after resolution.
+3. tests/test_tracker_for_project_name_fallback.py: 7 new tests covering ID/name lookup, cache keying, error case, and the API endpoint.
+4. tests/test_projects.py: 7 new tests for ProjectStore.find_by_name().
 ---
 <!-- COMMENTS:END -->
