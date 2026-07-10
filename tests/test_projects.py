@@ -913,3 +913,71 @@ class TestRemoveWorktreeCleanup:
         assert os.path.isdir(active)
         assert os.path.isdir(valid_other)
         assert not os.path.exists(stale)
+
+
+# ---------------------------------------------------------------------------
+# ProjectStore.find_by_name
+# ---------------------------------------------------------------------------
+
+class TestProjectStoreFindByName:
+    """Tests for the secondary name-based project lookup."""
+
+    def _make_store_with_projects(self, tmp_path):
+        store = _store(tmp_path)
+        p1 = Project(
+            id="proj-aaa",
+            name="coroot",
+            repo_url="https://example.com/coroot.git",
+            repo_path=str(tmp_path / "coroot"),
+        )
+        p2 = Project(
+            id="proj-bbb",
+            name="trickle",
+            repo_url="https://example.com/trickle.git",
+            repo_path=str(tmp_path / "trickle"),
+        )
+        store._projects[p1.id] = p1
+        store._projects[p2.id] = p2
+        return store, p1, p2
+
+    def test_find_by_name_returns_matching_project(self, tmp_path):
+        """find_by_name returns the project whose name matches."""
+        store, p1, p2 = self._make_store_with_projects(tmp_path)
+        result = store.find_by_name("coroot")
+        assert result is p1
+
+    def test_find_by_name_returns_second_project(self, tmp_path):
+        """find_by_name can return any project, not just the first."""
+        store, p1, p2 = self._make_store_with_projects(tmp_path)
+        result = store.find_by_name("trickle")
+        assert result is p2
+
+    def test_find_by_name_returns_none_for_unknown_name(self, tmp_path):
+        """find_by_name returns None when no project has the given name."""
+        store, _, _ = self._make_store_with_projects(tmp_path)
+        result = store.find_by_name("nonexistent")
+        assert result is None
+
+    def test_find_by_name_does_not_match_project_id(self, tmp_path):
+        """find_by_name matches names only, not internal IDs."""
+        store, _, _ = self._make_store_with_projects(tmp_path)
+        result = store.find_by_name("proj-aaa")
+        assert result is None
+
+    def test_find_by_name_empty_store(self, tmp_path):
+        """find_by_name returns None on an empty store."""
+        store = _store(tmp_path)
+        result = store.find_by_name("coroot")
+        assert result is None
+
+    def test_get_still_works_by_id(self, tmp_path):
+        """get() still returns a project by its internal ID after adding find_by_name."""
+        store, p1, _ = self._make_store_with_projects(tmp_path)
+        result = store.get("proj-aaa")
+        assert result is p1
+
+    def test_get_does_not_fall_back_to_name(self, tmp_path):
+        """get() does NOT look up by name — use find_by_name for that."""
+        store, _, _ = self._make_store_with_projects(tmp_path)
+        result = store.get("coroot")  # 'coroot' is a name, not an id
+        assert result is None
