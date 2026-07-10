@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-10T17:20:29.690205Z'
-updated_at: '2026-07-10T17:26:19.194635Z'
+updated_at: '2026-07-10T17:26:21.691361Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-07-10 17:26
 ---
 Discovery: Reproduced in tests/test_release_pick_validation.py: _should_dispatch sends every non-empty target_branch through validate_release_pick_target, which rejects epic-COROOT-5 when project.branches is only main. There was no parent-epic exception.
+---
+author: oompah
+created: 2026-07-10 17:26
+---
+Implementation: _should_dispatch now bypasses the configured branch allowlist only when target_branch exactly equals ProjectStore.epic_branch_name(issue.parent_id). Added regression coverage for Needs CI Fix and Needs Rebase plus a negative mismatched epic-* target.
 ---
 <!-- COMMENTS:END -->
