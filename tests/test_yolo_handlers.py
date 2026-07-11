@@ -18,6 +18,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from oompah.config import ServiceConfig
+from oompah.models import EpicRebaseState
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
 from oompah.statuses import IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE
@@ -558,6 +559,7 @@ class TestYoloNotifyConflictEpicBranch:
     def test_mature_epic_branch_conflict_marks_epic_needs_rebase(self, tmp_path):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.epic_branch_name.side_effect = lambda ident: f"epic-{ident}"
         orch._set_epic_rebase_state = MagicMock()
         provider = MagicMock()
         provider.rebase_review.return_value = (
@@ -587,6 +589,8 @@ class TestYoloNotifyConflictEpicBranch:
     def test_epic_branch_conflict_idempotent_when_rebase_sibling_open(self, tmp_path):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.epic_branch_name.side_effect = lambda ident: f"epic-{ident}"
+        orch._set_epic_rebase_state = MagicMock()
         provider = MagicMock()
         provider.rebase_review.return_value = (False, "merge conflicts")
         provider.get_review.return_value = _make_review_request(
@@ -602,12 +606,19 @@ class TestYoloNotifyConflictEpicBranch:
 
         # No duplicate rebase task while one is already open.
         tracker.create_issue.assert_not_called()
+        orch._set_epic_rebase_state.assert_called_once_with(
+            "TASK-18",
+            EpicRebaseState.REBASING,
+            project_id=project.id,
+        )
 
     def test_epic_branch_conflict_idempotent_when_child_read_misses_existing_rebase(
         self, tmp_path
     ):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.epic_branch_name.side_effect = lambda ident: f"epic-{ident}"
+        orch._set_epic_rebase_state = MagicMock()
         provider = MagicMock()
         provider.rebase_review.return_value = (False, "merge conflicts")
         provider.get_review.return_value = _make_review_request(
@@ -629,6 +640,36 @@ class TestYoloNotifyConflictEpicBranch:
             orch._yolo_notify_conflict(project, provider, "org/repo", "42")
 
         tracker.create_issue.assert_not_called()
+        orch._set_epic_rebase_state.assert_called_once_with(
+            "TASK-18",
+            EpicRebaseState.REBASING,
+            project_id=project.id,
+        )
+
+    def test_epic_branch_conflict_helper_marks_epic_rebasing(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._set_epic_rebase_state = MagicMock()
+        provider = MagicMock()
+        provider.rebase_review.return_value = (False, "merge conflicts")
+        provider.get_review.return_value = _make_review_request(
+            review_id="42", source_branch="epic-TASK-18", target_branch="dev",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = self._epic()
+        tracker.fetch_issues_by_states.return_value = []
+        open_child = MagicMock(identifier="TASK-18.1", state="Open", labels=[])
+
+        with patch.object(orch, "_fetch_epic_children", return_value=[open_child]):
+            orch._project_trackers[project.id] = tracker
+            orch._yolo_notify_conflict(project, provider, "org/repo", "42")
+
+        tracker.create_issue.assert_called_once()
+        orch._set_epic_rebase_state.assert_called_once_with(
+            "TASK-18",
+            EpicRebaseState.REBASING,
+            project_id=project.id,
+        )
 
 
 class TestFileRebaseTaskPriority:

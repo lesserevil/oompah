@@ -10928,6 +10928,12 @@ class Orchestrator:
                 if existing is not None:
                     # Rebase agent already queued/in flight — let it finish.
                     self.state.completed.discard(existing.id)
+                    self._set_epic_rebase_state(
+                        issue.identifier,
+                        EpicRebaseState.REBASING,
+                        project_id=project.id,
+                    )
+                    self._epic_rebase_filed_at[issue.identifier] = time.monotonic()
                     return
                 last_filed = self._epic_rebase_filed_at.get(issue.identifier, float("-inf"))
                 if time.monotonic() - last_filed < _EPIC_REBASE_REFILE_COOLDOWN_S:
@@ -10939,6 +10945,11 @@ class Orchestrator:
                     issue,
                     source_branch,
                     target_branch or project.default_branch,
+                )
+                self._set_epic_rebase_state(
+                    issue.identifier,
+                    EpicRebaseState.REBASING,
+                    project_id=project.id,
                 )
                 self._epic_rebase_filed_at[issue.identifier] = time.monotonic()
                 self.state.completed.discard(issue.id)
