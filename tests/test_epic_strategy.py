@@ -2919,6 +2919,27 @@ class TestEpicRollupStatusReconciliation:
         tracker.update_issue.assert_called_once_with(epic.identifier, status=DONE)
         assert epic.state == DONE
 
+    def test_shared_done_epic_with_all_merged_children_stays_done(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            state=DONE,
+        )
+        tracker.fetch_children.return_value = [
+            _make_issue(identifier="child-1", state=MERGED, parent_id=epic.identifier),
+            _make_issue(identifier="child-2", state=MERGED, parent_id=epic.identifier),
+        ]
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            updated = orch._reconcile_epic_rollup_statuses([epic])
+
+        assert updated == 0
+        tracker.update_issue.assert_not_called()
+        assert epic.state == DONE
+
     def test_decomposed_children_do_not_keep_epic_in_progress(self, tmp_path):
         orch, tracker = self._orch_with_tracker(tmp_path)
         epic = _make_issue(

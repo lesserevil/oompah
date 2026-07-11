@@ -3524,6 +3524,18 @@ class Orchestrator:
                 child_states = [child.state for child in children]
 
             rolled = epic_rollup_state(child_states)
+            rolled_status = canonicalize_status(rolled)
+            if strategy in {"stacked", "shared"} and rolled_status == MERGED:
+                child_statuses = [
+                    canonicalize_status(status)
+                    for status in child_states
+                    if canonicalize_status(status) not in {PROPOSED, DECOMPOSED}
+                ]
+                if child_statuses and any(
+                    status == MERGED for status in child_statuses
+                ):
+                    rolled = DONE
+                    rolled_status = DONE
             children_complete_for_review = self._epic_children_complete_for_review_work(
                 children
             )
@@ -3533,7 +3545,7 @@ class Orchestrator:
                 and current_status not in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
             ):
                 rolled = IN_REVIEW
-            rolled_status = canonicalize_status(rolled)
+                rolled_status = IN_REVIEW
             if (
                 not rolled
                 or rolled_status == current_status
