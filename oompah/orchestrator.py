@@ -4895,12 +4895,24 @@ class Orchestrator:
                 ]
             else:
                 child_states = [c.state for c in children]
-            # Roll the children up to an epic state. Only a fully-complete
-            # epic (rollup == Done) is ready to merge → open the epic→main
-            # PR. An all-merged epic rolls up to Merged (already landed) and
-            # an incomplete one to Open/In Progress/Backlog — none of which
-            # should open a PR.
-            if epic_rollup_state(child_states) != DONE:
+            # Ignore pre-implementation wrapper states the same way
+            # epic_rollup_state does, then require every actionable child to
+            # be terminal. Child epics that are already Merged may only have
+            # landed into this parent epic branch; they still make the parent
+            # ready for its own PR rather than proving the parent landed.
+            child_statuses = [
+                canonicalize_status(status)
+                for status in child_states
+                if canonicalize_status(status) not in {PROPOSED, DECOMPOSED}
+            ]
+            if not child_statuses:
+                continue
+            if any(
+                status not in {DONE, MERGED, ARCHIVED}
+                for status in child_statuses
+            ):
+                continue
+            if all(status == ARCHIVED for status in child_statuses):
                 continue
 
             pending_dependency = self._pending_epic_rollup_dependency(issue)
@@ -4938,6 +4950,7 @@ class Orchestrator:
             if provider is None:
                 continue
             slug = extract_repo_slug(project.repo_url)
+            target_branch = self._resolve_epic_target_branch(issue, project)
 
             # Authoritative already-landed check — MUST come before the
             # open-PR idempotency check below. A shared epic lands exactly
@@ -4946,33 +4959,22 @@ class Orchestrator:
             # loop: a squash merge never makes the branch an ancestor of main,
             # so the branch perpetually looks "ahead" and the rollup stays
             # == Done. The async _merged_branches set (which drives
-            # _label_merged_epics) is skipped for webhook-healthy projects and
-            # can lag, leaving the epic non-terminal forever — so ask the forge
-            # directly. ``list_merged_branches`` (recent merged head refs) is
-            # used in preference to ``find_pr_for_branch`` because the latter
-            # only returns the single most-recent PR, which a newer redundant
-            # still-open PR (the loop's own artifact) would mask.
-            try:
-                merged_refs = provider.list_merged_branches(slug)
-            except Exception as exc:  # noqa: BLE001
-                logger.debug(
-                    "list_merged_branches failed for %s (%s): %s",
-                    issue.identifier,
-                    slug,
-                    exc,
-                )
-                merged_refs = set()
-            if not isinstance(merged_refs, (set, frozenset, list, tuple)):
-                merged_refs = set()
-            already_landed = epic_branch in merged_refs or epic_branch in getattr(
-                self, "_merged_branches", set()
-            )
-            if already_landed:
+            # _label_merged_epics) is targetless, and an epic branch can be a
+            # child PR into an intermediate parent branch before it is the
+            # parent PR into main. Ask the forge for source+target metadata so
+            # only the resolved final target marks this epic Merged.
+            if self._epic_branch_landed_on_target(
+                provider,
+                slug,
+                epic_branch,
+                target_branch,
+            ):
                 logger.info(
-                    "Epic %s already landed (PR from %s merged); marking "
-                    "Merged instead of re-opening",
+                    "Epic %s already landed (PR from %s merged to %s); "
+                    "marking Merged instead of re-opening",
                     issue.identifier,
                     epic_branch,
+                    target_branch,
                 )
                 self._mark_epic_merged(issue, epic_branch=epic_branch)
                 continue
@@ -5009,10 +5011,6 @@ class Orchestrator:
                 )
                 continue
 
-            # Resolve the target branch before pushing so the push failure
-            # fallback can verify whether an already-pushed remote epic branch
-            # has unmerged work to review.
-            target_branch = self._resolve_epic_target_branch(issue, project)
             if not self._ensure_review_target_branch_exists(project, target_branch):
                 logger.warning(
                     "Deferred epic PR for %s on %s: target branch %s is not "
@@ -5163,6 +5161,56 @@ class Orchestrator:
         if self._review_matches_open_branch(review, epic_branch):
             return review
         return None
+
+    def _epic_branch_landed_on_target(
+        self,
+        provider: Any,
+        slug: str,
+        epic_branch: str,
+        target_branch: str,
+    ) -> bool:
+        """True when ``epic_branch`` has a merged review to ``target_branch``."""
+        source = str(epic_branch or "").strip()
+        target = str(target_branch or "").strip()
+        if provider is None or not slug or not source or not target:
+            return False
+
+        def matches(review: Any) -> bool:
+            if review is None:
+                return False
+            return (
+                str(getattr(review, "state", "") or "").lower() == "merged"
+                and str(getattr(review, "source_branch", "") or "").strip() == source
+                and str(getattr(review, "target_branch", "") or "").strip() == target
+            )
+
+        list_merged_reviews = getattr(provider, "list_merged_reviews", None)
+        if callable(list_merged_reviews):
+            try:
+                reviews = list_merged_reviews(slug) or []
+            except Exception as exc:  # noqa: BLE001 - best effort
+                logger.debug(
+                    "list_merged_reviews failed for %s branch %s: %s",
+                    slug,
+                    source,
+                    exc,
+                )
+            else:
+                for review in reviews:
+                    if matches(review):
+                        return True
+
+        try:
+            review = provider.find_pr_for_branch(slug, source)
+        except Exception as exc:  # noqa: BLE001 - best effort
+            logger.debug(
+                "find_pr_for_branch failed while checking merged epic %s/%s: %s",
+                slug,
+                source,
+                exc,
+            )
+            return False
+        return matches(review)
 
     @staticmethod
     def _review_matches_open_branch(review: Any, branch: str) -> bool:
@@ -9066,7 +9114,6 @@ class Orchestrator:
         :meth:`_all_non_terminal_epics` and already-merged children are
         skipped.
         """
-        merged = getattr(self, "_merged_branches", set())
         provider_cache: dict[str, tuple[Any | None, str]] = {}
         for epic in self._all_non_terminal_epics():
             if self._job_deadline_exceeded("merged_labels"):
@@ -9080,57 +9127,35 @@ class Orchestrator:
                 epic_branch = self._epic_branch_for_issue(epic)
             except Exception:  # noqa: BLE001
                 continue
-            if epic_branch not in merged:
-                project = self.project_store.get(project_id)
-                if not project or not getattr(project, "repo_url", None):
-                    continue
-                if project_id not in provider_cache:
-                    try:
-                        provider = detect_provider(
-                            project.repo_url,
-                            access_token=getattr(project, "access_token", None),
-                        )
-                        slug = extract_repo_slug(project.repo_url) if provider else ""
-                    except Exception as exc:  # noqa: BLE001 - best effort
-                        logger.debug(
-                            "Merged epic provider setup failed for %s: %s",
-                            project_id,
-                            exc,
-                        )
-                        provider, slug = None, ""
-                    provider_cache[project_id] = (provider, slug)
-                provider, slug = provider_cache[project_id]
-                if provider is None or not slug:
-                    continue
+            project = self.project_store.get(project_id)
+            if not project or not getattr(project, "repo_url", None):
+                continue
+            if project_id not in provider_cache:
                 try:
-                    merged_refs = self._coerce_branch_set(
-                        provider.list_merged_branches(slug)
+                    provider = detect_provider(
+                        project.repo_url,
+                        access_token=getattr(project, "access_token", None),
                     )
+                    slug = extract_repo_slug(project.repo_url) if provider else ""
                 except Exception as exc:  # noqa: BLE001 - best effort
                     logger.debug(
-                        "Merged epic branch lookup failed for %s branch %s: %s",
-                        epic.identifier,
-                        epic_branch,
+                        "Merged epic provider setup failed for %s: %s",
+                        project_id,
                         exc,
                     )
-                    merged_refs = set()
-                landed = epic_branch in merged_refs
-                if not landed:
-                    try:
-                        review = provider.find_pr_for_branch(slug, epic_branch)
-                    except Exception as exc:  # noqa: BLE001 - best effort
-                        logger.debug(
-                            "Merged epic PR lookup failed for %s branch %s: %s",
-                            epic.identifier,
-                            epic_branch,
-                            exc,
-                        )
-                        review = None
-                    landed = (
-                        str(getattr(review, "state", "") or "").lower() == "merged"
-                    )
-                if not landed:
-                    continue
+                    provider, slug = None, ""
+                provider_cache[project_id] = (provider, slug)
+            provider, slug = provider_cache[project_id]
+            if provider is None or not slug:
+                continue
+            target_branch = self._resolve_epic_target_branch(epic, project)
+            if not self._epic_branch_landed_on_target(
+                provider,
+                slug,
+                epic_branch,
+                target_branch,
+            ):
+                continue
             self._mark_epic_merged(epic, epic_branch=epic_branch)
 
     def _all_merged_epics(self) -> list[Issue]:

@@ -1866,6 +1866,134 @@ class TestGetAllOpenReviews:
         assert by_id["p-manual"]["project_yolo"] is False
 
 
+class TestListMergedReviewsGitHub:
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+    def _provider(self, payload, status_code=200):
+        provider = GitHubProvider(access_token="t")
+        captured: dict = {}
+
+        def fake_api(method, path, **kwargs):
+            captured["method"] = method
+            captured["path"] = path
+            captured["params"] = kwargs.get("params")
+            return self._FakeResponse(payload, status_code=status_code)
+
+        provider._api = fake_api
+        provider._captured = captured  # type: ignore[attr-defined]
+        return provider
+
+    def test_returns_recent_merged_reviews_with_targets(self):
+        payload = [
+            {
+                "number": 42,
+                "title": "Epic landing",
+                "html_url": "https://github.com/owner/repo/pull/42",
+                "user": {"login": "alice"},
+                "state": "closed",
+                "merged_at": "2026-01-01T00:00:00Z",
+                "head": {"ref": "epic-COROOT-4"},
+                "base": {"ref": "main"},
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-02T00:00:00Z",
+                "body": "body",
+                "labels": [{"name": "type:epic"}],
+                "draft": False,
+            },
+            {
+                "number": 43,
+                "merged_at": None,
+                "head": {"ref": "closed-unmerged"},
+                "base": {"ref": "main"},
+            },
+        ]
+        provider = self._provider(payload)
+
+        reviews = provider.list_merged_reviews("owner/repo")
+
+        assert [review.source_branch for review in reviews] == ["epic-COROOT-4"]
+        assert reviews[0].target_branch == "main"
+        assert reviews[0].state == "merged"
+        assert provider._captured["params"]["state"] == "closed"
+
+    def test_branch_wrapper_uses_target_aware_reviews(self):
+        provider = GitHubProvider(access_token="t")
+        provider.list_merged_reviews = mock.MagicMock(
+            return_value=[
+                ReviewRequest(
+                    id="1",
+                    title="x",
+                    url="u",
+                    author="a",
+                    state="merged",
+                    source_branch="feature",
+                    target_branch="main",
+                    created_at="",
+                    updated_at="",
+                )
+            ]
+        )
+
+        assert provider.list_merged_branches("owner/repo") == {"feature"}
+
+
+class TestListMergedReviewsGitLab:
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+    def _provider(self, payload, status_code=200):
+        provider = GitLabProvider(
+            hostname="gitlab.example.com",
+            access_token="t",
+        )
+        captured: dict = {}
+
+        def fake_api(method, path, **kwargs):
+            captured["method"] = method
+            captured["path"] = path
+            captured["params"] = kwargs.get("params")
+            return self._FakeResponse(payload, status_code=status_code)
+
+        provider._api = fake_api
+        provider._captured = captured  # type: ignore[attr-defined]
+        return provider
+
+    def test_returns_recent_merged_reviews_with_targets(self):
+        payload = [{
+            "iid": 12,
+            "title": "Epic landing",
+            "web_url": "https://gitlab/group/proj/-/merge_requests/12",
+            "author": {"username": "alice"},
+            "state": "merged",
+            "source_branch": "epic-COROOT-4",
+            "target_branch": "main",
+            "created_at": "",
+            "updated_at": "",
+            "description": "body",
+            "labels": ["type:epic"],
+            "draft": False,
+        }]
+        provider = self._provider(payload)
+
+        reviews = provider.list_merged_reviews("group/proj")
+
+        assert [review.source_branch for review in reviews] == ["epic-COROOT-4"]
+        assert reviews[0].target_branch == "main"
+        assert reviews[0].state == "merged"
+        assert provider._captured["params"]["state"] == "merged"
+
+
 class TestFindPrForBranchGitHub:
     """``GitHubProvider.find_pr_for_branch`` filters PRs by head ref and
     returns the most recent record, normalising ``state`` to one of

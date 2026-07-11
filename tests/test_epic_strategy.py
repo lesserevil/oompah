@@ -19,6 +19,7 @@ from oompah.config import ServiceConfig
 from oompah.models import BlockerRef, Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
+from oompah.scm import ReviewRequest
 from oompah.statuses import (
     DONE,
     IN_PROGRESS,
@@ -1973,9 +1974,12 @@ class TestOpenEpicMainPrs:
         push.assert_not_called()
         provider.create_review.assert_not_called()
 
-    def test_shared_all_children_already_merged_opens_no_pr(self, tmp_path):
-        """If every child is already Merged (whole epic landed), the rollup is
-        Merged, not Done — no epic→main PR should be opened."""
+    def test_shared_all_children_already_merged_opens_pr(self, tmp_path):
+        """Merged children can mean they landed into this epic branch.
+
+        The parent itself is only Merged once its own branch lands into the
+        resolved target.
+        """
         orch, proj = self._setup(tmp_path, strategy="shared")
         orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
         orch.project_store.read_task_status_in_epic_worktree.return_value = None
@@ -1985,16 +1989,23 @@ class TestOpenEpicMainPrs:
         c1 = _make_issue(identifier="c1", state="merged")
         c2 = _make_issue(identifier="c2", state="merged")
         provider = MagicMock()
+        provider.list_merged_reviews.return_value = []
+        provider.find_pr_for_branch.return_value = None
+        provider.create_review.return_value = MagicMock(id="205")
+        tracker = MagicMock()
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[c1, c2]),
             patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch") as push,
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_sync_epic_review_child_states"),
         ):
             opened = orch._open_epic_main_prs([epic])
-        assert opened == 0
-        push.assert_not_called()
+        assert opened == 1
+        provider.create_review.assert_called_once()
+        push.assert_called_once()
 
     def test_idempotent_when_pr_already_exists(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="stacked")
@@ -2051,7 +2062,7 @@ class TestOpenEpicMainPrs:
         ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 0
-        provider.find_pr_for_branch.assert_called_once_with("org/repo", "epic-epic-1")
+        provider.find_pr_for_branch.assert_any_call("org/repo", "epic-epic-1")
         provider.create_review.assert_not_called()
         tracker.update_issue.assert_not_called()
         tracker.set_metadata_field.assert_any_call(
@@ -2300,9 +2311,21 @@ class TestOpenEpicMainPrs:
         )
         child = _make_issue(identifier="c1", state="closed")
         provider = MagicMock()
-        # Forge reports the epic branch among recently-merged head refs even
+        # Forge reports the epic branch merged into its resolved target even
         # though a newer redundant PR may still be open (the loop artifact).
-        provider.list_merged_branches.return_value = {"epic-epic-1"}
+        provider.list_merged_reviews.return_value = [
+            ReviewRequest(
+                id="200",
+                title="epic-1",
+                url="https://github.com/org/repo/pull/200",
+                author="alice",
+                state="merged",
+                source_branch="epic-epic-1",
+                target_branch="main",
+                created_at="",
+                updated_at="",
+            )
+        ]
         tracker = MagicMock()
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
@@ -2317,7 +2340,7 @@ class TestOpenEpicMainPrs:
         assert opened == 0
         provider.create_review.assert_not_called()
         push.assert_not_called()
-        provider.list_merged_branches.assert_called_once_with("org/repo")
+        provider.list_merged_reviews.assert_called_once_with("org/repo")
         # Epic (and its child) marked Merged instead.
         marked = {
             call.args[0]: call.kwargs.get("status")
@@ -2325,6 +2348,95 @@ class TestOpenEpicMainPrs:
         }
         assert marked.get("epic-1") == "Merged"
         assert marked.get("c1") == "Merged"
+
+    def test_target_mismatch_does_not_mark_epic_merged(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state=DONE,
+            title="Parent epic",
+        )
+        child = _make_issue(identifier="c1", state=DONE)
+        merged_to_parent = ReviewRequest(
+            id="199",
+            title="child landing",
+            url="https://github.com/org/repo/pull/199",
+            author="alice",
+            state="merged",
+            source_branch="epic-epic-1",
+            target_branch="epic-parent",
+            created_at="",
+            updated_at="",
+        )
+        provider = MagicMock()
+        provider.list_merged_reviews.return_value = [merged_to_parent]
+        provider.find_pr_for_branch.return_value = merged_to_parent
+        provider.create_review.return_value = MagicMock(id="201")
+        tracker = MagicMock()
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_tracker_for_issue") as tracker_for_issue,
+            patch.object(orch, "_push_epic_branch") as push,
+            patch.object(orch, "_sync_epic_review_child_states"),
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
+        assert opened == 1
+        push.assert_called_once()
+        tracker_for_issue.assert_not_called()
+        provider.create_review.assert_called_once()
+        assert provider.create_review.call_args.kwargs["target_branch"] == "main"
+        tracker.update_issue.assert_any_call("epic-1", status=IN_REVIEW)
+
+    def test_parent_shared_epic_opens_when_child_epics_already_merged(
+        self,
+        tmp_path,
+    ):
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
+        parent = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state=DONE,
+            title="Top level",
+        )
+        child_epic = _make_issue(
+            identifier="epic-2",
+            issue_type="epic",
+            project_id="proj-1",
+            state=MERGED,
+            parent_id=parent.identifier,
+        )
+        provider = MagicMock()
+        provider.list_merged_reviews.return_value = []
+        provider.find_pr_for_branch.return_value = None
+        provider.create_review.return_value = MagicMock(id="202")
+        tracker = MagicMock()
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child_epic]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_push_epic_branch"),
+            patch.object(orch, "_sync_epic_review_child_states"),
+        ):
+            opened = orch._open_epic_main_prs([parent])
+
+        assert opened == 1
+        provider.create_review.assert_called_once()
+        assert provider.create_review.call_args.args[2] == "epic-epic-1"
+        assert provider.create_review.call_args.kwargs["target_branch"] == "main"
 
     def test_still_opens_when_no_prior_merged_pr(self, tmp_path):
         """Guard: an unmerged (open/None) find_pr_for_branch result must NOT
@@ -3381,11 +3493,27 @@ class TestLabelMergedEpics:
         c2 = _make_issue(identifier="c2", state="Merged")  # already merged → skip
         # epic_branch_name(epic-1) == "epic-epic-1" per the _make_orch stub.
         orch._merged_branches = {"epic-epic-1"}
+        provider = MagicMock()
+        provider.list_merged_reviews.return_value = [
+            ReviewRequest(
+                id="12",
+                title="epic-1",
+                url="https://github.com/org/repo/pull/12",
+                author="alice",
+                state="merged",
+                source_branch="epic-epic-1",
+                target_branch="main",
+                created_at="",
+                updated_at="",
+            )
+        ]
         tracker = MagicMock()
         with (
             patch.object(orch, "_all_non_terminal_epics", return_value=[epic]),
             patch.object(orch, "_fetch_epic_children", return_value=[c1, c2]),
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
         ):
             orch._label_merged_epics()
         marked = [call.args[0] for call in tracker.update_issue.call_args_list]
@@ -3418,11 +3546,27 @@ class TestLabelMergedEpics:
         tracker = MagicMock()
         tracker.fetch_all_issues.return_value = [epic, c1]
         orch._merged_branches = {"epic-epic-1"}
+        provider = MagicMock()
+        provider.list_merged_reviews.return_value = [
+            ReviewRequest(
+                id="13",
+                title="epic-1",
+                url="https://github.com/org/repo/pull/13",
+                author="alice",
+                state="merged",
+                source_branch="epic-epic-1",
+                target_branch="main",
+                created_at="",
+                updated_at="",
+            )
+        ]
 
         with (
             patch.object(orch, "_tracker_for_project", return_value=tracker),
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
             patch.object(orch, "_fetch_epic_children", return_value=[c1]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
         ):
             orch._label_merged_epics()
 
@@ -3491,9 +3635,19 @@ class TestLabelMergedEpics:
         )
         orch._merged_branches = set()
         provider = MagicMock()
-        provider.list_merged_branches.return_value = {
-            "epic-example-org_oompah_272",
-        }
+        provider.list_merged_reviews.return_value = [
+            ReviewRequest(
+                id="291",
+                title="example-org/oompah#272",
+                url="https://github.com/org/repo/pull/291",
+                author="alice",
+                state="merged",
+                source_branch="epic-example-org_oompah_272",
+                target_branch="main",
+                created_at="",
+                updated_at="",
+            )
+        ]
         mock_detect.return_value = provider
 
         tracker = MagicMock()
@@ -3518,6 +3672,48 @@ class TestLabelMergedEpics:
             ci_helper.identifier: "Merged",
             rebase_helper.identifier: "Merged",
         }
+
+    @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_provider_landed_epic_target_mismatch_is_not_marked(
+        self,
+        mock_detect,
+        _mock_slug,
+        tmp_path,
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.epic_branch_name.side_effect = (
+            lambda epic_id: f"epic-{epic_id}"
+        )
+        epic = _make_issue(identifier="epic-1", issue_type="epic", state="Done")
+        child = _make_issue(identifier="c1", state="Done", parent_id=epic.identifier)
+        merged_to_parent = ReviewRequest(
+            id="291",
+            title="nested epic landing",
+            url="https://github.com/org/repo/pull/291",
+            author="alice",
+            state="merged",
+            source_branch="epic-epic-1",
+            target_branch="epic-parent",
+            created_at="",
+            updated_at="",
+        )
+        orch._merged_branches = {"epic-epic-1"}
+        provider = MagicMock()
+        provider.list_merged_reviews.return_value = [merged_to_parent]
+        provider.find_pr_for_branch.return_value = merged_to_parent
+        mock_detect.return_value = provider
+
+        tracker = MagicMock()
+        with (
+            patch.object(orch, "_all_non_terminal_epics", return_value=[epic]),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+        ):
+            orch._label_merged_epics()
+
+        tracker.update_issue.assert_not_called()
 
     def test_noop_when_no_landed_epics(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")

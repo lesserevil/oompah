@@ -148,6 +148,11 @@ class SCMProvider(ABC):
         ...
 
     @abstractmethod
+    def list_merged_reviews(self, repo: str) -> list[ReviewRequest]:
+        """Return recently merged PRs/MRs with source and target branches."""
+        ...
+
+    @abstractmethod
     def find_pr_for_branch(
         self, repo: str, branch_name: str,
     ) -> ReviewRequest | None:
@@ -1087,6 +1092,13 @@ class GitHubProvider(SCMProvider):
         return results
 
     def list_merged_branches(self, repo: str) -> set[str]:
+        return {
+            review.source_branch
+            for review in self.list_merged_reviews(repo)
+            if review.source_branch
+        }
+
+    def list_merged_reviews(self, repo: str) -> list[ReviewRequest]:
         try:
             r = self._api("GET", f"/repos/{repo}/pulls", params={
                 "state": "closed",
@@ -1095,18 +1107,45 @@ class GitHubProvider(SCMProvider):
                 "direction": "desc",
             })
             if r.status_code != 200:
-                logger.debug("GitHub list_merged_branches %s: HTTP %d", repo, r.status_code)
-                return set()
+                logger.debug("GitHub list_merged_reviews %s: HTTP %d", repo, r.status_code)
+                return []
             data = r.json()
         except (httpx.HTTPError, json.JSONDecodeError) as exc:
-            logger.debug("GitHub list_merged_branches failed for %s: %s", repo, exc)
-            return set()
+            logger.debug("GitHub list_merged_reviews failed for %s: %s", repo, exc)
+            return []
 
-        return {
-            pr.get("head", {}).get("ref", "")
-            for pr in data
-            if pr.get("merged_at") and pr.get("head", {}).get("ref")
-        }
+        reviews: list[ReviewRequest] = []
+        for pr in data:
+            if not pr.get("merged_at"):
+                continue
+            head_ref = pr.get("head", {}).get("ref", "")
+            if not head_ref:
+                continue
+            author = pr.get("user", {})
+            author_login = (
+                author.get("login", "") if isinstance(author, dict) else str(author)
+            )
+            labels = [
+                lbl.get("name", "")
+                for lbl in pr.get("labels", []) or []
+                if isinstance(lbl, dict)
+            ]
+            reviews.append(ReviewRequest(
+                id=str(pr.get("number", "")),
+                title=pr.get("title", ""),
+                url=pr.get("html_url", ""),
+                author=author_login,
+                state="merged",
+                source_branch=head_ref,
+                target_branch=pr.get("base", {}).get("ref", ""),
+                created_at=pr.get("created_at", ""),
+                updated_at=pr.get("updated_at", ""),
+                description=_truncate(pr.get("body", "") or "", 500),
+                labels=labels,
+                draft=pr.get("draft", False),
+            ))
+        return reviews
+
 
     def find_pr_for_branch(
         self, repo: str, branch_name: str,
@@ -1627,6 +1666,13 @@ class GitLabProvider(SCMProvider):
         return results
 
     def list_merged_branches(self, repo: str) -> set[str]:
+        return {
+            review.source_branch
+            for review in self.list_merged_reviews(repo)
+            if review.source_branch
+        }
+
+    def list_merged_reviews(self, repo: str) -> list[ReviewRequest]:
         encoded = self._project_path(repo)
         try:
             r = self._api("GET", f"/projects/{encoded}/merge_requests", params={
@@ -1636,14 +1682,41 @@ class GitLabProvider(SCMProvider):
                 "sort": "desc",
             })
             if r.status_code != 200:
-                logger.debug("GitLab list_merged_branches %s: HTTP %d", repo, r.status_code)
-                return set()
+                logger.debug("GitLab list_merged_reviews %s: HTTP %d", repo, r.status_code)
+                return []
             data = r.json()
         except (httpx.HTTPError, json.JSONDecodeError) as exc:
-            logger.debug("GitLab list_merged_branches failed for %s: %s", repo, exc)
-            return set()
+            logger.debug("GitLab list_merged_reviews failed for %s: %s", repo, exc)
+            return []
 
-        return {mr.get("source_branch", "") for mr in data if mr.get("source_branch")}
+        reviews: list[ReviewRequest] = []
+        for mr in data:
+            source_branch = mr.get("source_branch", "")
+            if not source_branch:
+                continue
+            author = mr.get("author", {})
+            author_name = (
+                author.get("username", author.get("name", ""))
+                if isinstance(author, dict)
+                else str(author)
+            )
+            labels_raw = mr.get("labels", []) or []
+            labels = labels_raw if isinstance(labels_raw, list) else []
+            reviews.append(ReviewRequest(
+                id=str(mr.get("iid", mr.get("id", ""))),
+                title=mr.get("title", ""),
+                url=mr.get("web_url", ""),
+                author=author_name,
+                state="merged",
+                source_branch=source_branch,
+                target_branch=mr.get("target_branch", ""),
+                created_at=mr.get("created_at", ""),
+                updated_at=mr.get("updated_at", ""),
+                description=_truncate(mr.get("description", "") or "", 500),
+                labels=labels,
+                draft=mr.get("draft", False) or mr.get("work_in_progress", False),
+            ))
+        return reviews
 
     def find_pr_for_branch(
         self, repo: str, branch_name: str,
