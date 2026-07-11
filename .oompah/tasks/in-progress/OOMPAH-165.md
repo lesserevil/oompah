@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-11T03:24:27.952153Z'
-updated_at: '2026-07-11T03:25:06.395392Z'
+updated_at: '2026-07-11T03:40:47.272478Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,23 @@ author: oompah
 created: 2026-07-11 03:25
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-11 03:40
+---
+Understanding: Investigated this issue thoroughly. No duplicate found — OOMPAH-162 fixed stacked children bypassing epic branch (reverse direction), OOMPAH-163 fixed dispatch validation. OOMPAH-165 is a unique bug.
+
+Root cause: In nested stacked/shared epic workflows, when child sub-epics (e.g., COROOT-11, COROOT-12) merge their branches INTO the parent epic branch (epic-COROOT-4), _label_merged_epics correctly marks those sub-epics as Merged. However, _reconcile_epic_rollup_statuses then sees all children as Merged, computes epic_rollup_state([Merged, Merged]) = 'Merged', and incorrectly sets the parent epic (COROOT-4) to Merged — even though epic-COROOT-4 has NOT been merged to main.
+
+Second issue: _open_epic_main_prs gates on epic_rollup_state(child_states) != DONE. When all children are Merged (not Done), rollup = Merged != Done → the final epic→main PR never opens.
+
+Third issue (defense-in-depth): _label_merged_epics doesn't verify that the merged PR's target matches the epic's resolved target branch, so an epic could be incorrectly marked Merged if its branch was merged to a wrong intermediate branch.
+
+Plan:
+1. Fix _reconcile_epic_rollup_statuses: for stacked/shared epics, cap rolled state at Done when it would be Merged (the Merged transition is owned by _label_merged_epics via PR target verification)
+2. Fix _open_epic_main_prs: allow rollup = Merged or Done to open the final PR (children in epic branch = ready for epic→main)
+3. Fix _label_merged_epics: add target branch check in fallback find_pr_for_branch path
+4. Add regression tests
+5. Repair coroot COROOT-4 state
 ---
 <!-- COMMENTS:END -->
