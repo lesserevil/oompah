@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-11T03:24:27.952153Z'
-updated_at: '2026-07-11T03:51:43.841265Z'
+updated_at: '2026-07-11T03:51:52.397823Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,20 @@ author: oompah
 created: 2026-07-11 03:47
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-11 03:51
+---
+Understanding: Previous investigation confirmed this is a unique bug (no duplicate). Three distinct fixes needed:
+
+1. _reconcile_epic_rollup_statuses: When all children of a stacked/shared epic are Merged (e.g., sub-epics merged into the parent epic branch), epic_rollup_state returns MERGED, incorrectly setting the parent epic to Merged even though its branch hasn't landed on main. Fix: cap rollup at DONE when strategy is stacked/shared.
+
+2. _open_epic_main_prs: Gates on rollup == DONE to open the final epic→main PR. But if all children are Merged, rollup is MERGED != DONE, so the PR never opens. Fix: allow MERGED in addition to DONE.
+
+3. _label_merged_epics: Fallback path (find_pr_for_branch) marks epic landed if ANY PR from its branch is merged, without verifying the PR target is the epic's resolved target branch. Fix: add target branch check.
+
+4. COROOT-4 state repair: The bug incorrectly marked COROOT-4 as Merged. Need to move it back to Done so _open_epic_main_prs can open the epic-COROOT-4 → main PR.
+
+Starting implementation now.
 ---
 <!-- COMMENTS:END -->
