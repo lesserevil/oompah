@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import time
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -36,6 +36,7 @@ def _make_issue(
     issue_type: str = "epic",
     priority: int = 1,
     project_id: str = "proj-1",
+    parent_id: str | None = None,
     labels: list[str] | None = None,
 ) -> Issue:
     return Issue(
@@ -47,6 +48,7 @@ def _make_issue(
         issue_type=issue_type,
         priority=priority,
         project_id=project_id,
+        parent_id=parent_id,
         labels=labels or [],
     )
 
@@ -223,14 +225,19 @@ class TestClearEpicRebaseState:
             "epic-1", **{"remove-label": "epic:stale"}
         )
 
-    def test_noop_when_not_tracked(self, tmp_path):
+    def test_clears_labels_even_when_not_tracked(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = _make_issue(
+            "epic-1", labels=["epic:rebasing", "other"]
+        )
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         orch._clear_epic_rebase_state("epic-1", project_id="proj-1")
 
-        tracker.fetch_issue_detail.assert_not_called()
+        tracker.update_issue.assert_called_once_with(
+            "epic-1", **{"remove-label": "epic:rebasing"}
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -466,6 +473,33 @@ class TestEpicStaleAlert:
         assert alert["target_branch"] == "main"
         assert alert["commits_behind"] == 6
 
+    def test_uses_resolved_target_branch(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue("TASK-465")
+        result = StalenessResult(
+            stale=True,
+            commits_behind=6,
+            shared_files=(),
+            threshold=5,
+        )
+
+        orch._arm_epic_stale_alert(
+            issue,
+            _make_project(),
+            result,
+            target_branch="epic-TASK-4",
+        )
+
+        alert = next(
+            a for a in orch._alerts
+            if a.get("source") == "epic_stale:TASK-465"
+        )
+        assert (
+            alert["title"]
+            == "Epic TASK-465 on oompah is 6 commits behind epic-TASK-4"
+        )
+        assert alert["target_branch"] == "epic-TASK-4"
+
     def test_failed_rebase_state_explains_failed_run(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         orch._epic_rebase_states["TASK-465"] = EpicRebaseStateEntry(
@@ -543,4 +577,93 @@ class TestDispatchProactiveRebaseAgents:
             status=NEEDS_REBASE,
             priority="0",
             **{"add-label": "merge-conflict"},
+        )
+
+    def test_shared_nested_epic_helper_targets_parent_epic_branch(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        project = MagicMock()
+        project.id = "proj-1"
+        project.name = "oompah"
+        project.default_branch = "main"
+        project.epic_strategy = "shared"
+        orch.project_store.get.return_value = project
+        orch.project_store.epic_branch_name.side_effect = lambda ident: f"epic-{ident}"
+
+        issue = _make_issue(
+            "TASK-18",
+            state="open",
+            project_id="proj-1",
+            parent_id="TASK-4",
+        )
+        parent = _make_issue("TASK-4", project_id="proj-1")
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._fetch_epic_children = MagicMock(return_value=[])
+        orch._resolve_parent_epic = MagicMock(return_value=parent)
+        orch._should_dispatch_rebase_agent = MagicMock(return_value=True)
+        orch._epic_rebase_states["TASK-18"] = EpicRebaseStateEntry(
+            state=EpicRebaseState.STALE.value,
+            updated_at=time.time(),
+            project_id="proj-1",
+        )
+
+        filed = orch._dispatch_proactive_rebase_agents([issue])
+
+        assert filed == 1
+        tracker.create_issue.assert_called_once()
+        assert tracker.create_issue.call_args.kwargs["title"] == (
+            "Rebase epic-TASK-18 onto epic-TASK-4"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Epic staleness target resolution
+# ---------------------------------------------------------------------------
+
+
+class TestCheckEpicStaleness:
+    def test_shared_nested_epic_checks_parent_epic_branch(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        project = MagicMock()
+        project.id = "proj-1"
+        project.name = "oompah"
+        project.repo_path = "/tmp/repo"
+        project.default_branch = "main"
+        project.epic_strategy = "shared"
+        orch.project_store.get.return_value = project
+        orch.project_store.epic_branch_name.side_effect = lambda ident: f"epic-{ident}"
+
+        issue = _make_issue(
+            "TASK-18",
+            state="open",
+            issue_type="epic",
+            project_id="proj-1",
+            parent_id="TASK-4",
+        )
+        parent = _make_issue("TASK-4", issue_type="epic", project_id="proj-1")
+        result = StalenessResult(
+            stale=False,
+            commits_behind=0,
+            shared_files=(),
+            threshold=5,
+        )
+
+        with (
+            patch.object(orch, "_resolve_parent_epic", return_value=parent),
+            patch(
+                "oompah.epic_staleness.check_epic_branch_staleness",
+                return_value=result,
+            ) as check,
+        ):
+            stale_count = orch._check_epic_staleness([issue])
+
+        assert stale_count == 0
+        check.assert_called_once_with(
+            "/tmp/repo",
+            "epic-TASK-18",
+            "epic-TASK-4",
+            threshold_commits=5,
         )

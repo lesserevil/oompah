@@ -4609,7 +4609,7 @@ class Orchestrator:
                 continue
 
             epic_branch = self.project_store.epic_branch_name(issue.identifier)
-            target_branch = project.default_branch or "main"
+            target_branch = self._resolve_epic_target_branch(issue, project) or "main"
             current_state = self._get_epic_rebase_state(issue.identifier)
             entry = self._epic_rebase_states.get(issue.identifier)
 
@@ -4635,7 +4635,12 @@ class Orchestrator:
 
             if result.stale:
                 stale_count += 1
-                self._arm_epic_stale_alert(issue, project, result)
+                self._arm_epic_stale_alert(
+                    issue,
+                    project,
+                    result,
+                    target_branch=target_branch,
+                )
                 # Set STALE state if not already tracking something active
                 if current_state in (None, EpicRebaseState.REBASED):
                     self._set_epic_rebase_state(
@@ -4673,13 +4678,15 @@ class Orchestrator:
         epic: Issue,
         project,
         result,
+        *,
+        target_branch: str | None = None,
     ) -> None:
         """Add (or replace) an ``epic_stale`` alert for one epic.
 
         The alert is keyed on ``source='epic_stale:<epic_identifier>'``.
         """
         source = f"epic_stale:{epic.identifier}"
-        target_branch = project.default_branch or "main"
+        target_branch = target_branch or project.default_branch or "main"
 
         # Drop existing alert for this epic (if any)
         self._alerts = [
@@ -5720,9 +5727,7 @@ class Orchestrator:
         project_id: str | None = None,
     ) -> None:
         """Drop the tracked rebase state for ``epic_identifier`` and clear labels."""
-        if epic_identifier not in self._epic_rebase_states:
-            return
-        del self._epic_rebase_states[epic_identifier]
+        removed_entry = self._epic_rebase_states.pop(epic_identifier, None)
         try:
             tracker = (
                 self._tracker_for_project(project_id)
@@ -5743,8 +5748,9 @@ class Orchestrator:
                 epic_identifier,
                 exc,
             )
-        self._persist_epic_rebase_states()
-        logger.info("Cleared epic rebase state for %s", epic_identifier)
+        if removed_entry is not None:
+            self._persist_epic_rebase_states()
+            logger.info("Cleared epic rebase state for %s", epic_identifier)
 
     def _mark_rebase_failed(
         self,
@@ -5898,7 +5904,7 @@ class Orchestrator:
             if not project:
                 continue
             epic_branch = self.project_store.epic_branch_name(issue.identifier)
-            target_branch = project.default_branch or "main"
+            target_branch = self._resolve_epic_target_branch(issue, project) or "main"
 
             try:
                 tracker = self._tracker_for_project(issue.project_id)
