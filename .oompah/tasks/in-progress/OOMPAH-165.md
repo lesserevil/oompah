@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-11T03:24:27.952153Z'
-updated_at: '2026-07-11T03:25:02.054840Z'
+updated_at: '2026-07-11T03:25:04.303182Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Bug: in shared/stacked epic workflows, oompah can mark a top-level epic Merged a
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-11 03:25
+---
+Agent dispatched (profile: default)
+---
+<!-- COMMENTS:END -->
