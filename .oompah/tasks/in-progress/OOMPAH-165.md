@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-11T03:24:27.952153Z'
-updated_at: '2026-07-11T03:45:35.633073Z'
+updated_at: '2026-07-11T03:45:37.821793Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,5 +108,10 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 18s
 - Log: OOMPAH-165__20260711T034519Z.jsonl
+---
+author: oompah
+created: 2026-07-11 03:45
+---
+Agent completed without landing — no commits found on origin for branch `OOMPAH-165`. Escalating from 'standard' to 'deep'. Retrying in 20s (2/3).
 ---
 <!-- COMMENTS:END -->
