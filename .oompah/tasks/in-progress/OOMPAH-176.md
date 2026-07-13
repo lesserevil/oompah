@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:47.109837Z'
-updated_at: '2026-07-13T04:06:39.843408Z'
+updated_at: '2026-07-13T04:06:48.487361Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-07-13 04:06
 ---
 Implementation: Created oompah/release_addendum_approval.py and POST /api/v1/issues/{identifier}/release-addendums in server.py. Key changes: (1) EventType.RELEASE_ADDENDUM_READY added to oompah/events.py; (2) new module oompah/release_addendum_approval.py with per-source asyncio.Lock via _get_source_lock(), resolve_addendum_commits() using SCM PR lookup then git rev-list, validate_target_branches() enforcing deduplication/availability/stale-rejection/default-branch rejection, and approve_release_addendums() that atomically creates missing open rows, writes via AddendumRepository, then publishes release_addendum_ready events per new row (event failure leaves row open, returns queued=False); (3) server.py endpoint validates project/issue/Merged-state/catalog/commits all-or-nothing before lock; (4) 41 new tests in tests/test_server_release_addendums.py covering all required scenarios.
+---
+author: oompah
+created: 2026-07-13 04:06
+---
+Verification: make test — 7606 passed, 28 skipped, 13 warnings (0 failures). 41 new tests added: two-target approval; duplicate request idempotency; concurrent approval (single row via asyncio.Lock); invalid/non-merged source (409); unavailable/default/unsupported/stale targets (400); unresolved commits (409); atomic all-or-nothing validation (no partial writes when one branch invalid); event failure recovery (row persisted open, queued=false, no rollback, event_failures in response); event emission per new row; no tracker child task created.
 ---
 <!-- COMMENTS:END -->
