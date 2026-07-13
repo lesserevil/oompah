@@ -138,6 +138,7 @@ def test_release_workflow_is_tag_or_manual_github_release_only():
     assert "python -m pip install dist/*.whl" in text
     assert "oompah --help" in text
     assert "oompah task --help" in text
+    assert "oompah project-bootstrap --help" in text
     assert "gh release create" in text
     assert "gh release upload" in text
     assert "scripts/render_cli_release_notes.py" in text
