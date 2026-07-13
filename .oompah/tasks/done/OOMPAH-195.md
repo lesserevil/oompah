@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:43.705145Z'
-updated_at: '2026-07-13T20:55:45.835720Z'
+updated_at: '2026-07-13T20:55:48.969423Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -125,5 +125,15 @@ author: oompah
 created: 2026-07-13 20:55
 ---
 Delivered release delivery queue (ReleaseDeliveryQueue, delivery_id keyed), executor (cherry_pick_delivery with target availability check, source_commits ordering, result SHA persistence), and poller (poll_delivery_pr for merged/closed-unmerged reconciliation). All state written through ReleaseDeliveryStore. 58 new tests cover restart recovery, expired lease, multi-commit ordering, result-SHA persistence, retry, archive, and unavailable-target refusal. 8315/8315 tests pass.
+---
+author: oompah
+created: 2026-07-13 20:55
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 76
+- Tokens: 120 in / 3.1K out [3.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 39s
+- Log: OOMPAH-195__20260713T203715Z.jsonl
 ---
 <!-- COMMENTS:END -->
