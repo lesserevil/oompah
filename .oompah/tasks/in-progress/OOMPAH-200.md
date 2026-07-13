@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:56.999746Z'
-updated_at: '2026-07-13T22:36:55.449191Z'
+updated_at: '2026-07-13T22:41:39.526419Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -68,5 +68,10 @@ author: oompah
 created: 2026-07-13 22:36
 ---
 Duplicate investigation complete: OOMPAH-200 is unique. The sibling tasks in the OOMPAH-192 epic cover: ledger schema (193), migration (194), queue/executor refactoring (195), task/epic compat (196), CommitInventoryService (197), GET inventory API (198), POST queue API (199), docs/deprecation (201), and e2e (202). No archived, done, or open task replaces the dashboard Release branches overlay/_rbi with a UI. All blockers (OOMPAH-196, OOMPAH-198, OOMPAH-199) are Done. Proceeding with implementation: replacing the _rbi overlay and toolbar action with the Release delivery overlay (sections 2 and 6 of plans/release-delivery-commit-inventory.md).
+---
+author: oompah
+created: 2026-07-13 22:41
+---
+Discovery: Confirmed the scope. The dashboard.html has: (1) RBI CSS at ~lines 970-1139 (release-branch-inspector-overlay, rbi-* classes), (2) toolbar button at line 2102 (btn-release-branches / openReleaseBranchInspector), (3) RBI JS at lines 6695-6920 (_rbiCurrentProjectId, _rbiLoadBranchList, etc.), (4) RBI HTML overlay at lines 7145-7164. All four must be replaced with the new Release delivery overlay. Dependencies (OOMPAH-196, OOMPAH-198, OOMPAH-199) are all Done. The GET API at /api/v1/projects/{id}/release-delivery/commits returns rows with sha/selectable/release_status cells (state: not_selected|open|in_progress|in_review|blocked|delivered|archived, evidence: delivery|ancestry|null). The POST API returns created/already_active/already_delivered/invalid per-pair outcomes. Beginning implementation now.
 ---
 <!-- COMMENTS:END -->
