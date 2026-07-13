@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:44:41.783116Z'
-updated_at: '2026-07-13T02:45:35.612329Z'
+updated_at: '2026-07-13T02:47:13.377233Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,14 @@ author: oompah
 created: 2026-07-13 02:45
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 02:47
+---
+UNDERSTANDING: Searched all tasks for duplicates (title grep, content grep for 'set-source', 'source reference', 'edit source', etc.). No duplicate found — this is a unique work item. 
+
+Plan: OOMPAH-186 asks for two new CLI subcommands: (1) `oompah task set-source <task-id> <source>` to set/replace a task's source reference and (2) `oompah task remove-source <task-id>` to clear it entirely. These must reuse the server/tracker update path so native Markdown tasks persist the change. Must include help text, validation, machine-readable output, and tests (parser, set, replace, remove, missing task/project, invalid input, backend persistence). Also needs CLI/API doc updates.
+
+Starting with codebase exploration to find existing --source implementation in task create.
 ---
 <!-- COMMENTS:END -->
