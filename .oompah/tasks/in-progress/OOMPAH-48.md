@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:46:23.693967Z'
-updated_at: '2026-07-13T14:57:23.951748Z'
+updated_at: '2026-07-13T14:58:00.222501Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,5 +70,10 @@ author: oompah
 created: 2026-07-13 14:57
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 14:58
+---
+UNDERSTANDING: This is NOT a duplicate. OOMPAH-47 (now Archived) completed the docs/cli-release.md update but could not push .github/workflows/cli-release.yml changes due to PAT workflow scope restriction. OOMPAH-48 was explicitly created to track those remaining two changes once a human fixed the PAT. The user has confirmed the PAT is now fixed ('Fixed. Please continue.'). Plan: (1) add 'oompah project-bootstrap --help' after 'oompah task --help' in the Verify wheel console script step of .github/workflows/cli-release.yml, (2) add 'assert "oompah project-bootstrap --help" in text' to test_release_workflow_is_tag_or_manual_github_release_only in tests/test_cli_release_packaging.py, (3) run tests, (4) commit and push.
 ---
 <!-- COMMENTS:END -->
