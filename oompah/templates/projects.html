@@ -261,6 +261,10 @@ async function loadProjects() {
         <span class="field-label">Default Branch:</span>
         <span class="field-value">${esc(p.default_branch)}</span>
       </div>
+      <div class="field-row" data-field="supported-release-branches">
+        <span class="field-label">Release Lines:</span>
+        <span class="field-value">${(p.supported_release_branches && p.supported_release_branches.length > 0) ? esc(p.supported_release_branches.join(', ')) : '<em style="color:var(--text-muted);font-style:italic;">none</em>'}</span>
+      </div>
       ${p.git_user_name ? `<div class="field-row">
         <span class="field-label">Git User:</span>
         <span class="field-value">${esc(p.git_user_name)} &lt;${esc(p.git_user_email || '')}&gt;</span>
@@ -369,6 +373,11 @@ async function loadProjects() {
         <div class="form-group">
           <label>Default Branch (for new tasks)</label>
           <input type="text" id="edit-default-branch-${esc(p.id)}" value="${esc(p.default_branch)}">
+        </div>
+        <div class="form-group" data-field="supported-release-branches-edit">
+          <label>Supported Release Lines <span style="font-weight:400;color:var(--text-muted);">(comma-separated exact branch names — only these are offered as release-addendum targets; removing a line stops new approvals but keeps its history)</span></label>
+          <input type="text" id="edit-supported-release-branches-${esc(p.id)}" value="${esc((p.supported_release_branches || []).join(', '))}" placeholder="e.g. release/1.1, release/1.0">
+          <span style="font-size:0.7rem;color:var(--text-muted);">Removing a line stops new release-addendum approvals for that branch but does not delete the branch or cancel existing addendums. Each entry must match a pattern in Branches above and must not be the default branch.</span>
         </div>
         <div class="form-group">
           <label>Git User Name</label>
@@ -589,6 +598,10 @@ async function saveProject(id) {
   const branchesRaw = document.getElementById('edit-branches-' + id).value.trim();
   const branches = branchesRaw ? branchesRaw.split(',').map(s => s.trim()).filter(s => s.length > 0) : undefined;
   const defaultBranch = document.getElementById('edit-default-branch-' + id).value.trim() || undefined;
+  const supportedReleaseBranchesRaw = document.getElementById('edit-supported-release-branches-' + id).value.trim();
+  const supportedReleaseBranches = supportedReleaseBranchesRaw
+    ? supportedReleaseBranchesRaw.split(',').map(s => s.trim()).filter(s => s.length > 0)
+    : [];
   const gitUserName = document.getElementById('edit-git-user-name-' + id).value.trim();
   const gitUserEmail = document.getElementById('edit-git-user-email-' + id).value.trim();
   const logPath = document.getElementById('edit-log-path-' + id).value.trim();
@@ -634,7 +647,8 @@ async function saveProject(id) {
     github_issue_intake_enabled: githubIssueIntakeEnabled,
     github_project_node_id: githubProjectNodeId,
     status_actor_login: statusActorLogin,
-    status_label_authorized_logins: statusLabelAuthorizedLogins};
+    status_label_authorized_logins: statusLabelAuthorizedLogins,
+    supported_release_branches: supportedReleaseBranches};
   if (repoUrl) body.repo_url = repoUrl;
   if (gitUserName) body.git_user_name = gitUserName;
   if (gitUserEmail) body.git_user_email = gitUserEmail;

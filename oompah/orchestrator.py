@@ -29,6 +29,7 @@ from oompah.config import (
     validate_dispatch_config,
 )
 from oompah.events import EventBus, EventType
+from oompah.release_addendum_queue import ReleaseAddendumQueue
 from oompah.epic_proposal import process_epic_proposal_issue
 from oompah.github_intake_bridge import (
     poll_github_issue_intake_project,
@@ -667,6 +668,12 @@ class Orchestrator:
         # are kept for backward compatibility with server.py, but internally
         # the EventBus is the canonical dispatch mechanism.
         self.event_bus: EventBus = EventBus()
+        # Release addendums have their own durable queue.  A ready event is a
+        # prompt wake-up only; the queue's metadata scan remains authoritative
+        # after missed events or process restarts.
+        self.event_bus.subscribe(
+            EventType.RELEASE_ADDENDUM_READY, self._on_release_addendum_ready
+        )
         self._observers: list[Any] = []
         self._state_only_observers: list[Any] = []
         self._activity_observers: list[Any] = []
@@ -1580,6 +1587,58 @@ class Orchestrator:
         # to closed/stale issues after a tick boundary.
         self._branch_indexes.clear()
 
+    def _on_release_addendum_ready(
+        self, _event_type: EventType | str, payload: dict[str, Any]
+    ) -> None:
+        """Wake the event-driven loop when durable release work is approved."""
+        self._post_event(
+            DispatchEvent(
+                event_type=DispatchEventType.REFRESH_REQUESTED,
+                payload={"release_addendum_ready": dict(payload)},
+            )
+        )
+
+    def release_addendum_queue(
+        self, project_id: str | None, *, worker_id: str
+    ) -> ReleaseAddendumQueue:
+        """Build the release-only queue adapter for an executor worker.
+
+        This deliberately returns metadata queue items, not tracker Issues.
+        """
+        tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+        return ReleaseAddendumQueue(
+            project_id or "legacy",
+            tracker,
+            worker_id=worker_id,
+            event_bus=self.event_bus,
+        )
+
+    def _recover_release_addendum_leases(self) -> int:
+        """Periodic durable recovery for workers that died with a lease."""
+        projects = self.project_store.list_all()
+        queue_specs: list[tuple[str | None, TrackerProtocol]] = []
+        if projects:
+            for project in projects:
+                try:
+                    queue_specs.append((project.id, self._tracker_for_project(project.id)))
+                except (ProjectError, TrackerError) as exc:
+                    logger.warning("Release-addendum recovery skipped project %s: %s", project.id, exc)
+        else:
+            queue_specs.append((None, self.tracker))
+
+        recovered = 0
+        for project_id, tracker in queue_specs:
+            try:
+                queue = ReleaseAddendumQueue(
+                    project_id or "legacy", tracker, worker_id="orchestrator-recovery"
+                )
+                recovered += len(queue.recover_expired_leases())
+            except (TrackerError, ValueError) as exc:
+                logger.warning(
+                    "Release-addendum recovery failed project_id=%s: %s", project_id, exc
+                )
+        return recovered
+
     # ------------------------------------------------------------------
     # Error watcher integration (oompah-zlz_2-0nc)
     # ------------------------------------------------------------------
@@ -2409,6 +2468,13 @@ class Orchestrator:
         # full-corpus read+parse is the dominant tick cost). Writes during
         # the tick re-invalidate, so reads never go stale.
         self._invalidate_tracker_read_caches()
+
+        # Release addendum leases are independent of source-task lifecycle.
+        # Run their durable recovery on every event/full-sync tick so a worker
+        # crash cannot strand a row until the source task changes state.
+        await asyncio.get_event_loop().run_in_executor(
+            self._tick_pool, self._recover_release_addendum_leases
+        )
 
         # 1. Reconcile running agents against tracker
         await self._handle_reconcile()
@@ -7655,6 +7721,7 @@ class Orchestrator:
             ("reconcile_in_review_pr_outcomes", self._reconcile_in_review_pr_outcomes),
             ("reconcile_terminal_open_reviews", self._reconcile_terminal_open_reviews),
             ("reconcile_stale_in_review_tasks", self._reconcile_stale_in_review_tasks),
+            ("reconcile_addendum_pr_outcomes", self._reconcile_addendum_pr_outcomes_sweep),
         ]
         for name, sweep in sweeps:
             if self._job_deadline_exceeded("merged_labels"):
@@ -8491,6 +8558,115 @@ class Orchestrator:
                     commit_lines,
                     review,
                 )
+
+    def _reconcile_addendum_pr_outcomes_sweep(self) -> None:
+        """Poll PR state for all ``in_review`` release addendums and reconcile.
+
+        For each project that has a resolvable SCM provider, reads every
+        source task's release-addendum list and delegates to
+        :func:`~oompah.release_addendum_poller.poll_addendum_pr` for each
+        ``in_review`` entry.
+
+        State changes
+        -------------
+        - ``in_review`` + merged PR → ``merged`` (+ oompah comment on source)
+        - ``in_review`` + closed PR → error field updated; stays ``in_review``
+          (+ oompah comment); operator must call the retry endpoint to re-queue
+        - All other states → skipped; the function is a no-op for them
+
+        This sweep is idempotent: calling it twice with the same PR state
+        produces the same result.  Failures on individual addendums are caught
+        and logged without aborting the sweep.
+
+        Called from :meth:`_do_merged_labels` (maintenance lane).
+        """
+        try:
+            from oompah.release_addendum_poller import poll_addendum_pr
+            from oompah.release_addendum_schema import (
+                AddendumRepository,
+                AddendumStatus,
+            )
+        except ImportError:
+            logger.debug(
+                "_reconcile_addendum_pr_outcomes_sweep: poller module not available"
+            )
+            return
+
+        for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("merged_labels"):
+                return
+
+            project_id = str(project.id)
+            repo_url = getattr(project, "repo_url", None)
+            if not repo_url:
+                continue
+
+            try:
+                provider = detect_provider(repo_url, access_token=getattr(project, "access_token", None))
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "_reconcile_addendum_pr_outcomes_sweep: provider detection failed for %s: %s",
+                    project_id,
+                    exc,
+                )
+                continue
+
+            if not provider:
+                continue
+
+            slug = extract_repo_slug(repo_url)
+
+            try:
+                tracker = self._tracker_for_project(project_id)
+                sources = tracker.fetch_all_issues()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "_reconcile_addendum_pr_outcomes_sweep: fetch_all_issues failed for %s: %s",
+                    project_id,
+                    exc,
+                )
+                continue
+
+            for source in sources:
+                if self._job_deadline_exceeded("merged_labels"):
+                    return
+
+                identifier = (
+                    getattr(source, "identifier", None)
+                    or getattr(source, "id", None)
+                )
+                if not identifier:
+                    continue
+                identifier = str(identifier)
+
+                try:
+                    addendums = AddendumRepository(tracker).read(identifier)
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug(
+                        "_reconcile_addendum_pr_outcomes_sweep: read failed for %s: %s",
+                        identifier,
+                        exc,
+                    )
+                    continue
+
+                for addendum in addendums:
+                    if addendum.status is not AddendumStatus.IN_REVIEW:
+                        continue
+                    try:
+                        poll_addendum_pr(
+                            tracker,
+                            identifier,
+                            addendum,
+                            scm=provider,
+                            repo=slug,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning(
+                            "_reconcile_addendum_pr_outcomes_sweep: poll failed for %s %r: %s",
+                            identifier,
+                            addendum.id,
+                            exc,
+                        )
 
     def _review_target_branch(
         self,

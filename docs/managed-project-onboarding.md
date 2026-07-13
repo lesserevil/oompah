@@ -43,7 +43,7 @@ are dispatched.
      project must use GitHub Issues as its task source.
    - **Tracker owner / repo** — set these to the GitHub org and repo that
      receives external issues (required only if you will enable GitHub Issues
-     intake; see §4).
+     intake; see §5).
 4. Check **Start paused**.
 5. Save the project.
 
@@ -115,7 +115,48 @@ Expected output: the nine status subdirectories listed above.
 
 ---
 
-## 4. Optional GitHub Issues Intake
+## 4. Optional: Configure Supported Release Lines
+
+If you maintain release branches and want oompah to deliver already-merged work
+to them, configure the supported release lines while the project is still paused
+and before unpausing.
+
+### Why configure early
+
+Release lines control which branches are offered as addendum targets in the task
+detail dialog. Configuring them before unpausing means agents and operators see
+the correct target list from the first dispatch tick.
+
+### Configure via the dashboard
+
+1. Open the oompah dashboard and go to **Projects → [your project] → Settings**.
+2. Under **Supported Release Lines**, enter a comma-separated ordered list of
+   exact branch names, for example `release/1.1, release/1.0`.
+   - Each entry must match one of the patterns in **Branches** and must not be
+     the project's default branch.
+   - Removing a line stops new approvals but does not delete the branch or
+     cancel existing addendums.
+3. Save. The list is available immediately for the next addendum approval.
+
+### Configure via the API
+
+```bash
+curl -X PATCH http://localhost:8080/api/v1/projects/<project-id> \
+  -H 'Content-Type: application/json' \
+  -d '{"supported_release_branches": ["release/1.1", "release/1.0"]}'
+```
+
+### Skip this section
+
+If this project has no release branches, skip to §5.
+
+For the complete release-addendum workflow — queuing a merged task, checking
+addendum status, retrying a blocked addendum, and inspecting a release line —
+see [Release Addendums](release-addendums.md).
+
+---
+
+## 5. Optional: GitHub Issues Intake
 
 If the project accepts external issue reports through GitHub Issues, enable
 intake after the native tracker is verified.
@@ -174,7 +215,7 @@ intake flow.
 
 ---
 
-## 5. Project Bootstrap and AGENTS.md Update
+## 6. Project Bootstrap and AGENTS.md Update
 
 Run the bootstrap to create or refresh the baseline project files that oompah
 manages, including `AGENTS.md`, `docs/README.md`, `plans/README.md`, a
@@ -232,12 +273,12 @@ oompah project-bootstrap status /path/to/repo
 
 ---
 
-## 6. Initial Paused-Project Review
+## 7. Initial Paused-Project Review
 
 Before unpausing the project, walk through these checks while agents are still
 blocked from dispatching.
 
-### 6.1 Verify task tracker state
+### 7.1 Verify task tracker state
 
 ```bash
 # Native tracker: check the task directories exist and are readable
@@ -250,7 +291,7 @@ for d in proposed backlog open in-progress needs-human in-review done merged arc
 done
 ```
 
-### 6.2 Verify bootstrap output
+### 7.2 Verify bootstrap output
 
 ```bash
 oompah project-bootstrap status /path/to/repo
@@ -259,7 +300,7 @@ oompah project-bootstrap status /path/to/repo
 All bootstrap-managed files should show **current** (no drifted entries).
 Resolve any drift before unpausing.
 
-### 6.3 Check service health
+### 7.3 Check service health
 
 ```bash
 make status
@@ -274,12 +315,12 @@ Confirm:
 | `alerts` | empty `[]` |
 | `budget.exceeded` | `false` |
 
-### 6.4 Verify GitHub intake (if enabled)
+### 7.4 Verify GitHub intake (if enabled)
 
-- Confirm at least one test issue reached `Proposed` status (§4 verify step).
+- Confirm at least one test issue reached `Proposed` status (§5 verify step).
 - Confirm the webhook forwarder processes are running.
 
-### 6.5 Review initial task queue
+### 7.5 Review initial task queue
 
 If the project has pre-existing open tasks, review them now:
 
@@ -293,7 +334,7 @@ Check that:
 - Dependencies (`blocked_by`) reference the correct task IDs.
 - Priority values are set intentionally.
 
-### 6.6 Unpause the project
+### 7.6 Unpause the project
 
 When all checks pass, unpause:
 
@@ -324,7 +365,11 @@ flowchart TD
     B --> C{tracker_kind?}
     C -- oompah_md --> D[Verify .oompah/tasks layout]
     C -- github_issues --> D
-    D --> E{GitHub intake needed?}
+    D --> RL{Release lines needed?}
+    RL -- yes --> RLC[Configure supported_release_branches]
+    RL -- no --> E
+    RLC --> E
+    E{GitHub intake needed?}
     E -- yes --> F[Enable intake + authorized actors]
     E -- no --> G[Run project bootstrap]
     F --> G

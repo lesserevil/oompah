@@ -636,6 +636,8 @@ class TestProjectStoreUpdatableFields:
             "tracker_repo",
             "github_issue_intake_enabled",
             "github_project_node_id",
+            # Supported release lines (section 5 of release-branch-addendums.md)
+            "supported_release_branches",
         }
         assert ProjectStore.UPDATABLE_FIELDS == expected
 

@@ -364,6 +364,14 @@ class Project:
     # GitHub Projects (v2) node ID for board/roadmap views. Optional — oompah
     # does not require a Project board to manage GitHub Issues.
     github_project_node_id: str | None = None
+    # Ordered list of exact branch names that are supported release lines for
+    # this project.  Operators configure these via the project-definition UI;
+    # only these branches are offered as release-addendum targets (section 5 of
+    # plans/release-branch-addendums.md).  Distinct from Project.branches, which
+    # defines glob patterns for task/review validation.  Removing a supported
+    # line stops new approvals but does not delete historical addendums.
+    # Legacy project records that lack this field deserialize to an empty list.
+    supported_release_branches: list[str] = field(default_factory=list)
 
     def __post_init__(self):
         # Ensure branches is never empty and default_branch is set
@@ -456,6 +464,10 @@ class Project:
         d["github_issue_intake_enabled"] = self.github_issue_intake_enabled
         if self.github_project_node_id is not None:
             d["github_project_node_id"] = self.github_project_node_id
+        # Always emit supported_release_branches (even when empty) so API
+        # responses and dashboards can render the field without back-compat
+        # guessing.  Legacy records that lack this field default to [] on load.
+        d["supported_release_branches"] = list(self.supported_release_branches)
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -558,6 +570,16 @@ class Project:
         status_actor_login: str | None = (
             str(raw_status_actor_login).strip() if raw_status_actor_login else None
         ) or None
+        # supported_release_branches: ordered list of exact branch names
+        # (section 5 of plans/release-branch-addendums.md).  Legacy project
+        # records that lack the field default to an empty list.
+        raw_srb = d.get("supported_release_branches") or []
+        if isinstance(raw_srb, list):
+            supported_release_branches: list[str] = [
+                str(b).strip() for b in raw_srb if str(b).strip()
+            ]
+        else:
+            supported_release_branches = []
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -602,6 +624,7 @@ class Project:
                 d.get("github_issue_intake_enabled", False)
             ),
             github_project_node_id=github_project_node_id,
+            supported_release_branches=supported_release_branches,
         )
 
 

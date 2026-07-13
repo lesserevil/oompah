@@ -828,6 +828,353 @@
       opacity: 0.65;
     }
 
+    /* Release addendums section (OOMPAH-180) */
+    .release-addendum-list {
+      list-style: none;
+      padding: 0;
+      margin: 0.2rem 0 0.4rem;
+    }
+    .release-addendum-entry {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      padding: 0.25rem 0;
+      font-size: 0.8rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .release-addendum-entry:last-child { border-bottom: none; }
+    .release-addendum-branch {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.72rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      color: var(--text);
+    }
+    .release-addendum-status {
+      font-size: 0.68rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .release-addendum-status-open        { background: rgba(125,133,144,0.15); color: var(--text-muted); }
+    .release-addendum-status-in_progress { background: rgba(88,166,255,0.15); color: var(--accent); }
+    .release-addendum-status-in_review   { background: rgba(210,153,34,0.2); color: var(--yellow, #d2a520); }
+    .release-addendum-status-blocked     { background: rgba(248,81,73,0.15); color: var(--red); }
+    .release-addendum-status-merged      { background: rgba(63,185,80,0.2); color: var(--green); }
+    .release-addendum-status-archived    { background: rgba(125,133,144,0.1); color: var(--text-muted); }
+    .release-addendum-pr-link {
+      font-size: 0.72rem;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .release-addendum-pr-link:hover { text-decoration: underline; }
+    .release-addendum-error {
+      font-size: 0.68rem;
+      color: var(--red, #f85149);
+      background: rgba(248,81,73,0.08);
+      border: 1px solid rgba(248,81,73,0.3);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      width: 100%;
+      margin-top: 0.15rem;
+      flex-basis: 100%;
+    }
+    .release-addendum-stale-badge {
+      font-size: 0.68rem;
+      color: var(--yellow, #d2a520);
+      background: rgba(210,153,34,0.12);
+      border: 1px solid rgba(210,153,34,0.3);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+    }
+    /* Epic release-addendum snapshot UI (OOMPAH-181) */
+    .epic-addendum-entry {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      padding: 0.45rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .epic-addendum-entry:last-child { border-bottom: none; }
+    .epic-addendum-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .epic-addendum-snapshot-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: 0.1rem;
+    }
+    .epic-addendum-snapshot-badge {
+      font-size: 0.68rem;
+      background: rgba(125,133,144,0.12);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1rem 0.35rem;
+      white-space: nowrap;
+    }
+    .epic-addendum-snapshot-toggle {
+      font-size: 0.72rem;
+      color: var(--accent);
+      background: none;
+      border: none;
+      padding: 0 0.2rem;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .epic-addendum-snapshot-toggle:hover { opacity: 0.8; }
+    .epic-addendum-snapshot-detail {
+      margin-top: 0.25rem;
+      padding: 0.35rem 0.5rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    .epic-addendum-snapshot-detail[hidden] { display: none; }
+    .epic-addendum-child-list {
+      list-style: none;
+      margin: 0 0 0.3rem 0;
+      padding: 0;
+    }
+    .epic-addendum-child-list li {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.05rem 0;
+      border-bottom: 1px solid rgba(125,133,144,0.1);
+    }
+    .epic-addendum-child-list li:last-child { border-bottom: none; }
+    .epic-addendum-commit-list {
+      font-family: var(--mono, monospace);
+      font-size: 0.68rem;
+      list-style: none;
+      margin: 0.2rem 0 0 0;
+      padding: 0;
+      color: var(--text-muted);
+    }
+    .epic-addendum-commit-list li { padding: 0.02rem 0; }
+    /* Release branches inspector overlay (OOMPAH-182) */
+    .release-branch-inspector-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 200;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 5vh;
+    }
+    .release-branch-inspector-overlay.open { display: flex; }
+    .release-branch-inspector-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 820px;
+      max-width: 95vw;
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .rbi-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .rbi-header h3 {
+      font-size: 0.9rem;
+      color: var(--accent);
+      margin: 0;
+    }
+    .rbi-controls {
+      display: flex;
+      gap: 0.6rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .rbi-controls select {
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.8rem;
+    }
+    .rbi-close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+    }
+    .rbi-close-btn:hover { color: var(--text); }
+    .rbi-body {
+      overflow-y: auto;
+      flex: 1;
+      padding: 0.75rem 1.25rem;
+    }
+    .rbi-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      gap: 0.5rem;
+    }
+    .rbi-empty {
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+    .rbi-error {
+      padding: 1rem;
+      color: var(--red);
+      font-size: 0.85rem;
+      background: rgba(248, 81, 73, 0.08);
+      border-radius: 6px;
+      margin: 0.5rem 0;
+    }
+    .rbi-untracked-warning {
+      background: rgba(210, 153, 34, 0.12);
+      border: 1px solid rgba(210, 153, 34, 0.3);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      color: var(--yellow, #d2a520);
+      margin-bottom: 0.75rem;
+    }
+    .rbi-untracked-warning strong { font-weight: 600; }
+    .rbi-group-section {
+      margin-bottom: 0.75rem;
+    }
+    .rbi-group-heading {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: 0.3rem 0 0.2rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0.3rem;
+    }
+    .rbi-entry-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .rbi-entry {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      padding: 0.35rem 0.1rem;
+      border-bottom: 1px solid rgba(125, 133, 144, 0.1);
+      flex-wrap: wrap;
+    }
+    .rbi-entry:last-child { border-bottom: none; }
+    .rbi-entry-id {
+      font-size: 0.8rem;
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: underline;
+      flex-shrink: 0;
+    }
+    .rbi-entry-id:hover { opacity: 0.8; }
+    .rbi-entry-title {
+      font-size: 0.82rem;
+      color: var(--text);
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .rbi-entry-type {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0 4px;
+      flex-shrink: 0;
+    }
+    .rbi-entry-pr {
+      font-size: 0.75rem;
+      color: var(--accent);
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+    .rbi-entry-pr:hover { text-decoration: underline; }
+    .rbi-entry-error {
+      font-size: 0.75rem;
+      color: var(--red);
+      flex-basis: 100%;
+      padding-left: 0.1rem;
+    }
+    .rbi-no-project {
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    /* Release branches dialog (OOMPAH-180) */
+    .rab-fieldset {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      background: var(--bg);
+      margin: 0.25rem 0 0;
+    }
+    .rab-legend {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text);
+      padding: 0 0.25rem;
+    }
+    .rab-checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.25rem 0;
+      font-size: 0.85rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .rab-checkbox-row.disabled { cursor: default; opacity: 0.7; }
+    .rab-branch-name { color: var(--text); }
+    .rab-already-badge {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+    .rab-stale-warning {
+      font-size: 0.78rem;
+      color: var(--yellow, #d2a520);
+      background: rgba(210,153,34,0.1);
+      border: 1px solid rgba(210,153,34,0.25);
+      border-radius: 4px;
+      padding: 0.3rem 0.6rem;
+      margin-top: 0.5rem;
+    }
+
     /* Agent status bar */
     .agent-bar {
       display: flex;
@@ -1752,6 +2099,7 @@
       <button onclick="window.location='/providers'">Providers</button>
       <button onclick="window.location='/foci'">Foci</button>
       <button onclick="window.location='/reviews'">Reviews</button>
+      <button id="btn-release-branches" onclick="openReleaseBranchInspector()" title="Inspect release-branch addendums: see queued and delivered work for any configured release line.">Release branches</button>
       <button id="btn-console" onclick="openConsolePanel()" title="Per-project interactive ACP console (oompah-zlz_2-ebwe). Same SDK and tool catalog as worker dispatch. Tools: read/write/run.">Console</button>
       <button id="btn-pause" onclick="togglePause()">Pause</button>
       <button onclick="refreshBoard()">Refresh</button>
@@ -4047,6 +4395,396 @@ function openAddReleasePicksModal(identifier, projectId) {
 }
 
 // ---------------------------------------------------------------------------
+// Release addendums helpers (OOMPAH-180)
+// ---------------------------------------------------------------------------
+
+function renderReleaseAddendumsSection(addendumData, identifier, projectId, taskState) {
+  const addendums = (addendumData && addendumData.addendums) || [];
+
+  let html = `
+    <div class="detail-field" style="margin-top:0.75rem; border-top:1px solid var(--border); padding-top:0.75rem;">
+      <div class="detail-field-label">Release addendums</div>
+  `;
+
+  if (addendums.length > 0) {
+    html += '<ul class="release-addendum-list">';
+    for (const entry of addendums) {
+      // PR link — always shown when present
+      let prLink = '';
+      if (entry.pr_url) {
+        const prLabel = 'PR';
+        if (entry.status === 'in_review') {
+          prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-addendum-pr-link">${prLabel}</a>`;
+        } else if (entry.status === 'merged') {
+          prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-addendum-pr-link">${prLabel} ✓</a>`;
+        } else {
+          prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-addendum-pr-link">${prLabel}</a>`;
+        }
+      }
+      // Blocked error — shown when status is 'blocked' and error is set
+      const errorHtml = entry.status === 'blocked' && entry.error
+        ? `<span class="release-addendum-error">⚠ ${esc(entry.error)}</span>`
+        : '';
+      const statusLabel = (entry.status || '').replace(/_/g, ' ');
+      html += `
+        <li class="release-addendum-entry">
+          <span class="release-addendum-branch">${esc(entry.target_branch)}</span>
+          <span class="release-addendum-status release-addendum-status-${esc(entry.status || '')}">${esc(statusLabel)}</span>
+          ${prLink}${errorHtml}
+        </li>
+      `;
+    }
+    html += '</ul>';
+  } else {
+    html += '<div style="color:var(--text-muted);font-size:0.75rem;padding:0.2rem 0 0.4rem;">No release addendums yet</div>';
+  }
+
+  // Show "Add release branches" button only for Merged tasks
+  if (taskState === 'Merged') {
+    const safeId  = esc(identifier  || '');
+    const safePid = esc(projectId   || '');
+    html += `
+      <button onclick="openAddReleaseBranchesDialog('${safeId}', '${safePid}')" style="margin-top:0.4rem;width:100%;font-size:0.8rem;">+ Add release branches</button>
+    `;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ---------------------------------------------------------------------------
+// renderEpicReleaseAddendumsSection() — epic-specific addendum list (OOMPAH-181)
+//
+// Shows one row per target branch with: target branch, snapshot size
+// (commit count), included-child count, status badge, and PR link.
+// Each row has an expandable immutable child/commit snapshot.
+// The "Add release branches" button is shown for Merged epics using the
+// same dialog as task addendums.
+// ---------------------------------------------------------------------------
+
+function renderEpicReleaseAddendumsSection(addendumData, identifier, projectId, epicState) {
+  const addendums = (addendumData && addendumData.addendums) || [];
+
+  let html = `
+    <div class="detail-field" style="margin-top:0.75rem; border-top:1px solid var(--border); padding-top:0.75rem;">
+      <div class="detail-field-label">Release addendums</div>
+  `;
+
+  if (addendums.length > 0) {
+    html += '<ul class="release-addendum-list">';
+    for (const entry of addendums) {
+      const snapshotSize = (entry.commits || []).length;
+      const childCount = (entry.included_child_ids || []).length;
+      const snapshotId = 'epic-snap-' + (entry.id || '').replace(/[^a-zA-Z0-9]/g, '-');
+
+      // PR link
+      let prLink = '';
+      if (entry.pr_url) {
+        const prLabel = entry.status === 'merged' ? 'PR ✓' : 'PR';
+        prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-addendum-pr-link">${prLabel}</a>`;
+      }
+
+      // Blocked error
+      const errorHtml = entry.status === 'blocked' && entry.error
+        ? `<span class="release-addendum-error">⚠ ${esc(entry.error)}</span>`
+        : '';
+
+      const statusLabel = (entry.status || '').replace(/_/g, ' ');
+
+      // Child/commit snapshot detail (immutable, expandable)
+      let snapshotDetailHtml = '';
+      if (childCount > 0 || snapshotSize > 0) {
+        // Child list
+        let childListHtml = '';
+        if (childCount > 0) {
+          childListHtml = '<ul class="epic-addendum-child-list">' +
+            (entry.included_child_ids || []).map(cid =>
+              `<li><span onclick="openDetailPanel('${esc(cid)}')" style="cursor:pointer;text-decoration:underline;color:var(--accent);">${esc(cid)}</span></li>`
+            ).join('') +
+            '</ul>';
+        }
+        // Commit list (first 10, rest collapsed with count)
+        const commits = entry.commits || [];
+        let commitListHtml = '';
+        if (commits.length > 0) {
+          const shown = commits.slice(0, 10);
+          const extra = commits.length - shown.length;
+          commitListHtml = '<ul class="epic-addendum-commit-list">' +
+            shown.map(sha => `<li>${esc(sha.slice(0, 12))}</li>`).join('') +
+            (extra > 0 ? `<li style="color:var(--text-muted);">... and ${extra} more</li>` : '') +
+            '</ul>';
+        }
+        snapshotDetailHtml = `
+          <div class="epic-addendum-snapshot-detail" id="${esc(snapshotId)}" hidden>
+            ${childCount > 0 ? `<div style="font-weight:600;font-size:0.72rem;margin-bottom:0.15rem;">Included children (${childCount})</div>${childListHtml}` : ''}
+            ${snapshotSize > 0 ? `<div style="font-weight:600;font-size:0.72rem;margin-top:0.2rem;margin-bottom:0.1rem;">Commits (${snapshotSize})</div>${commitListHtml}` : ''}
+          </div>
+        `;
+      }
+
+      const hasSnapshot = childCount > 0 || snapshotSize > 0;
+      const toggleHtml = hasSnapshot
+        ? `<button class="epic-addendum-snapshot-toggle" type="button"
+             onclick="(function(btn){var el=document.getElementById('${esc(snapshotId)}');if(el){el.hidden=!el.hidden;btn.textContent=el.hidden?'Show snapshot':'Hide snapshot';btn.setAttribute('aria-expanded',String(!el.hidden));}}).call(this,this)"
+             aria-expanded="false"
+             aria-controls="${esc(snapshotId)}">Show snapshot</button>`
+        : '';
+
+      html += `
+        <li class="epic-addendum-entry">
+          <div class="epic-addendum-row">
+            <span class="release-addendum-branch">${esc(entry.target_branch)}</span>
+            <span class="release-addendum-status release-addendum-status-${esc(entry.status || '')}">${esc(statusLabel)}</span>
+            ${prLink}
+          </div>
+          <div class="epic-addendum-snapshot-meta">
+            ${snapshotSize > 0 ? `<span class="epic-addendum-snapshot-badge">${snapshotSize} commit${snapshotSize !== 1 ? 's' : ''}</span>` : ''}
+            ${childCount > 0 ? `<span class="epic-addendum-snapshot-badge">${childCount} child${childCount !== 1 ? 'ren' : ''}</span>` : ''}
+            ${toggleHtml}
+          </div>
+          ${errorHtml}
+          ${snapshotDetailHtml}
+        </li>
+      `;
+    }
+    html += '</ul>';
+  } else {
+    html += '<div style="color:var(--text-muted);font-size:0.75rem;padding:0.2rem 0 0.4rem;">No epic release addendums yet</div>';
+  }
+
+  // Show "Add release branches" button only for Merged epics
+  if (epicState === 'Merged') {
+    const safeId  = esc(identifier  || '');
+    const safePid = esc(projectId   || '');
+    html += `
+      <button onclick="openAddReleaseBranchesDialog('${safeId}', '${safePid}')" style="margin-top:0.4rem;width:100%;font-size:0.8rem;">+ Add release branches</button>
+    `;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ---------------------------------------------------------------------------
+// Add release branches dialog — state (OOMPAH-180)
+// ---------------------------------------------------------------------------
+
+let _rabIssueIdentifier = null;
+let _rabProjectId = null;
+let _rabActiveTargets = new Set();  // target_branches of non-archived non-merged addendums
+
+// ---------------------------------------------------------------------------
+// Add release branches dialog — open (OOMPAH-180)
+// ---------------------------------------------------------------------------
+
+async function openAddReleaseBranchesDialog(identifier, projectId) {
+  _rabIssueIdentifier = identifier;
+  _rabProjectId = projectId;
+  _rabActiveTargets = new Set();
+
+  const dlg = document.getElementById('add-release-branches-dialog');
+  const fieldset = document.getElementById('rab-branches-fieldset');
+  const staleWarning = document.getElementById('rab-stale-warning');
+  const errorDiv = document.getElementById('rab-error');
+  const submitBtn = document.getElementById('rab-submit-btn');
+
+  // Reset UI
+  errorDiv.hidden = true;
+  errorDiv.textContent = '';
+  staleWarning.hidden = true;
+  fieldset.innerHTML = '<legend class="rab-legend">Target release branches</legend>' +
+    '<span style="color:var(--text-muted);font-size:0.85rem;">Loading branches…</span>';
+  if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Queue release merges'; }
+
+  dlg.classList.add('open');
+
+  // Focus the first focusable element (cancel button) after opening
+  requestAnimationFrame(() => {
+    const cancel = document.getElementById('rab-cancel-btn');
+    if (cancel) cancel.focus();
+  });
+
+  // Fetch existing addendums to determine which branches are already active
+  try {
+    const raResp = await fetch(issueApiUrl(identifier, '/release-addendums', {project_id: projectId}));
+    if (raResp.ok) {
+      const raData = await raResp.json();
+      // Active = not archived, not merged
+      for (const a of (raData.addendums || [])) {
+        if (a.status !== 'archived' && a.status !== 'merged') {
+          _rabActiveTargets.add(a.target_branch);
+        }
+      }
+    }
+  } catch (_e) {
+    // non-fatal: proceed without active addendum info
+  }
+
+  // Fetch release-branch catalog
+  let catalogData;
+  try {
+    const catResp = await fetch(`/api/v1/projects/${encodeURIComponent(projectId)}/release-branches`);
+    if (!catResp.ok) {
+      const errBody = await catResp.json().catch(() => ({}));
+      const msg = errBody?.error?.message || `Catalog fetch failed (HTTP ${catResp.status})`;
+      fieldset.innerHTML = '<legend class="rab-legend">Target release branches</legend>' +
+        `<span style="color:var(--red);font-size:0.85rem;">${esc(msg)}</span>`;
+      return;
+    }
+    catalogData = await catResp.json();
+  } catch (_e) {
+    fieldset.innerHTML = '<legend class="rab-legend">Target release branches</legend>' +
+      '<span style="color:var(--red);font-size:0.85rem;">Failed to load branch catalog (network error).</span>';
+    return;
+  }
+
+  // Show stale warning if applicable
+  if (catalogData.stale) {
+    staleWarning.hidden = false;
+  }
+
+  // Render checkbox group
+  const branches = (catalogData.branches || []).filter(b => b.available);
+
+  fieldset.innerHTML = '<legend class="rab-legend">Target release branches</legend>';
+  if (branches.length === 0) {
+    const emptyMsg = document.createElement('div');
+    emptyMsg.style.cssText = 'color:var(--text-muted);font-size:0.85rem;padding:0.25rem 0;';
+    emptyMsg.textContent = 'No supported release branches are currently available.';
+    fieldset.appendChild(emptyMsg);
+    return;
+  }
+
+  for (const branch of branches) {
+    const isActive = _rabActiveTargets.has(branch.name);
+    const label = document.createElement('label');
+    label.className = 'rab-checkbox-row' + (isActive ? ' disabled' : '');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.name = 'rab-branch';
+    cb.value = branch.name;
+    cb.id = `rab-cb-${branch.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    if (isActive) {
+      cb.disabled = true;
+      cb.checked = true;
+    }
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'rab-branch-name';
+    nameSpan.textContent = branch.name;
+    label.appendChild(cb);
+    label.appendChild(nameSpan);
+    if (isActive) {
+      const badge = document.createElement('span');
+      badge.className = 'rab-already-badge';
+      badge.textContent = 'active';
+      label.appendChild(badge);
+    }
+    fieldset.appendChild(label);
+  }
+
+  // Focus first available (non-disabled) checkbox
+  requestAnimationFrame(() => {
+    const first = fieldset.querySelector('input[type="checkbox"]:not(:disabled)');
+    if (first) first.focus();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Add release branches dialog — close (OOMPAH-180)
+// ---------------------------------------------------------------------------
+
+function closeAddReleaseBranchesDialog() {
+  const dlg = document.getElementById('add-release-branches-dialog');
+  if (dlg) dlg.classList.remove('open');
+  _rabIssueIdentifier = null;
+  _rabProjectId = null;
+  _rabActiveTargets = new Set();
+}
+
+// ---------------------------------------------------------------------------
+// Add release branches dialog — submit (OOMPAH-180)
+// ---------------------------------------------------------------------------
+
+async function submitAddReleaseBranchesDialog() {
+  const identifier = _rabIssueIdentifier;
+  const projectId = _rabProjectId;
+  if (!identifier || !projectId) return;
+
+  const submitBtn = document.getElementById('rab-submit-btn');
+  const errorDiv = document.getElementById('rab-error');
+  errorDiv.hidden = true;
+  errorDiv.textContent = '';
+
+  // Collect selected unchecked branches (non-disabled checkboxes that are checked)
+  const checkedBoxes = document.querySelectorAll(
+    '#rab-branches-fieldset input[type="checkbox"]:checked:not(:disabled)'
+  );
+  const selectedBranches = Array.from(checkedBoxes).map(cb => cb.value);
+
+  if (selectedBranches.length === 0) {
+    errorDiv.textContent = 'Select at least one target branch.';
+    errorDiv.hidden = false;
+    return;
+  }
+
+  // Generate an idempotency key so concurrent/retry submits are safe
+  const idempotencyKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Queueing…';
+
+  try {
+    const resp = await fetch(issueApiUrl(identifier, '/release-addendums'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(issueRequestBody(identifier, {
+        project_id: projectId,
+        target_branches: selectedBranches,
+        idempotency_key: idempotencyKey,
+      })),
+    });
+
+    if (!resp.ok) {
+      let message = 'Failed to queue release addendums.';
+      try {
+        const errBody = await resp.json();
+        message = errBody?.error?.message || message;
+      } catch (_e) { /* non-JSON */ }
+      errorDiv.textContent = message;
+      errorDiv.hidden = false;
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Queue release merges';
+      return;
+    }
+
+    closeAddReleaseBranchesDialog();
+    // Refresh the detail panel so the new addendum rows appear in 'open' state
+    if (_openDetailIdentifier) await openDetailPanel(_openDetailIdentifier);
+
+  } catch (_e) {
+    errorDiv.textContent = 'Network error — could not queue release addendums.';
+    errorDiv.hidden = false;
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Queue release merges';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Add release branches dialog — Escape-to-close keyboard handler (OOMPAH-180)
+// ---------------------------------------------------------------------------
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const dlg = document.getElementById('add-release-branches-dialog');
+    if (dlg && dlg.classList.contains('open')) {
+      closeAddReleaseBranchesDialog();
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
 
 function intakeActorLogin() {
   return (localStorage.getItem('oompah_intake_actor') || '').trim();
@@ -4190,6 +4928,8 @@ async function openDetailPanel(identifier) {
   if (effectiveIntakeActor) detailParams.actor = effectiveIntakeActor;
   // Start release-picks fetch in parallel; failures are caught and handled below.
   const _rpFetch = fetch(issueApiUrl(identifier, '/release-picks', {project_id: projectId})).catch(() => null);
+  // Also fetch release addendums in parallel (OOMPAH-180).
+  const _raFetch = fetch(issueApiUrl(identifier, '/release-addendums', {project_id: projectId})).catch(() => null);
   let res;
   try {
     res = await fetch(issueApiUrl(identifier, '/detail', detailParams));
@@ -4207,6 +4947,12 @@ async function openDetailPanel(identifier) {
   try {
     const _rpRes = await _rpFetch;
     if (_rpRes && _rpRes.ok) { _rpData = await _rpRes.json(); }
+  } catch (_e) {}
+  // Settle the release-addendums promise (OOMPAH-180; degrade gracefully).
+  let _raData = null;
+  try {
+    const _raRes = await _raFetch;
+    if (_raRes && _raRes.ok) { _raData = await _raRes.json(); }
   } catch (_e) {}
   const detailDisplayIdentifier = issueDisplayIdentifier(detail);
   document.getElementById('detail-panel-title').textContent = detailDisplayIdentifier;
@@ -4330,8 +5076,12 @@ async function openDetailPanel(identifier) {
     `;
   }
 
-  // Release Picks section (TASK-456.2)
-  html += renderReleasePicksSection(_rpData, detail.identifier, detail.project_id);
+  // Release addendums section — dispatches to epic or task renderer (OOMPAH-181).
+  if (detail.issue_type === 'epic') {
+    html += renderEpicReleaseAddendumsSection(_raData, detail.identifier, detail.project_id, detail.state);
+  } else {
+    html += renderReleaseAddendumsSection(_raData, detail.identifier, detail.project_id, detail.state);
+  }
 
   // Comments section
   const comments = detail.comments || [];
@@ -5931,6 +6681,233 @@ async function submitAddReleasePicksDialog() {
     submitBtn.textContent = 'Add Release Picks';
   }
 }
+
+// ---------------------------------------------------------------------------
+// Release branches inspector (OOMPAH-182)
+// ---------------------------------------------------------------------------
+// State
+let _rbiCurrentProjectId = null;
+let _rbiCurrentBranch = null;
+let _rbiLoading = false;
+
+function openReleaseBranchInspector() {
+  const overlay = document.getElementById('release-branch-inspector-overlay');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  // Pre-populate the project dropdown from currentProjects
+  _rbiPopulateProjectSelect();
+  // Wire Escape-to-close
+  overlay.addEventListener('keydown', _rbiKeyHandler);
+  const closeBtn = document.getElementById('rbi-close-btn');
+  if (closeBtn) setTimeout(function() { closeBtn.focus(); }, 50);
+}
+
+function closeReleaseBranchInspector() {
+  const overlay = document.getElementById('release-branch-inspector-overlay');
+  if (overlay) {
+    overlay.classList.remove('open');
+    overlay.removeEventListener('keydown', _rbiKeyHandler);
+  }
+  _rbiCurrentBranch = null;
+}
+
+function _rbiKeyHandler(e) {
+  if (e.key === 'Escape') closeReleaseBranchInspector();
+}
+
+function _rbiPopulateProjectSelect() {
+  const sel = document.getElementById('rbi-project-select');
+  if (!sel) return;
+
+  const projects = (typeof currentProjects !== 'undefined' ? currentProjects : []) || [];
+  // Preserve the current board filter project as the default selection
+  const boardFilter = (typeof selectedProjectFilterValue === 'function') ? selectedProjectFilterValue() : '';
+
+  sel.innerHTML = '';
+  if (projects.length === 0) {
+    sel.innerHTML = '<option value="">No projects configured</option>';
+    _rbiShowNoProjectMessage();
+    return;
+  }
+
+  projects.forEach(function(p) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name || p.id;
+    sel.appendChild(opt);
+  });
+
+  // Default to the board's active project filter, or the first project
+  if (boardFilter && projects.some(function(p) { return p.id === boardFilter; })) {
+    sel.value = boardFilter;
+  } else {
+    sel.value = projects[0].id;
+  }
+
+  // Load branches for the selected project
+  _rbiOnProjectChange();
+}
+
+function _rbiOnProjectChange() {
+  const sel = document.getElementById('rbi-project-select');
+  if (!sel) return;
+  const projectId = sel.value;
+  if (!projectId) {
+    _rbiShowNoProjectMessage();
+    return;
+  }
+  _rbiCurrentProjectId = projectId;
+  _rbiCurrentBranch = null;
+  _rbiLoadBranchList(projectId);
+}
+
+function _rbiLoadBranchList(projectId) {
+  const branchSel = document.getElementById('rbi-branch-select');
+  const body = document.getElementById('rbi-body');
+  if (!branchSel || !body) return;
+
+  branchSel.innerHTML = '<option value="">Loading branches…</option>';
+  branchSel.disabled = true;
+  body.innerHTML = '<div class="rbi-loading"><svg width="16" height="16" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/></svg> Loading branches…</div>';
+
+  fetch('/api/v1/projects/' + encodeURIComponent(projectId) + '/release-branches')
+    .then(function(resp) { return resp.json().then(function(data) { return { resp: resp, data: data }; }); })
+    .then(function(r) {
+      const resp = r.resp, data = r.data;
+      if (!resp.ok) {
+        branchSel.innerHTML = '<option value="">Error loading branches</option>';
+        body.innerHTML = '<div class="rbi-error">Failed to load release branches: ' + esc((data.error && data.error.message) || String(resp.status)) + '</div>';
+        return;
+      }
+      const branches = (data.branches || []).filter(function(b) { return b.name; });
+      if (branches.length === 0) {
+        branchSel.innerHTML = '<option value="">No release branches configured</option>';
+        body.innerHTML = '<div class="rbi-empty">No release branches are configured for this project. Add supported_release_branches in the project settings.</div>';
+        return;
+      }
+      branchSel.innerHTML = branches.map(function(b) {
+        const suffix = !b.available ? ' (historical)' : b.stale ? ' (stale)' : '';
+        return '<option value="' + esc(b.name) + '">' + esc(b.name) + esc(suffix) + '</option>';
+      }).join('');
+      branchSel.disabled = false;
+      // Auto-load the first branch
+      branchSel.value = branches[0].name;
+      _rbiCurrentBranch = branches[0].name;
+      _rbiLoadBranchAddendums(projectId, branches[0].name);
+    })
+    .catch(function(err) {
+      branchSel.innerHTML = '<option value="">Error</option>';
+      body.innerHTML = '<div class="rbi-error">Network error loading branches: ' + esc(String(err)) + '</div>';
+    });
+}
+
+function _rbiOnBranchChange() {
+  const branchSel = document.getElementById('rbi-branch-select');
+  if (!branchSel || !_rbiCurrentProjectId) return;
+  const branch = branchSel.value;
+  if (!branch) return;
+  _rbiCurrentBranch = branch;
+  _rbiLoadBranchAddendums(_rbiCurrentProjectId, branch);
+}
+
+function _rbiLoadBranchAddendums(projectId, branch) {
+  if (_rbiLoading) return;
+  _rbiLoading = true;
+  const body = document.getElementById('rbi-body');
+  if (!body) { _rbiLoading = false; return; }
+
+  body.innerHTML = '<div class="rbi-loading"><svg width="16" height="16" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/></svg> Loading addendums…</div>';
+
+  // Encode each path segment of the branch name to handle slashes
+  const encodedBranch = branch.split('/').map(encodeURIComponent).join('/');
+  fetch('/api/v1/projects/' + encodeURIComponent(projectId) + '/release-branches/' + encodedBranch + '/addendums')
+    .then(function(resp) { return resp.json().then(function(data) { return { resp: resp, data: data }; }); })
+    .then(function(r) {
+      _rbiLoading = false;
+      const resp = r.resp, data = r.data;
+      if (!resp.ok) {
+        body.innerHTML = '<div class="rbi-error">Failed to load addendums: ' + esc((data.error && data.error.message) || String(resp.status)) + '</div>';
+        return;
+      }
+      body.innerHTML = _rbiRenderInspectorBody(data, projectId);
+    })
+    .catch(function(err) {
+      _rbiLoading = false;
+      body.innerHTML = '<div class="rbi-error">Network error: ' + esc(String(err)) + '</div>';
+    });
+}
+
+function _rbiRenderInspectorBody(data, projectId) {
+  const groups = data.groups || {};
+  const statuses = ['open', 'in_progress', 'in_review', 'blocked', 'merged', 'archived'];
+  const statusLabels = {
+    open: 'Open', in_progress: 'In progress', in_review: 'In review',
+    blocked: 'Blocked', merged: 'Merged', archived: 'Archived'
+  };
+
+  let html = '';
+
+  // Untracked commits warning (informational, never a feature claim)
+  const warn = data.untracked_commits;
+  if (warn && warn.count > 0) {
+    html += '<div class="rbi-untracked-warning">' +
+      '<strong>⚠ ' + esc(String(warn.count)) + ' untracked commit' + (warn.count !== 1 ? 's' : '') + ':</strong> ' +
+      esc(warn.warning) +
+      '<br><small style="color:inherit;opacity:0.75;">These are informational — direct commits to the release branch that cannot be attributed to a release addendum.</small>' +
+      '</div>';
+  }
+
+  // Check if all groups are empty
+  const totalEntries = statuses.reduce(function(sum, s) { return sum + ((groups[s] || []).length); }, 0);
+  if (totalEntries === 0) {
+    html += '<div class="rbi-empty">No release addendums for this branch yet.</div>';
+    return html;
+  }
+
+  // Render each status group
+  for (let si = 0; si < statuses.length; si++) {
+    const status = statuses[si];
+    const entries = groups[status] || [];
+    if (entries.length === 0) continue;
+
+    html += '<div class="rbi-group-section">' +
+      '<div class="rbi-group-heading">' + esc(statusLabels[status] || status) + ' (' + entries.length + ')</div>' +
+      '<ul class="rbi-entry-list">';
+
+    for (let ei = 0; ei < entries.length; ei++) {
+      const entry = entries[ei];
+      const adm = entry.addendum || {};
+      const prHtml = adm.pr_url
+        ? '<a href="' + esc(adm.pr_url) + '" target="_blank" rel="noopener noreferrer" class="rbi-entry-pr">PR' + (adm.status === 'merged' ? ' ✓' : '') + '</a>'
+        : '';
+      const errorHtml = (adm.error && adm.status === 'blocked')
+        ? '<span class="rbi-entry-error">⚠ ' + esc(adm.error) + '</span>'
+        : '';
+      const typeLabel = entry.type === 'epic' ? 'epic' : 'task';
+      const pidArg = projectId ? ("'" + esc(projectId) + "'") : 'null';
+      html += '<li class="rbi-entry">' +
+        '<span class="rbi-entry-id" onclick="closeReleaseBranchInspector();openDetailPanel(\'' + esc(entry.identifier) + '\',' + pidArg + ')">' + esc(entry.identifier) + '</span>' +
+        '<span class="rbi-entry-title" title="' + esc(entry.title || '') + '">' + esc(entry.title || '(no title)') + '</span>' +
+        '<span class="rbi-entry-type">' + esc(typeLabel) + '</span>' +
+        prHtml + errorHtml +
+        '</li>';
+    }
+
+    html += '</ul></div>';
+  }
+
+  return html;
+}
+
+function _rbiShowNoProjectMessage() {
+  const body = document.getElementById('rbi-body');
+  if (body) {
+    body.innerHTML = '<div class="rbi-no-project">Select a project to inspect its release branches.</div>';
+  }
+}
+// ---------------------------------------------------------------------------
+// (end release branches inspector)
+// ---------------------------------------------------------------------------
 </script>
 
 <div class="dialog-overlay" id="create-dialog" onclick="if(event.target===this)closeCreateDialog()">
@@ -6127,5 +7104,53 @@ async function submitAddReleasePicksDialog() {
   </div>
 </div>
 
+<!-- Add release branches dialog (OOMPAH-180) -->
+<div class="dialog-overlay" id="add-release-branches-dialog"
+     onclick="if(event.target===this)closeAddReleaseBranchesDialog()"
+     role="dialog" aria-modal="true" aria-labelledby="rab-dialog-title">
+  <div class="dialog" style="width:520px;max-width:92vw;">
+    <h2 id="rab-dialog-title">Add release branches</h2>
+
+    <fieldset class="rab-fieldset" id="rab-branches-fieldset">
+      <legend class="rab-legend">Target release branches</legend>
+      <span style="color:var(--text-muted);font-size:0.85rem;">Loading…</span>
+    </fieldset>
+
+    <div id="rab-stale-warning" class="rab-stale-warning" hidden>
+      ⚠ Branch list may be stale — remote was unreachable. Showing cached branches.
+    </div>
+
+    <div id="rab-error" hidden
+         style="color:var(--red);font-size:0.82rem;margin-top:0.5rem;"></div>
+
+    <div class="dialog-actions">
+      <button id="rab-cancel-btn" onclick="closeAddReleaseBranchesDialog()">Cancel</button>
+      <button class="btn-primary" id="rab-submit-btn" onclick="submitAddReleaseBranchesDialog()">
+        Queue release merges
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Release branches inspector overlay (OOMPAH-182) -->
+<div class="release-branch-inspector-overlay" id="release-branch-inspector-overlay"
+     onclick="if(event.target===this)closeReleaseBranchInspector()"
+     role="dialog" aria-modal="true" aria-labelledby="rbi-title">
+  <div class="release-branch-inspector-panel">
+    <div class="rbi-header">
+      <h3 id="rbi-title">Release branches</h3>
+      <div class="rbi-controls">
+        <label for="rbi-project-select" style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Project:</label>
+        <select id="rbi-project-select" onchange="_rbiOnProjectChange()" aria-label="Select project to inspect"></select>
+        <label for="rbi-branch-select" style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Branch:</label>
+        <select id="rbi-branch-select" onchange="_rbiOnBranchChange()" aria-label="Select release branch"></select>
+        <button id="rbi-close-btn" class="rbi-close-btn" onclick="closeReleaseBranchInspector()" aria-label="Close release branches inspector">&times;</button>
+      </div>
+    </div>
+    <div class="rbi-body" id="rbi-body" role="region" aria-live="polite">
+      <div class="rbi-loading">Select a project and branch to inspect addendums.</div>
+    </div>
+  </div>
+</div>
 </body>
 </html>

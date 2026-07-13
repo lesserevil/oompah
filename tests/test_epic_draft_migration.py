@@ -245,25 +245,33 @@ def test_migration_called_during_set_orchestrator():
     mock_orch = MagicMock()
     mock_orch.tracker.fetch_all_issues.return_value = []
 
-    with patch.object(server_module, "remove_draft_labels_from_epics") as mock_migrate:
-        mock_migrate.return_value = 0
-        # Provide minimal stubs so set_orchestrator doesn't crash
-        mock_orch.agent_profile_store = MagicMock()
-        mock_orch.role_store = MagicMock()
-        mock_orch.provider_store = MagicMock()
-        mock_orch._observers = []
-        mock_orch._state_only_observers = []
-        mock_orch._activity_observers = []
-        mock_orch.project_store.list_all.return_value = []
-        mock_orch.register_error_watcher = MagicMock()
+    # Save and restore _orchestrator so this test does not pollute the module-
+    # level global for tests that run later in the same process (e.g. the
+    # Granian parity tests, which rely on _orchestrator being None so that the
+    # FastAPI TestClient returns 503 for all attachment endpoints).
+    _saved_orchestrator = server_module._orchestrator
+    try:
+        with patch.object(server_module, "remove_draft_labels_from_epics") as mock_migrate:
+            mock_migrate.return_value = 0
+            # Provide minimal stubs so set_orchestrator doesn't crash
+            mock_orch.agent_profile_store = MagicMock()
+            mock_orch.role_store = MagicMock()
+            mock_orch.provider_store = MagicMock()
+            mock_orch._observers = []
+            mock_orch._state_only_observers = []
+            mock_orch._activity_observers = []
+            mock_orch.project_store.list_all.return_value = []
+            mock_orch.register_error_watcher = MagicMock()
 
-        with (
-            patch.object(server_module, "ErrorWatcher", MagicMock()),
-            patch.object(server_module, "ProjectLogWatcherManager", MagicMock()),
-        ):
-            try:
-                server_module.set_orchestrator(mock_orch)
-            except Exception:
-                pass  # ConsoleSessionManager setup may fail in tests
+            with (
+                patch.object(server_module, "ErrorWatcher", MagicMock()),
+                patch.object(server_module, "ProjectLogWatcherManager", MagicMock()),
+            ):
+                try:
+                    server_module.set_orchestrator(mock_orch)
+                except Exception:
+                    pass  # ConsoleSessionManager setup may fail in tests
 
-        mock_migrate.assert_called_once_with(mock_orch.tracker)
+            mock_migrate.assert_called_once_with(mock_orch.tracker)
+    finally:
+        server_module._orchestrator = _saved_orchestrator

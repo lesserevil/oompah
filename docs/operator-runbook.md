@@ -77,6 +77,12 @@ Managed project settings (tracker owner/repo, paused state, etc.) are stored in
 `.oompah/projects.json` and are managed exclusively via the dashboard or
 `/api/v1/projects` API. Do not edit that file directly.
 
+For maintained release lines, configure the project's **Supported Release
+Lines** with exact branch names. This controls which branches can receive
+release addendums; it does not make release branches normal task targets. See
+[Release Addendums](release-addendums.md) for configuration, queueing,
+inspection, retry, and migration procedures.
+
 ---
 
 ## 2. Installation

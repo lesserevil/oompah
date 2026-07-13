@@ -30,6 +30,65 @@ class ProjectError(Exception):
     """Raised when project registration or worktree management fails."""
 
 
+def _validate_supported_release_branches(
+    supported: list,
+    branches_patterns: list[str],
+    default_branch: str,
+) -> list[str]:
+    """Validate and normalise ``supported_release_branches`` before persisting.
+
+    Rules (section 5 of plans/release-branch-addendums.md):
+    - Each entry must be a nonempty branch name (string, stripped).
+    - Names must be unique after case-insensitive normalisation.
+    - No entry may equal the project's ``default_branch``.
+    - Every entry must match at least one pattern in ``branches_patterns`` via
+      ``fnmatch``.
+
+    Returns the cleaned list (order preserved).
+    Raises :exc:`ProjectError` on any violation.
+    """
+    import fnmatch
+
+    if not isinstance(supported, list):
+        raise ProjectError(
+            "'supported_release_branches' must be a list of strings or null"
+        )
+
+    cleaned: list[str] = []
+    seen_lower: set[str] = set()
+
+    for raw in supported:
+        if not isinstance(raw, str):
+            raise ProjectError(
+                "'supported_release_branches' entries must be strings"
+            )
+        name = raw.strip()
+        if not name:
+            raise ProjectError(
+                "'supported_release_branches' entries must not be empty"
+            )
+        norm = name.lower()
+        if norm in seen_lower:
+            raise ProjectError(
+                f"'supported_release_branches' has a duplicate entry after "
+                f"normalisation: {name!r}"
+            )
+        seen_lower.add(norm)
+        if name == default_branch:
+            raise ProjectError(
+                f"'supported_release_branches' must not include the "
+                f"default branch: {default_branch!r}"
+            )
+        if not any(fnmatch.fnmatch(name, pat) for pat in branches_patterns):
+            raise ProjectError(
+                f"'supported_release_branches' entry {name!r} does not match "
+                f"any pattern in 'branches': {branches_patterns!r}"
+            )
+        cleaned.append(name)
+
+    return cleaned
+
+
 def _repo_name_from_url(repo_url: str) -> str:
     """Derive a stable display/repo directory name from a git URL or path."""
     value = (repo_url or "").strip().rstrip("/")
@@ -739,6 +798,7 @@ class ProjectStore:
         github_issue_intake_enabled: bool = False,
         status_actor_login: str | None = None,
         status_label_authorized_logins: list[str] | None = None,
+        supported_release_branches: list[str] | None = None,
         paused: bool = True,
     ) -> Project:
         """Register a project by cloning its git repo.
@@ -762,6 +822,13 @@ class ProjectStore:
             status_actor_login: GitHub login used as the project-owner status actor.
             status_label_authorized_logins: Additional GitHub logins authorized to
                                       move protected status labels.
+            supported_release_branches: Ordered list of exact branch names that
+                                      are configured as supported release lines
+                                      (section 5 of release-branch-addendums.md).
+                                      Each entry must be nonempty, unique after
+                                      normalisation, not equal to default_branch,
+                                      and matched by at least one branches pattern.
+                                      Defaults to [] when not provided or None.
             paused: New managed projects start paused so operators can confirm
                     tracker, token, branch, and provider settings before dispatch.
         """
@@ -773,6 +840,14 @@ class ProjectStore:
             branches = [branch] if branch != "main" else ["main"]
         if default_branch is None:
             default_branch = branches[0] if branches else "main"
+
+        # Validate and normalise supported_release_branches.
+        if supported_release_branches is None:
+            supported_release_branches = []
+        else:
+            supported_release_branches = _validate_supported_release_branches(
+                supported_release_branches, branches, default_branch
+            )
 
         # Clone into ~/.oompah/repos/<name>/
         repo_path = os.path.join(self.repos_root, _sanitize_identifier(name))
@@ -903,6 +978,7 @@ class ProjectStore:
                 for login in (status_label_authorized_logins or [])
                 if str(login).strip()
             ],
+            supported_release_branches=supported_release_branches,
             paused=bool(paused),
         )
         self._projects[project_id] = project
@@ -950,6 +1026,8 @@ class ProjectStore:
             "tracker_repo",
             "github_issue_intake_enabled",
             "github_project_node_id",
+            # Supported release lines (section 5 of release-branch-addendums.md)
+            "supported_release_branches",
         }
     )
 
@@ -1146,6 +1224,33 @@ class ProjectStore:
                 fields["github_issue_intake_enabled"] = val
             else:
                 raise ProjectError("'github_issue_intake_enabled' must be a boolean")
+
+        # Validate and normalise supported_release_branches.
+        # Cross-field validation uses the effective branches/default_branch
+        # values from this update (or the project's current values if not
+        # being changed in the same call).
+        if "supported_release_branches" in fields:
+            val = fields["supported_release_branches"]
+            if val is None:
+                fields["supported_release_branches"] = []
+            else:
+                effective_branches = fields.get("branches", project.branches)
+                effective_default = fields.get(
+                    "default_branch", project.default_branch
+                )
+                if isinstance(effective_branches, list) and effective_branches:
+                    eff_branches = effective_branches
+                else:
+                    eff_branches = project.branches
+                if isinstance(effective_default, str) and effective_default.strip():
+                    eff_default = effective_default.strip()
+                else:
+                    eff_default = project.default_branch
+                fields["supported_release_branches"] = (
+                    _validate_supported_release_branches(
+                        val, eff_branches, eff_default
+                    )
+                )
 
         for key, value in fields.items():
             setattr(project, key, value)

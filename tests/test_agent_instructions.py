@@ -111,6 +111,15 @@ def test_rendered_oompah_task_instructions_allow_untracked_design_plans():
     assert "does not prohibit design documents in `plans/`" in rendered
 
 
+def test_rendered_oompah_task_instructions_describe_release_addendums():
+    rendered = render_oompah_task_agent_instructions()
+
+    assert "### Release Addendums" in rendered
+    assert "default branch first" in rendered
+    assert "Do not create, assign, or work\na child backport task" in rendered
+    assert "docs/release-addendums.md" in rendered
+
+
 def test_update_oompah_task_replaces_github_block():
     original, changed = update_agents_text_for_github_issues("# Rules\n")
     assert changed is True
@@ -280,4 +289,91 @@ def test_task_epic_workflow_doc_describes_shared_only_behavior():
     ]
     assert not lines_with_stacked, (
         f"task-epic-workflow.md must not have active 'stacked' strategy rows: {lines_with_stacked}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Release addendum: generated guidance in both AGENTS.md variants
+# ---------------------------------------------------------------------------
+
+
+def test_rendered_github_issues_instructions_describe_release_addendums():
+    """GitHub Issues variant of AGENTS.md must also describe the
+    release-addendum workflow and must not tell agents to create child
+    backport tasks."""
+    rendered = render_github_issues_agent_instructions()
+
+    assert "### Release Addendums" in rendered, (
+        "GitHub Issues AGENTS.md block must include a '### Release Addendums' section."
+    )
+    assert "default branch first" in rendered, (
+        "GitHub Issues AGENTS.md block must state that work lands on the default branch first."
+    )
+    assert "child backport task" in rendered, (
+        "GitHub Issues AGENTS.md block must explicitly prohibit child backport tasks."
+    )
+    assert "docs/release-addendums.md" in rendered, (
+        "GitHub Issues AGENTS.md block must reference docs/release-addendums.md."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Release addendum: docs/release-addendums.md content coverage
+# ---------------------------------------------------------------------------
+
+
+def test_release_addendums_doc_covers_operator_workflow():
+    """docs/release-addendums.md must cover the full junior-operator
+    workflow: configuring lines, queuing, lifecycle, retries, inspection,
+    epic snapshots, and migration."""
+    doc = (_DOCS_DIR / "release-addendums.md").read_text(encoding="utf-8")
+
+    # Configuring supported release lines
+    assert "supported_release_branches" in doc or "Supported Release" in doc, (
+        "release-addendums.md must document how to configure supported release lines."
+    )
+
+    # Queuing a task for two branches
+    assert "target_branches" in doc or "Queue" in doc, (
+        "release-addendums.md must explain how to queue a merged task for release branches."
+    )
+
+    # Per-branch lifecycle table
+    for status in ("open", "in_progress", "in_review", "blocked", "merged", "archived"):
+        assert status in doc, (
+            f"release-addendums.md must document the '{status}' addendum status."
+        )
+
+    # Retries
+    assert "retry" in doc.lower(), (
+        "release-addendums.md must document how to retry a blocked addendum."
+    )
+
+    # Branch inspection
+    assert "inspect" in doc.lower() or "Release branches" in doc, (
+        "release-addendums.md must document branch inspection."
+    )
+
+    # Epic snapshots
+    assert "epic" in doc.lower() and "snapshot" in doc.lower(), (
+        "release-addendums.md must describe epic addendum snapshots."
+    )
+
+    # Migration section
+    assert "Migration" in doc or "migration" in doc, (
+        "release-addendums.md must include a migration section."
+    )
+
+    # Mermaid diagram present
+    assert "```mermaid" in doc, (
+        "release-addendums.md must include at least one Mermaid diagram."
+    )
+
+    # No active instructions to create child backport tasks
+    # (historical references are allowed in migration section)
+    migration_start = doc.lower().find("migration")
+    pre_migration = doc[:migration_start] if migration_start != -1 else doc
+    assert "create" not in pre_migration.lower() or "child backport" not in pre_migration.lower(), (
+        "release-addendums.md must not instruct users to create child backport tasks "
+        "outside the historical migration section."
     )

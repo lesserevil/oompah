@@ -12,6 +12,8 @@ works inside or how it might work in the future, see [`../plans/`](../plans/).
 
 - [Task and Epic Workflow](task-epic-workflow.md) - lifecycle of tasks,
   epics, dispatch, review repair, and the shared epic branch.
+- [Release Addendums](release-addendums.md) - configure supported release
+  lines and deliver already-merged work to them.
 
 ## Keeping Docs In Sync
 

@@ -566,6 +566,13 @@ def set_orchestrator(orch: Orchestrator) -> None:
             )
     except Exception:
         logger.warning("draft-label migration: failed (non-fatal)", exc_info=True)
+    # Release-pick to release-addendum migration (OOMPAH-183).  Idempotent.
+    # Converts oompah.backports entries to oompah.release_addendums and
+    # archives child backport tasks with redirect comments.
+    try:
+        _migrate_release_picks_on_startup(orch)
+    except Exception:
+        logger.warning("release-pick migration: failed (non-fatal)", exc_info=True)
     # Error watcher: creates tasks for backend/frontend errors
     _error_watcher = ErrorWatcher(orch.tracker)
     _error_watcher.install_log_handler("oompah")
@@ -704,6 +711,59 @@ def remove_draft_labels_from_epics(tracker) -> int:
                     issue.identifier,
                 )
     return updated
+
+
+def _migrate_release_picks_on_startup(orch) -> None:
+    """Startup migration: convert oompah.backports to oompah.release_addendums.
+
+    Iterates over all configured projects (or the legacy single tracker) and
+    runs the idempotent release-pick migration for each.  Safe to call on
+    every restart — already-migrated entries are skipped.
+
+    OOMPAH-183.
+    """
+    from oompah.release_pick_migration import run_release_pick_migration  # noqa: PLC0415
+
+    projects = []
+    try:
+        projects = orch.project_store.list_all()
+    except Exception:
+        pass
+
+    if projects:
+        for project in projects:
+            try:
+                tracker = orch._tracker_for_project(project.id)
+                result = run_release_pick_migration(
+                    tracker,
+                    getattr(project, "default_branch", None) or "main",
+                )
+                if result.changed:
+                    logger.info(
+                        "release-pick migration: project=%s migrated=%d "
+                        "already_migrated=%d children_archived=%d",
+                        project.id,
+                        result.migrated,
+                        result.already_migrated,
+                        result.children_archived,
+                    )
+            except Exception:
+                logger.warning(
+                    "release-pick migration: project=%s failed (non-fatal)",
+                    project.id,
+                    exc_info=True,
+                )
+    else:
+        # Legacy single-tracker mode
+        result = run_release_pick_migration(orch.tracker, "main")
+        if result.changed:
+            logger.info(
+                "release-pick migration: (legacy) migrated=%d "
+                "already_migrated=%d children_archived=%d",
+                result.migrated,
+                result.already_migrated,
+                result.children_archived,
+            )
 
 
 def _set_agent_profile_store(store: AgentProfileStore) -> None:
@@ -3212,6 +3272,1138 @@ async def api_project_bootstrap_apply(project_id: str):
 
 # ---------------------------------------------------------------------------
 # (end project bootstrap endpoints)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Release-branch catalog endpoint (OOMPAH-175)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/v1/projects/{project_id}/release-branches")
+async def api_release_branches(project_id: str):
+    """Return the current supported release-branch catalog for *project_id*.
+
+    Discovers remotely-available branches via ``git ls-remote --heads origin``
+    (cached per project for 60 s).  On remote failure, falls back to local
+    ``refs/remotes/origin/*`` and marks each entry ``stale: true``.  Only
+    branches listed in the project's ``supported_release_branches`` are
+    returned as candidates; additionally, branches that appear in historic
+    release addendums but have since been deleted are included with
+    ``available: false`` so history remains inspectable.
+
+    Response shape::
+
+        {
+            "project_id": "proj-abc",
+            "source_branch": "main",
+            "branches": [
+                {"name": "release/1.1", "available": true, "stale": false},
+                {"name": "release/1.0", "available": true, "stale": false}
+            ],
+            "refreshed_at": "2026-07-13T12:00:00+00:00",
+            "stale": false
+        }
+
+    HTTP status codes:
+
+    * ``200`` — catalog resolved (may be stale; check the ``stale`` flag).
+    * ``404`` — project not found.
+    * ``503`` — remote discovery failed **and** no prior cached result is
+      available (first-load failure).
+    """
+    try:
+        from oompah.release_branch_catalog import CatalogDiscoveryError, get_default_catalog
+
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+
+        catalog = get_default_catalog()
+
+        try:
+            result = await asyncio.to_thread(catalog.list_candidates, project)
+        except CatalogDiscoveryError as exc:
+            logger.warning(
+                "release-branches: first-load discovery failure for %s: %s",
+                project_id,
+                exc,
+            )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "discovery_failed",
+                        "message": (
+                            "Branch discovery failed and no cached result is available. "
+                            "Ensure the project repo is configured and reachable."
+                        ),
+                    }
+                },
+                status_code=503,
+            )
+
+        return JSONResponse(result.to_dict())
+
+    except Exception as exc:
+        logger.error(
+            "release-branches API error for %s: %s", project_id, exc, exc_info=True
+        )
+        return JSONResponse(
+            {"error": {"code": "internal_error", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+def invalidate_release_branch_catalog(project_id: str) -> None:
+    """Invalidate the release-branch catalog cache for *project_id*.
+
+    Call this from the release-addendum merge hook and any other path that
+    can change the set of remotely-available branches.
+
+    Args:
+        project_id: The project whose catalog cache should be dropped.
+    """
+    try:
+        from oompah.release_branch_catalog import get_default_catalog
+
+        get_default_catalog().invalidate(project_id)
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning(
+            "invalidate_release_branch_catalog: failed for %s: %s", project_id, exc
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end release-branch catalog endpoint)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/projects/{project_id}/release-branches/{branch_name:path}/addendums
+# Branch inspection endpoint (section 7 of plans/release-branch-addendums.md, OOMPAH-182)
+# ---------------------------------------------------------------------------
+
+#: Status order for grouping (plan section 7: open, in_progress, in_review, blocked, merged, archived)
+_BRANCH_INSPECTION_STATUS_ORDER = [
+    "open",
+    "in_progress",
+    "in_review",
+    "blocked",
+    "merged",
+    "archived",
+]
+
+
+def _compute_untracked_commits(
+    repo_path: str,
+    target_branch: str,
+    tracked_commit_set: frozenset[str],
+) -> dict[str, object]:
+    """Return an ``untracked_commits`` warning dict for direct target-branch commits.
+
+    Runs ``git log origin/<target_branch> --format=%H`` to enumerate all
+    commits on the target branch, then removes the set of commits already
+    accounted for by release addendums' ``result_commits`` snapshots.  The
+    remainder are commits that were pushed directly to the target branch
+    without going through the addendum workflow.
+
+    This is a best-effort, read-only operation.  Any subprocess failure or
+    missing ``repo_path`` returns an empty dict (the warning is omitted).
+
+    Args:
+        repo_path: Absolute path to the local git clone.
+        target_branch: Exact release branch name (e.g. ``"release/1.0"``).
+        tracked_commit_set: Set of all SHAs that appear in any addendum's
+            ``result_commits`` for this branch.
+
+    Returns:
+        A dict with ``count``, ``commits`` (list of SHAs, max 50), and
+        ``warning`` string, or an empty dict on any error.
+    """
+    import subprocess as _subprocess  # noqa: PLC0415
+
+    if not repo_path:
+        return {}
+
+    try:
+        result = _subprocess.run(
+            ["git", "log", f"origin/{target_branch}", "--format=%H"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except Exception:
+        return {}
+
+    if result.returncode != 0:
+        return {}
+
+    branch_commits: list[str] = [
+        line.strip() for line in result.stdout.splitlines() if line.strip()
+    ]
+    untracked: list[str] = [c for c in branch_commits if c not in tracked_commit_set]
+
+    if not untracked:
+        return {}
+
+    count = len(untracked)
+    return {
+        "count": count,
+        "commits": untracked[:50],
+        "warning": (
+            f"{count} commit{'s' if count != 1 else ''} on {target_branch!r} "
+            f"cannot be mapped to a release addendum. "
+            "These may be direct commits to the release branch."
+        ),
+    }
+
+
+@app.get("/api/v1/projects/{project_id}/release-branches/{branch_name:path}/addendums")
+async def api_release_branch_addendums(project_id: str, branch_name: str) -> JSONResponse:
+    """Return all source tasks/epics with addendums for a release branch.
+
+    Scans all tasks in *project_id* for ``oompah.release_addendums`` entries
+    that target *branch_name*, then groups them by addendum status.  Also
+    computes an informational ``untracked_commits`` warning for commits on the
+    target branch that cannot be attributed to any release addendum.
+
+    *branch_name* may contain ``/`` (e.g. ``release/1.0``).  The URL
+    parameter is captured via a ``{branch_name:path}`` pattern, so callers
+    may either pass the literal branch name as path segments or percent-encode
+    the slashes (``release%2F1.0``).
+
+    Response shape::
+
+        {
+            "project_id": "proj-1",
+            "branch": "release/1.0",
+            "groups": {
+                "open":        [<entry>, ...],
+                "in_progress": [<entry>, ...],
+                "in_review":   [<entry>, ...],
+                "blocked":     [<entry>, ...],
+                "merged":      [<entry>, ...],
+                "archived":    [<entry>, ...]
+            },
+            "untracked_commits": {
+                "count": 2,
+                "commits": ["sha1...", "sha2..."],
+                "warning": "2 commits on 'release/1.0' cannot be mapped..."
+            }
+        }
+
+    Each ``<entry>`` has::
+
+        {
+            "identifier": "FOO-10",
+            "title": "Task title",
+            "type": "task",
+            "addendum": {<ReleaseAddendum.to_raw() dict>}
+        }
+
+    The ``untracked_commits`` key is absent or ``null`` when there are no
+    untracked commits or when git analysis is unavailable.
+
+    HTTP status codes:
+
+    * ``200`` — query successful (groups may be empty).
+    * ``404`` — project not found.
+    * ``503`` — tracker or git error on inspection.
+    """
+    try:
+        from oompah.release_addendum_schema import AddendumRepository, AddendumStatus  # noqa: PLC0415
+
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+
+        try:
+            tracker = orch._tracker_for_project(project_id)
+        except Exception as exc:
+            logger.error(
+                "release-branch-addendums: tracker unavailable for %s: %s",
+                project_id,
+                exc,
+            )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "tracker_unavailable",
+                        "message": "Tracker is unavailable for this project.",
+                    }
+                },
+                status_code=503,
+            )
+
+        # Scan all tasks for addendums targeting this branch
+        try:
+            all_issues = await asyncio.to_thread(tracker.fetch_all_issues)
+        except Exception as exc:
+            logger.error(
+                "release-branch-addendums: failed to list issues for %s: %s",
+                project_id,
+                exc,
+            )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "list_failed",
+                        "message": "Failed to list project issues.",
+                    }
+                },
+                status_code=503,
+            )
+
+        repo = AddendumRepository(tracker)
+        groups: dict[str, list[dict]] = {s: [] for s in _BRANCH_INSPECTION_STATUS_ORDER}
+        tracked_commits: set[str] = set()
+
+        for issue in all_issues:
+            identifier = getattr(issue, "identifier", None) or getattr(issue, "id", None)
+            if not identifier:
+                continue
+            try:
+                addendums = repo.read(identifier)
+            except Exception:
+                continue
+
+            for addendum in addendums:
+                if addendum.target_branch != branch_name:
+                    continue
+                # Collect execution evidence commits for untracked analysis
+                for sha in addendum.result_commits:
+                    tracked_commits.add(sha)
+                # Group by status
+                status_key = addendum.status.value  # e.g. "open", "in_progress"
+                if status_key not in groups:
+                    status_key = "archived"  # fallback for unknown statuses
+                entry: dict[str, object] = {
+                    "identifier": identifier,
+                    "title": getattr(issue, "title", "") or "",
+                    "type": getattr(issue, "issue_type", "task") or "task",
+                    "addendum": addendum.to_raw(),
+                }
+                groups[status_key].append(entry)
+
+        # Compute untracked commits (best-effort)
+        repo_path = getattr(project, "repo_path", None) or ""
+        untracked: dict[str, object] = {}
+        if repo_path:
+            untracked = await asyncio.to_thread(
+                _compute_untracked_commits,
+                repo_path,
+                branch_name,
+                frozenset(tracked_commits),
+            )
+
+        response: dict[str, object] = {
+            "project_id": project_id,
+            "branch": branch_name,
+            "groups": groups,
+        }
+        if untracked:
+            response["untracked_commits"] = untracked
+
+        return JSONResponse(response)
+
+    except Exception as exc:
+        logger.error(
+            "release-branch-addendums: unexpected error for %s/%s: %s",
+            project_id,
+            branch_name,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "internal_error", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end release-branch addendum inspection endpoint)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/issues/{identifier}/release-addendums
+# (section 6 of plans/release-branch-addendums.md, OOMPAH-176)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/v1/issues/{identifier}/release-addendums")
+async def api_approve_release_addendums(identifier: str, request: Request):
+    """Approve a merged task or epic for one or more release branches.
+
+    Creates one ``open`` :class:`~oompah.release_addendum_schema.ReleaseAddendum`
+    per target branch and immediately publishes a ``release_addendum_ready``
+    event to wake the queue worker.
+
+    **Request body** (JSON object)::
+
+        {
+            "project_id": "my-project",
+            "target_branches": ["release/1.0", "release/1.1"],
+            "idempotency_key": "<UUID generated by the caller>"
+        }
+
+    **Validation** (all-or-nothing — a single invalid branch rejects the
+    entire request without persisting any addendum):
+
+    - ``project_id`` is required.
+    - The source task or epic must be in the canonical ``Merged`` state.
+    - ``target_branches`` must be non-empty and distinct after deduplication.
+    - Each target branch must be configured in
+      ``project.supported_release_branches``, currently available remotely
+      (``available=True``), and confirmed by live discovery (``stale=False``).
+    - The source merge must be resolvable to a non-empty commit list.
+
+    **Idempotency**: repeating the request (same or different
+    ``idempotency_key``) is safe — already-active addendums for a branch are
+    returned unchanged without creating duplicate rows.
+
+    **Event failure**: if event publication fails *after* persistence, the row
+    remains ``open`` and the response includes ``"queued": false``.  The
+    periodic queue scanner (OOMPAH-177) will discover and wake it.
+
+    **Response** (``200 OK``)::
+
+        {
+            "identifier": "FOO-10",
+            "addendums": [...],
+            "newly_created": ["FOO-10/release/1.0"],
+            "queued": true
+        }
+
+    **Error responses**:
+
+    - ``400`` — missing/invalid fields, invalid/unavailable/default/stale target branches.
+    - ``404`` — project or issue not found.
+    - ``409`` — source task is not Merged, or commit resolution failed.
+    - ``503`` — branch catalog discovery failed on first load.
+    """
+    try:
+        # ------------------------------------------------------------------
+        # 1. Parse request body
+        # ------------------------------------------------------------------
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": f"Invalid JSON: {exc}"}},
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "Request body must be a JSON object"}},
+                status_code=400,
+            )
+
+        project_id = body.get("project_id") or request.query_params.get("project_id")
+        if not project_id:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "project_id is required"}},
+                status_code=400,
+            )
+
+        raw_targets = body.get("target_branches")
+        if not raw_targets or not isinstance(raw_targets, list):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "target_branches must be a non-empty list of branch names",
+                    }
+                },
+                status_code=400,
+            )
+
+        # ------------------------------------------------------------------
+        # 2. Resolve project and issue
+        # ------------------------------------------------------------------
+        orch = _get_orchestrator()
+        resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
+
+        try:
+            project = orch.project_store.get(project_id)
+        except Exception:
+            project = None
+        if project is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "project_not_found",
+                        "message": f"Project {project_id!r} not found",
+                    }
+                },
+                status_code=404,
+            )
+
+        try:
+            tracker = _get_tracker(orch, project_id)
+        except Exception as exc:
+            return JSONResponse(
+                {"error": {"code": "project_not_found", "message": str(exc)}},
+                status_code=404,
+            )
+
+        try:
+            issue = tracker.fetch_issue_detail(resolved_identifier)
+        except Exception:
+            issue = None
+        if issue is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "issue_not_found",
+                        "message": f"Issue {resolved_identifier!r} not found",
+                    }
+                },
+                status_code=404,
+            )
+
+        # ------------------------------------------------------------------
+        # 3. Require source task/epic to be Merged on the default branch
+        # ------------------------------------------------------------------
+        issue_status = canonicalize_status(issue.state)
+        if issue_status != MERGED:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "source_not_merged",
+                        "message": (
+                            f"Issue {resolved_identifier!r} must be in Merged state "
+                            f"to approve release addendums (current state: {issue.state!r})"
+                        ),
+                    }
+                },
+                status_code=409,
+            )
+
+        # ------------------------------------------------------------------
+        # 4. Validate target branches against the fresh catalog
+        # ------------------------------------------------------------------
+        from oompah.release_branch_catalog import CatalogDiscoveryError, get_default_catalog
+        from oompah.release_addendum_approval import (
+            CommitResolutionError,
+            InvalidTargetBranchError,
+            approve_release_addendums,
+            resolve_addendum_commits,
+            resolve_epic_addendum_commits,
+            validate_target_branches,
+        )
+
+        catalog = get_default_catalog()
+        try:
+            catalog_result = catalog.list_candidates(project)
+        except CatalogDiscoveryError as exc:
+            logger.warning(
+                "release-addendums: first-load catalog failure for %s: %s",
+                project_id,
+                exc,
+            )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "catalog_unavailable",
+                        "message": (
+                            "Branch catalog discovery failed; retry when the remote "
+                            f"repository is reachable: {exc}"
+                        ),
+                    }
+                },
+                status_code=503,
+            )
+
+        default_branch: str = getattr(project, "default_branch", "main") or "main"
+        deduped_targets, validation_errors = validate_target_branches(
+            [str(b).strip() for b in raw_targets if str(b).strip()],
+            catalog_result,
+            default_branch,
+        )
+
+        if not deduped_targets:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "target_branches must contain at least one non-empty branch name",
+                    }
+                },
+                status_code=400,
+            )
+
+        if validation_errors:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_target_branches",
+                        "message": "One or more target branches are invalid",
+                        "details": validation_errors,
+                    }
+                },
+                status_code=400,
+            )
+
+        # ------------------------------------------------------------------
+        # 5. Resolve commit snapshot (fail whole request if unresolvable)
+        # ------------------------------------------------------------------
+        scm = None
+        repo = None
+        try:
+            repo_url = getattr(project, "repo_url", None)
+            if repo_url:
+                scm = detect_provider(
+                    repo_url,
+                    access_token=getattr(project, "access_token", None),
+                )
+                repo = extract_repo_slug(repo_url)
+        except Exception as scm_exc:
+            logger.debug(
+                "release-addendums: SCM detection failed for %s: %s", project_id, scm_exc
+            )
+
+        # ------------------------------------------------------------------
+        # 5. Resolve commit snapshot — strategy depends on issue type
+        #    For epics: union of all merged-descendant commits (OOMPAH-181)
+        #    For tasks: the task's own merged-PR commits (original behavior)
+        # ------------------------------------------------------------------
+        included_child_ids: list[str] = []
+        is_epic = getattr(issue, "issue_type", "task") == "epic"
+
+        try:
+            if is_epic:
+                commits, included_child_ids = resolve_epic_addendum_commits(
+                    issue, tracker, project, scm=scm, repo=repo
+                )
+            else:
+                commits = resolve_addendum_commits(issue, project, scm=scm, repo=repo)
+        except CommitResolutionError as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "commit_resolution_failed",
+                        "message": str(exc),
+                    }
+                },
+                status_code=409,
+            )
+
+        # ------------------------------------------------------------------
+        # 6. Under per-source lock: create missing addendums, write atomically
+        # 7. Publish release_addendum_ready events
+        # ------------------------------------------------------------------
+        event_bus = None
+        try:
+            event_bus = orch.event_bus
+        except Exception:
+            pass
+
+        result = await approve_release_addendums(
+            tracker,
+            issue,
+            project,
+            deduped_targets,
+            commits,
+            included_child_ids=included_child_ids if is_epic else None,
+            event_bus=event_bus,
+        )
+
+        # ------------------------------------------------------------------
+        # 8. Invalidate task and branch-inspection caches, return response
+        # ------------------------------------------------------------------
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        invalidate_release_branch_catalog(project_id)
+
+        addendums_raw = [a.to_raw() for a in result.addendums]
+        response_body: dict = {
+            "identifier": resolved_identifier,
+            "addendums": addendums_raw,
+            "newly_created": result.newly_created_ids,
+            "queued": result.queued,
+        }
+        if result.event_failures:
+            response_body["event_failures"] = result.event_failures
+
+        return JSONResponse(response_body, status_code=200)
+
+    except Exception as exc:
+        logger.error(
+            "release-addendums: unexpected error for %s: %s", identifier, exc, exc_info=True
+        )
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end release-addendums approval endpoint)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/issues/{identifier}/release-addendums
+# (OOMPAH-180: task detail UI reads addendums via this endpoint)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/v1/issues/{identifier}/release-addendums")
+async def api_get_release_addendums(identifier: str, request: Request):
+    """Return the release-addendum list for a task or epic.
+
+    Reads ``oompah.release_addendums`` frontmatter from the task identified
+    by *identifier* and returns a dict with:
+
+    * ``identifier`` — the resolved task identifier.
+    * ``addendums`` — list of addendum objects (full ``to_raw()`` dicts),
+      each containing ``id``, ``target_branch``, ``status``, ``pr_url``,
+      ``error``, ``queued_at``, ``started_at``, ``completed_at``,
+      ``work_branch``, ``commits``, and ``result_commits``.
+
+    Returns an empty list when no addendums have been created yet.
+    Accepts an optional ``project_id`` query parameter to narrow lookup.
+    """
+    try:
+        from oompah.release_addendum_schema import AddendumRepository
+
+        orch = _get_orchestrator()
+        project_id = request.query_params.get("project_id")
+        resolved_identifier = _resolve_identifier(identifier, None, request.query_params)
+        tracker, resolved_project_id, issue = _find_tracker_for_issue(
+            orch, resolved_identifier, project_id
+        )
+        if tracker is None or issue is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "issue_not_found",
+                        "message": f"Issue {resolved_identifier} not found",
+                    }
+                },
+                status_code=404,
+            )
+        repo = AddendumRepository(tracker)
+        addendums = repo.read(issue.identifier)
+        return JSONResponse(
+            {
+                "identifier": issue.identifier,
+                "addendums": [a.to_raw() for a in addendums],
+            }
+        )
+    except Exception as exc:
+        logger.error(
+            "release-addendums GET error for %s: %s", identifier, exc, exc_info=True
+        )
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end release-addendums GET endpoint)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/issues/{identifier}/release-addendums/{addendum_id}/retry
+# POST /api/v1/issues/{identifier}/release-addendums/{addendum_id}/archive
+# (OOMPAH-179: lifecycle controls)
+# ---------------------------------------------------------------------------
+
+
+def _load_addendum_for_control(
+    orch: Any,
+    project_id: str | None,
+    identifier: str,
+    addendum_id: str,
+) -> tuple[Any, str, Any, list, Any]:
+    """Shared lookup for the retry/archive endpoints.
+
+    Returns ``(tracker, resolved_project_id, issue, addendums, addendum)``
+    or raises ``KeyError`` / ``ValueError`` that the caller maps to 404/400.
+
+    Raises:
+        KeyError: when the project, issue, or addendum_id is not found.
+        ValueError: when the project is not resolvable.
+    """
+    from oompah.release_addendum_schema import AddendumRepository
+
+    tracker, resolved_project_id, issue = _find_tracker_for_issue(
+        orch, identifier, project_id
+    )
+    if tracker is None or issue is None:
+        raise KeyError(f"issue {identifier!r} not found")
+
+    repo = AddendumRepository(tracker)
+    addendums = repo.read(issue.identifier)
+    decoded_id = addendum_id  # already decoded by FastAPI path capture
+    target_addendum = next(
+        (a for a in addendums if a.id == decoded_id), None
+    )
+    if target_addendum is None:
+        raise KeyError(f"addendum {addendum_id!r} not found on {identifier!r}")
+
+    return tracker, resolved_project_id, issue, addendums, target_addendum
+
+
+def _invalidate_addendum_caches(
+    project_id: str,
+    identifier: str,
+) -> None:
+    """Invalidate caches that may hold stale addendum data."""
+    _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+    _api_cache.invalidate("issues:all")
+    invalidate_release_branch_catalog(project_id)
+
+
+@app.post("/api/v1/issues/{identifier}/release-addendums/{addendum_id:path}/retry")
+async def api_retry_release_addendum(
+    identifier: str,
+    addendum_id: str,
+    request: Request,
+) -> JSONResponse:
+    """Retry a blocked or closed-unmerged in_review release addendum.
+
+    Transitions the addendum from ``blocked`` or ``in_review`` (with a
+    closed-unmerged PR) to ``open``, preserving the immutable commit snapshot.
+    The addendum is re-queued for cherry-pick and PR creation.
+
+    **Request body** (JSON object)::
+
+        {"project_id": "my-project"}
+
+    **Valid source states**: ``blocked``, ``in_review`` (closed-unmerged only).
+
+    **Response** (``200 OK``)::
+
+        {
+            "identifier": "FOO-10",
+            "addendum_id": "FOO-10/release/1.0",
+            "addendums": [...]
+        }
+
+    **Error responses**:
+
+    - ``400`` — missing ``project_id``.
+    - ``404`` — project, issue, or addendum not found.
+    - ``409`` — invalid transition (e.g. already open, merged, or archived).
+    """
+    try:
+        # 1. Parse body
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": f"Invalid JSON: {exc}"}},
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "Request body must be a JSON object"}},
+                status_code=400,
+            )
+
+        project_id = body.get("project_id") or request.query_params.get("project_id")
+        if not project_id:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "project_id is required"}},
+                status_code=400,
+            )
+
+        resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
+        orch = _get_orchestrator()
+
+        # 2. Load addendum
+        try:
+            tracker, resolved_project_id, issue, addendums, target_addendum = (
+                _load_addendum_for_control(orch, project_id, resolved_identifier, addendum_id)
+            )
+        except KeyError as exc:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": str(exc)}},
+                status_code=404,
+            )
+
+        # 3. Validate and apply transition (blocked → open  or  in_review → open)
+        from oompah.release_addendum_schema import (
+            AddendumRepository,
+            AddendumStatus,
+            InvalidTransitionError,
+        )
+
+        if target_addendum.status not in {
+            AddendumStatus.BLOCKED,
+            AddendumStatus.IN_REVIEW,
+        }:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_transition",
+                        "message": (
+                            f"Cannot retry addendum {addendum_id!r}: "
+                            f"current status is {target_addendum.status.value!r}. "
+                            f"Retry is only valid from 'blocked' or 'in_review' (closed-unmerged)."
+                        ),
+                    }
+                },
+                status_code=409,
+            )
+
+        try:
+            repo = AddendumRepository(tracker)
+            updated_list = repo.transition(
+                issue.identifier,
+                target_addendum.id,
+                AddendumStatus.OPEN,
+                # Clear execution-lease fields; commits are immutable and preserved
+                claimed_by=None,
+                lease_expires_at=None,
+                error=None,
+            )
+        except InvalidTransitionError as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_transition",
+                        "message": str(exc),
+                    }
+                },
+                status_code=409,
+            )
+
+        # 4. Post oompah comment on source task
+        try:
+            pr_clause = (
+                f"\nPR: {target_addendum.pr_url}" if target_addendum.pr_url else ""
+            )
+            tracker.add_comment(
+                issue.identifier,
+                (
+                    f"🔁 Release addendum for `{target_addendum.target_branch}` "
+                    f"retried — status changed from "
+                    f"`{target_addendum.status.value}` to `open`.{pr_clause}\n\n"
+                    f"Branch: `{target_addendum.target_branch}`"
+                ),
+                author="oompah",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "api_retry_release_addendum: failed to post comment on %s: %s",
+                issue.identifier,
+                exc,
+            )
+
+        # 5. Publish wake-up event so the queue picks it up immediately
+        try:
+            event_bus = getattr(orch, "event_bus", None)
+            if event_bus is not None:
+                from oompah.events import EventType
+                event_bus.publish(
+                    EventType.RELEASE_ADDENDUM_READY,
+                    {
+                        "project_id": resolved_project_id,
+                        "source_identifier": issue.identifier,
+                        "target_branch": target_addendum.target_branch,
+                    },
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "api_retry_release_addendum: event publish failed (non-fatal): %s", exc
+            )
+
+        # 6. Invalidate caches
+        _invalidate_addendum_caches(resolved_project_id or project_id, resolved_identifier)
+
+        return JSONResponse(
+            {
+                "identifier": issue.identifier,
+                "addendum_id": addendum_id,
+                "addendums": [a.to_raw() for a in updated_list],
+            }
+        )
+
+    except Exception as exc:
+        logger.error(
+            "api_retry_release_addendum: unexpected error for %s/%s: %s",
+            identifier,
+            addendum_id,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+@app.post("/api/v1/issues/{identifier}/release-addendums/{addendum_id:path}/archive")
+async def api_archive_release_addendum(
+    identifier: str,
+    addendum_id: str,
+    request: Request,
+) -> JSONResponse:
+    """Archive an open or blocked release addendum.
+
+    Transitions the addendum from ``open`` or ``blocked`` to ``archived``.
+    This permanently cancels the addendum; it will not be re-queued.
+
+    **Request body** (JSON object)::
+
+        {"project_id": "my-project"}
+
+    **Valid source states**: ``open``, ``blocked``.
+
+    **Response** (``200 OK``)::
+
+        {
+            "identifier": "FOO-10",
+            "addendum_id": "FOO-10/release/1.0",
+            "addendums": [...]
+        }
+
+    **Error responses**:
+
+    - ``400`` — missing ``project_id``.
+    - ``404`` — project, issue, or addendum not found.
+    - ``409`` — invalid transition (e.g. in_review, in_progress, merged, or already archived).
+    """
+    try:
+        # 1. Parse body
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": f"Invalid JSON: {exc}"}},
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "Request body must be a JSON object"}},
+                status_code=400,
+            )
+
+        project_id = body.get("project_id") or request.query_params.get("project_id")
+        if not project_id:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "project_id is required"}},
+                status_code=400,
+            )
+
+        resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
+        orch = _get_orchestrator()
+
+        # 2. Load addendum
+        try:
+            tracker, resolved_project_id, issue, addendums, target_addendum = (
+                _load_addendum_for_control(orch, project_id, resolved_identifier, addendum_id)
+            )
+        except KeyError as exc:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": str(exc)}},
+                status_code=404,
+            )
+
+        # 3. Validate and apply transition (open → archived  or  blocked → archived)
+        from oompah.release_addendum_schema import (
+            AddendumRepository,
+            AddendumStatus,
+            InvalidTransitionError,
+        )
+
+        if target_addendum.status not in {
+            AddendumStatus.OPEN,
+            AddendumStatus.BLOCKED,
+        }:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_transition",
+                        "message": (
+                            f"Cannot archive addendum {addendum_id!r}: "
+                            f"current status is {target_addendum.status.value!r}. "
+                            f"Archive is only valid from 'open' or 'blocked'."
+                        ),
+                    }
+                },
+                status_code=409,
+            )
+
+        try:
+            repo = AddendumRepository(tracker)
+            updated_list = repo.transition(
+                issue.identifier,
+                target_addendum.id,
+                AddendumStatus.ARCHIVED,
+            )
+        except InvalidTransitionError as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_transition",
+                        "message": str(exc),
+                    }
+                },
+                status_code=409,
+            )
+
+        # 4. Post oompah comment on source task
+        try:
+            tracker.add_comment(
+                issue.identifier,
+                (
+                    f"🗄️ Release addendum for `{target_addendum.target_branch}` "
+                    f"archived — status changed from "
+                    f"`{target_addendum.status.value}` to `archived`.\n\n"
+                    f"Branch: `{target_addendum.target_branch}`"
+                ),
+                author="oompah",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "api_archive_release_addendum: failed to post comment on %s: %s",
+                issue.identifier,
+                exc,
+            )
+
+        # 5. Invalidate caches
+        _invalidate_addendum_caches(resolved_project_id or project_id, resolved_identifier)
+
+        return JSONResponse(
+            {
+                "identifier": issue.identifier,
+                "addendum_id": addendum_id,
+                "addendums": [a.to_raw() for a in updated_list],
+            }
+        )
+
+    except Exception as exc:
+        logger.error(
+            "api_archive_release_addendum: unexpected error for %s/%s: %s",
+            identifier,
+            addendum_id,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end release-addendum lifecycle-control endpoints)
 # ---------------------------------------------------------------------------
 
 
@@ -6433,6 +7625,26 @@ async def api_create_project(request: Request):
                 if cleaned and key not in seen_status_logins:
                     status_label_authorized_logins.append(cleaned)
                     seen_status_logins.add(key)
+        # supported_release_branches: optional list of exact branch names.
+        # Validation (nonempty, unique, not default_branch, matches branches)
+        # is delegated to ProjectStore.create() via _validate_supported_release_branches.
+        supported_release_branches_raw = body.get("supported_release_branches")
+        supported_release_branches_create: list[str] | None = None
+        if supported_release_branches_raw is not None:
+            if not (
+                isinstance(supported_release_branches_raw, list)
+                and all(isinstance(x, str) for x in supported_release_branches_raw)
+            ):
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "supported_release_branches must be a list of strings or null",
+                        }
+                    },
+                    status_code=400,
+                )
+            supported_release_branches_create = supported_release_branches_raw
         project = orch.project_store.create(
             repo_url=repo_url,
             name=name,
@@ -6449,6 +7661,7 @@ async def api_create_project(request: Request):
             github_project_node_id=github_project_node_id,
             status_actor_login=status_actor_login,
             status_label_authorized_logins=status_label_authorized_logins,
+            supported_release_branches=supported_release_branches_create,
             paused=True,
         )
         # Sync log watchers in case the new project has a log_path
@@ -6717,6 +7930,22 @@ async def api_update_project(project_id: str, request: Request):
                         "error": {
                             "code": "validation",
                             "message": "github_issue_intake_enabled must be a boolean",
+                        }
+                    },
+                    status_code=400,
+                )
+        if "supported_release_branches" in body:
+            val = body["supported_release_branches"]
+            if val is None:
+                fields["supported_release_branches"] = []
+            elif isinstance(val, list) and all(isinstance(x, str) for x in val):
+                fields["supported_release_branches"] = val
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "supported_release_branches must be a list of strings or null",
                         }
                     },
                     status_code=400,
@@ -8083,6 +9312,15 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     # label events (repository-level label definitions) and push events do
     # not directly change cached task data; push state is refreshed via the
     # source-sync thread when the tracked branch advances.
+
+    # Invalidate the release-branch catalog cache when a push event arrives
+    # for a tracked branch (e.g. a new release/x.y branch was created or
+    # updated on origin).  Best-effort — never block the webhook response.
+    if _project_id and event.event_type == "push" and project:
+        try:
+            invalidate_release_branch_catalog(_project_id)
+        except Exception:  # pragma: no cover — defensive
+            pass
 
     if event.merged:
         orch.invalidate_merged_branches()

@@ -44,6 +44,14 @@ Design notes in `plans/` do not create work by themselves. Create an oompah task
 when implementation has been accepted or needs status, ownership, blockers, or
 agent orchestration.
 
+## Release Delivery
+
+Ordinary work lands on the default branch first. If a merged task or epic must
+also reach a maintained release line, an operator queues a release addendum on
+the original source item. This creates a per-branch queue record, not a child
+backport task. See [Release Addendums](release-addendums.md) for the operator
+procedure, API contract, branch inspection, and legacy migration details.
+
 ## Status Lifecycle
 
 Only `Open`, `Needs CI Fix`, and `Needs Rebase` are dispatchable agent states.
