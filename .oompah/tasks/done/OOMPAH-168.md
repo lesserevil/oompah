@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:07.456716Z'
-updated_at: '2026-07-13T03:56:34.020214Z'
+updated_at: '2026-07-13T03:56:36.280016Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -106,5 +106,10 @@ author: oompah
 created: 2026-07-13 03:56
 ---
 COMPLETION: OOMPAH-168 is done. Delivered: (1) Removed ~650 lines of flat/stacked strategy dead code from oompah/orchestrator.py; (2) Simplified to shared-only workflow — one epic branch, children commit to it, epic PR lands on default branch; (3) Removed _stacked_child_default_landing_status entirely; (4) Added 7 new regression tests (TestEpicRollupChildStrategy, shared done-child skip, shared per-child PR close); (5) Removed 13 obsolete stacked/flat mode tests; (6) All 7317 tests green. No behavior change for projects using shared mode (the only supported mode).
+---
+author: oompah
+created: 2026-07-13 03:56
+---
+Removed all flat and stacked strategy code paths from orchestrator.py. Simplified to shared-only epic workflow. Removed _stacked_child_default_landing_status and all strategy-conditional blocks. Added regression tests (TestEpicRollupChildStrategy + 2 shared-mode tests). All 7317 tests green.
 ---
 <!-- COMMENTS:END -->
