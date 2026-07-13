@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-167
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Remove flat and stacked strategy configuration
 parent: OOMPAH-166
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:05.076076Z'
-updated_at: '2026-07-13T02:33:08.138893Z'
+updated_at: '2026-07-13T02:33:14.241563Z'
 work_branch: null
 target_branch: null
 review_url: null
