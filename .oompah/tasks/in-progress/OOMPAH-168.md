@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:07.456716Z'
-updated_at: '2026-07-13T02:33:36.189874Z'
+updated_at: '2026-07-13T02:34:26.771376Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-07-13 02:33
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 02:34
+---
+UNDERSTANDING: No duplicate found. OOMPAH-168 is a unique child of epic OOMPAH-166 covering the orchestration layer. Sibling OOMPAH-167 (config/domain layer) is Done and unblocks this task. Scope: remove flat/stacked strategy code paths from orchestrator.py epic decomposition, task dispatch, branch/worktree selection, review/merge reconciliation, repair tasks, and roll-up status handling. Retain only shared workflow logic. Add regression tests. Plan: (1) Read orchestrator.py and related files to find all epic_strategy conditionals, (2) Remove flat/stacked branches, (3) Simplify to shared-only paths, (4) Add/update tests, (5) Run make test.
 ---
 <!-- COMMENTS:END -->
