@@ -552,6 +552,62 @@ class OompahMarkdownTracker:
             self.invalidate_read_cache()
             self._commit_and_push(f"Normalize native oompah task {meta['id']}")
 
+    def write_and_commit_ledger_file(
+        self,
+        relative_path: str,
+        content: str,
+        subject: str,
+    ) -> None:
+        """Write *content* to *relative_path* and commit it on the default branch.
+
+        This is the supported path for non-task ledger files (such as
+        ``.oompah/release-deliveries.yml``) that need to be committed on the
+        project's default branch alongside task state changes.  It uses the
+        same git infrastructure as task writes: branch validation, atomic
+        file write, fetch + ff-only sync before write, and push with retry.
+
+        Args:
+            relative_path: Path relative to the project root
+                (e.g. ``".oompah/release-deliveries.yml"``).
+            content: Full text content of the file.
+            subject: Commit message subject line.
+
+        Raises:
+            TrackerError: When the current branch is not the default branch,
+                the git sync fails, or the commit/push fails.
+        """
+        full_path = self._root / relative_path
+        with self._write_lock:
+            self._prepare_default_branch_for_write()
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            _atomic_write(full_path, content)
+            if not self._git_sync_requested() or not self._is_git_repo():
+                return
+            self._git(["add", relative_path], check=True)
+            if (
+                self._git(
+                    ["diff", "--cached", "--quiet", "--", relative_path],
+                    check=False,
+                ).returncode
+                == 0
+            ):
+                return  # Nothing staged — file unchanged, no commit needed
+            message = (
+                f"{subject}\n\n"
+                "🤖 Generated with https://github.com/lesserevil/oompah\n\n"
+                "Co-authored-by: oompah <lesserevil@users.noreply.github.com>\n"
+            )
+            self._git(["commit", "-m", message], check=True)
+            branch = self.default_branch or self._infer_default_branch() or "main"
+            if not self._has_remote("origin"):
+                return
+            push = self._git(["push", "origin", f"HEAD:{branch}"], check=False)
+            if push.returncode == 0:
+                return
+            # Push was rejected — sync from remote and retry once
+            self._sync_from_remote(branch)
+            self._git(["push", "origin", f"HEAD:{branch}"], check=True)
+
     def invalidate_read_cache(self) -> None:
         with self._read_cache_guard:
             self._read_cache = None
