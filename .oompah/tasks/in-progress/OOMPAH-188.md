@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-13T14:19:41.967141Z'
-updated_at: '2026-07-13T14:57:04.029987Z'
+updated_at: '2026-07-13T15:05:05.465182Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,26 @@ author: oompah
 created: 2026-07-13 14:56
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 15:05
+---
+Understanding & Discovery: Investigated OOMPAH-188 for duplicates.
+
+OOMPAH-188 is about project 'coroot' failing with HTTP 403 'Resource not accessible by personal access token'. This is NOT a duplicate of the existing OOMPAH-58 series (and its ~90 archived clones), all of which concern project 'trickle' with HTTP 404 'Not Found'. These are different root causes:
+- HTTP 404 = webhook API endpoint not found / insufficient admin permission on repo
+- HTTP 403 = fine-grained PAT lacks the specific 'Webhooks: Read and write' repository permission
+
+The work for OOMPAH-188 has already been completed:
+1. The operator updated the coroot PAT to include Webhooks: Read and write permission (operational fix, done before this task was dispatched).
+2. Commit b58265d6 ('Document webhook PAT permission') on main already added documentation to four files:
+   - .env.example: Added warning that webhook forwarding requires 'Webhooks: Read and write' on fine-grained PATs
+   - docs/webhook-forwarding.md: Added 'Token permission' setup section + troubleshooting entry for HTTP 403 'Resource not accessible by personal access token'
+   - docs/managed-project-onboarding.md: Added webhook permission requirement
+   - docs/operator-runbook.md: Updated GITHUB_TOKEN description to include webhook permission
+
+The code behavior is correct as-is: _is_fatal_forwarder_error() correctly classifies HTTP 403 as fatal and disables that project's forwarder (preventing noisy retry loops), and the configuration-change detection (old_config != new_config) correctly re-enables it when the PAT is updated without requiring a restart.
+
+No code changes required. No duplicate found. Closing as complete.
 ---
 <!-- COMMENTS:END -->
