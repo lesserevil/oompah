@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:44:41.783116Z'
-updated_at: '2026-07-13T03:03:30.227865Z'
+updated_at: '2026-07-13T03:06:13.988723Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,5 +85,20 @@ Changes:
 5. tests/test_server_source_update.py (new) — 24 tests: 9 for _strip_source_header unit tests; 5 for set source via PATCH; 5 for clear source via PATCH; 1 for missing task 404.
 
 All 7315 project tests pass.
+---
+author: oompah
+created: 2026-07-13 03:06
+---
+VERIFICATION: Full test suite ran: 7315 passed, 28 skipped, 0 failures. New tests: 23 in test_task_cli.py + 24 in test_server_source_update.py = 47 net-new tests, all green.
+
+Acceptance criteria verified:
+- 'oompah task set-source TASK-1 TASK-42' sends PATCH {source_task_id: TASK-42} → server prepends 'Triggered by: TASK-42' to description → tracker.update_issue() persists
+- 'oompah task remove-source TASK-1' sends PATCH {clear_source: true} → server strips 'Triggered by:' header → tracker.update_issue() persists  
+- oompah task view would show the updated description with/without source
+- Empty source_task_id returns HTTP 400 with clear validation message
+- Parser errors for missing positional args
+- GitHub-style identifiers forward managed_repo for cross-tracker compat
+- --project/--project-id forwarded to server for explicit project scope
+- description wins over source fields (no regressions for existing PATCH callers)
 ---
 <!-- COMMENTS:END -->
