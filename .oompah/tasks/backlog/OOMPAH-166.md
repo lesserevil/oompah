@@ -5,13 +5,14 @@ status: Backlog
 priority: 1
 title: Standardize epic workflow on shared strategy
 parent: null
-children: []
+children:
+- OOMPAH-167
 blocked_by: []
 labels:
 - draft
 assignee: null
 created_at: '2026-07-13T02:22:52.257643Z'
-updated_at: '2026-07-13T02:22:54.564690Z'
+updated_at: '2026-07-13T02:23:05.121246Z'
 work_branch: null
 target_branch: null
 review_url: null
