@@ -17,7 +17,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:33:31.162292Z'
-updated_at: '2026-07-13T23:25:23.834466Z'
+updated_at: '2026-07-13T23:25:31.821162Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -124,5 +124,15 @@ author: oompah
 created: 2026-07-13 23:25
 ---
 Added tests/test_release_delivery_e2e.py (37 e2e tests) covering all acceptance criteria: migration/compatibility, direct commit selection, cherry-pick vs ancestry evidence, blocked/retry/archived/unavailable-target/source-head-change/concurrent scenarios, full pipeline with mocked SCM/PR. make test: 8838 passed, 28 skipped, 0 failures.
+---
+author: oompah
+created: 2026-07-13 23:25
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 118
+- Tokens: 169 in / 4.9K out [5.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 14s
+- Log: OOMPAH-202__20260713T230722Z.jsonl
 ---
 <!-- COMMENTS:END -->
