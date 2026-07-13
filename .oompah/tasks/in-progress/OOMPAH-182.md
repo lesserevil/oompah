@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:18.950799Z'
-updated_at: '2026-07-13T06:07:56.142472Z'
+updated_at: '2026-07-13T06:17:47.598714Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -63,5 +63,21 @@ Implementation plan:
 - server.py: Add GET /api/v1/projects/{project_id}/release-branches/{branch_name:path}/addendums. Scans all project tasks via tracker.fetch_all_issues() + AddendumRepository.read(), filters to target branch, groups by status, computes untracked_commits from git log vs collected result_commits (best-effort, silent on failure).
 - dashboard.html: Add 'Release branches' button in toolbar, a release-branch-inspector overlay panel with project-select, branch-select (from catalog API), grouped addendum rows linked to source tasks, untracked_commits warning, empty/loading/error states, Escape-to-close.
 - tests/test_server_release_branch_inspection.py: route-safe branch names, grouping/order, unavailable historical branches, source deep links, warning behavior, 404/503 cases.
+---
+author: oompah
+created: 2026-07-13 06:17
+---
+Implementation: Added release-branch addendum inspection API and dashboard view.
+
+Changes:
+1. oompah/server.py: Added _compute_untracked_commits() helper and GET /api/v1/projects/{project_id}/release-branches/{branch_name:path}/addendums endpoint. The endpoint scans all project tasks via tracker.fetch_all_issues() + AddendumRepository.read(), groups addendums by status (open/in_progress/in_review/blocked/merged/archived), returns full to_raw() addendum dicts with identifier/title/type source links, and computes an informational untracked_commits warning via git log (best-effort, silent on failure, never claims raw commits are features).
+
+2. oompah/templates/dashboard.html:
+   - Added CSS for .release-branch-inspector-overlay and all .rbi-* classes (after epic addendum CSS)
+   - Added 'Release branches' button to the toolbar (between Reviews and Console)
+   - Added openReleaseBranchInspector()/closeReleaseBranchInspector()/_rbiKeyHandler()/_rbiPopulateProjectSelect()/_rbiOnProjectChange()/_rbiLoadBranchList()/_rbiOnBranchChange()/_rbiLoadBranchAddendums()/_rbiRenderInspectorBody()/_rbiShowNoProjectMessage() JS functions
+   - Added the release-branch-inspector-overlay panel HTML (project select, branch select, body with live region)
+
+3. tests/test_server_release_branch_inspection.py: 39 new tests covering all required scenarios (route safety, grouping, historical branches, source deep links, warning behavior, empty/error states, _compute_untracked_commits unit tests).
 ---
 <!-- COMMENTS:END -->
