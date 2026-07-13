@@ -6,11 +6,12 @@ priority: 1
 title: Build the default-branch commit inventory service
 parent: OOMPAH-192
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-193
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:47.560323Z'
-updated_at: '2026-07-13T19:32:47.560323Z'
+updated_at: '2026-07-13T19:34:12.105631Z'
 work_branch: null
 target_branch: null
 review_url: null
