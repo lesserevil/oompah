@@ -88,7 +88,10 @@ import yaml
 from oompah.release_addendum_schema import (
     AddendumStatus,
     InvalidTransitionError,
+    _sanitize_part,
     is_valid_transition,
+    make_work_branch,
+    make_worktree_key,
 )
 from oompah.tracker import TrackerError
 
@@ -993,3 +996,59 @@ class ReleaseDeliveryStore:
             )
 
         return updated_delivery
+
+
+# ---------------------------------------------------------------------------
+# Delivery-specific branch/worktree helpers
+# ---------------------------------------------------------------------------
+
+
+def make_delivery_work_branch(delivery: "ReleaseDelivery") -> str:
+    """Return the deterministic work branch name for a :class:`ReleaseDelivery`.
+
+    For task/epic deliveries (where ``source_identifier`` is set), uses the
+    same naming convention as :func:`~oompah.release_addendum_schema.make_work_branch`
+    for backward compatibility with migrated addendums.
+
+    For commits-kind deliveries (no ``source_identifier``), derives a unique
+    name from the delivery ID and target branch.
+
+    Args:
+        delivery: The :class:`ReleaseDelivery` to derive the branch name for.
+
+    Returns:
+        Deterministic, Git-safe work branch name under ``oompah/release/``.
+    """
+    if delivery.source_identifier:
+        return make_work_branch(delivery.source_identifier, delivery.target_branch)
+    # commits-kind: derive a short, deterministic slug from delivery_id
+    # Strip common prefixes (rd_, rd-) and keep up to last 12 chars as a slug
+    raw_id = delivery.id.replace("rd_", "").replace("rd-", "")
+    safe_id = _sanitize_part(raw_id)[-12:] or _sanitize_part(delivery.id)
+    safe_target = _sanitize_part(delivery.target_branch)
+    return f"oompah/release/rd-{safe_id}/{safe_target}"
+
+
+def make_delivery_worktree_key(delivery: "ReleaseDelivery") -> str:
+    """Return the deterministic worktree key for a :class:`ReleaseDelivery`.
+
+    For task/epic deliveries (where ``source_identifier`` is set), uses the
+    same naming convention as
+    :func:`~oompah.release_addendum_schema.make_worktree_key` for backward
+    compatibility with migrated addendums.
+
+    For commits-kind deliveries (no ``source_identifier``), derives a unique
+    filesystem-safe key from the delivery ID and target branch.
+
+    Args:
+        delivery: The :class:`ReleaseDelivery` to derive the worktree key for.
+
+    Returns:
+        Deterministic, filesystem-safe worktree key.
+    """
+    if delivery.source_identifier:
+        return make_worktree_key(delivery.source_identifier, delivery.target_branch)
+    raw_id = delivery.id.replace("rd_", "").replace("rd-", "")
+    safe_id = _sanitize_part(raw_id)[-12:] or _sanitize_part(delivery.id)
+    safe_target = _sanitize_part(delivery.target_branch)
+    return f"release-rd-{safe_id}-{safe_target}"
