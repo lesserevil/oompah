@@ -114,6 +114,16 @@ def test_release_notes_renderer_rejects_version_mismatched_tag(tmp_path):
         raise AssertionError("version-mismatched release tag was accepted")
 
 
+def test_release_workflow_dispatch_description_shows_v1_examples():
+    """Workflow dispatch description should hint at v1.0.0-draft and v1.0.0 forms."""
+    text = WORKFLOW_PATH.read_text(encoding='utf-8')
+    workflow = yaml.safe_load(text)
+    dispatch = (workflow.get('on') or workflow.get(True))['workflow_dispatch']
+    description = dispatch['inputs']['tag']['description']
+    assert 'v1.0.0-draft' in description
+    assert 'v1.0.0' in description
+
+
 def test_release_workflow_is_tag_or_manual_github_release_only():
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
     workflow = yaml.safe_load(text)
