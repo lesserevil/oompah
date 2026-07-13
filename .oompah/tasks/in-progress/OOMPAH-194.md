@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:40.173681Z'
-updated_at: '2026-07-13T20:35:32.493588Z'
+updated_at: '2026-07-13T20:36:22.944353Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -82,5 +82,17 @@ author: oompah
 created: 2026-07-13 20:35
 ---
 Verification: all 137 new tests pass (75 migration + 62 adapter). Full suite: 8257 passed, 28 skipped, 0 failures. Tests cover task/epic addendums in every lifecycle state, duplicate/missing IDs, malformed legacy records, second migration run (idempotency), partial migration resumption, byte-for-byte evidence preservation, and error isolation.
+---
+author: oompah
+created: 2026-07-13 20:36
+---
+Completion: Branch pushed and all tests passing (8257 total, 137 new). Delivered:
+
+- oompah/release_addendum_migration.py: idempotent migration (OOMPAH-183 sentinels safely skipped, partial runs resumable, no unnecessary writes on second run)
+- oompah/release_delivery_adapter.py: DualReadDeliveryAdapter with de-duplication by migrated_from
+- tests/test_release_addendum_migration.py: 75 tests covering all acceptance criteria
+- tests/test_release_delivery_adapter.py: 62 tests
+
+All acceptance criteria met: migration scans terminal items, exactly one record per addendum, re-run is a no-op, dual reads de-duplicate by migrated_from, malformed records are reported and skipped without blocking others.
 ---
 <!-- COMMENTS:END -->
