@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:18.950799Z'
-updated_at: '2026-07-13T06:19:02.295889Z'
+updated_at: '2026-07-13T06:19:04.549820Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,15 @@ author: oompah
 created: 2026-07-13 06:18
 ---
 Implemented GET /api/v1/projects/{project_id}/release-branches/{branch}/addendums (section 7 Branch inspection) with grouping by status, source deep links, execution evidence, and informational untracked_commits warning. Added Release branches dashboard inspector overlay with project/branch selects, loading/error/empty states, grouped addendum rows linking back to source tasks, PR links, Escape-to-close, aria-modal accessibility. 39 new tests cover route safety, grouping, historical branches, source links, warning behavior, and error cases. Full suite 7925 passed.
+---
+author: oompah
+created: 2026-07-13 06:19
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 128
+- Tokens: 192 in / 6.0K out [6.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 17m 18s
+- Log: OOMPAH-182__20260713T060148Z.jsonl
 ---
 <!-- COMMENTS:END -->
