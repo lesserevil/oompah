@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-201
 type: task
-status: Backlog
+status: Open
 priority: 2
 title: Document and deprecate the old release-branch inspector
 parent: OOMPAH-192
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:59.843679Z'
-updated_at: '2026-07-13T19:35:57.869288Z'
+updated_at: '2026-07-13T20:03:33.907068Z'
 work_branch: null
 target_branch: null
 review_url: null
