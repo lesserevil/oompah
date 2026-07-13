@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T20:05:14.303298Z'
-updated_at: '2026-07-13T20:18:23.264617Z'
+updated_at: '2026-07-13T20:26:45.835392Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,10 @@ author: oompah
 created: 2026-07-13 20:18
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 20:26
+---
+Understanding: Previous agents confirmed this is NOT a duplicate. I am proceeding with the implementation. Root cause is in dashboard.html's renderBoard() function which does board.innerHTML='' on every WebSocket 'issues' message regardless of whether data changed. Plan: (1) Add snapshot fingerprinting to skip rebuild on identical payloads, (2) Add incremental flat-view reconciliation to preserve column scroll positions and reuse card elements, (3) Add card element cache (identifier->fingerprint+element) to avoid re-creating unchanged card DOM, (4) Save/restore scroll positions and focus around any rebuild that does happen, (5) Add drag-state guard to defer rebuilds during active drags, (6) Add tests, (7) Run make test.
 ---
 <!-- COMMENTS:END -->
