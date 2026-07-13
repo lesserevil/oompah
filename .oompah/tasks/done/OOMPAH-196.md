@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:14.875922Z'
-updated_at: '2026-07-13T21:48:52.645423Z'
+updated_at: '2026-07-13T21:48:54.867974Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -95,5 +95,10 @@ Implementation summary:
 - tests/test_server_release_addendums.py (5 tests updated): Updated for new event/response shapes
 
 All 8363 tests pass. Pushed to epic-OOMPAH-192.
+---
+author: oompah
+created: 2026-07-13 21:48
+---
+Delivered ledger-backed task/epic release-addendum compatibility: new release_delivery_compat.py module, 4 server endpoints updated (GET/POST/retry/archive), 48 new tests + 5 updated tests, all 8363 tests pass
 ---
 <!-- COMMENTS:END -->
