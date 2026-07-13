@@ -220,6 +220,7 @@ class TestIsValidTransition:
         (AddendumStatus.OPEN, AddendumStatus.ARCHIVED),
         (AddendumStatus.IN_PROGRESS, AddendumStatus.IN_REVIEW),
         (AddendumStatus.IN_PROGRESS, AddendumStatus.BLOCKED),
+        (AddendumStatus.IN_PROGRESS, AddendumStatus.OPEN),
         (AddendumStatus.IN_REVIEW, AddendumStatus.MERGED),
         (AddendumStatus.IN_REVIEW, AddendumStatus.OPEN),
         (AddendumStatus.BLOCKED, AddendumStatus.OPEN),

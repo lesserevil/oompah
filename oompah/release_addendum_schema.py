@@ -189,6 +189,9 @@ VALID_TRANSITIONS: dict[AddendumStatus, frozenset[AddendumStatus]] = {
     AddendumStatus.IN_PROGRESS: frozenset({
         AddendumStatus.IN_REVIEW,
         AddendumStatus.BLOCKED,
+        # A worker lease is deliberately recoverable.  The queue reconciler
+        # uses this edge only after ``lease_expires_at`` has elapsed.
+        AddendumStatus.OPEN,
     }),
     AddendumStatus.IN_REVIEW: frozenset({
         AddendumStatus.MERGED,

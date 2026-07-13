@@ -29,6 +29,7 @@ from oompah.config import (
     validate_dispatch_config,
 )
 from oompah.events import EventBus, EventType
+from oompah.release_addendum_queue import ReleaseAddendumQueue
 from oompah.epic_proposal import process_epic_proposal_issue
 from oompah.github_intake_bridge import (
     poll_github_issue_intake_project,
@@ -667,6 +668,12 @@ class Orchestrator:
         # are kept for backward compatibility with server.py, but internally
         # the EventBus is the canonical dispatch mechanism.
         self.event_bus: EventBus = EventBus()
+        # Release addendums have their own durable queue.  A ready event is a
+        # prompt wake-up only; the queue's metadata scan remains authoritative
+        # after missed events or process restarts.
+        self.event_bus.subscribe(
+            EventType.RELEASE_ADDENDUM_READY, self._on_release_addendum_ready
+        )
         self._observers: list[Any] = []
         self._state_only_observers: list[Any] = []
         self._activity_observers: list[Any] = []
@@ -1580,6 +1587,58 @@ class Orchestrator:
         # to closed/stale issues after a tick boundary.
         self._branch_indexes.clear()
 
+    def _on_release_addendum_ready(
+        self, _event_type: EventType | str, payload: dict[str, Any]
+    ) -> None:
+        """Wake the event-driven loop when durable release work is approved."""
+        self._post_event(
+            DispatchEvent(
+                event_type=DispatchEventType.REFRESH_REQUESTED,
+                payload={"release_addendum_ready": dict(payload)},
+            )
+        )
+
+    def release_addendum_queue(
+        self, project_id: str | None, *, worker_id: str
+    ) -> ReleaseAddendumQueue:
+        """Build the release-only queue adapter for an executor worker.
+
+        This deliberately returns metadata queue items, not tracker Issues.
+        """
+        tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+        return ReleaseAddendumQueue(
+            project_id or "legacy",
+            tracker,
+            worker_id=worker_id,
+            event_bus=self.event_bus,
+        )
+
+    def _recover_release_addendum_leases(self) -> int:
+        """Periodic durable recovery for workers that died with a lease."""
+        projects = self.project_store.list_all()
+        queue_specs: list[tuple[str | None, TrackerProtocol]] = []
+        if projects:
+            for project in projects:
+                try:
+                    queue_specs.append((project.id, self._tracker_for_project(project.id)))
+                except (ProjectError, TrackerError) as exc:
+                    logger.warning("Release-addendum recovery skipped project %s: %s", project.id, exc)
+        else:
+            queue_specs.append((None, self.tracker))
+
+        recovered = 0
+        for project_id, tracker in queue_specs:
+            try:
+                queue = ReleaseAddendumQueue(
+                    project_id or "legacy", tracker, worker_id="orchestrator-recovery"
+                )
+                recovered += len(queue.recover_expired_leases())
+            except (TrackerError, ValueError) as exc:
+                logger.warning(
+                    "Release-addendum recovery failed project_id=%s: %s", project_id, exc
+                )
+        return recovered
+
     # ------------------------------------------------------------------
     # Error watcher integration (oompah-zlz_2-0nc)
     # ------------------------------------------------------------------
@@ -2409,6 +2468,13 @@ class Orchestrator:
         # full-corpus read+parse is the dominant tick cost). Writes during
         # the tick re-invalidate, so reads never go stale.
         self._invalidate_tracker_read_caches()
+
+        # Release addendum leases are independent of source-task lifecycle.
+        # Run their durable recovery on every event/full-sync tick so a worker
+        # crash cannot strand a row until the source task changes state.
+        await asyncio.get_event_loop().run_in_executor(
+            self._tick_pool, self._recover_release_addendum_leases
+        )
 
         # 1. Reconcile running agents against tracker
         await self._handle_reconcile()
