@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T20:05:14.303298Z'
-updated_at: '2026-07-13T20:41:59.369369Z'
+updated_at: '2026-07-13T20:42:01.703035Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,15 @@ author: oompah
 created: 2026-07-13 20:41
 ---
 Implemented incremental board reconciliation in dashboard.html: snapshot dedup skips board rebuild for identical WS payloads; card element cache (issueFingerprint+getOrCreateCard) reuses unchanged DOM nodes; tryIncrementalFlatView/reconcileColumnBody preserves column scroll positions; scroll/focus saved+restored around any rebuild; drag-state guard defers rebuilds mid-drag; ws.onopen invalidates snapshot on reconnect. 55 new tests in test_dashboard_board_reconciliation.py. All 8057 tests pass.
+---
+author: oompah
+created: 2026-07-13 20:42
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 81
+- Tokens: 123 in / 3.9K out [4.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 23m 40s
+- Log: OOMPAH-205__20260713T201827Z.jsonl
 ---
 <!-- COMMENTS:END -->
