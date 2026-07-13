@@ -3179,6 +3179,113 @@ async def api_project_bootstrap_apply(project_id: str):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Release-branch catalog endpoint (OOMPAH-175)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/v1/projects/{project_id}/release-branches")
+async def api_release_branches(project_id: str):
+    """Return the current supported release-branch catalog for *project_id*.
+
+    Discovers remotely-available branches via ``git ls-remote --heads origin``
+    (cached per project for 60 s).  On remote failure, falls back to local
+    ``refs/remotes/origin/*`` and marks each entry ``stale: true``.  Only
+    branches listed in the project's ``supported_release_branches`` are
+    returned as candidates; additionally, branches that appear in historic
+    release addendums but have since been deleted are included with
+    ``available: false`` so history remains inspectable.
+
+    Response shape::
+
+        {
+            "project_id": "proj-abc",
+            "source_branch": "main",
+            "branches": [
+                {"name": "release/1.1", "available": true, "stale": false},
+                {"name": "release/1.0", "available": true, "stale": false}
+            ],
+            "refreshed_at": "2026-07-13T12:00:00+00:00",
+            "stale": false
+        }
+
+    HTTP status codes:
+
+    * ``200`` — catalog resolved (may be stale; check the ``stale`` flag).
+    * ``404`` — project not found.
+    * ``503`` — remote discovery failed **and** no prior cached result is
+      available (first-load failure).
+    """
+    try:
+        from oompah.release_branch_catalog import CatalogDiscoveryError, get_default_catalog
+
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+
+        catalog = get_default_catalog()
+
+        try:
+            result = await asyncio.to_thread(catalog.list_candidates, project)
+        except CatalogDiscoveryError as exc:
+            logger.warning(
+                "release-branches: first-load discovery failure for %s: %s",
+                project_id,
+                exc,
+            )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "discovery_failed",
+                        "message": (
+                            "Branch discovery failed and no cached result is available. "
+                            "Ensure the project repo is configured and reachable."
+                        ),
+                    }
+                },
+                status_code=503,
+            )
+
+        return JSONResponse(result.to_dict())
+
+    except Exception as exc:
+        logger.error(
+            "release-branches API error for %s: %s", project_id, exc, exc_info=True
+        )
+        return JSONResponse(
+            {"error": {"code": "internal_error", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+def invalidate_release_branch_catalog(project_id: str) -> None:
+    """Invalidate the release-branch catalog cache for *project_id*.
+
+    Call this from the release-addendum merge hook and any other path that
+    can change the set of remotely-available branches.
+
+    Args:
+        project_id: The project whose catalog cache should be dropped.
+    """
+    try:
+        from oompah.release_branch_catalog import get_default_catalog
+
+        get_default_catalog().invalidate(project_id)
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning(
+            "invalidate_release_branch_catalog: failed for %s: %s", project_id, exc
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end release-branch catalog endpoint)
+# ---------------------------------------------------------------------------
+
+
 @app.patch("/api/v1/issues/{identifier}")
 async def api_update_issue(identifier: str, request: Request):
     """Update an issue's state, priority, or title.
@@ -8088,6 +8195,15 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     # label events (repository-level label definitions) and push events do
     # not directly change cached task data; push state is refreshed via the
     # source-sync thread when the tracked branch advances.
+
+    # Invalidate the release-branch catalog cache when a push event arrives
+    # for a tracked branch (e.g. a new release/x.y branch was created or
+    # updated on origin).  Best-effort — never block the webhook response.
+    if _project_id and event.event_type == "push" and project:
+        try:
+            invalidate_release_branch_catalog(_project_id)
+        except Exception:  # pragma: no cover — defensive
+            pass
 
     if event.merged:
         orch.invalidate_merged_branches()
