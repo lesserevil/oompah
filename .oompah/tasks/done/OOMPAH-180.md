@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:12.732590Z'
-updated_at: '2026-07-13T05:07:09.886862Z'
+updated_at: '2026-07-13T05:07:12.255984Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -104,5 +104,10 @@ Deliverables:
 10. 82 new tests (67 UI + 15 server); 2 old tests updated; 7724 total pass
 
 Acceptance: selecting two branches queues two addendums in one POST with one user action — verified in test_sends_all_branches_in_one_request (single 'await fetch(' in submit body).
+---
+author: oompah
+created: 2026-07-13 05:07
+---
+Delivered task release-addendum selection and status UI. Added GET /api/v1/issues/{id}/release-addendums endpoint; replaced Release Picks section with Release addendums section (renderReleaseAddendumsSection, no child-task links, Merged-only button); added accessible Add release branches dialog (fieldset/legend/checkbox, catalog API, idempotency key, single POST for all selections, Escape-to-close, focus management, stale/empty/error states); 82 new tests, 7724 total pass.
 ---
 <!-- COMMENTS:END -->
