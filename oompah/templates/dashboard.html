@@ -2090,7 +2090,7 @@
       <select id="project-filter" onchange="saveProjectFilter(); refreshBoard(); _syncConsoleToProjectFilter()" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
         <option value="">All Projects</option>
       </select>
-      <label id="hide-merged-toggle" title="Show Backlog plus tasks with work still in flight: Open, In Progress, Needs CI Fix, Needs Rebase, In Review, plus completed tasks whose PR is still open." style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:0.9rem;user-select:none;">
+      <label id="hide-merged-toggle" title="Show Backlog plus tasks with work still in flight: Open, In Progress, Needs Human, Needs CI Fix, Needs Rebase, In Review, plus completed tasks whose PR is still open." style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:0.9rem;user-select:none;">
         <input type="checkbox" id="hide-merged-checkbox" onchange="toggleHideMerged()" style="margin:0;cursor:pointer;">
         <span id="hide-merged-label">In-flight only: ON (0 hidden)</span>
       </label>
@@ -2865,19 +2865,22 @@ function toggleHideMerged() {
 function _isIndividuallyInFlight(issue) {
   if (!issue) return false;
   const state = columnKeyForStatus(issue.state || issue.tracker_state);
-  if (['Open', 'In Progress', 'Needs CI Fix', 'Needs Rebase', 'In Review'].includes(state)) return true;
+  if (['Open', 'In Progress', 'Needs Human', 'Needs CI Fix', 'Needs Rebase', 'In Review'].includes(state)) return true;
   if (['Done', 'Merged'].includes(state) && issue.has_open_review) return true;
   return false;
 }
 
 // Compute the set of issue ids to KEEP under the "In-flight only" filter.
-// An id is kept if either:
-//   1. It's individually in flight (Open/In Progress, or closed-with-open-PR), OR
-//   2. Any of its ancestors (parent epic, grandparent epic, ...) has an
+// An id is kept if any of these is true:
+//   1. It's individually in flight (Open/In Progress/Needs Human, or closed-with-open-PR).
+//   2. It has an in-flight descendant anywhere in its subtree (parent/epic context).
+//   3. Any of its ancestors (parent epic, grandparent epic, ...) has an
 //      in-flight descendant somewhere in its subtree.
-// The second rule means: when an epic has any active work below it, show
-// the epic AND every descendant in its subtree, including children whose
-// own work is already merged. This preserves the "epic group" view.
+// Rule 2 means: when an epic has any active work below it (including Needs Human
+// tasks), the epic itself stays visible so operators can see context.
+// Rule 3 means: siblings of an active child stay visible — when a Done child's
+// sibling is In Progress, all children of that epic remain visible.
+// Together these preserve the "epic group" view.
 function _computeInFlightShowSet(allIssues) {
   // Keyed by (project_id, id) composite — bare Backlog ids collide across
   // projects (see issueKey). Returns a Set of composite keys.
@@ -2918,7 +2921,14 @@ function _computeInFlightShowSet(allIssues) {
       show.add(issueKey(issue));
       continue;
     }
-    // Walk up the parent chain; show if any ancestor has in-flight subtree
+    // Rule 2: show if this issue's own subtree has in-flight work (e.g. a Done
+    // epic that still has a Needs Human or In Progress child).
+    if (subtreeInFlight[issueKey(issue)]) {
+      show.add(issueKey(issue));
+      continue;
+    }
+    // Rule 3: walk up the parent chain; show if any ancestor has in-flight subtree
+    // (sibling-visibility: a Done sibling stays visible when another sibling is active).
     let cur = issue;
     const seen = new Set();
     let pk = parentKeyOf(cur);
@@ -2954,7 +2964,7 @@ function applyHideMergedFilter(data) {
   for (const [state, issues] of Object.entries(data)) {
     if (!Array.isArray(issues)) continue;
     const stateKey = columnKeyForStatus(state);
-    if (['Proposed', 'Backlog', 'Open', 'In Progress', 'Needs CI Fix', 'Needs Rebase', 'In Review'].includes(stateKey)) {
+    if (['Proposed', 'Backlog', 'Open', 'In Progress', 'Needs Human', 'Needs CI Fix', 'Needs Rebase', 'In Review'].includes(stateKey)) {
       filtered[state] = issues;
       continue;
     }
