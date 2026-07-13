@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:40.880021Z'
-updated_at: '2026-07-13T03:08:55.169645Z'
+updated_at: '2026-07-13T03:09:57.809829Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,12 @@ author: oompah
 created: 2026-07-13 03:08
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 03:09
+---
+Understanding: Investigated for duplicates — OOMPAH-174 is unique. No other task covers adding supported_release_branches to the Project model, persistence, create/update APIs, and project-definition UI. OOMPAH-173 (schema) and OOMPAH-175 (catalog API) are sibling tasks with distinct scopes.
+
+Plan: (1) Find the Project model and add supported_release_branches: list[str] with validation (nonempty names, unique after normalization, not equal to default_branch, matched by project.branches). (2) Update persistence/serialization with legacy default of []. (3) Update project create/update API endpoints. (4) Update the project-definition UI template to render and save the ordered list. (5) Write tests for all of the above.
 ---
 <!-- COMMENTS:END -->
