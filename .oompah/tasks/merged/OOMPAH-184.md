@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-184
 type: task
-status: Done
+status: Merged
 priority: 2
 title: Document release-addendum workflow and operator migration
 parent: OOMPAH-172
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:37:55.470386Z'
-updated_at: '2026-07-13T06:55:08.521006Z'
+updated_at: '2026-07-13T07:26:04.077304Z'
 work_branch: null
 target_branch: null
 review_url: null
