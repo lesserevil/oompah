@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:21.418119Z'
-updated_at: '2026-07-13T06:38:12.246770Z'
+updated_at: '2026-07-13T06:38:23.234504Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -63,5 +63,10 @@ author: oompah
 created: 2026-07-13 06:38
 ---
 Verification: All 7990 tests pass (make test). New tests specifically:\n- tests/test_release_pick_migration.py: 58 tests — 100% pass\n  - TestMapReleasePickStatus: 11 tests (all 9 status mappings + enum completeness + ValueError on unmapped)\n  - TestBuildAddendumFromEntry: 10 tests (evidence preservation, sentinel commits, deterministic naming)\n  - TestMakeRedirectComment: 3 tests\n  - TestArchiveChildTask: 6 tests\n  - TestMigrateSourceTask: 14 tests\n  - TestRunReleasePickMigration: 10 tests\n  - TestMigrationResult: 5 tests\n- tests/test_release_pick_migration_startup.py: 7 tests — 100% pass\n  - startup call wired into set_orchestrator, multi-project mode, failure isolation\n\nAll acceptance criteria for this slice (section 9 step 1-3) satisfied. Removal of old code (step 5) still depends on OOMPAH-179/180/181/182.
+---
+author: oompah
+created: 2026-07-13 06:38
+---
+Completion: Delivered idempotent release-pick to release-addendum migration (section 9 of plans/release-branch-addendums.md). Not a duplicate of any existing task.\n\nDelivered:\n1. oompah/release_pick_migration.py - complete migration module with status mapping, evidence preservation, child archival, idempotency, and startup integration\n2. oompah/server.py - _migrate_release_picks_on_startup() wired into set_orchestrator(), handles single and multi-project modes\n3. 65 new tests (58 unit + 7 integration) covering all documented acceptance scenarios\n\nThe migration deploys safely alongside existing code: it reads oompah.backports and writes oompah.release_addendums without touching the old reconciler path. Idempotent: safe to rerun on every startup. Child tasks are archived with oompah-authored redirect comments.\n\nRemaining work (removal of old backport_of, child creation, old matrix/apply-all API, child-task UI per section 9 step 5) is gated on blockers OOMPAH-179, OOMPAH-180, OOMPAH-181, OOMPAH-182 which will remove the old paths once new infrastructure is complete.
 ---
 <!-- COMMENTS:END -->
