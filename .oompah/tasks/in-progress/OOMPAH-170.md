@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:12.785814Z'
-updated_at: '2026-07-13T04:54:48.211902Z'
+updated_at: '2026-07-13T05:02:38.736613Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,5 +50,15 @@ author: oompah
 created: 2026-07-13 04:54
 ---
 DISCOVERY: Found all locations needing updates. Primary target: docs/task-epic-workflow.md has stale flat/stacked references in: (1) Epic Planning section - 'stacked and shared projects'; (2) Epic Branch Strategies section - table with flat/stacked/shared rows; (3) Mermaid diagram with flat/stacked branches; (4) Review and Repair - 'stacked or shared epics'; (5) Closing and Rollup - 'stacked and shared epics' (2x). Secondary: tests/test_epic_strategy.py module docstring mentions 'stacked mode' and 'stacked + shared'. Also: plans/multi-branch-support.md line 123 references test_epic_strategy.py as 'Epic strategies' (minor stale context). The generated project guidance (oompah/agent_instructions.py OOMPAH_TASK_AGENT_INSTRUCTIONS) has no flat/stacked references - already clean. No new test file needed beyond updating the test docstring. No duplicate found - proceeding with implementation.
+---
+author: oompah
+created: 2026-07-13 05:02
+---
+IMPLEMENTATION: Updated 5 files to describe only the shared epic workflow:
+(1) docs/task-epic-workflow.md: Renamed 'Epic Branch Strategies' to 'Shared Epic Branch', replaced 3-row flat/stacked/shared table with a 2-row shared-only table, simplified Mermaid diagram to shared path only, updated 4 prose occurrences of 'stacked and/or shared' to 'shared'.
+(2) docs/README.md: Updated table-of-contents entry for task-epic-workflow.md.
+(3) plans/multi-branch-support.md: Updated annotation for test_epic_strategy.py from 'Epic strategies' to 'Epic shared workflow'.
+(4) tests/test_epic_strategy.py: Rewrote module docstring to remove 'stacked mode' and 'stacked + shared' references.
+(5) tests/test_agent_instructions.py: Added 3 new tests: test_oompah_task_instructions_no_flat_or_stacked_strategy, test_github_issues_instructions_no_flat_or_stacked_strategy, test_task_epic_workflow_doc_describes_shared_only_behavior.
 ---
 <!-- COMMENTS:END -->
