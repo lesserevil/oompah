@@ -42,6 +42,8 @@ release branch is never a second place to author ordinary feature work.
 
 - Let an operator choose one or more existing release branches from a
   multi-select in a merged task or epic.
+- Configure the supported release lines explicitly on the project definition;
+  only those lines are offered as release targets.
 - Create one independently queueable unit per `(source task or epic, target
   branch)` as soon as selection is approved.
 - Keep every queue unit and its history visibly attached to its source task or
@@ -54,8 +56,8 @@ release branch is never a second place to author ordinary feature work.
 
 ### Non-goals
 
-- This change does not define support lifetimes, release cadence, or a policy
-  for deciding whether a fix belongs in a given release line.
+- This change does not define support lifetimes beyond the project's explicit
+  supported-release-line list, or define release cadence.
 - It does not automatically merge all of `main` into a release branch.
 - It does not make release branches valid targets for ordinary feature tasks.
 - It does not preserve the current child-backport-task model for new work.
@@ -151,10 +153,32 @@ in metadata (or an equivalent durable queue store); a reconciliation pass moves
 an expired lease back to `open`. `blocked`, `merged`, and `archived` are never
 auto-dispatched.
 
-## 5. Release-branch catalog
+## 5. Supported release lines and release-branch catalog
 
-The UI must offer current release branches, not free-form text or merely the
-configured glob patterns. Add `ReleaseBranchCatalog` with this contract:
+Add a `supported_release_branches: list[str]` field to the project model and
+project-definition UI. It is an ordered list of exact branch names, for
+example:
+
+```yaml
+supported_release_branches:
+  - release/1.1
+  - release/1.0
+```
+
+This list is the operator's support declaration. Adding a branch makes it
+eligible as a target immediately; removing one stops new approvals but does
+not hide its historical addendums. It is distinct from `Project.branches`,
+which continues to define the broader set of branches Oompah may track for
+normal task/review validation.
+
+Validate project-definition updates by requiring each configured value to be a
+nonempty branch name, not equal to `default_branch`, unique after normalization,
+and matched by `project.branches`. The UI must explain that removing a line
+does not delete the branch or cancel existing addendums.
+
+The task UI must offer current supported release branches, not free-form text
+or merely the configured glob patterns. Add `ReleaseBranchCatalog` with this
+contract:
 
 ```python
 list_candidates(project) -> list[ReleaseBranch]
@@ -164,10 +188,13 @@ list_candidates(project) -> list[ReleaseBranch]
    parse ref names and cache successful results for 60 seconds per project.
 2. On a remote failure, fall back to local `refs/remotes/origin/*` and mark the
    response `stale: true`; do not offer a guessed branch absent from both.
-3. Include a branch only when it exists, differs from `project.default_branch`,
-   and matches `project.branches`. The configured patterns remain the access
-   control boundary; for a typical project `release/*` supplies candidates.
-4. Sort reverse-natural by branch name (for example `release/1.11` before
+3. Include a branch as a selectable candidate only when it exists remotely and
+   is listed in `supported_release_branches`. A project save rejects entries
+   outside `project.branches`, so the branch patterns remain the validation
+   boundary.
+4. Preserve the project's configured ordering in the UI and API. If an older
+   API consumer needs an unconfigured ordering, use reverse-natural branch
+   order (for example `release/1.11` before
    `release/1.9`), then lexically for non-version names.
 5. Return branches already represented by an addendum even if deleted, marked
    `available: false`, so history remains inspectable. They cannot be newly
@@ -195,7 +222,10 @@ POST /api/v1/issues/{identifier}/release-addendums
 
 The endpoint must perform, in order:
 
-1. resolve the task and project and require that the task is `Merged`;
+1. resolve the task and project and require that the task or epic is `Merged`
+   on the project's default branch. Every individually merged task or epic is
+   eligible for release approval; there is no type, label, severity, or
+   backport-reason gate in this feature;
 2. deduplicate and validate `target_branches` against the fresh branch catalog;
 3. resolve the ordered source commit set from the merged `main` PR using the
    existing SCM resolver; fail the whole request if any selected branch cannot
