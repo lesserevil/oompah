@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-199
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Add commit-selection release delivery queue API
 parent: OOMPAH-192
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:53.860350Z'
-updated_at: '2026-07-13T22:35:10.418883Z'
+updated_at: '2026-07-13T23:37:36.501875Z'
 work_branch: null
 target_branch: null
 review_url: null
