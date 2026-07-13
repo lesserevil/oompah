@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:10.333133Z'
-updated_at: '2026-07-13T04:50:23.733257Z'
+updated_at: '2026-07-13T04:50:32.874004Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -125,5 +125,24 @@ author: oompah
 created: 2026-07-13 04:50
 ---
 VERIFICATION: Full test suite passes — 7248 passed, 28 skipped, 0 failed. New tests test_projects_epic_strategy_ui.py all pass (14 tests). All 4 previously-failing draft-epic regression tests now pass.
+---
+author: oompah
+created: 2026-07-13 04:50
+---
+COMPLETION: OOMPAH-169 is done. Delivered:
+
+1. oompah/templates/projects.html: Removed all epic-strategy UI controls:
+   - All .epic-strategy-* CSS classes
+   - The 'Epic Strategy:' read-only display row
+   - The flat/stacked/shared radio button group from the edit form
+   - epicStrategy reading and epic_strategy from the PATCH body in saveProject()
+   
+   The UI now presents no epic strategy choice. Projects always use 'shared' (enforced by backend from OOMPAH-167).
+
+2. tests/test_projects_epic_strategy_ui.py: 14 new contract tests verifying no epic-strategy controls are rendered or sent in API calls.
+
+3. Fixed 4 failing regression tests from the OOMPAH-171 draft-epic removal work: added _populate_snapshot() helper and clear_issues_snapshot autouse fixture so tests that call GET /api/v1/issues correctly pre-populate the snapshot cache.
+
+All 7248 tests pass. Branch epic-OOMPAH-166 is pushed.
 ---
 <!-- COMMENTS:END -->
