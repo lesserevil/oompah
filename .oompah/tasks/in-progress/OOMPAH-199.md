@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:53.860350Z'
-updated_at: '2026-07-13T22:17:00.510728Z'
+updated_at: '2026-07-13T22:18:23.452332Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-07-13 22:17
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 22:18
+---
+Duplicate investigation complete: OOMPAH-199 is unique. No other task implements the POST /api/v1/projects/{project_id}/release-delivery/commits endpoint. Sibling tasks cover: ledger schema (193), migration (194), queue/executor refactoring (195), task/epic compat (196), CommitInventoryService (197), GET inventory API (198), UI overlay (200), docs/deprecation (201), and e2e (202). OOMPAH-199 is the only task implementing the write endpoint with idempotency, per-pair outcome reporting, and delivery bundle creation. Proceeding with implementation.
 ---
 <!-- COMMENTS:END -->
