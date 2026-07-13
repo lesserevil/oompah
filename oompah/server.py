@@ -3323,6 +3323,259 @@ def invalidate_release_branch_catalog(project_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# GET /api/v1/projects/{project_id}/release-branches/{branch_name:path}/addendums
+# Branch inspection endpoint (section 7 of plans/release-branch-addendums.md, OOMPAH-182)
+# ---------------------------------------------------------------------------
+
+#: Status order for grouping (plan section 7: open, in_progress, in_review, blocked, merged, archived)
+_BRANCH_INSPECTION_STATUS_ORDER = [
+    "open",
+    "in_progress",
+    "in_review",
+    "blocked",
+    "merged",
+    "archived",
+]
+
+
+def _compute_untracked_commits(
+    repo_path: str,
+    target_branch: str,
+    tracked_commit_set: frozenset[str],
+) -> dict[str, object]:
+    """Return an ``untracked_commits`` warning dict for direct target-branch commits.
+
+    Runs ``git log origin/<target_branch> --format=%H`` to enumerate all
+    commits on the target branch, then removes the set of commits already
+    accounted for by release addendums' ``result_commits`` snapshots.  The
+    remainder are commits that were pushed directly to the target branch
+    without going through the addendum workflow.
+
+    This is a best-effort, read-only operation.  Any subprocess failure or
+    missing ``repo_path`` returns an empty dict (the warning is omitted).
+
+    Args:
+        repo_path: Absolute path to the local git clone.
+        target_branch: Exact release branch name (e.g. ``"release/1.0"``).
+        tracked_commit_set: Set of all SHAs that appear in any addendum's
+            ``result_commits`` for this branch.
+
+    Returns:
+        A dict with ``count``, ``commits`` (list of SHAs, max 50), and
+        ``warning`` string, or an empty dict on any error.
+    """
+    import subprocess as _subprocess  # noqa: PLC0415
+
+    if not repo_path:
+        return {}
+
+    try:
+        result = _subprocess.run(
+            ["git", "log", f"origin/{target_branch}", "--format=%H"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except Exception:
+        return {}
+
+    if result.returncode != 0:
+        return {}
+
+    branch_commits: list[str] = [
+        line.strip() for line in result.stdout.splitlines() if line.strip()
+    ]
+    untracked: list[str] = [c for c in branch_commits if c not in tracked_commit_set]
+
+    if not untracked:
+        return {}
+
+    count = len(untracked)
+    return {
+        "count": count,
+        "commits": untracked[:50],
+        "warning": (
+            f"{count} commit{'s' if count != 1 else ''} on {target_branch!r} "
+            f"cannot be mapped to a release addendum. "
+            "These may be direct commits to the release branch."
+        ),
+    }
+
+
+@app.get("/api/v1/projects/{project_id}/release-branches/{branch_name:path}/addendums")
+async def api_release_branch_addendums(project_id: str, branch_name: str) -> JSONResponse:
+    """Return all source tasks/epics with addendums for a release branch.
+
+    Scans all tasks in *project_id* for ``oompah.release_addendums`` entries
+    that target *branch_name*, then groups them by addendum status.  Also
+    computes an informational ``untracked_commits`` warning for commits on the
+    target branch that cannot be attributed to any release addendum.
+
+    *branch_name* may contain ``/`` (e.g. ``release/1.0``).  The URL
+    parameter is captured via a ``{branch_name:path}`` pattern, so callers
+    may either pass the literal branch name as path segments or percent-encode
+    the slashes (``release%2F1.0``).
+
+    Response shape::
+
+        {
+            "project_id": "proj-1",
+            "branch": "release/1.0",
+            "groups": {
+                "open":        [<entry>, ...],
+                "in_progress": [<entry>, ...],
+                "in_review":   [<entry>, ...],
+                "blocked":     [<entry>, ...],
+                "merged":      [<entry>, ...],
+                "archived":    [<entry>, ...]
+            },
+            "untracked_commits": {
+                "count": 2,
+                "commits": ["sha1...", "sha2..."],
+                "warning": "2 commits on 'release/1.0' cannot be mapped..."
+            }
+        }
+
+    Each ``<entry>`` has::
+
+        {
+            "identifier": "FOO-10",
+            "title": "Task title",
+            "type": "task",
+            "addendum": {<ReleaseAddendum.to_raw() dict>}
+        }
+
+    The ``untracked_commits`` key is absent or ``null`` when there are no
+    untracked commits or when git analysis is unavailable.
+
+    HTTP status codes:
+
+    * ``200`` — query successful (groups may be empty).
+    * ``404`` — project not found.
+    * ``503`` — tracker or git error on inspection.
+    """
+    try:
+        from oompah.release_addendum_schema import AddendumRepository, AddendumStatus  # noqa: PLC0415
+
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+
+        try:
+            tracker = orch._tracker_for_project(project_id)
+        except Exception as exc:
+            logger.error(
+                "release-branch-addendums: tracker unavailable for %s: %s",
+                project_id,
+                exc,
+            )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "tracker_unavailable",
+                        "message": "Tracker is unavailable for this project.",
+                    }
+                },
+                status_code=503,
+            )
+
+        # Scan all tasks for addendums targeting this branch
+        try:
+            all_issues = await asyncio.to_thread(tracker.fetch_all_issues)
+        except Exception as exc:
+            logger.error(
+                "release-branch-addendums: failed to list issues for %s: %s",
+                project_id,
+                exc,
+            )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "list_failed",
+                        "message": "Failed to list project issues.",
+                    }
+                },
+                status_code=503,
+            )
+
+        repo = AddendumRepository(tracker)
+        groups: dict[str, list[dict]] = {s: [] for s in _BRANCH_INSPECTION_STATUS_ORDER}
+        tracked_commits: set[str] = set()
+
+        for issue in all_issues:
+            identifier = getattr(issue, "identifier", None) or getattr(issue, "id", None)
+            if not identifier:
+                continue
+            try:
+                addendums = repo.read(identifier)
+            except Exception:
+                continue
+
+            for addendum in addendums:
+                if addendum.target_branch != branch_name:
+                    continue
+                # Collect execution evidence commits for untracked analysis
+                for sha in addendum.result_commits:
+                    tracked_commits.add(sha)
+                # Group by status
+                status_key = addendum.status.value  # e.g. "open", "in_progress"
+                if status_key not in groups:
+                    status_key = "archived"  # fallback for unknown statuses
+                entry: dict[str, object] = {
+                    "identifier": identifier,
+                    "title": getattr(issue, "title", "") or "",
+                    "type": getattr(issue, "issue_type", "task") or "task",
+                    "addendum": addendum.to_raw(),
+                }
+                groups[status_key].append(entry)
+
+        # Compute untracked commits (best-effort)
+        repo_path = getattr(project, "repo_path", None) or ""
+        untracked: dict[str, object] = {}
+        if repo_path:
+            untracked = await asyncio.to_thread(
+                _compute_untracked_commits,
+                repo_path,
+                branch_name,
+                frozenset(tracked_commits),
+            )
+
+        response: dict[str, object] = {
+            "project_id": project_id,
+            "branch": branch_name,
+            "groups": groups,
+        }
+        if untracked:
+            response["untracked_commits"] = untracked
+
+        return JSONResponse(response)
+
+    except Exception as exc:
+        logger.error(
+            "release-branch-addendums: unexpected error for %s/%s: %s",
+            project_id,
+            branch_name,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "internal_error", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end release-branch addendum inspection endpoint)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
 # POST /api/v1/issues/{identifier}/release-addendums
 # (section 6 of plans/release-branch-addendums.md, OOMPAH-176)
 # ---------------------------------------------------------------------------

@@ -966,6 +966,176 @@
       color: var(--text-muted);
     }
     .epic-addendum-commit-list li { padding: 0.02rem 0; }
+    /* Release branches inspector overlay (OOMPAH-182) */
+    .release-branch-inspector-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 200;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 5vh;
+    }
+    .release-branch-inspector-overlay.open { display: flex; }
+    .release-branch-inspector-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 820px;
+      max-width: 95vw;
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .rbi-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .rbi-header h3 {
+      font-size: 0.9rem;
+      color: var(--accent);
+      margin: 0;
+    }
+    .rbi-controls {
+      display: flex;
+      gap: 0.6rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .rbi-controls select {
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.8rem;
+    }
+    .rbi-close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+    }
+    .rbi-close-btn:hover { color: var(--text); }
+    .rbi-body {
+      overflow-y: auto;
+      flex: 1;
+      padding: 0.75rem 1.25rem;
+    }
+    .rbi-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      gap: 0.5rem;
+    }
+    .rbi-empty {
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+    .rbi-error {
+      padding: 1rem;
+      color: var(--red);
+      font-size: 0.85rem;
+      background: rgba(248, 81, 73, 0.08);
+      border-radius: 6px;
+      margin: 0.5rem 0;
+    }
+    .rbi-untracked-warning {
+      background: rgba(210, 153, 34, 0.12);
+      border: 1px solid rgba(210, 153, 34, 0.3);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      color: var(--yellow, #d2a520);
+      margin-bottom: 0.75rem;
+    }
+    .rbi-untracked-warning strong { font-weight: 600; }
+    .rbi-group-section {
+      margin-bottom: 0.75rem;
+    }
+    .rbi-group-heading {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: 0.3rem 0 0.2rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0.3rem;
+    }
+    .rbi-entry-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .rbi-entry {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      padding: 0.35rem 0.1rem;
+      border-bottom: 1px solid rgba(125, 133, 144, 0.1);
+      flex-wrap: wrap;
+    }
+    .rbi-entry:last-child { border-bottom: none; }
+    .rbi-entry-id {
+      font-size: 0.8rem;
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: underline;
+      flex-shrink: 0;
+    }
+    .rbi-entry-id:hover { opacity: 0.8; }
+    .rbi-entry-title {
+      font-size: 0.82rem;
+      color: var(--text);
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .rbi-entry-type {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0 4px;
+      flex-shrink: 0;
+    }
+    .rbi-entry-pr {
+      font-size: 0.75rem;
+      color: var(--accent);
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+    .rbi-entry-pr:hover { text-decoration: underline; }
+    .rbi-entry-error {
+      font-size: 0.75rem;
+      color: var(--red);
+      flex-basis: 100%;
+      padding-left: 0.1rem;
+    }
+    .rbi-no-project {
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
     /* Release branches dialog (OOMPAH-180) */
     .rab-fieldset {
       border: 1px solid var(--border);
@@ -1929,6 +2099,7 @@
       <button onclick="window.location='/providers'">Providers</button>
       <button onclick="window.location='/foci'">Foci</button>
       <button onclick="window.location='/reviews'">Reviews</button>
+      <button id="btn-release-branches" onclick="openReleaseBranchInspector()" title="Inspect release-branch addendums: see queued and delivered work for any configured release line.">Release branches</button>
       <button id="btn-console" onclick="openConsolePanel()" title="Per-project interactive ACP console (oompah-zlz_2-ebwe). Same SDK and tool catalog as worker dispatch. Tools: read/write/run.">Console</button>
       <button id="btn-pause" onclick="togglePause()">Pause</button>
       <button onclick="refreshBoard()">Refresh</button>
@@ -6510,6 +6681,233 @@ async function submitAddReleasePicksDialog() {
     submitBtn.textContent = 'Add Release Picks';
   }
 }
+
+// ---------------------------------------------------------------------------
+// Release branches inspector (OOMPAH-182)
+// ---------------------------------------------------------------------------
+// State
+let _rbiCurrentProjectId = null;
+let _rbiCurrentBranch = null;
+let _rbiLoading = false;
+
+function openReleaseBranchInspector() {
+  const overlay = document.getElementById('release-branch-inspector-overlay');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  // Pre-populate the project dropdown from currentProjects
+  _rbiPopulateProjectSelect();
+  // Wire Escape-to-close
+  overlay.addEventListener('keydown', _rbiKeyHandler);
+  const closeBtn = document.getElementById('rbi-close-btn');
+  if (closeBtn) setTimeout(function() { closeBtn.focus(); }, 50);
+}
+
+function closeReleaseBranchInspector() {
+  const overlay = document.getElementById('release-branch-inspector-overlay');
+  if (overlay) {
+    overlay.classList.remove('open');
+    overlay.removeEventListener('keydown', _rbiKeyHandler);
+  }
+  _rbiCurrentBranch = null;
+}
+
+function _rbiKeyHandler(e) {
+  if (e.key === 'Escape') closeReleaseBranchInspector();
+}
+
+function _rbiPopulateProjectSelect() {
+  const sel = document.getElementById('rbi-project-select');
+  if (!sel) return;
+
+  const projects = (typeof currentProjects !== 'undefined' ? currentProjects : []) || [];
+  // Preserve the current board filter project as the default selection
+  const boardFilter = (typeof selectedProjectFilterValue === 'function') ? selectedProjectFilterValue() : '';
+
+  sel.innerHTML = '';
+  if (projects.length === 0) {
+    sel.innerHTML = '<option value="">No projects configured</option>';
+    _rbiShowNoProjectMessage();
+    return;
+  }
+
+  projects.forEach(function(p) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name || p.id;
+    sel.appendChild(opt);
+  });
+
+  // Default to the board's active project filter, or the first project
+  if (boardFilter && projects.some(function(p) { return p.id === boardFilter; })) {
+    sel.value = boardFilter;
+  } else {
+    sel.value = projects[0].id;
+  }
+
+  // Load branches for the selected project
+  _rbiOnProjectChange();
+}
+
+function _rbiOnProjectChange() {
+  const sel = document.getElementById('rbi-project-select');
+  if (!sel) return;
+  const projectId = sel.value;
+  if (!projectId) {
+    _rbiShowNoProjectMessage();
+    return;
+  }
+  _rbiCurrentProjectId = projectId;
+  _rbiCurrentBranch = null;
+  _rbiLoadBranchList(projectId);
+}
+
+function _rbiLoadBranchList(projectId) {
+  const branchSel = document.getElementById('rbi-branch-select');
+  const body = document.getElementById('rbi-body');
+  if (!branchSel || !body) return;
+
+  branchSel.innerHTML = '<option value="">Loading branches…</option>';
+  branchSel.disabled = true;
+  body.innerHTML = '<div class="rbi-loading"><svg width="16" height="16" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/></svg> Loading branches…</div>';
+
+  fetch('/api/v1/projects/' + encodeURIComponent(projectId) + '/release-branches')
+    .then(function(resp) { return resp.json().then(function(data) { return { resp: resp, data: data }; }); })
+    .then(function(r) {
+      const resp = r.resp, data = r.data;
+      if (!resp.ok) {
+        branchSel.innerHTML = '<option value="">Error loading branches</option>';
+        body.innerHTML = '<div class="rbi-error">Failed to load release branches: ' + esc((data.error && data.error.message) || String(resp.status)) + '</div>';
+        return;
+      }
+      const branches = (data.branches || []).filter(function(b) { return b.name; });
+      if (branches.length === 0) {
+        branchSel.innerHTML = '<option value="">No release branches configured</option>';
+        body.innerHTML = '<div class="rbi-empty">No release branches are configured for this project. Add supported_release_branches in the project settings.</div>';
+        return;
+      }
+      branchSel.innerHTML = branches.map(function(b) {
+        const suffix = !b.available ? ' (historical)' : b.stale ? ' (stale)' : '';
+        return '<option value="' + esc(b.name) + '">' + esc(b.name) + esc(suffix) + '</option>';
+      }).join('');
+      branchSel.disabled = false;
+      // Auto-load the first branch
+      branchSel.value = branches[0].name;
+      _rbiCurrentBranch = branches[0].name;
+      _rbiLoadBranchAddendums(projectId, branches[0].name);
+    })
+    .catch(function(err) {
+      branchSel.innerHTML = '<option value="">Error</option>';
+      body.innerHTML = '<div class="rbi-error">Network error loading branches: ' + esc(String(err)) + '</div>';
+    });
+}
+
+function _rbiOnBranchChange() {
+  const branchSel = document.getElementById('rbi-branch-select');
+  if (!branchSel || !_rbiCurrentProjectId) return;
+  const branch = branchSel.value;
+  if (!branch) return;
+  _rbiCurrentBranch = branch;
+  _rbiLoadBranchAddendums(_rbiCurrentProjectId, branch);
+}
+
+function _rbiLoadBranchAddendums(projectId, branch) {
+  if (_rbiLoading) return;
+  _rbiLoading = true;
+  const body = document.getElementById('rbi-body');
+  if (!body) { _rbiLoading = false; return; }
+
+  body.innerHTML = '<div class="rbi-loading"><svg width="16" height="16" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/></svg> Loading addendums…</div>';
+
+  // Encode each path segment of the branch name to handle slashes
+  const encodedBranch = branch.split('/').map(encodeURIComponent).join('/');
+  fetch('/api/v1/projects/' + encodeURIComponent(projectId) + '/release-branches/' + encodedBranch + '/addendums')
+    .then(function(resp) { return resp.json().then(function(data) { return { resp: resp, data: data }; }); })
+    .then(function(r) {
+      _rbiLoading = false;
+      const resp = r.resp, data = r.data;
+      if (!resp.ok) {
+        body.innerHTML = '<div class="rbi-error">Failed to load addendums: ' + esc((data.error && data.error.message) || String(resp.status)) + '</div>';
+        return;
+      }
+      body.innerHTML = _rbiRenderInspectorBody(data, projectId);
+    })
+    .catch(function(err) {
+      _rbiLoading = false;
+      body.innerHTML = '<div class="rbi-error">Network error: ' + esc(String(err)) + '</div>';
+    });
+}
+
+function _rbiRenderInspectorBody(data, projectId) {
+  const groups = data.groups || {};
+  const statuses = ['open', 'in_progress', 'in_review', 'blocked', 'merged', 'archived'];
+  const statusLabels = {
+    open: 'Open', in_progress: 'In progress', in_review: 'In review',
+    blocked: 'Blocked', merged: 'Merged', archived: 'Archived'
+  };
+
+  let html = '';
+
+  // Untracked commits warning (informational, never a feature claim)
+  const warn = data.untracked_commits;
+  if (warn && warn.count > 0) {
+    html += '<div class="rbi-untracked-warning">' +
+      '<strong>⚠ ' + esc(String(warn.count)) + ' untracked commit' + (warn.count !== 1 ? 's' : '') + ':</strong> ' +
+      esc(warn.warning) +
+      '<br><small style="color:inherit;opacity:0.75;">These are informational — direct commits to the release branch that cannot be attributed to a release addendum.</small>' +
+      '</div>';
+  }
+
+  // Check if all groups are empty
+  const totalEntries = statuses.reduce(function(sum, s) { return sum + ((groups[s] || []).length); }, 0);
+  if (totalEntries === 0) {
+    html += '<div class="rbi-empty">No release addendums for this branch yet.</div>';
+    return html;
+  }
+
+  // Render each status group
+  for (let si = 0; si < statuses.length; si++) {
+    const status = statuses[si];
+    const entries = groups[status] || [];
+    if (entries.length === 0) continue;
+
+    html += '<div class="rbi-group-section">' +
+      '<div class="rbi-group-heading">' + esc(statusLabels[status] || status) + ' (' + entries.length + ')</div>' +
+      '<ul class="rbi-entry-list">';
+
+    for (let ei = 0; ei < entries.length; ei++) {
+      const entry = entries[ei];
+      const adm = entry.addendum || {};
+      const prHtml = adm.pr_url
+        ? '<a href="' + esc(adm.pr_url) + '" target="_blank" rel="noopener noreferrer" class="rbi-entry-pr">PR' + (adm.status === 'merged' ? ' ✓' : '') + '</a>'
+        : '';
+      const errorHtml = (adm.error && adm.status === 'blocked')
+        ? '<span class="rbi-entry-error">⚠ ' + esc(adm.error) + '</span>'
+        : '';
+      const typeLabel = entry.type === 'epic' ? 'epic' : 'task';
+      const pidArg = projectId ? ("'" + esc(projectId) + "'") : 'null';
+      html += '<li class="rbi-entry">' +
+        '<span class="rbi-entry-id" onclick="closeReleaseBranchInspector();openDetailPanel(\'' + esc(entry.identifier) + '\',' + pidArg + ')">' + esc(entry.identifier) + '</span>' +
+        '<span class="rbi-entry-title" title="' + esc(entry.title || '') + '">' + esc(entry.title || '(no title)') + '</span>' +
+        '<span class="rbi-entry-type">' + esc(typeLabel) + '</span>' +
+        prHtml + errorHtml +
+        '</li>';
+    }
+
+    html += '</ul></div>';
+  }
+
+  return html;
+}
+
+function _rbiShowNoProjectMessage() {
+  const body = document.getElementById('rbi-body');
+  if (body) {
+    body.innerHTML = '<div class="rbi-no-project">Select a project to inspect its release branches.</div>';
+  }
+}
+// ---------------------------------------------------------------------------
+// (end release branches inspector)
+// ---------------------------------------------------------------------------
 </script>
 
 <div class="dialog-overlay" id="create-dialog" onclick="if(event.target===this)closeCreateDialog()">
@@ -6734,5 +7132,25 @@ async function submitAddReleasePicksDialog() {
   </div>
 </div>
 
+<!-- Release branches inspector overlay (OOMPAH-182) -->
+<div class="release-branch-inspector-overlay" id="release-branch-inspector-overlay"
+     onclick="if(event.target===this)closeReleaseBranchInspector()"
+     role="dialog" aria-modal="true" aria-labelledby="rbi-title">
+  <div class="release-branch-inspector-panel">
+    <div class="rbi-header">
+      <h3 id="rbi-title">Release branches</h3>
+      <div class="rbi-controls">
+        <label for="rbi-project-select" style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Project:</label>
+        <select id="rbi-project-select" onchange="_rbiOnProjectChange()" aria-label="Select project to inspect"></select>
+        <label for="rbi-branch-select" style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Branch:</label>
+        <select id="rbi-branch-select" onchange="_rbiOnBranchChange()" aria-label="Select release branch"></select>
+        <button id="rbi-close-btn" class="rbi-close-btn" onclick="closeReleaseBranchInspector()" aria-label="Close release branches inspector">&times;</button>
+      </div>
+    </div>
+    <div class="rbi-body" id="rbi-body" role="region" aria-live="polite">
+      <div class="rbi-loading">Select a project and branch to inspect addendums.</div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
