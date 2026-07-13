@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:18.950799Z'
-updated_at: '2026-07-13T06:17:47.598714Z'
+updated_at: '2026-07-13T06:18:28.294033Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -79,5 +79,19 @@ Changes:
    - Added the release-branch-inspector-overlay panel HTML (project select, branch select, body with live region)
 
 3. tests/test_server_release_branch_inspection.py: 39 new tests covering all required scenarios (route safety, grouping, historical branches, source deep links, warning behavior, empty/error states, _compute_untracked_commits unit tests).
+---
+author: oompah
+created: 2026-07-13 06:18
+---
+Verification: make test — 7925 passed, 28 skipped, 0 failures. All 39 new tests pass.
+
+Coverage confirmed:
+- TestRouteSafety (4): branch/1.0 as path, branch%2F1.0 encoded, dots, deep nesting
+- TestGroupingAndOrdering (9): all 6 status groups, cross-branch exclusion, multi-task
+- TestSourceDeepLinks (6): identifier, title, type task/epic, full addendum dict, included_child_ids
+- TestHistoricalBranches (2): historical branches return 200, nonexistent branch returns empty groups
+- TestUntrackedCommitsWarning (6): no repo_path, git failure, all tracked, untracked present, not-a-feature, cap at 50
+- TestErrorCases (5): 404, tracker 503, fetch 503, malformed metadata graceful, response keys
+- TestComputeUntrackedCommits (7): no repo, OSError, nonzero rc, all tracked, untracked, cap 50, correct git command
 ---
 <!-- COMMENTS:END -->
