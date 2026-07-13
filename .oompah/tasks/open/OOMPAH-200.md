@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-200
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Replace the Release branches overlay with Release delivery UI
 parent: OOMPAH-192
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:56.999746Z'
-updated_at: '2026-07-13T19:35:44.397423Z'
+updated_at: '2026-07-13T20:00:48.126358Z'
 work_branch: null
 target_branch: null
 review_url: null
