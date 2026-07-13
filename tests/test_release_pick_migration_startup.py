@@ -29,19 +29,28 @@ def _make_mock_orch(projects=None):
 
 
 def _run_set_orchestrator(mock_orch, patches=None):
-    """Run set_orchestrator with standard infrastructure patches."""
+    """Run set_orchestrator with standard infrastructure patches.
+
+    Saves and restores ``_orchestrator`` so that calling this helper does not
+    pollute the module-level global for tests that run later in the same
+    process.
+    """
     import oompah.server as server_module
 
     extra_patches = patches or {}
 
-    with (
-        patch.object(server_module, "ErrorWatcher", MagicMock()),
-        patch.object(server_module, "ProjectLogWatcherManager", MagicMock()),
-    ):
-        try:
-            server_module.set_orchestrator(mock_orch)
-        except Exception:
-            pass  # ConsoleSessionManager setup may fail in tests
+    _saved_orchestrator = server_module._orchestrator
+    try:
+        with (
+            patch.object(server_module, "ErrorWatcher", MagicMock()),
+            patch.object(server_module, "ProjectLogWatcherManager", MagicMock()),
+        ):
+            try:
+                server_module.set_orchestrator(mock_orch)
+            except Exception:
+                pass  # ConsoleSessionManager setup may fail in tests
+    finally:
+        server_module._orchestrator = _saved_orchestrator
 
 
 # ---------------------------------------------------------------------------
