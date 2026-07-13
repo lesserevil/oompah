@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:07.456716Z'
-updated_at: '2026-07-13T03:56:19.429879Z'
+updated_at: '2026-07-13T03:56:28.450133Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -101,5 +101,10 @@ author: oompah
 created: 2026-07-13 03:56
 ---
 VERIFICATION: All 7317 tests pass (make test). The 16 previously failing tests were fixed: removed 13 stacked/flat-mode-only test cases and updated 3 assertion strings. Reverted unrelated OOMPAH-171 draft-epic changes left by previous agent run (focus.py, server.py, dashboard.html, test_draft_*.py). Branch pushed to origin/epic-OOMPAH-166.
+---
+author: oompah
+created: 2026-07-13 03:56
+---
+COMPLETION: OOMPAH-168 is done. Delivered: (1) Removed ~650 lines of flat/stacked strategy dead code from oompah/orchestrator.py; (2) Simplified to shared-only workflow — one epic branch, children commit to it, epic PR lands on default branch; (3) Removed _stacked_child_default_landing_status entirely; (4) Added 7 new regression tests (TestEpicRollupChildStrategy, shared done-child skip, shared per-child PR close); (5) Removed 13 obsolete stacked/flat mode tests; (6) All 7317 tests green. No behavior change for projects using shared mode (the only supported mode).
 ---
 <!-- COMMENTS:END -->
