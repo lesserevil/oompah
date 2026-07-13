@@ -5,13 +5,14 @@ status: Backlog
 priority: 1
 title: Implement queued release-branch addendums
 parent: null
-children: []
+children:
+- OOMPAH-173
 blocked_by: []
 labels:
 - draft
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T02:35:15.127424Z'
+updated_at: '2026-07-13T02:35:38.483694Z'
 work_branch: null
 target_branch: null
 review_url: null
