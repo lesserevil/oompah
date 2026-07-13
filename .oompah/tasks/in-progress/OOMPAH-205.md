@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T20:05:14.303298Z'
-updated_at: '2026-07-13T20:40:14.457636Z'
+updated_at: '2026-07-13T20:41:10.876008Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -143,5 +143,24 @@ author: oompah
 created: 2026-07-13 20:40
 ---
 Discovery: Root cause confirmed in dashboard.html renderBoard() function (line ~3251). On every WebSocket 'issues' message, the function does board.innerHTML='' and rebuilds all DOM regardless of whether data changed. The orchestrator's full observer update on each tick means the 3-second throttle still causes constant re-renders. Fix implemented with: (1) _lastRenderedSnapshot / _lastRenderedRenderKey vars for snapshot comparison, (2) issueFingerprint() + getOrCreateCard() for card-level DOM caching, (3) tryIncrementalFlatView() + reconcileColumnBody() for incremental flat-view reconciliation, (4) saveColumnScrollPositions() / restoreColumnScrollPositions() helpers, (5) dragState guard to defer builds during active drags with flush in dragend handler, (6) ws.onopen invalidation on reconnect. All 8057 tests pass.
+---
+author: oompah
+created: 2026-07-13 20:41
+---
+Implementation: Changed oompah/templates/dashboard.html and added tests/test_dashboard_board_reconciliation.py. Key changes:
+
+1. Snapshot dedup: _lastRenderedSnapshot + _lastRenderedRenderKey globals. renderBoard() computes JSON.stringify(data) + _boardRenderKey() (viewMode + collapsedSwimlanes); if both match previous render, skips board.innerHTML='' entirely and just updates timestamp. Handles the most common case (unchanged payload).
+
+2. Card cache: issueFingerprint() hashes all card-rendered fields; getOrCreateCard() returns cached DOM element on fingerprint hit, else creates+caches new element. renderFlatView() and renderSwimlaneView() both use getOrCreateCard().
+
+3. Incremental flat reconciliation: tryIncrementalFlatView() preserves column DOM elements (and their scrollTop) when column set/order is unchanged; reconcileColumnBody() fast-paths on identical id+fingerprint, else rebuilds column body using cached card elements.
+
+4. Scroll/focus preservation: saveColumnScrollPositions() + restoreColumnScrollPositions() save/restore .scrollTop keyed by data-state. renderBoard() captures document.activeElement before rebuild and re-focuses after.
+
+5. Drag guard: Added if (dragState) { _pendingBoardData = data; return; } guard parallel to editingState guard. dragend handler flushes _pendingBoardData and calls renderBoard() after drag completes.
+
+6. WS reconnect: ws.onopen sets _lastRenderedSnapshot=null and calls _cardElementCache.clear() to force full rebuild after reconnect.
+
+Tests: 55 new static-analysis tests in test_dashboard_board_reconciliation.py. All 8057 tests pass.
 ---
 <!-- COMMENTS:END -->
