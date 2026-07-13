@@ -6,11 +6,12 @@ priority: 2
 title: Update epic workflow documentation for shared-only behavior
 parent: OOMPAH-166
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-168
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:12.785814Z'
-updated_at: '2026-07-13T02:23:12.785814Z'
+updated_at: '2026-07-13T02:23:26.857539Z'
 work_branch: null
 target_branch: null
 review_url: null
