@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:44.755827Z'
-updated_at: '2026-07-13T03:38:51.529756Z'
+updated_at: '2026-07-13T03:40:34.794501Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -99,5 +99,20 @@ author: oompah
 created: 2026-07-13 03:38
 ---
 Verification: make test — 7565 passed, 28 skipped, 13 warnings (0 failures). All 42 new tests pass. Full suite passes after rebase against latest origin/epic-OOMPAH-172.
+---
+author: oompah
+created: 2026-07-13 03:40
+---
+Completion: Delivered ReleaseBranchCatalog (oompah/release_branch_catalog.py) and GET /api/v1/projects/{project_id}/release-branches in oompah/server.py.
+
+Coverage:
+- Remote discovery via git ls-remote --heads origin, 60s per-project cache
+- Stale fallback to local refs/remotes/origin/* with stale=true flag
+- First-load failure → 503 (CatalogDiscoveryError)
+- Configured ordering preserved; historic deleted branches as unavailable history
+- Cache invalidation on tracked-branch push webhooks (invalidate_release_branch_catalog)
+- 42 tests: filtering, configured order, stale fallback, first-load 503, cache expiry/invalidation, deleted historic branch behavior, API contracts, thread safety
+
+Acceptance satisfied: API returns only supported_release_branches entries verified remotely; no free-form or glob-derived candidates.
 ---
 <!-- COMMENTS:END -->
