@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:43.705145Z'
-updated_at: '2026-07-13T20:40:35.866412Z'
+updated_at: '2026-07-13T20:41:50.030960Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,5 +60,10 @@ author: oompah
 created: 2026-07-13 20:40
 ---
 Duplicate investigation complete: no duplicate found. OOMPAH-195 is a distinct implementation task within the OOMPAH-192 epic. OOMPAH-193 (ledger store foundation) is Done; OOMPAH-194 (migration) is In Progress but is not a blocker for OOMPAH-195. All related tasks (196-202) cover different phases. Proceeding with implementation: refactor the release-addendum queue, lease handling, executor, retry, archive, PR reconciliation, and worktree cleanup to consume ReleaseDelivery ledger IDs (plan section 5 of release-delivery-commit-inventory.md).
+---
+author: oompah
+created: 2026-07-13 20:41
+---
+Discovery: Found the key components to refactor. OOMPAH-193 is Done and delivered release_delivery_store.py (ReleaseDeliveryStore, ReleaseDelivery, ledger CRUD). OOMPAH-195 needs to create: (1) release_delivery_queue.py — ledger-backed queue using delivery_id as identity, clones pattern of release_addendum_queue.py but reads from ReleaseDeliveryStore; (2) release_delivery_executor.py — cherry_pick_delivery() that uses delivery.source_commits, writes work_branch/pr_url/pr_number/result_commits/timestamps via store.update(); checks target availability before executing; (3) release_delivery_poller.py — poll_delivery_pr() for in_review→merged/closed-unmerged transitions via ledger; (4) new helper functions make_delivery_work_branch()/make_delivery_worktree_key(); (5) tests for all three modules covering restart recovery, expired lease, multi-commit ordering, result-SHA persistence, retry, archive, unavailable-target refusal.
 ---
 <!-- COMMENTS:END -->
