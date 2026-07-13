@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:40.880021Z'
-updated_at: '2026-07-13T03:21:38.707532Z'
+updated_at: '2026-07-13T03:22:25.506973Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -84,5 +84,22 @@ author: oompah
 created: 2026-07-13 03:21
 ---
 Verification: make test — 7523 passed, 28 skipped, 12 warnings (0 failures). All new and existing tests pass.
+---
+author: oompah
+created: 2026-07-13 03:22
+---
+Completion: Delivered supported_release_branches on Project.
+
+Deliverables:
+- Project.supported_release_branches: list[str] with full persistence (to_dict always emits, from_dict defaults legacy records to [])
+- _validate_supported_release_branches() enforcing nonempty, unique (case-insensitive), not default_branch, matched by branches glob patterns
+- UPDATABLE_FIELDS extended; update() validates with cross-field effective values; create() accepts and validates the field
+- PATCH /api/v1/projects/{id} and POST /api/v1/projects both handle the field with type-check + 400 on invalid input
+- projects.html: read-only display row + edit form input + saveProject() sending the field; help text explains removing does not cancel addendums
+- 62 new tests in test_project_supported_release_branches.py + updated test_projects_crud.py
+- Full suite: 7523 passed, 0 failures
+- Pushed to branch epic-OOMPAH-172
+
+Operators can now configure supported release lines without any release-addendum feature being enabled (OOMPAH-175 will build the ReleaseBranchCatalog and catalog API on top of this field).
 ---
 <!-- COMMENTS:END -->
