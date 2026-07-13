@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-177
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Add durable release-addendum queue claiming and recovery
 parent: OOMPAH-172
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:49.472960Z'
-updated_at: '2026-07-13T02:38:08.855742Z'
+updated_at: '2026-07-13T02:54:27.122793Z'
 work_branch: null
 target_branch: null
 review_url: null
