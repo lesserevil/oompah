@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:50.653200Z'
-updated_at: '2026-07-13T22:05:06.578175Z'
+updated_at: '2026-07-13T22:06:10.720699Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,5 +55,12 @@ author: oompah
 created: 2026-07-13 22:05
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 22:06
+---
+Duplicate investigation complete: OOMPAH-198 is unique. No other task implements the GET /api/v1/projects/{project_id}/release-delivery/commits read-only inventory endpoint. OOMPAH-197 covers the CommitInventoryService itself; OOMPAH-199 covers the POST write endpoint; no archived task covers this GET contract.
+
+Proceeding with implementation. Plan: wrap CommitInventoryService (from OOMPAH-197) in a FastAPI/aiohttp route that validates project, release branch selection, filter/query/cursor/limit params, runs Git work via asyncio.to_thread, and returns the documented response shape from plans/release-delivery-commit-inventory.md section 4.2. Cache invalidation wired to push webhooks and delivery lifecycle updates. Tests will cover all required scenarios (happy path, branch filtering, needs_delivery, all commits, search, pagination, stale cursor, stale fallback, project isolation, error responses, and asyncio.to_thread assertion).
 ---
 <!-- COMMENTS:END -->
