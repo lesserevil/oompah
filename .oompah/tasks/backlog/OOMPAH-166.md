@@ -7,10 +7,11 @@ title: Standardize epic workflow on shared strategy
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- draft
 assignee: null
 created_at: '2026-07-13T02:22:52.257643Z'
-updated_at: '2026-07-13T02:22:52.257643Z'
+updated_at: '2026-07-13T02:22:54.564690Z'
 work_branch: null
 target_branch: null
 review_url: null
