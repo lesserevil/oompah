@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:47.560323Z'
-updated_at: '2026-07-13T22:04:40.241228Z'
+updated_at: '2026-07-13T22:04:42.726446Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,5 +111,10 @@ Acceptance criteria met:
 ✓ Tests cover: ordering, pagination, source-head change, merge/squash behavior, ancestry delivery, ledger delivery (active/merged/archived), cherry-pick result-SHA mapping, no evidence
 ✓ Tests cover remote-ref failure/local-ref stale fallback and confirm no fabricated release branch
 ✓ No task ownership guessed from commit subjects
+---
+author: oompah
+created: 2026-07-13 22:04
+---
+Implemented CommitInventoryService (oompah/release_delivery_inventory.py) with 75 tests (8438 total passing). Delivers: non-merge commit enumeration from origin/default_branch; opaque cursors with source-head change detection; §2.3 delivery status precedence including cherry-pick result-SHA mapping; needs_delivery/all filters, text search, branch subsets; 60s cache per project/ref-set with invalidation; stale fallback labeling.
 ---
 <!-- COMMENTS:END -->
