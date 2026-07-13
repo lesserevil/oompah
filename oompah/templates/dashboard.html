@@ -828,6 +828,110 @@
       opacity: 0.65;
     }
 
+    /* Release addendums section (OOMPAH-180) */
+    .release-addendum-list {
+      list-style: none;
+      padding: 0;
+      margin: 0.2rem 0 0.4rem;
+    }
+    .release-addendum-entry {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      padding: 0.25rem 0;
+      font-size: 0.8rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .release-addendum-entry:last-child { border-bottom: none; }
+    .release-addendum-branch {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.72rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      color: var(--text);
+    }
+    .release-addendum-status {
+      font-size: 0.68rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .release-addendum-status-open        { background: rgba(125,133,144,0.15); color: var(--text-muted); }
+    .release-addendum-status-in_progress { background: rgba(88,166,255,0.15); color: var(--accent); }
+    .release-addendum-status-in_review   { background: rgba(210,153,34,0.2); color: var(--yellow, #d2a520); }
+    .release-addendum-status-blocked     { background: rgba(248,81,73,0.15); color: var(--red); }
+    .release-addendum-status-merged      { background: rgba(63,185,80,0.2); color: var(--green); }
+    .release-addendum-status-archived    { background: rgba(125,133,144,0.1); color: var(--text-muted); }
+    .release-addendum-pr-link {
+      font-size: 0.72rem;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .release-addendum-pr-link:hover { text-decoration: underline; }
+    .release-addendum-error {
+      font-size: 0.68rem;
+      color: var(--red, #f85149);
+      background: rgba(248,81,73,0.08);
+      border: 1px solid rgba(248,81,73,0.3);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      width: 100%;
+      margin-top: 0.15rem;
+      flex-basis: 100%;
+    }
+    .release-addendum-stale-badge {
+      font-size: 0.68rem;
+      color: var(--yellow, #d2a520);
+      background: rgba(210,153,34,0.12);
+      border: 1px solid rgba(210,153,34,0.3);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+    }
+    /* Release branches dialog (OOMPAH-180) */
+    .rab-fieldset {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      background: var(--bg);
+      margin: 0.25rem 0 0;
+    }
+    .rab-legend {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text);
+      padding: 0 0.25rem;
+    }
+    .rab-checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.25rem 0;
+      font-size: 0.85rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .rab-checkbox-row.disabled { cursor: default; opacity: 0.7; }
+    .rab-branch-name { color: var(--text); }
+    .rab-already-badge {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+    .rab-stale-warning {
+      font-size: 0.78rem;
+      color: var(--yellow, #d2a520);
+      background: rgba(210,153,34,0.1);
+      border: 1px solid rgba(210,153,34,0.25);
+      border-radius: 4px;
+      padding: 0.3rem 0.6rem;
+      margin-top: 0.5rem;
+    }
+
     /* Agent status bar */
     .agent-bar {
       display: flex;
@@ -4047,6 +4151,283 @@ function openAddReleasePicksModal(identifier, projectId) {
 }
 
 // ---------------------------------------------------------------------------
+// Release addendums helpers (OOMPAH-180)
+// ---------------------------------------------------------------------------
+
+function renderReleaseAddendumsSection(addendumData, identifier, projectId, taskState) {
+  const addendums = (addendumData && addendumData.addendums) || [];
+
+  let html = `
+    <div class="detail-field" style="margin-top:0.75rem; border-top:1px solid var(--border); padding-top:0.75rem;">
+      <div class="detail-field-label">Release addendums</div>
+  `;
+
+  if (addendums.length > 0) {
+    html += '<ul class="release-addendum-list">';
+    for (const entry of addendums) {
+      // PR link — always shown when present
+      let prLink = '';
+      if (entry.pr_url) {
+        const prLabel = 'PR';
+        if (entry.status === 'in_review') {
+          prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-addendum-pr-link">${prLabel}</a>`;
+        } else if (entry.status === 'merged') {
+          prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-addendum-pr-link">${prLabel} ✓</a>`;
+        } else {
+          prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-addendum-pr-link">${prLabel}</a>`;
+        }
+      }
+      // Blocked error — shown when status is 'blocked' and error is set
+      const errorHtml = entry.status === 'blocked' && entry.error
+        ? `<span class="release-addendum-error">⚠ ${esc(entry.error)}</span>`
+        : '';
+      const statusLabel = (entry.status || '').replace(/_/g, ' ');
+      html += `
+        <li class="release-addendum-entry">
+          <span class="release-addendum-branch">${esc(entry.target_branch)}</span>
+          <span class="release-addendum-status release-addendum-status-${esc(entry.status || '')}">${esc(statusLabel)}</span>
+          ${prLink}${errorHtml}
+        </li>
+      `;
+    }
+    html += '</ul>';
+  } else {
+    html += '<div style="color:var(--text-muted);font-size:0.75rem;padding:0.2rem 0 0.4rem;">No release addendums yet</div>';
+  }
+
+  // Show "Add release branches" button only for Merged tasks
+  if (taskState === 'Merged') {
+    const safeId  = esc(identifier  || '');
+    const safePid = esc(projectId   || '');
+    html += `
+      <button onclick="openAddReleaseBranchesDialog('${safeId}', '${safePid}')" style="margin-top:0.4rem;width:100%;font-size:0.8rem;">+ Add release branches</button>
+    `;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ---------------------------------------------------------------------------
+// Add release branches dialog — state (OOMPAH-180)
+// ---------------------------------------------------------------------------
+
+let _rabIssueIdentifier = null;
+let _rabProjectId = null;
+let _rabActiveTargets = new Set();  // target_branches of non-archived non-merged addendums
+
+// ---------------------------------------------------------------------------
+// Add release branches dialog — open (OOMPAH-180)
+// ---------------------------------------------------------------------------
+
+async function openAddReleaseBranchesDialog(identifier, projectId) {
+  _rabIssueIdentifier = identifier;
+  _rabProjectId = projectId;
+  _rabActiveTargets = new Set();
+
+  const dlg = document.getElementById('add-release-branches-dialog');
+  const fieldset = document.getElementById('rab-branches-fieldset');
+  const staleWarning = document.getElementById('rab-stale-warning');
+  const errorDiv = document.getElementById('rab-error');
+  const submitBtn = document.getElementById('rab-submit-btn');
+
+  // Reset UI
+  errorDiv.hidden = true;
+  errorDiv.textContent = '';
+  staleWarning.hidden = true;
+  fieldset.innerHTML = '<legend class="rab-legend">Target release branches</legend>' +
+    '<span style="color:var(--text-muted);font-size:0.85rem;">Loading branches…</span>';
+  if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Queue release merges'; }
+
+  dlg.classList.add('open');
+
+  // Focus the first focusable element (cancel button) after opening
+  requestAnimationFrame(() => {
+    const cancel = document.getElementById('rab-cancel-btn');
+    if (cancel) cancel.focus();
+  });
+
+  // Fetch existing addendums to determine which branches are already active
+  try {
+    const raResp = await fetch(issueApiUrl(identifier, '/release-addendums', {project_id: projectId}));
+    if (raResp.ok) {
+      const raData = await raResp.json();
+      // Active = not archived, not merged
+      for (const a of (raData.addendums || [])) {
+        if (a.status !== 'archived' && a.status !== 'merged') {
+          _rabActiveTargets.add(a.target_branch);
+        }
+      }
+    }
+  } catch (_e) {
+    // non-fatal: proceed without active addendum info
+  }
+
+  // Fetch release-branch catalog
+  let catalogData;
+  try {
+    const catResp = await fetch(`/api/v1/projects/${encodeURIComponent(projectId)}/release-branches`);
+    if (!catResp.ok) {
+      const errBody = await catResp.json().catch(() => ({}));
+      const msg = errBody?.error?.message || `Catalog fetch failed (HTTP ${catResp.status})`;
+      fieldset.innerHTML = '<legend class="rab-legend">Target release branches</legend>' +
+        `<span style="color:var(--red);font-size:0.85rem;">${esc(msg)}</span>`;
+      return;
+    }
+    catalogData = await catResp.json();
+  } catch (_e) {
+    fieldset.innerHTML = '<legend class="rab-legend">Target release branches</legend>' +
+      '<span style="color:var(--red);font-size:0.85rem;">Failed to load branch catalog (network error).</span>';
+    return;
+  }
+
+  // Show stale warning if applicable
+  if (catalogData.stale) {
+    staleWarning.hidden = false;
+  }
+
+  // Render checkbox group
+  const branches = (catalogData.branches || []).filter(b => b.available);
+
+  fieldset.innerHTML = '<legend class="rab-legend">Target release branches</legend>';
+  if (branches.length === 0) {
+    const emptyMsg = document.createElement('div');
+    emptyMsg.style.cssText = 'color:var(--text-muted);font-size:0.85rem;padding:0.25rem 0;';
+    emptyMsg.textContent = 'No supported release branches are currently available.';
+    fieldset.appendChild(emptyMsg);
+    return;
+  }
+
+  for (const branch of branches) {
+    const isActive = _rabActiveTargets.has(branch.name);
+    const label = document.createElement('label');
+    label.className = 'rab-checkbox-row' + (isActive ? ' disabled' : '');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.name = 'rab-branch';
+    cb.value = branch.name;
+    cb.id = `rab-cb-${branch.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    if (isActive) {
+      cb.disabled = true;
+      cb.checked = true;
+    }
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'rab-branch-name';
+    nameSpan.textContent = branch.name;
+    label.appendChild(cb);
+    label.appendChild(nameSpan);
+    if (isActive) {
+      const badge = document.createElement('span');
+      badge.className = 'rab-already-badge';
+      badge.textContent = 'active';
+      label.appendChild(badge);
+    }
+    fieldset.appendChild(label);
+  }
+
+  // Focus first available (non-disabled) checkbox
+  requestAnimationFrame(() => {
+    const first = fieldset.querySelector('input[type="checkbox"]:not(:disabled)');
+    if (first) first.focus();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Add release branches dialog — close (OOMPAH-180)
+// ---------------------------------------------------------------------------
+
+function closeAddReleaseBranchesDialog() {
+  const dlg = document.getElementById('add-release-branches-dialog');
+  if (dlg) dlg.classList.remove('open');
+  _rabIssueIdentifier = null;
+  _rabProjectId = null;
+  _rabActiveTargets = new Set();
+}
+
+// ---------------------------------------------------------------------------
+// Add release branches dialog — submit (OOMPAH-180)
+// ---------------------------------------------------------------------------
+
+async function submitAddReleaseBranchesDialog() {
+  const identifier = _rabIssueIdentifier;
+  const projectId = _rabProjectId;
+  if (!identifier || !projectId) return;
+
+  const submitBtn = document.getElementById('rab-submit-btn');
+  const errorDiv = document.getElementById('rab-error');
+  errorDiv.hidden = true;
+  errorDiv.textContent = '';
+
+  // Collect selected unchecked branches (non-disabled checkboxes that are checked)
+  const checkedBoxes = document.querySelectorAll(
+    '#rab-branches-fieldset input[type="checkbox"]:checked:not(:disabled)'
+  );
+  const selectedBranches = Array.from(checkedBoxes).map(cb => cb.value);
+
+  if (selectedBranches.length === 0) {
+    errorDiv.textContent = 'Select at least one target branch.';
+    errorDiv.hidden = false;
+    return;
+  }
+
+  // Generate an idempotency key so concurrent/retry submits are safe
+  const idempotencyKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Queueing…';
+
+  try {
+    const resp = await fetch(issueApiUrl(identifier, '/release-addendums'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(issueRequestBody(identifier, {
+        project_id: projectId,
+        target_branches: selectedBranches,
+        idempotency_key: idempotencyKey,
+      })),
+    });
+
+    if (!resp.ok) {
+      let message = 'Failed to queue release addendums.';
+      try {
+        const errBody = await resp.json();
+        message = errBody?.error?.message || message;
+      } catch (_e) { /* non-JSON */ }
+      errorDiv.textContent = message;
+      errorDiv.hidden = false;
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Queue release merges';
+      return;
+    }
+
+    closeAddReleaseBranchesDialog();
+    // Refresh the detail panel so the new addendum rows appear in 'open' state
+    if (_openDetailIdentifier) await openDetailPanel(_openDetailIdentifier);
+
+  } catch (_e) {
+    errorDiv.textContent = 'Network error — could not queue release addendums.';
+    errorDiv.hidden = false;
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Queue release merges';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Add release branches dialog — Escape-to-close keyboard handler (OOMPAH-180)
+// ---------------------------------------------------------------------------
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const dlg = document.getElementById('add-release-branches-dialog');
+    if (dlg && dlg.classList.contains('open')) {
+      closeAddReleaseBranchesDialog();
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
 
 function intakeActorLogin() {
   return (localStorage.getItem('oompah_intake_actor') || '').trim();
@@ -4190,6 +4571,8 @@ async function openDetailPanel(identifier) {
   if (effectiveIntakeActor) detailParams.actor = effectiveIntakeActor;
   // Start release-picks fetch in parallel; failures are caught and handled below.
   const _rpFetch = fetch(issueApiUrl(identifier, '/release-picks', {project_id: projectId})).catch(() => null);
+  // Also fetch release addendums in parallel (OOMPAH-180).
+  const _raFetch = fetch(issueApiUrl(identifier, '/release-addendums', {project_id: projectId})).catch(() => null);
   let res;
   try {
     res = await fetch(issueApiUrl(identifier, '/detail', detailParams));
@@ -4207,6 +4590,12 @@ async function openDetailPanel(identifier) {
   try {
     const _rpRes = await _rpFetch;
     if (_rpRes && _rpRes.ok) { _rpData = await _rpRes.json(); }
+  } catch (_e) {}
+  // Settle the release-addendums promise (OOMPAH-180; degrade gracefully).
+  let _raData = null;
+  try {
+    const _raRes = await _raFetch;
+    if (_raRes && _raRes.ok) { _raData = await _raRes.json(); }
   } catch (_e) {}
   const detailDisplayIdentifier = issueDisplayIdentifier(detail);
   document.getElementById('detail-panel-title').textContent = detailDisplayIdentifier;
@@ -4330,8 +4719,8 @@ async function openDetailPanel(identifier) {
     `;
   }
 
-  // Release Picks section (TASK-456.2)
-  html += renderReleasePicksSection(_rpData, detail.identifier, detail.project_id);
+  // Release addendums section (OOMPAH-180) — replaces old Release Picks section.
+  html += renderReleaseAddendumsSection(_raData, detail.identifier, detail.project_id, detail.state);
 
   // Comments section
   const comments = detail.comments || [];
@@ -6122,6 +6511,34 @@ async function submitAddReleasePicksDialog() {
       <button onclick="closeAddReleasePicksDialog()">Cancel</button>
       <button class="btn-primary" id="rp-submit-btn" onclick="submitAddReleasePicksDialog()">
         Add Release Picks
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Add release branches dialog (OOMPAH-180) -->
+<div class="dialog-overlay" id="add-release-branches-dialog"
+     onclick="if(event.target===this)closeAddReleaseBranchesDialog()"
+     role="dialog" aria-modal="true" aria-labelledby="rab-dialog-title">
+  <div class="dialog" style="width:520px;max-width:92vw;">
+    <h2 id="rab-dialog-title">Add release branches</h2>
+
+    <fieldset class="rab-fieldset" id="rab-branches-fieldset">
+      <legend class="rab-legend">Target release branches</legend>
+      <span style="color:var(--text-muted);font-size:0.85rem;">Loading…</span>
+    </fieldset>
+
+    <div id="rab-stale-warning" class="rab-stale-warning" hidden>
+      ⚠ Branch list may be stale — remote was unreachable. Showing cached branches.
+    </div>
+
+    <div id="rab-error" hidden
+         style="color:var(--red);font-size:0.82rem;margin-top:0.5rem;"></div>
+
+    <div class="dialog-actions">
+      <button id="rab-cancel-btn" onclick="closeAddReleaseBranchesDialog()">Cancel</button>
+      <button class="btn-primary" id="rab-submit-btn" onclick="submitAddReleaseBranchesDialog()">
+        Queue release merges
       </button>
     </div>
   </div>

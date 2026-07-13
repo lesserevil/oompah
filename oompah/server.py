@@ -3624,6 +3624,70 @@ async def api_approve_release_addendums(identifier: str, request: Request):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# GET /api/v1/issues/{identifier}/release-addendums
+# (OOMPAH-180: task detail UI reads addendums via this endpoint)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/v1/issues/{identifier}/release-addendums")
+async def api_get_release_addendums(identifier: str, request: Request):
+    """Return the release-addendum list for a task or epic.
+
+    Reads ``oompah.release_addendums`` frontmatter from the task identified
+    by *identifier* and returns a dict with:
+
+    * ``identifier`` — the resolved task identifier.
+    * ``addendums`` — list of addendum objects (full ``to_raw()`` dicts),
+      each containing ``id``, ``target_branch``, ``status``, ``pr_url``,
+      ``error``, ``queued_at``, ``started_at``, ``completed_at``,
+      ``work_branch``, ``commits``, and ``result_commits``.
+
+    Returns an empty list when no addendums have been created yet.
+    Accepts an optional ``project_id`` query parameter to narrow lookup.
+    """
+    try:
+        from oompah.release_addendum_schema import AddendumRepository
+
+        orch = _get_orchestrator()
+        project_id = request.query_params.get("project_id")
+        resolved_identifier = _resolve_identifier(identifier, None, request.query_params)
+        tracker, resolved_project_id, issue = _find_tracker_for_issue(
+            orch, resolved_identifier, project_id
+        )
+        if tracker is None or issue is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "issue_not_found",
+                        "message": f"Issue {resolved_identifier} not found",
+                    }
+                },
+                status_code=404,
+            )
+        repo = AddendumRepository(tracker)
+        addendums = repo.read(issue.identifier)
+        return JSONResponse(
+            {
+                "identifier": issue.identifier,
+                "addendums": [a.to_raw() for a in addendums],
+            }
+        )
+    except Exception as exc:
+        logger.error(
+            "release-addendums GET error for %s: %s", identifier, exc, exc_info=True
+        )
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end release-addendums GET endpoint)
+# ---------------------------------------------------------------------------
+
+
 @app.patch("/api/v1/issues/{identifier}")
 async def api_update_issue(identifier: str, request: Request):
     """Update an issue's state, priority, or title.

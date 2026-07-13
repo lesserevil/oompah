@@ -365,23 +365,35 @@ def test_openDetailPanel_catches_release_picks_errors():
 
 
 def test_openDetailPanel_calls_renderReleasePicksSection():
-    """openDetailPanel must call renderReleasePicksSection to build the section HTML."""
+    """openDetailPanel must define renderReleasePicksSection (kept for migration; active call moved to addendums).
+
+    OOMPAH-180 replaced the active renderReleasePicksSection call in openDetailPanel with
+    renderReleaseAddendumsSection. The old function remains for migration but is no longer
+    called directly in openDetailPanel. This test now verifies the new renderer is called.
+    """
     script = _load_dashboard_script()
     body = _function_body(script, "openDetailPanel", is_async=True)
-    assert "renderReleasePicksSection(" in body, (
-        "openDetailPanel must call renderReleasePicksSection()"
+    # The active release section is now rendered by renderReleaseAddendumsSection (OOMPAH-180).
+    assert "renderReleaseAddendumsSection(" in body, (
+        "openDetailPanel must call renderReleaseAddendumsSection() (OOMPAH-180)"
+    )
+    # The old function must still be defined in the script (kept for migration period).
+    assert "function renderReleasePicksSection(" in script, (
+        "renderReleasePicksSection() must still be defined for migration compatibility"
     )
 
 
 def test_openDetailPanel_passes_picks_data_to_renderer():
-    """openDetailPanel must pass the release-picks response data to renderReleasePicksSection."""
+    """openDetailPanel must pass addendum data to renderReleaseAddendumsSection (OOMPAH-180).
+
+    The release-picks fetch is still present for migration compatibility, but the active
+    renderer is renderReleaseAddendumsSection which receives _raData (addendum payload).
+    """
     script = _load_dashboard_script()
     body = _function_body(script, "openDetailPanel", is_async=True)
-    render_call_pos = body.index("renderReleasePicksSection(")
-    render_call = body[render_call_pos : render_call_pos + 80]
-    # The renderer call must reference the variable holding the picks data
-    # (not a hard-coded null literal)
-    assert "null" not in render_call.split("(")[1].split(",")[0].strip() or \
-           any(varname in render_call for varname in ["_rpData", "rpData", "picksData", "releasePicksData"]), (
-        "openDetailPanel must pass the fetched release-picks data (not null) to renderReleasePicksSection"
+    render_call_pos = body.index("renderReleaseAddendumsSection(")
+    render_call = body[render_call_pos : render_call_pos + 100]
+    # The renderer call must reference the variable holding the addendum data
+    assert any(varname in render_call for varname in ["_raData", "raData", "addendumData"]), (
+        "openDetailPanel must pass the fetched addendum data to renderReleaseAddendumsSection"
     )
