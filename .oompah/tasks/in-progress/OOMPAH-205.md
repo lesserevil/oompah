@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T20:05:14.303298Z'
-updated_at: '2026-07-13T20:07:16.314979Z'
+updated_at: '2026-07-13T20:07:31.079038Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-07-13 20:07
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 20:07
+---
+Understanding: This issue asks for incremental board reconciliation on the dashboard — avoiding full DOM rebuilds when unchanged issue snapshots arrive via WebSocket. My first step as Duplicate Investigator is to search for similar tasks before any implementation work begins.
 ---
 <!-- COMMENTS:END -->
