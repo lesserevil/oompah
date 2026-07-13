@@ -1,0 +1,29 @@
+---
+id: OOMPAH-178
+type: task
+status: Backlog
+priority: 1
+title: Execute queued addendums with worktrees and pull requests
+parent: OOMPAH-172
+children: []
+blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-07-13T02:35:53.454708Z'
+updated_at: '2026-07-13T02:35:53.454708Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+---
+## Summary
+
+Read section 8 of plans/release-branch-addendums.md. Extract reusable cherry-pick/push/PR operations from the release-pick child-task code so they operate on a ReleaseAddendum. Create/reuse a deterministic release worktree rooted at origin/<target_branch>, apply only the persisted commit snapshot, push the persisted oompah/release work branch, and create or reuse exactly one target-branch PR. Persist in_review, result_commits, and pr_url on success; persist blocked plus diagnostics on conflict or execution failure and preserve the conflicted worktree. Tests: correct target base and commit order; existing worktree/PR reuse; successful state/evidence updates; conflict preservation; non-conflict failure; and proof no tracker task is created. Acceptance: an open queue item can become an in_review addendum with a PR, while its source remains untouched.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
