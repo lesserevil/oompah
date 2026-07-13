@@ -6,11 +6,12 @@ priority: 1
 title: Migrate legacy release addendums into the delivery ledger
 parent: OOMPAH-192
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-193
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:40.173681Z'
-updated_at: '2026-07-13T19:31:40.173681Z'
+updated_at: '2026-07-13T19:33:58.207869Z'
 work_branch: null
 target_branch: null
 review_url: null
