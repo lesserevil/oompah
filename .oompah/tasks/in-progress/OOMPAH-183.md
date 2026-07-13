@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:21.418119Z'
-updated_at: '2026-07-13T06:19:13.600133Z'
+updated_at: '2026-07-13T06:19:27.313596Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-07-13 06:19
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 06:19
+---
+Understanding: I am a Duplicate Investigator agent assigned to OOMPAH-183 ('Migrate release picks and retire child-backport workflow'). My first task is to determine if this is a duplicate of an existing issue before any implementation begins. I will search for similar tasks using keywords like 'release picks', 'backport migration', 'child-backport', 'release_addendums', and 'backports' to find candidate duplicates. I will read the plans/release-branch-addendums.md sections 3 and 9, and inspect the .oompah/tasks directory to identify any overlapping issues.
 ---
 <!-- COMMENTS:END -->
