@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-13T14:19:41.967141Z'
-updated_at: '2026-07-13T15:05:17.827210Z'
+updated_at: '2026-07-13T15:05:26.643758Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,15 @@ author: oompah
 created: 2026-07-13 15:05
 ---
 Not a duplicate. Root cause (PAT missing Webhooks: Read and write permission) was fixed operationally by the operator updating the coroot PAT. Documentation was updated in commit b58265d6 across .env.example, docs/webhook-forwarding.md, docs/managed-project-onboarding.md, and docs/operator-runbook.md to explicitly require this permission for all projects using webhook forwarding. No code changes needed; error handling behavior (fatal 403 disables the forwarder, config-change clears the disabled flag) is correct.
+---
+author: oompah
+created: 2026-07-13 15:05
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 55
+- Tokens: 90 in / 2.5K out [2.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 48s
+- Log: OOMPAH-188__20260713T145643Z.jsonl
 ---
 <!-- COMMENTS:END -->
