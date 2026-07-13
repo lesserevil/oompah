@@ -7,10 +7,11 @@ title: Avoid full dashboard board rebuilds for unchanged issue snapshots
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- needs:frontend
 assignee: null
 created_at: '2026-07-13T20:05:14.303298Z'
-updated_at: '2026-07-13T20:09:44.869926Z'
+updated_at: '2026-07-13T20:09:54.121568Z'
 work_branch: null
 target_branch: null
 review_url: null
