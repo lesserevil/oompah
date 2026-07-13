@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:44:41.783116Z'
-updated_at: '2026-07-13T02:54:53.310974Z'
+updated_at: '2026-07-13T03:03:30.227865Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,5 +67,23 @@ Plan:
 - Add set-source and remove-source subparsers
 - Add tests: parser coverage, set, replace, remove, error cases, server backend
 - Update docs/task-epic-workflow.md CLI Reference section
+---
+author: oompah
+created: 2026-07-13 03:03
+---
+IMPLEMENTATION: Delivered set-source and remove-source CLI commands.
+
+Changes:
+1. oompah/server.py — Added _strip_source_header() helper function; added source_task_id/clear_source handling in api_update_issue() PATCH endpoint. When source_task_id is provided (without explicit description), the server rewrites the 'Triggered by: X' header in the task description and persists via tracker.update_issue(). clear_source=True removes the header entirely. Empty source_task_id returns HTTP 400. If description is also provided explicitly, it wins and source fields are ignored.
+
+2. oompah/task_cli.py — Added _cmd_set_source() and _cmd_remove_source() functions; added set-source and remove-source subparsers with full help text; updated _DISPATCH and main() dispatch table; updated module docstring.
+
+3. docs/task-epic-workflow.md — Added 'Source References' section to CLI Reference with usage examples for set-source and remove-source.
+
+4. tests/test_task_cli.py — Added TestCmdSetSource (8 tests) and TestCmdRemoveSource (7 tests); extended TestBuildParser with 6 parser tests; extended TestMainDispatch with 2 dispatch tests.
+
+5. tests/test_server_source_update.py (new) — 24 tests: 9 for _strip_source_header unit tests; 5 for set source via PATCH; 5 for clear source via PATCH; 1 for missing task 404.
+
+All 7315 project tests pass.
 ---
 <!-- COMMENTS:END -->
