@@ -54,6 +54,7 @@ jobs:
           python -m pip install dist/*.whl
           oompah --help
           oompah task --help
+          oompah project-bootstrap --help
 
       - name: Generate GitHub Release notes
         run: python scripts/render_cli_release_notes.py --tag "$RELEASE_TAG" --output CLI_RELEASE_NOTES.md
