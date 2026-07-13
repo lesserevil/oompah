@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:47.109837Z'
-updated_at: '2026-07-13T04:07:06.550682Z'
+updated_at: '2026-07-13T04:07:08.815405Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-07-13 04:06
 ---
 Completion: Delivered POST /api/v1/issues/{identifier}/release-addendums (section 6 of plans/release-branch-addendums.md). Not a duplicate of any existing task. Blockers OOMPAH-173 (schema) and OOMPAH-175 (catalog) were both Done and provided all building blocks. Implementation: EventType.RELEASE_ADDENDUM_READY; oompah/release_addendum_approval.py (per-source asyncio lock, commit resolution via SCM+git, catalog validation, atomic write, event publication with failure recovery); server.py endpoint (all-or-nothing validation: Merged check, catalog/stale/default/unsupported branch rejection, commit resolution, under-lock create+write, invalidate caches, return full addendum list). 41 tests cover all acceptance criteria. Approval immediately leaves durable open queue items attached to the source and creates no tracker child task.
+---
+author: oompah
+created: 2026-07-13 04:07
+---
+Implemented POST /api/v1/issues/{identifier}/release-addendums with per-source lock, commit snapshot, event publication and recovery. 41 tests, 7606 total passed.
 ---
 <!-- COMMENTS:END -->
