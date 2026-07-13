@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:53.860350Z'
-updated_at: '2026-07-13T22:18:23.452332Z'
+updated_at: '2026-07-13T22:22:53.926949Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-07-13 22:18
 ---
 Duplicate investigation complete: OOMPAH-199 is unique. No other task implements the POST /api/v1/projects/{project_id}/release-delivery/commits endpoint. Sibling tasks cover: ledger schema (193), migration (194), queue/executor refactoring (195), task/epic compat (196), CommitInventoryService (197), GET inventory API (198), UI overlay (200), docs/deprecation (201), and e2e (202). OOMPAH-199 is the only task implementing the write endpoint with idempotency, per-pair outcome reporting, and delivery bundle creation. Proceeding with implementation.
+---
+author: oompah
+created: 2026-07-13 22:22
+---
+Discovery: Identified all relevant code. Infrastructure from OOMPAH-193/195/196/197/198 is in place: ReleaseDeliveryStore (ledger store), ReleaseDelivery dataclass, _delivery_lock (per-project lock), make_delivery_store, _make_delivery_id, approve_release_addendums_via_ledger pattern. GET endpoint is complete in server.py. The POST endpoint needs to be added at /api/v1/projects/{project_id}/release-delivery/commits with: Idempotency-Key header validation, JSON body parsing, git validation (source HEAD recheck via _resolve_remote_ref, commit reachability/non-merge checks), per-pair outcome determination (created/already_active/already_delivered), atomic append under _delivery_lock, queue wake via event_bus.emit(RELEASE_ADDENDUM_READY), and idempotency replay store. Tests go in tests/test_server_release_delivery_commits.py alongside the existing GET tests.
 ---
 <!-- COMMENTS:END -->
