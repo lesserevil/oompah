@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T20:05:14.303298Z'
-updated_at: '2026-07-13T20:41:45.414158Z'
+updated_at: '2026-07-13T20:41:47.732109Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ author: oompah
 created: 2026-07-13 20:41
 ---
 Completion: OOMPAH-205 is done. Delivered: (1) Identical issue snapshots no longer clear/recreate #board — snapshot dedup short-circuits before any DOM mutation. (2) Changed cards update only their column body (incremental flat reconciliation) preserving other columns' scroll positions, drag state, focus, and inline edits. (3) Agent activity state pushes that don't change issue data are handled by the snapshot dedup — no board rebuild occurs. (4) All existing behavior preserved: project filtering, hide-merged, swimlane/flat modes, drag/drop, WS reconnect. Branch OOMPAH-205 pushed to origin.
+---
+author: oompah
+created: 2026-07-13 20:41
+---
+Implemented incremental board reconciliation in dashboard.html: snapshot dedup skips board rebuild for identical WS payloads; card element cache (issueFingerprint+getOrCreateCard) reuses unchanged DOM nodes; tryIncrementalFlatView/reconcileColumnBody preserves column scroll positions; scroll/focus saved+restored around any rebuild; drag-state guard defers rebuilds mid-drag; ws.onopen invalidates snapshot on reconnect. 55 new tests in test_dashboard_board_reconciliation.py. All 8057 tests pass.
 ---
 <!-- COMMENTS:END -->
