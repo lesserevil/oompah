@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:38.417683Z'
-updated_at: '2026-07-13T03:08:35.964975Z'
+updated_at: '2026-07-13T03:08:43.960407Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,5 +76,15 @@ author: oompah
 created: 2026-07-13 03:08
 ---
 Added oompah/release_addendum_schema.py: AddendumStatus enum, ReleaseAddendum model, VALID_TRANSITIONS FSM, is_valid_transition, deterministic ID/work-branch/worktree-key helpers, parse_addendums/addendums_to_raw serializers, AddendumRepository with read/write/add/transition enforcing one-active-per-branch and immutable commits. 145 unit tests covering all required scenarios. No production callers changed.
+---
+author: oompah
+created: 2026-07-13 03:08
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 71
+- Tokens: 105 in / 3.2K out [3.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 53s
+- Log: OOMPAH-173__20260713T025459Z.jsonl
 ---
 <!-- COMMENTS:END -->
