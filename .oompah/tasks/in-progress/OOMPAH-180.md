@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:12.732590Z'
-updated_at: '2026-07-13T04:51:36.723753Z'
+updated_at: '2026-07-13T05:06:39.168274Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -73,5 +73,17 @@ Implementation plan:
 7. Update 2 old tests in test_dashboard_release_picks_section.py (openDetailPanel integration)
 8. Add tests/test_dashboard_release_addendums_ui.py with all new UI tests
 9. Add tests/test_server_release_addendums_get.py for GET endpoint
+---
+author: oompah
+created: 2026-07-13 05:06
+---
+Verification: make test — 7724 passed, 28 skipped, 12 warnings (0 failures). All new tests pass after rebase against origin/epic-OOMPAH-172.
+
+New tests added:
+- tests/test_dashboard_release_addendums_ui.py: 67 tests covering CSS classes, renderReleaseAddendumsSection (no child-task link, status/branch/PR/error, Merged-only button), openDetailPanel integration (parallel fetch, passes state), dialog HTML structure, all 3 JS functions, Escape-to-close, single-POST acceptance criterion, refresh-to-open-after-success
+- tests/test_server_release_addendums_get.py: 15 tests covering GET endpoint contract, all statuses round-trip, 404, null stored value
+- Updated 2 tests in test_dashboard_release_picks_section.py (openDetailPanel now checks renderReleaseAddendumsSection)
+
+Old tests still passing: test_dashboard_release_picks_section.py (38), test_add_release_picks_modal.py, test_dashboard_release_pick_states.py
 ---
 <!-- COMMENTS:END -->
