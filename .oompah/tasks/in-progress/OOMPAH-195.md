@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:43.705145Z'
-updated_at: '2026-07-13T20:41:50.030960Z'
+updated_at: '2026-07-13T20:52:24.996158Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,5 +65,22 @@ author: oompah
 created: 2026-07-13 20:41
 ---
 Discovery: Found the key components to refactor. OOMPAH-193 is Done and delivered release_delivery_store.py (ReleaseDeliveryStore, ReleaseDelivery, ledger CRUD). OOMPAH-195 needs to create: (1) release_delivery_queue.py — ledger-backed queue using delivery_id as identity, clones pattern of release_addendum_queue.py but reads from ReleaseDeliveryStore; (2) release_delivery_executor.py — cherry_pick_delivery() that uses delivery.source_commits, writes work_branch/pr_url/pr_number/result_commits/timestamps via store.update(); checks target availability before executing; (3) release_delivery_poller.py — poll_delivery_pr() for in_review→merged/closed-unmerged transitions via ledger; (4) new helper functions make_delivery_work_branch()/make_delivery_worktree_key(); (5) tests for all three modules covering restart recovery, expired lease, multi-commit ordering, result-SHA persistence, retry, archive, unavailable-target refusal.
+---
+author: oompah
+created: 2026-07-13 20:52
+---
+Implementation complete. Changes made:
+
+1. oompah/release_delivery_store.py (extended): Added make_delivery_work_branch() and make_delivery_worktree_key() helpers. For task/epic deliveries: same naming as addendum (source_identifier+target) for backward compat. For commits-kind deliveries: derives from delivery_id+target.
+
+2. oompah/release_delivery_queue.py (new, ~260 lines): ReleaseDeliveryQueueItem dataclass (delivery_id, project_id, delivery snapshot). ReleaseDeliveryQueue class with: scan() reads ledger for open deliveries; recover_expired_leases() resets expired in_progress→open under project lock; claim_one() atomically claims delivery with lease; wait_for_work() async event-driven. Queue is keyed by delivery_id throughout. Stores bound method reference so close() properly unsubscribes (fixes Python bound method identity issue).
+
+3. oompah/release_delivery_executor.py (new, ~380 lines): cherry_pick_delivery() with: step 0 checks target availability via catalog (Blocked if unconfigured/deleted); step 1 derives+persists work_branch; step 2 creates worktree; step 3 reuses existing PR if found; step 4 cherry-picks source_commits in stored order; step 5 pushes; step 6 opens PR; step 7 collects result_commits; step 8 persists evidence+in_review atomically. All state written via store.update(). Never touches tracker/tasks.
+
+4. oompah/release_delivery_poller.py (new, ~210 lines): poll_delivery_pr() reconciles in_review deliveries: merged→MERGED+completed_at, closed→error+CLOSED_UNMERGED_ERROR_PREFIX (status stays in_review for retry), open→no-op. Race-safe for concurrent pollers. store.update() only, no task metadata.
+
+5. tests/test_release_delivery_queue.py (new, 58 tests total)
+6. tests/test_release_delivery_executor.py (new)
+7. tests/test_release_delivery_poller.py (new)
 ---
 <!-- COMMENTS:END -->
