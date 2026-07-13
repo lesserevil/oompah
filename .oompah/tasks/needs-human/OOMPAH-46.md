@@ -12,7 +12,7 @@ labels:
 - needs:human
 assignee: null
 created_at: '2026-06-22T02:11:02.984832Z'
-updated_at: '2026-07-13T14:45:09.271591Z'
+updated_at: '2026-07-13T14:52:29.191264Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,5 +57,10 @@ author: oompah
 created: 2026-06-22 02:11
 ---
 Requires maintainer token with workflow scope to push .github/workflows/cli-release.yml
+---
+author: user
+created: 2026-07-13 14:52
+---
+Workflow permissions added to PAT for this project. Please continue.
 ---
 <!-- COMMENTS:END -->
