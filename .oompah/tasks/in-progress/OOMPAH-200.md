@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:56.999746Z'
-updated_at: '2026-07-13T22:51:32.647049Z'
+updated_at: '2026-07-13T22:51:47.066910Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -95,5 +95,23 @@ author: oompah
 created: 2026-07-13 22:51
 ---
 Verification: All 8782 tests pass (249 new in test_dashboard_release_delivery_ui.py, 28 skipped, 0 failures). Branch epic-OOMPAH-192 pushed and up to date with origin.
+---
+author: oompah
+created: 2026-07-13 22:51
+---
+Completion: Delivered the Release delivery overlay (plans/release-delivery-commit-inventory.md sections 2 and 6).
+
+Summary of changes:
+- dashboard.html: Removed _rbi overlay (CSS/JS/HTML), added _rdi overlay (CSS/JS/HTML)
+- tests/test_dashboard_release_delivery_ui.py: 249 new tests
+
+Acceptance criteria satisfied:
+✓ Toolbar opens Release delivery, defaults to dashboard project filter
+✓ Each row renders safe selectable source commit and text-labeled per-branch status; merge commits are informational and not selectable
+✓ Selecting commits and targets calls new API, displays per-pair outcomes, clears only successful/skipped selection, reloads page one
+✓ Delivered-by-cherry-pick and delivered-by-ancestry clearly show different evidence (distinct labels AND distinct CSS classes)
+✓ Legacy Release branches overlay/state/helpers removed; task/epic release controls (openAddReleaseBranchesDialog, renderReleaseAddendumsSection, etc.) still work
+
+Tests cover: CSS, HTML, state, functions, open/close, Escape, focus restoration, project defaulting, filters, search, pagination, status rendering, selection/confirmation, outcome feedback, empty/error states, special-character escaping (textContent/DOM, never innerHTML for API text), XSS prevention, drawer evidence, and accessibility attributes.
 ---
 <!-- COMMENTS:END -->
