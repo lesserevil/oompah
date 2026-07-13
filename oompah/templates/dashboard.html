@@ -893,6 +893,79 @@
       border-radius: 4px;
       padding: 0.1rem 0.4rem;
     }
+    /* Epic release-addendum snapshot UI (OOMPAH-181) */
+    .epic-addendum-entry {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      padding: 0.45rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .epic-addendum-entry:last-child { border-bottom: none; }
+    .epic-addendum-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .epic-addendum-snapshot-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: 0.1rem;
+    }
+    .epic-addendum-snapshot-badge {
+      font-size: 0.68rem;
+      background: rgba(125,133,144,0.12);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1rem 0.35rem;
+      white-space: nowrap;
+    }
+    .epic-addendum-snapshot-toggle {
+      font-size: 0.72rem;
+      color: var(--accent);
+      background: none;
+      border: none;
+      padding: 0 0.2rem;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .epic-addendum-snapshot-toggle:hover { opacity: 0.8; }
+    .epic-addendum-snapshot-detail {
+      margin-top: 0.25rem;
+      padding: 0.35rem 0.5rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    .epic-addendum-snapshot-detail[hidden] { display: none; }
+    .epic-addendum-child-list {
+      list-style: none;
+      margin: 0 0 0.3rem 0;
+      padding: 0;
+    }
+    .epic-addendum-child-list li {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.05rem 0;
+      border-bottom: 1px solid rgba(125,133,144,0.1);
+    }
+    .epic-addendum-child-list li:last-child { border-bottom: none; }
+    .epic-addendum-commit-list {
+      font-family: var(--mono, monospace);
+      font-size: 0.68rem;
+      list-style: none;
+      margin: 0.2rem 0 0 0;
+      padding: 0;
+      color: var(--text-muted);
+    }
+    .epic-addendum-commit-list li { padding: 0.02rem 0; }
     /* Release branches dialog (OOMPAH-180) */
     .rab-fieldset {
       border: 1px solid var(--border);
@@ -4209,6 +4282,119 @@ function renderReleaseAddendumsSection(addendumData, identifier, projectId, task
 }
 
 // ---------------------------------------------------------------------------
+// renderEpicReleaseAddendumsSection() — epic-specific addendum list (OOMPAH-181)
+//
+// Shows one row per target branch with: target branch, snapshot size
+// (commit count), included-child count, status badge, and PR link.
+// Each row has an expandable immutable child/commit snapshot.
+// The "Add release branches" button is shown for Merged epics using the
+// same dialog as task addendums.
+// ---------------------------------------------------------------------------
+
+function renderEpicReleaseAddendumsSection(addendumData, identifier, projectId, epicState) {
+  const addendums = (addendumData && addendumData.addendums) || [];
+
+  let html = `
+    <div class="detail-field" style="margin-top:0.75rem; border-top:1px solid var(--border); padding-top:0.75rem;">
+      <div class="detail-field-label">Release addendums</div>
+  `;
+
+  if (addendums.length > 0) {
+    html += '<ul class="release-addendum-list">';
+    for (const entry of addendums) {
+      const snapshotSize = (entry.commits || []).length;
+      const childCount = (entry.included_child_ids || []).length;
+      const snapshotId = 'epic-snap-' + (entry.id || '').replace(/[^a-zA-Z0-9]/g, '-');
+
+      // PR link
+      let prLink = '';
+      if (entry.pr_url) {
+        const prLabel = entry.status === 'merged' ? 'PR ✓' : 'PR';
+        prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-addendum-pr-link">${prLabel}</a>`;
+      }
+
+      // Blocked error
+      const errorHtml = entry.status === 'blocked' && entry.error
+        ? `<span class="release-addendum-error">⚠ ${esc(entry.error)}</span>`
+        : '';
+
+      const statusLabel = (entry.status || '').replace(/_/g, ' ');
+
+      // Child/commit snapshot detail (immutable, expandable)
+      let snapshotDetailHtml = '';
+      if (childCount > 0 || snapshotSize > 0) {
+        // Child list
+        let childListHtml = '';
+        if (childCount > 0) {
+          childListHtml = '<ul class="epic-addendum-child-list">' +
+            (entry.included_child_ids || []).map(cid =>
+              `<li><span onclick="openDetailPanel('${esc(cid)}')" style="cursor:pointer;text-decoration:underline;color:var(--accent);">${esc(cid)}</span></li>`
+            ).join('') +
+            '</ul>';
+        }
+        // Commit list (first 10, rest collapsed with count)
+        const commits = entry.commits || [];
+        let commitListHtml = '';
+        if (commits.length > 0) {
+          const shown = commits.slice(0, 10);
+          const extra = commits.length - shown.length;
+          commitListHtml = '<ul class="epic-addendum-commit-list">' +
+            shown.map(sha => `<li>${esc(sha.slice(0, 12))}</li>`).join('') +
+            (extra > 0 ? `<li style="color:var(--text-muted);">... and ${extra} more</li>` : '') +
+            '</ul>';
+        }
+        snapshotDetailHtml = `
+          <div class="epic-addendum-snapshot-detail" id="${esc(snapshotId)}" hidden>
+            ${childCount > 0 ? `<div style="font-weight:600;font-size:0.72rem;margin-bottom:0.15rem;">Included children (${childCount})</div>${childListHtml}` : ''}
+            ${snapshotSize > 0 ? `<div style="font-weight:600;font-size:0.72rem;margin-top:0.2rem;margin-bottom:0.1rem;">Commits (${snapshotSize})</div>${commitListHtml}` : ''}
+          </div>
+        `;
+      }
+
+      const hasSnapshot = childCount > 0 || snapshotSize > 0;
+      const toggleHtml = hasSnapshot
+        ? `<button class="epic-addendum-snapshot-toggle" type="button"
+             onclick="(function(btn){var el=document.getElementById('${esc(snapshotId)}');if(el){el.hidden=!el.hidden;btn.textContent=el.hidden?'Show snapshot':'Hide snapshot';btn.setAttribute('aria-expanded',String(!el.hidden));}}).call(this,this)"
+             aria-expanded="false"
+             aria-controls="${esc(snapshotId)}">Show snapshot</button>`
+        : '';
+
+      html += `
+        <li class="epic-addendum-entry">
+          <div class="epic-addendum-row">
+            <span class="release-addendum-branch">${esc(entry.target_branch)}</span>
+            <span class="release-addendum-status release-addendum-status-${esc(entry.status || '')}">${esc(statusLabel)}</span>
+            ${prLink}
+          </div>
+          <div class="epic-addendum-snapshot-meta">
+            ${snapshotSize > 0 ? `<span class="epic-addendum-snapshot-badge">${snapshotSize} commit${snapshotSize !== 1 ? 's' : ''}</span>` : ''}
+            ${childCount > 0 ? `<span class="epic-addendum-snapshot-badge">${childCount} child${childCount !== 1 ? 'ren' : ''}</span>` : ''}
+            ${toggleHtml}
+          </div>
+          ${errorHtml}
+          ${snapshotDetailHtml}
+        </li>
+      `;
+    }
+    html += '</ul>';
+  } else {
+    html += '<div style="color:var(--text-muted);font-size:0.75rem;padding:0.2rem 0 0.4rem;">No epic release addendums yet</div>';
+  }
+
+  // Show "Add release branches" button only for Merged epics
+  if (epicState === 'Merged') {
+    const safeId  = esc(identifier  || '');
+    const safePid = esc(projectId   || '');
+    html += `
+      <button onclick="openAddReleaseBranchesDialog('${safeId}', '${safePid}')" style="margin-top:0.4rem;width:100%;font-size:0.8rem;">+ Add release branches</button>
+    `;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ---------------------------------------------------------------------------
 // Add release branches dialog — state (OOMPAH-180)
 // ---------------------------------------------------------------------------
 
@@ -4719,8 +4905,12 @@ async function openDetailPanel(identifier) {
     `;
   }
 
-  // Release addendums section (OOMPAH-180) — replaces old Release Picks section.
-  html += renderReleaseAddendumsSection(_raData, detail.identifier, detail.project_id, detail.state);
+  // Release addendums section — dispatches to epic or task renderer (OOMPAH-181).
+  if (detail.issue_type === 'epic') {
+    html += renderEpicReleaseAddendumsSection(_raData, detail.identifier, detail.project_id, detail.state);
+  } else {
+    html += renderReleaseAddendumsSection(_raData, detail.identifier, detail.project_id, detail.state);
+  }
 
   // Comments section
   const comments = detail.comments || [];

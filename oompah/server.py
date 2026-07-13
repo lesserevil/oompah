@@ -3486,6 +3486,7 @@ async def api_approve_release_addendums(identifier: str, request: Request):
             InvalidTargetBranchError,
             approve_release_addendums,
             resolve_addendum_commits,
+            resolve_epic_addendum_commits,
             validate_target_branches,
         )
 
@@ -3559,8 +3560,21 @@ async def api_approve_release_addendums(identifier: str, request: Request):
                 "release-addendums: SCM detection failed for %s: %s", project_id, scm_exc
             )
 
+        # ------------------------------------------------------------------
+        # 5. Resolve commit snapshot — strategy depends on issue type
+        #    For epics: union of all merged-descendant commits (OOMPAH-181)
+        #    For tasks: the task's own merged-PR commits (original behavior)
+        # ------------------------------------------------------------------
+        included_child_ids: list[str] = []
+        is_epic = getattr(issue, "issue_type", "task") == "epic"
+
         try:
-            commits = resolve_addendum_commits(issue, project, scm=scm, repo=repo)
+            if is_epic:
+                commits, included_child_ids = resolve_epic_addendum_commits(
+                    issue, tracker, project, scm=scm, repo=repo
+                )
+            else:
+                commits = resolve_addendum_commits(issue, project, scm=scm, repo=repo)
         except CommitResolutionError as exc:
             return JSONResponse(
                 {
@@ -3588,6 +3602,7 @@ async def api_approve_release_addendums(identifier: str, request: Request):
             project,
             deduped_targets,
             commits,
+            included_child_ids=included_child_ids if is_epic else None,
             event_bus=event_bus,
         )
 

@@ -216,6 +216,111 @@ def resolve_addendum_commits(
 
 
 # ---------------------------------------------------------------------------
+# Epic commit resolution
+# ---------------------------------------------------------------------------
+
+
+def resolve_epic_addendum_commits(
+    epic: Any,
+    tracker: Any,
+    project: Any,
+    *,
+    scm: Any | None = None,
+    repo: str | None = None,
+) -> tuple[list[str], list[str]]:
+    """Resolve commits and child IDs for an epic's addendum snapshot.
+
+    The commit snapshot for an epic addendum is the ordered, deduplicated
+    union of commits from all descendant tasks currently in the ``Merged``
+    state on the project's default branch, in the order they were resolved.
+
+    Only descendants that are ``Merged`` at the time of approval are included.
+    Descendants that merge later are NOT added automatically — they require a
+    separate approval.
+
+    Args:
+        epic: An :class:`~oompah.models.Issue` whose ``issue_type`` is
+            ``"epic"``.  Its ``identifier`` is used to fetch children.
+        tracker: Tracker instance with ``fetch_children`` support.
+        project: A :class:`~oompah.models.Project` providing
+            ``default_branch`` and ``repo_path``.
+        scm: Optional SCM provider for PR-based commit lookup.
+        repo: Repository slug (e.g. ``"org/repo"``).  Required alongside
+            *scm*.
+
+    Returns:
+        Tuple of ``(commits, included_child_ids)`` where *commits* is the
+        ordered, deduplicated list of full-length commit SHAs (oldest first)
+        and *included_child_ids* is the list of child identifiers whose
+        commits were included, in the order they were processed.
+
+    Raises:
+        :exc:`CommitResolutionError`: When no merged descendants are found or
+            all per-child commit resolutions fail.
+    """
+    from oompah.statuses import canonicalize_status, MERGED
+
+    try:
+        children = tracker.fetch_children(epic.identifier) or []
+    except Exception as exc:
+        raise CommitResolutionError(
+            f"Failed to fetch children of epic {epic.identifier!r}: {exc}"
+        ) from exc
+
+    merged_children = [
+        c for c in children
+        if canonicalize_status(c.state or "") == MERGED
+    ]
+
+    if not merged_children:
+        raise CommitResolutionError(
+            f"Epic {epic.identifier!r} has no Merged descendants; "
+            "cannot create a release addendum snapshot with zero commits"
+        )
+
+    # Collect commits in child order, deduplicate by SHA
+    seen_shas: set[str] = set()
+    all_commits: list[str] = []
+    included_child_ids: list[str] = []
+    resolution_errors: list[str] = []
+
+    for child in merged_children:
+        try:
+            child_commits = resolve_addendum_commits(
+                child, project, scm=scm, repo=repo
+            )
+        except CommitResolutionError as exc:
+            logger.debug(
+                "resolve_epic_addendum_commits: could not resolve commits for "
+                "child %s of epic %s: %s",
+                child.identifier,
+                epic.identifier,
+                exc,
+            )
+            resolution_errors.append(f"{child.identifier}: {exc}")
+            continue
+
+        new_commits = [sha for sha in child_commits if sha not in seen_shas]
+        if new_commits:
+            seen_shas.update(new_commits)
+            all_commits.extend(new_commits)
+            included_child_ids.append(child.identifier)
+        else:
+            # All commits were already included by a previous child; still
+            # record the child as included since its work is in the snapshot
+            included_child_ids.append(child.identifier)
+
+    if not all_commits:
+        errors_detail = "; ".join(resolution_errors) if resolution_errors else "unknown"
+        raise CommitResolutionError(
+            f"Epic {epic.identifier!r}: could not resolve any commits from its "
+            f"merged descendants. Per-child errors: {errors_detail}"
+        )
+
+    return all_commits, included_child_ids
+
+
+# ---------------------------------------------------------------------------
 # Target-branch validation
 # ---------------------------------------------------------------------------
 
@@ -297,6 +402,7 @@ async def approve_release_addendums(
     target_branches: list[str],
     commits: list[str],
     *,
+    included_child_ids: list[str] | None = None,
     event_bus: Any | None = None,
 ) -> ApprovalResult:
     """Atomically create open release addendums for each missing target branch.
@@ -312,6 +418,9 @@ async def approve_release_addendums(
         project: Project providing ``default_branch`` and ``id``.
         target_branches: Deduplicated, validated list of target branch names.
         commits: Pre-resolved, non-empty list of commit SHAs to snapshot.
+        included_child_ids: For epic addendums, the ordered list of descendant
+            task identifiers whose commits are in *commits*.  ``None`` or
+            empty for per-task addendums.
         event_bus: Optional :class:`~oompah.events.EventBus` for publishing
             ``release_addendum_ready`` events.
 
@@ -356,6 +465,7 @@ async def approve_release_addendums(
                 work_branch=make_work_branch(identifier, target_branch),
                 worktree_key=make_worktree_key(identifier, target_branch),
                 queued_at=now,
+                included_child_ids=list(included_child_ids) if included_child_ids else [],
             )
             updated.append(addendum)
             newly_created_ids.append(addendum_id)

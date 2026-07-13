@@ -376,6 +376,10 @@ class ReleaseAddendum:
     error: str | None = None
     claimed_by: str | None = None
     lease_expires_at: str | None = None
+    # Populated for epic addendums: the identifiers of descendant tasks that
+    # were Merged at the time the addendum was approved.  Always empty for
+    # per-task addendums.  Immutable after creation (same invariant as commits).
+    included_child_ids: list[str] = field(default_factory=list)
 
     def to_raw(self) -> dict[str, Any]:
         """Serialise this addendum to a raw dict for storage in task metadata.
@@ -407,6 +411,9 @@ class ReleaseAddendum:
             out["claimed_by"] = self.claimed_by
         if self.lease_expires_at is not None:
             out["lease_expires_at"] = self.lease_expires_at
+        # Epic snapshot field — always include so the UI can distinguish
+        # task addendums (empty) from epic addendums (non-empty)
+        out["included_child_ids"] = list(self.included_child_ids)
         return out
 
     @classmethod
@@ -490,6 +497,12 @@ class ReleaseAddendum:
             raw_result_commits = [raw_result_commits]
         result_commits = [str(c).strip() for c in raw_result_commits if str(c).strip()]
 
+        # included_child_ids — optional; populated for epic addendums only
+        raw_child_ids = raw.get("included_child_ids") or []
+        if isinstance(raw_child_ids, str):
+            raw_child_ids = [raw_child_ids]
+        included_child_ids = [str(c).strip() for c in raw_child_ids if str(c).strip()]
+
         return cls(
             id=addendum_id,
             source_branch=source_branch,
@@ -506,6 +519,7 @@ class ReleaseAddendum:
             error=_opt_str("error"),
             claimed_by=_opt_str("claimed_by"),
             lease_expires_at=_opt_str("lease_expires_at"),
+            included_child_ids=included_child_ids,
         )
 
 
@@ -778,6 +792,8 @@ class AddendumRepository:
             error=execution_evidence.get("error", current.error),
             claimed_by=execution_evidence.get("claimed_by", current.claimed_by),
             lease_expires_at=execution_evidence.get("lease_expires_at", current.lease_expires_at),
+            # included_child_ids is immutable — never changed by a lifecycle transition
+            included_child_ids=list(current.included_child_ids),
         )
 
         updated_list = list(existing)
