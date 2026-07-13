@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:15.200697Z'
-updated_at: '2026-07-13T06:01:24.676931Z'
+updated_at: '2026-07-13T06:01:26.972106Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -104,5 +104,10 @@ Test coverage:
 - 8 CSS class tests: all new epic addendum CSS classes present
 
 All acceptance criteria met: operator can see exactly which already-merged descendants an epic addendum will deliver (via child ID list) without creating per-child backport tasks.
+---
+author: oompah
+created: 2026-07-13 06:01
+---
+Delivered epic release-addendum approval and snapshot UI per section 7 Epic detail of plans/release-branch-addendums.md. Added included_child_ids field to ReleaseAddendum schema; resolve_epic_addendum_commits() that snapshots all currently-Merged descendants at approval time; POST endpoint epic detection path; renderEpicReleaseAddendumsSection() with target branch/snapshot-size/child-count/status/PR/expandable-immutable-snapshot; openDetailPanel dispatch by issue_type; 8 new CSS classes; 50 new tests all passing (7886 total). No child-by-branch matrix, no apply-all, no child-task links.
 ---
 <!-- COMMENTS:END -->
