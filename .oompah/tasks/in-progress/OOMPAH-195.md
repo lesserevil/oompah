@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:43.705145Z'
-updated_at: '2026-07-13T20:52:24.996158Z'
+updated_at: '2026-07-13T20:55:10.407016Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -82,5 +82,15 @@ Implementation complete. Changes made:
 5. tests/test_release_delivery_queue.py (new, 58 tests total)
 6. tests/test_release_delivery_executor.py (new)
 7. tests/test_release_delivery_poller.py (new)
+---
+author: oompah
+created: 2026-07-13 20:55
+---
+Verification: make test passes — 8315 tests, 28 skipped, 0 failures. The 58 new tests (queue, executor, poller) cover all acceptance criteria:
+✓ Queue claim/release/retry/lease-expiry keyed by delivery_id — survives restart
+✓ Multi-commit delivery cherry-picks in stored order, records result SHAs before in_review
+✓ PR merge reconciliation marks exact delivery Merged; closed-unmerged stays in_review for retry
+✓ Unavailable/deleted target is blocked with actionable error before cherry-pick
+✓ No tracker task ever created or source task status changed
 ---
 <!-- COMMENTS:END -->
