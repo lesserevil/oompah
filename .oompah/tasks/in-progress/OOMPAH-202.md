@@ -17,7 +17,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:33:31.162292Z'
-updated_at: '2026-07-13T23:24:54.049197Z'
+updated_at: '2026-07-13T23:25:03.104108Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -94,5 +94,19 @@ Tests cover all acceptance criteria:
 8. PR evidence in inventory (4 tests): in_review state visible; multi-branch independent columns; task association shown; commits-kind has no association.
 
 9. Filter/pagination (3 tests): needs_delivery excludes ancestry-delivered; all includes them; pagination across pages.
+---
+author: oompah
+created: 2026-07-13 23:25
+---
+Verification: make test result — 8838 passed, 28 skipped, 0 failures in 115.08s.
+
+The 37 new e2e tests in tests/test_release_delivery_e2e.py pass cleanly. No regressions introduced.
+
+All 5 acceptance criteria confirmed:
+✓ Migrated existing task/epic delivery remains visible; no duplicate PR after re-approval.
+✓ Direct main commit selected for two release branches → two independent ledger deliveries, no task created.
+✓ Merged cherry-pick reports Delivered using source-to-result mapping (evidence=delivery); shared-history delivery reports Delivered by ancestry (evidence=ancestry).
+✓ Blocked, retry, archived, unavailable-target, source-head-change, and concurrent/idempotent scenarios covered.
+✓ Full make test passes: 8838 passed, 28 skipped, 0 failures.
 ---
 <!-- COMMENTS:END -->
