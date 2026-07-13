@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:40.173681Z'
-updated_at: '2026-07-13T20:36:37.246927Z'
+updated_at: '2026-07-13T20:36:51.614751Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -99,5 +99,15 @@ author: oompah
 created: 2026-07-13 20:36
 ---
 Implemented idempotent migration from oompah.release_addendums metadata into .oompah/release-deliveries.yml (release_addendum_migration.py) and DualReadDeliveryAdapter for unified de-duplicated delivery view (release_delivery_adapter.py). Full test coverage in 137 new tests. All acceptance criteria met.
+---
+author: oompah
+created: 2026-07-13 20:36
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 65
+- Tokens: 101 in / 2.3K out [2.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 17m 0s
+- Log: OOMPAH-194__20260713T201956Z.jsonl
 ---
 <!-- COMMENTS:END -->
