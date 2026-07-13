@@ -17,7 +17,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:33:31.162292Z'
-updated_at: '2026-07-13T23:25:21.491136Z'
+updated_at: '2026-07-13T23:25:23.834466Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,5 +119,10 @@ Added tests/test_release_delivery_e2e.py (1694 lines, 37 tests) as the final ver
 No product behavior added — tests only, as specified. All dependency work (OOMPAH-193 through OOMPAH-201) was already Done and covered by the e2e tests.
 
 Branch epic-OOMPAH-192 pushed and up to date with origin.
+---
+author: oompah
+created: 2026-07-13 23:25
+---
+Added tests/test_release_delivery_e2e.py (37 e2e tests) covering all acceptance criteria: migration/compatibility, direct commit selection, cherry-pick vs ancestry evidence, blocked/retry/archived/unavailable-target/source-head-change/concurrent scenarios, full pipeline with mocked SCM/PR. make test: 8838 passed, 28 skipped, 0 failures.
 ---
 <!-- COMMENTS:END -->
