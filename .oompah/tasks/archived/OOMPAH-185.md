@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-185
 type: task
-status: Backlog
+status: Archived
 priority: 2
 title: Document release-addendum workflow and operator migration
 parent: OOMPAH-172
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:37:57.740386Z'
-updated_at: '2026-07-13T02:37:57.740386Z'
+updated_at: '2026-07-13T02:38:17.702602Z'
 work_branch: null
 target_branch: null
 review_url: null
