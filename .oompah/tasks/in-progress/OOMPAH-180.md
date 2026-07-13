@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:12.732590Z'
-updated_at: '2026-07-13T05:06:39.168274Z'
+updated_at: '2026-07-13T05:07:00.989749Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,5 +85,24 @@ New tests added:
 - Updated 2 tests in test_dashboard_release_picks_section.py (openDetailPanel now checks renderReleaseAddendumsSection)
 
 Old tests still passing: test_dashboard_release_picks_section.py (38), test_add_release_picks_modal.py, test_dashboard_release_pick_states.py
+---
+author: oompah
+created: 2026-07-13 05:07
+---
+Completion: Delivered task release-addendum selection and status UI (OOMPAH-180).
+
+Deliverables:
+1. GET /api/v1/issues/{id}/release-addendums — reads AddendumRepository, returns {identifier, addendums}, 404/503 handling
+2. CSS: .release-addendum-{list,entry,branch,status-*,pr-link,error,stale-badge} + .rab-{fieldset,legend,checkbox-row,stale-warning}
+3. renderReleaseAddendumsSection(): target_branch, status badge (open/in_progress/in_review/blocked/merged/archived), PR link, blocked error; NO child-task link; 'Add release branches' button only for Merged tasks; empty-state
+4. openAddReleaseBranchesDialog(): fetches /release-addendums (active targets), fetches /release-branches catalog (available=true only), fieldset+legend+checkbox group, prechecked+disabled for active entries, focus management, stale warning, empty/error states
+5. closeAddReleaseBranchesDialog(): clears state
+6. submitAddReleaseBranchesDialog(): validates ≥1 selection, idempotency_key=crypto.randomUUID(), POSTs ALL selected branches in ONE request (acceptance criterion satisfied), disables button during flight, closes+refreshes on success (refresh-to-open)
+7. Escape-to-close keydown listener
+8. add-release-branches-dialog HTML: role=dialog, aria-modal, aria-labelledby, fieldset+legend, Cancel/Queue-release-merges
+9. openDetailPanel: parallel /release-addendums fetch, calls renderReleaseAddendumsSection(_raData, id, projectId, detail.state)
+10. 82 new tests (67 UI + 15 server); 2 old tests updated; 7724 total pass
+
+Acceptance: selecting two branches queues two addendums in one POST with one user action — verified in test_sends_all_branches_in_one_request (single 'await fetch(' in submit body).
 ---
 <!-- COMMENTS:END -->
