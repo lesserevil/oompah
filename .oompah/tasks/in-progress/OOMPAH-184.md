@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:37:55.470386Z'
-updated_at: '2026-07-13T06:45:59.738807Z'
+updated_at: '2026-07-13T06:49:29.467377Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -86,5 +86,22 @@ author: oompah
 created: 2026-07-13 06:45
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 06:49
+---
+Understanding: This is NOT a duplicate. OOMPAH-185 was previously archived as the duplicate of this task. Confirmed no other duplicate exists.
+
+Scope assessment:
+- docs/release-addendums.md: COMPLETE - comprehensive operator guide covering all workflow aspects
+- docs/task-epic-workflow.md: COMPLETE - has Release Delivery section
+- docs/operator-runbook.md: COMPLETE - has Supported Release Lines paragraph in §1.3
+- oompah/agent_instructions.py OOMPAH_TASK block: COMPLETE - has Release Addendums section
+- oompah/agent_instructions.py GITHUB_ISSUES block: MISSING - needs Release Addendums section
+- docs/managed-project-onboarding.md: MISSING - no release lines step in the checklist
+- tests/test_agent_instructions.py: PARTIAL - has test for oompah_task instructions but MISSING test for github_issues instructions describing release addendums
+- docs/README.md: COMPLETE - indexes release-addendums.md
+
+Plan: (1) Add Release Addendums section to GITHUB_ISSUES_AGENT_INSTRUCTIONS; (2) Add step to managed-project-onboarding.md; (3) Add test for github_issues instructions; (4) Add assertions for release-addendums.md doc coverage.
 ---
 <!-- COMMENTS:END -->
