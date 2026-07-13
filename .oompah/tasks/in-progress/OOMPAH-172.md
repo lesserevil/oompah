@@ -24,7 +24,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T07:01:33.757243Z'
+updated_at: '2026-07-13T07:02:07.743320Z'
 work_branch: epic-OOMPAH-172
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/407
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-07-13 07:01
 ---
 YOLO: CI tests failed on MR #407. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-13 07:02
+---
+Understanding: CI is failing on PR #407 (branch epic-OOMPAH-172) with 6 test failures in tests/test_granian_parity.py::TestMultipartAttachmentEndpoints. All failures show Granian returning 503 while uvicorn returns expected codes (400, 404, 500). Root cause: multipart attachment endpoints likely not registered in the Granian route set. Will investigate the granian parity test setup and the attachment route registration.
 ---
 <!-- COMMENTS:END -->
