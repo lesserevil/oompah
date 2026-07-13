@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:40.880021Z'
-updated_at: '2026-07-13T03:12:17.100092Z'
+updated_at: '2026-07-13T03:21:33.489733Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,18 @@ Plan:
 3. server.py: parse from create/update request bodies, validate in PATCH handler
 4. templates/projects.html: display row, edit textarea, saveProject() inclusion
 5. tests/test_project_supported_release_branches.py: full test coverage
+---
+author: oompah
+created: 2026-07-13 03:21
+---
+Implementation: Added supported_release_branches to Project model, persistence, APIs, and project-definition UI.
+
+Changes:
+1. oompah/models.py: Added supported_release_branches: list[str] = [] field to Project dataclass; updated to_dict() (always emits the field), from_dict() (legacy records default to []); updated cls() constructor call.
+2. oompah/projects.py: Added _validate_supported_release_branches() helper enforcing nonempty, unique-after-normalisation, exclusion of default_branch, and fnmatch against branches patterns; added 'supported_release_branches' to UPDATABLE_FIELDS; added validation in update() using effective branches/default_branch (cross-field); added field to create() signature with delegation to helper.
+3. oompah/server.py: Parsed supported_release_branches from PATCH body (type-check, delegates validation to ProjectStore); parsed in POST body (type-check, passes to create()).
+4. oompah/templates/projects.html: Added read-only display row; added edit form input with help text explaining removing does not cancel addendums; read in saveProject() and included in PATCH body.
+5. tests/test_project_supported_release_branches.py: Full coverage across model (round-trip, from_dict legacy compat), validator helper (all validation rules), ProjectStore.update() (cross-field validation, persistence), server API (GET/PATCH valid+invalid), template presence.
+6. tests/test_projects_crud.py: Added 'supported_release_branches' to test_updatable_fields_are_correct.
 ---
 <!-- COMMENTS:END -->
