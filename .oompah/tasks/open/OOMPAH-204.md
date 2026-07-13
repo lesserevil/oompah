@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-204
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: "[backend:server] Update issue API error: Cannot sync native tracker: git merge\
   \ --ff-only origin/main failed: hint: Diverging branches can't be fast-forwarded,\
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-13T20:02:50.911753Z'
-updated_at: '2026-07-13T20:03:05.068129Z'
+updated_at: '2026-07-13T20:03:57.980492Z'
 work_branch: null
 target_branch: null
 review_url: null
