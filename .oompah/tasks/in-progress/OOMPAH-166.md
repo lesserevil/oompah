@@ -15,7 +15,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:22:52.257643Z'
-updated_at: '2026-07-13T02:26:02.833124Z'
+updated_at: '2026-07-13T02:26:06.622398Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-13 02:23
 ---
 Filed implementation, orchestration, UI, and documentation children. OOMPAH-168 and OOMPAH-169 depend on the configuration simplification; OOMPAH-170 follows the shared-only orchestration change.
+---
+author: oompah
+created: 2026-07-13 02:26
+---
+Finalized this epic by removing its draft label. Added a dedicated child to remove automatic draft-epic labeling and draft-specific dashboard controls.
 ---
 <!-- COMMENTS:END -->
