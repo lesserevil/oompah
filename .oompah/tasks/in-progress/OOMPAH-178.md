@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:53.454708Z'
-updated_at: '2026-07-13T05:17:53.129794Z'
+updated_at: '2026-07-13T05:18:32.690612Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,5 +55,10 @@ author: oompah
 created: 2026-07-13 05:17
 ---
 Implementation: Created oompah/release_addendum_executor.py with:\n- cherry_pick_addendum(): main entry point that takes ReleaseAddendum (no child Issue)\n- _find_existing_pr(): queries SCM for existing open PR on work_branch before opening new one\n- _open_release_pr(): opens PR targeting target_branch using work_branch as source\n- _get_result_commits(): fetches cherry-picked SHAs ahead of origin/<target_branch>\n- _persist_blocked(): transitions addendum to BLOCKED via AddendumRepository.transition()\n- _post_source_comment(): posts diagnostic comment on source task with author oompah\n\nKey behaviors:\n- Worktree created with worktree_key as path, base_branch=target_branch, branch_name=work_branch\n- Existing open PR reused (idempotent re-run) without re-cherry-picking or pushing\n- Commits already applied are skipped (idempotency via _has_new_commits check)\n- On conflict: worktree preserved, blocked+error persisted, comment posted on source (not child)\n- On non-conflict failure: blocked+error persisted, comment posted on source\n- NEVER calls tracker.create_issue() or tracker.update_issue() on source\n\nTests: 72 tests in tests/test_release_addendum_executor.py covering all required scenarios.
+---
+author: oompah
+created: 2026-07-13 05:18
+---
+Verification: All 72 new tests in test_release_addendum_executor.py pass. Full test suite: 7732 passed, 28 skipped (no regressions). Branch epic-OOMPAH-172 pushed and up to date with origin.
 ---
 <!-- COMMENTS:END -->
