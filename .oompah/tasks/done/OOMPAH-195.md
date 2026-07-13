@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-195
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Move release queue and executor identity to ledger delivery IDs
 parent: OOMPAH-192
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:43.705145Z'
-updated_at: '2026-07-13T20:55:21.903145Z'
+updated_at: '2026-07-13T20:55:32.253114Z'
 work_branch: null
 target_branch: null
 review_url: null
