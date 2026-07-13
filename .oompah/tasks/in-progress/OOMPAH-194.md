@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:40.173681Z'
-updated_at: '2026-07-13T20:19:52.169951Z'
+updated_at: '2026-07-13T20:25:47.188812Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,5 +55,18 @@ author: oompah
 created: 2026-07-13 20:19
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 20:25
+---
+Duplicate investigation complete: no duplicate found. OOMPAH-194 is a distinct step in the OOMPAH-192 epic. OOMPAH-193 (the foundational ledger store) is in-progress and its code is already present on the branch. OOMPAH-194 is unique.
+
+Proceeding with implementation. Plan:
+
+1. oompah/release_addendum_migration.py — idempotent migration scanning all tasks/epics (including terminal) for oompah.release_addendums metadata, building ReleaseDelivery records with migrated_from set to the legacy addendum ID, and appending to the ledger store. SHA validation gates admission: addendums with non-SHA sentinel commits (e.g. 'migration-pending' from OOMPAH-183) are reported and skipped.
+
+2. oompah/release_delivery_adapter.py — DualReadDeliveryAdapter that combines ledger entries (via ReleaseDeliveryStore.lookup_by_source_identifier) with legacy task-metadata addendums, deduplicating by migrated_from. Non-migrated legacy addendums are converted to ReleaseDelivery on-the-fly for a single unified view.
+
+3. tests/test_release_addendum_migration.py and tests/test_release_delivery_adapter.py — fixtures covering all lifecycle states, duplicates, malformed records, and second migration run; byte-for-byte evidence preservation verified.
 ---
 <!-- COMMENTS:END -->
