@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-13T14:19:41.967141Z'
-updated_at: '2026-07-13T14:56:36.124644Z'
+updated_at: '2026-07-13T14:56:38.509031Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,5 +97,10 @@ author: oompah
 created: 2026-07-13 14:52
 ---
 Root cause confirmed: the fine-grained GitHub PAT used by gh webhook forward lacked the repository Webhooks: Read and write permission. The operator has updated the coroot PAT. Updating operator, onboarding, webhook-forwarding, and .env example documentation so webhook administration is explicitly required whenever forwarding is enabled.
+---
+author: oompah
+created: 2026-07-13 14:56
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
