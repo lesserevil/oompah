@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-205
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: Avoid full dashboard board rebuilds for unchanged issue snapshots
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T20:05:14.303298Z'
-updated_at: '2026-07-13T20:05:14.303298Z'
+updated_at: '2026-07-13T20:06:56.729611Z'
 work_branch: null
 target_branch: null
 review_url: null
