@@ -3688,6 +3688,397 @@ async def api_get_release_addendums(identifier: str, request: Request):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# POST /api/v1/issues/{identifier}/release-addendums/{addendum_id}/retry
+# POST /api/v1/issues/{identifier}/release-addendums/{addendum_id}/archive
+# (OOMPAH-179: lifecycle controls)
+# ---------------------------------------------------------------------------
+
+
+def _load_addendum_for_control(
+    orch: Any,
+    project_id: str | None,
+    identifier: str,
+    addendum_id: str,
+) -> tuple[Any, str, Any, list, Any]:
+    """Shared lookup for the retry/archive endpoints.
+
+    Returns ``(tracker, resolved_project_id, issue, addendums, addendum)``
+    or raises ``KeyError`` / ``ValueError`` that the caller maps to 404/400.
+
+    Raises:
+        KeyError: when the project, issue, or addendum_id is not found.
+        ValueError: when the project is not resolvable.
+    """
+    from oompah.release_addendum_schema import AddendumRepository
+
+    tracker, resolved_project_id, issue = _find_tracker_for_issue(
+        orch, identifier, project_id
+    )
+    if tracker is None or issue is None:
+        raise KeyError(f"issue {identifier!r} not found")
+
+    repo = AddendumRepository(tracker)
+    addendums = repo.read(issue.identifier)
+    decoded_id = addendum_id  # already decoded by FastAPI path capture
+    target_addendum = next(
+        (a for a in addendums if a.id == decoded_id), None
+    )
+    if target_addendum is None:
+        raise KeyError(f"addendum {addendum_id!r} not found on {identifier!r}")
+
+    return tracker, resolved_project_id, issue, addendums, target_addendum
+
+
+def _invalidate_addendum_caches(
+    project_id: str,
+    identifier: str,
+) -> None:
+    """Invalidate caches that may hold stale addendum data."""
+    _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+    _api_cache.invalidate("issues:all")
+    invalidate_release_branch_catalog(project_id)
+
+
+@app.post("/api/v1/issues/{identifier}/release-addendums/{addendum_id:path}/retry")
+async def api_retry_release_addendum(
+    identifier: str,
+    addendum_id: str,
+    request: Request,
+) -> JSONResponse:
+    """Retry a blocked or closed-unmerged in_review release addendum.
+
+    Transitions the addendum from ``blocked`` or ``in_review`` (with a
+    closed-unmerged PR) to ``open``, preserving the immutable commit snapshot.
+    The addendum is re-queued for cherry-pick and PR creation.
+
+    **Request body** (JSON object)::
+
+        {"project_id": "my-project"}
+
+    **Valid source states**: ``blocked``, ``in_review`` (closed-unmerged only).
+
+    **Response** (``200 OK``)::
+
+        {
+            "identifier": "FOO-10",
+            "addendum_id": "FOO-10/release/1.0",
+            "addendums": [...]
+        }
+
+    **Error responses**:
+
+    - ``400`` — missing ``project_id``.
+    - ``404`` — project, issue, or addendum not found.
+    - ``409`` — invalid transition (e.g. already open, merged, or archived).
+    """
+    try:
+        # 1. Parse body
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": f"Invalid JSON: {exc}"}},
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "Request body must be a JSON object"}},
+                status_code=400,
+            )
+
+        project_id = body.get("project_id") or request.query_params.get("project_id")
+        if not project_id:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "project_id is required"}},
+                status_code=400,
+            )
+
+        resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
+        orch = _get_orchestrator()
+
+        # 2. Load addendum
+        try:
+            tracker, resolved_project_id, issue, addendums, target_addendum = (
+                _load_addendum_for_control(orch, project_id, resolved_identifier, addendum_id)
+            )
+        except KeyError as exc:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": str(exc)}},
+                status_code=404,
+            )
+
+        # 3. Validate and apply transition (blocked → open  or  in_review → open)
+        from oompah.release_addendum_schema import (
+            AddendumRepository,
+            AddendumStatus,
+            InvalidTransitionError,
+        )
+
+        if target_addendum.status not in {
+            AddendumStatus.BLOCKED,
+            AddendumStatus.IN_REVIEW,
+        }:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_transition",
+                        "message": (
+                            f"Cannot retry addendum {addendum_id!r}: "
+                            f"current status is {target_addendum.status.value!r}. "
+                            f"Retry is only valid from 'blocked' or 'in_review' (closed-unmerged)."
+                        ),
+                    }
+                },
+                status_code=409,
+            )
+
+        try:
+            repo = AddendumRepository(tracker)
+            updated_list = repo.transition(
+                issue.identifier,
+                target_addendum.id,
+                AddendumStatus.OPEN,
+                # Clear execution-lease fields; commits are immutable and preserved
+                claimed_by=None,
+                lease_expires_at=None,
+                error=None,
+            )
+        except InvalidTransitionError as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_transition",
+                        "message": str(exc),
+                    }
+                },
+                status_code=409,
+            )
+
+        # 4. Post oompah comment on source task
+        try:
+            pr_clause = (
+                f"\nPR: {target_addendum.pr_url}" if target_addendum.pr_url else ""
+            )
+            tracker.add_comment(
+                issue.identifier,
+                (
+                    f"🔁 Release addendum for `{target_addendum.target_branch}` "
+                    f"retried — status changed from "
+                    f"`{target_addendum.status.value}` to `open`.{pr_clause}\n\n"
+                    f"Branch: `{target_addendum.target_branch}`"
+                ),
+                author="oompah",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "api_retry_release_addendum: failed to post comment on %s: %s",
+                issue.identifier,
+                exc,
+            )
+
+        # 5. Publish wake-up event so the queue picks it up immediately
+        try:
+            event_bus = getattr(orch, "event_bus", None)
+            if event_bus is not None:
+                from oompah.events import EventType
+                event_bus.publish(
+                    EventType.RELEASE_ADDENDUM_READY,
+                    {
+                        "project_id": resolved_project_id,
+                        "source_identifier": issue.identifier,
+                        "target_branch": target_addendum.target_branch,
+                    },
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "api_retry_release_addendum: event publish failed (non-fatal): %s", exc
+            )
+
+        # 6. Invalidate caches
+        _invalidate_addendum_caches(resolved_project_id or project_id, resolved_identifier)
+
+        return JSONResponse(
+            {
+                "identifier": issue.identifier,
+                "addendum_id": addendum_id,
+                "addendums": [a.to_raw() for a in updated_list],
+            }
+        )
+
+    except Exception as exc:
+        logger.error(
+            "api_retry_release_addendum: unexpected error for %s/%s: %s",
+            identifier,
+            addendum_id,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+@app.post("/api/v1/issues/{identifier}/release-addendums/{addendum_id:path}/archive")
+async def api_archive_release_addendum(
+    identifier: str,
+    addendum_id: str,
+    request: Request,
+) -> JSONResponse:
+    """Archive an open or blocked release addendum.
+
+    Transitions the addendum from ``open`` or ``blocked`` to ``archived``.
+    This permanently cancels the addendum; it will not be re-queued.
+
+    **Request body** (JSON object)::
+
+        {"project_id": "my-project"}
+
+    **Valid source states**: ``open``, ``blocked``.
+
+    **Response** (``200 OK``)::
+
+        {
+            "identifier": "FOO-10",
+            "addendum_id": "FOO-10/release/1.0",
+            "addendums": [...]
+        }
+
+    **Error responses**:
+
+    - ``400`` — missing ``project_id``.
+    - ``404`` — project, issue, or addendum not found.
+    - ``409`` — invalid transition (e.g. in_review, in_progress, merged, or already archived).
+    """
+    try:
+        # 1. Parse body
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": f"Invalid JSON: {exc}"}},
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "Request body must be a JSON object"}},
+                status_code=400,
+            )
+
+        project_id = body.get("project_id") or request.query_params.get("project_id")
+        if not project_id:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "project_id is required"}},
+                status_code=400,
+            )
+
+        resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
+        orch = _get_orchestrator()
+
+        # 2. Load addendum
+        try:
+            tracker, resolved_project_id, issue, addendums, target_addendum = (
+                _load_addendum_for_control(orch, project_id, resolved_identifier, addendum_id)
+            )
+        except KeyError as exc:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": str(exc)}},
+                status_code=404,
+            )
+
+        # 3. Validate and apply transition (open → archived  or  blocked → archived)
+        from oompah.release_addendum_schema import (
+            AddendumRepository,
+            AddendumStatus,
+            InvalidTransitionError,
+        )
+
+        if target_addendum.status not in {
+            AddendumStatus.OPEN,
+            AddendumStatus.BLOCKED,
+        }:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_transition",
+                        "message": (
+                            f"Cannot archive addendum {addendum_id!r}: "
+                            f"current status is {target_addendum.status.value!r}. "
+                            f"Archive is only valid from 'open' or 'blocked'."
+                        ),
+                    }
+                },
+                status_code=409,
+            )
+
+        try:
+            repo = AddendumRepository(tracker)
+            updated_list = repo.transition(
+                issue.identifier,
+                target_addendum.id,
+                AddendumStatus.ARCHIVED,
+            )
+        except InvalidTransitionError as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_transition",
+                        "message": str(exc),
+                    }
+                },
+                status_code=409,
+            )
+
+        # 4. Post oompah comment on source task
+        try:
+            tracker.add_comment(
+                issue.identifier,
+                (
+                    f"🗄️ Release addendum for `{target_addendum.target_branch}` "
+                    f"archived — status changed from "
+                    f"`{target_addendum.status.value}` to `archived`.\n\n"
+                    f"Branch: `{target_addendum.target_branch}`"
+                ),
+                author="oompah",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "api_archive_release_addendum: failed to post comment on %s: %s",
+                issue.identifier,
+                exc,
+            )
+
+        # 5. Invalidate caches
+        _invalidate_addendum_caches(resolved_project_id or project_id, resolved_identifier)
+
+        return JSONResponse(
+            {
+                "identifier": issue.identifier,
+                "addendum_id": addendum_id,
+                "addendums": [a.to_raw() for a in updated_list],
+            }
+        )
+
+    except Exception as exc:
+        logger.error(
+            "api_archive_release_addendum: unexpected error for %s/%s: %s",
+            identifier,
+            addendum_id,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end release-addendum lifecycle-control endpoints)
+# ---------------------------------------------------------------------------
+
+
 @app.patch("/api/v1/issues/{identifier}")
 async def api_update_issue(identifier: str, request: Request):
     """Update an issue's state, priority, or title.

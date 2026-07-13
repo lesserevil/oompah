@@ -7721,6 +7721,7 @@ class Orchestrator:
             ("reconcile_in_review_pr_outcomes", self._reconcile_in_review_pr_outcomes),
             ("reconcile_terminal_open_reviews", self._reconcile_terminal_open_reviews),
             ("reconcile_stale_in_review_tasks", self._reconcile_stale_in_review_tasks),
+            ("reconcile_addendum_pr_outcomes", self._reconcile_addendum_pr_outcomes_sweep),
         ]
         for name, sweep in sweeps:
             if self._job_deadline_exceeded("merged_labels"):
@@ -8557,6 +8558,115 @@ class Orchestrator:
                     commit_lines,
                     review,
                 )
+
+    def _reconcile_addendum_pr_outcomes_sweep(self) -> None:
+        """Poll PR state for all ``in_review`` release addendums and reconcile.
+
+        For each project that has a resolvable SCM provider, reads every
+        source task's release-addendum list and delegates to
+        :func:`~oompah.release_addendum_poller.poll_addendum_pr` for each
+        ``in_review`` entry.
+
+        State changes
+        -------------
+        - ``in_review`` + merged PR → ``merged`` (+ oompah comment on source)
+        - ``in_review`` + closed PR → error field updated; stays ``in_review``
+          (+ oompah comment); operator must call the retry endpoint to re-queue
+        - All other states → skipped; the function is a no-op for them
+
+        This sweep is idempotent: calling it twice with the same PR state
+        produces the same result.  Failures on individual addendums are caught
+        and logged without aborting the sweep.
+
+        Called from :meth:`_do_merged_labels` (maintenance lane).
+        """
+        try:
+            from oompah.release_addendum_poller import poll_addendum_pr
+            from oompah.release_addendum_schema import (
+                AddendumRepository,
+                AddendumStatus,
+            )
+        except ImportError:
+            logger.debug(
+                "_reconcile_addendum_pr_outcomes_sweep: poller module not available"
+            )
+            return
+
+        for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("merged_labels"):
+                return
+
+            project_id = str(project.id)
+            repo_url = getattr(project, "repo_url", None)
+            if not repo_url:
+                continue
+
+            try:
+                provider = detect_provider(repo_url, access_token=getattr(project, "access_token", None))
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "_reconcile_addendum_pr_outcomes_sweep: provider detection failed for %s: %s",
+                    project_id,
+                    exc,
+                )
+                continue
+
+            if not provider:
+                continue
+
+            slug = extract_repo_slug(repo_url)
+
+            try:
+                tracker = self._tracker_for_project(project_id)
+                sources = tracker.fetch_all_issues()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "_reconcile_addendum_pr_outcomes_sweep: fetch_all_issues failed for %s: %s",
+                    project_id,
+                    exc,
+                )
+                continue
+
+            for source in sources:
+                if self._job_deadline_exceeded("merged_labels"):
+                    return
+
+                identifier = (
+                    getattr(source, "identifier", None)
+                    or getattr(source, "id", None)
+                )
+                if not identifier:
+                    continue
+                identifier = str(identifier)
+
+                try:
+                    addendums = AddendumRepository(tracker).read(identifier)
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug(
+                        "_reconcile_addendum_pr_outcomes_sweep: read failed for %s: %s",
+                        identifier,
+                        exc,
+                    )
+                    continue
+
+                for addendum in addendums:
+                    if addendum.status is not AddendumStatus.IN_REVIEW:
+                        continue
+                    try:
+                        poll_addendum_pr(
+                            tracker,
+                            identifier,
+                            addendum,
+                            scm=provider,
+                            repo=slug,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning(
+                            "_reconcile_addendum_pr_outcomes_sweep: poll failed for %s %r: %s",
+                            identifier,
+                            addendum.id,
+                            exc,
+                        )
 
     def _review_target_branch(
         self,
