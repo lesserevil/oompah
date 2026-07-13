@@ -6,11 +6,12 @@ priority: 2
 title: Build task release-addendum selection and status UI
 parent: OOMPAH-172
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-174
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:12.732590Z'
-updated_at: '2026-07-13T02:36:12.732590Z'
+updated_at: '2026-07-13T02:38:21.299094Z'
 work_branch: null
 target_branch: null
 review_url: null
