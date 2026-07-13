@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:18.950799Z'
-updated_at: '2026-07-13T06:18:28.294033Z'
+updated_at: '2026-07-13T06:18:40.756822Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,5 +93,19 @@ Coverage confirmed:
 - TestUntrackedCommitsWarning (6): no repo_path, git failure, all tracked, untracked present, not-a-feature, cap at 50
 - TestErrorCases (5): 404, tracker 503, fetch 503, malformed metadata graceful, response keys
 - TestComputeUntrackedCommits (7): no repo, OSError, nonzero rc, all tracked, untracked, cap 50, correct git command
+---
+author: oompah
+created: 2026-07-13 06:18
+---
+Completion: Delivered GET /api/v1/projects/{project_id}/release-branches/{branch_name:path}/addendums and a Release branches dashboard view.
+
+Deliverables:
+1. server.py: _compute_untracked_commits() + GET .../release-branches/{branch}/addendums — groups all source tasks/epics by addendum status, returns full to_raw() evidence, computes untracked_commits warning via git log (informational, never claims raw commits are features), 404/503 error contracts, graceful degradation throughout.
+
+2. dashboard.html: Release branches inspector overlay panel — toolbar button, project/branch selects, Escape-to-close, aria-modal, aria-live region, loading/empty/error states, grouped entries with identifier deep links (openDetailPanel), PR links, untracked_commits warning section, reuses existing release-addendum-status CSS classes.
+
+3. tests/test_server_release_branch_inspection.py: 39 tests covering route safety, grouping/order, unavailable historical branches, source deep links, warning behavior, empty/error UI states, and _compute_untracked_commits unit coverage.
+
+Full suite: 7925 passed, 0 failures. Branch pushed to origin/epic-OOMPAH-172. A maintainer can now select any configured release line in the dashboard and see its queued and delivered work without reading raw task metadata.
 ---
 <!-- COMMENTS:END -->
