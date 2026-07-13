@@ -6501,19 +6501,15 @@ async def api_update_project(project_id: str, request: Request):
         if "epic_strategy" in body:
             val = body["epic_strategy"]
             if val is None:
-                fields["epic_strategy"] = "flat"
-            elif isinstance(val, str) and val.strip().lower() in (
-                "flat",
-                "stacked",
-                "shared",
-            ):
-                fields["epic_strategy"] = val.strip().lower()
+                fields["epic_strategy"] = "shared"
+            elif isinstance(val, str) and val.strip().lower() == "shared":
+                fields["epic_strategy"] = "shared"
             else:
                 return JSONResponse(
                     {
                         "error": {
                             "code": "validation",
-                            "message": "epic_strategy must be one of: flat, stacked, shared",
+                            "message": "epic_strategy must be 'shared' — flat and stacked strategies have been removed",
                         }
                     },
                     status_code=400,

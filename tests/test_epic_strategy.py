@@ -112,19 +112,16 @@ def _make_orch(tmp_path, projects=None):
 
 
 class TestProjectEpicStrategyField:
-    def test_default_is_stacked(self):
-        # Default for newly-created Project objects is "stacked"
-        # (changed from "flat" so new projects get merge-train semantics
-        # out of the box; pre-existing projects on disk retain their value
-        # and from_dict still falls back to "flat" when the field is entirely
-        # missing from a pre-amd projects.json — see test_from_dict_back_compat_when_missing).
+    def test_default_is_shared(self):
+        # Default for newly-constructed Project objects is "shared" — the only
+        # supported epic strategy.  "flat" and "stacked" have been removed.
         p = Project(id="p", name="n", repo_url="u", repo_path="/tmp/x")
-        assert p.epic_strategy == "stacked"
+        assert p.epic_strategy == "shared"
 
     def test_to_dict_includes_default(self):
         p = Project(id="p", name="n", repo_url="u", repo_path="/tmp/x")
         d = p.to_dict()
-        assert d["epic_strategy"] == "stacked"
+        assert d["epic_strategy"] == "shared"
         assert d["require_epic_for_tasks"] is False
 
     def test_to_dict_round_trip(self):
@@ -133,24 +130,50 @@ class TestProjectEpicStrategyField:
             name="n",
             repo_url="u",
             repo_path="/tmp/x",
-            epic_strategy="stacked",
+            epic_strategy="shared",
             require_epic_for_tasks=True,
         )
         d = p.to_dict()
-        assert d["epic_strategy"] == "stacked"
+        assert d["epic_strategy"] == "shared"
         assert d["require_epic_for_tasks"] is True
         p2 = Project.from_dict(d)
-        assert p2.epic_strategy == "stacked"
+        assert p2.epic_strategy == "shared"
         assert p2.require_epic_for_tasks is True
 
     def test_from_dict_back_compat_when_missing(self):
-        # Existing projects.json without the field → defaults to flat
+        # Existing projects.json without the field → defaults to "shared"
+        # (migration: field was absent on pre-strategy projects).
         d = {"id": "p", "name": "n", "repo_url": "u", "repo_path": "/tmp/x"}
         p = Project.from_dict(d)
-        assert p.epic_strategy == "flat"
+        assert p.epic_strategy == "shared"
         assert p.require_epic_for_tasks is False
 
-    def test_from_dict_unknown_value_falls_back_to_flat(self):
+    def test_from_dict_legacy_flat_migrates_to_shared(self):
+        # Load migration: persisted "flat" is normalized to "shared".
+        d = {
+            "id": "p",
+            "name": "n",
+            "repo_url": "u",
+            "repo_path": "/tmp/x",
+            "epic_strategy": "flat",
+        }
+        p = Project.from_dict(d)
+        assert p.epic_strategy == "shared"
+
+    def test_from_dict_legacy_stacked_migrates_to_shared(self):
+        # Load migration: persisted "stacked" is normalized to "shared".
+        d = {
+            "id": "p",
+            "name": "n",
+            "repo_url": "u",
+            "repo_path": "/tmp/x",
+            "epic_strategy": "stacked",
+        }
+        p = Project.from_dict(d)
+        assert p.epic_strategy == "shared"
+
+    def test_from_dict_unknown_value_normalizes_to_shared(self):
+        # Unknown/invalid persisted values are normalized to "shared".
         d = {
             "id": "p",
             "name": "n",
@@ -159,18 +182,33 @@ class TestProjectEpicStrategyField:
             "epic_strategy": "totally-bogus",
         }
         p = Project.from_dict(d)
-        assert p.epic_strategy == "flat"
+        assert p.epic_strategy == "shared"
 
-    def test_from_dict_normalizes_case(self):
+    def test_from_dict_shared_round_trips(self):
+        # "shared" is accepted as-is.
         d = {
             "id": "p",
             "name": "n",
             "repo_url": "u",
             "repo_path": "/tmp/x",
-            "epic_strategy": "SHARED",
+            "epic_strategy": "shared",
         }
         p = Project.from_dict(d)
         assert p.epic_strategy == "shared"
+
+    def test_to_dict_after_migration_writes_shared(self):
+        # After a legacy record is loaded (flat→shared), to_dict() emits
+        # "shared" so the next safe save overwrites the persisted value.
+        d_legacy = {
+            "id": "p",
+            "name": "n",
+            "repo_url": "u",
+            "repo_path": "/tmp/x",
+            "epic_strategy": "stacked",
+        }
+        p = Project.from_dict(d_legacy)
+        d_serialized = p.to_dict()
+        assert d_serialized["epic_strategy"] == "shared"
 
 
 class TestProjectStoreUpdateEpicStrategy:
@@ -195,12 +233,19 @@ class TestProjectStoreUpdateEpicStrategy:
         store._save()
         return p
 
-    def test_update_to_stacked(self, tmp_path):
+    def test_update_to_stacked_is_rejected(self, tmp_path):
+        # "stacked" is no longer a valid epic strategy.
         store = self._store(tmp_path)
         self._seed(store)
-        p = store.update("p1", epic_strategy="stacked")
-        assert p is not None
-        assert p.epic_strategy == "stacked"
+        with pytest.raises(ProjectError):
+            store.update("p1", epic_strategy="stacked")
+
+    def test_update_to_flat_is_rejected(self, tmp_path):
+        # "flat" is no longer a valid epic strategy.
+        store = self._store(tmp_path)
+        self._seed(store)
+        with pytest.raises(ProjectError):
+            store.update("p1", epic_strategy="flat")
 
     def test_update_to_shared(self, tmp_path):
         store = self._store(tmp_path)
@@ -209,12 +254,13 @@ class TestProjectStoreUpdateEpicStrategy:
         assert p is not None
         assert p.epic_strategy == "shared"
 
-    def test_update_normalizes_case(self, tmp_path):
+    def test_update_normalizes_case_shared(self, tmp_path):
+        # "SHARED" (uppercase) is accepted and normalized.
         store = self._store(tmp_path)
         self._seed(store)
-        p = store.update("p1", epic_strategy="STACKED")
+        p = store.update("p1", epic_strategy="SHARED")
         assert p is not None
-        assert p.epic_strategy == "stacked"
+        assert p.epic_strategy == "shared"
 
     def test_update_rejects_invalid_string(self, tmp_path):
         store = self._store(tmp_path)
@@ -228,12 +274,13 @@ class TestProjectStoreUpdateEpicStrategy:
         with pytest.raises(ProjectError):
             store.update("p1", epic_strategy=42)
 
-    def test_update_none_resets_to_flat(self, tmp_path):
+    def test_update_none_resets_to_shared(self, tmp_path):
+        # None is normalized to "shared" (the only valid value).
         store = self._store(tmp_path)
-        self._seed(store, epic_strategy="stacked")
+        self._seed(store, epic_strategy="shared")
         p = store.update("p1", epic_strategy=None)
         assert p is not None
-        assert p.epic_strategy == "flat"
+        assert p.epic_strategy == "shared"
 
     def test_update_require_epic_for_tasks(self, tmp_path):
         store = self._store(tmp_path)
