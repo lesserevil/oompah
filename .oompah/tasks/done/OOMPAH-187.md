@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T14:08:30.012087Z'
-updated_at: '2026-07-13T14:17:48.564726Z'
+updated_at: '2026-07-13T14:17:51.078145Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ Completion: Delivered the following changes to satisfy OOMPAH-187 acceptance cri
 5. tests/test_dashboard_hide_merged.py: 7 new tests + Python helper updates
 
 Needs Human tasks (OOMPAH-44/46/48-style) now remain visible with In-flight only enabled. Parent epics with Needs Human children remain visible. Counter does not count Needs Human tasks as hidden.
+---
+author: oompah
+created: 2026-07-13 14:17
+---
+Added Needs Human to the in-flight predicate and column passthrough in dashboard.html. Updated tooltip text, extended _computeInFlightShowSet with parent-visibility rule, mirrored in Python test helpers, added 7 new tests. All 8000 tests pass.
 ---
 <!-- COMMENTS:END -->
