@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:55.903478Z'
-updated_at: '2026-07-13T05:37:38.605600Z'
+updated_at: '2026-07-13T05:37:43.551861Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,5 +65,10 @@ author: oompah
 created: 2026-07-13 05:37
 ---
 Completion: Delivered OOMPAH-179 — Reconcile release-addendum pull-request outcomes and controls.\n\nDeliverables:\n1. oompah/release_addendum_poller.py — PR polling for in_review addendums:\n   - poll_addendum_pr(): merged PR→MERGED+evidence+comment; closed PR→error update+comment (no replacement PR opened); open/unknown→noop\n   - Idempotent: closed path checks stored error prefix; merged path handles InvalidTransitionError race\n   - Commits strictly immutable across all operations\n   - CLOSED_UNMERGED_ERROR_PREFIX constant enables retry endpoint to recognize closed state\n\n2. POST /api/v1/issues/{id}/release-addendums/{addendum_id:path}/retry (server.py)\n   - Transitions blocked|in_review→open; clears lease fields; publishes wake event; 409 for invalid states\n\n3. POST /api/v1/issues/{id}/release-addendums/{addendum_id:path}/archive (server.py)\n   - Transitions open|blocked→archived; 409 for in_review/in_progress/merged/archived\n\n4. Both endpoints: require project_id (400), handle 404, post oompah-authored comment with branch/transition/PR URL, invalidate caches\n\n5. Orchestrator._reconcile_addendum_pr_outcomes_sweep() in _do_merged_labels maintenance lane: polls all in_review addendums across all SCM-enabled projects\n\n6. 104 tests passing; 7836 total pass; committed to epic-OOMPAH-172 (18612148); pushed to origin\n\nAcceptance: lifecycle controls are explicit — no replacement PR is opened automatically after a close.
+---
+author: oompah
+created: 2026-07-13 05:37
+---
+Delivered PR polling (in_review→merged on PR merge; closed-unmerged stays in_review until explicit retry), retry/archive API endpoints with transition validation and oompah comments, cache invalidation, and orchestrator maintenance sweep. 104 new tests; 7836 total pass.
 ---
 <!-- COMMENTS:END -->
