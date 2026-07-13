@@ -12,7 +12,7 @@ labels:
 - needs:human
 assignee: null
 created_at: '2026-06-22T02:11:02.984832Z'
-updated_at: '2026-07-13T14:52:29.191264Z'
+updated_at: '2026-07-13T14:57:06.444528Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,6 @@ HOW TO PUSH:
 A maintainer must create a PAT with 'repo' + 'workflow' scopes, or grant NVShawn push access to lesserevil/oompah, then push the two-file change on branch OOMPAH-43 or directly on main.
 
 SOURCE: OOMPAH-43 (which was filed by OOMPAH-18 for the same reason).
-
 ## Acceptance Criteria
 
 - [ ] Define acceptance criteria.
