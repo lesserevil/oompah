@@ -6,11 +6,12 @@ priority: 1
 title: Execute queued addendums with worktrees and pull requests
 parent: OOMPAH-172
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-177
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:53.454708Z'
-updated_at: '2026-07-13T02:35:53.454708Z'
+updated_at: '2026-07-13T02:38:11.270127Z'
 work_branch: null
 target_branch: null
 review_url: null
