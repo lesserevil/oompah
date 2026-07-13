@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:56.999746Z'
-updated_at: '2026-07-13T22:51:57.756219Z'
+updated_at: '2026-07-13T22:52:06.524355Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,5 +118,15 @@ author: oompah
 created: 2026-07-13 22:51
 ---
 Replaced the Release branches overlay with Release delivery UI. Removed all _rbi* CSS/JS/HTML, added _rdi* overlay with commit inventory table, filter/search/branch controls, selection, queue delivery (POST with Idempotency-Key), outcome feedback, evidence drawer, and focus management. task/epic release controls retained. 249 new tests; all 8782 pass.
+---
+author: oompah
+created: 2026-07-13 22:52
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 78
+- Tokens: 109 in / 3.6K out [3.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 16m 47s
+- Log: OOMPAH-200__20260713T223525Z.jsonl
 ---
 <!-- COMMENTS:END -->
