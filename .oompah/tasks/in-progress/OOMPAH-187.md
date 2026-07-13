@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T14:08:30.012087Z'
-updated_at: '2026-07-13T14:17:34.252553Z'
+updated_at: '2026-07-13T14:17:42.163477Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,18 @@ author: oompah
 created: 2026-07-13 14:17
 ---
 Verification: All 8000 tests pass (28 skipped, 0 failures). The 46 tests in test_dashboard_hide_merged.py all pass including the 7 new ones. Branch pushed to origin/OOMPAH-187.
+---
+author: oompah
+created: 2026-07-13 14:17
+---
+Completion: Delivered the following changes to satisfy OOMPAH-187 acceptance criteria:
+
+1. dashboard.html - _isIndividuallyInFlight(): Added 'Needs Human' to active-state list
+2. dashboard.html - applyHideMergedFilter(): Added 'Needs Human' to column passthrough
+3. dashboard.html - tooltip: Added 'Needs Human' to the list of in-flight states
+4. dashboard.html - _computeInFlightShowSet(): Added Rule 2 (show if own subtree has in-flight work) so parent epics remain visible when they have Needs Human descendants
+5. tests/test_dashboard_hide_merged.py: 7 new tests + Python helper updates
+
+Needs Human tasks (OOMPAH-44/46/48-style) now remain visible with In-flight only enabled. Parent epics with Needs Human children remain visible. Counter does not count Needs Human tasks as hidden.
 ---
 <!-- COMMENTS:END -->
