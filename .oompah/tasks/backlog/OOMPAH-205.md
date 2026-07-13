@@ -1,0 +1,41 @@
+---
+id: OOMPAH-205
+type: bug
+status: Backlog
+priority: 2
+title: Avoid full dashboard board rebuilds for unchanged issue snapshots
+parent: null
+children: []
+blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-07-13T20:05:14.303298Z'
+updated_at: '2026-07-13T20:05:14.303298Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+---
+## Summary
+
+The dashboard currently clears and rebuilds every board column/card for each WebSocket issues update. The orchestrator emits a full observer update on every tick, so the 3-second issue-broadcast throttle still produces visibly frequent full re-renders even when no cards changed.
+
+Implement incremental board reconciliation or snapshot-change suppression so unchanged issue payloads do not rebuild the board. Preserve live state/activity indicators, optimistic drag/drop updates, filters, view modes, keyboard/focus behavior, and editing safeguards.
+
+Acceptance criteria
+- An identical issue snapshot does not clear/recreate #board or its cards.
+- A changed card updates only the necessary card/column elements without losing scroll position, focus, active dialogs, drag state, or inline edits.
+- State-only agent activity continues to update lightweight UI without a board rebuild.
+- Existing board behavior remains correct for project filtering, hide-merged, swimlane/flat modes, drag/drop, and WebSocket reconnection.
+
+Tests
+- Add browser tests for no-op snapshots, one-card state change, project filter, active inline edit, focus preservation, and optimistic drag/drop reconciliation.
+- Run make test.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
