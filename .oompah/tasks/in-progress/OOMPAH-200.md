@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:56.999746Z'
-updated_at: '2026-07-13T22:35:35.532817Z'
+updated_at: '2026-07-13T22:36:55.449191Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -63,5 +63,10 @@ author: oompah
 created: 2026-07-13 22:35
 ---
 Understanding: As the Duplicate Investigator, I need to determine whether OOMPAH-200 ('Replace the Release branches overlay with Release delivery UI') is a duplicate of any existing issue before proceeding with implementation. I will search for similar tasks covering: release delivery UI, release branches overlay replacement, commit inventory, and related topics. Plan reference is plans/release-delivery-commit-inventory.md sections 2 and 6. Will report findings shortly.
+---
+author: oompah
+created: 2026-07-13 22:36
+---
+Duplicate investigation complete: OOMPAH-200 is unique. The sibling tasks in the OOMPAH-192 epic cover: ledger schema (193), migration (194), queue/executor refactoring (195), task/epic compat (196), CommitInventoryService (197), GET inventory API (198), POST queue API (199), docs/deprecation (201), and e2e (202). No archived, done, or open task replaces the dashboard Release branches overlay/_rbi with a UI. All blockers (OOMPAH-196, OOMPAH-198, OOMPAH-199) are Done. Proceeding with implementation: replacing the _rbi overlay and toolbar action with the Release delivery overlay (sections 2 and 6 of plans/release-delivery-commit-inventory.md).
 ---
 <!-- COMMENTS:END -->
