@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:26:02.750063Z'
-updated_at: '2026-07-13T03:25:52.969214Z'
+updated_at: '2026-07-13T04:17:23.155744Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,15 @@ author: oompah
 created: 2026-07-13 03:25
 ---
 IMPLEMENTATION starting. Confirmed scope: (1) server.py line 2697-2699 — remove auto-add draft label on epic create; (2) focus.py — remove draft label from epic_planner must_do and labels filter; (3) dashboard.html — remove .draft-epic-badge CSS, .swimlane-draft-badge CSS, toggleEpicDraft(), hasDraftLabel(), draft badge in swimlane header, Mark as Draft/Finalize button, draftEpicBadgeHtml in createCard(); update isEpicMergeFlowCard() and shouldShowIssueAsWorkCard() to remove draft checks; (4) add migration function to clean up existing epics carrying the draft label; (5) update 5 draft-epic test files + test_server_create_issue.py + test_focus.py to reflect removal, add new regression coverage.
+---
+author: oompah
+created: 2026-07-13 04:17
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 316, Tool calls: 203
+- Tokens: 326 in / 9.2K out [9.5K total]
+- Cost: $0.0000
+- Exit: stalled, Duration: 1h 1m 54s
+- Log: OOMPAH-171__20260713T031541Z.jsonl
 ---
 <!-- COMMENTS:END -->
