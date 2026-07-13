@@ -131,51 +131,6 @@ class TestLabelMergedIssues:
             "TASK-737",
         )
 
-    def test_stacked_child_merged_signal_tolerates_default_branch_bypass(
-        self,
-        tmp_path,
-    ):
-        project = _make_project(epic_strategy="stacked")
-        project.repo_path = str(tmp_path)
-        orch = self._make_orchestrator(tmp_path, projects=[project])
-        orch.project_store.epic_branch_name.side_effect = lambda ident: f"epic-{ident}"
-
-        parent = _make_issue(
-            "EPIC-1",
-            issue_type="epic",
-            project_id=project.id,
-        )
-        child = _make_issue(
-            "TASK-1",
-            parent_id="EPIC-1",
-            project_id=project.id,
-        )
-        mock_tracker = MagicMock()
-        mock_tracker.fetch_issue_detail.return_value = parent
-        orch._project_trackers[project.id] = mock_tracker
-        orch._managed_branch_ref_exists = MagicMock(return_value=True)
-        orch._count_review_branch_ahead = MagicMock(
-            side_effect=[
-                (0, [], "fatal: ambiguous argument 'epic-EPIC-1..origin/TASK-1'"),
-                (0, [], ""),
-            ]
-        )
-
-        assert (
-            orch._merged_branch_tip_landed(
-                project,
-                child,
-                project.id,
-                "TASK-1",
-                rollup_strategy="stacked",
-            )
-            is True
-        )
-        assert orch._count_review_branch_ahead.call_args_list == [
-            call(project, "epic-EPIC-1", "TASK-1"),
-            call(project, "main", "TASK-1"),
-        ]
-
     def test_labels_in_review_issue_with_matching_branch(self, tmp_path):
         project = _make_project()
         orch = self._make_orchestrator(tmp_path, projects=[project])
@@ -373,31 +328,6 @@ class TestLabelMergedIssues:
         orch._label_merged_issues()
 
         mock_tracker.update_issue.assert_not_called()
-
-    def test_stacked_epic_child_marked_done_from_child_branch(self, tmp_path):
-        project = _make_project(epic_strategy="stacked")
-        orch = self._make_orchestrator(tmp_path, projects=[project])
-        orch._merged_branches = {"TASK-1"}
-
-        parent = _make_issue(
-            "EPIC-1",
-            issue_type="epic",
-            project_id=project.id,
-        )
-        child = _make_issue(
-            "TASK-1",
-            state="In Review",
-            parent_id="EPIC-1",
-            project_id=project.id,
-        )
-        mock_tracker = MagicMock()
-        mock_tracker.fetch_issues_by_states.return_value = [child]
-        mock_tracker.fetch_issue_detail.return_value = parent
-        orch._project_trackers[project.id] = mock_tracker
-
-        orch._label_merged_issues()
-
-        mock_tracker.update_issue.assert_called_once_with("TASK-1", status=DONE)
 
     def test_tracker_error_does_not_crash(self, tmp_path):
         from oompah.tracker import TrackerError
@@ -981,34 +911,6 @@ class TestReconcileStaleInReviewTasks:
         )
         mock_count.assert_not_called()
         mock_tracker.update_issue.assert_not_called()
-        mock_tracker.add_comment.assert_not_called()
-
-    def test_stacked_epic_child_merged_branch_becomes_done(self, tmp_path):
-        project = _make_project(epic_strategy="stacked")
-        project.repo_path = str(tmp_path)
-        orch = self._make_orchestrator(tmp_path, projects=[project])
-        orch._reviews_cache = {project.id: []}
-        orch._merged_branches = {"TASK-1"}
-
-        parent = _make_issue(
-            "EPIC-1",
-            issue_type="epic",
-            project_id=project.id,
-        )
-        child = _make_issue(
-            "TASK-1",
-            state="In Review",
-            parent_id="EPIC-1",
-            project_id=project.id,
-        )
-        mock_tracker = MagicMock()
-        mock_tracker.fetch_issues_by_states.return_value = [child]
-        mock_tracker.fetch_issue_detail.return_value = parent
-        orch._project_trackers[project.id] = mock_tracker
-
-        orch._reconcile_stale_in_review_tasks()
-
-        mock_tracker.update_issue.assert_called_once_with("TASK-1", status=DONE)
         mock_tracker.add_comment.assert_not_called()
 
     @patch("oompah.close_gate._count_commits_ahead")

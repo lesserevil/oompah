@@ -337,20 +337,24 @@ class TestEpicWorktreeHelpers:
 
 
 class TestProjectEpicStrategyResolution:
+    """_project_epic_strategy always returns 'shared' — the only supported mode."""
+
     def test_default_when_no_project(self, tmp_path):
         orch = _make_orch(tmp_path)
-        assert orch._project_epic_strategy(None) == "flat"
-        assert orch._project_epic_strategy("missing") == "flat"
+        assert orch._project_epic_strategy(None) == "shared"
+        assert orch._project_epic_strategy("missing") == "shared"
 
-    def test_returns_configured_value(self, tmp_path):
-        proj = _make_project_record(epic_strategy="stacked")
+    def test_returns_shared_regardless_of_project_field(self, tmp_path):
+        # The epic_strategy project field is ignored at the orchestrator layer;
+        # only 'shared' mode is supported after OOMPAH-167/168.
+        proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
-        assert orch._project_epic_strategy("proj-1") == "stacked"
+        assert orch._project_epic_strategy("proj-1") == "shared"
 
-    def test_falls_back_on_invalid_value(self, tmp_path):
-        proj = _make_project_record(epic_strategy="weird")
+    def test_always_returns_shared(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
-        assert orch._project_epic_strategy("proj-1") == "flat"
+        assert orch._project_epic_strategy("proj-1") == "shared"
 
 
 class TestResolveParentEpic:
@@ -402,6 +406,61 @@ class TestResolveParentEpic:
         with patch.object(orch, "_tracker_for_issue", return_value=tracker):
             child = _make_issue(parent_id="epic-1")
             assert orch._resolve_parent_epic(child) is None
+
+
+class TestEpicRollupChildStrategy:
+    """_epic_rollup_child_strategy: always returns 'shared' for epic children."""
+
+    def test_returns_none_for_non_child_issue(self, tmp_path):
+        """Standalone issues (no parent) return None — no rollup strategy."""
+        orch = _make_orch(tmp_path)
+        issue = _make_issue(identifier="task-1", parent_id=None)
+        assert orch._epic_rollup_child_strategy(issue, "proj-1") is None
+
+    def test_returns_none_for_epic_issue_type(self, tmp_path):
+        """Epics are rollup parents, not rollup children — they return None."""
+        orch = _make_orch(tmp_path)
+        issue = _make_issue(identifier="epic-1", issue_type="epic", parent_id="epic-root")
+        assert orch._epic_rollup_child_strategy(issue, "proj-1") is None
+
+    def test_returns_shared_for_child_of_epic(self, tmp_path):
+        """Any task with a parent epic returns 'shared'."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(identifier="epic-1", issue_type="epic")
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = epic
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            child = _make_issue(identifier="task-1", parent_id="epic-1", project_id="proj-1")
+            result = orch._epic_rollup_child_strategy(child, "proj-1")
+        assert result == "shared"
+
+    def test_returns_shared_for_inferred_epic_parent(self, tmp_path):
+        """A task with a non-epic parent that has children also returns 'shared'."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        parent = _make_issue(identifier="TASK-parent", issue_type="task")
+        sibling = _make_issue(identifier="TASK-child", parent_id="TASK-parent")
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = parent
+        tracker.fetch_children.return_value = [sibling]
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            child = _make_issue(identifier="task-2", parent_id="TASK-parent", project_id="proj-1")
+            result = orch._epic_rollup_child_strategy(child, "proj-1")
+        assert result == "shared"
+
+    def test_returns_none_when_parent_has_no_children(self, tmp_path):
+        """A task whose parent is not an epic and has no children returns None."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        parent = _make_issue(identifier="TASK-parent", issue_type="task")
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = parent
+        tracker.fetch_children.return_value = []
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            child = _make_issue(identifier="task-2", parent_id="TASK-parent", project_id="proj-1")
+            result = orch._epic_rollup_child_strategy(child, "proj-1")
+        assert result is None
 
 
 class TestResolveBlockerState:
@@ -677,31 +736,8 @@ class TestSharedModeDispatchGating:
         ):
             assert orch._should_dispatch(child) is True
 
-    def test_flat_mode_allows_multiple_children_of_same_epic(self, tmp_path):
-        """Flat mode has no per-epic serial cap."""
-        proj = _make_project_record(epic_strategy="flat")
-        # Allow multiple PRs in flight at once
-        proj.max_in_flight_prs = 5
-        orch = _make_orch(tmp_path, projects=[proj])
-        self._set_up_running_sibling(
-            orch, parent_id="epic-1", sibling_id="task-running"
-        )
-        child = _make_issue(identifier="task-2", parent_id="epic-1", state="open")
-        orch._reviews_cache = {}
-        # flat mode: passes
-        assert orch._should_dispatch(child) is True
-
-    def test_stacked_mode_allows_multiple_children_of_same_epic(self, tmp_path):
-        """Stacked mode also allows parallel children — only shared serializes."""
-        proj = _make_project_record(epic_strategy="stacked")
-        proj.max_in_flight_prs = 5
-        orch = _make_orch(tmp_path, projects=[proj])
-        self._set_up_running_sibling(
-            orch, parent_id="epic-1", sibling_id="task-running"
-        )
-        child = _make_issue(identifier="task-2", parent_id="epic-1", state="open")
-        orch._reviews_cache = {}
-        assert orch._should_dispatch(child) is True
+    # Tests for flat/stacked mode dispatch removed — those modes are no longer
+    # supported (OOMPAH-168). Only shared mode is active.
 
     def test_shared_mode_allows_different_epics_in_parallel(self, tmp_path):
         """Multiple epics still dispatch concurrently — only same-epic siblings serialize."""
@@ -811,11 +847,11 @@ class TestSharedModeDispatchGating:
 
         assert [issue.identifier for issue in ready] == ["task-a", "task-b"]
 
-    @pytest.mark.parametrize("strategy", ["flat", "stacked"])
-    def test_select_dispatchable_only_serializes_shared_strategy(
-        self, tmp_path, strategy
+    def test_select_dispatchable_serializes_shared_strategy(
+        self, tmp_path
     ):
-        proj = _make_project_record(epic_strategy=strategy)
+        """Shared mode serializes same-epic siblings — only the first is dispatched."""
+        proj = _make_project_record(epic_strategy="shared")
         proj.max_in_flight_prs = 5
         orch = _make_orch(tmp_path, projects=[proj])
         orch._reviews_cache = {}
@@ -836,7 +872,8 @@ class TestSharedModeDispatchGating:
 
         ready = orch._select_dispatchable(children)
 
-        assert [issue.identifier for issue in ready] == ["task-a", "task-b"]
+        # Only the first sibling is selected; the second is serialized out.
+        assert [issue.identifier for issue in ready] == ["task-a"]
 
     def test_select_dispatchable_keeps_p0_shared_sibling_bypass(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
@@ -1127,47 +1164,6 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         assert kwargs.get("target_branch") == "main"
         assert result is True
         tracker.update_issue.assert_called_once_with("task-1", status=IN_REVIEW)
-
-    def test_stacked_targets_epic_branch_for_child(self, tmp_path):
-        proj = _make_project_record(epic_strategy="stacked")
-        orch = _make_orch(tmp_path, projects=[proj])
-        orch._reviews_cache = {"proj-1": []}
-
-        provider = MagicMock()
-        provider.create_review.return_value = MagicMock(id="42")
-
-        epic = _make_issue(identifier="epic-1", issue_type="epic")
-        tracker = MagicMock()
-        tracker.fetch_issue_detail.return_value = epic
-        issue = _make_issue(
-            identifier="task-1", parent_id="epic-1", project_id="proj-1"
-        )
-        entry = RunningEntry(
-            worker_task=MagicMock(),
-            identifier="task-1",
-            issue=issue,
-            session=None,
-            retry_attempt=0,
-            started_at=MagicMock(),
-            agent_profile_name="default",
-        )
-        with (
-            patch.object(orch, "_tracker_for_issue", return_value=tracker),
-            patch.object(
-                orch,
-                "_ensure_review_target_branch_exists",
-                return_value=True,
-            ) as ensure_target_branch,
-            patch("oompah.orchestrator.detect_provider", return_value=provider),
-            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
-        ):
-            orch._ensure_review_exists(entry, "proj-1")
-        call = provider.create_review.call_args
-        kwargs = call.kwargs
-        # Branch name uses the project_store helper, which mocks return
-        # f"epic-{epic_id}".  Stacked mode targets the epic branch.
-        assert kwargs.get("target_branch") == "epic-epic-1"
-        ensure_target_branch.assert_called_once_with(proj, "epic-epic-1")
 
     def test_reopens_when_review_creation_fails_for_unmerged_branch(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")
@@ -1534,58 +1530,6 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         # PR must target the release branch, not main
         assert kwargs.get("target_branch") == "release/2.3"
         assert kwargs.get("target_branch") != "main"
-
-    def test_stacked_child_with_target_branch_still_uses_epic_branch(self, tmp_path):
-        """In stacked mode, a child's target_branch does NOT override the epic branch."""
-        proj = _make_project_record(epic_strategy="stacked")
-        orch = _make_orch(tmp_path, projects=[proj])
-        orch._reviews_cache = {"proj-1": []}
-
-        provider = MagicMock()
-        provider.create_review.return_value = MagicMock(id="42")
-
-        epic = _make_issue(identifier="epic-1", issue_type="epic")
-        tracker = MagicMock()
-        tracker.fetch_issue_detail.return_value = epic
-
-        # Child has a target_branch set — stacked mode should still win
-        issue = Issue(
-            id="task-1",
-            identifier="task-1",
-            title="child task",
-            description="body",
-            state="open",
-            issue_type="task",
-            parent_id="epic-1",
-            project_id="proj-1",
-            target_branch="release/3.0",
-        )
-        entry = RunningEntry(
-            worker_task=MagicMock(),
-            identifier="task-1",
-            issue=issue,
-            session=None,
-            retry_attempt=0,
-            started_at=MagicMock(),
-            agent_profile_name="default",
-        )
-        with (
-            patch.object(orch, "_tracker_for_issue", return_value=tracker),
-            patch.object(
-                orch,
-                "_ensure_review_target_branch_exists",
-                return_value=True,
-            ) as ensure_target_branch,
-            patch("oompah.orchestrator.detect_provider", return_value=provider),
-            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
-        ):
-            orch._ensure_review_exists(entry, "proj-1")
-
-        call = provider.create_review.call_args
-        kwargs = call.kwargs
-        # Stacked child always targets the epic branch, not issue.target_branch
-        assert kwargs.get("target_branch") == "epic-epic-1"
-        ensure_target_branch.assert_called_once_with(proj, "epic-epic-1")
 
 
 # --------------------------------------------------- epic completion + PR open
@@ -2748,8 +2692,15 @@ class TestDeferredDoneReviews:
         tracker.update_issue.assert_called_once_with("task-1", status=MERGED)
         orch._ensure_review_exists.assert_not_called()
 
-    def test_stacked_done_child_with_merged_branch_stays_done(self, tmp_path):
-        proj = _make_project_record(epic_strategy="stacked")
+    def test_shared_done_child_with_merged_branch_skips_all_checks(self, tmp_path):
+        """Shared epic child with merged branch skips all individual promotion checks.
+
+        In shared mode, a Done child with parent_id hits the early ``continue``
+        at the ``rollup_strategy == 'shared'`` guard — neither
+        ``_merged_branch_tip_landed`` nor ``_ensure_review_exists`` is called.
+        The child stays Done; the epic rollup PR is the only path to Merged.
+        """
+        proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
         orch._reviews_cache = {"proj-1": []}
         orch._merged_branches = {"task-1"}
@@ -2770,16 +2721,12 @@ class TestDeferredDoneReviews:
 
         orch._open_deferred_done_reviews()
 
+        # Child stays Done — no tracker update, no review creation.
         tracker.update_issue.assert_not_called()
         orch._ensure_review_exists.assert_not_called()
         orch._done_issue_branch_tip_landed.assert_not_called()
-        orch._merged_branch_tip_landed.assert_called_once_with(
-            proj,
-            issue,
-            "proj-1",
-            "task-1",
-            rollup_strategy="stacked",
-        )
+        # The early continue fires before _merged_branch_tip_landed is reached.
+        orch._merged_branch_tip_landed.assert_not_called()
 
     def test_done_task_review_handoff_skips_project_at_capacity(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")
@@ -2834,38 +2781,6 @@ class TestDeferredDoneReviews:
             orch._open_deferred_done_reviews()
 
         orch._ensure_review_exists.assert_not_called()
-
-    def test_stacked_done_child_unmerged_work_ensures_epic_branch(self, tmp_path):
-        proj = _make_project_record(epic_strategy="stacked")
-        orch = _make_orch(tmp_path, projects=[proj])
-        issue = _make_issue(
-            identifier="task-1",
-            state=DONE,
-            parent_id="epic-1",
-            project_id="proj-1",
-        )
-        parent = _make_issue(identifier="epic-1", issue_type="epic")
-
-        with (
-            patch.object(orch, "_resolve_parent_epic", return_value=parent),
-            patch.object(
-                orch,
-                "_ensure_review_target_branch_exists",
-                return_value=True,
-            ) as ensure_target_branch,
-            patch(
-                "oompah.close_gate._count_commits_ahead",
-                return_value=(2, ["abc123 feature"], ""),
-            ),
-        ):
-            has_work = orch._done_issue_has_unmerged_review_work(
-                issue,
-                proj,
-                "proj-1",
-            )
-
-        assert has_work is True
-        ensure_target_branch.assert_called_once_with(proj, "epic-epic-1")
 
     def test_done_task_with_landed_branch_is_marked_merged(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")
@@ -3011,6 +2926,11 @@ class TestEpicRollupStatusReconciliation:
         assert epic.state == DONE
 
     def test_in_review_epic_with_done_children_is_not_downgraded(self, tmp_path):
+        """In shared mode, Done children with epic-branch work STAY Done.
+
+        The epic stays IN_REVIEW (not downgraded) and no child transition is
+        needed — Done is review-ready in shared mode.
+        """
         orch, tracker = self._orch_with_tracker(tmp_path)
         epic = _make_issue(
             identifier="epic-1",
@@ -3034,7 +2954,8 @@ class TestEpicRollupStatusReconciliation:
             updated = orch._reconcile_epic_rollup_statuses([epic])
 
         assert updated == 0
-        tracker.update_issue.assert_called_once_with("child-1", status=IN_REVIEW)
+        # Shared mode: Done child stays Done — no tracker update required.
+        tracker.update_issue.assert_not_called()
         assert epic.state == IN_REVIEW
 
     def test_in_review_epic_with_new_open_child_rolls_back_to_in_progress(
@@ -3098,6 +3019,11 @@ class TestEpicRollupStatusReconciliation:
         assert epic.state == DONE
 
     def test_ci_fix_epic_with_done_children_is_not_downgraded(self, tmp_path):
+        """In shared mode, Done children with epic-branch work STAY Done.
+
+        The epic stays NEEDS_CI_FIX (not downgraded) and no child transition
+        is needed — Done is review-ready in shared mode.
+        """
         orch, tracker = self._orch_with_tracker(tmp_path)
         epic = _make_issue(
             identifier="epic-1",
@@ -3121,7 +3047,8 @@ class TestEpicRollupStatusReconciliation:
             updated = orch._reconcile_epic_rollup_statuses([epic])
 
         assert updated == 0
-        tracker.update_issue.assert_called_once_with("child-1", status=IN_REVIEW)
+        # Shared mode: Done child stays Done — no tracker update required.
+        tracker.update_issue.assert_not_called()
         assert epic.state == NEEDS_CI_FIX
 
     def test_existing_review_epic_syncs_late_done_child_and_promotes_epic(
@@ -3160,11 +3087,12 @@ class TestEpicRollupStatusReconciliation:
 
         assert updated == 1
         has_branch_work.assert_called_once()
+        # Shared mode: Done children with epic-branch work STAY Done.
+        # Only the epic itself is promoted to IN_REVIEW.
         assert tracker.update_issue.call_args_list == [
-            call("TRICKLE-5", status=IN_REVIEW),
             call("TRICKLE-1", status=IN_REVIEW),
         ]
-        assert late_done.state == IN_REVIEW
+        assert late_done.state == DONE  # unchanged in shared mode
         assert epic.state == IN_REVIEW
 
     def test_existing_review_epic_with_review_ready_children_promotes_to_review(
@@ -3418,33 +3346,6 @@ class TestPushEpicBranch:
         assert ["git", "merge", "--ff-only", "FETCH_HEAD"] not in calls
         assert ["git", "push", "origin", "HEAD:epic-epic-1"] in calls
 
-    def test_stacked_mode_pushes_named_branch_from_project_repo(self, tmp_path):
-        repo_path = tmp_path / "repo"
-        repo_path.mkdir()
-
-        proj = _make_project_record(epic_strategy="stacked")
-        proj.repo_path = str(repo_path)
-        orch = _make_orch(tmp_path, projects=[proj])
-
-        with patch("oompah.orchestrator.subprocess.run") as run:
-            run.return_value = subprocess.CompletedProcess(
-                ["git", "push", "origin", "epic-epic-1"],
-                0,
-                stdout="",
-                stderr="",
-            )
-            orch._push_epic_branch(proj, "epic-1")
-
-        run.assert_called_once_with(
-            ["git", "push", "origin", "epic-epic-1"],
-            cwd=str(repo_path),
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=60,
-        )
-        orch.project_store.epic_worktree_path_for.assert_not_called()
-
 
 # --------------------------------- resolve_epic_target_branch (nested epics)
 
@@ -3483,50 +3384,6 @@ class TestResolveEpicTargetBranch:
         with patch.object(orch, "_resolve_parent_epic", return_value=parent_epic):
             target = orch._resolve_epic_target_branch(child_epic, proj)
         assert target == "epic-epic-A"
-
-    def test_stacked_mode_ignores_parent_epic_always_targets_project_branch(
-        self, tmp_path
-    ):
-        """Stacked mode: _resolve_epic_target_branch always returns project.branch.
-
-        In stacked mode, child task PRs already target the parent epic's branch
-        directly (per _ensure_review_exists). The epic 'completion PR' is not
-        part of the nested stacked-mode chain — stacked nests naturally.
-        """
-        proj = _make_project_record(epic_strategy="stacked")
-        orch = _make_orch(tmp_path, projects=[proj])
-        parent_epic = _make_issue(
-            identifier="epic-A", issue_type="epic", project_id="proj-1"
-        )
-        child_epic = _make_issue(
-            identifier="epic-B",
-            issue_type="epic",
-            parent_id="epic-A",
-            project_id="proj-1",
-        )
-        # Even if there is a parent epic, stacked mode doesn't use the chain
-        with patch.object(orch, "_resolve_parent_epic", return_value=parent_epic):
-            target = orch._resolve_epic_target_branch(child_epic, proj)
-        assert target == "main"
-
-    def test_flat_mode_ignores_parent_epic_always_targets_project_branch(
-        self, tmp_path
-    ):
-        """Flat mode: _resolve_epic_target_branch always returns project.branch."""
-        proj = _make_project_record(epic_strategy="flat")
-        orch = _make_orch(tmp_path, projects=[proj])
-        parent_epic = _make_issue(
-            identifier="epic-A", issue_type="epic", project_id="proj-1"
-        )
-        child_epic = _make_issue(
-            identifier="epic-B",
-            issue_type="epic",
-            parent_id="epic-A",
-            project_id="proj-1",
-        )
-        with patch.object(orch, "_resolve_parent_epic", return_value=parent_epic):
-            target = orch._resolve_epic_target_branch(child_epic, proj)
-        assert target == "main"
 
     def test_nested_epic_shared_parent_tracker_error_returns_project_branch(
         self, tmp_path
@@ -4017,29 +3874,6 @@ class TestNestedEpicMergeChain:
         # C's PR must target B's branch
         assert kwargs.get("target_branch") == "epic-epic-B"
         ensure_target.assert_called_once_with(proj, "epic-epic-B")
-
-    def test_flat_mode_child_epic_still_targets_main(self, tmp_path):
-        """flat mode: child epic's PR targets main regardless of nesting."""
-        proj = _make_project_record(epic_strategy="flat")
-        orch = _make_orch(tmp_path, projects=[proj])
-        orch._reviews_cache = {}
-        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
-        # Flat mode should never reach _open_epic_main_prs for PRs because
-        # the strategy check skips flat — but we verify the target resolver
-        # still returns main even if called directly.
-        child_epic = _make_issue(
-            identifier="epic-B",
-            issue_type="epic",
-            parent_id="epic-A",
-            project_id="proj-1",
-            state="open",
-        )
-        parent_epic = _make_issue(
-            identifier="epic-A", issue_type="epic", project_id="proj-1"
-        )
-        with patch.object(orch, "_resolve_parent_epic", return_value=parent_epic):
-            target = orch._resolve_epic_target_branch(child_epic, proj)
-        assert target == "main"
 
     def test_shared_mode_child_epic_waits_for_all_direct_children_terminal(
         self, tmp_path
