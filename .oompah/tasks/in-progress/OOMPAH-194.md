@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:40.173681Z'
-updated_at: '2026-07-13T20:35:20.658347Z'
+updated_at: '2026-07-13T20:35:32.493588Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,5 +77,10 @@ Implementation complete. Created two new modules:
 1. oompah/release_addendum_migration.py — idempotent migration that scans all project tasks and epics (including terminal) for oompah.release_addendums metadata and appends them to the delivery ledger. Key design: (a) reads the ledger once at start to build migrated_from set for O(1) idempotency checks; (b) validates every commit as a full 40-char hex SHA — addendums with OOMPAH-183 sentinel values are reported as skipped_malformed; (c) each structural parse failure skips only that entry without blocking others; (d) store append failures increment errors without aborting the rest; (e) no write occurs when nothing changes.
 
 2. oompah/release_delivery_adapter.py — DualReadDeliveryAdapter that combines ledger entries (lookup_by_source_identifier) with legacy oompah.release_addendums metadata. Deduplication: ledger entries with migrated_from matching a legacy addendum.id shadow the legacy record. Non-migrated legacy addendums appear as synthetic ReleaseDelivery objects with id='legacy:<addendum-id>'. Provides list_deliveries_for_source() and list_all_deliveries().
+---
+author: oompah
+created: 2026-07-13 20:35
+---
+Verification: all 137 new tests pass (75 migration + 62 adapter). Full suite: 8257 passed, 28 skipped, 0 failures. Tests cover task/epic addendums in every lifecycle state, duplicate/missing IDs, malformed legacy records, second migration run (idempotency), partial migration resumption, byte-for-byte evidence preservation, and error isolation.
 ---
 <!-- COMMENTS:END -->
