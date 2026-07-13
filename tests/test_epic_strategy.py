@@ -1,10 +1,9 @@
-"""Tests for the per-project ``epic_strategy`` setting.
+"""Tests for the shared-only epic workflow.
 
-Covers Project model (default + round-trip + back-compat), ProjectStore
-update validation, the new epic worktree helpers, the orchestrator
-dispatch gating (shared mode), the worktree allocation helper, the PR
-target selection (stacked mode), and the epic→main PR creation
-(stacked + shared).
+Covers Project model (default + round-trip + legacy migration to shared),
+ProjectStore update validation, the epic worktree helpers, the orchestrator
+dispatch gating (shared mode), the worktree allocation helper, and the
+epic→default-branch rollup PR creation.
 """
 
 from __future__ import annotations

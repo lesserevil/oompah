@@ -11,7 +11,7 @@ works inside or how it might work in the future, see [`../plans/`](../plans/).
 ## Contents
 
 - [Task and Epic Workflow](task-epic-workflow.md) - lifecycle of tasks,
-  epics, dispatch, review repair, and epic branches.
+  epics, dispatch, review repair, and the shared epic branch.
 
 ## Keeping Docs In Sync
 
