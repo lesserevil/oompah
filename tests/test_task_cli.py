@@ -13,7 +13,10 @@ Covers:
   - _cmd_add_label: correct endpoint, body
   - _cmd_remove_label: query-param identifier, encoded label
   - _cmd_set_dependency: correct endpoint, body
-  - main(): dispatch table, --server/--port flags, argparse help
+  - _cmd_set_source: PATCH with source_task_id; empty source exits; project forwarded
+  - _cmd_remove_source: PATCH with clear_source=True; project forwarded
+  - main(): dispatch table including set-source and remove-source
+  - build_parser(): set-source and remove-source subcommands
   - __main__.py: task subcommand dispatch
 """
 
@@ -757,6 +760,193 @@ class TestCmdRemoveLabel:
         assert "draft" in capsys.readouterr().out
 
 
+class TestCmdSetSource:
+    def test_patches_issue_with_source_task_id(self):
+        """set-source sends PATCH with source_task_id in the body."""
+        args = _make_args(
+            subcommand="set-source",
+            identifier="TASK-5",
+            source_id="TASK-42",
+            project=None,
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_set_source("http://localhost:8080", args)
+        assert m.call_args.args[0] == "PATCH"
+        data = m.call_args.kwargs.get("data", {})
+        assert data["source_task_id"] == "TASK-42"
+
+    def test_patches_issue_url_contains_identifier(self):
+        args = _make_args(
+            subcommand="set-source",
+            identifier="TASK-5",
+            source_id="TASK-42",
+            project=None,
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_set_source("http://localhost:8080", args)
+        url = m.call_args.args[1]
+        assert "TASK-5" in url
+        assert url.startswith("http://localhost:8080/api/v1/issues/")
+
+    def test_body_contains_issue_key(self):
+        args = _make_args(
+            subcommand="set-source",
+            identifier="TASK-5",
+            source_id="TASK-42",
+            project=None,
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_set_source("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert data["issue_key"] == "TASK-5"
+
+    def test_project_forwarded_when_given(self):
+        args = _make_args(
+            subcommand="set-source",
+            identifier="TASK-5",
+            source_id="TASK-42",
+            project="proj-99",
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_set_source("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert data.get("project_id") == "proj-99"
+
+    def test_github_identifier_adds_managed_repo(self):
+        args = _make_args(
+            subcommand="set-source",
+            identifier="owner/repo#5",
+            source_id="TASK-42",
+            project=None,
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_set_source("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert data.get("managed_repo") == "owner/repo"
+
+    def test_empty_source_id_exits_before_http_call(self):
+        """An empty string source_id must exit with an error, not send to server."""
+        args = _make_args(
+            subcommand="set-source",
+            identifier="TASK-5",
+            source_id="   ",  # whitespace-only
+            project=None,
+        )
+        with _make_http_mock() as m:
+            with pytest.raises(SystemExit) as exc_info:
+                task_cli._cmd_set_source("http://localhost:8080", args)
+        assert exc_info.value.code != 0
+        m.assert_not_called()
+
+    def test_prints_confirmation_with_source_id(self, capsys):
+        args = _make_args(
+            subcommand="set-source",
+            identifier="TASK-5",
+            source_id="TASK-42",
+            project=None,
+        )
+        with _make_http_mock():
+            task_cli._cmd_set_source("http://localhost:8080", args)
+        out = capsys.readouterr().out
+        assert "TASK-42" in out
+
+    def test_replace_existing_source_sends_new_source_task_id(self):
+        """set-source on a task that already has a source sends the new id."""
+        args = _make_args(
+            subcommand="set-source",
+            identifier="TASK-5",
+            source_id="TASK-99",  # replacing TASK-42
+            project=None,
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_set_source("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert data["source_task_id"] == "TASK-99"
+
+
+class TestCmdRemoveSource:
+    def test_patches_issue_with_clear_source(self):
+        """remove-source sends PATCH with clear_source=True in the body."""
+        args = _make_args(
+            subcommand="remove-source",
+            identifier="TASK-5",
+            project=None,
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_remove_source("http://localhost:8080", args)
+        assert m.call_args.args[0] == "PATCH"
+        data = m.call_args.kwargs.get("data", {})
+        assert data.get("clear_source") is True
+
+    def test_patches_issue_url_contains_identifier(self):
+        args = _make_args(
+            subcommand="remove-source",
+            identifier="TASK-7",
+            project=None,
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_remove_source("http://localhost:8080", args)
+        url = m.call_args.args[1]
+        assert "TASK-7" in url
+        assert url.startswith("http://localhost:8080/api/v1/issues/")
+
+    def test_body_contains_issue_key(self):
+        args = _make_args(
+            subcommand="remove-source",
+            identifier="TASK-7",
+            project=None,
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_remove_source("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert data["issue_key"] == "TASK-7"
+
+    def test_project_forwarded_when_given(self):
+        args = _make_args(
+            subcommand="remove-source",
+            identifier="TASK-7",
+            project="proj-42",
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_remove_source("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert data.get("project_id") == "proj-42"
+
+    def test_github_identifier_adds_managed_repo(self):
+        args = _make_args(
+            subcommand="remove-source",
+            identifier="owner/repo#12",
+            project=None,
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_remove_source("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert data.get("managed_repo") == "owner/repo"
+
+    def test_source_task_id_not_in_body(self):
+        """remove-source must NOT send source_task_id (only clear_source)."""
+        args = _make_args(
+            subcommand="remove-source",
+            identifier="TASK-5",
+            project=None,
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_remove_source("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert "source_task_id" not in data
+
+    def test_prints_removal_confirmation(self, capsys):
+        args = _make_args(
+            subcommand="remove-source",
+            identifier="TASK-5",
+            project=None,
+        )
+        with _make_http_mock():
+            task_cli._cmd_remove_source("http://localhost:8080", args)
+        out = capsys.readouterr().out
+        assert "removed" in out.lower()
+
+
 class TestCmdSetDependency:
     def test_posts_to_dependencies_endpoint(self):
         args = _make_args(
@@ -892,6 +1082,48 @@ class TestBuildParser:
         assert args.identifier == "TASK-2"
         assert args.depends_on == "TASK-1"
 
+    def test_set_source_subcommand_parses(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(["set-source", "TASK-5", "TASK-42"])
+        assert args.subcommand == "set-source"
+        assert args.identifier == "TASK-5"
+        assert args.source_id == "TASK-42"
+        assert args.project is None
+
+    def test_set_source_with_project_parses(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            ["set-source", "TASK-5", "TASK-42", "--project", "proj-1"]
+        )
+        assert args.project == "proj-1"
+
+    def test_set_source_with_project_id_alias(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            ["set-source", "TASK-5", "TASK-42", "--project-id", "proj-1"]
+        )
+        assert args.project == "proj-1"
+
+    def test_set_source_missing_source_id_exits(self):
+        """set-source without SOURCE_ID argument must fail argument parsing."""
+        parser = task_cli.build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["set-source", "TASK-5"])
+
+    def test_remove_source_subcommand_parses(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(["remove-source", "TASK-5"])
+        assert args.subcommand == "remove-source"
+        assert args.identifier == "TASK-5"
+        assert args.project is None
+
+    def test_remove_source_with_project_parses(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            ["remove-source", "TASK-5", "--project", "proj-1"]
+        )
+        assert args.project == "proj-1"
+
     def test_port_flag_parses(self):
         parser = task_cli.build_parser()
         args = parser.parse_args(["--port", "9090", "view", "TASK-1"])
@@ -962,6 +1194,16 @@ class TestMainDispatch:
     def test_main_dispatches_set_dependency(self):
         with patch.object(task_cli, "_cmd_set_dependency") as mock_fn:
             task_cli.main(["set-dependency", "TASK-2", "--depends-on", "TASK-1"])
+        mock_fn.assert_called_once()
+
+    def test_main_dispatches_set_source(self):
+        with patch.object(task_cli, "_cmd_set_source") as mock_fn:
+            task_cli.main(["set-source", "TASK-5", "TASK-42"])
+        mock_fn.assert_called_once()
+
+    def test_main_dispatches_remove_source(self):
+        with patch.object(task_cli, "_cmd_remove_source") as mock_fn:
+            task_cli.main(["remove-source", "TASK-5"])
         mock_fn.assert_called_once()
 
     def test_main_passes_port_to_server_url(self):
