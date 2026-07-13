@@ -24,7 +24,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T07:07:51.650312Z'
+updated_at: '2026-07-13T07:09:59.921713Z'
 work_branch: epic-OOMPAH-172
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/407
@@ -82,5 +82,10 @@ author: oompah
 created: 2026-07-13 07:07
 ---
 Discovery: Root cause identified. test_epic_draft_migration.py::test_migration_called_during_set_orchestrator calls server_module.set_orchestrator(mock_orch) which sets the global _orchestrator to a MagicMock, but does NOT restore it. Since tests run alphabetically, test_epic_draft_migration (e) runs before test_granian_parity (g), leaving _orchestrator polluted. The TestClient then finds an orchestrator and returns 400/404/500 instead of 503, while the Granian subprocess starts fresh with no orchestrator and correctly returns 503. Fix: save/restore _orchestrator in the epic draft migration test. The same pattern exists in test_release_pick_migration_startup.py but it runs after (r > g) so it doesn't affect these tests.
+---
+author: oompah
+created: 2026-07-13 07:09
+---
+Implementation: Fixed test isolation pollution in two test files. test_epic_draft_migration.py::test_migration_called_during_set_orchestrator and test_release_pick_migration_startup.py::_run_set_orchestrator both called set_orchestrator(mock_orch) without saving/restoring server._orchestrator. This left _orchestrator set to a MagicMock for all subsequent tests in the same process. Since test_epic_draft_migration (e) runs before test_granian_parity (g), the parity tests' TestClient found a mock orchestrator instead of None, returning 400/404/500 rather than the expected 503. Fix: wrap set_orchestrator calls in try/finally that restores _orchestrator to its original value.
 ---
 <!-- COMMENTS:END -->
