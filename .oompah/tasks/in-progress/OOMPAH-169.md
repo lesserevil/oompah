@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:10.333133Z'
-updated_at: '2026-07-13T04:32:15.774315Z'
+updated_at: '2026-07-13T04:50:18.076057Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -98,5 +98,27 @@ Work to do:
 3. Add tests (test_projects_epic_strategy_ui.py) verifying no strategy controls are rendered and saveProject() doesn't include the epic_strategy field
 
 There are already uncommitted changes in this worktree from previous work (OOMPAH-168: removing draft-epic lifecycle from dashboard, focus.py, server.py). I will keep those and add the OOMPAH-169 changes on top.
+---
+author: oompah
+created: 2026-07-13 04:50
+---
+IMPLEMENTATION: Removed epic-strategy selector and all stale UI content from oompah/templates/projects.html:
+
+1. CSS removed: .epic-strategy-group, .epic-strategy-option, .epic-strategy-label, .epic-strategy-name, .epic-strategy-desc, .epic-strategy-tag classes and input[type='radio'] override (exclusively used by strategy form)
+
+2. Display row removed: The 'Epic Strategy:' field-row in the project card (was showing 'flat' by default)
+
+3. Edit form controls removed: The entire flat/stacked/shared radio button group from the project edit form
+
+4. JS changes: Removed epicStrategyEl, epicStrategy variables and epic_strategy from the PATCH body in saveProject()
+
+Added tests/test_projects_epic_strategy_ui.py with 14 tests verifying:
+- No CSS classes present
+- No display row or radio buttons in HTML
+- No epic_strategy in saveProject() body
+
+Also fixed 4 failing test regressions in draft-epic test files (OOMPAH-171 work):
+- Added _populate_snapshot() helper and clear_issues_snapshot fixture
+- Fixed test_issues_api_returns_issue_type_field to use board format correctly
 ---
 <!-- COMMENTS:END -->
