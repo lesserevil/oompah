@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-197
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Build the default-branch commit inventory service
 parent: OOMPAH-192
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:47.560323Z'
-updated_at: '2026-07-13T22:04:30.455230Z'
+updated_at: '2026-07-13T22:04:40.241228Z'
 work_branch: null
 target_branch: null
 review_url: null
