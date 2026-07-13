@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:49.472960Z'
-updated_at: '2026-07-13T04:46:15.205822Z'
+updated_at: '2026-07-13T04:46:17.407815Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -106,5 +106,10 @@ author: oompah
 created: 2026-07-13 04:46
 ---
 Completion: Implemented ReleaseAddendumQueue (oompah/release_addendum_queue.py) with:\n- scan(): idempotent read of all open addendums across all source tasks\n- claim_one(): atomic open→in_progress with claimed_by + lease_expires_at; per-source threading lock prevents double-claims\n- recover_expired_leases(): returns expired in_progress rows to open\n- wait_for_work(): async event-bus integration for immediate wake on release_addendum_ready\n- Orchestrator integration: _on_release_addendum_ready(), _recover_release_addendum_leases() on every tick, release_addendum_queue() factory\nNever constructs Issue or child task. Queue key is (project_id, source_identifier, target_branch). Committed to epic-OOMPAH-172 and pushed.
+---
+author: oompah
+created: 2026-07-13 04:46
+---
+Implemented ReleaseAddendumQueue with durable scan/claim/recovery, orchestrator integration, and 7 passing tests. Queue key is (project_id, source_identifier, target_branch); never constructs Issue or child task. Added IN_PROGRESS→OPEN transition to schema for lease recovery. All 7614 tests pass.
 ---
 <!-- COMMENTS:END -->
