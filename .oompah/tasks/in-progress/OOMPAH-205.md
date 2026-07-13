@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T20:05:14.303298Z'
-updated_at: '2026-07-13T20:41:22.102622Z'
+updated_at: '2026-07-13T20:41:34.383493Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -167,5 +167,10 @@ author: oompah
 created: 2026-07-13 20:41
 ---
 Verification: make test completed with 8057 passed, 28 skipped, 11 warnings. All previously passing tests continue to pass. New 55-test suite (test_dashboard_board_reconciliation.py) covers all acceptance criteria: no-op snapshot skip, card fingerprinting, incremental flat-view reconciliation, scroll preservation, focus restoration, drag guard, WS reconnect invalidation, project filter compatibility, and inline edit preservation.
+---
+author: oompah
+created: 2026-07-13 20:41
+---
+Completion: OOMPAH-205 is done. Delivered: (1) Identical issue snapshots no longer clear/recreate #board — snapshot dedup short-circuits before any DOM mutation. (2) Changed cards update only their column body (incremental flat reconciliation) preserving other columns' scroll positions, drag state, focus, and inline edits. (3) Agent activity state pushes that don't change issue data are handled by the snapshot dedup — no board rebuild occurs. (4) All existing behavior preserved: project filtering, hide-merged, swimlane/flat modes, drag/drop, WS reconnect. Branch OOMPAH-205 pushed to origin.
 ---
 <!-- COMMENTS:END -->
