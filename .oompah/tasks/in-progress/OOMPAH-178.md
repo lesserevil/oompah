@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:53.454708Z'
-updated_at: '2026-07-13T05:12:44.384356Z'
+updated_at: '2026-07-13T05:17:53.129794Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,5 +50,10 @@ author: oompah
 created: 2026-07-13 05:12
 ---
 Discovery: The key files are oompah/cherry_pick_pr_creator.py (existing cherry-pick/push/PR logic for BackportEntry+child Issue) and oompah/release_addendum_schema.py+queue.py (already implemented by OOMPAH-177). OOMPAH-178 requires a new oompah/release_addendum_executor.py that: (1) creates/reuses the worktree via worktree_key+work_branch based at origin/<target_branch>, (2) reuses an existing PR if present (idempotency), (3) applies cherry-pick from addendum.commits, (4) pushes the work_branch, (5) opens a PR targeting target_branch, (6) persists in_review+pr_url+result_commits via AddendumRepository.transition(), (7) on conflict: persists blocked+diagnostic+preserves worktree, posts comment on source task (not a child task), (8) never touches tracker.create_issue or update_issue on source. Tests will cover: target base/commit order, worktree+PR reuse, success state updates, conflict preservation, non-conflict failure (blocked), and proof no tracker task is created.
+---
+author: oompah
+created: 2026-07-13 05:17
+---
+Implementation: Created oompah/release_addendum_executor.py with:\n- cherry_pick_addendum(): main entry point that takes ReleaseAddendum (no child Issue)\n- _find_existing_pr(): queries SCM for existing open PR on work_branch before opening new one\n- _open_release_pr(): opens PR targeting target_branch using work_branch as source\n- _get_result_commits(): fetches cherry-picked SHAs ahead of origin/<target_branch>\n- _persist_blocked(): transitions addendum to BLOCKED via AddendumRepository.transition()\n- _post_source_comment(): posts diagnostic comment on source task with author oompah\n\nKey behaviors:\n- Worktree created with worktree_key as path, base_branch=target_branch, branch_name=work_branch\n- Existing open PR reused (idempotent re-run) without re-cherry-picking or pushing\n- Commits already applied are skipped (idempotency via _has_new_commits check)\n- On conflict: worktree preserved, blocked+error persisted, comment posted on source (not child)\n- On non-conflict failure: blocked+error persisted, comment posted on source\n- NEVER calls tracker.create_issue() or tracker.update_issue() on source\n\nTests: 72 tests in tests/test_release_addendum_executor.py covering all required scenarios.
 ---
 <!-- COMMENTS:END -->
