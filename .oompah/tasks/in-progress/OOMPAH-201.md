@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:59.843679Z'
-updated_at: '2026-07-13T22:52:18.175033Z'
+updated_at: '2026-07-13T22:54:09.334610Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-07-13 22:52
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 22:54
+---
+Understanding: OOMPAH-201 is NOT a duplicate. Searched all related tasks (OOMPAH-182 added the old branch-inspection API that this task will deprecate; OOMPAH-184 documented the old addendum workflow; OOMPAH-185 archived as duplicate of OOMPAH-184; OOMPAH-200 replaces the UI overlay). No other task covers: (1) documenting the new Release delivery commit inventory workflow in the four target doc files, or (2) making GET /release-branches/{branch}/addendums return a deprecation/410 response. Dependencies OOMPAH-196 (task/epic compat) and OOMPAH-200 (UI overlay replacement) are Done and In-Progress respectively. Proceeding with implementation of: docs updates (docs/release-addendums.md, managed-project-onboarding.md, operator-runbook.md, task-epic-workflow.md), legacy endpoint deprecation (initially compatibility response, then 410), and endpoint tests.
 ---
 <!-- COMMENTS:END -->
