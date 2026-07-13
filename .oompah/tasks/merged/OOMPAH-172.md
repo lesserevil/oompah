@@ -24,7 +24,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T07:10:38.267742Z'
+updated_at: '2026-07-13T07:10:40.543728Z'
 work_branch: epic-OOMPAH-172
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/407
@@ -87,5 +87,10 @@ author: oompah
 created: 2026-07-13 07:09
 ---
 Implementation: Fixed test isolation pollution in two test files. test_epic_draft_migration.py::test_migration_called_during_set_orchestrator and test_release_pick_migration_startup.py::_run_set_orchestrator both called set_orchestrator(mock_orch) without saving/restoring server._orchestrator. This left _orchestrator set to a MagicMock for all subsequent tests in the same process. Since test_epic_draft_migration (e) runs before test_granian_parity (g), the parity tests' TestClient found a mock orchestrator instead of None, returning 400/404/500 rather than the expected 503. Fix: wrap set_orchestrator calls in try/finally that restores _orchestrator to its original value.
+---
+author: oompah
+created: 2026-07-13 07:10
+---
+Verification: All 7993 tests pass locally (28 skipped, 11 pre-existing warnings). Confirmed root cause by reproducing the failure locally with test_epic_draft_migration.py run before test_granian_parity.py, then verified the fix eliminates all 6 parity test failures. Fix pushed to epic-OOMPAH-172; CI checks are now re-running on PR #407.
 ---
 <!-- COMMENTS:END -->
