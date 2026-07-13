@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:36.808036Z'
-updated_at: '2026-07-13T20:04:19.848014Z'
+updated_at: '2026-07-13T20:08:44.208642Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,23 @@ created: 2026-07-13 20:04
 Duplicate investigation complete: no duplicate found. OOMPAH-195 references the same plan sections (3.1 and 5) but is a downstream consumer task (blocked by OOMPAH-193, not a copy). All other release-delivery tasks (194, 196-202) cover distinct phases of the same epic. OOMPAH-193 is unique and foundational - proceeding with implementation.
 
 Plan: Implement the .oompah/release-deliveries.yml ledger schema, ReleaseDelivery dataclass, and ReleaseDeliveryStore module. Key deliverables: immutable source fields, mutable lifecycle/evidence fields, atomic CRUD under project-level lock, version validation, native tracker writer integration, and full unit test coverage.
+---
+author: oompah
+created: 2026-07-13 20:08
+---
+Discovery complete. Key findings:
+
+1. AddendumStatus enum and VALID_TRANSITIONS in release_addendum_schema.py should be REUSED for the delivery lifecycle (plan says 'reuse existing vocabulary').
+
+2. OompahMarkdownTracker has _atomic_write, _commit_and_push, _prepare_default_branch_for_write, _sync_from_remote — all the git infrastructure. Need to add a write_and_commit_ledger_file method to commit the non-task ledger file via the same path.
+
+3. Module-level lock pattern from release_addendum_queue.py (_source_locks dict + guard) is the right model for the project-level delivery lock.
+
+4. LEDGER_PATH = .oompah/release-deliveries.yml, LEDGER_VERSION = 1, full SHA = 40 hex chars.
+
+Implementation plan:
+- oompah/release_delivery_store.py: SourceKind enum, ReleaseDelivery dataclass (immutable source + mutable lifecycle fields), ReleaseDeliveryLedger, LedgerParseError/ImmutableFieldError/DeliveryNotFoundError, module-level project locks, ReleaseDeliveryStore with append/lookup_by_id/lookup_by_source_identifier/update
+- oompah/oompah_md_tracker.py: add write_and_commit_ledger_file()
+- tests/test_release_delivery_store.py: comprehensive coverage per acceptance criteria
 ---
 <!-- COMMENTS:END -->
