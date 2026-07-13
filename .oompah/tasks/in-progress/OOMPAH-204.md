@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-13T20:02:50.911753Z'
-updated_at: '2026-07-13T20:17:01.583629Z'
+updated_at: '2026-07-13T20:17:11.467718Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -162,5 +162,16 @@ author: oompah
 created: 2026-07-13 20:17
 ---
 Verification: make test passed — 8004 passed, 28 skipped, 0 failures. All 7 tests in TestOompahMarkdownTrackerGitSync pass including the 2 new tests (test_ff_only_failure_rebase_recovery_succeeds, test_commit_and_push_retry_rebase_recovery_on_diverged_branch). OOMPAH-10 regression (no git pull --rebase) confirmed safe.
+---
+author: oompah
+created: 2026-07-13 20:17
+---
+Completion: Fixed the recurring 'Cannot sync native tracker' error that error_watcher auto-filed as tasks.
+
+Root cause: _sync_from_remote() used --ff-only which fails when local main diverges from origin (common during concurrent agent pushes). TrackerError was raised immediately, triggering error_watcher.
+
+Fix: Added rebase fallback in _sync_from_remote(). When --ff-only fails, 'git rebase origin/<branch>' now recovers the diverged branch silently. TrackerError is only raised if the rebase also fails. No change to OOMPAH-10 guard (never uses 'git pull --rebase').
+
+Branch pushed: OOMPAH-204. Tests: 8004 passed.
 ---
 <!-- COMMENTS:END -->
