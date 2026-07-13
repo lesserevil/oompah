@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:59.843679Z'
-updated_at: '2026-07-13T23:06:37.451465Z'
+updated_at: '2026-07-13T23:06:49.406611Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,5 +76,10 @@ author: oompah
 created: 2026-07-13 23:06
 ---
 Verification: All 8801 tests pass (8801 passed, 28 skipped). git diff --check clean. No stale 'Release branches' references remain in docs/. New test count in test_server_release_branch_inspection.py: 57 (39 original + 18 new deprecation/410 tests). Branch pushed to origin/epic-OOMPAH-192.
+---
+author: oompah
+created: 2026-07-13 23:06
+---
+Completion: OOMPAH-201 delivered.\n\nAcceptance criteria satisfied:\n1. docs/release-addendums.md, managed-project-onboarding.md, operator-runbook.md, and task-epic-workflow.md all describe the new Release delivery commit inventory screen and workflows.\n2. docs/release-addendums.md explicitly states: 'A commit that appears on a release branch through a direct push, rebase, or an untracked cherry-pick is not automatically recognized as delivered unless it is reachable from the default branch and matched by ancestry. Never assume a raw commit on a release branch proves that tracked work was released.'\n3. The legacy GET /release-branches/{branch}/addendums endpoint returns a documented compatibility/deprecation response (200 with deprecated:true, message, replacement path, Deprecation/Sunset/Link headers) and returns 410 Gone when _LEGACY_BRANCH_INSPECTION_REMOVED=True (the specified removal point).\n4. No stale 'Release branches' user-facing references remain in any doc or template file.\n5. 18 new endpoint tests cover both the compatibility response and 410 behavior. All 8801 tests pass.
 ---
 <!-- COMMENTS:END -->
