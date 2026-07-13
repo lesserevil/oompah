@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-186
 type: task
-status: Done
+status: In Review
 priority: 2
 title: Add task CLI commands to edit and remove source references
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:44:41.783116Z'
-updated_at: '2026-07-13T03:06:44.582137Z'
+updated_at: '2026-07-13T03:06:54.668315Z'
 work_branch: null
 target_branch: null
 review_url: null
