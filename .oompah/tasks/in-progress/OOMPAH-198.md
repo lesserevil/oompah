@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:50.653200Z'
-updated_at: '2026-07-13T22:09:27.236458Z'
+updated_at: '2026-07-13T22:15:48.394520Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,5 +75,39 @@ Key code locations:
 - oompah/server.py ~line 4157: _invalidate_addendum_caches — wire invalidate_commit_inventory here for delivery lifecycle updates
 
 Plan: (1) Add _commit_inventory_services registry + _get_commit_inventory_service helper, (2) Add invalidate_commit_inventory function, (3) Add GET endpoint with param validation, asyncio.to_thread, full response serialization, (4) Wire cache invalidation into webhook/lifecycle paths, (5) Write tests/test_server_release_delivery_commits.py.
+---
+author: oompah
+created: 2026-07-13 22:15
+---
+Implementation complete. Changes made:
+
+1. oompah/server.py:
+   - Added _commit_inventory_services dict registry (keyed by project_id) and _commit_inventory_services_lock for thread safety.
+   - Added _get_commit_inventory_service(project) helper: lazily creates and caches a CommitInventoryService per project, using make_delivery_store for read-only ledger access.
+   - Added invalidate_commit_inventory(project_id) function: finds and calls svc.invalidate(project_id) on the cached service, or no-ops if not yet instantiated.
+   - Added GET /api/v1/projects/{project_id}/release-delivery/commits endpoint:
+     * Validates project exists (404) and has repo_path (503).
+     * Validates branches against supported_release_branches (400), filter (400), limit (400 if not int or <1).
+     * Calls service.get_page() via asyncio.to_thread — never blocks event loop.
+     * Returns 409 on SourceChangedError with cursor_head/current_head, 400 on malformed cursor, 503 on InventoryError.
+     * Serializes InventoryPage to documented JSON shape: project_id, source_branch, source_head, release_branches, rows (with sha, short_sha, subject, author_name, authored_at, parents, selectable, association, release_status cells), next_cursor, stale, refreshed_at.
+     * Cells include evidence/delivery_id/pr_url/result_commits only when non-None/non-empty.
+   - Wired invalidate_commit_inventory into _invalidate_addendum_caches (delivery lifecycle updates: retry, archive, approve).
+   - Wired invalidate_commit_inventory into push webhook handler (alongside existing invalidate_release_branch_catalog call).
+
+2. tests/test_server_release_delivery_commits.py (new, 49 tests):
+   - TestHappyPath: 200, all documented fields present, release_status cells, association, pagination fields.
+   - TestBranchFiltering: branches param, multiple branches, default=all configured.
+   - TestFilterParam: needs_delivery, all, default=needs_delivery.
+   - TestSearchParam: query passed to service, empty → None.
+   - TestPagination: cursor/limit forwarding, default limit=100, next_cursor echoed.
+   - TestStaleCursor: 409 with source_changed code, cursor_head/current_head fields.
+   - TestStaleFallback: stale=true forwarded, stale branch info forwarded.
+   - TestProjectIsolation: separate services per project, same project → same service, response scoped to project_id.
+   - TestErrorResponses: 404 no project, 400 invalid branch/filter/limit/cursor, 503 no_repo/inventory_unavailable.
+   - TestAsyncioToThread: verifies asyncio.to_thread is called with service.get_page.
+   - TestCacheInvalidation: invalidate wires to service, noop for unknown project, _invalidate_addendum_caches calls it, push webhook path.
+   - TestRowStructure: all required row fields present, parents is list, delivered cell evidence fields, null association for direct commits.
+   - TestBranchAvailability: unavailable branch rendered with available=False, head=None.
 ---
 <!-- COMMENTS:END -->
