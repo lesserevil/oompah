@@ -35,7 +35,7 @@ $EDITOR .env
 
 | Variable | Description |
 |---|---|
-| `GITHUB_TOKEN` | Personal access token with `repo` and `read:project` scopes (or use `gh auth login` and leave blank). |
+| `GITHUB_TOKEN` | GitHub token used by `gh`. For fine-grained PATs, grant each forwarded repository **Webhooks: Read and write**; also grant only the feature-specific permissions oompah uses (for example Contents, Pull requests, and Issues intake). Classic tokens need the applicable repository scopes. You may instead use `gh auth login` and leave this blank. |
 | `OOMPAH_GITHUB_TRACKER_OWNER` | GitHub org/user that owns the task hub repo (default tracker hub). |
 | `OOMPAH_GITHUB_TRACKER_REPO` | GitHub repo used as the default task hub. |
 | `OOMPAH_WORKSPACE_ROOT` | Directory where agent workspaces and git worktrees are created. Defaults to a temp directory if unset. |

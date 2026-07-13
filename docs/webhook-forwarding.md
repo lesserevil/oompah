@@ -96,6 +96,24 @@ You also need to be authenticated with `gh`:
 gh auth login
 ```
 
+### Token permission
+
+Webhook forwarding requires permission to create and manage a repository
+webhook. For every GitHub repository with
+`webhook_forwarding_enabled: true`, the PAT used by that project's `gh`
+process must include **Webhooks: Read and write**. This is a required
+fine-grained repository permission for oompah projects that use webhook
+forwarding; PR, contents, and issue permissions alone are not enough.
+
+The token must also be authorized for the repository itself. Select the
+repository under the token's resource owner and ensure the token's owner has
+repository access that permits webhook administration. Project-specific tokens
+need this permission on their own target repositories; a service-wide
+`GITHUB_TOKEN` needs it on every repository it forwards for.
+
+If you cannot grant this permission, set `webhook_forwarding_enabled` to
+`false` for that project. Oompah will use polling for that project instead.
+
 Restart oompah after installing:
 
 ```bash
@@ -181,10 +199,10 @@ list and descriptions.
 
 Projects can also opt out of `gh webhook forward` individually by setting
 `webhook_forwarding_enabled` to `false` in the project configuration. Use this
-when the project token can manage issues and pull requests but does not have
-repository webhook administration permission. Oompah will then rely on its
-polling backup for that project without surfacing the missing hook permission
-as a forwarder failure.
+when the project token cannot be granted the required **Webhooks: Read and
+write** repository permission. Oompah will then rely on its polling backup
+for that project without surfacing the missing hook permission as a forwarder
+failure.
 
 ## Troubleshooting
 
@@ -200,8 +218,10 @@ The forwarder drains each subprocess's stderr and logs the tail at
 WARNING when the subprocess exits non-zero. Common causes:
 
 - **Auth expired** — run `gh auth refresh` and restart oompah.
-- **Repo not accessible** — the gh user must have webhook permission on
-  the repo. Check `gh auth status` and the repo's settings.
+- **`Resource not accessible by personal access token` (HTTP 403)** — for a
+  fine-grained PAT, add **Webhooks: Read and write** for the target repository,
+  then update the project token or restart oompah. Also confirm that the
+  token's resource owner and selected repositories include the target repo.
 - **Repo hooks not permitted** — GitHub may allow issue/PR API access while
   returning `HTTP 404` for `repos/<owner>/<repo>/hooks` if the credential lacks
   repository admin permission. Either grant hook administration permission or

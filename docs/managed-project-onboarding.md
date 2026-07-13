@@ -14,8 +14,11 @@ Before registering the project, confirm the following:
   from `GET /api/v1/state`. If not, see the
   [Operator Runbook](operator-runbook.md).
 - [ ] **GitHub access.** `gh auth status` passes on the machine running oompah.
-      The configured `GITHUB_TOKEN` (or `gh auth login` credential) has `repo`
-      and `read:project` scopes on the target repository.
+      A fine-grained PAT must include the target repository and **Webhooks: Read
+      and write** whenever webhook forwarding is enabled. Add only the other
+      feature-specific permissions oompah needs (such as Contents, Pull
+      requests, and Issues intake); classic PATs need the equivalent repository
+      scopes.
 - [ ] **Repository is accessible.** oompah can clone or access the target repo
       from its network perspective.
 - [ ] **Webhook extension is installed.** `make install-gh-extensions` has been
