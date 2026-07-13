@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:40.173681Z'
-updated_at: '2026-07-13T20:36:34.164143Z'
+updated_at: '2026-07-13T20:36:37.246927Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -94,5 +94,10 @@ Completion: Branch pushed and all tests passing (8257 total, 137 new). Delivered
 - tests/test_release_delivery_adapter.py: 62 tests
 
 All acceptance criteria met: migration scans terminal items, exactly one record per addendum, re-run is a no-op, dual reads de-duplicate by migrated_from, malformed records are reported and skipped without blocking others.
+---
+author: oompah
+created: 2026-07-13 20:36
+---
+Implemented idempotent migration from oompah.release_addendums metadata into .oompah/release-deliveries.yml (release_addendum_migration.py) and DualReadDeliveryAdapter for unified de-duplicated delivery view (release_delivery_adapter.py). Full test coverage in 137 new tests. All acceptance criteria met.
 ---
 <!-- COMMENTS:END -->
