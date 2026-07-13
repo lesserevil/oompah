@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T14:08:30.012087Z'
-updated_at: '2026-07-13T14:17:51.078145Z'
+updated_at: '2026-07-13T14:17:59.128909Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,5 +72,15 @@ author: oompah
 created: 2026-07-13 14:17
 ---
 Added Needs Human to the in-flight predicate and column passthrough in dashboard.html. Updated tooltip text, extended _computeInFlightShowSet with parent-visibility rule, mirrored in Python test helpers, added 7 new tests. All 8000 tests pass.
+---
+author: oompah
+created: 2026-07-13 14:17
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 0, Tool calls: 51
+- Tokens: 93 in / 2.0K out [2.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 1s
+- Log: OOMPAH-187__20260713T140903Z.jsonl
 ---
 <!-- COMMENTS:END -->
