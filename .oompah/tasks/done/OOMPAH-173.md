@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:38.417683Z'
-updated_at: '2026-07-13T03:08:33.706873Z'
+updated_at: '2026-07-13T03:08:35.964975Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-07-13 03:08
 ---
 Delivered: oompah/release_addendum_schema.py with AddendumStatus enum, ReleaseAddendum model, VALID_TRANSITIONS, is_valid_transition, make_addendum_id/work_branch/worktree_key helpers, parse_addendums/addendums_to_raw, AddendumRepository with read/write/add/transition, DuplicateTargetError, InvalidTransitionError. 145 unit tests cover all required scenarios. Full suite 7417 passed.
+---
+author: oompah
+created: 2026-07-13 03:08
+---
+Added oompah/release_addendum_schema.py: AddendumStatus enum, ReleaseAddendum model, VALID_TRANSITIONS FSM, is_valid_transition, deterministic ID/work-branch/worktree-key helpers, parse_addendums/addendums_to_raw serializers, AddendumRepository with read/write/add/transition enforcing one-active-per-branch and immutable commits. 145 unit tests covering all required scenarios. No production callers changed.
 ---
 <!-- COMMENTS:END -->
