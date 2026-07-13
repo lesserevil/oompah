@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T20:05:14.303298Z'
-updated_at: '2026-07-13T20:10:52.064808Z'
+updated_at: '2026-07-13T20:11:06.812809Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,5 +102,10 @@ author: oompah
 created: 2026-07-13 20:10
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-13 20:11
+---
+Understanding: I'm the frontend developer agent picking up this task. Previous agents confirmed this is NOT a duplicate. The root cause is in dashboard.html's JavaScript WebSocket handler — on every WS 'issues' message, the board is fully cleared and rebuilt regardless of whether the content changed. Plan: (1) Read dashboard.html to understand current rendering flow, (2) Implement snapshot hash comparison to skip full rebuild on identical payloads, (3) Implement incremental card/column DOM reconciliation for changed issues only, (4) Add lightweight agent-activity path that bypasses board rebuild, (5) Preserve scroll/focus/drag state across updates, (6) Add tests per acceptance criteria, (7) Run make test.
 ---
 <!-- COMMENTS:END -->
