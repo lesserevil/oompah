@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:40.880021Z'
-updated_at: '2026-07-13T03:22:44.026369Z'
+updated_at: '2026-07-13T03:22:46.196998Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -122,5 +122,15 @@ author: oompah
 created: 2026-07-13 03:22
 ---
 Added supported_release_branches to Project model, persistence, create/update APIs, and project-definition UI. Validation: nonempty, unique-normalised, not default_branch, matched by branches patterns. Legacy records default to []. 62 new tests, 7523 total pass.
+---
+author: oompah
+created: 2026-07-13 03:22
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 90
+- Tokens: 141 in / 3.8K out [4.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 51s
+- Log: OOMPAH-174__20260713T030857Z.jsonl
 ---
 <!-- COMMENTS:END -->
