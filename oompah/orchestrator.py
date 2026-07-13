@@ -3457,14 +3457,7 @@ class Orchestrator:
                         if value
                     }
                     has_children = bool(issue_ids & parent_ids)
-                    project_strategy = self._project_epic_strategy(issue.project_id)
-                    is_rollup_parent = (
-                        is_declared_epic
-                        or (
-                            has_children
-                            and project_strategy in ("stacked", "shared")
-                        )
-                    )
+                    is_rollup_parent = is_declared_epic or has_children
                     if is_rollup_parent:
                         out.append(issue)
             except (TrackerError, ProjectError) as exc:
@@ -3514,18 +3507,14 @@ class Orchestrator:
                     children=children,
                 )
 
-            strategy = self._project_epic_strategy(epic.project_id)
-            if strategy == "shared":
-                child_states = [
-                    self._epic_child_effective_state(epic, child)
-                    for child in children
-                ]
-            else:
-                child_states = [child.state for child in children]
+            child_states = [
+                self._epic_child_effective_state(epic, child)
+                for child in children
+            ]
 
             rolled = epic_rollup_state(child_states)
             rolled_status = canonicalize_status(rolled)
-            if strategy in {"stacked", "shared"} and rolled_status == MERGED:
+            if rolled_status == MERGED:
                 child_statuses = [
                     canonicalize_status(status)
                     for status in child_states
@@ -3909,9 +3898,6 @@ class Orchestrator:
         """Return True when *issue* is the parent rollup for child work."""
         if _is_epic_issue(issue):
             return True
-        strategy = self._project_epic_strategy(issue.project_id)
-        if strategy not in ("stacked", "shared"):
-            return False
         if children is not None:
             return bool(children)
         return self._issue_has_children(issue)
@@ -3994,11 +3980,7 @@ class Orchestrator:
         )
 
         project_id = getattr(project, "id", None)
-        if (
-            project_id
-            and self._project_epic_strategy(project_id) == "shared"
-            and hasattr(self.project_store, "epic_worktree_path_for")
-        ):
+        if project_id and hasattr(self.project_store, "epic_worktree_path_for"):
             try:
                 wt_path = self.project_store.epic_worktree_path_for(
                     project_id,
@@ -4031,24 +4013,13 @@ class Orchestrator:
         return False
 
     def _project_epic_strategy(self, project_id: str | None) -> str:
-        """Return the project's epic_strategy ('flat'/'stacked'/'shared').
+        """Return the project's epic_strategy.
 
-        Falls back to 'flat' (today's behavior) when the project is
-        unknown or the field is missing — so legacy projects.json
-        without the field continue to work unchanged.
+        Always returns 'shared' — flat and stacked strategies have been
+        removed (OOMPAH-167).  The parameter is kept for call-site
+        compatibility during the transition; it is no longer used.
         """
-        if not project_id:
-            return "flat"
-        project_store = getattr(self, "project_store", None)
-        if project_store is None:
-            return "flat"
-        project = project_store.get(project_id)
-        if not project:
-            return "flat"
-        strategy = (getattr(project, "epic_strategy", None) or "flat").strip().lower()
-        if strategy not in ("flat", "stacked", "shared"):
-            return "flat"
-        return strategy
+        return "shared"
 
     def _project_requires_epic_for_tasks(self, project_id: str | None) -> bool:
         """Whether a project forbids standalone task implementation work."""
@@ -4120,13 +4091,13 @@ class Orchestrator:
         """Resolve a child issue's parent rollup, or None when this issue has
         no parent or the parent should not be handled as an epic rollup.
 
-        Used by the stacked/shared epic_strategy paths to pick the epic
-        branch name (stacked) or shared worktree (shared).
+        Used by the shared-epic orchestration to identify the rollup parent
+        that owns the epic branch and worktree.
 
-        A parent explicitly typed as ``epic`` always counts. In stacked/shared
-        projects, a parent with children also counts even if its ``epic`` label
-        was accidentally omitted; otherwise one bad metadata sync can bypass
-        the per-project rollup policy and create child PRs.
+        A parent explicitly typed as ``epic`` always counts.  A parent with
+        children also counts even if its ``epic`` label was accidentally
+        omitted; otherwise one bad metadata sync can bypass the per-project
+        rollup policy and create stray child PRs.
         """
         parent_id = (issue.parent_id or "").strip()
         if not parent_id:
@@ -4151,14 +4122,11 @@ class Orchestrator:
             parent.project_id = issue.project_id
         if (parent.issue_type or "").strip().lower() == "epic":
             return parent
-        strategy = self._project_epic_strategy(issue.project_id or parent.project_id)
-        if strategy in ("stacked", "shared") and self._issue_has_children(parent):
+        if self._issue_has_children(parent):
             logger.debug(
-                "Treating parent %s as epic rollup for %s because project "
-                "epic_strategy=%s and the parent has children",
+                "Treating parent %s as epic rollup for %s because the parent has children",
                 parent.identifier,
                 issue.identifier,
-                strategy,
             )
             return parent
         return None
@@ -4170,15 +4138,13 @@ class Orchestrator:
     ) -> str | None:
         """Return the rollup strategy for a non-epic child of an epic.
 
-        In ``stacked`` and ``shared`` projects, child work does not become
-        ``Merged`` just because the child branch itself appears in forge
-        merged-branch history.  ``Merged`` is reserved for the epic rollup
-        merge; stacked child-branch merges only advance the child to ``Done``.
+        Child work does not become ``Merged`` just because the child branch
+        itself appears in forge merged-branch history.  ``Merged`` is reserved
+        for the epic rollup merge; child-branch merges only advance the child
+        to ``Done``.  Returns 'shared' when the issue is a child of a rollup
+        parent, ``None`` otherwise.
         """
         effective_project_id = project_id or issue.project_id
-        strategy = self._project_epic_strategy(effective_project_id)
-        if strategy not in ("stacked", "shared"):
-            return None
         if (issue.issue_type or "").strip().lower() == "epic":
             return None
         if not (issue.parent_id or "").strip():
@@ -4187,7 +4153,7 @@ class Orchestrator:
             issue.project_id = effective_project_id
         if self._resolve_parent_epic(issue) is None:
             return None
-        return strategy
+        return "shared"
 
     def _create_workspace_for_issue(
         self,
@@ -4196,19 +4162,12 @@ class Orchestrator:
         """Resolve and create the workspace path used to dispatch ``issue``.
 
         Returns ``(workspace_path, epic_for_shared_mode)``. The second
-        element is non-None only when the project's epic_strategy is
-        'shared' AND the issue is a child of an epic — in which case
-        callers know to commit/push on the shared epic branch instead
-        of the per-task branch.
+        element is non-None when the issue is a child of an epic, in which
+        case callers know to commit/push on the shared epic branch instead
+        of a per-task branch.
 
-        Fall-through behavior:
-        - epic_strategy='flat': always per-task worktree (today's
-          behavior).
-        - epic_strategy='stacked': per-task worktree (children PR
-          against the epic branch, but each agent still gets its own
-          working copy).
-        - epic_strategy='shared': children of an epic share the epic's
-          worktree; non-children fall back to per-task.
+        Children of an epic share the epic's worktree; non-children fall
+        back to a per-task worktree.
 
         The shared-mode epic worktree is created via
         ``project_store.create_epic_worktree``, which is idempotent
@@ -4244,15 +4203,13 @@ class Orchestrator:
             )
             return wp, issue
 
-        strategy = self._project_epic_strategy(issue.project_id)
-        if strategy == "shared":
-            parent_epic = self._resolve_parent_epic(issue)
-            if parent_epic is not None:
-                wp = self.project_store.create_epic_worktree(
-                    issue.project_id,
-                    parent_epic.identifier,
-                )
-                return wp, parent_epic
+        parent_epic = self._resolve_parent_epic(issue)
+        if parent_epic is not None:
+            wp = self.project_store.create_epic_worktree(
+                issue.project_id,
+                parent_epic.identifier,
+            )
+            return wp, parent_epic
 
         # For GitHub-backed tasks, generate a GitHub-safe branch name
         # (oompah/<project-slug>/gh-<number>) and persist Work Branch +
@@ -4301,12 +4258,6 @@ class Orchestrator:
         not-already-closed). See oompah-zlz_2-lvcd.
         """
         for issue in candidates:
-            if (
-                (issue.issue_type or "").strip().lower() != "epic"
-                and self._project_epic_strategy(issue.project_id)
-                not in ("stacked", "shared")
-            ):
-                continue
             if (
                 (issue.issue_type or "").strip().lower() != "epic"
                 and not self._issue_has_children(issue)
@@ -4368,13 +4319,9 @@ class Orchestrator:
         # branch (``epic-<identifier>``), not ``project.default_branch`` —
         # the epic→main merge happens via ``_open_epic_main_prs``.
         # For flat mode the expected child target is project.default_branch.
-        strategy = self._project_epic_strategy(epic.project_id)
-        if strategy in ("stacked", "shared"):
-            try:
-                expected_child_target = self._epic_branch_for_issue(epic)
-            except Exception:
-                expected_child_target = target_branch
-        else:
+        try:
+            expected_child_target = self._epic_branch_for_issue(epic)
+        except Exception:
             expected_child_target = target_branch
 
         provider = None
@@ -4421,15 +4368,11 @@ class Orchestrator:
                     merged_summaries.append(
                         f"{child.identifier} (merged via PR #{review.id})"
                     )
-                elif (
-                    strategy in ("stacked", "shared")
-                    and merged_target == target_branch
-                ):
+                elif merged_target == target_branch:
                     # The child bypassed the epic branch and landed directly on
-                    # the epic's final target.  That is not the intended stack
-                    # shape, but it is already merged downstream, so keeping the
-                    # epic permanently stuck would only require manual tracker
-                    # surgery.
+                    # the epic's final target.  That is already merged
+                    # downstream, so keeping the epic permanently stuck would
+                    # only require manual tracker surgery.
                     merged_summaries.append(
                         f"{child.identifier} (merged directly to "
                         f"{target_branch} via PR #{review.id})"
@@ -4450,42 +4393,40 @@ class Orchestrator:
             )
             return False
 
-        # For stacked/shared mode epics, an additional gate: the
-        # epic's OWN branch (``epic-<id>``) must be merged to
-        # ``project.default_branch`` before we auto-close. Otherwise we'd
+        # Additional gate: the epic's OWN branch (``epic-<id>``) must be merged
+        # to ``project.default_branch`` before we auto-close.  Otherwise we'd
         # close the task while its merge-train work is still pending.
         # No "stuck_epic" alert is raised here — the epic→main PR is
         # owned by ``_open_epic_main_prs`` and merging is the
         # operator's responsibility.
-        if strategy in ("stacked", "shared"):
-            if provider is None or not slug:
-                # Can't verify — fail closed (don't auto-close).
-                return False
-            try:
-                epic_branch = self._epic_branch_for_issue(epic)
-            except Exception:
-                return False
-            try:
-                epic_review = provider.find_pr_for_branch(slug, epic_branch)
-            except Exception as exc:
-                logger.debug(
-                    "find_pr_for_branch failed for epic branch %s: %s",
-                    epic_branch,
-                    exc,
-                )
-                return False
-            if (
-                epic_review is None
-                or epic_review.state != "merged"
-                or (
-                    epic_review.target_branch
-                    and epic_review.target_branch != target_branch
-                )
-            ):
-                # Epic branch hasn't merged to main yet — still pending,
-                # not stuck.
-                self._clear_stuck_epic_alert(epic.identifier)
-                return False
+        if provider is None or not slug:
+            # Can't verify — fail closed (don't auto-close).
+            return False
+        try:
+            epic_branch = self._epic_branch_for_issue(epic)
+        except Exception:
+            return False
+        try:
+            epic_review = provider.find_pr_for_branch(slug, epic_branch)
+        except Exception as exc:
+            logger.debug(
+                "find_pr_for_branch failed for epic branch %s: %s",
+                epic_branch,
+                exc,
+            )
+            return False
+        if (
+            epic_review is None
+            or epic_review.state != "merged"
+            or (
+                epic_review.target_branch
+                and epic_review.target_branch != target_branch
+            )
+        ):
+            # Epic branch hasn't merged to main yet — still pending,
+            # not stuck.
+            self._clear_stuck_epic_alert(epic.identifier)
+            return False
 
         # All conditions hold — close + comment.
         reason = (
@@ -4571,8 +4512,7 @@ class Orchestrator:
     def _check_epic_staleness(self, candidates: list[Issue]) -> int:
         """Check staleness of epic branches and arm/clear alerts.
 
-        For each active epic on a project whose ``epic_strategy`` is
-        'stacked' or 'shared', compares the epic branch's merge-base
+        For each active epic, compares the epic branch's merge-base
         with the target branch (usually ``main``). Triggers when:
 
         1. The epic branch is behind by at least
@@ -4607,9 +4547,6 @@ class Orchestrator:
             if not project_id:
                 continue
 
-            strategy = self._project_epic_strategy(project_id)
-            if strategy not in ("stacked", "shared"):
-                continue
             if (
                 (issue.issue_type or "").strip().lower() != "epic"
                 and not self._issue_has_children(issue)
@@ -4849,11 +4786,9 @@ class Orchestrator:
         return None
 
     def _open_epic_main_prs(self, candidates: list[Issue]) -> int:
-        """Open epic completion PRs for stacked/shared epics whose children are
-        all closed.
+        """Open epic completion PRs for epics whose children are all closed.
 
-        Walks ``candidates`` looking for active epics on a project whose
-        ``epic_strategy`` is 'stacked' or 'shared'. For each such epic:
+        For each active epic in ``candidates``:
 
         * If it has no children, skip (nothing has been done — wait for
           the planner).
@@ -4865,13 +4800,13 @@ class Orchestrator:
         * Otherwise: push the epic branch and open a single
           source=``epic-<identifier>`` PR targeting the resolved branch:
 
-          - For top-level epics (no parent epic, or non-shared strategy):
-            targets ``project.default_branch`` (typically ``main``).
-          - For nested epics in ``shared`` mode (the epic itself has a
-            parent epic): targets the parent epic's branch. This creates
-            a multi-level merge chain where child epic B's PR targets
-            parent A's branch; A's PR targets main only when ALL of A's
-            direct children (including sub-epic B) are terminal.
+          - For top-level epics (no parent epic): targets
+            ``project.default_branch`` (typically ``main``).
+          - For nested epics (the epic itself has a parent epic): targets
+            the parent epic's branch. This creates a multi-level merge
+            chain where child epic B's PR targets parent A's branch; A's
+            PR targets main only when ALL of A's direct children
+            (including sub-epic B) are terminal.
 
         Returns the number of PRs opened.
         """
@@ -4883,10 +4818,6 @@ class Orchestrator:
             project_id = issue.project_id
             if not project_id:
                 continue
-            strategy = self._project_epic_strategy(project_id)
-            if strategy not in ("stacked", "shared"):
-                continue
-
             children = self._fetch_epic_children(issue)
             if not children:
                 continue  # not a rollup parent / nothing to roll up yet
@@ -4896,17 +4827,13 @@ class Orchestrator:
             # criteria). This intentionally treats deferred or blocked as
             # incomplete — operator action required to advance them.
             #
-            # For shared epics, judge each child from the EPIC BRANCH (where
-            # shared children record their status), not the default branch
-            # the tracker reads — the latter only catches up once this very
-            # PR lands, so reading it would deadlock the gate. See
-            # _epic_child_effective_state.
-            if strategy == "shared":
-                child_states = [
-                    self._epic_child_effective_state(issue, c) for c in children
-                ]
-            else:
-                child_states = [c.state for c in children]
+            # Judge each child from the EPIC BRANCH (where shared children
+            # record their status), not the default branch the tracker reads —
+            # the latter only catches up once this very PR lands, so reading
+            # it would deadlock the gate. See _epic_child_effective_state.
+            child_states = [
+                self._epic_child_effective_state(issue, c) for c in children
+            ]
             # Ignore pre-implementation wrapper states the same way
             # epic_rollup_state does, then require every actionable child to
             # be terminal. Child epics that are already Merged may only have
@@ -5288,7 +5215,6 @@ class Orchestrator:
         project = self.project_store.get(project_id)
         if project is None:
             return 0
-        strategy = self._project_epic_strategy(project_id)
         try:
             tracker = self._tracker_for_project(project_id)
             if children is None:
@@ -5313,17 +5239,16 @@ class Orchestrator:
                 epic_branch,
                 child,
             ):
-                if strategy == "shared":
-                    logger.info(
-                        "Leaving Done child %s under shared epic %s in Done "
-                        "(covered by epic review branch %s)",
-                        child.identifier,
-                        epic.identifier,
-                        epic_branch,
-                    )
-                    continue
-                next_status = IN_REVIEW
-                reason = "covered by epic review branch"
+                # Shared-mode children are already complete once their work is
+                # on the epic branch; the epic owns the review/CI/rebase state.
+                logger.info(
+                    "Leaving Done child %s under epic %s in Done "
+                    "(covered by epic review branch %s)",
+                    child.identifier,
+                    epic.identifier,
+                    epic_branch,
+                )
+                continue
             else:
                 next_status = OPEN
                 reason = "no matching work found on epic review branch"
@@ -5454,15 +5379,13 @@ class Orchestrator:
         For all other cases (top-level epic, non-shared mode, or no parent
         epic), the PR targets ``project.default_branch`` (typically ``main``).
 
-        Only fires for ``epic_strategy='shared'`` — stacked mode is handled
-        differently (per-child PRs already target the parent's branch
-        directly, no "completion PR" intermediary is needed).
+        For nested epics: if ``epic`` has a parent epic P, the completion PR
+        targets P's branch; the top-level epic targets
+        ``project.default_branch`` (typically ``main``).
         """
-        strategy = self._project_epic_strategy(epic.project_id)
-        if strategy == "shared":
-            parent_epic = self._resolve_parent_epic(epic)
-            if parent_epic is not None:
-                return self._epic_branch_for_issue(parent_epic)
+        parent_epic = self._resolve_parent_epic(epic)
+        if parent_epic is not None:
+            return self._epic_branch_for_issue(parent_epic)
         return project.default_branch
 
     def _remote_branch_exists(self, repo_path: str, branch: str) -> bool:
@@ -5668,10 +5591,7 @@ class Orchestrator:
         push_cwd = project.repo_path
         push_cmd = ["git", "push", "origin", epic_branch]
 
-        if (
-            epic_branch == default_epic_branch
-            and self._project_epic_strategy(getattr(project, "id", None)) == "shared"
-        ):
+        if epic_branch == default_epic_branch:
             wt_path = self.project_store.epic_worktree_path_for(
                 project.id,
                 epic_identifier,
@@ -5942,12 +5862,8 @@ class Orchestrator:
         for issue in candidates:
             if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
                 continue
-            strategy = self._project_epic_strategy(issue.project_id)
             is_declared_epic = (issue.issue_type or "").strip().lower() == "epic"
-            if not is_declared_epic and (
-                strategy not in ("stacked", "shared")
-                or not self._issue_has_children(issue)
-            ):
+            if not is_declared_epic and not self._issue_has_children(issue):
                 continue
 
             state = self._get_epic_rebase_state(issue.identifier)
@@ -6178,7 +6094,6 @@ class Orchestrator:
         )
         if (
             (issue.issue_type or "").strip().lower() != "epic"
-            and self._project_epic_strategy(issue.project_id) in ("stacked", "shared")
             and self._issue_has_children(issue)
             and not epic_review_repair
         ):
@@ -6282,34 +6197,31 @@ class Orchestrator:
                 if self._blocker_has_unmerged_pr(blocker):
                     # Blocker is closed but PR hasn't merged — still blocked
                     return _reject(f"blocker={blocker.id} unmerged_review")
-        # epic_strategy=='shared' serializes child dispatch within an epic.
-        # Multiple children share one worktree+branch and we don't have an
-        # in-worktree coordination protocol yet (out of scope per the task),
-        # so only one child of a given epic can be in flight at a time.
-        # Multiple epics still dispatch in parallel up to max_in_flight_prs.
-        # P0 children bypass this check.
+        # Shared-epic child dispatch serialization: multiple children share one
+        # worktree+branch with no in-worktree coordination protocol, so only
+        # one child of a given epic can be in flight at a time.  Multiple epics
+        # dispatch in parallel up to max_in_flight_prs.  P0 children bypass
+        # the serialization check (but not the branch-done check).
         if issue.parent_id:
-            strategy = self._project_epic_strategy(issue.project_id)
-            if strategy == "shared":
-                # A shared-epic child writes its terminal status to the
-                # persistent epic branch, but the main checkout the tracker
-                # reads only catches up when the epic→main PR lands. Without
-                # this, an already-Done child looks Open in main and gets
-                # re-dispatched forever. Applies even to P0.
-                if self._shared_epic_child_done(issue):
-                    return _reject(f"epic_branch_done={issue.parent_id}")
-                # Serialize child dispatch within an epic — children share
-                # one worktree/branch and we have no in-worktree
-                # coordination protocol. Ordinary P0 children bypass this,
-                # but epic rebase tasks do not: multiple rebase workers for
-                # the same shared branch can race force-pushes and corrupt
-                # each other's work.
-                if not is_p0 or self._is_epic_rebase_task(issue):
-                    in_flight = self._epic_in_flight_count(issue.parent_id)
-                    if in_flight >= 1:
-                        return _reject(
-                            f"shared_epic_busy={issue.parent_id} count={in_flight}"
-                        )
+            # A shared-epic child writes its terminal status to the
+            # persistent epic branch, but the main checkout the tracker
+            # reads only catches up when the epic→main PR lands. Without
+            # this, an already-Done child looks Open in main and gets
+            # re-dispatched forever. Applies even to P0.
+            if self._shared_epic_child_done(issue):
+                return _reject(f"epic_branch_done={issue.parent_id}")
+            # Serialize child dispatch within an epic — children share
+            # one worktree/branch and we have no in-worktree
+            # coordination protocol. Ordinary P0 children bypass this,
+            # but epic rebase tasks do not: multiple rebase workers for
+            # the same shared branch can race force-pushes and corrupt
+            # each other's work.
+            if not is_p0 or self._is_epic_rebase_task(issue):
+                in_flight = self._epic_in_flight_count(issue.parent_id)
+                if in_flight >= 1:
+                    return _reject(
+                        f"shared_epic_busy={issue.parent_id} count={in_flight}"
+                    )
         # ACP-mode profiles bypass the budget gate entirely — their
         # per-token cost is billed against the operator's claude
         # subscription, not the per-token API meter the budget tracks.
@@ -7332,17 +7244,10 @@ class Orchestrator:
     ) -> bool:
         """Create a review (PR/MR) if the agent pushed a branch but none exists.
 
-        Honors the project's ``epic_strategy``:
-
-        * ``flat`` (default) — branch is the task identifier; PR targets main.
-        * ``stacked`` — for a child of an epic, the PR's *base* is the
-          epic's branch (``epic-<epic_identifier>``) instead of main, so
-          all children stack on the epic and the operator gets one
-          combined epic→main PR at the end.
-        * ``shared`` — children commit directly to the shared epic branch.
-          NO per-child PR is created here (the epic→main PR is the only
-          one). Top-level tasks in shared mode behave like flat unless the
-          project has ``require_epic_for_tasks`` enabled.
+        Shared workflow: children of an epic commit directly to the shared
+        epic branch.  NO per-child PR is created (the epic→main PR is the
+        only one).  Top-level tasks that are not children of an epic get their
+        own PR targeting ``project.default_branch`` or ``issue.target_branch``.
 
         Returns ``True`` when no review is needed or a review exists/was
         created. Returns ``False`` when the branch has unmerged commits but
@@ -7355,7 +7260,6 @@ class Orchestrator:
         if not project:
             return True
 
-        strategy = self._project_epic_strategy(project_id)
         if self._issue_requires_parent_epic(entry.issue, project_id):
             if entry.issue is not None:
                 logger.warning(
@@ -7365,52 +7269,33 @@ class Orchestrator:
                 self._mark_issue_needs_epic_parent(entry.issue, project_id)
             return False
 
-        # Resolve parent epic only for issues that have one. For top-level
-        # tasks (no parent_id), strategy/parent treatment doesn't matter.
+        # Resolve parent epic for issues that have one.
         parent_epic: Issue | None = None
-        if entry.issue and entry.issue.parent_id and strategy in ("stacked", "shared"):
+        if entry.issue and entry.issue.parent_id:
             parent_epic = self._resolve_parent_epic(entry.issue)
 
-        # Shared mode: children of a real epic commit to the shared epic
+        # Shared workflow: children of a real epic commit to the shared epic
         # branch, and the only PR is the epic→main PR.  A task can have a
         # parent that is not an epic, though; those tasks still use per-task
         # worktrees and must get their own review instead of being stranded.
         if (
-            strategy == "shared"
-            and entry.issue is not None
+            entry.issue is not None
             and (entry.issue.parent_id or "").strip()
             and parent_epic is not None
         ):
             logger.debug(
-                "Skip per-child review for %s: epic_strategy=shared "
-                "(child shares branch with epic %s)",
+                "Skip per-child review for %s: child shares branch with epic %s",
                 entry.identifier,
                 parent_epic.identifier,
             )
             return True
 
         branch = self._work_branch_for_review(entry, project)
-        # Stacked mode: the child PR targets the epic branch instead of main.
-        # Otherwise, honor Issue.target_branch when set (e.g. release branches),
+        # Honor Issue.target_branch when set (e.g. release branches),
         # falling back to the project's default branch.
         target_branch = project.default_branch
-        if strategy == "stacked" and parent_epic is not None:
-            target_branch = self._epic_branch_for_issue(parent_epic)
-        elif entry.issue and entry.issue.target_branch:
+        if entry.issue and entry.issue.target_branch:
             target_branch = entry.issue.target_branch
-
-        if strategy == "stacked" and parent_epic is not None:
-            if not self._ensure_review_target_branch_exists(project, target_branch):
-                self._reopen_missing_review(
-                    entry,
-                    project_id,
-                    branch,
-                    target_branch,
-                    0,
-                    [],
-                    f"target branch `{target_branch}` is not available",
-                )
-                return False
 
         # Check if a review already exists for this branch
         reviews = getattr(self, "_reviews_cache", {}).get(project_id, [])
@@ -7828,16 +7713,15 @@ class Orchestrator:
                     continue
                 if (issue.issue_type or "").strip().lower() == "epic":
                     continue
-                if (
-                    self._project_epic_strategy(project_id) in ("stacked", "shared")
-                    and self._issue_has_children(issue)
-                ):
+                if self._issue_has_children(issue):
                     continue
                 branch = self._branch_for_issue(issue, project)
                 rollup_strategy = self._epic_rollup_child_strategy(
                     issue,
                     project_id,
                 )
+                # Shared-epic children commit to the epic branch; per-child
+                # review and Merged promotion are handled via the epic→main PR.
                 if issue.parent_id and rollup_strategy == "shared":
                     continue
                 if (
@@ -7851,8 +7735,6 @@ class Orchestrator:
                         rollup_strategy=rollup_strategy,
                     )
                 ):
-                    if rollup_strategy == "stacked":
-                        continue
                     try:
                         tracker.update_issue(issue.identifier, status=MERGED)
                         logger.info(
@@ -7868,8 +7750,6 @@ class Orchestrator:
                         )
                     continue
                 if self._done_issue_branch_tip_landed(issue, project, project_id):
-                    if rollup_strategy == "stacked":
-                        continue
                     try:
                         tracker.update_issue(issue.identifier, status=MERGED)
                         logger.info(
@@ -7915,18 +7795,8 @@ class Orchestrator:
             return False
 
         target_branch = getattr(project, "default_branch", None) or "main"
-        strategy = self._project_epic_strategy(project_id)
-        parent_epic: Issue | None = None
-        if issue.parent_id and strategy in ("stacked", "shared"):
-            parent_epic = self._resolve_parent_epic(issue)
-        if strategy == "stacked" and parent_epic is not None:
-            target_branch = self._epic_branch_for_issue(parent_epic)
-        elif issue.target_branch:
+        if issue.target_branch:
             target_branch = issue.target_branch
-
-        if strategy == "stacked" and parent_epic is not None:
-            if not self._ensure_review_target_branch_exists(project, target_branch):
-                return False
 
         try:
             from oompah.close_gate import _count_commits_ahead
@@ -7969,13 +7839,7 @@ class Orchestrator:
             return False
 
         target_branch = getattr(project, "default_branch", None) or "main"
-        strategy = self._project_epic_strategy(project_id)
-        parent_epic: Issue | None = None
-        if issue.parent_id and strategy in ("stacked", "shared"):
-            parent_epic = self._resolve_parent_epic(issue)
-        if strategy == "stacked" and parent_epic is not None:
-            target_branch = self._epic_branch_for_issue(parent_epic)
-        elif issue.target_branch:
+        if issue.target_branch:
             target_branch = issue.target_branch
 
         ahead, _commit_lines, commit_error = self._count_review_branch_ahead(
@@ -7984,15 +7848,6 @@ class Orchestrator:
             branch,
         )
         if commit_error:
-            if strategy == "stacked" and parent_epic is not None:
-                default_landed = self._stacked_child_default_landing_status(
-                    project,
-                    issue,
-                    branch,
-                    target_branch,
-                )
-                if default_landed is not None:
-                    return default_landed
             logger.debug(
                 "Done landed check skipped for %s branch=%s base=%s: %s",
                 issue.identifier,
@@ -8001,18 +7856,7 @@ class Orchestrator:
                 commit_error,
             )
             return False
-        if ahead <= 0:
-            return True
-        if strategy == "stacked" and parent_epic is not None:
-            default_landed = self._stacked_child_default_landing_status(
-                project,
-                issue,
-                branch,
-                target_branch,
-            )
-            if default_landed is not None:
-                return default_landed
-        return False
+        return ahead <= 0
 
     def _maybe_run_merged_labels(self) -> None:
         """Periodically label merged issues/epics and reconcile stale In Review tasks.
@@ -8204,29 +8048,10 @@ class Orchestrator:
                     if rollup_strategy == "shared" and not helper_issue:
                         logger.info(
                             "Skipped marking %s Merged from child branch %s: "
-                            "project epic_strategy=shared waits for the epic "
-                            "rollup merge",
+                            "shared epic workflow waits for the epic rollup merge",
                             issue.identifier,
                             branch,
                         )
-                        continue
-                    if rollup_strategy == "stacked" and not helper_issue:
-                        if issue_status == DONE:
-                            continue
-                        try:
-                            tracker.update_issue(issue.identifier, status=DONE)
-                            logger.info(
-                                "Marked %s as Done (child branch %s merged "
-                                "into epic branch; epic rollup owns Merged)",
-                                issue.identifier,
-                                branch,
-                            )
-                        except TrackerError as exc:
-                            logger.debug(
-                                "Failed to mark %s as done: %s",
-                                issue.identifier,
-                                exc,
-                            )
                         continue
                     try:
                         tracker.update_issue(issue.identifier, status=MERGED)
@@ -8503,10 +8328,7 @@ class Orchestrator:
             if isinstance(value, str) and value.strip():
                 candidates.append(value.strip())
 
-        if (
-            self._project_epic_strategy(project_id) in ("stacked", "shared")
-            and (issue.issue_type or "").strip().lower() == "epic"
-        ):
+        if (issue.issue_type or "").strip().lower() == "epic":
             try:
                 candidates.append(
                     self.project_store.epic_branch_name(issue.identifier)
@@ -8620,9 +8442,6 @@ class Orchestrator:
                     branch,
                     rollup_strategy=rollup_strategy,
                 ):
-                    if rollup_strategy == "stacked":
-                        self._mark_stale_in_review_done(tracker, issue, branch)
-                        continue
                     self._mark_stale_in_review_merged(tracker, issue, branch)
                     continue
 
@@ -8641,9 +8460,6 @@ class Orchestrator:
                 if review_state == "open":
                     continue
                 if review_state == "merged":
-                    if rollup_strategy == "stacked":
-                        self._mark_stale_in_review_done(tracker, issue, branch)
-                        continue
                     self._mark_stale_in_review_merged(tracker, issue, branch)
                     continue
 
@@ -8663,9 +8479,6 @@ class Orchestrator:
                     )
                     continue
                 if ahead <= 0:
-                    if rollup_strategy == "stacked":
-                        self._mark_stale_in_review_done(tracker, issue, branch)
-                        continue
                     self._mark_stale_in_review_merged(tracker, issue, branch)
                     continue
 
@@ -8700,13 +8513,6 @@ class Orchestrator:
         rollup_strategy: str | None = None,
     ) -> str:
         """Return the branch that should contain a merged task branch tip."""
-        if rollup_strategy == "stacked":
-            parent_epic = self._resolve_parent_epic(issue)
-            if parent_epic is not None:
-                try:
-                    return self._epic_branch_for_issue(parent_epic)
-                except Exception:  # noqa: BLE001 - fall through to the default target
-                    pass
         target = getattr(issue, "target_branch", None)
         if isinstance(target, str) and target.strip():
             return target.strip()
@@ -8739,47 +8545,6 @@ class Orchestrator:
                 continue
             if result.returncode == 0:
                 return True
-        return False
-
-    def _stacked_child_default_landing_status(
-        self,
-        project: Project,
-        issue: Issue,
-        branch: str,
-        target_branch: str,
-    ) -> bool | None:
-        """Return whether a stacked child bypass landed directly on default."""
-        default_branch = getattr(project, "default_branch", None) or "main"
-        if target_branch == default_branch:
-            return None
-
-        ahead, _commit_lines, commit_error = self._count_review_branch_ahead(
-            project,
-            default_branch,
-            branch,
-        )
-        if commit_error:
-            return None
-        if ahead <= 0:
-            logger.info(
-                "Treating stacked child %s branch=%s as landed: branch is "
-                "contained in default branch %s although expected target was %s",
-                issue.identifier,
-                branch,
-                default_branch,
-                target_branch,
-            )
-            return True
-        logger.info(
-            "Skipping stacked child merged-branch promotion for %s branch=%s: "
-            "current tip is %d commit(s) ahead of default branch %s and "
-            "expected target %s",
-            issue.identifier,
-            branch,
-            ahead,
-            default_branch,
-            target_branch,
-        )
         return False
 
     def _merged_branch_tip_landed(
@@ -8826,15 +8591,6 @@ class Orchestrator:
             branch,
         )
         if commit_error:
-            if rollup_strategy == "stacked":
-                default_landed = self._stacked_child_default_landing_status(
-                    project,
-                    issue,
-                    branch,
-                    target_branch,
-                )
-                if default_landed is not None:
-                    return default_landed
             logger.warning(
                 "Skipping merged-branch promotion for %s branch=%s: could not "
                 "verify current branch tip against %s: %s",
@@ -8845,15 +8601,6 @@ class Orchestrator:
             )
             return False
         if ahead > 0:
-            if rollup_strategy == "stacked":
-                default_landed = self._stacked_child_default_landing_status(
-                    project,
-                    issue,
-                    branch,
-                    target_branch,
-                )
-                if default_landed is not None:
-                    return default_landed
             logger.info(
                 "Skipping merged-branch promotion for %s branch=%s: current "
                 "tip is %d commit(s) ahead of %s despite stale merged history",
@@ -8872,11 +8619,7 @@ class Orchestrator:
         project: Project | None = None,
     ) -> str:
         """Return the branch stale-review reconciliation should verify."""
-        strategy = self._project_epic_strategy(project_id)
-        if (
-            strategy in ("stacked", "shared")
-            and (issue.issue_type or "").strip().lower() == "epic"
-        ):
+        if (issue.issue_type or "").strip().lower() == "epic":
             try:
                 return self._epic_branch_for_issue(issue)
             except Exception:  # noqa: BLE001 - fall back to the legacy branch rule
@@ -8933,10 +8676,9 @@ class Orchestrator:
     ) -> None:
         """Mark an epic child ``Done`` once its work is on the epic branch.
 
-        Stacked children merge into the epic branch first. Shared children work
-        directly on that branch. In both cases they are complete for purposes
-        of opening the epic rollup PR, but they are not globally ``Merged``
-        until that epic branch lands.
+        Shared children work directly on the epic branch and are complete for
+        purposes of opening the epic rollup PR, but they are not globally
+        ``Merged`` until that epic branch lands on the target.
         """
         try:
             tracker.update_issue(issue.identifier, status=DONE)
@@ -9116,13 +8858,13 @@ class Orchestrator:
         """When an epic→main PR has merged, mark the epic AND all its
         children ``Merged``.
 
-        In stacked/shared mode an epic lands as a single ``epic-<id>`` →
-        main PR; the children have no individual merged branch, and the
-        epic itself sits in a non-dispatch state — so neither is caught by
+        An epic lands as a single ``epic-<id>`` → main PR; the children
+        have no individual merged branch, and the epic itself sits in a
+        non-dispatch state — so neither is caught by
         :meth:`_label_merged_issues`. We detect the merged epic branch
-        directly and roll ``Merged`` down to every child (the agreed rule:
-        when the epic merges, the epic and the tasks its branch contained
-        all become Merged). Idempotent: already-terminal epics drop out of
+        directly and roll ``Merged`` down to every child (when the epic
+        merges, the epic and the tasks its branch contained all become
+        Merged). Idempotent: already-terminal epics drop out of
         :meth:`_all_non_terminal_epics` and already-merged children are
         skipped.
         """
@@ -9132,8 +8874,6 @@ class Orchestrator:
                 return
             project_id = epic.project_id
             if not project_id:
-                continue
-            if self._project_epic_strategy(project_id) not in ("stacked", "shared"):
                 continue
             try:
                 epic_branch = self._epic_branch_for_issue(epic)
@@ -9210,14 +8950,7 @@ class Orchestrator:
                     if value
                 }
                 has_children = bool(issue_ids & parent_ids)
-                project_strategy = self._project_epic_strategy(issue.project_id)
-                is_rollup_parent = (
-                    is_declared_epic
-                    or (
-                        has_children
-                        and project_strategy in ("stacked", "shared")
-                    )
-                )
+                is_rollup_parent = is_declared_epic or has_children
                 if is_rollup_parent:
                     out.append(issue)
         return out
@@ -10544,15 +10277,10 @@ class Orchestrator:
     ) -> str | None:
         """Return a reason when YOLO must not act on this review.
 
-        ``_ensure_review_exists`` honors ``epic_strategy`` when creating
-        reviews, but operators or older oompah versions can leave behind
-        child PRs that violate the current strategy. YOLO is the last gate
-        before a merge, so it must fail closed for those reviews.
+        Children of a shared epic commit to the epic branch, not individual
+        per-child PRs.  YOLO is the last gate before a merge, so it blocks
+        per-child task PRs that violate the shared workflow.
         """
-        strategy = self._project_epic_strategy(project.id)
-        if strategy not in ("stacked", "shared"):
-            return None
-
         source_branch = (getattr(review, "source_branch", "") or "").strip()
         if not source_branch:
             return None
@@ -10563,7 +10291,7 @@ class Orchestrator:
             )
         except Exception as exc:  # noqa: BLE001 - do not break unrelated PRs
             logger.debug(
-                "YOLO epic-strategy gate could not resolve branch %s on %s: %s",
+                "YOLO epic gate could not resolve branch %s on %s: %s",
                 source_branch,
                 project.name,
                 exc,
@@ -10597,20 +10325,11 @@ class Orchestrator:
         target_branch = self._review_target_branch(project, review)
         parent_epic_branch = self._epic_branch_for_issue(parent_epic)
 
-        if strategy == "shared":
-            return (
-                f"epic_strategy=shared: child task {issue.identifier} must land "
-                f"via {parent_epic_branch}, not per-child PR "
-                f"{source_branch}->{target_branch}"
-            )
-
-        if strategy == "stacked" and target_branch != parent_epic_branch:
-            return (
-                f"epic_strategy=stacked: child task {issue.identifier} PR must "
-                f"target {parent_epic_branch}, not {target_branch}"
-            )
-
-        return None
+        return (
+            f"shared epic workflow: child task {issue.identifier} must land "
+            f"via {parent_epic_branch}, not per-child PR "
+            f"{source_branch}->{target_branch}"
+        )
 
     def _close_invalid_epic_policy_review(
         self,
@@ -10670,8 +10389,7 @@ class Orchestrator:
                 "to an epic or intentionally exempted."
             )
         elif (
-            self._project_epic_strategy(project.id) == "shared"
-            and issue is not None
+            issue is not None
             and (issue.parent_id or "").strip()
         ):
             parent_epic = self._resolve_parent_epic(issue)
@@ -11731,11 +11449,7 @@ class Orchestrator:
             serializes_shared_epic = (
                 issue.priority != 0 or self._is_epic_rebase_task(issue)
             )
-            if (
-                issue.parent_id
-                and serializes_shared_epic
-                and self._project_epic_strategy(issue.project_id) == "shared"
-            ):
+            if issue.parent_id and serializes_shared_epic:
                 shared_epic_key = (
                     str(issue.project_id or ""),
                     str(issue.parent_id).strip(),
@@ -15808,17 +15522,13 @@ class Orchestrator:
                                     check_landing_gate,
                                 )
 
-                                # For stacked/shared epic children, work lands
-                                # against the parent epic's branch (e.g.
-                                # epic-TASK-706), not directly against the
-                                # project default branch.
+                                # For shared epic children, work lands against
+                                # the parent epic's branch (e.g. epic-TASK-706),
+                                # not directly against the project default branch.
                                 # Resolve and pass the effective landing branch
                                 # so the gate checks the right ref.
                                 lg_effective_branch: str | None = None
-                                strategy = self._project_epic_strategy(project_id)
-                                if strategy in ("stacked", "shared") and (
-                                    entry.issue.parent_id or ""
-                                ).strip():
+                                if (entry.issue.parent_id or "").strip():
                                     _parent_epic = self._resolve_parent_epic(
                                         entry.issue
                                     )

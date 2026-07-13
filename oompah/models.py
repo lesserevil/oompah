@@ -301,31 +301,17 @@ class Project:
     # exclusions.
     test_skip_paths: list[str] = field(default_factory=list)
     # Per-project strategy controlling how children of an epic relate to
-    # branches and CI. See issue oompah-zlz_2-amd for the full design.
+    # branches and CI.  "shared" is the only supported value: each epic gets
+    # ONE shared worktree and ONE shared branch; child tasks commit directly
+    # to the epic branch (no per-child PRs, no per-child CI).  Children
+    # dispatch SERIALLY within an epic (one agent at a time per epic
+    # worktree); multiple epics still dispatch concurrently up to
+    # ``max_in_flight_prs``.
     #
-    # * "flat" (default) — preserves today's behavior: every task gets
-    #   its own worktree off main, each PR targets main, CI runs per
-    #   child PR, merge queue serializes the merges.
-    # * "stacked" — every task gets its own worktree, but children of
-    #   an epic create their PR against the epic's branch (not main).
-    #   Once all children land on the epic branch, the orchestrator
-    #   pushes it and opens an epic→main PR.
-    # * "shared" — each epic gets ONE shared worktree and ONE shared
-    #   branch; child tasks commit directly to the epic branch (no
-    #   per-child PRs, no per-child CI). Children dispatch SERIALLY
-    #   within an epic (one agent at a time per epic worktree); multiple
-    #   epics still dispatch concurrently up to ``max_in_flight_prs``.
-    #
-    # Unknown / invalid values fall back to "flat" with no migration.
-    #
-    # Dataclass default is "stacked" so newly-constructed projects get the
-    # merge-train semantics out of the box (fewer merges to main, no
-    # inter-child conflicts on main, single epic→main PR per epic).
-    # Existing projects whose persisted dict has no epic_strategy field
-    # still default to "flat" via from_dict's fallback below — that
-    # back-compat is intentional, only newly-constructed Project()
-    # instances pick up "stacked".
-    epic_strategy: str = "stacked"
+    # Legacy persisted values "flat" and "stacked" are transparently
+    # normalized to "shared" at load time (see from_dict).  Unknown or
+    # invalid values are also normalized to "shared".
+    epic_strategy: str = "shared"
     # When true, ordinary implementation tasks must be attached to an epic
     # before dispatch/review automation can act on them. This is stricter
     # than epic_strategy: shared/stacked, which only changes behavior once a
@@ -440,9 +426,9 @@ class Project:
         if self.test_skip_paths:
             d["test_skip_paths"] = list(self.test_skip_paths)
         # Always emit epic_strategy so dashboards can render the current
-        # mode without back-compat guessing. Default "flat" is included
-        # so an upgraded server writing an existing projects.json file
-        # surfaces the field on disk.
+        # mode without back-compat guessing.  "shared" is the only supported
+        # value; always writing the field ensures legacy flat/stacked entries
+        # are overwritten on the next save.
         d["epic_strategy"] = self.epic_strategy
         d["require_epic_for_tasks"] = self.require_epic_for_tasks
         d["intake_auto_promote"] = self.intake_auto_promote
@@ -524,15 +510,12 @@ class Project:
         test_command_full = (
             str(raw_test_command_full).strip() if raw_test_command_full else None
         )
-        raw_epic_strategy = d.get("epic_strategy", "flat")
-        epic_strategy = (
-            str(raw_epic_strategy).strip().lower() if raw_epic_strategy else "flat"
-        )
-        if epic_strategy not in ("flat", "stacked", "shared"):
-            # Unknown value (e.g. typo in projects.json) → fail safe to
-            # the default. No migration; the operator can re-pick from
-            # the UI radio group.
-            epic_strategy = "flat"
+        # Migration: "flat" and "stacked" were legacy epic strategy values.
+        # Normalize all persisted values (including unknown ones) to "shared",
+        # the only supported strategy.  The normalized value is written back on
+        # the next safe save, so the migration is restart-safe and requires no
+        # separate script.
+        epic_strategy = "shared"
         # Handle branches and default_branch with backward compatibility
         raw_branches = d.get("branches")
         if isinstance(raw_branches, list):

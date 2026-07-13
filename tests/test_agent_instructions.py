@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from oompah.agent_instructions import (
     ensure_github_issues_agent_instructions,
     ensure_oompah_task_agent_instructions,
@@ -8,6 +10,8 @@ from oompah.agent_instructions import (
     update_agents_text_for_github_issues,
     update_agents_text_for_oompah_tasks,
 )
+
+_DOCS_DIR = Path(__file__).parent.parent / "docs"
 
 
 def test_update_appends_github_block_to_custom_rules():
@@ -210,3 +214,70 @@ Use GitHub Issues.
     text = agents.read_text(encoding="utf-8")
     assert "BEGIN OOMPAH TASK INTEGRATION" in text
     assert "Use GitHub Issues." not in text
+
+
+# ---------------------------------------------------------------------------
+# Shared-only epic workflow: generated guidance contains no stale references
+# ---------------------------------------------------------------------------
+
+
+def test_oompah_task_instructions_no_flat_or_stacked_strategy():
+    """Generated oompah task AGENTS.md block must not reference the
+    removed flat or stacked epic strategies."""
+    rendered = render_oompah_task_agent_instructions()
+
+    assert "flat" not in rendered.lower().replace("platform", "").replace("scaffold", ""), (
+        "Generated oompah task instructions must not mention the removed 'flat' epic strategy."
+    )
+    assert "stacked" not in rendered.lower(), (
+        "Generated oompah task instructions must not mention the removed 'stacked' epic strategy."
+    )
+    assert "epic_strategy" not in rendered, (
+        "Generated oompah task instructions must not expose the internal epic_strategy field."
+    )
+
+
+def test_github_issues_instructions_no_flat_or_stacked_strategy():
+    """Generated GitHub Issues AGENTS.md block must not reference the
+    removed flat or stacked epic strategies."""
+    rendered = render_github_issues_agent_instructions()
+
+    assert "stacked" not in rendered.lower(), (
+        "Generated GitHub Issues instructions must not mention the removed 'stacked' epic strategy."
+    )
+    assert "epic_strategy" not in rendered, (
+        "Generated GitHub Issues instructions must not expose the internal epic_strategy field."
+    )
+
+
+def test_task_epic_workflow_doc_describes_shared_only_behavior():
+    """docs/task-epic-workflow.md must describe the shared epic workflow
+    and must not present flat or stacked as current strategies."""
+    doc = (_DOCS_DIR / "task-epic-workflow.md").read_text(encoding="utf-8")
+
+    # Shared workflow must be described
+    assert "shared" in doc.lower(), (
+        "task-epic-workflow.md must describe the shared epic branch workflow."
+    )
+    assert "epic branch" in doc.lower(), (
+        "task-epic-workflow.md must reference the epic branch."
+    )
+
+    # Flat and stacked must not appear as current strategies
+    # (they may appear only in historical/migration prose if ever needed,
+    #  but the active section must not present them as valid choices)
+    lines_with_flat = [
+        line for line in doc.splitlines()
+        if "| `flat`" in line or "Strategy -- flat" in line or "-- flat -->" in line
+    ]
+    assert not lines_with_flat, (
+        f"task-epic-workflow.md must not have active 'flat' strategy rows: {lines_with_flat}"
+    )
+
+    lines_with_stacked = [
+        line for line in doc.splitlines()
+        if "| `stacked`" in line or "Strategy -- stacked" in line or "-- stacked -->" in line
+    ]
+    assert not lines_with_stacked, (
+        f"task-epic-workflow.md must not have active 'stacked' strategy rows: {lines_with_stacked}"
+    )

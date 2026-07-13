@@ -120,7 +120,7 @@ All 3635 tests pass including:
 - `tests/test_webhooks.py` - Webhook branch matching
 - `tests/test_merge_queue.py` - Merge queue with multi-branch
 - `tests/test_epic_auto_close.py` - Epic auto-close
-- `tests/test_epic_strategy.py` - Epic strategies
+- `tests/test_epic_strategy.py` - Epic shared workflow
 
 ## Migration Path
 

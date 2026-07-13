@@ -661,14 +661,14 @@ class TestEpicPlannerFocus:
         focus = self._get_epic_planner()
         assert "decomposing" in focus.description.lower() or "decompose" in focus.description.lower()
 
-    def test_epic_planner_has_draft_label(self):
-        """epic_planner should match on epics with the 'draft' label."""
+    def test_epic_planner_has_no_draft_label_filter(self):
+        """epic_planner must NOT filter on 'draft' label after OOMPAH-171 removal."""
         focus = self._get_epic_planner()
-        assert "draft" in focus.labels
+        assert "draft" not in focus.labels
 
-    def test_epic_planner_selected_for_draft_epic(self):
-        """epic_planner should be selected for an epic with the 'draft' label."""
-        issue = _make_issue(title="New feature epic", issue_type="epic", labels=["draft"])
+    def test_epic_planner_selected_for_plain_epic(self):
+        """epic_planner should be selected for any epic (draft label no longer required)."""
+        issue = _make_issue(title="New feature epic", issue_type="epic", labels=[])
         focus = select_focus(issue)
         assert focus.name == "epic_planner"
 
@@ -697,11 +697,12 @@ class TestEpicPlannerFocus:
         parent_child_rule = any("parent-child" in rule for rule in focus.must_do)
         assert parent_child_rule, "must_do should include a rule about parent-child linking"
 
-    def test_epic_planner_must_do_includes_remove_draft_label(self):
-        """epic_planner must_do should instruct removing the draft label when done."""
+    def test_epic_planner_must_do_does_not_mention_draft_label(self):
+        """epic_planner must_do must NOT instruct removing a draft label (OOMPAH-171)."""
         focus = self._get_epic_planner()
-        remove_draft_rule = any("draft" in rule and ("remove" in rule or "label" in rule) for rule in focus.must_do)
-        assert remove_draft_rule, "must_do should include a rule about removing the draft label"
+        # Automatic draft lifecycle removed; no rule should mention draft labels
+        draft_rules = [rule for rule in focus.must_do if "draft" in rule.lower()]
+        assert not draft_rules, f"must_do must not mention draft label (OOMPAH-171), found: {draft_rules}"
 
     def test_epic_planner_must_do_includes_set_to_backlog(self):
         """epic_planner must_do should instruct setting the epic status to Backlog."""
@@ -709,14 +710,17 @@ class TestEpicPlannerFocus:
         backlog_rule = any("Backlog" in rule for rule in focus.must_do)
         assert backlog_rule, "must_do should include a rule about setting status to Backlog"
 
-    def test_epic_planner_draft_label_boosts_score(self):
-        """draft label on an epic should boost the epic_planner score."""
+    def test_epic_planner_draft_label_does_not_affect_score(self):
+        """draft label must NOT boost epic_planner score after OOMPAH-171 removal."""
         focus = self._get_epic_planner()
         issue_with_draft = _make_issue(title="New epic", issue_type="epic", labels=["draft"])
         issue_without_draft = _make_issue(title="New epic", issue_type="epic")
         score_with = score_focus(focus, issue_with_draft)
         score_without = score_focus(focus, issue_without_draft)
-        assert score_with > score_without, "draft label should increase the epic_planner score"
+        # Draft label should not be in focus.labels, so scores should be equal
+        assert score_with == score_without, (
+            "draft label must not change epic_planner score (OOMPAH-171)"
+        )
 
 
 class TestFocusRenderWithProject:

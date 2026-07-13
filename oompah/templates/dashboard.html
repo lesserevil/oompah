@@ -420,29 +420,6 @@
       font-family: 'SF Mono', 'Fira Code', monospace;
     }
 
-    /* Draft Epic badge on epic cards with 'draft' label */
-    .draft-epic-badge {
-      font-size: 0.6rem;
-      font-weight: 600;
-      padding: 0.1rem 0.35rem;
-      border-radius: 4px;
-      background: rgba(88, 166, 255, 0.15);
-      color: var(--accent, #58a6ff);
-      font-family: 'SF Mono', 'Fira Code', monospace;
-    }
-
-    /* Draft badge on swimlane headers for draft epics */
-    .swimlane-draft-badge {
-      font-size: 0.7rem;
-      font-weight: 600;
-      padding: 0.15rem 0.45rem;
-      border-radius: 4px;
-      background: rgba(88, 166, 255, 0.15);
-      color: var(--accent, #58a6ff);
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      vertical-align: middle;
-    }
-
     /* External tracker link (GitHub issue URL) on cards */
     .tracker-link {
       font-size: 0.65rem;
@@ -2775,31 +2752,6 @@ async function updateIssue(identifier, fields) {
   return true;
 }
 
-async function toggleEpicDraft(epicIdentifier, isDraft, projectId) {
-  try {
-    if (isDraft) {
-    // Remove 'draft' label then set status to Backlog
-      await fetch(issueApiUrl(epicIdentifier, '/labels/draft', {project_id: projectId}), {method: 'DELETE'});
-    } else {
-      // Add 'draft' label then set status to Backlog
-      await fetch(issueApiUrl(epicIdentifier, '/labels'), {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(issueRequestBody(epicIdentifier, {label: 'draft', project_id: projectId})),
-      });
-    }
-    // In both cases, set status to Backlog
-    await fetch(issueApiUrl(epicIdentifier), {
-      method: 'PATCH',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(issueRequestBody(epicIdentifier, {status: 'Backlog', project_id: projectId})),
-    });
-    await refreshBoard();
-  } catch (err) {
-    console.error('toggleEpicDraft failed:', err);
-  }
-}
-
 function setViewMode(mode) {
   viewMode = mode;
   document.getElementById('btn-flat').classList.toggle('active', mode === 'flat');
@@ -2838,10 +2790,6 @@ function isSwimlaneParent(issue) {
   return issue.issue_type === 'epic' || !!issue.children_counts;
 }
 
-function hasDraftLabel(issue) {
-  return (issue.labels || []).includes('draft');
-}
-
 function childCountsAreMergeReady(counts) {
   const c = counts || {};
   const activeStates = [
@@ -2866,18 +2814,17 @@ function childCountsAreMergeReady(counts) {
 }
 
 function isEpicMergeFlowCard(issue) {
-  if (!isSwimlaneParent(issue) || hasDraftLabel(issue)) return false;
+  if (!isSwimlaneParent(issue)) return false;
   const state = columnKeyForStatus(issue.state || issue.tracker_state);
   const mergeFlowStates = ['Done', 'In Review', 'Needs CI Fix', 'Needs Rebase'];
   return mergeFlowStates.includes(state) && childCountsAreMergeReady(issue.children_counts);
 }
 
 function shouldShowIssueAsWorkCard(issue) {
-  // Finalized parent epics are swimlane headers while child work is active.
+  // Parent epics are swimlane headers while child work is active.
   // They become work cards only once all child work is complete and the
   // epic itself is in the rollup PR/CI/merge path.
   if (!isSwimlaneParent(issue)) return true;
-  if (hasDraftLabel(issue)) return true;
   return isEpicMergeFlowCard(issue);
 }
 
@@ -3050,8 +2997,7 @@ function epicHasVisibleCounts(epic) {
 }
 
 function renderSwimlaneView(board, data) {
-  // Every epic/parent with visible child work gets a swimlane, including
-  // draft epics. Draft status affects badges and workflow, not hierarchy.
+  // Every epic/parent with visible child work gets a swimlane.
   const allEpics = allIssuesFlat.filter(i => isSwimlaneParent(i));
   // Key epics by (project_id, id): bare ids collide across projects. Keep
   // ALL epics here (incl. hidden ones) so a hidden epic's children aren't
@@ -3096,12 +3042,10 @@ function renderSwimlaneView(board, data) {
       <div class="swimlane-header" onclick="toggleSwimlane('${esc(ek)}')">
         <span class="swimlane-toggle">&#9660;</span>
         <span class="swimlane-title">${esc(epic.title)}</span>
-        ${(epic.labels || []).includes('draft') ? '<span class="swimlane-draft-badge" aria-label="Draft epic">Draft</span>' : ''}
         <span class="swimlane-counts" title="Backlog / Open / In Progress / Done">${countsStr}</span>
         <span class="swimlane-actions">
           <button onclick="event.stopPropagation(); openCreateDialogForEpic('${esc(epic.id)}')">+ Child</button>
           <button onclick="event.stopPropagation(); openDetailPanel('${esc(epic.identifier)}')">Details</button>
-          ${(() => { const isDraft = (epic.labels || []).includes('draft'); const draftBtnLabel = isDraft ? 'Finalize' : 'Mark as Draft'; return `<button onclick="event.stopPropagation(); toggleEpicDraft('${esc(epic.identifier)}', ${isDraft}, '${esc(epic.project_id || '')}')" aria-label="${isDraft ? 'Finalize epic' : 'Mark epic as draft'}">${draftBtnLabel}</button>`; })()}
         </span>
       </div>
       <div class="swimlane-columns"></div>
@@ -3319,11 +3263,6 @@ function createCard(issue) {
     }
   }
 
-  // Build draft badge if issue is a swimlane parent with the "draft" label
-  const draftEpicBadgeHtml = (isSwimlaneParent(issue) && (issue.labels || []).includes('draft'))
-    ? ' <span class="draft-epic-badge" aria-label="Draft Epic">Draft Epic</span>'
-    : '';
-
   // Build merged badge if issue is in the Merged status
   const mergedBadgeHtml = columnKeyForStatus(issue.state || issue.tracker_state) === 'Merged'
     ? ' <span class="merged-badge">merged</span>'
@@ -3347,7 +3286,6 @@ function createCard(issue) {
         <span class="type-icon" title="${esc(typeLabel)}" aria-label="${esc(typeLabel)}">${typeIcon}</span>
         ${cardIdentifierHtml}${trackerLinkHtml}
         ${epicBadgeHtml}
-        ${draftEpicBadgeHtml}
         ${mergedBadgeHtml}
       </span>
       <span class="priority-badge ${pClass}">P${issue.priority ?? 4}</span>
@@ -3502,8 +3440,7 @@ function getCardsInColumn(state, epicId) {
   } else if (epicId === '_orphans') {
     // Orphan swimlane — visible work cards with no parent or parent not a
     // swimlane parent. Keyed by (project_id, id) to avoid cross-project
-    // id collisions. Draft epics with visible children are swimlane parents,
-    // not Unassigned cards.
+    // id collisions.
     const allEpics = allIssuesFlat.filter(i => isSwimlaneParent(i));
     const epicKeys = new Set(allEpics.map(issueKey));
     const renderedEpicKeys = new Set(allEpics.filter(epicHasVisibleCounts).map(issueKey));

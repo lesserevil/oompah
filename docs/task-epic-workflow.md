@@ -136,41 +136,30 @@ child enough context to work independently, records dependencies with
 `Backlog`.
 
 Once an epic has children, normal implementation work happens on the children.
-The parent epic acts as a rollup. In `stacked` and `shared` projects, a parent
-with children is rejected from ordinary dispatch with `epic_rollup_parent`
-unless the epic branch itself needs CI or rebase repair during final review.
+The parent epic acts as a rollup. In `shared` projects, a parent with children
+is rejected from ordinary dispatch with `epic_rollup_parent` unless the epic
+branch itself needs CI or rebase repair during final review.
 
-## Epic Branch Strategies
+## Shared Epic Branch
 
-Each managed project has an `epic_strategy`:
+All managed projects use the shared epic workflow:
 
-| Strategy | Child worktrees | Child PR target | Epic rollup PR |
-|---|---|---|---|
-| `flat` | One per task | Task `target_branch` or project default branch | No branch rollup; children merge independently |
-| `stacked` | One per task | Generated `epic-<epic-id>` branch | Yes, from epic branch to target branch |
-| `shared` | Shared epic worktree and branch | Epic branch only; child PRs are suppressed | Yes, from epic branch to target branch |
+| Aspect | Shared behavior |
+|---|---|
+| Child worktrees | Shared epic worktree and branch |
+| Child PR target | Epic branch only; child PRs are suppressed |
+| Epic rollup PR | Yes, from epic branch to project default branch |
 
-The generated epic branch name is owned by oompah. If a child task has
-`target_branch: epic-<parent-id>`, dispatch treats that as an internal epic
-target and allows it even when the project's public branch patterns only list
-branches such as `main` or `release/*`.
+The generated epic branch name (`epic-<epic-id>`) is owned by oompah. If a
+child task has `target_branch: epic-<parent-id>`, dispatch treats that as an
+internal epic target and allows it even when the project's public branch
+patterns only list branches such as `main` or `release/*`.
 
 ```mermaid
 flowchart TD
-    ChildOpen[Open child task] --> Strategy{Project epic_strategy}
-
-    Strategy -- flat --> FlatWork[Create task worktree]
-    FlatWork --> FlatPR[Open task PR to target_branch or default]
-    FlatPR --> FlatMerge[Child lands independently]
-
-    Strategy -- stacked --> StackedWork[Create task worktree]
-    StackedWork --> ChildPR[Open child PR to epic branch]
-    ChildPR --> EpicBranch[Epic branch accumulates child work]
-
-    Strategy -- shared --> SharedWork[Use shared epic worktree]
+    ChildOpen[Open child task] --> SharedWork[Use shared epic worktree]
     SharedWork --> SharedBranch[Commit child work to epic branch]
-    SharedBranch --> EpicBranch
-
+    SharedBranch --> EpicBranch[Epic branch accumulates child work]
     EpicBranch --> ChildrenDone{All actionable children terminal?}
     ChildrenDone -- no --> ChildOpen
     ChildrenDone -- yes --> RollupPR[Open epic rollup PR]
@@ -178,13 +167,12 @@ flowchart TD
     EpicReview --> EpicMerged[Epic Merged]
 ```
 
-In `shared`, oompah serializes normal child dispatch within the same epic so
-two agents do not write to the same shared worktree at the same time. High
-priority repair work may still be selected according to the orchestrator's
-repair rules.
+Oompah serializes normal child dispatch within the same epic so two agents do
+not write to the same shared worktree at the same time. High priority repair
+work may still be selected according to the orchestrator's repair rules.
 
-For nested epics in `shared`, a child epic rollup PR targets the parent epic
-branch. The top-level epic targets the project default branch.
+For nested epics, a child epic rollup PR targets the parent epic branch. The
+top-level epic targets the project default branch.
 
 ## Review And Repair
 
@@ -207,24 +195,24 @@ flowchart TD
 ```
 
 For normal task PRs, the repair agent works on that task's branch. For mature
-stacked or shared epics, the epic itself can become the repair unit so the
-agent fixes the epic branch and returns it to review.
+shared epics, the epic itself can become the repair unit so the agent fixes the
+epic branch and returns it to review.
 
 ## Closing And Rollup
 
 Child task completion is not always the same as project integration:
 
-- `Done` means the agent finished the task. For stacked and shared epics, a
-  child can be `Done` while its work still waits on the epic rollup PR.
+- `Done` means the agent finished the task. For shared epics, a child can be
+  `Done` while its work still waits on the epic rollup PR.
 - `In Review` means a PR exists and review metadata is recorded.
 - `Merged` means the review branch landed on its expected target.
 - `Archived` means the task is intentionally closed and should not reopen.
 
-For stacked and shared epics, oompah opens the final epic rollup PR only after
-all actionable children are terminal and required epic dependencies have
-landed. The epic auto-close gate verifies child reviews and the epic branch
-landing before closing the parent. If children are closed but their branches
-are not merged to the expected target, the UI surfaces a `stuck_epic` alert.
+For shared epics, oompah opens the final epic rollup PR only after all
+actionable children are terminal and required epic dependencies have landed.
+The epic auto-close gate verifies child reviews and the epic branch landing
+before closing the parent. If children are closed but their branches are not
+merged to the expected target, the UI surfaces a `stuck_epic` alert.
 
 ## CLI Reference
 

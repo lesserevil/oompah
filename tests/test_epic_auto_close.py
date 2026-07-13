@@ -89,10 +89,15 @@ def _make_project(project_id: str = "proj-1", branch: str = "main") -> MagicMock
     p.branches = [branch]
     p.matches_branch = lambda b: fnmatch.fnmatch(b, branch)
     p.paused = False
-    p.epic_strategy = "flat"
+    p.epic_strategy = "shared"
     p.max_in_flight_prs = 1
     p.access_token = None
     return p
+
+
+def _epic_branch_name(identifier: str) -> str:
+    """Return the expected epic branch name for a given epic identifier."""
+    return f"epic-{identifier}"
 
 
 def _make_orch(
@@ -109,6 +114,7 @@ def _make_orch(
     project_store = MagicMock()
     project_store.list_all.return_value = [project]
     project_store.get.side_effect = lambda pid: project if pid == project.id else None
+    project_store.epic_branch_name.side_effect = _epic_branch_name
 
     orch = Orchestrator(
         config=ServiceConfig(),
@@ -129,7 +135,12 @@ def _make_orch(
 
 class TestAllChildrenTerminal:
     def test_all_children_closed_and_merged_closes_epic(self, tmp_path):
-        """Synthetic epic with 3 children, all closed, all merged → close."""
+        """Synthetic epic with 3 children, all closed, all merged → close.
+
+        In shared mode, children commit to the epic branch (``epic-epic-1``),
+        and the epic branch PR merges that work to main.  Auto-close fires only
+        after the epic branch itself is merged.
+        """
         project = _make_project()
         epic = _make_issue(
             "epic-1",
@@ -147,12 +158,14 @@ class TestAllChildrenTerminal:
         tracker.fetch_children.return_value = children
 
         provider = MagicMock()
-        provider.find_pr_for_branch.side_effect = lambda repo, branch: _make_review(
-            number={"child-1": 11, "child-2": 22, "child-3": 33}[branch],
-            state="merged",
-            source_branch=branch,
-            target_branch="main",
-        )
+        _reviews = {
+            "child-1": _make_review(number=11, state="merged", source_branch="child-1", target_branch="epic-epic-1"),
+            "child-2": _make_review(number=22, state="merged", source_branch="child-2", target_branch="epic-epic-1"),
+            "child-3": _make_review(number=33, state="merged", source_branch="child-3", target_branch="epic-epic-1"),
+            # The epic branch itself is merged to main.
+            "epic-epic-1": _make_review(number=99, state="merged", source_branch="epic-epic-1", target_branch="main"),
+        }
+        provider.find_pr_for_branch.side_effect = lambda repo, branch: _reviews.get(branch)
 
         orch = _make_orch(tmp_path, project=project, tracker=tracker)
         with patch("oompah.orchestrator.detect_provider", return_value=provider):
@@ -163,7 +176,7 @@ class TestAllChildrenTerminal:
         call_args = tracker.close_issue.call_args
         assert call_args.args[0] == "epic-1"
         reason = call_args.kwargs.get("reason", "")
-        assert "all 3 children closed and merged to main" in reason
+        assert "all 3 children closed and merged to epic-epic-1" in reason
         assert "child-1 (merged via PR #11)" in reason
         assert "child-2 (merged via PR #22)" in reason
         assert "child-3 (merged via PR #33)" in reason
@@ -295,7 +308,12 @@ class TestMergeCheck:
         assert len(alerts_for_epic) == 1
 
     def test_custom_project_default_branch(self, tmp_path):
-        """``project.branch`` (not hardcoded 'main') is what we check."""
+        """``project.branch`` (not hardcoded 'main') is what we check.
+
+        In shared mode the child PR targets the epic branch, and the epic
+        branch PR targets the project's configured default branch (here
+        "master").  Auto-close requires the epic branch to reach master.
+        """
         project = _make_project(branch="master")
         epic = _make_issue(
             "epic-5",
@@ -309,12 +327,12 @@ class TestMergeCheck:
         tracker = MagicMock()
         tracker.fetch_children.return_value = children
         provider = MagicMock()
-        provider.find_pr_for_branch.return_value = _make_review(
-            number=42,
-            state="merged",
-            source_branch="child-1",
-            target_branch="master",
-        )
+        # Child merges to epic branch; epic branch merges to master.
+        _reviews = {
+            "child-1": _make_review(number=42, state="merged", source_branch="child-1", target_branch="epic-epic-5"),
+            "epic-epic-5": _make_review(number=43, state="merged", source_branch="epic-epic-5", target_branch="master"),
+        }
+        provider.find_pr_for_branch.side_effect = lambda repo, branch: _reviews.get(branch)
 
         orch = _make_orch(tmp_path, project=project, tracker=tracker)
         with patch("oompah.orchestrator.detect_provider", return_value=provider):
@@ -322,7 +340,8 @@ class TestMergeCheck:
 
         assert closed is True
         reason = tracker.close_issue.call_args.kwargs.get("reason", "")
-        assert "merged to master" in reason
+        # Children merged to the epic branch; the auto-close message names that.
+        assert "merged to epic-epic-5" in reason
 
 
 # -------------------------------------------------- Condition 3: no-branch children
@@ -330,7 +349,12 @@ class TestMergeCheck:
 
 class TestChildWithoutBranch:
     def test_child_without_branch_is_no_op_for_merge_check(self, tmp_path):
-        """Children with no PR (research/triage closures) pass condition 3."""
+        """Children with no PR (research/triage closures) pass condition 3.
+
+        The children themselves don't trigger any PR lookup (empty branch names),
+        but the epic branch gate still fires — requiring the epic's own PR to be
+        merged before auto-close.
+        """
         project = _make_project()
         epic = _make_issue(
             "epic-6",
@@ -346,9 +370,13 @@ class TestChildWithoutBranch:
         tracker = MagicMock()
         tracker.fetch_children.return_value = children
         provider = MagicMock()
-        # No PRs anywhere — provider.find_pr_for_branch returns None for
-        # everything (but should never even be called for empty branches).
-        provider.find_pr_for_branch.return_value = None
+        # No PR for child branches (they have none); the epic branch itself
+        # must be merged to main for auto-close to fire.
+        def _find(repo, branch):
+            if branch == "epic-epic-6":
+                return _make_review(number=99, state="merged", source_branch="epic-epic-6", target_branch="main")
+            return None
+        provider.find_pr_for_branch.side_effect = _find
 
         orch = _make_orch(tmp_path, project=project, tracker=tracker)
         with patch("oompah.orchestrator.detect_provider", return_value=provider):
@@ -358,11 +386,17 @@ class TestChildWithoutBranch:
         reason = tracker.close_issue.call_args.kwargs.get("reason", "")
         assert "research-1 (closed without PR)" in reason
         assert "triage-2 (closed without PR)" in reason
-        # find_pr_for_branch was not invoked because branches are empty.
-        provider.find_pr_for_branch.assert_not_called()
+        # Provider was called only for the epic branch gate (not for empty child branches).
+        provider.find_pr_for_branch.assert_called_once_with(
+            provider.find_pr_for_branch.call_args.args[0], "epic-epic-6"
+        )
 
     def test_child_branch_with_no_pr_record_is_eligible(self, tmp_path):
-        """A child with a branch name but no PR record is treated as closed-without-PR."""
+        """A child with a branch name but no PR record is treated as closed-without-PR.
+
+        The child passes the merge-check (no PR → eligible), and the epic
+        branch gate still requires the epic's own PR to be merged to main.
+        """
         project = _make_project()
         epic = _make_issue(
             "epic-7",
@@ -376,8 +410,14 @@ class TestChildWithoutBranch:
         tracker = MagicMock()
         tracker.fetch_children.return_value = children
         provider = MagicMock()
-        # No PR ever opened.
-        provider.find_pr_for_branch.return_value = None
+        # No PR for the child branch; the epic branch must be merged.
+        def _find(repo, branch):
+            if branch == "ghost":
+                return None  # no PR ever opened
+            if branch == "epic-epic-7":
+                return _make_review(number=99, state="merged", source_branch="epic-epic-7", target_branch="main")
+            return None
+        provider.find_pr_for_branch.side_effect = _find
 
         orch = _make_orch(tmp_path, project=project, tracker=tracker)
         with patch("oompah.orchestrator.detect_provider", return_value=provider):
@@ -512,12 +552,15 @@ class TestCascadingAutoClose:
         tracker.close_issue.side_effect = _fake_close
 
         provider = MagicMock()
-        provider.find_pr_for_branch.side_effect = lambda repo, branch: _make_review(
-            number={"leaf-1": 1, "leaf-2": 2}[branch],
-            state="merged",
-            source_branch=branch,
-            target_branch="main",
-        )
+        # In shared mode, leaves commit to the mid epic's branch; the mid
+        # epic branch then merges to main.  Similarly for the top tier.
+        _reviews = {
+            "leaf-1": _make_review(number=1, state="merged", source_branch="leaf-1", target_branch="epic-epic-mid"),
+            "leaf-2": _make_review(number=2, state="merged", source_branch="leaf-2", target_branch="epic-epic-mid"),
+            "epic-epic-mid": _make_review(number=3, state="merged", source_branch="epic-epic-mid", target_branch="main"),
+            "epic-epic-top": _make_review(number=4, state="merged", source_branch="epic-epic-top", target_branch="main"),
+        }
+        provider.find_pr_for_branch.side_effect = lambda repo, branch: _reviews.get(branch)
 
         orch = _make_orch(tmp_path, project=project, tracker=tracker)
         with patch("oompah.orchestrator.detect_provider", return_value=provider):
@@ -775,17 +818,16 @@ class TestMaybeAutoCloseParentEpic:
 # ---------------------------------------------- Provider error / no-provider paths
 
 
-class TestStackedModeEpic:
-    """For stacked/shared mode epics, children target the epic branch and
-    the epic's own branch must merge to main before auto-close fires.
+class TestEpicBranchGate:
+    """Shared-mode epics: children target the epic branch and the epic's
+    own branch must merge to the project default branch before auto-close fires.
     """
 
-    def test_stacked_children_merged_to_epic_branch_then_epic_merged_to_main(
+    def test_children_merged_to_epic_branch_then_epic_merged_to_main(
         self,
         tmp_path,
     ):
         project = _make_project()
-        project.epic_strategy = "stacked"
         epic = _make_issue(
             "epic-st",
             state="open",
@@ -833,12 +875,11 @@ class TestStackedModeEpic:
         # The summary describes the per-child merge into the epic branch.
         assert "merged to epic-epic-st" in reason
 
-    def test_stacked_epic_pending_when_epic_branch_not_yet_merged(
+    def test_epic_pending_when_epic_branch_not_yet_merged(
         self,
         tmp_path,
     ):
         project = _make_project()
-        project.epic_strategy = "stacked"
         epic = _make_issue(
             "epic-pn",
             state="open",
@@ -886,8 +927,8 @@ class TestStackedModeEpic:
             a.get("source") == f"stuck_epic:{epic.identifier}" for a in orch._alerts
         )
 
-    def test_stacked_child_merged_directly_to_main_is_landed_bypass(self, tmp_path):
-        """A stacked child already merged to the final target is landed.
+    def test_child_merged_directly_to_main_is_landed_bypass(self, tmp_path):
+        """A child already merged to the final target is treated as a bypass landing.
 
         This is not the intended merge-train shape, but the code is already
         downstream of the epic branch.  Keep the epic pending for its own rollup
@@ -895,7 +936,6 @@ class TestStackedModeEpic:
         merging the child again.
         """
         project = _make_project()
-        project.epic_strategy = "stacked"
         epic = _make_issue(
             "epic-mt",
             state="open",
@@ -934,10 +974,9 @@ class TestStackedModeEpic:
             a.get("source") == f"stuck_epic:{epic.identifier}" for a in orch._alerts
         )
 
-    def test_stacked_child_merged_to_unrelated_branch_is_stuck(self, tmp_path):
-        """In stacked mode, a child merged to an unrelated branch is stuck."""
+    def test_child_merged_to_unrelated_branch_is_stuck(self, tmp_path):
+        """A child merged to an unrelated branch (neither epic branch nor final target) is stuck."""
         project = _make_project()
-        project.epic_strategy = "stacked"
         epic = _make_issue(
             "epic-mt",
             state="open",
@@ -974,8 +1013,8 @@ class TestStackedModeEpic:
 
 
 class TestProviderErrorHandling:
-    def test_no_provider_treats_branches_as_no_pr(self, tmp_path):
-        """When the SCM provider can't be resolved, children are treated as no-PR."""
+    def test_no_provider_blocks_auto_close(self, tmp_path):
+        """Without an SCM provider the epic branch gate cannot be verified → stay open."""
         # Simulate a project with no repo_url → no provider.
         project = _make_project()
         project.repo_url = ""
@@ -996,13 +1035,14 @@ class TestProviderErrorHandling:
         with patch("oompah.orchestrator.detect_provider", return_value=None):
             closed = orch._epic_auto_close_check(epic)
 
-        # Without a provider we can't verify merges — treat all children
-        # as no-PR (eligible) so we don't strand epics on projects with
-        # missing SCM credentials.
-        assert closed is True
+        # Without a provider we can't verify the epic branch merge — the
+        # epic branch gate requires a confirmed merged PR, so auto-close
+        # is blocked.  This prevents premature closure when SCM credentials
+        # are temporarily missing.
+        assert closed is False
 
-    def test_find_pr_raises_treats_as_no_pr(self, tmp_path):
-        """A throwing provider call is treated as 'no PR found'."""
+    def test_find_pr_raises_blocks_epic_branch_gate(self, tmp_path):
+        """A throwing provider call at the epic branch gate returns False."""
         project = _make_project()
         epic = _make_issue(
             "epic-bp",
@@ -1016,13 +1056,15 @@ class TestProviderErrorHandling:
         tracker = MagicMock()
         tracker.fetch_children.return_value = children
         provider = MagicMock()
+        # Errors during child branch lookups are swallowed (child treated as no-PR).
+        # Errors during the epic branch gate are also swallowed, but the gate
+        # fails closed (returns False) so the epic is not prematurely closed.
         provider.find_pr_for_branch.side_effect = RuntimeError("nope")
 
         orch = _make_orch(tmp_path, project=project, tracker=tracker)
         with patch("oompah.orchestrator.detect_provider", return_value=provider):
             closed = orch._epic_auto_close_check(epic)
 
-        # Defensive: errors are swallowed and the child is treated as
-        # eligible. This keeps a flaky SCM call from blocking epic
-        # closure indefinitely.
-        assert closed is True
+        # Child lookup raised (treated as no-PR → eligible), but then the
+        # epic branch gate also raised → gate returns False → not closed.
+        assert closed is False
