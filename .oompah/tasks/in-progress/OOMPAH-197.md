@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:47.560323Z'
-updated_at: '2026-07-13T22:04:15.590694Z'
+updated_at: '2026-07-13T22:04:30.455230Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -96,5 +96,20 @@ author: oompah
 created: 2026-07-13 22:04
 ---
 Verification: 75 new tests all pass. Full suite: 8438 passed, 28 skipped, 0 failures. Tests cover: cursor round-trip and malformed cursor validation; §2.3 status precedence (all 5 levels) including cherry-pick scenario; git enumeration ordering/merge exclusion/squash inclusion; ref snapshot with remote-fetch success, stale fallback, and no-local-ref error; ancestry batch check; get_page with all filter modes, text search, branch metadata, fabricated-branch rejection, pagination, cursor validation, stale flag, association enrichment, subject-guessing prevention; cache TTL hit/miss, invalidation, cross-project isolation, branch-set keying; thread safety; constructor validation; module singleton.
+---
+author: oompah
+created: 2026-07-13 22:04
+---
+COMPLETION: Delivered oompah/release_delivery_inventory.py + 75 unit tests (all passing, 8438 total green).
+
+Acceptance criteria met:
+✓ Enumerates only non-merge commits reachable from origin/default_branch; squash commits are selectable (single-parent = not a merge)
+✓ Opaque cursors contain source HEAD SHA; SourceChangedError raised when HEAD changes
+✓ §2.3 delivery status precedence: active delivery → merged delivery (with result_commits for cherry-picks) → ancestry → archived → not_selected
+✓ needs_delivery and all-commits filters, text search over SHA/subject/author/association/PR URL, branch subset filtering, MAX_PAGE_LIMIT cap
+✓ 60-second cache per (project_id, frozenset(branches)); invalidate(project_id) and invalidate(None); stale=True label on remote-fetch failure
+✓ Tests cover: ordering, pagination, source-head change, merge/squash behavior, ancestry delivery, ledger delivery (active/merged/archived), cherry-pick result-SHA mapping, no evidence
+✓ Tests cover remote-ref failure/local-ref stale fallback and confirm no fabricated release branch
+✓ No task ownership guessed from commit subjects
 ---
 <!-- COMMENTS:END -->
