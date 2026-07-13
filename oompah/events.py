@@ -69,6 +69,9 @@ class EventType(str, Enum):
     # Forge webhook
     FORGE_WEBHOOK_RECEIVED = "forge_webhook_received"
 
+    # Release addendum queue
+    RELEASE_ADDENDUM_READY = "release_addendum_ready"
+
 
 # Type alias for event handler callables.
 # A handler receives the event type and a payload dict.
