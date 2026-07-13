@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-48
 type: task
-status: Done
+status: In Review
 priority: null
 title: Apply workflow+test assertion for oompah project-bootstrap --help (needs workflow-scoped
   PAT)
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:46:23.693967Z'
-updated_at: '2026-07-13T15:05:54.896983Z'
+updated_at: '2026-07-13T15:52:51.229451Z'
 work_branch: null
 target_branch: null
 review_url: null
