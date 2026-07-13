@@ -7,12 +7,13 @@ title: Standardize epic workflow on shared strategy
 parent: null
 children:
 - OOMPAH-167
+- OOMPAH-168
 blocked_by: []
 labels:
 - draft
 assignee: null
 created_at: '2026-07-13T02:22:52.257643Z'
-updated_at: '2026-07-13T02:23:05.121246Z'
+updated_at: '2026-07-13T02:23:07.530042Z'
 work_branch: null
 target_branch: null
 review_url: null
