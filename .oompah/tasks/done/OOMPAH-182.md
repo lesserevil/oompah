@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-182
 type: task
-status: In Progress
+status: Done
 priority: 2
 title: Add release-branch addendum inspection API and dashboard view
 parent: OOMPAH-172
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:18.950799Z'
-updated_at: '2026-07-13T06:18:40.756822Z'
+updated_at: '2026-07-13T06:18:49.670131Z'
 work_branch: null
 target_branch: null
 review_url: null
