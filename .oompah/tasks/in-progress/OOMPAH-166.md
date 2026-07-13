@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-166
 type: epic
-status: Backlog
+status: In Progress
 priority: 0
 title: Standardize epic workflow on shared strategy
 parent: null
@@ -15,7 +15,7 @@ labels:
 - draft
 assignee: null
 created_at: '2026-07-13T02:22:52.257643Z'
-updated_at: '2026-07-13T02:24:49.421050Z'
+updated_at: '2026-07-13T02:25:41.060208Z'
 work_branch: null
 target_branch: null
 review_url: null
