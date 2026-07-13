@@ -3383,6 +3383,348 @@ def invalidate_release_branch_catalog(project_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# GET /api/v1/projects/{project_id}/release-delivery/commits
+# Commit inventory endpoint (OOMPAH-198)
+# Plan reference: plans/release-delivery-commit-inventory.md section 4.2
+# ---------------------------------------------------------------------------
+
+#: Per-project CommitInventoryService instances, keyed by project_id.
+_commit_inventory_services: dict = {}
+_commit_inventory_services_lock = threading.Lock()
+
+
+def _get_commit_inventory_service(project):
+    """Return (or create) the :class:`~oompah.release_delivery_inventory.CommitInventoryService`
+    for *project*.
+
+    The registry is keyed by ``project.id``.  A new instance is created on
+    first access.  The service caches ref snapshots and commit lists
+    internally; call :func:`invalidate_commit_inventory` to flush the cache.
+
+    Args:
+        project: Project model with ``id``, ``repo_path``, and
+            ``default_branch`` attributes.
+
+    Returns:
+        :class:`~oompah.release_delivery_inventory.CommitInventoryService`
+        instance for *project*.
+    """
+    from oompah.release_delivery_inventory import CommitInventoryService  # noqa: PLC0415
+    from oompah.release_delivery_compat import make_delivery_store  # noqa: PLC0415
+
+    project_id = project.id
+    with _commit_inventory_services_lock:
+        if project_id not in _commit_inventory_services:
+            store = make_delivery_store(project)
+            svc = CommitInventoryService(
+                project_root=project.repo_path,
+                project_id=str(project_id),
+                default_branch=project.default_branch,
+                delivery_store=store,
+            )
+            _commit_inventory_services[project_id] = svc
+        return _commit_inventory_services[project_id]
+
+
+def invalidate_commit_inventory(project_id: str) -> None:
+    """Invalidate the commit inventory snapshot cache for *project_id*.
+
+    Call this after a default-branch or release-branch push webhook and after
+    any delivery lifecycle update (retry, archive, approve) so the next
+    request fetches a fresh ref snapshot.
+
+    Args:
+        project_id: The project whose inventory cache should be dropped.
+    """
+    try:
+        with _commit_inventory_services_lock:
+            svc = _commit_inventory_services.get(project_id)
+        if svc is not None:
+            svc.invalidate(project_id)
+            logger.debug("invalidate_commit_inventory: invalidated cache for %s", project_id)
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning(
+            "invalidate_commit_inventory: failed for %s: %s", project_id, exc
+        )
+
+
+#: Accepted values for the ``filter`` query parameter.
+_VALID_INVENTORY_FILTERS = frozenset({"needs_delivery", "all"})
+
+#: Default page size for the commit inventory endpoint.
+_INVENTORY_DEFAULT_LIMIT = 100
+
+
+@app.get("/api/v1/projects/{project_id}/release-delivery/commits")
+async def api_release_delivery_commits(
+    project_id: str, request: Request
+) -> JSONResponse:
+    """Return a paginated commit inventory for the project's release delivery.
+
+    Enumerates non-merge commits reachable from ``origin/<default_branch>``
+    and returns per-release delivery status for each configured (and
+    requested) release branch.  All Git work runs in
+    ``asyncio.to_thread`` — the async event loop is never blocked.
+
+    Query parameters
+    ----------------
+    branches : str, optional
+        Comma-separated release branch names to include as columns.  Each
+        name must appear in the project's ``supported_release_branches``.
+        Defaults to all configured release branches.
+    filter : str, optional
+        ``"needs_delivery"`` (default) — include only rows where at least one
+        visible branch has a non-delivered, non-archived state.
+        ``"all"`` — include every commit regardless of delivery state.
+    query : str, optional
+        Case-insensitive text search over SHA, subject, author name,
+        association identifier, and PR URL.
+    cursor : str, optional
+        Opaque pagination cursor from a previous response's ``next_cursor``.
+    limit : int, optional
+        Maximum rows per page (1–250, default 100).
+
+    Response
+    --------
+    200
+        Inventory page in the documented shape (see plan section 4.2).
+    400
+        Invalid ``branches``, ``filter``, ``cursor``, or ``limit`` value.
+    404
+        Project not found.
+    409
+        Stale cursor: source HEAD changed since the cursor was issued.
+        The ``error.cursor_head`` and ``error.current_head`` fields show the
+        old and new HEADs; the UI should refresh from page one.
+    503
+        Git or tracker failure with no usable cached result, or project has
+        no configured repository.
+    """
+    try:
+        from oompah.release_delivery_inventory import (  # noqa: PLC0415
+            InventoryError,
+            SourceChangedError,
+        )
+
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+
+        if not project.repo_path:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "no_repo",
+                        "message": (
+                            f"Project {project_id!r} has no configured repository; "
+                            "cannot build commit inventory."
+                        ),
+                    }
+                },
+                status_code=503,
+            )
+
+        # ------------------------------------------------------------------
+        # Parse and validate query parameters
+        # ------------------------------------------------------------------
+        params = request.query_params
+
+        # branches — comma-separated; default to all configured
+        branches_raw = params.get("branches", "").strip()
+        if branches_raw:
+            requested_branches: list[str] = [
+                b.strip() for b in branches_raw.split(",") if b.strip()
+            ]
+        else:
+            requested_branches = list(project.supported_release_branches)
+
+        # Each requested branch must appear in supported_release_branches
+        configured_set = set(project.supported_release_branches)
+        invalid_branches = [b for b in requested_branches if b not in configured_set]
+        if invalid_branches:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_branch",
+                        "message": (
+                            "Branch(es) not in project's supported_release_branches: "
+                            + ", ".join(repr(b) for b in invalid_branches)
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+
+        # filter
+        filter_param = params.get("filter", "needs_delivery").strip()
+        if filter_param not in _VALID_INVENTORY_FILTERS:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_filter",
+                        "message": (
+                            f"Unknown filter {filter_param!r}; "
+                            f"accepted values: {sorted(_VALID_INVENTORY_FILTERS)}"
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+
+        # query — empty string treated as None (no filter)
+        query_param: str | None = params.get("query", "").strip() or None
+
+        # cursor — empty string treated as None (first page)
+        cursor_param: str | None = params.get("cursor", "").strip() or None
+
+        # limit
+        limit_raw = params.get("limit", "").strip()
+        if limit_raw:
+            try:
+                limit_param = int(limit_raw)
+                if limit_param < 1:
+                    raise ValueError("limit must be ≥ 1")
+            except ValueError as exc:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "invalid_limit",
+                            "message": f"Invalid limit {limit_raw!r}: {exc}",
+                        }
+                    },
+                    status_code=400,
+                )
+        else:
+            limit_param = _INVENTORY_DEFAULT_LIMIT
+
+        # ------------------------------------------------------------------
+        # Get or create the per-project inventory service and fetch the page.
+        # All Git work runs in asyncio.to_thread — never on the event loop.
+        # ------------------------------------------------------------------
+        service = _get_commit_inventory_service(project)
+
+        try:
+            page = await asyncio.to_thread(
+                service.get_page,
+                release_branches=requested_branches,
+                cursor=cursor_param,
+                filter=filter_param,
+                query=query_param,
+                limit=limit_param,
+            )
+        except SourceChangedError as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "source_changed",
+                        "message": str(exc),
+                        "cursor_head": exc.cursor_head,
+                        "current_head": exc.current_head,
+                    }
+                },
+                status_code=409,
+            )
+        except ValueError as exc:
+            # Malformed cursor — treat as a client error
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_cursor",
+                        "message": f"Malformed cursor: {exc}",
+                    }
+                },
+                status_code=400,
+            )
+        except InventoryError as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "inventory_unavailable",
+                        "message": (
+                            f"Could not build commit inventory: {exc}  "
+                            "Ensure the project repository is accessible and reachable."
+                        ),
+                    }
+                },
+                status_code=503,
+            )
+
+        # ------------------------------------------------------------------
+        # Serialise the InventoryPage to the documented JSON response shape
+        # ------------------------------------------------------------------
+        rows_json: list[dict] = []
+        for row in page.rows:
+            release_status_json: dict[str, dict] = {}
+            for branch, cell in row.release_status.items():
+                cell_dict: dict = {"state": cell.state}
+                if cell.evidence is not None:
+                    cell_dict["evidence"] = cell.evidence
+                if cell.delivery_id is not None:
+                    cell_dict["delivery_id"] = cell.delivery_id
+                if cell.pr_url is not None:
+                    cell_dict["pr_url"] = cell.pr_url
+                if cell.result_commits:
+                    cell_dict["result_commits"] = list(cell.result_commits)
+                release_status_json[branch] = cell_dict
+
+            rows_json.append(
+                {
+                    "sha": row.sha,
+                    "short_sha": row.short_sha,
+                    "subject": row.subject,
+                    "author_name": row.author_name,
+                    "authored_at": row.authored_at,
+                    "parents": row.parents,
+                    "selectable": row.selectable,
+                    "association": row.association,
+                    "release_status": release_status_json,
+                }
+            )
+
+        response_body: dict = {
+            "project_id": page.project_id,
+            "source_branch": page.source_branch,
+            "source_head": page.source_head,
+            "release_branches": [
+                {
+                    "name": bi.name,
+                    "head": bi.head,
+                    "available": bi.available,
+                    "stale": bi.stale,
+                }
+                for bi in page.release_branches
+            ],
+            "rows": rows_json,
+            "next_cursor": page.next_cursor,
+            "stale": page.stale,
+            "refreshed_at": page.refreshed_at,
+        }
+
+        return JSONResponse(response_body)
+
+    except Exception as exc:
+        logger.error(
+            "release-delivery-commits: unexpected error for %s: %s",
+            project_id,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "internal_error", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end release-delivery commits inventory endpoint)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
 # GET /api/v1/projects/{project_id}/release-branches/{branch_name:path}/addendums
 # Branch inspection endpoint (section 7 of plans/release-branch-addendums.md, OOMPAH-182)
 # ---------------------------------------------------------------------------
@@ -4162,6 +4504,9 @@ def _invalidate_addendum_caches(
     _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
     _api_cache.invalidate("issues:all")
     invalidate_release_branch_catalog(project_id)
+    # Also invalidate the commit inventory snapshot so delivery state changes
+    # (retry, archive, approve) are reflected immediately in the inventory.
+    invalidate_commit_inventory(project_id)
 
 
 @app.post("/api/v1/issues/{identifier}/release-addendums/{addendum_id:path}/retry")
@@ -9621,6 +9966,12 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     if _project_id and event.event_type == "push" and project:
         try:
             invalidate_release_branch_catalog(_project_id)
+        except Exception:  # pragma: no cover — defensive
+            pass
+        # Also invalidate the commit inventory snapshot so the next GET
+        # /release-delivery/commits request fetches fresh ref SHAs.
+        try:
+            invalidate_commit_inventory(_project_id)
         except Exception:  # pragma: no cover — defensive
             pass
 
