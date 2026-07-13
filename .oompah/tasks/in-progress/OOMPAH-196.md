@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:14.875922Z'
-updated_at: '2026-07-13T20:56:01.892251Z'
+updated_at: '2026-07-13T20:56:59.956232Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-07-13 20:56
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 20:56
+---
+Duplicate investigation complete: no duplicate found. OOMPAH-196 is distinct from all siblings. OOMPAH-193 built the ledger store, OOMPAH-194 built the migration and DualReadDeliveryAdapter, OOMPAH-195 is refactoring the queue/executor. OOMPAH-196 specifically covers: (1) task/epic detail reads querying ledger by source_identifier, (2) task/epic approval (POST /api/v1/issues/{id}/release-addendums) writing ledger deliveries instead of task metadata, (3) retry/archive operating on ledger delivery_id, (4) no new oompah.release_addendums metadata written on approval. Proceeding with implementation.
 ---
 <!-- COMMENTS:END -->
