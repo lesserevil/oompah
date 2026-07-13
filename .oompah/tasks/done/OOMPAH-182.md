@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:18.950799Z'
-updated_at: '2026-07-13T06:18:49.670131Z'
+updated_at: '2026-07-13T06:18:54.055308Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,10 @@ Deliverables:
 3. tests/test_server_release_branch_inspection.py: 39 tests covering route safety, grouping/order, unavailable historical branches, source deep links, warning behavior, empty/error UI states, and _compute_untracked_commits unit coverage.
 
 Full suite: 7925 passed, 0 failures. Branch pushed to origin/epic-OOMPAH-172. A maintainer can now select any configured release line in the dashboard and see its queued and delivered work without reading raw task metadata.
+---
+author: oompah
+created: 2026-07-13 06:18
+---
+Implemented GET /api/v1/projects/{project_id}/release-branches/{branch}/addendums (section 7 Branch inspection) with grouping by status, source deep links, execution evidence, and informational untracked_commits warning. Added Release branches dashboard inspector overlay with project/branch selects, loading/error/empty states, grouped addendum rows linking back to source tasks, PR links, Escape-to-close, aria-modal accessibility. 39 new tests cover route safety, grouping, historical branches, source links, warning behavior, and error cases. Full suite 7925 passed.
 ---
 <!-- COMMENTS:END -->
