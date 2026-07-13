@@ -1,0 +1,29 @@
+---
+id: OOMPAH-183
+type: task
+status: Backlog
+priority: 1
+title: Migrate release picks and retire child-backport workflow
+parent: OOMPAH-172
+children: []
+blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-07-13T02:36:21.418119Z'
+updated_at: '2026-07-13T02:36:21.418119Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+---
+## Summary
+
+Read sections 3 and 9 of plans/release-branch-addendums.md. Implement an idempotent migration from oompah.backports and child oompah.backport_of records to source-owned oompah.release_addendums. Apply the documented status mapping, preserve commits/PR URLs/timestamps where available, and archive historical child tasks with an oompah-authored redirect comment. Deploy read support and migration before disabling the old reconciler; then remove child creation, old metadata writes, legacy matrix/apply-all UI, and obsolete routes using the documented 410 compatibility period. Tests: every legacy status mapping; child evidence preservation; rerun safety; mixed migrated/new data; child archive behavior; and no new child task after cutover. Acceptance: existing release picks remain visible and actionable after migration, and new approvals never create child backport tasks.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
