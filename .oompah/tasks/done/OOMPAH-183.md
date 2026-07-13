@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:21.418119Z'
-updated_at: '2026-07-13T06:38:30.918360Z'
+updated_at: '2026-07-13T06:38:33.106590Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -68,5 +68,10 @@ author: oompah
 created: 2026-07-13 06:38
 ---
 Completion: Delivered idempotent release-pick to release-addendum migration (section 9 of plans/release-branch-addendums.md). Not a duplicate of any existing task.\n\nDelivered:\n1. oompah/release_pick_migration.py - complete migration module with status mapping, evidence preservation, child archival, idempotency, and startup integration\n2. oompah/server.py - _migrate_release_picks_on_startup() wired into set_orchestrator(), handles single and multi-project modes\n3. 65 new tests (58 unit + 7 integration) covering all documented acceptance scenarios\n\nThe migration deploys safely alongside existing code: it reads oompah.backports and writes oompah.release_addendums without touching the old reconciler path. Idempotent: safe to rerun on every startup. Child tasks are archived with oompah-authored redirect comments.\n\nRemaining work (removal of old backport_of, child creation, old matrix/apply-all API, child-task UI per section 9 step 5) is gated on blockers OOMPAH-179, OOMPAH-180, OOMPAH-181, OOMPAH-182 which will remove the old paths once new infrastructure is complete.
+---
+author: oompah
+created: 2026-07-13 06:38
+---
+Implemented idempotent migration from oompah.backports to oompah.release_addendums (section 9 of plans/release-branch-addendums.md). All 9 legacy status mappings implemented, commits/PR URLs/timestamps preserved, child tasks archived with redirect comments, startup migration wired into set_orchestrator(). 65 new tests covering all acceptance scenarios. Not a duplicate — unique migration work confirmed by full task graph search.
 ---
 <!-- COMMENTS:END -->
