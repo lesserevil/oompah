@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:44.755827Z'
-updated_at: '2026-07-13T03:22:54.798739Z'
+updated_at: '2026-07-13T03:23:57.442746Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,16 @@ author: oompah
 created: 2026-07-13 03:22
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 03:23
+---
+Understanding: OOMPAH-175 is not a duplicate — no other task covers the ReleaseBranchCatalog or GET /api/v1/projects/{project_id}/release-branches. OOMPAH-173 (schema, Done) and OOMPAH-174 (project config, In Progress) are distinct siblings under the same epic.
+
+Plan:
+1. Implement ReleaseBranchCatalog (oompah/release_branch_catalog.py) with list_candidates(project) using git ls-remote --heads origin, 60s cache, stale fallback via local refs/remotes/origin/*, deleted-branch history from addendums, and cache invalidation interface.
+2. Add GET /api/v1/projects/{project_id}/release-branches endpoint in server.py returning {project_id, source_branch, branches: [{name, available, stale}], refreshed_at} with 503 on first-load failure.
+3. Wire invalidation to tracked-branch push webhooks and successful addendum merges.
+4. Tests: filtering, configured order, stale fallback, first-load 503, cache expiry/invalidation, deleted-branch history.
 ---
 <!-- COMMENTS:END -->
