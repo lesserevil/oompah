@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-181
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Build epic release-addendum approval and snapshot UI
 parent: OOMPAH-172
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:15.200697Z'
-updated_at: '2026-07-13T02:54:58.232783Z'
+updated_at: '2026-07-13T05:38:01.860394Z'
 work_branch: null
 target_branch: null
 review_url: null
