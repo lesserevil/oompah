@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-196
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Provide task and epic release-addendum compatibility over the ledger
 parent: OOMPAH-192
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:14.875922Z'
-updated_at: '2026-07-13T21:48:43.370203Z'
+updated_at: '2026-07-13T21:48:52.645423Z'
 work_branch: null
 target_branch: null
 review_url: null
