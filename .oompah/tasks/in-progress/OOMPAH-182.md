@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:18.950799Z'
-updated_at: '2026-07-13T06:01:46.368757Z'
+updated_at: '2026-07-13T06:03:10.147915Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-07-13 06:01
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 06:03
+---
+Understanding: OOMPAH-182 is NOT a duplicate. Searched all tasks under the OOMPAH-172 epic. OOMPAH-175 covers the release-branch catalog endpoint (GET /api/v1/projects/{id}/release-branches), OOMPAH-176 covers the approval POST endpoint, OOMPAH-180 covers the task-detail UI, OOMPAH-181 covers the epic-detail UI. OOMPAH-182 is uniquely scoped to: (1) GET /api/v1/projects/{project_id}/release-branches/{encoded_branch}/addendums — returns all source tasks/epics with addendums for a branch, grouped by status; (2) a Release branches dashboard view; (3) untracked_commits warning for direct target-branch commits. No other task covers this endpoint or view. Proceeding with implementation. Blocker OOMPAH-179 (PR reconciliation) is not yet done, but the branch inspection endpoint only reads from AddendumRepository (OOMPAH-173, Done) and the git log, which are already available.
 ---
 <!-- COMMENTS:END -->
