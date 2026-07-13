@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:43.705145Z'
-updated_at: '2026-07-13T20:55:32.253114Z'
+updated_at: '2026-07-13T20:55:34.981956Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -104,5 +104,10 @@ COMPLETION: Delivered 4 new/extended modules + 58 tests (all green, 8315 total).
 - release_delivery_poller.py: poll_delivery_pr() — merged→MERGED+completed_at, closed→error field (retry-able), race-safe
 
 All acceptance criteria met. Branch pushed, task ready to close.
+---
+author: oompah
+created: 2026-07-13 20:55
+---
+Delivered release delivery queue (ReleaseDeliveryQueue, delivery_id keyed), executor (cherry_pick_delivery with target availability check, source_commits ordering, result SHA persistence), and poller (poll_delivery_pr for merged/closed-unmerged reconciliation). All state written through ReleaseDeliveryStore. 58 new tests cover restart recovery, expired lease, multi-commit ordering, result-SHA persistence, retry, archive, and unavailable-target refusal. 8315/8315 tests pass.
 ---
 <!-- COMMENTS:END -->
