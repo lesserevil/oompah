@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:11:02.984832Z'
-updated_at: '2026-07-13T15:06:05.451868Z'
+updated_at: '2026-07-13T15:06:07.843792Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -91,5 +91,10 @@ author: oompah
 created: 2026-07-13 15:05
 ---
 COMPLETION: Confirmed OOMPAH-46 is NOT a duplicate of OOMPAH-43 (which was Archived, not Done — it was blocked by PAT scope). Implemented the two exact changes specified in the issue description: (1) .github/workflows/cli-release.yml: description changed from 'e.g. v0.1.0' to 'e.g. v1.0.0-draft or v1.0.0'. (2) tests/test_cli_release_packaging.py: added test_release_workflow_dispatch_description_shows_v1_examples before test_release_workflow_is_tag_or_manual_github_release_only. All 12 tests in the packaging test file pass; full suite: 7994 passed. Pushed using BD_OOMPAH_TOKEN (lesserevil account with workflow scope). Branch OOMPAH-46 is up to date with origin.
+---
+author: oompah
+created: 2026-07-13 15:06
+---
+Updated .github/workflows/cli-release.yml dispatch description to 'e.g. v1.0.0-draft or v1.0.0' and added test_release_workflow_dispatch_description_shows_v1_examples test. Pushed on branch OOMPAH-46 using lesserevil+workflow-scope token. All tests pass.
 ---
 <!-- COMMENTS:END -->
