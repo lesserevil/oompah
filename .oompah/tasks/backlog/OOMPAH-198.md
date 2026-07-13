@@ -6,11 +6,12 @@ priority: 2
 title: Expose the read-only release delivery inventory API
 parent: OOMPAH-192
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-197
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:50.653200Z'
-updated_at: '2026-07-13T19:32:50.653200Z'
+updated_at: '2026-07-13T19:34:18.843526Z'
 work_branch: null
 target_branch: null
 review_url: null
