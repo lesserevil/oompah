@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-203
 type: bug
-status: Backlog
+status: Done
 priority: 1
 title: Prevent auto-update restarts after native tracker writes
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T19:58:10.079940Z'
-updated_at: '2026-07-13T20:00:12.518608Z'
+updated_at: '2026-07-13T20:02:32.416214Z'
 work_branch: null
 target_branch: null
 review_url: null
