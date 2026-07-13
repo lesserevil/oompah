@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-44
 type: task
-status: Open
+status: Archived
 priority: null
 title: Push ci.yml release/* trigger update (requires workflow scope)
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:10:46.422112Z'
-updated_at: '2026-07-13T14:44:43.724038Z'
+updated_at: '2026-07-13T20:45:23.912595Z'
 work_branch: null
 target_branch: null
 review_url: null
