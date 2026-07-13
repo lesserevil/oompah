@@ -20,11 +20,10 @@ children:
 - OOMPAH-184
 - OOMPAH-185
 blocked_by: []
-labels:
-- draft
+labels: []
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T02:37:57.798758Z'
+updated_at: '2026-07-13T02:38:39.181064Z'
 work_branch: null
 target_branch: null
 review_url: null
