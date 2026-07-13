@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:53.860350Z'
-updated_at: '2026-07-13T22:34:56.468063Z'
+updated_at: '2026-07-13T22:34:58.693250Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -81,5 +81,10 @@ author: oompah
 created: 2026-07-13 22:34
 ---
 Completion: Implemented POST /api/v1/projects/{project_id}/release-delivery/commits (section 4.2 POST contract). Delivery: (1) Idempotency-Key header required, in-memory replay store prevents duplicate writes on replay; (2) Full payload validation — source_head, commits (full SHAs), target_branches; (3) Server-side git revalidation in asyncio.to_thread — source HEAD snapshot comparison (409 on mismatch), per-commit reachability + non-merge checks, branch availability; (4) Atomic ledger append under _delivery_lock with all new delivery bundles in one write; (5) RELEASE_ADDENDUM_READY events emitted after persistence; (6) Per-pair outcomes: created, already_active, already_delivered, invalid; (7) All deliveries use source_kind=commits (never creates ordinary tasks); (8) 46 new server tests added to test_server_release_delivery_commits.py plus bulk_append/read_all_by_target_branch added to ReleaseDeliveryStore.
+---
+author: oompah
+created: 2026-07-13 22:34
+---
+Implemented POST /api/v1/projects/{project_id}/release-delivery/commits with idempotency, server-side git validation, atomic ledger writes, per-pair outcomes, and queue wake-up. 46 new tests added; all 8533 tests pass.
 ---
 <!-- COMMENTS:END -->
