@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:12.785814Z'
-updated_at: '2026-07-13T05:04:29.155924Z'
+updated_at: '2026-07-13T05:04:31.399774Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,5 +70,10 @@ author: oompah
 created: 2026-07-13 05:04
 ---
 COMPLETION: Delivered all documentation updates for OOMPAH-170. (1) docs/task-epic-workflow.md now describes only the shared epic workflow — flat/stacked removed from table, diagram, and all prose; (2) docs/README.md updated; (3) plans/multi-branch-support.md test annotation updated; (4) tests/test_epic_strategy.py docstring updated; (5) 3 new regression tests added to test_agent_instructions.py ensuring generated guidance and the workflow doc remain stale-reference-free. All 7251 tests green.
+---
+author: oompah
+created: 2026-07-13 05:04
+---
+Updated all epic workflow documentation to describe only the shared workflow. Removed flat/stacked from docs/task-epic-workflow.md table, diagram, and prose. Updated docs/README.md, plans/multi-branch-support.md annotation, test_epic_strategy.py docstring. Added 3 new tests in test_agent_instructions.py verifying generated guidance and workflow doc contain no stale strategy references. All 7251 tests green.
 ---
 <!-- COMMENTS:END -->
