@@ -6397,6 +6397,26 @@ async def api_create_project(request: Request):
                 if cleaned and key not in seen_status_logins:
                     status_label_authorized_logins.append(cleaned)
                     seen_status_logins.add(key)
+        # supported_release_branches: optional list of exact branch names.
+        # Validation (nonempty, unique, not default_branch, matches branches)
+        # is delegated to ProjectStore.create() via _validate_supported_release_branches.
+        supported_release_branches_raw = body.get("supported_release_branches")
+        supported_release_branches_create: list[str] | None = None
+        if supported_release_branches_raw is not None:
+            if not (
+                isinstance(supported_release_branches_raw, list)
+                and all(isinstance(x, str) for x in supported_release_branches_raw)
+            ):
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "supported_release_branches must be a list of strings or null",
+                        }
+                    },
+                    status_code=400,
+                )
+            supported_release_branches_create = supported_release_branches_raw
         project = orch.project_store.create(
             repo_url=repo_url,
             name=name,
@@ -6413,6 +6433,7 @@ async def api_create_project(request: Request):
             github_project_node_id=github_project_node_id,
             status_actor_login=status_actor_login,
             status_label_authorized_logins=status_label_authorized_logins,
+            supported_release_branches=supported_release_branches_create,
             paused=True,
         )
         # Sync log watchers in case the new project has a log_path
@@ -6685,6 +6706,22 @@ async def api_update_project(project_id: str, request: Request):
                         "error": {
                             "code": "validation",
                             "message": "github_issue_intake_enabled must be a boolean",
+                        }
+                    },
+                    status_code=400,
+                )
+        if "supported_release_branches" in body:
+            val = body["supported_release_branches"]
+            if val is None:
+                fields["supported_release_branches"] = []
+            elif isinstance(val, list) and all(isinstance(x, str) for x in val):
+                fields["supported_release_branches"] = val
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "supported_release_branches must be a list of strings or null",
                         }
                     },
                     status_code=400,
