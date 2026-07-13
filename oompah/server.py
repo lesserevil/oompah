@@ -3797,7 +3797,6 @@ async def api_approve_release_addendums(identifier: str, request: Request):
         from oompah.release_addendum_approval import (
             CommitResolutionError,
             InvalidTargetBranchError,
-            approve_release_addendums,
             resolve_addendum_commits,
             resolve_epic_addendum_commits,
             validate_target_branches,
@@ -3900,7 +3899,7 @@ async def api_approve_release_addendums(identifier: str, request: Request):
             )
 
         # ------------------------------------------------------------------
-        # 6. Under per-source lock: create missing addendums, write atomically
+        # 6. Under per-source lock: create missing ledger deliveries atomically
         # 7. Publish release_addendum_ready events
         # ------------------------------------------------------------------
         event_bus = None
@@ -3909,8 +3908,35 @@ async def api_approve_release_addendums(identifier: str, request: Request):
         except Exception:
             pass
 
-        result = await approve_release_addendums(
-            tracker,
+        from oompah.release_delivery_compat import (
+            approve_release_addendums_via_ledger,
+            delivery_to_compat_raw,
+            make_delivery_adapter,
+            make_delivery_store,
+        )
+
+        # Require a repo_path for ledger writes — all managed projects have one.
+        repo_path = getattr(project, "repo_path", None)
+        if not repo_path:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "ledger_unavailable",
+                        "message": (
+                            f"Project {project_id!r} has no repo_path; "
+                            "cannot write to the release delivery ledger"
+                        ),
+                    }
+                },
+                status_code=503,
+            )
+
+        store = make_delivery_store(project, git_writer=tracker)
+        adapter = make_delivery_adapter(project, tracker)
+
+        result = await approve_release_addendums_via_ledger(
+            store,
+            adapter,
             issue,
             project,
             deduped_targets,
@@ -3925,7 +3951,21 @@ async def api_approve_release_addendums(identifier: str, request: Request):
         _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
         invalidate_release_branch_catalog(project_id)
 
-        addendums_raw = [a.to_raw() for a in result.addendums]
+        # For epic approvals, newly-created deliveries carry the list of
+        # included child task identifiers so the UI can display them.
+        # Pre-existing and legacy deliveries are not annotated.
+        newly_created_set = set(result.newly_created_ids)
+        addendums_raw = [
+            delivery_to_compat_raw(
+                d,
+                included_child_ids=(
+                    included_child_ids
+                    if (is_epic and d.id in newly_created_set)
+                    else None
+                ),
+            )
+            for d in result.deliveries
+        ]
         response_body: dict = {
             "identifier": resolved_identifier,
             "addendums": addendums_raw,
@@ -3962,20 +4002,31 @@ async def api_approve_release_addendums(identifier: str, request: Request):
 async def api_get_release_addendums(identifier: str, request: Request):
     """Return the release-addendum list for a task or epic.
 
-    Reads ``oompah.release_addendums`` frontmatter from the task identified
-    by *identifier* and returns a dict with:
+    Returns a dict with:
 
     * ``identifier`` — the resolved task identifier.
-    * ``addendums`` — list of addendum objects (full ``to_raw()`` dicts),
-      each containing ``id``, ``target_branch``, ``status``, ``pr_url``,
-      ``error``, ``queued_at``, ``started_at``, ``completed_at``,
-      ``work_branch``, ``commits``, and ``result_commits``.
+    * ``addendums`` — list of delivery objects in the backward-compatible
+      addendum shape.  Each entry contains ``id``, ``target_branch``,
+      ``status``, ``pr_url``, ``error``, ``queued_at``, ``started_at``,
+      ``completed_at``, ``work_branch``, ``commits``, ``result_commits``,
+      and additional ledger fields (``delivery_id``, ``source_kind``,
+      ``source_identifier``, ``pr_number``, ``migrated_from``).
 
-    Returns an empty list when no addendums have been created yet.
+    Reads from the project-owned delivery ledger via
+    :class:`~oompah.release_delivery_adapter.DualReadDeliveryAdapter` so
+    that historical (pre-migration) and new deliveries are both shown.
+    Falls back to reading ``oompah.release_addendums`` task metadata directly
+    when the project has no ``repo_path`` (pre-ledger projects).
+
+    Returns an empty list when no deliveries have been created yet.
     Accepts an optional ``project_id`` query parameter to narrow lookup.
     """
     try:
-        from oompah.release_addendum_schema import AddendumRepository
+        from oompah.release_delivery_compat import (
+            delivery_to_compat_raw,
+            make_delivery_adapter,
+            make_delivery_store,
+        )
 
         orch = _get_orchestrator()
         project_id = request.query_params.get("project_id")
@@ -3993,6 +4044,51 @@ async def api_get_release_addendums(identifier: str, request: Request):
                 },
                 status_code=404,
             )
+
+        # Try ledger-backed dual-read adapter first.
+        effective_project_id = resolved_project_id or project_id
+        project = None
+        if effective_project_id:
+            try:
+                project = orch.project_store.get(effective_project_id)
+            except Exception:
+                pass
+
+        if project is not None and getattr(project, "repo_path", None):
+            try:
+                adapter = make_delivery_adapter(project, tracker)
+                store = make_delivery_store(project)
+                # Ledger-backed deliveries (real records written to the YAML ledger)
+                ledger_deliveries = store.lookup_by_source_identifier(issue.identifier)
+                migrated_from_set: set[str] = {
+                    d.migrated_from
+                    for d in ledger_deliveries
+                    if d.migrated_from
+                }
+                # Legacy addendums not yet migrated — served in their original format
+                # so that fields like ``included_child_ids`` are preserved faithfully.
+                legacy_addendums = adapter._fetch_legacy_addendums(issue.identifier)  # noqa: SLF001
+                addendums_raw: list[dict] = [
+                    delivery_to_compat_raw(d) for d in ledger_deliveries
+                ]
+                for a in legacy_addendums:
+                    if a.id not in migrated_from_set:
+                        addendums_raw.append(a.to_raw())
+                return JSONResponse(
+                    {
+                        "identifier": issue.identifier,
+                        "addendums": addendums_raw,
+                    }
+                )
+            except Exception as ledger_exc:
+                logger.warning(
+                    "release-addendums GET: ledger read failed for %s: %s — falling back to legacy",
+                    issue.identifier,
+                    ledger_exc,
+                )
+
+        # Legacy fallback: read oompah.release_addendums task metadata directly.
+        from oompah.release_addendum_schema import AddendumRepository
         repo = AddendumRepository(tracker)
         addendums = repo.read(issue.identifier)
         return JSONResponse(
@@ -4074,11 +4170,17 @@ async def api_retry_release_addendum(
     addendum_id: str,
     request: Request,
 ) -> JSONResponse:
-    """Retry a blocked or closed-unmerged in_review release addendum.
+    """Retry a blocked or closed-unmerged in_review release addendum or ledger delivery.
 
-    Transitions the addendum from ``blocked`` or ``in_review`` (with a
+    Transitions the delivery from ``blocked`` or ``in_review`` (with a
     closed-unmerged PR) to ``open``, preserving the immutable commit snapshot.
-    The addendum is re-queued for cherry-pick and PR creation.
+    The delivery is re-queued for cherry-pick and PR creation.
+
+    Looks up *addendum_id* in the project-owned release delivery ledger first.
+    If found there, the ledger record is updated and the queue is woken via a
+    ``release_addendum_ready`` event.  If not found in the ledger, falls back
+    to the legacy ``oompah.release_addendums`` task-metadata path (compatibility
+    shim during the migration window).
 
     **Request body** (JSON object)::
 
@@ -4090,16 +4192,28 @@ async def api_retry_release_addendum(
 
         {
             "identifier": "FOO-10",
-            "addendum_id": "FOO-10/release/1.0",
+            "addendum_id": "rd_...",
             "addendums": [...]
         }
 
     **Error responses**:
 
     - ``400`` — missing ``project_id``.
-    - ``404`` — project, issue, or addendum not found.
+    - ``404`` — project, issue, or delivery not found.
     - ``409`` — invalid transition (e.g. already open, merged, or archived).
     """
+    from oompah.release_addendum_schema import (
+        AddendumStatus,
+        InvalidTransitionError,
+    )
+    from oompah.release_delivery_compat import (
+        delivery_to_compat_raw,
+        make_delivery_adapter,
+        make_delivery_store,
+        retry_ledger_delivery,
+    )
+    from oompah.release_delivery_store import DeliveryNotFoundError, LedgerParseError
+
     try:
         # 1. Parse body
         try:
@@ -4125,9 +4239,121 @@ async def api_retry_release_addendum(
         resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
         orch = _get_orchestrator()
 
-        # 2. Load addendum
+        # 2. Resolve issue and project.
+        tracker, resolved_project_id, issue = _find_tracker_for_issue(
+            orch, resolved_identifier, project_id
+        )
+        if tracker is None or issue is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"issue {resolved_identifier!r} not found"}},
+                status_code=404,
+            )
+
+        effective_project_id = resolved_project_id or project_id
+        project = None
+        if effective_project_id:
+            try:
+                project = orch.project_store.get(effective_project_id)
+            except Exception:
+                pass
+
+        # 3a. Ledger path: look up delivery by ID in the ledger.
+        if project is not None and getattr(project, "repo_path", None):
+            store = None
+            try:
+                store = make_delivery_store(project, git_writer=tracker)
+                delivery = store.lookup_by_id(addendum_id)
+            except (ValueError, LedgerParseError) as ledger_exc:
+                logger.debug(
+                    "api_retry: ledger lookup failed for %s: %s", addendum_id, ledger_exc
+                )
+                delivery = None
+                store = None
+
+            if delivery is not None and store is not None:
+                # Validate: only blocked or in_review may be retried.
+                if delivery.status not in {AddendumStatus.BLOCKED, AddendumStatus.IN_REVIEW}:
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "invalid_transition",
+                                "message": (
+                                    f"Cannot retry delivery {addendum_id!r}: "
+                                    f"current status is {delivery.status.value!r}. "
+                                    f"Retry is only valid from 'blocked' or 'in_review' (closed-unmerged)."
+                                ),
+                            }
+                        },
+                        status_code=409,
+                    )
+                try:
+                    updated = retry_ledger_delivery(store, addendum_id)
+                except InvalidTransitionError as exc:
+                    return JSONResponse(
+                        {"error": {"code": "invalid_transition", "message": str(exc)}},
+                        status_code=409,
+                    )
+                except DeliveryNotFoundError as exc:
+                    return JSONResponse(
+                        {"error": {"code": "not_found", "message": str(exc)}},
+                        status_code=404,
+                    )
+
+                # Post comment on source task.
+                try:
+                    pr_clause = f"\nPR: {delivery.pr_url}" if delivery.pr_url else ""
+                    tracker.add_comment(
+                        issue.identifier,
+                        (
+                            f"🔁 Release delivery for `{delivery.target_branch}` "
+                            f"retried — status changed from "
+                            f"`{delivery.status.value}` to `open`.{pr_clause}\n\n"
+                            f"Branch: `{delivery.target_branch}`"
+                        ),
+                        author="oompah",
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "api_retry: failed to post comment on %s: %s",
+                        issue.identifier, exc,
+                    )
+
+                # Publish wake-up event.
+                try:
+                    event_bus = getattr(orch, "event_bus", None)
+                    if event_bus is not None:
+                        from oompah.events import EventType
+                        event_bus.emit(
+                            EventType.RELEASE_ADDENDUM_READY,
+                            {
+                                "delivery_id": addendum_id,
+                                "project_id": effective_project_id,
+                                "source_identifier": issue.identifier,
+                            },
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug(
+                        "api_retry: event emit failed (non-fatal): %s", exc
+                    )
+
+                # Read back full list via adapter and invalidate caches.
+                adapter = make_delivery_adapter(project, tracker)
+                deliveries = adapter.list_deliveries_for_source(issue.identifier)
+                _invalidate_addendum_caches(effective_project_id, resolved_identifier)
+
+                return JSONResponse(
+                    {
+                        "identifier": issue.identifier,
+                        "addendum_id": addendum_id,
+                        "addendums": [delivery_to_compat_raw(d) for d in deliveries],
+                    }
+                )
+
+        # 3b. Legacy shim: fall back to oompah.release_addendums task metadata.
+        from oompah.release_addendum_schema import AddendumRepository
+
         try:
-            tracker, resolved_project_id, issue, addendums, target_addendum = (
+            tracker_leg, resolved_project_id_leg, issue_leg, addendums, target_addendum = (
                 _load_addendum_for_control(orch, project_id, resolved_identifier, addendum_id)
             )
         except KeyError as exc:
@@ -4136,17 +4362,7 @@ async def api_retry_release_addendum(
                 status_code=404,
             )
 
-        # 3. Validate and apply transition (blocked → open  or  in_review → open)
-        from oompah.release_addendum_schema import (
-            AddendumRepository,
-            AddendumStatus,
-            InvalidTransitionError,
-        )
-
-        if target_addendum.status not in {
-            AddendumStatus.BLOCKED,
-            AddendumStatus.IN_REVIEW,
-        }:
+        if target_addendum.status not in {AddendumStatus.BLOCKED, AddendumStatus.IN_REVIEW}:
             return JSONResponse(
                 {
                     "error": {
@@ -4162,34 +4378,25 @@ async def api_retry_release_addendum(
             )
 
         try:
-            repo = AddendumRepository(tracker)
+            repo = AddendumRepository(tracker_leg)
             updated_list = repo.transition(
-                issue.identifier,
+                issue_leg.identifier,
                 target_addendum.id,
                 AddendumStatus.OPEN,
-                # Clear execution-lease fields; commits are immutable and preserved
                 claimed_by=None,
                 lease_expires_at=None,
                 error=None,
             )
         except InvalidTransitionError as exc:
             return JSONResponse(
-                {
-                    "error": {
-                        "code": "invalid_transition",
-                        "message": str(exc),
-                    }
-                },
+                {"error": {"code": "invalid_transition", "message": str(exc)}},
                 status_code=409,
             )
 
-        # 4. Post oompah comment on source task
         try:
-            pr_clause = (
-                f"\nPR: {target_addendum.pr_url}" if target_addendum.pr_url else ""
-            )
-            tracker.add_comment(
-                issue.identifier,
+            pr_clause = f"\nPR: {target_addendum.pr_url}" if target_addendum.pr_url else ""
+            tracker_leg.add_comment(
+                issue_leg.identifier,
                 (
                     f"🔁 Release addendum for `{target_addendum.target_branch}` "
                     f"retried — status changed from "
@@ -4201,34 +4408,34 @@ async def api_retry_release_addendum(
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "api_retry_release_addendum: failed to post comment on %s: %s",
-                issue.identifier,
+                issue_leg.identifier,
                 exc,
             )
 
-        # 5. Publish wake-up event so the queue picks it up immediately
         try:
             event_bus = getattr(orch, "event_bus", None)
             if event_bus is not None:
                 from oompah.events import EventType
-                event_bus.publish(
+                event_bus.emit(
                     EventType.RELEASE_ADDENDUM_READY,
                     {
-                        "project_id": resolved_project_id,
-                        "source_identifier": issue.identifier,
+                        "project_id": resolved_project_id_leg or project_id,
+                        "source_identifier": issue_leg.identifier,
                         "target_branch": target_addendum.target_branch,
                     },
                 )
         except Exception as exc:  # noqa: BLE001
             logger.debug(
-                "api_retry_release_addendum: event publish failed (non-fatal): %s", exc
+                "api_retry_release_addendum: event emit failed (non-fatal): %s", exc
             )
 
-        # 6. Invalidate caches
-        _invalidate_addendum_caches(resolved_project_id or project_id, resolved_identifier)
+        _invalidate_addendum_caches(
+            resolved_project_id_leg or project_id, resolved_identifier
+        )
 
         return JSONResponse(
             {
-                "identifier": issue.identifier,
+                "identifier": issue_leg.identifier,
                 "addendum_id": addendum_id,
                 "addendums": [a.to_raw() for a in updated_list],
             }
@@ -4254,10 +4461,15 @@ async def api_archive_release_addendum(
     addendum_id: str,
     request: Request,
 ) -> JSONResponse:
-    """Archive an open or blocked release addendum.
+    """Archive an open or blocked release addendum or ledger delivery.
 
-    Transitions the addendum from ``open`` or ``blocked`` to ``archived``.
-    This permanently cancels the addendum; it will not be re-queued.
+    Transitions the delivery from ``open`` or ``blocked`` to ``archived``.
+    This permanently cancels the delivery; it will not be re-queued.
+
+    Looks up *addendum_id* in the project-owned release delivery ledger first.
+    If found there, the ledger record is updated.  If not found in the ledger,
+    falls back to the legacy ``oompah.release_addendums`` task-metadata path
+    (compatibility shim during the migration window).
 
     **Request body** (JSON object)::
 
@@ -4269,16 +4481,28 @@ async def api_archive_release_addendum(
 
         {
             "identifier": "FOO-10",
-            "addendum_id": "FOO-10/release/1.0",
+            "addendum_id": "rd_...",
             "addendums": [...]
         }
 
     **Error responses**:
 
     - ``400`` — missing ``project_id``.
-    - ``404`` — project, issue, or addendum not found.
+    - ``404`` — project, issue, or delivery not found.
     - ``409`` — invalid transition (e.g. in_review, in_progress, merged, or already archived).
     """
+    from oompah.release_addendum_schema import (
+        AddendumStatus,
+        InvalidTransitionError,
+    )
+    from oompah.release_delivery_compat import (
+        archive_ledger_delivery,
+        delivery_to_compat_raw,
+        make_delivery_adapter,
+        make_delivery_store,
+    )
+    from oompah.release_delivery_store import DeliveryNotFoundError, LedgerParseError
+
     try:
         # 1. Parse body
         try:
@@ -4304,9 +4528,102 @@ async def api_archive_release_addendum(
         resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
         orch = _get_orchestrator()
 
-        # 2. Load addendum
+        # 2. Resolve issue and project.
+        tracker, resolved_project_id, issue = _find_tracker_for_issue(
+            orch, resolved_identifier, project_id
+        )
+        if tracker is None or issue is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"issue {resolved_identifier!r} not found"}},
+                status_code=404,
+            )
+
+        effective_project_id = resolved_project_id or project_id
+        project = None
+        if effective_project_id:
+            try:
+                project = orch.project_store.get(effective_project_id)
+            except Exception:
+                pass
+
+        # 3a. Ledger path: look up delivery by ID in the ledger.
+        if project is not None and getattr(project, "repo_path", None):
+            store = None
+            try:
+                store = make_delivery_store(project, git_writer=tracker)
+                delivery = store.lookup_by_id(addendum_id)
+            except (ValueError, LedgerParseError) as ledger_exc:
+                logger.debug(
+                    "api_archive: ledger lookup failed for %s: %s", addendum_id, ledger_exc
+                )
+                delivery = None
+                store = None
+
+            if delivery is not None and store is not None:
+                # Validate: only open or blocked may be archived.
+                if delivery.status not in {AddendumStatus.OPEN, AddendumStatus.BLOCKED}:
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "invalid_transition",
+                                "message": (
+                                    f"Cannot archive delivery {addendum_id!r}: "
+                                    f"current status is {delivery.status.value!r}. "
+                                    f"Archive is only valid from 'open' or 'blocked'."
+                                ),
+                            }
+                        },
+                        status_code=409,
+                    )
+                try:
+                    archive_ledger_delivery(store, addendum_id)
+                except InvalidTransitionError as exc:
+                    return JSONResponse(
+                        {"error": {"code": "invalid_transition", "message": str(exc)}},
+                        status_code=409,
+                    )
+                except DeliveryNotFoundError as exc:
+                    return JSONResponse(
+                        {"error": {"code": "not_found", "message": str(exc)}},
+                        status_code=404,
+                    )
+
+                # Post comment on source task.
+                try:
+                    tracker.add_comment(
+                        issue.identifier,
+                        (
+                            f"🗄️ Release delivery for `{delivery.target_branch}` "
+                            f"archived — status changed from "
+                            f"`{delivery.status.value}` to `archived`.\n\n"
+                            f"Branch: `{delivery.target_branch}`"
+                        ),
+                        author="oompah",
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "api_archive: failed to post comment on %s: %s",
+                        issue.identifier, exc,
+                    )
+
+                # Read back full list via adapter and invalidate caches.
+                adapter = make_delivery_adapter(project, tracker)
+                deliveries = adapter.list_deliveries_for_source(issue.identifier)
+                _invalidate_addendum_caches(effective_project_id, resolved_identifier)
+
+                return JSONResponse(
+                    {
+                        "identifier": issue.identifier,
+                        "addendum_id": addendum_id,
+                        "addendums": [delivery_to_compat_raw(d) for d in deliveries],
+                    }
+                )
+
+        # 3b. Legacy shim: fall back to oompah.release_addendums task metadata.
+        from oompah.release_addendum_schema import AddendumRepository
+
         try:
-            tracker, resolved_project_id, issue, addendums, target_addendum = (
+            tracker_leg, resolved_project_id_leg, issue_leg, addendums, target_addendum = (
                 _load_addendum_for_control(orch, project_id, resolved_identifier, addendum_id)
             )
         except KeyError as exc:
@@ -4315,17 +4632,7 @@ async def api_archive_release_addendum(
                 status_code=404,
             )
 
-        # 3. Validate and apply transition (open → archived  or  blocked → archived)
-        from oompah.release_addendum_schema import (
-            AddendumRepository,
-            AddendumStatus,
-            InvalidTransitionError,
-        )
-
-        if target_addendum.status not in {
-            AddendumStatus.OPEN,
-            AddendumStatus.BLOCKED,
-        }:
+        if target_addendum.status not in {AddendumStatus.OPEN, AddendumStatus.BLOCKED}:
             return JSONResponse(
                 {
                     "error": {
@@ -4341,27 +4648,21 @@ async def api_archive_release_addendum(
             )
 
         try:
-            repo = AddendumRepository(tracker)
+            repo = AddendumRepository(tracker_leg)
             updated_list = repo.transition(
-                issue.identifier,
+                issue_leg.identifier,
                 target_addendum.id,
                 AddendumStatus.ARCHIVED,
             )
         except InvalidTransitionError as exc:
             return JSONResponse(
-                {
-                    "error": {
-                        "code": "invalid_transition",
-                        "message": str(exc),
-                    }
-                },
+                {"error": {"code": "invalid_transition", "message": str(exc)}},
                 status_code=409,
             )
 
-        # 4. Post oompah comment on source task
         try:
-            tracker.add_comment(
-                issue.identifier,
+            tracker_leg.add_comment(
+                issue_leg.identifier,
                 (
                     f"🗄️ Release addendum for `{target_addendum.target_branch}` "
                     f"archived — status changed from "
@@ -4373,16 +4674,17 @@ async def api_archive_release_addendum(
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "api_archive_release_addendum: failed to post comment on %s: %s",
-                issue.identifier,
+                issue_leg.identifier,
                 exc,
             )
 
-        # 5. Invalidate caches
-        _invalidate_addendum_caches(resolved_project_id or project_id, resolved_identifier)
+        _invalidate_addendum_caches(
+            resolved_project_id_leg or project_id, resolved_identifier
+        )
 
         return JSONResponse(
             {
-                "identifier": issue.identifier,
+                "identifier": issue_leg.identifier,
                 "addendum_id": addendum_id,
                 "addendums": [a.to_raw() for a in updated_list],
             }
