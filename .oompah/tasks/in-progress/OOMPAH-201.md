@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:59.843679Z'
-updated_at: '2026-07-13T22:54:09.334610Z'
+updated_at: '2026-07-13T22:56:44.435108Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-07-13 22:54
 ---
 Understanding: OOMPAH-201 is NOT a duplicate. Searched all related tasks (OOMPAH-182 added the old branch-inspection API that this task will deprecate; OOMPAH-184 documented the old addendum workflow; OOMPAH-185 archived as duplicate of OOMPAH-184; OOMPAH-200 replaces the UI overlay). No other task covers: (1) documenting the new Release delivery commit inventory workflow in the four target doc files, or (2) making GET /release-branches/{branch}/addendums return a deprecation/410 response. Dependencies OOMPAH-196 (task/epic compat) and OOMPAH-200 (UI overlay replacement) are Done and In-Progress respectively. Proceeding with implementation of: docs updates (docs/release-addendums.md, managed-project-onboarding.md, operator-runbook.md, task-epic-workflow.md), legacy endpoint deprecation (initially compatibility response, then 410), and endpoint tests.
+---
+author: oompah
+created: 2026-07-13 22:56
+---
+Discovery: Found all relevant code and docs. Key findings:\n1. dashboard.html already updated by OOMPAH-200 — 'Release delivery' button replaces old 'Release branches' button. No stale UI references remain in the template.\n2. docs/release-addendums.md: 'Inspect a release line' section still refers to old 'Release branches' view and GET /release-branches/{branch}/addendums.\n3. docs/task-epic-workflow.md L53: still says 'branch inspection' — needs update.\n4. docs/operator-runbook.md L83: says 'inspection' referring to old endpoint — needs update.\n5. docs/managed-project-onboarding.md: cross-ref to release-addendums.md is fine but the linked section needs updating.\n6. oompah/server.py L4554: GET /api/v1/projects/{project_id}/release-branches/{branch}/addendums returns full addendums — needs to return deprecation/compatibility response now, 410 at removal.\n7. No GET /release-delivery/branches/{branch} endpoint exists yet (plan says 'optional drill-down'). \nPlan: (a) Rewrite docs/release-addendums.md to document the new Release delivery commit inventory screen and deprecate old endpoint. (b) Update 3 other docs. (c) Make old endpoint return deprecation response with replacement path + add _LEGACY_BRANCH_INSPECTION_REMOVED flag for 410. (d) Add tests.
 ---
 <!-- COMMENTS:END -->
