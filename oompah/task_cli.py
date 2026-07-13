@@ -16,6 +16,8 @@ Usage::
     oompah task add-label <identifier> <label>
     oompah task remove-label <identifier> <label>
     oompah task set-dependency <identifier> --depends-on <dep-id>
+    oompah task set-source <identifier> <source-id> [--project <id>]
+    oompah task remove-source <identifier> [--project <id>]
 """
 
 from __future__ import annotations
@@ -418,6 +420,50 @@ def _cmd_set_dependency(base_url: str, args: argparse.Namespace) -> None:
     print(f"Dependency set: {identifier} depends on {args.depends_on}")
 
 
+def _cmd_set_source(base_url: str, args: argparse.Namespace) -> None:
+    """oompah task set-source <identifier> <source-id> [--project <id>]
+
+    Sets or replaces the source-task reference on an existing task.  The
+    server rewrites the "Triggered by: <id>" header in the task description
+    and persists the change through the active tracker backend (native
+    Markdown or GitHub Issues).
+
+    The source reference is then visible via ``oompah task view``.
+    """
+    identifier = args.identifier
+    source_id = args.source_id.strip() if args.source_id else ""
+    if not source_id:
+        sys.exit("ERROR: source-id must not be empty.")
+    data: dict[str, Any] = {
+        "source_task_id": source_id,
+        "issue_key": identifier,
+    }
+    _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
+    path = f"/api/v1/issues/{_encode_path_id(identifier)}"
+    _http("PATCH", f"{base_url}{path}", data=data)
+    print(f"Source set: {source_id}")
+
+
+def _cmd_remove_source(base_url: str, args: argparse.Namespace) -> None:
+    """oompah task remove-source <identifier> [--project <id>]
+
+    Removes the source-task reference from an existing task.  The server
+    strips the "Triggered by: <id>" header from the task description and
+    persists the change through the active tracker backend.
+
+    After removal, ``oompah task view`` will show no source reference.
+    """
+    identifier = args.identifier
+    data: dict[str, Any] = {
+        "clear_source": True,
+        "issue_key": identifier,
+    }
+    _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
+    path = f"/api/v1/issues/{_encode_path_id(identifier)}"
+    _http("PATCH", f"{base_url}{path}", data=data)
+    print("Source removed.")
+
+
 # ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
@@ -617,6 +663,60 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PROJECT_ID",
     )
 
+    # --- set-source ---
+    p_set_src = sub.add_parser(
+        "set-source",
+        help="Set or replace a task's source reference",
+        description=(
+            "Sets or replaces the source-task reference on an existing task.\n\n"
+            "The server rewrites the 'Triggered by: <source-id>' header in the "
+            "task description and persists the change through the active tracker "
+            "backend.  The new source reference is immediately visible via "
+            "'oompah task view'.\n\n"
+            "To remove the source reference entirely use 'oompah task remove-source'."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_set_src.add_argument("identifier", help="Task identifier (e.g. TASK-123)")
+    p_set_src.add_argument(
+        "source_id",
+        metavar="SOURCE_ID",
+        help=(
+            "Identifier of the originating task (e.g. TASK-42 or owner/repo#7). "
+            "Must not be empty."
+        ),
+    )
+    p_set_src.add_argument(
+        "--project", "--project-id",
+        dest="project",
+        default=None,
+        metavar="PROJECT_ID",
+        help="Restrict lookup to a specific project",
+    )
+
+    # --- remove-source ---
+    p_rm_src = sub.add_parser(
+        "remove-source",
+        help="Remove a task's source reference",
+        description=(
+            "Removes the source-task reference from an existing task.\n\n"
+            "The server strips the 'Triggered by: <source-id>' header from the "
+            "task description and persists the change through the active tracker "
+            "backend.  After removal, 'oompah task view' will show no source "
+            "reference.\n\n"
+            "To set or replace the source reference use 'oompah task set-source'."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_rm_src.add_argument("identifier", help="Task identifier (e.g. TASK-123)")
+    p_rm_src.add_argument(
+        "--project", "--project-id",
+        dest="project",
+        default=None,
+        metavar="PROJECT_ID",
+        help="Restrict lookup to a specific project",
+    )
+
     return parser
 
 
@@ -633,6 +733,8 @@ _DISPATCH: dict[str, Any] = {
     "add-label": _cmd_add_label,
     "remove-label": _cmd_remove_label,
     "set-dependency": _cmd_set_dependency,
+    "set-source": _cmd_set_source,
+    "remove-source": _cmd_remove_source,
 }
 
 
@@ -656,6 +758,8 @@ def main(argv: list[str] | None = None) -> None:
         "add-label": _cmd_add_label,
         "remove-label": _cmd_remove_label,
         "set-dependency": _cmd_set_dependency,
+        "set-source": _cmd_set_source,
+        "remove-source": _cmd_remove_source,
     }
 
     fn = dispatch.get(args.subcommand)
