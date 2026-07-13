@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-13T20:02:50.911753Z'
-updated_at: '2026-07-13T20:09:16.686689Z'
+updated_at: '2026-07-13T20:10:28.301901Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,18 @@ author: oompah
 created: 2026-07-13 20:05
 ---
 Accepted as the durable native-tracker synchronization fix. Scope: serialize the entire prepare→write→commit→push transaction across processes, automatically rebase a local pending tracker commit when a concurrent remote tracker commit arrives, abort cleanly on genuine conflicts, and add regression tests for both recovery and conflict paths. This replaces the current ff-only failure for normal concurrent tracker writes.
+---
+author: oompah
+created: 2026-07-13 20:10
+---
+Discovery: OOMPAH-204 is NOT a duplicate — it represents a recurring root-cause bug that was never properly fixed.
+
+Key findings:
+- OOMPAH-190 (Archived) has the same fingerprint (f289e9452f5913f0) and exact same error. It was archived as 'resolved/stale' after a manual git rebase+restart — not a code fix.
+- No current non-terminal task covers a code fix for this divergence.
+- Root cause: `_sync_from_remote()` in `oompah/oompah_md_tracker.py` uses fetch + `--ff-only` merge. When local main has diverged from origin (e.g., after `_commit_and_push` commits a task update but push is rejected), `--ff-only` fails and raises TrackerError.
+- The TrackerError bubbles up to the API layer, is caught by error_watcher, and auto-files this task.
+- Fix: when `--ff-only` fails in `_sync_from_remote`, attempt `git rebase origin/<branch>` as fallback before raising TrackerError. This handles the common case where local has task commits from a previous partial write. Only raise TrackerError if rebase also fails.
+- Tests `test_ff_only_failure_raises_tracker_error_with_remediation` and `test_commit_and_push_retry_uses_ff_only_not_pull_rebase` will need updates.
 ---
 <!-- COMMENTS:END -->
