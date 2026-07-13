@@ -835,3 +835,164 @@ class TestComputeUntrackedCommits:
         assert "log" in cmd
         assert "origin/release/1.0" in cmd
         assert call_args[1].get("cwd") == "/my/repo"
+
+
+# ---------------------------------------------------------------------------
+# Deprecation and 410 tests (OOMPAH-201)
+# ---------------------------------------------------------------------------
+
+
+class TestDeprecationCompatibilityResponse:
+    """The endpoint returns a documented compatibility/deprecation response.
+
+    OOMPAH-201: Document and deprecate the old release-branch inspector.
+    The endpoint continues to function during the v1.0→v1.1 transition window
+    but adds deprecation markers so API consumers can migrate.
+    """
+
+    def _call_endpoint(self, client, branch: str = "release/1.0") -> object:
+        project = _make_project(pid="proj-depr")
+        tracker = _WriteableTracker(issues=[], addendums_by_id={})
+        orch = _FakeOrch(project=project, tracker=tracker)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            with patch.object(server_module, "_LEGACY_BRANCH_INSPECTION_REMOVED", False):
+                return client.get(
+                    f"/api/v1/projects/proj-depr/release-branches/{branch}/addendums"
+                )
+
+    def test_returns_200_during_transition_window(self, client):
+        resp = self._call_endpoint(client)
+        assert resp.status_code == 200
+
+    def test_response_body_has_deprecated_true(self, client):
+        resp = self._call_endpoint(client)
+        data = resp.json()
+        assert data.get("deprecated") is True
+
+    def test_response_body_has_message_field(self, client):
+        resp = self._call_endpoint(client)
+        data = resp.json()
+        assert "message" in data
+        assert "deprecated" in data["message"].lower() or "removed" in data["message"].lower()
+
+    def test_response_body_has_replacement_path(self, client):
+        resp = self._call_endpoint(client, branch="release/1.0")
+        data = resp.json()
+        assert "replacement" in data
+        replacement = data["replacement"]
+        assert "release-delivery/commits" in replacement
+        assert "proj-depr" in replacement
+
+    def test_replacement_path_includes_branch_filter(self, client):
+        resp = self._call_endpoint(client, branch="release/1.1")
+        data = resp.json()
+        assert "release/1.1" in data.get("replacement", "")
+
+    def test_response_has_deprecation_header(self, client):
+        resp = self._call_endpoint(client)
+        assert resp.headers.get("Deprecation") == "true"
+
+    def test_response_has_sunset_header(self, client):
+        resp = self._call_endpoint(client)
+        assert "Sunset" in resp.headers
+
+    def test_response_has_link_header_with_successor(self, client):
+        resp = self._call_endpoint(client)
+        link = resp.headers.get("Link", "")
+        assert "release-delivery/commits" in link
+        assert 'rel="successor-version"' in link
+
+    def test_response_still_includes_groups_during_transition(self, client):
+        """The compatibility response continues to return addendum groups."""
+        resp = self._call_endpoint(client)
+        data = resp.json()
+        assert "groups" in data
+        groups = data["groups"]
+        for key in ("open", "in_progress", "in_review", "blocked", "merged", "archived"):
+            assert key in groups
+
+    def test_response_still_includes_project_id_and_branch(self, client):
+        resp = self._call_endpoint(client, branch="release/1.0")
+        data = resp.json()
+        assert data["project_id"] == "proj-depr"
+        assert data["branch"] == "release/1.0"
+
+    def test_404_still_returned_for_unknown_project(self, client):
+        orch = _FakeOrch(project=None, tracker=_WriteableTracker(issues=[], addendums_by_id={}))
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            with patch.object(server_module, "_LEGACY_BRANCH_INSPECTION_REMOVED", False):
+                resp = client.get(
+                    "/api/v1/projects/proj-unknown/release-branches/release/1.0/addendums"
+                )
+        assert resp.status_code == 404
+
+
+class TestLegacyEndpointRemoved410:
+    """When _LEGACY_BRANCH_INSPECTION_REMOVED is True the endpoint returns 410 Gone.
+
+    OOMPAH-201: The removal is scheduled for after the v1.0→v1.1 upgrade window.
+    Tests here exercise the 410 code path by patching the removal flag.
+    """
+
+    def _call_removed(self, client, project_id: str = "proj-1", branch: str = "release/1.0"):
+        project = _make_project(pid=project_id)
+        tracker = _WriteableTracker(issues=[], addendums_by_id={})
+        orch = _FakeOrch(project=project, tracker=tracker)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            with patch.object(server_module, "_LEGACY_BRANCH_INSPECTION_REMOVED", True):
+                return client.get(
+                    f"/api/v1/projects/{project_id}/release-branches/{branch}/addendums"
+                )
+
+    def test_returns_410_gone(self, client):
+        resp = self._call_removed(client)
+        assert resp.status_code == 410
+
+    def test_410_body_has_error_code_gone(self, client):
+        resp = self._call_removed(client)
+        data = resp.json()
+        assert "error" in data
+        assert data["error"]["code"] == "gone"
+
+    def test_410_body_has_message(self, client):
+        resp = self._call_removed(client)
+        data = resp.json()
+        assert "message" in data["error"]
+        assert "removed" in data["error"]["message"].lower()
+
+    def test_410_body_has_replacement_path(self, client):
+        resp = self._call_removed(client, project_id="proj-abc", branch="release/2.0")
+        data = resp.json()
+        replacement = data["error"].get("replacement", "")
+        assert "release-delivery/commits" in replacement
+        assert "proj-abc" in replacement
+
+    def test_410_replacement_encodes_branch(self, client):
+        resp = self._call_removed(client, branch="release/1.5")
+        data = resp.json()
+        replacement = data["error"].get("replacement", "")
+        assert "release/1.5" in replacement
+
+    def test_410_returned_without_calling_tracker(self, client):
+        """The 410 path returns before hitting the tracker/DB."""
+        tracker = _WriteableTracker(issues=[], addendums_by_id={})
+        project = _make_project()
+        orch = _FakeOrch(project=project, tracker=tracker)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            with patch.object(server_module, "_LEGACY_BRANCH_INSPECTION_REMOVED", True):
+                with patch.object(tracker, "fetch_all_issues", side_effect=RuntimeError("should not be called")) as mock_fetch:
+                    resp = client.get(
+                        "/api/v1/projects/proj-1/release-branches/release/1.0/addendums"
+                    )
+        assert resp.status_code == 410
+        mock_fetch.assert_not_called()
+
+    def test_410_for_unknown_project_returns_410_not_404(self, client):
+        """When removed, 410 is returned before the project lookup."""
+        orch = _FakeOrch(project=None, tracker=_WriteableTracker(issues=[], addendums_by_id={}))
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            with patch.object(server_module, "_LEGACY_BRANCH_INSPECTION_REMOVED", True):
+                resp = client.get(
+                    "/api/v1/projects/proj-unknown/release-branches/release/1.0/addendums"
+                )
+        assert resp.status_code == 410

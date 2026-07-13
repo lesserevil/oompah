@@ -4472,7 +4472,18 @@ async def api_post_release_delivery_commits(
 # ---------------------------------------------------------------------------
 # GET /api/v1/projects/{project_id}/release-branches/{branch_name:path}/addendums
 # Branch inspection endpoint (section 7 of plans/release-branch-addendums.md, OOMPAH-182)
+#
+# DEPRECATED — superseded by GET /api/v1/projects/{project_id}/release-delivery/commits
+# (plans/release-delivery-commit-inventory.md section 4.2, OOMPAH-201).
+#
+# This endpoint currently returns a compatibility/deprecation response that
+# includes the replacement path.  It will return HTTP 410 Gone after the
+# v1.0-to-v1.1 upgrade window (controlled by _LEGACY_BRANCH_INSPECTION_REMOVED).
 # ---------------------------------------------------------------------------
+
+#: Set to True at the v1.0→v1.1 removal point to return 410 Gone.
+#: Tests may patch this to exercise the 410 code path.
+_LEGACY_BRANCH_INSPECTION_REMOVED: bool = False
 
 #: Status order for grouping (plan section 7: open, in_progress, in_review, blocked, merged, archived)
 _BRANCH_INSPECTION_STATUS_ORDER = [
@@ -4553,56 +4564,61 @@ def _compute_untracked_commits(
 
 @app.get("/api/v1/projects/{project_id}/release-branches/{branch_name:path}/addendums")
 async def api_release_branch_addendums(project_id: str, branch_name: str) -> JSONResponse:
-    """Return all source tasks/epics with addendums for a release branch.
+    """**Deprecated** branch-inspection endpoint.
 
-    Scans all tasks in *project_id* for ``oompah.release_addendums`` entries
-    that target *branch_name*, then groups them by addendum status.  Also
-    computes an informational ``untracked_commits`` warning for commits on the
-    target branch that cannot be attributed to any release addendum.
+    .. deprecated::
+        Superseded by ``GET /api/v1/projects/{project_id}/release-delivery/commits``
+        (plans/release-delivery-commit-inventory.md §4.2, OOMPAH-201).
 
-    *branch_name* may contain ``/`` (e.g. ``release/1.0``).  The URL
-    parameter is captured via a ``{branch_name:path}`` pattern, so callers
-    may either pass the literal branch name as path segments or percent-encode
-    the slashes (``release%2F1.0``).
+    This endpoint returns a compatibility/deprecation response during the
+    v1.0→v1.1 transition window.  After the upgrade window it returns
+    ``410 Gone`` (controlled by :data:`_LEGACY_BRANCH_INSPECTION_REMOVED`).
 
-    Response shape::
+    When deprecated (not yet removed), the response body is::
 
         {
-            "project_id": "proj-1",
-            "branch": "release/1.0",
-            "groups": {
-                "open":        [<entry>, ...],
-                "in_progress": [<entry>, ...],
-                "in_review":   [<entry>, ...],
-                "blocked":     [<entry>, ...],
-                "merged":      [<entry>, ...],
-                "archived":    [<entry>, ...]
-            },
-            "untracked_commits": {
-                "count": 2,
-                "commits": ["sha1...", "sha2..."],
-                "warning": "2 commits on 'release/1.0' cannot be mapped..."
+            "deprecated": true,
+            "message": "This endpoint is deprecated. ...",
+            "replacement": "/api/v1/projects/{project_id}/release-delivery/commits"
+        }
+
+    When removed (HTTP 410)::
+
+        {
+            "error": {
+                "code": "gone",
+                "message": "This endpoint has been removed. ...",
+                "replacement": "/api/v1/projects/{project_id}/release-delivery/commits"
             }
         }
 
-    Each ``<entry>`` has::
-
-        {
-            "identifier": "FOO-10",
-            "title": "Task title",
-            "type": "task",
-            "addendum": {<ReleaseAddendum.to_raw() dict>}
-        }
-
-    The ``untracked_commits`` key is absent or ``null`` when there are no
-    untracked commits or when git analysis is unavailable.
-
     HTTP status codes:
 
-    * ``200`` — query successful (groups may be empty).
+    * ``200`` — compatibility/deprecation response (transition window).
+    * ``410`` — endpoint removed (after upgrade window).
     * ``404`` — project not found.
     * ``503`` — tracker or git error on inspection.
     """
+    replacement = (
+        f"/api/v1/projects/{project_id}/release-delivery/commits"
+        f"?branches={branch_name}&filter=all"
+    )
+
+    if _LEGACY_BRANCH_INSPECTION_REMOVED:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "gone",
+                    "message": (
+                        "This endpoint has been removed. "
+                        "Use the Release delivery commit inventory instead."
+                    ),
+                    "replacement": replacement,
+                }
+            },
+            status_code=410,
+        )
+
     try:
         from oompah.release_addendum_schema import AddendumRepository, AddendumStatus  # noqa: PLC0415
 
@@ -4694,6 +4710,13 @@ async def api_release_branch_addendums(project_id: str, branch_name: str) -> JSO
             )
 
         response: dict[str, object] = {
+            "deprecated": True,
+            "message": (
+                "This endpoint is deprecated and will be removed after the "
+                "v1.0→v1.1 upgrade window. "
+                "Use the Release delivery commit inventory instead."
+            ),
+            "replacement": replacement,
             "project_id": project_id,
             "branch": branch_name,
             "groups": groups,
@@ -4701,7 +4724,14 @@ async def api_release_branch_addendums(project_id: str, branch_name: str) -> JSO
         if untracked:
             response["untracked_commits"] = untracked
 
-        return JSONResponse(response)
+        return JSONResponse(
+            response,
+            headers={
+                "Deprecation": "true",
+                "Sunset": "v1.1",
+                "Link": f'<{replacement}>; rel="successor-version"',
+            },
+        )
 
     except Exception as exc:
         logger.error(

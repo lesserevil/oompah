@@ -47,10 +47,14 @@ agent orchestration.
 ## Release Delivery
 
 Ordinary work lands on the default branch first. If a merged task or epic must
-also reach a maintained release line, an operator queues a release addendum on
-the original source item. This creates a per-branch queue record, not a child
-backport task. See [Release Addendums](release-addendums.md) for the operator
-procedure, API contract, branch inspection, and legacy migration details.
+also reach a maintained release line, an operator queues a delivery on the
+original source item or selects the commit directly from the **Release
+delivery** inventory. This creates a per-branch, per-commit delivery record,
+not a child backport task. The task or epic detail panel's **Add release
+branches** shortcut queues the same underlying delivery records as the
+inventory screen. See [Release Delivery](release-addendums.md) for the
+operator procedure, API contract, status evidence, and legacy migration
+details.
 
 ## Status Lifecycle
 
