@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-178
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Execute queued addendums with worktrees and pull requests
 parent: OOMPAH-172
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:53.454708Z'
-updated_at: '2026-07-13T02:38:11.270127Z'
+updated_at: '2026-07-13T02:54:32.213171Z'
 work_branch: null
 target_branch: null
 review_url: null
