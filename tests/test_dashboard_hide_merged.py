@@ -117,6 +117,21 @@ class TestToolbarUI:
             "Hide-merged toggle should be adjacent to project-filter"
         )
 
+    def test_toggle_tooltip_names_needs_human(self, html: str):
+        """The tooltip must name 'Needs Human' as an in-flight state (OOMPAH-187)."""
+        toggle_idx = html.find('id="hide-merged-toggle"')
+        assert toggle_idx != -1
+        # Find the title attribute on the toggle label
+        title_match = __import__("re").search(
+            r'id="hide-merged-toggle"[^>]*title="([^"]*)"',
+            html[toggle_idx : toggle_idx + 800],
+        )
+        assert title_match, "hide-merged-toggle label must have a title attribute"
+        tooltip_text = title_match.group(1)
+        assert "Needs Human" in tooltip_text, (
+            "Toggle tooltip must name 'Needs Human' as an in-flight state"
+        )
+
 
 # ===========================================================================
 # 2. Filter helper presence and structure
@@ -335,7 +350,7 @@ def _column_key(status: str | None) -> str:
 
 def _is_individually_in_flight(issue: dict) -> bool:
     state = _column_key(issue.get("state") or issue.get("tracker_state"))
-    if state in {"Open", "In Progress", "Needs CI Fix", "Needs Rebase", "In Review"}:
+    if state in {"Open", "In Progress", "Needs Human", "Needs CI Fix", "Needs Rebase", "In Review"}:
         return True
     if state in {"Done", "Merged"} and issue.get("has_open_review"):
         return True
@@ -382,6 +397,11 @@ def _compute_in_flight_show_set(all_issues: list[dict]) -> set:
         if _is_individually_in_flight(issue):
             show.add(issue["id"])
             continue
+        # Rule 2: show if this issue's own subtree has in-flight work.
+        if subtree_in_flight.get(issue["id"]):
+            show.add(issue["id"])
+            continue
+        # Rule 3: walk up the parent chain; show if any ancestor has in-flight subtree.
         cur = issue
         seen: set = set()
         while cur and cur.get("parent_id") and cur["parent_id"] not in seen:
@@ -416,6 +436,7 @@ def _apply_hide_merged_filter(
             "Backlog",
             "Open",
             "In Progress",
+            "Needs Human",
             "Needs CI Fix",
             "Needs Rebase",
             "In Review",
@@ -589,6 +610,82 @@ class TestFilterBehavior:
         assert hidden == 294
         assert out["Done"] == []
 
+    # -----------------------------------------------------------------------
+    # Needs Human — these tests reflect OOMPAH-187 acceptance criteria.
+    # -----------------------------------------------------------------------
+
+    def test_needs_human_visible_when_toggle_on(self):
+        """Needs Human tasks must stay visible with In-flight only enabled."""
+        data = {
+            "Needs Human": [
+                {"id": "nh-1", "state": "Needs Human"},
+                {"id": "nh-2", "state": "needs_human"},
+            ],
+            "Done": [
+                {"id": "d-1", "state": "Done", "has_open_review": False},
+            ],
+        }
+        out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
+        # Needs Human column passes through unchanged
+        nh_ids = [i["id"] for i in out["Needs Human"]]
+        assert "nh-1" in nh_ids
+        assert "nh-2" in nh_ids
+        # Done without PR is still hidden
+        assert hidden == 1
+        assert out["Done"] == []
+
+    def test_needs_human_column_hidden_count_is_zero(self):
+        """Needs Human tasks do NOT count as hidden — they are in-flight."""
+        data = {
+            "Needs Human": [
+                {"id": f"nh-{i}", "state": "Needs Human"} for i in range(10)
+            ],
+        }
+        out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
+        assert hidden == 0, "Needs Human tasks must not be counted as hidden"
+        assert len(out["Needs Human"]) == 10
+
+    def test_needs_human_parent_epic_visible_when_toggle_on(self):
+        """When a child is in 'Needs Human', its parent epic stays visible.
+
+        OOMPAH-44/46/48-style Needs Human cards: an epic in Done whose only
+        active descendant is Needs Human should remain visible along with the
+        child.
+        """
+        data = {
+            "Needs Human": [
+                {"id": "nh-child", "state": "Needs Human", "parent_id": "epic-1"},
+            ],
+            "Done": [
+                # The epic itself is Done but has an in-flight Needs Human child
+                {"id": "epic-1", "state": "Done", "has_open_review": False},
+                # Lone Done task with no connection — should be hidden
+                {"id": "lone-done", "state": "Done", "has_open_review": False},
+            ],
+        }
+        out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
+        # Needs Human child must be visible
+        assert out["Needs Human"] == data["Needs Human"]
+        # Epic must be visible because it has an in-flight Needs Human descendant
+        kept_done_ids = [i["id"] for i in out["Done"]]
+        assert "epic-1" in kept_done_ids, (
+            "Parent epic of a Needs Human child must be visible when In-flight only is on"
+        )
+        assert "lone-done" not in kept_done_ids
+        # Only lone-done is hidden
+        assert hidden == 1
+
+    def test_needs_human_toggle_off_column_unchanged(self):
+        """With toggle OFF, Needs Human column is unaffected (no filtering)."""
+        data = {
+            "Needs Human": [
+                {"id": "nh-1", "state": "Needs Human"},
+            ],
+        }
+        out, hidden = _apply_hide_merged_filter(data, toggle_on=False)
+        assert hidden == 0
+        assert out["Needs Human"] == data["Needs Human"]
+
 
 class TestColumnPassthroughInJS:
     """Static-analysis assertions confirming the JS filter passes active columns
@@ -612,6 +709,22 @@ class TestColumnPassthroughInJS:
         assert "continue;" in body, (
             "applyHideMergedFilter must `continue` after passing through a "
             "non-closed column rather than falling into the filter loop"
+        )
+
+    def test_apply_filter_includes_needs_human_in_passthrough(self, script: str):
+        """'Needs Human' must be in the unconditional-passthrough list (OOMPAH-187)."""
+        body = _extract_function(script, "applyHideMergedFilter")
+        assert "Needs Human" in body, (
+            "applyHideMergedFilter must include 'Needs Human' in the passthrough "
+            "column list so Needs Human tasks remain visible when In-flight only is on"
+        )
+
+    def test_is_individually_in_flight_includes_needs_human(self, script: str):
+        """_isIndividuallyInFlight must treat Needs Human as in flight (OOMPAH-187)."""
+        body = _extract_function(script, "_isIndividuallyInFlight")
+        assert "Needs Human" in body, (
+            "_isIndividuallyInFlight must include 'Needs Human' in the in-flight "
+            "state list so Needs Human tasks are considered active"
         )
 
 
