@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-46
 type: task
-status: Done
+status: In Review
 priority: null
 title: 'Maintainer: update workflow dispatch description to v1.0.0 examples (needs
   workflow PAT scope)'
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:11:02.984832Z'
-updated_at: '2026-07-13T15:06:19.846015Z'
+updated_at: '2026-07-13T15:51:22.726149Z'
 work_branch: null
 target_branch: null
 review_url: null
