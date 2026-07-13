@@ -6,11 +6,12 @@ priority: 2
 title: Document and deprecate the old release-branch inspector
 parent: OOMPAH-192
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-196
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:59.843679Z'
-updated_at: '2026-07-13T19:32:59.843679Z'
+updated_at: '2026-07-13T19:35:15.561229Z'
 work_branch: null
 target_branch: null
 review_url: null
