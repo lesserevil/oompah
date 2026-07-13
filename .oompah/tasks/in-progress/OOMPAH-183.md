@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:21.418119Z'
-updated_at: '2026-07-13T06:22:04.560370Z'
+updated_at: '2026-07-13T06:37:24.387905Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-07-13 06:22
 ---
 Discovery: OOMPAH-183 is NOT a duplicate. Thorough search through all .oompah/tasks (open, in-progress, done, archived) found no overlapping task covering the migration from oompah.backports/child oompah.backport_of to oompah.release_addendums. Related tasks confirm the work is unique: OOMPAH-173 (schema), OOMPAH-174 (project config), OOMPAH-175 (catalog), OOMPAH-176 (approval API), OOMPAH-177 (queue) are Done and cover earlier slices. OOMPAH-185 was archived as duplicate of OOMPAH-184 (docs), not this task. Section 9 of plans/release-branch-addendums.md defines exactly what OOMPAH-183 must do: (1) idempotent migration from oompah.backports to oompah.release_addendums with status mapping, (2) archive child tasks with redirect comments, (3) then remove old code after blockers OOMPAH-179/180/181/182 are done. The migration data-conversion work (steps 1-3 of section 9) can be implemented now; the removal work (step 5) requires the blockers to complete. Proceeding with implementation of the migration module.
+---
+author: oompah
+created: 2026-07-13 06:37
+---
+Implementation: Created oompah/release_pick_migration.py with:\n- map_release_pick_status(): maps all 9 legacy ReleasePick statuses to AddendumStatus per section 9 of plans/release-branch-addendums.md (waiting/task_created/cherry_picking→open, pr_open→in_review, conflict/needs_human→blocked, merged→merged, archived/skipped→archived)\n- build_addendum_from_entry(): converts one BackportEntry to ReleaseAddendum, preserving commits/PR URLs; uses MIGRATION_PENDING_COMMIT sentinel for non-terminal entries without commits, MIGRATION_NO_COMMITS sentinel for terminal ones\n- _archive_child_task(): archives child backport tasks with oompah-authored redirect comment pointing to source task addendum\n- migrate_source_task(): idempotent per-task migration (skips branches already having addendums)\n- run_release_pick_migration(): full-project scan, safe to run on every startup\n- _migrate_release_picks_on_startup(): wired into set_orchestrator() in server.py, handles both single-tracker and multi-project modes with per-project default_branch\n\nTests: 58 unit tests in tests/test_release_pick_migration.py covering all 9 status mappings, commit preservation, rerun idempotency, mixed migrated/new data, child archival, error handling, and no-new-task invariant. 7 integration tests in tests/test_release_pick_migration_startup.py covering startup call, single/multi-project modes, per-project failure isolation.\n\nNote: Removal steps (old reconciler disable, old UI/API removal) still depend on blockers OOMPAH-179/180/181/182.
 ---
 <!-- COMMENTS:END -->
