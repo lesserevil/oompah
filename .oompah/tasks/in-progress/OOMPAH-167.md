@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:05.076076Z'
-updated_at: '2026-07-13T02:24:36.793584Z'
+updated_at: '2026-07-13T02:25:36.149703Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,18 @@ author: oompah
 created: 2026-07-13 02:24
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 02:25
+---
+UNDERSTANDING: No duplicate found. OOMPAH-167 is a unique child of epic OOMPAH-166 (Standardize epic workflow on shared strategy). OOMPAH-168 (orchestration), OOMPAH-169 (UI), and OOMPAH-170 (docs) are siblings covering other layers, with OOMPAH-168 and OOMPAH-169 blocked on this task.
+
+Scope of OOMPAH-167: domain model, project persistence, project-definition API, and configuration validation. Plan:
+1. Find EpicStrategy enum / epic_strategy field in domain model and project persistence
+2. Remove flat/stacked variants, keep only shared
+3. Add load migration that normalizes persisted flat/stacked -> shared
+4. Remove stale enum/options/default handling from validation and API
+5. Add unit and API tests: legacy records, new project creation, update validation, serialization, restart-safe migration
+6. Run make test to verify
 ---
 <!-- COMMENTS:END -->
