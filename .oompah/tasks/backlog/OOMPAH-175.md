@@ -6,11 +6,12 @@ priority: 1
 title: Implement current supported-release branch catalog API
 parent: OOMPAH-172
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-174
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:44.755827Z'
-updated_at: '2026-07-13T02:35:44.755827Z'
+updated_at: '2026-07-13T02:38:00.430737Z'
 work_branch: null
 target_branch: null
 review_url: null
