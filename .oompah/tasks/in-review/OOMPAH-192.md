@@ -20,9 +20,10 @@ children:
 blocked_by: []
 labels:
 - epic:stale
+- epic:rebasing
 assignee: null
 created_at: '2026-07-13T19:31:12.244396Z'
-updated_at: '2026-07-13T23:31:39.299463Z'
+updated_at: '2026-07-13T23:31:41.418465Z'
 work_branch: epic-OOMPAH-192
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/418
