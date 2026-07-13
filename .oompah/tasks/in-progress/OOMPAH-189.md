@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-189
 type: task
-status: Open
+status: In Progress
 priority: null
 title: "[backend:server] Add comment API error: Cannot sync native tracker: git merge\
   \ --ff-only origin/main failed: hint: Diverging branches can't be fast-forwarded,\
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-13T14:53:58.007707Z'
-updated_at: '2026-07-13T15:02:27.201994Z'
+updated_at: '2026-07-13T15:02:37.592187Z'
 work_branch: null
 target_branch: null
 review_url: null
