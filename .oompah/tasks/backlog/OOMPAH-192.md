@@ -7,11 +7,12 @@ title: Replace release-branch inspector with commit-centric release delivery
 parent: null
 children:
 - OOMPAH-193
+- OOMPAH-194
 blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:12.244396Z'
-updated_at: '2026-07-13T19:31:36.889295Z'
+updated_at: '2026-07-13T19:31:40.223725Z'
 work_branch: null
 target_branch: null
 review_url: null
