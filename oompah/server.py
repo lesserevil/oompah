@@ -135,6 +135,30 @@ def _task_priority_int(value: Any) -> int | None:
     """Normalize task priority values accepted by tracker-neutral APIs."""
     return normalize_priority_int(value)
 
+
+def _strip_source_header(description: str) -> str:
+    """Remove the leading 'Triggered by: X' line from a task description.
+
+    The canonical source-reference header written by ``_cmd_set_source`` and
+    the create endpoint is ``"Triggered by: <id>\\n\\n<rest>"`` or, when there
+    is no rest, just ``"Triggered by: <id>"``.
+
+    Returns the description with the header removed and leading blank lines
+    stripped.  If the description does not start with ``"Triggered by:"``, it
+    is returned unchanged.
+    """
+    if not description.startswith("Triggered by:"):
+        return description
+    # Skip over the "Triggered by: ..." line.
+    newline_pos = description.find("\n")
+    if newline_pos == -1:
+        # The whole description is the source header — clear everything.
+        return ""
+    rest = description[newline_pos + 1:]
+    # Strip leading blank lines between the header and the body.
+    return rest.lstrip("\n")
+
+
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _template_cache: dict[str, str] = {}
 
@@ -3284,6 +3308,41 @@ async def api_update_issue(identifier: str, request: Request):
             existing_issue is not None
             and (existing_issue.issue_type or "").strip().lower() == "epic"
         )
+
+        # Source-reference manipulation via PATCH (set-source / remove-source).
+        # ``source_task_id`` sets or replaces the "Triggered by: X" header.
+        # ``clear_source`` removes it entirely.
+        # Applied only when ``description`` is not also explicitly provided in
+        # the request body, so a full description replacement still takes
+        # precedence and source fields are ignored in that case.
+        patch_source_task_id = body.get("source_task_id")  # None = not in body
+        patch_clear_source = bool(body.get("clear_source", False))
+        if new_description is None and (
+            patch_source_task_id is not None or patch_clear_source
+        ):
+            current_desc = (existing_issue.description or "") if existing_issue else ""
+            if patch_clear_source:
+                new_description = _strip_source_header(current_desc)
+            elif patch_source_task_id is not None:
+                sid = str(patch_source_task_id).strip()
+                if not sid:
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "validation",
+                                "message": (
+                                    "source_task_id must not be empty when provided; "
+                                    "use clear_source: true to remove the source reference"
+                                ),
+                            }
+                        },
+                        status_code=400,
+                    )
+                stripped = _strip_source_header(current_desc)
+                source_header = f"Triggered by: {sid}"
+                new_description = (
+                    f"{source_header}\n\n{stripped}" if stripped else source_header
+                )
 
         handled_status = False
         transition_result: TransitionGateResult | None = None

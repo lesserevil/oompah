@@ -233,12 +233,31 @@ Common task operations:
 ```bash
 oompah task view <task-id> --project <project-id>
 oompah task create --project <project-id> --title "Title" --description "Details"
+oompah task create --project <project-id> --title "Follow-up" --source <originating-task-id>
 oompah task child-create <epic-id> --project <project-id> --title "Child title" --description "Details"
 oompah task set-dependency <task-id> --project <project-id> --depends-on <other-task-id>
 oompah task set-status <task-id> Open --project <project-id>
 oompah task set-status <task-id> Done --project <project-id> --summary "Completed"
 oompah task comment <task-id> --project <project-id> --message "Progress update" --author oompah
 ```
+
+### Source References
+
+A source reference records which task originated a follow-up.  It is stored as
+a `Triggered by: <id>` header in the task description and is visible in
+`oompah task view`.
+
+```bash
+# Set or replace the source reference on an existing task:
+oompah task set-source <task-id> <source-id> --project <project-id>
+
+# Remove the source reference from a task:
+oompah task remove-source <task-id> --project <project-id>
+```
+
+`set-source` and `remove-source` go through the same server/tracker update
+path as all other field changes, so native Markdown tasks and supported
+tracker backends both persist the canonical metadata.
 
 Use the CLI rather than editing `.oompah/tasks` by hand. It keeps the Markdown
 files, parent/child graph, dependencies, comments, review metadata, and git
