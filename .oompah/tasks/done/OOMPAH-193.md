@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:36.808036Z'
-updated_at: '2026-07-13T20:19:19.860888Z'
+updated_at: '2026-07-13T20:19:31.292282Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -143,5 +143,15 @@ author: oompah
 created: 2026-07-13 20:19
 ---
 Implemented .oompah/release-deliveries.yml ledger: ReleaseDelivery record with immutable source fields and mutable lifecycle/evidence, ReleaseDeliveryLedger versioned schema, ReleaseDeliveryStore with atomic CRUD under project-level lock, write_and_commit_ledger_file on OompahMarkdownTracker, 118 tests all passing.
+---
+author: oompah
+created: 2026-07-13 20:19
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 54
+- Tokens: 93 in / 2.0K out [2.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 16m 40s
+- Log: OOMPAH-193__20260713T200257Z.jsonl
 ---
 <!-- COMMENTS:END -->
