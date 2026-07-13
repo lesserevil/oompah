@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:05.076076Z'
-updated_at: '2026-07-13T02:32:09.682372Z'
+updated_at: '2026-07-13T02:32:56.994942Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -100,5 +100,15 @@ IMPLEMENTATION: Made the following changes across 3 files to make 'shared' the o
 
 **tests/test_projects_crud.py**:
 - Added 7 new API tests in TestProjectAPI covering: accept shared, accept SHARED (case), null→shared, reject flat, reject stacked, reject bogus, new project defaults to shared
+---
+author: oompah
+created: 2026-07-13 02:32
+---
+VERIFICATION: make test passed — 7283 passed, 28 skipped. All targeted tests pass:
+- TestProjectEpicStrategyField (9 tests): default_is_shared, to_dict round-trip, legacy flat→shared migration, legacy stacked→shared migration, unknown→shared, serialization after migration
+- TestProjectStoreUpdateEpicStrategy (9 tests): flat/stacked rejected with ProjectError, shared accepted, SHARED case-normalized, None→shared, invalid rejected  
+- TestProjectAPI epic_strategy tests (7 tests): accept shared, SHARED case-insensitive, null→shared, reject flat 400, reject stacked 400, reject bogus 400, new project defaults to shared
+
+No regressions in any of the 7283 other tests. Commit 3a27c397 pushed to epic-OOMPAH-166.
 ---
 <!-- COMMENTS:END -->
