@@ -7,10 +7,11 @@ title: Implement queued release-branch addendums
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- draft
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T02:35:12.892610Z'
+updated_at: '2026-07-13T02:35:15.127424Z'
 work_branch: null
 target_branch: null
 review_url: null
