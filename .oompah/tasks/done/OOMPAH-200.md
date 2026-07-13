@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-200
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Replace the Release branches overlay with Release delivery UI
 parent: OOMPAH-192
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:56.999746Z'
-updated_at: '2026-07-13T22:51:47.066910Z'
+updated_at: '2026-07-13T22:51:55.535024Z'
 work_branch: null
 target_branch: null
 review_url: null
