@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:47.560323Z'
-updated_at: '2026-07-13T22:03:17.270364Z'
+updated_at: '2026-07-13T22:04:15.590694Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -91,5 +91,10 @@ Implemented oompah/release_delivery_inventory.py with:
 - get_default_service() singleton + reset_default_service()
 
 Tests: 75 tests in test_release_delivery_inventory.py, all passing.
+---
+author: oompah
+created: 2026-07-13 22:04
+---
+Verification: 75 new tests all pass. Full suite: 8438 passed, 28 skipped, 0 failures. Tests cover: cursor round-trip and malformed cursor validation; §2.3 status precedence (all 5 levels) including cherry-pick scenario; git enumeration ordering/merge exclusion/squash inclusion; ref snapshot with remote-fetch success, stale fallback, and no-local-ref error; ancestry batch check; get_page with all filter modes, text search, branch metadata, fabricated-branch rejection, pagination, cursor validation, stale flag, association enrichment, subject-guessing prevention; cache TTL hit/miss, invalidation, cross-project isolation, branch-set keying; thread safety; constructor validation; module singleton.
 ---
 <!-- COMMENTS:END -->
