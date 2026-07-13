@@ -6,11 +6,12 @@ priority: 2
 title: Remove epic-strategy controls and stale dashboard copy
 parent: OOMPAH-166
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-167
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:10.333133Z'
-updated_at: '2026-07-13T02:23:10.333133Z'
+updated_at: '2026-07-13T02:23:24.260010Z'
 work_branch: null
 target_branch: null
 review_url: null
