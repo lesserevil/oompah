@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-176
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Approve release addendums and snapshot main commits
 parent: OOMPAH-172
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:47.109837Z'
-updated_at: '2026-07-13T04:06:59.558947Z'
+updated_at: '2026-07-13T04:07:06.550682Z'
 work_branch: null
 target_branch: null
 review_url: null
