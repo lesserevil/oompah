@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:40.880021Z'
-updated_at: '2026-07-13T03:22:31.902635Z'
+updated_at: '2026-07-13T03:22:34.116999Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -101,5 +101,10 @@ Deliverables:
 - Pushed to branch epic-OOMPAH-172
 
 Operators can now configure supported release lines without any release-addendum feature being enabled (OOMPAH-175 will build the ReleaseBranchCatalog and catalog API on top of this field).
+---
+author: oompah
+created: 2026-07-13 03:22
+---
+Added supported_release_branches to Project model, persistence, create/update APIs, and project-definition UI. Validation: nonempty, unique-normalised, not default_branch, matched by branches patterns. Legacy records default to []. 62 new tests, 7523 total pass.
 ---
 <!-- COMMENTS:END -->
