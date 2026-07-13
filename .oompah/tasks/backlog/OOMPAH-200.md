@@ -6,11 +6,12 @@ priority: 1
 title: Replace the Release branches overlay with Release delivery UI
 parent: OOMPAH-192
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-196
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:56.999746Z'
-updated_at: '2026-07-13T19:32:56.999746Z'
+updated_at: '2026-07-13T19:34:59.844331Z'
 work_branch: null
 target_branch: null
 review_url: null
