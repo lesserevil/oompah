@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-13T14:19:41.967141Z'
-updated_at: '2026-07-13T15:05:15.263969Z'
+updated_at: '2026-07-13T15:05:17.827210Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ The work for OOMPAH-188 has already been completed:
 The code behavior is correct as-is: _is_fatal_forwarder_error() correctly classifies HTTP 403 as fatal and disables that project's forwarder (preventing noisy retry loops), and the configuration-change detection (old_config != new_config) correctly re-enables it when the PAT is updated without requiring a restart.
 
 No code changes required. No duplicate found. Closing as complete.
+---
+author: oompah
+created: 2026-07-13 15:05
+---
+Not a duplicate. Root cause (PAT missing Webhooks: Read and write permission) was fixed operationally by the operator updating the coroot PAT. Documentation was updated in commit b58265d6 across .env.example, docs/webhook-forwarding.md, docs/managed-project-onboarding.md, and docs/operator-runbook.md to explicitly require this permission for all projects using webhook forwarding. No code changes needed; error handling behavior (fatal 403 disables the forwarder, config-change clears the disabled flag) is correct.
 ---
 <!-- COMMENTS:END -->
