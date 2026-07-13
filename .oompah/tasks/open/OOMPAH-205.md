@@ -11,7 +11,7 @@ labels:
 - needs:frontend
 assignee: null
 created_at: '2026-07-13T20:05:14.303298Z'
-updated_at: '2026-07-13T20:10:15.111494Z'
+updated_at: '2026-07-13T20:10:17.412121Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,5 +83,15 @@ author: oompah
 created: 2026-07-13 20:09
 ---
 HANDOFF: Duplicate investigation complete — this is NOT a duplicate (confirmed by full search of all tasks, plans, and docs). OOMPAH-205 is a unique frontend performance bug. Root: dashboard.html clears and rebuilds all board columns/cards on every WebSocket issues update regardless of whether the payload changed. The orchestrator emits full observer updates every tick, so even with the 3-second throttle the board re-renders constantly. A frontend agent needs to implement: (1) snapshot hash comparison to skip board rebuild when payload is identical, (2) incremental card/column DOM reconciliation when specific issues change, (3) lightweight agent-activity updates that bypass board rebuild, (4) preservation of scroll position, focus, drag state, inline edits across updates. Tests required: no-op snapshot, one-card state change, project filter, active inline edit, focus preservation, optimistic drag/drop reconciliation. Key file: oompah/templates/dashboard.html (JavaScript WebSocket handler and board rendering functions).
+---
+author: oompah
+created: 2026-07-13 20:10
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 36
+- Tokens: 58 in / 1.6K out [1.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 1s
+- Log: OOMPAH-205__20260713T200721Z.jsonl
 ---
 <!-- COMMENTS:END -->
