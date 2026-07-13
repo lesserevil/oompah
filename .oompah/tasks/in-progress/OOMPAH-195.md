@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:43.705145Z'
-updated_at: '2026-07-13T20:55:10.407016Z'
+updated_at: '2026-07-13T20:55:21.903145Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -92,5 +92,17 @@ Verification: make test passes — 8315 tests, 28 skipped, 0 failures. The 58 ne
 ✓ PR merge reconciliation marks exact delivery Merged; closed-unmerged stays in_review for retry
 ✓ Unavailable/deleted target is blocked with actionable error before cherry-pick
 ✓ No tracker task ever created or source task status changed
+---
+author: oompah
+created: 2026-07-13 20:55
+---
+COMPLETION: Delivered 4 new/extended modules + 58 tests (all green, 8315 total).
+
+- release_delivery_store.py: make_delivery_work_branch() + make_delivery_worktree_key() helpers
+- release_delivery_queue.py: ReleaseDeliveryQueue backed by ledger store, identity=delivery_id, claim/lease/recovery/restart-safe
+- release_delivery_executor.py: cherry_pick_delivery() — checks target availability, uses source_commits snapshot, persists work_branch/pr_url/pr_number/result_commits via store.update() before in_review
+- release_delivery_poller.py: poll_delivery_pr() — merged→MERGED+completed_at, closed→error field (retry-able), race-safe
+
+All acceptance criteria met. Branch pushed, task ready to close.
 ---
 <!-- COMMENTS:END -->
