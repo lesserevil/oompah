@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-202
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Run end-to-end release delivery migration and regression coverage
 parent: OOMPAH-192
@@ -17,7 +17,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:33:31.162292Z'
-updated_at: '2026-07-13T23:25:12.115400Z'
+updated_at: '2026-07-13T23:25:21.491136Z'
 work_branch: null
 target_branch: null
 review_url: null
