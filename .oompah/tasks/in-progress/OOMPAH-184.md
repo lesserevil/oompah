@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:37:55.470386Z'
-updated_at: '2026-07-13T06:49:29.467377Z'
+updated_at: '2026-07-13T06:54:33.567585Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -103,5 +103,24 @@ Scope assessment:
 - docs/README.md: COMPLETE - indexes release-addendums.md
 
 Plan: (1) Add Release Addendums section to GITHUB_ISSUES_AGENT_INSTRUCTIONS; (2) Add step to managed-project-onboarding.md; (3) Add test for github_issues instructions; (4) Add assertions for release-addendums.md doc coverage.
+---
+author: oompah
+created: 2026-07-13 06:54
+---
+Implementation: Added missing pieces to complete the release-addendum documentation suite:
+
+1. oompah/agent_instructions.py: Added '### Release Addendums' section to GITHUB_ISSUES_AGENT_INSTRUCTIONS (it was already in OOMPAH_TASK block). Both generated AGENTS.md variants now explicitly prohibit child backport tasks and link to docs/release-addendums.md.
+
+2. docs/managed-project-onboarding.md: New §4 'Optional: Configure Supported Release Lines' walks an operator through configuring the feature at project setup time. Sections 5-7 renumbered. Updated onboarding flow diagram to include the release-lines step.
+
+3. docs/release-addendums.md (committed, was untracked): Complete user-facing operator guide covering supported release lines configuration, queuing, per-branch lifecycle table, retries, branch inspection, epic snapshots, and legacy migration mapping. Includes Mermaid sequence diagram.
+
+4. tests/test_agent_instructions.py: Two new tests:
+   - test_rendered_github_issues_instructions_describe_release_addendums: asserts the GitHub Issues variant also has the Release Addendums section
+   - test_release_addendums_doc_covers_operator_workflow: asserts docs/release-addendums.md covers all six lifecycle statuses, retry, inspection, epic snapshots, migration, Mermaid diagrams, and no active child-backport instructions
+
+Also committed the previously-untracked/unstaged docs (docs/README.md index, task-epic-workflow.md release delivery section, operator-runbook.md §1.3, github-issue-intake.md target-branch clarification, projects.html label improvement).
+
+All 7993 tests pass.
 ---
 <!-- COMMENTS:END -->
