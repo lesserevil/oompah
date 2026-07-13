@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:10.333133Z'
-updated_at: '2026-07-13T04:50:18.076057Z'
+updated_at: '2026-07-13T04:50:23.733257Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,5 +120,10 @@ Added tests/test_projects_epic_strategy_ui.py with 14 tests verifying:
 Also fixed 4 failing test regressions in draft-epic test files (OOMPAH-171 work):
 - Added _populate_snapshot() helper and clear_issues_snapshot fixture
 - Fixed test_issues_api_returns_issue_type_field to use board format correctly
+---
+author: oompah
+created: 2026-07-13 04:50
+---
+VERIFICATION: Full test suite passes — 7248 passed, 28 skipped, 0 failed. New tests test_projects_epic_strategy_ui.py all pass (14 tests). All 4 previously-failing draft-epic regression tests now pass.
 ---
 <!-- COMMENTS:END -->
