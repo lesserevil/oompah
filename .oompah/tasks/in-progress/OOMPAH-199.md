@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:53.860350Z'
-updated_at: '2026-07-13T22:33:09.240945Z'
+updated_at: '2026-07-13T22:34:32.283961Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-07-13 22:33
 ---
 Implementation complete. Added POST /api/v1/projects/{project_id}/release-delivery/commits to server.py with: (1) Idempotency-Key header validation + in-memory replay store, (2) JSON body validation (source_head, commits, target_branches with full SHA checks), (3) server-side git revalidation via _delivery_validate_git (source HEAD check, reachability, non-merge, branch availability), (4) asyncio.to_thread for all git work, (5) per-pair outcome computation (created/already_active/already_delivered) under _delivery_lock, (6) atomic ledger write via store._write_ledger with all new deliveries in one call, (7) RELEASE_ADDENDUM_READY event emission after persistence, (8) commit_inventory cache invalidation. Also added bulk_append and read_all_by_target_branch to ReleaseDeliveryStore. All deliveries use source_kind=commits and source_identifier=None (never creates ordinary tasks). Added 46 new POST endpoint tests covering all acceptance criteria.
+---
+author: oompah
+created: 2026-07-13 22:34
+---
+Verification: All tests pass. 8533 total (make test), 95/95 in test_server_release_delivery_commits.py, 118/118 in test_release_delivery_store.py. Branch epic-OOMPAH-192 pushed and up to date with origin.
 ---
 <!-- COMMENTS:END -->
