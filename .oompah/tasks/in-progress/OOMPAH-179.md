@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:55.903478Z'
-updated_at: '2026-07-13T05:36:36.416020Z'
+updated_at: '2026-07-13T05:37:16.250404Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,5 +55,10 @@ author: oompah
 created: 2026-07-13 05:36
 ---
 Implementation: Created oompah/release_addendum_poller.py with:\n- poll_addendum_pr(): polls in_review addendum PR state; merged→MERGED+completed_at+comment; closed→error-field update+comment (no status change, no replacement PR); open/unknown→noop; idempotent; swallows SCM/tracker failures\n- _handle_merged(), _handle_closed(): per-state handlers with conflict-safe InvalidTransitionError handling\n- _update_addendum_evidence(): updates execution-evidence fields without status change (uses dataclasses.replace + repo.write)\n- _post_source_comment(): posts with author=oompah, swallows exceptions\n- CLOSED_UNMERGED_ERROR_PREFIX constant for idempotency sentinel\n\nAdded to oompah/server.py:\n- POST /api/v1/issues/{id}/release-addendums/{addendum_id:path}/retry — transitions blocked|in_review→open, clears lease fields, publishes wake-up event, invalidates cache, posts oompah comment; 409 for invalid transitions\n- POST /api/v1/issues/{id}/release-addendums/{addendum_id:path}/archive — transitions open|blocked→archived, posts oompah comment, invalidates cache; 409 for invalid transitions\n- Both use {addendum_id:path} to handle slash-containing IDs (e.g. FOO-10/release/1.0)\n- _load_addendum_for_control() and _invalidate_addendum_caches() helpers\n\nAdded to oompah/orchestrator.py:\n- _reconcile_addendum_pr_outcomes_sweep() sweep in _do_merged_labels(); skips no-repo-url/no-provider projects; catches per-addendum failures; calls poll_addendum_pr for each in_review addendum\n\nTests: 51 poller tests + 43 server control tests + 10 orchestrator tests = 104 new tests.
+---
+author: oompah
+created: 2026-07-13 05:37
+---
+Verification: make test — 7836 passed, 28 skipped, 12 warnings (0 failures). Breakdown of new tests:\n\n- tests/test_release_addendum_poller.py: 51 tests\n  - poll_addendum_pr: merged/open/closed outcomes; SCM failure handling; no PR found\n  - Merged: transitions to merged, records completed_at, preserves commits, oompah comment\n  - Closed: stays in_review, sets error field, posts retry-instruction comment, idempotent\n  - Open: no change, no write, no comment\n  - Immutable commits across merged/open/closed/retry simulation\n  - Duplicate poll idempotency (merged twice → only 1 write, 1 comment)\n  - No child tasks created, no source task status altered\n\n- tests/test_server_release_addendum_controls.py: 43 tests\n  - Retry: blocked→open, in_review→open, response shape, commits unchanged, error cleared\n  - Archive: open→archived, blocked→archived, response shape, commits preserved\n  - 409 for all invalid transitions (both endpoints)\n  - 400 for missing project_id; 404 for unknown addendum/issue\n  - oompah comments posted with branch, transition, PR URL\n  - Cache invalidation called on success\n  - Slash-containing addendum_id routing (FOO-10/release/1.0)\n  - Multiple addendums: only target modified, siblings preserved\n\n- tests/test_orchestrator_addendum_poll.py: 10 tests\n  - Sweep registered in _do_merged_labels\n  - Skips no-repo-url and no-provider projects\n  - Polls in_review addendums; skips non-in_review\n  - Handles fetch_all_issues and get_metadata failures gracefully\n  - Handles per-addendum poll exceptions without crashing\n  - Polls across multiple source tasks
 ---
 <!-- COMMENTS:END -->
