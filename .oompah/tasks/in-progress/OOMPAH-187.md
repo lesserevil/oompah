@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T14:08:30.012087Z'
-updated_at: '2026-07-13T14:09:00.844953Z'
+updated_at: '2026-07-13T14:10:48.930277Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-13 14:09
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-13 14:10
+---
+Understanding: The in-flight dashboard filter in dashboard.html hides 'Needs Human' tasks because (a) _isIndividuallyInFlight() at line 2868 only lists Open/In Progress/Needs CI Fix/Needs Rebase/In Review as in-flight, not Needs Human, and (b) applyHideMergedFilter() at line 2957 only passes through those same columns unconditionally. Fix plan: (1) add 'Needs Human' to _isIndividuallyInFlight check, (2) add 'Needs Human' to the column passthrough list, (3) update tooltip text to include Needs Human, (4) mirror both fixes in the Python test helpers, (5) add new tests: direct Needs Human visibility case, epic/parent visibility case, counter/hidden-state assertion, tooltip-names-Needs-Human assertion.
 ---
 <!-- COMMENTS:END -->
