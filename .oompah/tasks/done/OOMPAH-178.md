@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:53.454708Z'
-updated_at: '2026-07-13T05:18:47.164788Z'
+updated_at: '2026-07-13T05:18:49.403033Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,5 +65,10 @@ author: oompah
 created: 2026-07-13 05:18
 ---
 Completion: Delivered oompah/release_addendum_executor.py implementing section 8 of plans/release-branch-addendums.md:\n\n1. cherry_pick_addendum() - main execution function for a claimed ReleaseAddendum\n2. Deterministic worktree via worktree_key+work_branch rooted at origin/<target_branch>\n3. Existing open PR reuse (idempotent re-run skips cherry-pick+push)\n4. Commits already applied are skipped (explicit _has_new_commits check before apply_cherry_pick)\n5. On success: persists in_review + pr_url + result_commits via AddendumRepository.transition()\n6. On conflict: BLOCKED + diagnostic + preserved worktree + source task comment (oompah author)\n7. On non-conflict failure: BLOCKED + diagnostic + source task comment\n8. ZERO tracker.create_issue() calls; ZERO tracker.update_issue() calls on source\n\n72 tests verify all required behaviors. Committed to epic-OOMPAH-172 (f78e3df6) and pushed.
+---
+author: oompah
+created: 2026-07-13 05:18
+---
+Implemented oompah/release_addendum_executor.py with cherry_pick_addendum() that creates/reuses deterministic release worktrees, applies persisted commit snapshots, pushes work branches, creates/reuses PRs, and persists in_review/blocked state on the addendum. 72 tests cover all required scenarios. Never creates a child task or modifies source task status.
 ---
 <!-- COMMENTS:END -->
