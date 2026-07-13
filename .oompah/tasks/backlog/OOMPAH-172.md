@@ -7,12 +7,13 @@ title: Implement queued release-branch addendums
 parent: null
 children:
 - OOMPAH-173
+- OOMPAH-174
 blocked_by: []
 labels:
 - draft
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T02:35:38.483694Z'
+updated_at: '2026-07-13T02:35:40.960632Z'
 work_branch: null
 target_branch: null
 review_url: null
