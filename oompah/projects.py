@@ -1095,20 +1095,21 @@ class ProjectStore:
             else:
                 raise ProjectError("'test_skip_paths' must be a list of strings")
 
-        # Validate epic_strategy is one of the three allowed modes.
+        # Validate epic_strategy: only "shared" is supported.
+        # "flat" and "stacked" were removed; callers that still send them
+        # receive a validation error so they can update their integration.
         if "epic_strategy" in fields:
             val = fields["epic_strategy"]
             if val is None:
-                fields["epic_strategy"] = "flat"
+                fields["epic_strategy"] = "shared"
             else:
                 if not isinstance(val, str):
-                    raise ProjectError(
-                        "'epic_strategy' must be one of: flat, stacked, shared"
-                    )
+                    raise ProjectError("'epic_strategy' must be 'shared'")
                 norm = val.strip().lower()
-                if norm not in ("flat", "stacked", "shared"):
+                if norm != "shared":
                     raise ProjectError(
-                        "'epic_strategy' must be one of: flat, stacked, shared"
+                        "'epic_strategy' must be 'shared' — flat and stacked"
+                        " strategies have been removed"
                     )
                 fields["epic_strategy"] = norm
 

@@ -581,7 +581,7 @@ class TestYoloEpicStrategyGate:
         assert len(records) == 1
         assert records[0].action_type == "close_invalid_review"
         assert records[0].outcome == "success"
-        assert "epic_strategy=shared" in records[0].error_msg
+        assert "shared epic workflow" in records[0].error_msg
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
@@ -641,51 +641,20 @@ class TestYoloEpicStrategyGate:
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_stacked_child_pr_targeting_main_is_gate_blocked(
+    def test_shared_child_pr_targeting_epic_branch_is_closed(
         self, mock_slug, mock_detect, tmp_path,
     ):
+        """Per-child task PRs targeting the epic branch are also closed.
+
+        In shared mode children commit directly to the epic branch — there are
+        no valid per-child task PRs, even when they happen to target the epic
+        branch instead of main.  Only a PR whose source_branch IS the epic
+        branch itself (an epic rollup PR) is allowed through.
+        """
         project = _make_project()
-        project.epic_strategy = "stacked"
         provider = MagicMock()
         provider.merge_review.return_value = (True, "merged")
-        mock_detect.return_value = provider
-        mock_slug.return_value = "org/repo"
-
-        orch = _make_orchestrator(tmp_path, projects=[project])
-        self._install_tracker(
-            orch,
-            project,
-            child=_make_issue("TASK-472.4", parent_id="TASK-472"),
-            parent=_make_issue("TASK-472", issue_type="epic"),
-        )
-        orch._reviews_cache = {
-            project.id: [
-                _make_review(
-                    "249",
-                    source_branch="TASK-472.4",
-                    target_branch="main",
-                    ci_status="passed",
-                )
-            ],
-        }
-
-        orch._yolo_review_actions_sync()
-
-        provider.merge_review.assert_not_called()
-        records = list(orch._yolo_action_history)
-        assert len(records) == 1
-        assert records[0].action_type == "gate_blocked"
-        assert "epic_strategy=stacked" in records[0].error_msg
-
-    @patch("oompah.orchestrator.detect_provider")
-    @patch("oompah.orchestrator.extract_repo_slug")
-    def test_stacked_child_pr_targeting_epic_branch_can_merge(
-        self, mock_slug, mock_detect, tmp_path,
-    ):
-        project = _make_project()
-        project.epic_strategy = "stacked"
-        provider = MagicMock()
-        provider.merge_review.return_value = (True, "merged")
+        provider.close_review.return_value = (True, "closed")
         mock_detect.return_value = provider
         mock_slug.return_value = "org/repo"
 
@@ -709,11 +678,14 @@ class TestYoloEpicStrategyGate:
 
         orch._yolo_review_actions_sync()
 
-        provider.merge_review.assert_called_once_with("org/repo", "249")
+        # The per-child PR is closed, not merged — work must land via the
+        # epic rollup PR (epic-TASK-472 → main), not a per-child PR.
+        provider.merge_review.assert_not_called()
+        provider.close_review.assert_called_once()
         records = list(orch._yolo_action_history)
         assert len(records) == 1
-        assert records[0].action_type == "merge"
-        assert records[0].outcome == "success"
+        assert records[0].action_type == "close_invalid_review"
+        assert "shared epic workflow" in records[0].error_msg
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")

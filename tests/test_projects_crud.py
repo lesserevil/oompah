@@ -439,6 +439,69 @@ class TestProjectAPI:
         res = self.client.delete("/api/v1/projects/proj-nope")
         assert res.status_code == 404
 
+    def test_update_epic_strategy_to_shared(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-test1",
+            json={"epic_strategy": "shared"},
+        )
+        assert res.status_code == 200
+        assert res.json()["epic_strategy"] == "shared"
+
+    def test_update_epic_strategy_shared_case_insensitive(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-test1",
+            json={"epic_strategy": "SHARED"},
+        )
+        assert res.status_code == 200
+        assert res.json()["epic_strategy"] == "shared"
+
+    def test_update_epic_strategy_null_resets_to_shared(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-test1",
+            json={"epic_strategy": None},
+        )
+        assert res.status_code == 200
+        assert res.json()["epic_strategy"] == "shared"
+
+    def test_update_epic_strategy_flat_rejected(self):
+        # "flat" is a removed strategy; the API must reject it.
+        res = self.client.patch(
+            "/api/v1/projects/proj-test1",
+            json={"epic_strategy": "flat"},
+        )
+        assert res.status_code == 400
+        data = res.json()
+        assert data["error"]["code"] == "validation"
+        assert "epic_strategy" in data["error"]["message"]
+
+    def test_update_epic_strategy_stacked_rejected(self):
+        # "stacked" is a removed strategy; the API must reject it.
+        res = self.client.patch(
+            "/api/v1/projects/proj-test1",
+            json={"epic_strategy": "stacked"},
+        )
+        assert res.status_code == 400
+        data = res.json()
+        assert data["error"]["code"] == "validation"
+        assert "epic_strategy" in data["error"]["message"]
+
+    def test_update_epic_strategy_invalid_value_rejected(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-test1",
+            json={"epic_strategy": "bogus"},
+        )
+        assert res.status_code == 400
+        data = res.json()
+        assert data["error"]["code"] == "validation"
+
+    def test_new_project_defaults_to_shared_epic_strategy(self):
+        # New Project instances always default to "shared".
+        from oompah.models import Project
+
+        p = Project(id="x", name="n", repo_url="u", repo_path="/tmp/x")
+        assert p.epic_strategy == "shared"
+        assert p.to_dict()["epic_strategy"] == "shared"
+
 
 class TestProjectCreateAPIDefaults:
     """Regression tests for add-project defaults."""

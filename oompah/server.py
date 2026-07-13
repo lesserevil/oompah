@@ -556,6 +556,16 @@ def set_orchestrator(orch: Orchestrator) -> None:
             )
 
     _agent_profile_store.set_reload_callback(_on_profiles_changed)
+    # Draft-label compatibility migration: strip any 'draft' labels left on
+    # epics from the old automatic lifecycle (OOMPAH-171).  Idempotent.
+    try:
+        _n_migrated = remove_draft_labels_from_epics(orch.tracker)
+        if _n_migrated:
+            logger.info(
+                "draft-label migration: removed 'draft' label from %d epic(s)", _n_migrated
+            )
+    except Exception:
+        logger.warning("draft-label migration: failed (non-fatal)", exc_info=True)
     # Error watcher: creates tasks for backend/frontend errors
     _error_watcher = ErrorWatcher(orch.tracker)
     _error_watcher.install_log_handler("oompah")
@@ -664,6 +674,36 @@ def _get_orchestrator() -> Orchestrator:
     if _orchestrator is None:
         raise RuntimeError("Orchestrator not initialized")
     return _orchestrator
+
+
+def remove_draft_labels_from_epics(tracker) -> int:
+    """Compatibility migration: remove the 'draft' label from all existing epics.
+
+    The automatic draft-epic lifecycle has been removed (OOMPAH-171).  Epics
+    created before this change may carry a 'draft' label that was added
+    automatically at creation time.  This function strips that label from every
+    epic that holds it, without touching the issue type, state, parent/child
+    links, or any other label.
+
+    Returns the number of epics that were updated.
+    """
+    try:
+        issues = tracker.fetch_all_issues()
+    except Exception:
+        return 0
+    updated = 0
+    for issue in issues:
+        if getattr(issue, "issue_type", None) == "epic" and "draft" in (issue.labels or []):
+            try:
+                tracker.remove_label(issue.identifier, "draft")
+                updated += 1
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "draft-label migration: failed to remove label from %s",
+                    issue.identifier,
+                )
+    return updated
 
 
 def _set_agent_profile_store(store: AgentProfileStore) -> None:
@@ -2693,10 +2733,6 @@ async def api_create_issue(request: Request):
             issue.target_branch = target_branch
         if work_branch:
             issue.work_branch = work_branch
-
-        # Auto-add 'draft' label to new epics so they appear in the kanban
-        if issue_type == "epic":
-            tracker.add_label(issue.identifier, "draft")
 
         _api_cache.invalidate("issues:all")
         await broadcast_issues()
@@ -6990,19 +7026,15 @@ async def api_update_project(project_id: str, request: Request):
         if "epic_strategy" in body:
             val = body["epic_strategy"]
             if val is None:
-                fields["epic_strategy"] = "flat"
-            elif isinstance(val, str) and val.strip().lower() in (
-                "flat",
-                "stacked",
-                "shared",
-            ):
-                fields["epic_strategy"] = val.strip().lower()
+                fields["epic_strategy"] = "shared"
+            elif isinstance(val, str) and val.strip().lower() == "shared":
+                fields["epic_strategy"] = "shared"
             else:
                 return JSONResponse(
                     {
                         "error": {
                             "code": "validation",
-                            "message": "epic_strategy must be one of: flat, stacked, shared",
+                            "message": "epic_strategy must be 'shared' — flat and stacked strategies have been removed",
                         }
                     },
                     status_code=400,

@@ -37,34 +37,6 @@
     .form-group { margin-bottom: 0.75rem; }
     .form-group label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.25rem; }
     .form-group input { width: 100%; padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.85rem; }
-    /* Override the full-width input rule above for radios; they must be auto-sized. */
-    .form-group input[type="radio"] { width: auto; padding: 0; border: none; background: transparent; }
-    .epic-strategy-group { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.25rem; }
-    /* Override the parent .form-group label rule (display:block, color:muted) — the per-option
-       label contains rich content and shouldn't inherit the field-label styling. */
-    .form-group label.epic-strategy-option {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 0.6rem;
-      align-items: start;
-      cursor: pointer;
-      padding: 0.55rem 0.7rem;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--bg);
-      transition: border-color 0.1s ease, background 0.1s ease;
-      color: var(--text);
-      font-size: 0.8rem;
-      margin-bottom: 0;
-    }
-    .epic-strategy-option:hover { border-color: rgba(88, 166, 255, 0.4); }
-    .epic-strategy-option:has(input:checked) { border-color: var(--accent); background: rgba(88, 166, 255, 0.06); }
-    .epic-strategy-option > input[type="radio"] { margin-top: 0.15rem; flex-shrink: 0; cursor: pointer; }
-    .epic-strategy-label { min-width: 0; }
-    .epic-strategy-name { font-size: 0.85rem; color: var(--text); margin-bottom: 0.15rem; }
-    .epic-strategy-name strong { font-weight: 600; }
-    .epic-strategy-tag { display: inline-block; font-size: 0.65rem; font-weight: 500; color: var(--text-muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 0.3rem; margin-left: 0.3rem; vertical-align: 0.05rem; }
-    .epic-strategy-desc { color: var(--text-muted); line-height: 1.4; }
     .form-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; display: none; }
     .form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.75rem; }
     .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
@@ -325,11 +297,6 @@ async function loadProjects() {
         </label>
       </div>
       <div class="field-row">
-        <span class="field-label">Epic Strategy:</span>
-        <span class="field-value"><code>${esc(p.epic_strategy || 'flat')}</code></span>
-        <span style="font-size:0.7rem;color:var(--text-muted);margin-left:0.5rem;">(controls how children of an epic relate to branches and CI)</span>
-      </div>
-      <div class="field-row">
         <span class="field-label">Dispatch:</span>
         <span class="field-value" style="color:${p.paused ? '#d29922' : 'var(--green)'}">${p.paused ? 'Paused — orchestrator will not dispatch new agents to this project' : 'Active'}</span>
       </div>
@@ -488,32 +455,6 @@ async function loadProjects() {
             ${renderProviderWhitelistCheckboxes(p.id, p.provider_whitelist)}
           </div>
           <span style="font-size:0.7rem;color:var(--text-muted);">Only agents using whitelisted providers will be dispatched to this project. Check none to allow all.</span>
-        </div>
-        <div class="form-group">
-          <label>Epic Strategy (controls how children of an epic relate to branches and CI)</label>
-          <div class="epic-strategy-group">
-            <label class="epic-strategy-option">
-              <input type="radio" name="edit-epic-strategy-${esc(p.id)}" value="flat" ${(p.epic_strategy || 'flat') === 'flat' ? 'checked' : ''}>
-              <div class="epic-strategy-label">
-                <div class="epic-strategy-name"><strong>flat</strong> <span class="epic-strategy-tag">default</span></div>
-                <div class="epic-strategy-desc">Every task, including epic children, gets its own worktree off main. Each PR targets main; CI runs per child PR; merge queue serializes the merges.</div>
-              </div>
-            </label>
-            <label class="epic-strategy-option">
-              <input type="radio" name="edit-epic-strategy-${esc(p.id)}" value="stacked" ${p.epic_strategy === 'stacked' ? 'checked' : ''}>
-              <div class="epic-strategy-label">
-                <div class="epic-strategy-name"><strong>stacked</strong></div>
-                <div class="epic-strategy-desc">Every task gets its own worktree, but children of an epic open their PR against the epic's branch. CI runs on each child PR; once all children land, the orchestrator pushes the epic branch and opens a single epic→main PR.</div>
-              </div>
-            </label>
-            <label class="epic-strategy-option">
-              <input type="radio" name="edit-epic-strategy-${esc(p.id)}" value="shared" ${p.epic_strategy === 'shared' ? 'checked' : ''}>
-              <div class="epic-strategy-label">
-                <div class="epic-strategy-name"><strong>shared</strong></div>
-                <div class="epic-strategy-desc">Each epic gets ONE worktree and ONE branch shared by all of its children. Children commit directly to the epic branch (no per-child PRs, no per-child CI). Children dispatch SERIALLY within an epic; multiple epics still run in parallel up to the in-flight cap. Trade: loses intra-epic parallelism in exchange for fewer merges, fewer CI runs, no inter-child conflicts on main.</div>
-              </div>
-            </label>
-          </div>
         </div>
         <div id="edit-error-${esc(p.id)}" style="color:var(--red);font-size:0.8rem;margin-bottom:0.5rem;display:none;"></div>
         <div class="form-actions">
@@ -684,11 +625,6 @@ async function saveProject(id) {
   const testSkipPaths = testSkipPathsRaw
     ? testSkipPathsRaw.split(',').map(s => s.trim()).filter(s => s.length > 0)
     : [];
-  // Read the chosen epic_strategy from the radio group. Default to "flat"
-  // when no radio is selected (defensive — should not happen because one
-  // radio is always pre-checked).
-  const epicStrategyEl = document.querySelector('input[name="edit-epic-strategy-' + id + '"]:checked');
-  const epicStrategy = epicStrategyEl ? epicStrategyEl.value : 'flat';
   // Collect the provider whitelist from the checkbox group.
   // Empty selection sends [] so the whitelist is cleared and all providers
   // are allowed. This is intentional and distinct from "not sent" (undefined).
@@ -706,7 +642,7 @@ async function saveProject(id) {
   const statusLabelAuthorizedLogins = statusLabelAuthorizedLoginsRaw
     ? statusLabelAuthorizedLoginsRaw.split(',').map(s => s.trim()).filter(s => s.length > 0)
     : [];
-  const body = {name, branch, branches, default_branch: defaultBranch, max_in_flight_prs: maxInFlightPrs, epic_strategy: epicStrategy, provider_whitelist: providerWhitelist,
+  const body = {name, branch, branches, default_branch: defaultBranch, max_in_flight_prs: maxInFlightPrs, provider_whitelist: providerWhitelist,
     tracker_kind: trackerKind, tracker_owner: trackerOwner, tracker_repo: trackerRepo,
     github_issue_intake_enabled: githubIssueIntakeEnabled,
     github_project_node_id: githubProjectNodeId,
