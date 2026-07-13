@@ -24,7 +24,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T07:01:24.114561Z'
+updated_at: '2026-07-13T07:01:26.364727Z'
 work_branch: epic-OOMPAH-172
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/407
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-07-13 07:01
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-13 07:01
+---
+YOLO: CI tests failed on MR #407. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
