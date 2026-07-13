@@ -15,7 +15,7 @@ labels:
 - draft
 assignee: null
 created_at: '2026-07-13T02:22:52.257643Z'
-updated_at: '2026-07-13T02:23:12.844286Z'
+updated_at: '2026-07-13T02:23:29.219562Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,3 +32,11 @@ Remove the flat and stacked epic/task-management strategies. Oompah must retain 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-13 02:23
+---
+Filed implementation, orchestration, UI, and documentation children. OOMPAH-168 and OOMPAH-169 depend on the configuration simplification; OOMPAH-170 follows the shared-only orchestration change.
+---
+<!-- COMMENTS:END -->
