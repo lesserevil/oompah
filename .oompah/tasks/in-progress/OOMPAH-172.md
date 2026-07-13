@@ -24,7 +24,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T07:06:12.487281Z'
+updated_at: '2026-07-13T07:07:28.005333Z'
 work_branch: epic-OOMPAH-172
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/407
@@ -77,5 +77,10 @@ author: oompah
 created: 2026-07-13 07:02
 ---
 Understanding: CI is failing on PR #407 (branch epic-OOMPAH-172) with 6 test failures in tests/test_granian_parity.py::TestMultipartAttachmentEndpoints. All failures show Granian returning 503 while uvicorn returns expected codes (400, 404, 500). Root cause: multipart attachment endpoints likely not registered in the Granian route set. Will investigate the granian parity test setup and the attachment route registration.
+---
+author: oompah
+created: 2026-07-13 07:07
+---
+Discovery: Root cause identified. test_epic_draft_migration.py::test_migration_called_during_set_orchestrator calls server_module.set_orchestrator(mock_orch) which sets the global _orchestrator to a MagicMock, but does NOT restore it. Since tests run alphabetically, test_epic_draft_migration (e) runs before test_granian_parity (g), leaving _orchestrator polluted. The TestClient then finds an orchestrator and returns 400/404/500 instead of 503, while the Granian subprocess starts fresh with no orchestrator and correctly returns 503. Fix: save/restore _orchestrator in the epic draft migration test. The same pattern exists in test_release_pick_migration_startup.py but it runs after (r > g) so it doesn't affect these tests.
 ---
 <!-- COMMENTS:END -->
