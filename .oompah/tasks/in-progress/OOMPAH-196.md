@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:14.875922Z'
-updated_at: '2026-07-13T20:56:59.956232Z'
+updated_at: '2026-07-13T21:02:32.026521Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,16 @@ author: oompah
 created: 2026-07-13 20:56
 ---
 Duplicate investigation complete: no duplicate found. OOMPAH-196 is distinct from all siblings. OOMPAH-193 built the ledger store, OOMPAH-194 built the migration and DualReadDeliveryAdapter, OOMPAH-195 is refactoring the queue/executor. OOMPAH-196 specifically covers: (1) task/epic detail reads querying ledger by source_identifier, (2) task/epic approval (POST /api/v1/issues/{id}/release-addendums) writing ledger deliveries instead of task metadata, (3) retry/archive operating on ledger delivery_id, (4) no new oompah.release_addendums metadata written on approval. Proceeding with implementation.
+---
+author: oompah
+created: 2026-07-13 21:02
+---
+Discovery: Found all relevant code. The 4 endpoints to adapt:
+1. GET /api/v1/issues/{id}/release-addendums (server.py:3962) - reads via AddendumRepository, must switch to DualReadDeliveryAdapter (from OOMPAH-194)
+2. POST /api/v1/issues/{id}/release-addendums (server.py:3644) - calls approve_release_addendums() which writes oompah.release_addendums task metadata; must write ledger ReleaseDelivery records instead
+3. POST .../retry (server.py:4072) - loads AddendumRepository, transitions; must look in ledger first by delivery_id
+4. POST .../archive (server.py:4251) - same
+
+Plan: create oompah/release_delivery_compat.py with delivery_to_compat_raw(), make_delivery_store(), make_delivery_adapter(), and approve_release_addendums_via_ledger(). Modify server.py endpoints to use the new module. Add tests in tests/test_server_release_addendums_ledger.py.
 ---
 <!-- COMMENTS:END -->
