@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:05.076076Z'
-updated_at: '2026-07-13T02:33:14.241563Z'
+updated_at: '2026-07-13T02:33:16.938014Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -125,5 +125,10 @@ COMPLETION: OOMPAH-167 is done. Delivered:
 4. **Tests**: 16 new/updated tests covering domain model defaults, load migration for legacy records, serialization, restart-safe migration, ProjectStore update validation, and API integration tests (7 new, 9 updated).
 
 OOMPAH-168 (orchestration simplification) can now proceed — it depends on this task and is unblocked.
+---
+author: oompah
+created: 2026-07-13 02:33
+---
+Removed flat and stacked epic strategies from domain model, project persistence, project-definition API, and configuration validation. 'shared' is now the only supported value. Load migration in from_dict() normalizes legacy persisted values. 16 new/updated tests covering model defaults, migration, validation, serialization, and API integration. All 7283 tests pass.
 ---
 <!-- COMMENTS:END -->
