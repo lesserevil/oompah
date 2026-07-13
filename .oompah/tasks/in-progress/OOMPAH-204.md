@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-13T20:02:50.911753Z'
-updated_at: '2026-07-13T20:10:28.301901Z'
+updated_at: '2026-07-13T20:15:05.238406Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -144,5 +144,18 @@ Key findings:
 - The TrackerError bubbles up to the API layer, is caught by error_watcher, and auto-files this task.
 - Fix: when `--ff-only` fails in `_sync_from_remote`, attempt `git rebase origin/<branch>` as fallback before raising TrackerError. This handles the common case where local has task commits from a previous partial write. Only raise TrackerError if rebase also fails.
 - Tests `test_ff_only_failure_raises_tracker_error_with_remediation` and `test_commit_and_push_retry_uses_ff_only_not_pull_rebase` will need updates.
+---
+author: oompah
+created: 2026-07-13 20:15
+---
+Implementation: Modified _sync_from_remote() in oompah/oompah_md_tracker.py to add a rebase fallback when --ff-only fails.
+
+Root cause: When _commit_and_push() commits a task update and the push is rejected (origin has new commits), _sync_from_remote() is called. At this point local main has the new task commit AND origin has different commits → diverged branches → --ff-only fails → TrackerError raised → error_watcher auto-files a task.
+
+Fix: After --ff-only fails, attempt 'git rebase origin/<branch>' to place local task commit(s) on top of the latest origin tip. Only raise TrackerError if the rebase also fails. Uses 'git rebase origin/branch' (not 'git pull --rebase') to avoid the OOMPAH-10 regression with ambiguous remote refs.
+
+Files changed:
+- oompah/oompah_md_tracker.py: _sync_from_remote() tries rebase as fallback when ff-only fails
+- tests/test_oompah_md_tracker.py: updated test_ff_only_failure_raises_tracker_error_with_remediation to mock rebase failure; added test_ff_only_failure_rebase_recovery_succeeds and test_commit_and_push_retry_rebase_recovery_on_diverged_branch
 ---
 <!-- COMMENTS:END -->
