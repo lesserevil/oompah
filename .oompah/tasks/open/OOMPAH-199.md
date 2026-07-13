@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-199
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Add commit-selection release delivery queue API
 parent: OOMPAH-192
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:53.860350Z'
-updated_at: '2026-07-13T19:34:56.624804Z'
+updated_at: '2026-07-13T20:00:45.348991Z'
 work_branch: null
 target_branch: null
 review_url: null
