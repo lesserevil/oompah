@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-166
 type: epic
-status: In Progress
+status: Merged
 priority: 0
 title: Standardize epic workflow on shared strategy
 parent: null
@@ -15,7 +15,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:22:52.257643Z'
-updated_at: '2026-07-13T05:06:44.603357Z'
+updated_at: '2026-07-13T05:06:46.915923Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/406
