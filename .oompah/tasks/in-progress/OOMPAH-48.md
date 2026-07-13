@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:46:23.693967Z'
-updated_at: '2026-07-13T14:58:33.635092Z'
+updated_at: '2026-07-13T15:02:29.596258Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -80,5 +80,10 @@ author: oompah
 created: 2026-07-13 14:58
 ---
 IMPLEMENTATION: Two changes applied: (1) .github/workflows/cli-release.yml — added 'oompah project-bootstrap --help' after 'oompah task --help' at line 57 in the Verify wheel console script step; (2) tests/test_cli_release_packaging.py — added 'assert "oompah project-bootstrap --help" in text' between the oompah task --help assertion and the gh release create assertion in test_release_workflow_is_tag_or_manual_github_release_only. Running tests now.
+---
+author: oompah
+created: 2026-07-13 15:02
+---
+VERIFICATION: All 7993 tests pass (28 skipped, 12 warnings). The new assertion 'assert "oompah project-bootstrap --help" in text' is satisfied by the 'oompah project-bootstrap --help' line added to .github/workflows/cli-release.yml. Committing and pushing.
 ---
 <!-- COMMENTS:END -->
