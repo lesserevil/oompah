@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-174
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Add supported release lines to project configuration
 parent: OOMPAH-172
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:40.880021Z'
-updated_at: '2026-07-13T03:22:46.196998Z'
+updated_at: '2026-07-13T07:13:09.341401Z'
 work_branch: null
 target_branch: null
 review_url: null
