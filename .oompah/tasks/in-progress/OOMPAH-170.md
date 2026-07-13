@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:12.785814Z'
-updated_at: '2026-07-13T05:06:58.722169Z'
+updated_at: '2026-07-13T05:07:05.433260Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,5 +50,10 @@ author: oompah
 created: 2026-07-13 04:54
 ---
 DISCOVERY: Found all locations needing updates. Primary target: docs/task-epic-workflow.md has stale flat/stacked references in: (1) Epic Planning section - 'stacked and shared projects'; (2) Epic Branch Strategies section - table with flat/stacked/shared rows; (3) Mermaid diagram with flat/stacked branches; (4) Review and Repair - 'stacked or shared epics'; (5) Closing and Rollup - 'stacked and shared epics' (2x). Secondary: tests/test_epic_strategy.py module docstring mentions 'stacked mode' and 'stacked + shared'. Also: plans/multi-branch-support.md line 123 references test_epic_strategy.py as 'Epic strategies' (minor stale context). The generated project guidance (oompah/agent_instructions.py OOMPAH_TASK_AGENT_INSTRUCTIONS) has no flat/stacked references - already clean. No new test file needed beyond updating the test docstring. No duplicate found - proceeding with implementation.
+---
+author: oompah
+created: 2026-07-13 05:07
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
