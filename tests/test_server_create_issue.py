@@ -58,10 +58,10 @@ def client():
 # ---------------------------------------------------------------------------
 
 class TestCreateIssueEpicDraftLabel:
-    """Tests that creating an epic auto-adds the 'draft' label."""
+    """Tests that creating an epic does NOT auto-add the 'draft' label (OOMPAH-171)."""
 
-    def test_create_epic_adds_draft_label(self, client):
-        """POST type=epic should call tracker.add_label with 'draft'."""
+    def test_create_epic_does_not_add_draft_label(self, client):
+        """POST type=epic must NOT call tracker.add_label with 'draft' (OOMPAH-171)."""
         mock_orch, mock_tracker = _make_mock_orchestrator()
         mock_tracker.create_issue.return_value = _make_mock_issue(
             identifier="epic-1", issue_type="epic"
@@ -78,7 +78,8 @@ class TestCreateIssueEpicDraftLabel:
 
         assert resp.status_code == 201
         assert resp.json()["ok"] is True
-        mock_tracker.add_label.assert_called_once_with("epic-1", "draft")
+        # Automatic draft labeling was removed in OOMPAH-171
+        mock_tracker.add_label.assert_not_called()
 
     def test_create_task_does_not_add_draft_label(self, client):
         """POST type=task should NOT call tracker.add_label."""
@@ -181,15 +182,14 @@ class TestCreateIssueEpicDraftLabel:
         assert resp.status_code == 201
         mock_tracker.add_label.assert_not_called()
 
-    def test_create_epic_draft_label_added_before_broadcast(self, client):
-        """The draft label must be added before broadcast_issues is called."""
+    def test_create_epic_calls_broadcast_without_draft_label(self, client):
+        """Creating an epic calls broadcast_issues without adding any draft label (OOMPAH-171)."""
         call_order = []
 
         mock_orch, mock_tracker = _make_mock_orchestrator()
         mock_tracker.create_issue.return_value = _make_mock_issue(
             identifier="epic-2", issue_type="epic"
         )
-        mock_tracker.add_label.side_effect = lambda *a: call_order.append("add_label")
 
         async def mock_broadcast():
             call_order.append("broadcast")
@@ -198,24 +198,22 @@ class TestCreateIssueEpicDraftLabel:
             patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
             patch.object(server_module, "broadcast_issues", side_effect=mock_broadcast),
         ):
-            client.post(
+            resp = client.post(
                 "/api/v1/issues",
                 json={"title": "My Epic", "type": "epic", "project_id": "proj-1"},
             )
 
-        assert "add_label" in call_order
+        assert resp.status_code == 201
         assert "broadcast" in call_order
-        assert call_order.index("add_label") < call_order.index("broadcast")
+        # No draft label should have been added (OOMPAH-171)
+        mock_tracker.add_label.assert_not_called()
 
-    def test_create_epic_add_label_failure_still_returns_success(self, client):
-        """If add_label raises an exception, the endpoint still returns 201."""
+    def test_create_epic_returns_201_on_success(self, client):
+        """Creating an epic returns 201 with ok=True; no draft label side-effects (OOMPAH-171)."""
         mock_orch, mock_tracker = _make_mock_orchestrator()
         mock_tracker.create_issue.return_value = _make_mock_issue(
             identifier="epic-3", issue_type="epic"
         )
-        # The add_label failure should propagate — it's a critical step.
-        # But the issue was already created, so we return 500.
-        mock_tracker.add_label.side_effect = Exception("tracker error")
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
@@ -226,8 +224,10 @@ class TestCreateIssueEpicDraftLabel:
                 json={"title": "My Epic", "type": "epic", "project_id": "proj-1"},
             )
 
-        # The outer exception handler returns 500 on any unhandled exception
-        assert resp.status_code == 500
+        # Epic creation succeeds without any add_label call (OOMPAH-171)
+        assert resp.status_code == 201
+        assert resp.json()["ok"] is True
+        mock_tracker.add_label.assert_not_called()
 
     def test_create_epic_missing_title_returns_400(self, client):
         """POST with no title returns 400 even for epics."""
@@ -283,8 +283,8 @@ class TestCreateIssueEpicDraftLabel:
         invalidated_keys = [call.args[0] for call in mock_invalidate.call_args_list]
         assert "issues:all" in invalidated_keys
 
-    def test_create_epic_uses_correct_identifier_for_label(self, client):
-        """The add_label call must use the issue.identifier (not issue.id) from tracker."""
+    def test_create_epic_with_custom_identifier_does_not_add_label(self, client):
+        """Epic creation with any identifier must NOT call add_label (OOMPAH-171)."""
         mock_orch, mock_tracker = _make_mock_orchestrator()
         # Simulate issue with a different identifier format
         issue = Issue(
@@ -300,13 +300,14 @@ class TestCreateIssueEpicDraftLabel:
             patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
             patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
         ):
-            client.post(
+            resp = client.post(
                 "/api/v1/issues",
                 json={"title": "Epic", "type": "epic", "project_id": "proj-1"},
             )
 
-        # Should use issue.identifier, not issue.id
-        mock_tracker.add_label.assert_called_once_with("oompah-xyz", "draft")
+        assert resp.status_code == 201
+        # Automatic draft labeling was removed in OOMPAH-171
+        mock_tracker.add_label.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -469,7 +469,6 @@ BUILTIN_FOCI: list[Focus] = [
             "Set appropriate priorities and dependencies between tasks",
             "Use `oompah task child-create <epic-id> --title \"...\" --description \"...\"` to file each child task with an explicit parent-child link to the parent epic",
             "Set dependencies between children via `oompah task set-dependency <child-id> --depends-on <other-id>` where needed",
-            "Remove the 'draft' label from the epic when planning is complete via `oompah task remove-label <epic-id> draft`",
             "Set the epic status to 'Backlog' when planning is complete via `oompah task set-status <epic-id> Backlog`",
         ],
         must_not_do=[
@@ -481,7 +480,7 @@ BUILTIN_FOCI: list[Focus] = [
         ],
         keywords=["epic", "plan", "planning", "breakdown", "decompose", "children", "subtask", "tasks", "subtasks", "milestones"],
         issue_types=["epic"],
-        labels=["draft"],
+        labels=[],
         priority=8,
     ),
     Focus(
