@@ -1068,3 +1068,1253 @@ class TestBranchAvailability:
         branch_info = resp.json()["release_branches"][0]
         assert branch_info["available"] is False
         assert branch_info["head"] is None
+
+
+# ===========================================================================
+# POST /api/v1/projects/{project_id}/release-delivery/commits
+# OOMPAH-199: Add commit-selection release delivery queue API
+# ===========================================================================
+
+_POST_ENDPOINT = f"/api/v1/projects/{_PROJECT_ID}/release-delivery/commits"
+_IDEM_KEY = "test-idempotency-key-12345"
+_SHA_A = "a" * 40
+_SHA_B = "b" * 40
+_SHA_C = "c" * 40
+_SHA_D = "d" * 40
+_BRANCH_11 = "release/1.1"
+_BRANCH_10 = "release/1.0"
+
+
+def _post_body(
+    *,
+    source_head: str = _SOURCE_HEAD,
+    commits: list[str] | None = None,
+    target_branches: list[str] | None = None,
+) -> dict:
+    return {
+        "source_head": source_head,
+        "commits": commits if commits is not None else [_SHA_A],
+        "target_branches": target_branches if target_branches is not None else [_BRANCH_11],
+    }
+
+
+def _make_post_orchestrator(tmp_path: Path, project: MagicMock | None = None) -> MagicMock:
+    p = project or _make_project(tmp_path)
+    orch = MagicMock()
+    orch.project_store.get = MagicMock(return_value=p)
+    orch.event_bus = MagicMock()
+    return orch
+
+
+def _patch_git_validation(
+    *,
+    current_head: str | None = _SOURCE_HEAD,
+    error_code: str | None = None,
+    error_message: str | None = None,
+):
+    """Patch _delivery_validate_git to return a fixed result."""
+    return patch(
+        "oompah.server._delivery_validate_git",
+        return_value=(current_head, error_code, error_message),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _clear_idempotency_store():
+    """Clear the idempotency store between tests to avoid cross-test leakage."""
+    server_module._delivery_idempotency_store.clear()
+    yield
+    server_module._delivery_idempotency_store.clear()
+
+
+# ---------------------------------------------------------------------------
+# Happy path – single commit, single target
+# ---------------------------------------------------------------------------
+
+
+class TestPostHappyPathSingleCommitSingleTarget:
+    """POST with one commit and one target creates one delivery bundle."""
+
+    def test_returns_201(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 201
+
+    def test_response_has_created_pair(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(commits=[_SHA_A], target_branches=[_BRANCH_11]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        data = resp.json()
+        assert len(data["created"]) == 1
+        pair = data["created"][0]
+        assert pair["commit"] == _SHA_A
+        assert pair["target"] == _BRANCH_11
+        assert "delivery_id" in pair
+
+    def test_already_active_and_already_delivered_are_empty(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        data = resp.json()
+        assert data["already_active"] == []
+        assert data["already_delivered"] == []
+        assert data["invalid"] == []
+
+    def test_never_creates_ordinary_task(self, client, tmp_path):
+        """Delivery bundles must not create task files or task-kind records."""
+        from oompah.release_delivery_store import SourceKind
+
+        written_deliveries: list = []
+
+        def capture_write(ledger, subject):
+            written_deliveries.extend(ledger.deliveries)
+
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock(side_effect=capture_write)
+            mock_store_factory.return_value = mock_store
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+
+        # All written deliveries must be source_kind=commits, not task or epic
+        for d in written_deliveries:
+            assert d.source_kind is SourceKind.COMMITS
+            assert d.source_identifier is None
+
+
+# ---------------------------------------------------------------------------
+# Happy path – many commits, many targets
+# ---------------------------------------------------------------------------
+
+
+class TestPostManyCommitsManyTargets:
+    """POST with multiple commits and multiple targets creates multiple bundles."""
+
+    def test_creates_one_bundle_per_target(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(
+                    commits=[_SHA_A, _SHA_B],
+                    target_branches=[_BRANCH_11, _BRANCH_10],
+                ),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        data = resp.json()
+        # 2 commits × 2 targets = 4 pairs, but only 2 unique delivery_ids
+        assert len(data["created"]) == 4
+        delivery_ids = {pair["delivery_id"] for pair in data["created"]}
+        # One bundle per target branch
+        assert len(delivery_ids) == 2
+
+    def test_all_commits_in_each_bundle_in_order(self, client, tmp_path):
+        """The queued source_commits order must match the submitted order."""
+        written_deliveries: list = []
+
+        def capture_write(ledger, subject):
+            written_deliveries.extend(ledger.deliveries)
+
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock(side_effect=capture_write)
+            mock_store_factory.return_value = mock_store
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(
+                    commits=[_SHA_A, _SHA_B, _SHA_C],
+                    target_branches=[_BRANCH_11],
+                ),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+
+        assert len(written_deliveries) >= 1
+        bundle = next(d for d in written_deliveries if d.target_branch == _BRANCH_11)
+        # Exact commit order preserved
+        assert bundle.source_commits == [_SHA_A, _SHA_B, _SHA_C]
+
+    def test_created_pairs_include_all_commit_target_combos(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(
+                    commits=[_SHA_A, _SHA_B],
+                    target_branches=[_BRANCH_11],
+                ),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        created = resp.json()["created"]
+        combos = {(p["commit"], p["target"]) for p in created}
+        assert (_SHA_A, _BRANCH_11) in combos
+        assert (_SHA_B, _BRANCH_11) in combos
+
+
+# ---------------------------------------------------------------------------
+# Duplicate active/merged pairs
+# ---------------------------------------------------------------------------
+
+
+class TestPostDuplicatePairs:
+    """Duplicate active and merged deliveries produce already_active / already_delivered."""
+
+    def _make_active_delivery(self, target_branch: str, commits: list[str]) -> MagicMock:
+        from oompah.release_delivery_store import ReleaseDelivery, SourceKind
+        from oompah.release_addendum_schema import AddendumStatus
+
+        d = MagicMock(spec=ReleaseDelivery)
+        d.id = "rd_active_test"
+        d.target_branch = target_branch
+        d.source_commits = list(commits)
+        d.status = AddendumStatus.OPEN
+        return d
+
+    def _make_merged_delivery(self, target_branch: str, commits: list[str]) -> MagicMock:
+        from oompah.release_delivery_store import ReleaseDelivery
+        from oompah.release_addendum_schema import AddendumStatus
+
+        d = MagicMock(spec=ReleaseDelivery)
+        d.id = "rd_merged_test"
+        d.target_branch = target_branch
+        d.source_commits = list(commits)
+        d.status = AddendumStatus.MERGED
+        return d
+
+    def test_already_active_when_active_delivery_exists(self, client, tmp_path):
+        active = self._make_active_delivery(_BRANCH_11, [_SHA_A])
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[active]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(commits=[_SHA_A], target_branches=[_BRANCH_11]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        data = resp.json()
+        assert resp.status_code == 201
+        assert len(data["already_active"]) == 1
+        assert data["already_active"][0]["commit"] == _SHA_A
+        assert data["already_active"][0]["target"] == _BRANCH_11
+        assert data["already_active"][0]["delivery_id"] == "rd_active_test"
+        assert data["created"] == []
+
+    def test_already_delivered_when_merged_delivery_exists(self, client, tmp_path):
+        merged = self._make_merged_delivery(_BRANCH_11, [_SHA_A])
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[merged]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(commits=[_SHA_A], target_branches=[_BRANCH_11]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        data = resp.json()
+        assert resp.status_code == 201
+        assert len(data["already_delivered"]) == 1
+        assert data["already_delivered"][0]["commit"] == _SHA_A
+        assert data["already_delivered"][0]["target"] == _BRANCH_11
+        assert data["created"] == []
+
+    def test_no_duplicate_deliveries_when_active(self, client, tmp_path):
+        """No new ledger write when delivery is already active."""
+        active = self._make_active_delivery(_BRANCH_11, [_SHA_A])
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[active]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(commits=[_SHA_A], target_branches=[_BRANCH_11]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        # _write_ledger must NOT be called since there are no new deliveries
+        mock_store._write_ledger.assert_not_called()
+
+    def test_mixed_created_and_active(self, client, tmp_path):
+        """One target active, another target fresh → one active, one created."""
+        active = self._make_active_delivery(_BRANCH_11, [_SHA_A])
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[active]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(
+                    commits=[_SHA_A],
+                    target_branches=[_BRANCH_11, _BRANCH_10],
+                ),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        data = resp.json()
+        assert resp.status_code == 201
+        assert len(data["already_active"]) == 1
+        assert len(data["created"]) == 1
+        assert data["created"][0]["target"] == _BRANCH_10
+
+
+# ---------------------------------------------------------------------------
+# Archived re-approval
+# ---------------------------------------------------------------------------
+
+
+class TestPostArchivedReapproval:
+    """A commit with only an archived delivery gets a fresh bundle (created)."""
+
+    def test_archived_does_not_block_new_delivery(self, client, tmp_path):
+        from oompah.release_delivery_store import ReleaseDelivery
+        from oompah.release_addendum_schema import AddendumStatus
+
+        archived = MagicMock(spec=ReleaseDelivery)
+        archived.id = "rd_archived_test"
+        archived.target_branch = _BRANCH_11
+        archived.source_commits = [_SHA_A]
+        archived.status = AddendumStatus.ARCHIVED
+
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[archived]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(commits=[_SHA_A], target_branches=[_BRANCH_11]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        data = resp.json()
+        assert resp.status_code == 201
+        # Archived entry must NOT block; a new delivery is created
+        assert len(data["created"]) == 1
+        assert data["already_active"] == []
+        assert data["already_delivered"] == []
+
+
+# ---------------------------------------------------------------------------
+# Queue wake-up after persistence
+# ---------------------------------------------------------------------------
+
+
+class TestPostQueueWakeup:
+    """event_bus.emit is called AFTER persistence for each new delivery."""
+
+    def test_event_emitted_after_write(self, client, tmp_path):
+        from oompah.events import EventType
+
+        call_order: list[str] = []
+
+        def record_write(ledger, subject):
+            call_order.append("write")
+
+        orch = _make_post_orchestrator(tmp_path)
+        orch.event_bus.emit = MagicMock(side_effect=lambda *a, **kw: call_order.append("emit"))
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock(side_effect=record_write)
+            mock_store_factory.return_value = mock_store
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+
+        assert "write" in call_order
+        assert "emit" in call_order
+        # Write must precede emit
+        assert call_order.index("write") < call_order.index("emit")
+
+    def test_event_emitted_with_delivery_id(self, client, tmp_path):
+        from oompah.events import EventType
+
+        emitted_payloads: list = []
+
+        def capture_emit(event_type, payload):
+            if event_type == EventType.RELEASE_ADDENDUM_READY:
+                emitted_payloads.append(payload)
+
+        orch = _make_post_orchestrator(tmp_path)
+        orch.event_bus.emit = MagicMock(side_effect=capture_emit)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+
+        assert len(emitted_payloads) == 1
+        delivery_id = resp.json()["created"][0]["delivery_id"]
+        assert emitted_payloads[0]["delivery_id"] == delivery_id
+        assert emitted_payloads[0]["project_id"] == _PROJECT_ID
+
+    def test_no_event_when_no_new_deliveries(self, client, tmp_path):
+        """No event emitted when all pairs are already_active."""
+        from oompah.release_delivery_store import ReleaseDelivery
+        from oompah.release_addendum_schema import AddendumStatus
+
+        active = MagicMock(spec=ReleaseDelivery)
+        active.id = "rd_existing"
+        active.target_branch = _BRANCH_11
+        active.source_commits = [_SHA_A]
+        active.status = AddendumStatus.OPEN
+
+        orch = _make_post_orchestrator(tmp_path)
+        orch.event_bus.emit = MagicMock()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[active]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(commits=[_SHA_A], target_branches=[_BRANCH_11]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+
+        orch.event_bus.emit.assert_not_called()
+
+    def test_event_emitted_for_each_new_delivery(self, client, tmp_path):
+        """One event per new delivery (two targets → two events)."""
+        from oompah.events import EventType
+
+        emitted: list = []
+
+        def capture(event_type, payload):
+            if event_type == EventType.RELEASE_ADDENDUM_READY:
+                emitted.append(payload)
+
+        orch = _make_post_orchestrator(tmp_path)
+        orch.event_bus.emit = MagicMock(side_effect=capture)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(
+                    commits=[_SHA_A],
+                    target_branches=[_BRANCH_11, _BRANCH_10],
+                ),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+
+        assert len(emitted) == 2
+
+
+# ---------------------------------------------------------------------------
+# Idempotency replay
+# ---------------------------------------------------------------------------
+
+
+class TestPostIdempotencyReplay:
+    """Replaying the same idempotency key returns original outcome, no second write."""
+
+    def test_replay_returns_201(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            # First request
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+            # Replay
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 201
+
+    def test_replay_returns_same_body(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            resp1 = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+            resp2 = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp1.json() == resp2.json()
+
+    def test_replay_makes_no_additional_write(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            # First call
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+            write_count_after_first = mock_store._write_ledger.call_count
+            # Replay
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        # No additional write on replay
+        assert mock_store._write_ledger.call_count == write_count_after_first
+
+    def test_different_key_creates_new_delivery(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            resp1 = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": "key-one"},
+            )
+            resp2 = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": "key-two"},
+            )
+        # Both should succeed and create deliveries
+        assert resp1.status_code == 201
+        assert resp2.status_code == 201
+        # Different keys → different delivery IDs
+        id1 = resp1.json()["created"][0]["delivery_id"]
+        id2 = resp2.json()["created"][0]["delivery_id"]
+        assert id1 != id2
+
+
+# ---------------------------------------------------------------------------
+# Pre-write rejection: missing idempotency key
+# ---------------------------------------------------------------------------
+
+
+class TestPostMissingIdempotencyKey:
+    """Missing Idempotency-Key header is rejected before writing."""
+
+    def test_missing_key_returns_400(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(_POST_ENDPOINT, json=_post_body())
+        assert resp.status_code == 400
+
+    def test_missing_key_error_code(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(_POST_ENDPOINT, json=_post_body())
+        assert resp.json()["error"]["code"] == "missing_idempotency_key"
+
+    def test_empty_key_returns_400(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": "   "},
+            )
+        assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Pre-write rejection: malformed payload
+# ---------------------------------------------------------------------------
+
+
+class TestPostMalformedPayload:
+    """Malformed payloads are rejected before writing."""
+
+    def test_invalid_json_returns_400(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                _POST_ENDPOINT,
+                content=b"not json at all",
+                headers={
+                    "Content-Type": "application/json",
+                    "Idempotency-Key": _IDEM_KEY,
+                },
+            )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "malformed_payload"
+
+    def test_missing_source_head_returns_400(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json={"commits": [_SHA_A], "target_branches": [_BRANCH_11]},
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "malformed_payload"
+
+    def test_invalid_sha_in_source_head_returns_400(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(source_head="short"),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "malformed_payload"
+
+    def test_invalid_sha_in_commits_returns_400(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(commits=["not-a-sha"]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "malformed_payload"
+
+    def test_empty_commits_returns_400(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(commits=[]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 400
+
+    def test_empty_target_branches_returns_400(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(target_branches=[]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 400
+
+    def test_missing_target_branches_returns_400(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json={"source_head": _SOURCE_HEAD, "commits": [_SHA_A]},
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Pre-write rejection: changed source HEAD
+# ---------------------------------------------------------------------------
+
+
+class TestPostSourceHeadChanged:
+    """A changed source HEAD is rejected with 409 before writing."""
+
+    def test_source_changed_returns_409(self, client, tmp_path):
+        new_head = "9" * 40
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(
+                current_head=new_head,
+                error_code="source_changed",
+                error_message="Source HEAD has changed.",
+            ),
+        ):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(source_head=_SOURCE_HEAD),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 409
+
+    def test_source_changed_error_code(self, client, tmp_path):
+        new_head = "9" * 40
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(
+                current_head=new_head,
+                error_code="source_changed",
+                error_message="Source HEAD has changed.",
+            ),
+        ):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        err = resp.json()["error"]
+        assert err["code"] == "source_changed"
+        assert "submitted_head" in err
+        assert "current_head" in err
+
+    def test_source_changed_includes_both_heads(self, client, tmp_path):
+        new_head = "9" * 40
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(
+                current_head=new_head,
+                error_code="source_changed",
+                error_message="Source HEAD has changed.",
+            ),
+        ):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(source_head=_SOURCE_HEAD),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        err = resp.json()["error"]
+        assert err["submitted_head"] == _SOURCE_HEAD
+        assert err["current_head"] == new_head
+
+
+# ---------------------------------------------------------------------------
+# Pre-write rejection: unreachable / merge SHA
+# ---------------------------------------------------------------------------
+
+
+class TestPostInvalidCommitSHA:
+    """Invalid, unreachable, or merge commit SHAs are rejected before writing."""
+
+    def test_unreachable_commit_returns_400(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(
+                error_code="unreachable_commit",
+                error_message=f"Commit {_SHA_A!r} is not reachable.",
+            ),
+        ):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(commits=[_SHA_A]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "unreachable_commit"
+
+    def test_merge_commit_returns_400(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(
+                error_code="merge_commit",
+                error_message=f"Commit {_SHA_A!r} is a merge commit.",
+            ),
+        ):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(commits=[_SHA_A]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "merge_commit"
+
+    def test_atomic_validation_failure_writes_nothing(self, client, tmp_path):
+        """When any SHA fails validation, nothing is written to the ledger."""
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(
+                error_code="unreachable_commit",
+                error_message="SHA unreachable",
+            ),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        mock_store._write_ledger.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Pre-write rejection: unavailable branch
+# ---------------------------------------------------------------------------
+
+
+class TestPostUnavailableBranch:
+    """Unavailable or unconfigured target branches are rejected before writing."""
+
+    def test_unavailable_branch_returns_400(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(
+                error_code="unavailable_branch",
+                error_message="Branch not available.",
+            ),
+        ):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(target_branches=[_BRANCH_11]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "unavailable_branch"
+
+    def test_invalid_branch_not_in_configured_returns_400(self, client, tmp_path):
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(
+                error_code="invalid_branch",
+                error_message="Branch not in supported list.",
+            ),
+        ):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(target_branches=["release/99.9"]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "invalid_branch"
+
+
+# ---------------------------------------------------------------------------
+# Project not found
+# ---------------------------------------------------------------------------
+
+
+class TestPostProjectNotFound:
+    def test_project_not_found_returns_404(self, client):
+        orch = MagicMock()
+        orch.project_store.get = MagicMock(return_value=None)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                "/api/v1/projects/unknown-proj/release-delivery/commits",
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "not_found"
+
+
+# ---------------------------------------------------------------------------
+# No repo path
+# ---------------------------------------------------------------------------
+
+
+class TestPostNoRepo:
+    def test_no_repo_returns_503(self, client, tmp_path):
+        project = _make_project(tmp_path, repo_path="")
+        orch = MagicMock()
+        orch.project_store.get = MagicMock(return_value=project)
+        orch.event_bus = MagicMock()
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+        assert resp.status_code == 503
+        assert resp.json()["error"]["code"] == "no_repo"
+
+
+# ---------------------------------------------------------------------------
+# Delivery bundle structure verification
+# ---------------------------------------------------------------------------
+
+
+class TestPostDeliveryBundleStructure:
+    """Verify that written delivery bundles have the correct immutable fields."""
+
+    def test_bundle_has_correct_source_commits(self, client, tmp_path):
+        written: list = []
+
+        def capture_write(ledger, subject):
+            for d in ledger.deliveries:
+                written.append(d)
+
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock(side_effect=capture_write)
+            mock_store_factory.return_value = mock_store
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(
+                    commits=[_SHA_A, _SHA_B],
+                    target_branches=[_BRANCH_11],
+                ),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+
+        bundle = next(d for d in written if d.target_branch == _BRANCH_11)
+        assert bundle.source_commits == [_SHA_A, _SHA_B]
+
+    def test_bundle_has_source_kind_commits(self, client, tmp_path):
+        from oompah.release_delivery_store import SourceKind
+
+        written: list = []
+
+        def capture_write(ledger, subject):
+            written.extend(ledger.deliveries)
+
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock(side_effect=capture_write)
+            mock_store_factory.return_value = mock_store
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+
+        bundle = written[0]
+        assert bundle.source_kind is SourceKind.COMMITS
+        assert bundle.source_identifier is None
+
+    def test_bundle_has_correct_target_branch(self, client, tmp_path):
+        written: list = []
+
+        def capture_write(ledger, subject):
+            written.extend(ledger.deliveries)
+
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock(side_effect=capture_write)
+            mock_store_factory.return_value = mock_store
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(target_branches=[_BRANCH_11]),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+
+        bundle = written[0]
+        assert bundle.target_branch == _BRANCH_11
+
+    def test_bundle_has_open_status(self, client, tmp_path):
+        from oompah.release_addendum_schema import AddendumStatus
+
+        written: list = []
+
+        def capture_write(ledger, subject):
+            written.extend(ledger.deliveries)
+
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock(side_effect=capture_write)
+            mock_store_factory.return_value = mock_store
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+
+        assert written[0].status is AddendumStatus.OPEN
+
+    def test_bundle_project_id_matches(self, client, tmp_path):
+        written: list = []
+
+        def capture_write(ledger, subject):
+            written.extend(ledger.deliveries)
+
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock(side_effect=capture_write)
+            mock_store_factory.return_value = mock_store
+            client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+
+        assert written[0].project_id == _PROJECT_ID
+
+
+# ---------------------------------------------------------------------------
+# asyncio.to_thread: git validation must be off-loop
+# ---------------------------------------------------------------------------
+
+
+class TestPostAsyncioToThread:
+    """_delivery_validate_git must be called via asyncio.to_thread."""
+
+    def test_validate_called_via_to_thread(self, client, tmp_path):
+        """asyncio.to_thread is used by patching it and checking it was invoked."""
+        calls: list = []
+        _source_head = _SOURCE_HEAD
+
+        async def fake_to_thread(fn, *args, **kwargs):
+            calls.append((fn, args, kwargs))
+            # Run the function so the handler proceeds normally
+            return fn(*args, **kwargs)
+
+        # Build a real validate-git function that returns "no error"
+        def _fake_validate(*args, **kwargs):
+            return (_source_head, None, None)
+
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch("oompah.server.asyncio.to_thread", side_effect=fake_to_thread),
+            patch(
+                "oompah.server._delivery_validate_git",
+                side_effect=_fake_validate,
+            ) as mock_validate,
+            patch("oompah.release_delivery_compat.make_delivery_store") as mock_store_factory,
+        ):
+            mock_store = MagicMock()
+            mock_store.read_ledger.return_value = MagicMock(
+                version=1, deliveries=[]
+            )
+            mock_store._write_ledger = MagicMock()
+            mock_store_factory.return_value = mock_store
+            resp = client.post(
+                _POST_ENDPOINT,
+                json=_post_body(),
+                headers={"Idempotency-Key": _IDEM_KEY},
+            )
+
+        assert resp.status_code == 201
+        # asyncio.to_thread must have been called at least once
+        assert len(calls) >= 1
+        # At least one call should be to the git validation function (the mock)
+        fn_names_called = [getattr(fn, "__name__", None) for fn, _, _ in calls]
+        # The mock's name should contain "_delivery_validate_git" or the call list
+        # should have been populated with the mock object itself
+        validate_was_threaded = any(
+            fn is mock_validate or getattr(fn, "__name__", "") == "_fake_validate"
+            for fn, _, _ in calls
+        )
+        assert validate_was_threaded, (
+            f"Expected _delivery_validate_git to be called via asyncio.to_thread; "
+            f"calls seen: {fn_names_called}"
+        )

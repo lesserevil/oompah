@@ -823,6 +823,76 @@ class ReleaseDeliveryStore:
             self._write_ledger(updated, f"Append release delivery {delivery.id}")
         return delivery
 
+    def bulk_append(self, deliveries: list[ReleaseDelivery]) -> list[ReleaseDelivery]:
+        """Atomically append multiple new deliveries to the ledger in one write.
+
+        All deliveries are appended under a single acquisition of the
+        project-level lock and a single ``_write_ledger`` call, making the
+        entire batch atomic with respect to other callers.
+
+        Args:
+            deliveries: Non-empty list of :class:`ReleaseDelivery` objects to
+                append.  Each must have a ``project_id`` matching this store's
+                :attr:`project_id` and a unique ``id``.
+
+        Returns:
+            The appended list of :class:`ReleaseDelivery` objects (unchanged).
+
+        Raises:
+            LedgerParseError: When the existing ledger is malformed.
+            ValueError: When *deliveries* is empty, any delivery's
+                ``project_id`` does not match, or any delivery ``id`` already
+                exists in the ledger.
+            TrackerError: Propagated from the git writer on commit failure.
+        """
+        if not deliveries:
+            raise ValueError("deliveries must be a non-empty list")
+        for delivery in deliveries:
+            if delivery.project_id != self._project_id:
+                raise ValueError(
+                    f"Delivery {delivery.id!r} project_id {delivery.project_id!r} "
+                    f"does not match store project_id {self._project_id!r}"
+                )
+
+        with _delivery_lock(self._project_id):
+            ledger = self.read_ledger()
+            existing_ids = {d.id for d in ledger.deliveries}
+            for delivery in deliveries:
+                if delivery.id in existing_ids:
+                    raise ValueError(
+                        f"Delivery {delivery.id!r} already exists in the ledger; "
+                        f"use update() to modify existing entries"
+                    )
+                existing_ids.add(delivery.id)
+
+            updated = ReleaseDeliveryLedger(
+                version=ledger.version,
+                deliveries=list(ledger.deliveries) + list(deliveries),
+            )
+            ids_str = ", ".join(d.id for d in deliveries)
+            self._write_ledger(updated, f"Append release deliveries: {ids_str}")
+        return list(deliveries)
+
+    def read_all_by_target_branch(
+        self, target_branch: str
+    ) -> list[ReleaseDelivery]:
+        """Return all deliveries targeting *target_branch*.
+
+        This is a read-only, lock-free operation.
+
+        Args:
+            target_branch: Release branch name to filter on.
+
+        Returns:
+            Possibly-empty list of :class:`ReleaseDelivery` with matching
+            ``target_branch``.
+
+        Raises:
+            LedgerParseError: When the ledger file is malformed.
+        """
+        ledger = self.read_ledger()
+        return [d for d in ledger.deliveries if d.target_branch == target_branch]
+
     def lookup_by_id(self, delivery_id: str) -> ReleaseDelivery | None:
         """Return the delivery with the given *delivery_id*, or ``None``.
 
