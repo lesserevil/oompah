@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:44:41.783116Z'
-updated_at: '2026-07-13T03:06:13.988723Z'
+updated_at: '2026-07-13T03:06:23.211304Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -100,5 +100,19 @@ Acceptance criteria verified:
 - GitHub-style identifiers forward managed_repo for cross-tracker compat
 - --project/--project-id forwarded to server for explicit project scope
 - description wins over source fields (no regressions for existing PATCH callers)
+---
+author: oompah
+created: 2026-07-13 03:06
+---
+COMPLETION: Delivered OOMPAH-186 — set-source and remove-source CLI commands.
+
+Delivered:
+1. oompah task set-source <id> <source-id> — sets or replaces source reference
+2. oompah task remove-source <id> — clears source reference
+3. Server-side _strip_source_header() helper + source_task_id/clear_source handling in PATCH endpoint
+4. docs/task-epic-workflow.md updated with Source References section
+5. 47 new tests: parser coverage, set, replace, remove, empty source validation, missing task 404, server backend persistence
+
+All commands go through the server/tracker update path — no direct file editing needed. An operator can now: create a task, set its source, verify via task view, change the source, verify again, remove it, verify no source remains.
 ---
 <!-- COMMENTS:END -->
