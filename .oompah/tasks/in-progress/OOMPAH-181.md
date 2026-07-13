@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:15.200697Z'
-updated_at: '2026-07-13T06:00:51.539378Z'
+updated_at: '2026-07-13T06:01:16.876432Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -88,5 +88,21 @@ Implementation: All changes complete.
 5. tests/test_epic_release_addendum_ui.py: 50 new tests covering schema parsing/serialization/transitions, API rendering contract, no-auto-inclusion invariant, epic commit resolution, POST endpoint epic detection, UI rendering contract, dispatch logic, and CSS classes.
 
 No old child-by-branch matrix or apply-all behavior referenced.
+---
+author: oompah
+created: 2026-07-13 06:01
+---
+Verification: make test — 7886 passed, 28 skipped, 12 warnings (0 failures). 50 new tests all pass.
+
+Test coverage:
+- 8 schema tests: included_child_ids parsing/serialization/round-trip/transition preservation
+- 3 API contract tests: GET response includes included_child_ids for epics (and empty for tasks)
+- 7 epic commit resolution unit tests: merged-child collection, non-merged exclusion, SHA deduplication, error cases, no-auto-inclusion invariant
+- 4 POST endpoint integration tests: epic detection, response includes child_ids, 409 for no merged children, task path does not use epic resolution
+- 15 UI rendering tests: function defined, branch/status/PR/snapshot-size/child-count/toggle/aria, empty state, gated button, no task_id link
+- 3 dispatch tests: epic → epic renderer, task → task renderer, issue_type check
+- 8 CSS class tests: all new epic addendum CSS classes present
+
+All acceptance criteria met: operator can see exactly which already-merged descendants an epic addendum will deliver (via child ID list) without creating per-child backport tasks.
 ---
 <!-- COMMENTS:END -->
