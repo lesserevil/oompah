@@ -8,11 +8,10 @@ title: 'Maintainer: update workflow dispatch description to v1.0.0 examples (nee
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:human
+labels: []
 assignee: null
 created_at: '2026-06-22T02:11:02.984832Z'
-updated_at: '2026-07-13T14:57:33.916834Z'
+updated_at: '2026-07-13T14:57:36.547626Z'
 work_branch: null
 target_branch: null
 review_url: null
