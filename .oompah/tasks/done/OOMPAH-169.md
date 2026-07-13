@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:10.333133Z'
-updated_at: '2026-07-13T04:50:39.291483Z'
+updated_at: '2026-07-13T04:50:41.534950Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ COMPLETION: OOMPAH-169 is done. Delivered:
 3. Fixed 4 failing regression tests from the OOMPAH-171 draft-epic removal work: added _populate_snapshot() helper and clear_issues_snapshot autouse fixture so tests that call GET /api/v1/issues correctly pre-populate the snapshot cache.
 
 All 7248 tests pass. Branch epic-OOMPAH-166 is pushed.
+---
+author: oompah
+created: 2026-07-13 04:50
+---
+Removed epic-strategy selector, display row, CSS, and JS from projects.html. Added 14 contract tests. Fixed 4 failing draft-epic regression tests. 7248 tests pass.
 ---
 <!-- COMMENTS:END -->
