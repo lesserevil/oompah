@@ -6,11 +6,12 @@ priority: 1
 title: Add durable release-addendum queue claiming and recovery
 parent: OOMPAH-172
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-173
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:49.472960Z'
-updated_at: '2026-07-13T02:35:49.472960Z'
+updated_at: '2026-07-13T02:38:08.855742Z'
 work_branch: null
 target_branch: null
 review_url: null
