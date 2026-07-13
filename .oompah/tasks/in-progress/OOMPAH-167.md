@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:05.076076Z'
-updated_at: '2026-07-13T02:32:56.994942Z'
+updated_at: '2026-07-13T02:33:08.138893Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -110,5 +110,20 @@ VERIFICATION: make test passed — 7283 passed, 28 skipped. All targeted tests p
 - TestProjectAPI epic_strategy tests (7 tests): accept shared, SHARED case-insensitive, null→shared, reject flat 400, reject stacked 400, reject bogus 400, new project defaults to shared
 
 No regressions in any of the 7283 other tests. Commit 3a27c397 pushed to epic-OOMPAH-166.
+---
+author: oompah
+created: 2026-07-13 02:33
+---
+COMPLETION: OOMPAH-167 is done. Delivered:
+
+1. **Domain model** (oompah/models.py): epic_strategy default changed to 'shared'; from_dict() migration normalizes legacy flat/stacked/unknown → shared at load time; to_dict() always writes 'shared' ensuring the migration is restart-safe and persists on next save.
+
+2. **Project persistence / configuration validation** (oompah/projects.py): ProjectStore.update() now rejects flat/stacked with a clear ProjectError message; only 'shared' is accepted; None coerces to 'shared'.
+
+3. **Project-definition API** (oompah/server.py): PATCH /api/v1/projects/{id} epic_strategy handler rejects flat/stacked with HTTP 400; only 'shared' accepted; null coerces to 'shared'.
+
+4. **Tests**: 16 new/updated tests covering domain model defaults, load migration for legacy records, serialization, restart-safe migration, ProjectStore update validation, and API integration tests (7 new, 9 updated).
+
+OOMPAH-168 (orchestration simplification) can now proceed — it depends on this task and is unblocked.
 ---
 <!-- COMMENTS:END -->
