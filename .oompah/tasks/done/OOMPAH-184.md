@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:37:55.470386Z'
-updated_at: '2026-07-13T06:54:52.340679Z'
+updated_at: '2026-07-13T06:54:55.179801Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -134,5 +134,10 @@ Completion: OOMPAH-184 is fully delivered. A junior operator can now:
 4. Understand migration: docs/release-addendums.md 'Migration from release picks' section with status mapping table
 
 Generated agent guidance (both AGENTS.md variants) explicitly prohibits creating/working child backport tasks. Historical migration references are clearly labelled. 2 new targeted documentation tests added. 7993/7993 tests pass.
+---
+author: oompah
+created: 2026-07-13 06:54
+---
+Documented release-addendum workflow across all operator touchpoints: new docs/release-addendums.md, managed-project-onboarding §4, task-epic-workflow release delivery section, operator-runbook §1.3, Release Addendums section added to GITHUB_ISSUES_AGENT_INSTRUCTIONS, 2 new doc coverage tests. 7993 tests pass.
 ---
 <!-- COMMENTS:END -->
