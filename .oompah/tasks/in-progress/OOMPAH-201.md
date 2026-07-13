@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:59.843679Z'
-updated_at: '2026-07-13T23:05:59.064968Z'
+updated_at: '2026-07-13T23:06:37.451465Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-07-13 23:05
 ---
 Implementation: Made all required changes for OOMPAH-201.\n\n1. docs/release-addendums.md: Rewrote to document the new Release delivery commit inventory workflow. Added: commit inventory screen/status cells/evidence types (delivered by cherry-pick vs ancestry), direct-to-main commits, queue API, task/epic shortcut, cherry-pick SHA behavior, protected-branch PR behavior, stale/force-push remediation, Mermaid delivery sequence diagram. Explicit statement that proof of delivery requires ledger or ancestry evidence — not merely presence on the branch. Deprecated GET /release-branches/{branch}/addendums with replacement path. Updated migration table.\n\n2. docs/task-epic-workflow.md: Updated 'Release Delivery' section to reference the new inventory screen and 'Add release branches' shortcut instead of 'branch inspection'.\n\n3. docs/operator-runbook.md: Updated cross-reference to Release Delivery docs; removed 'inspection' from the link text list.\n\n4. docs/managed-project-onboarding.md: Updated section 4 to reference 'Release delivery' inventory as the target of configured release lines; updated cross-reference text.\n\n5. oompah/server.py: Added _LEGACY_BRANCH_INSPECTION_REMOVED flag. During transition window: GET /release-branches/{branch}/addendums returns 200 with deprecated:true, message, replacement path, Deprecation/Sunset/Link headers, and the original groups data. When _LEGACY_BRANCH_INSPECTION_REMOVED=True: returns 410 Gone with replacement path before any tracker access.\n\n6. tests/test_server_release_branch_inspection.py: Added 18 new tests across TestDeprecationCompatibilityResponse (11 tests) and TestLegacyEndpointRemoved410 (7 tests) covering all acceptance criteria scenarios.
+---
+author: oompah
+created: 2026-07-13 23:06
+---
+Verification: All 8801 tests pass (8801 passed, 28 skipped). git diff --check clean. No stale 'Release branches' references remain in docs/. New test count in test_server_release_branch_inspection.py: 57 (39 original + 18 new deprecation/410 tests). Branch pushed to origin/epic-OOMPAH-192.
 ---
 <!-- COMMENTS:END -->
