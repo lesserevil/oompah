@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:07.456716Z'
-updated_at: '2026-07-13T03:15:25.463646Z'
+updated_at: '2026-07-13T03:56:10.448433Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -91,5 +91,10 @@ author: oompah
 created: 2026-07-13 03:15
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 03:56
+---
+IMPLEMENTATION: Removed all flat and stacked strategy code paths from orchestrator.py (~650 lines deleted). Key changes: (1) _project_epic_strategy() now always returns 'shared' — flat fallback and all lookup code removed; (2) Removed _stacked_child_default_landing_status() entirely; (3) All 'strategy=stacked' blocks removed from _label_merged_issues, _reconcile_stale_in_review_tasks, _merged_branch_tip_landed, _ensure_review_exists, _yolo_epic_strategy_block_reason, _open_epic_main_prs, _all_non_terminal_epics, _label_merged_epics, dispatch gating, _open_deferred_done_reviews; (4) All 'strategy not in (stacked, shared)' guards removed; (5) All 'strategy in (stacked, shared)' guards simplified to unconditional bodies; (6) Docstrings updated to remove strategy-parameterised language. Tests updated: removed 13 stacked/flat-mode tests, added TestEpicRollupChildStrategy (5 tests), test_shared_done_child_with_merged_branch_skips_all_checks, test_shared_child_pr_targeting_epic_branch_is_closed; updated assertions in test_epic_auto_close.py and test_epic_strategy.py for shared-only behavior.
 ---
 <!-- COMMENTS:END -->
