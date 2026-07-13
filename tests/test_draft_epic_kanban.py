@@ -61,6 +61,30 @@ def _all_issues_from_board(board: dict) -> list:
     return result
 
 
+def _populate_snapshot(mock_orch) -> None:
+    """Pre-populate the issues snapshot from mock_orch so GET /api/v1/issues works.
+
+    The issues endpoint returns from the cached snapshot; tests that use it
+    must pre-populate the snapshot synchronously before making the request.
+    """
+    board = server_module._fetch_and_serialize_issues(mock_orch)
+    server_module._set_issues_snapshot(board, duration_ms=0, orch_id=id(mock_orch))
+
+
+@pytest.fixture(autouse=True)
+def clear_issues_snapshot():
+    """Clear the issues snapshot before and after each test."""
+    server_module._issues_snapshot.clear()
+    if server_module._issues_refresh_task is not None:
+        server_module._issues_refresh_task = None
+    server_module._api_cache.clear()
+    yield
+    server_module._issues_snapshot.clear()
+    if server_module._issues_refresh_task is not None:
+        server_module._issues_refresh_task = None
+    server_module._api_cache.clear()
+
+
 @pytest.fixture
 def client():
     with TestClient(app) as c:
@@ -126,6 +150,7 @@ class TestLegacyDraftEpicCompatibility:
             labels=["draft"],  # pre-migration label
         )
         mock_tracker.fetch_all_issues.return_value = [legacy_epic]
+        _populate_snapshot(mock_orch)
 
         with patch.object(server_module, "_get_orchestrator", return_value=mock_orch):
             resp = client.get("/api/v1/issues")
@@ -145,6 +170,7 @@ class TestLegacyDraftEpicCompatibility:
             labels=["draft"],
         )
         mock_tracker.fetch_all_issues.return_value = [legacy_epic]
+        _populate_snapshot(mock_orch)
 
         with patch.object(server_module, "_get_orchestrator", return_value=mock_orch):
             resp = client.get("/api/v1/issues")
@@ -198,10 +224,12 @@ class TestLabelAPIEndpoints:
         mock_orch, mock_tracker = _make_mock_orchestrator()
         epic = _make_issue(identifier="OOMPAH-E2", issue_type="epic")
         mock_tracker.fetch_all_issues.return_value = [epic]
+        _populate_snapshot(mock_orch)
 
         with patch.object(server_module, "_get_orchestrator", return_value=mock_orch):
             resp = client.get("/api/v1/issues")
 
+        assert resp.status_code == 200
         # API returns board format: {"Open": [...], "In Progress": [...], ...}
         all_issues = _all_issues_from_board(resp.json())
         entry = next((i for i in all_issues if i.get("identifier") == "OOMPAH-E2"), None)
