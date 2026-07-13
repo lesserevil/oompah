@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:50.653200Z'
-updated_at: '2026-07-13T22:16:34.898820Z'
+updated_at: '2026-07-13T22:16:37.316519Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -129,5 +129,10 @@ Key deliverables:
 - 49 tests in tests/test_server_release_delivery_commits.py covering all acceptance criteria.
 - Full test suite: 8487 passed, 28 skipped, 0 failures.
 - Branch epic-OOMPAH-192 pushed to origin.
+---
+author: oompah
+created: 2026-07-13 22:16
+---
+Implemented GET /api/v1/projects/{project_id}/release-delivery/commits with full param validation, asyncio.to_thread, documented response shape, 404/400/409/503 error handling, per-project service registry, cache invalidation wired to push webhooks and delivery lifecycle updates. 49 new tests; full suite 8487 passed.
 ---
 <!-- COMMENTS:END -->
