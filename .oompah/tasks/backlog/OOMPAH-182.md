@@ -6,11 +6,12 @@ priority: 2
 title: Add release-branch addendum inspection API and dashboard view
 parent: OOMPAH-172
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-179
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:18.950799Z'
-updated_at: '2026-07-13T02:36:18.950799Z'
+updated_at: '2026-07-13T02:38:37.016580Z'
 work_branch: null
 target_branch: null
 review_url: null
