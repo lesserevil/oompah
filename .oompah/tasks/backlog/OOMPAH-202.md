@@ -6,11 +6,12 @@ priority: 1
 title: Run end-to-end release delivery migration and regression coverage
 parent: OOMPAH-192
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-194
 labels: []
 assignee: null
 created_at: '2026-07-13T19:33:31.162292Z'
-updated_at: '2026-07-13T19:33:31.162292Z'
+updated_at: '2026-07-13T19:36:27.781519Z'
 work_branch: null
 target_branch: null
 review_url: null
