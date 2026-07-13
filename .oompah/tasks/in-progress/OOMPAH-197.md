@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:47.560323Z'
-updated_at: '2026-07-13T21:51:10.965473Z'
+updated_at: '2026-07-13T22:03:17.270364Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,5 +72,24 @@ Plan: Implement oompah/release_delivery_inventory.py — CommitInventoryService 
 7. filter=needs_delivery / all-commits, text search, branch subset filtering, bounded page size
 8. Source task/epic association enrichment only from ledger source_identifier (no subject guessing)
 9. Cache invalidate() method for push webhook / delivery lifecycle update triggers
+---
+author: oompah
+created: 2026-07-13 22:03
+---
+Discovery complete. Key implementation details:
+
+1. No duplicate found for OOMPAH-197 — confirmed unique.
+2. Dependency OOMPAH-193 (release_delivery_store.py) is Done and provides ReleaseDelivery, ReleaseDeliveryStore, AddendumStatus.
+3. Pattern model: release_branch_catalog.py is the closest analog (60s cache + stale fallback + per-project lock).
+
+Implemented oompah/release_delivery_inventory.py with:
+- _enumerate_commits: git rev-list --topo-order --no-merges with multi-line sentinel format (avoids NUL-byte arg issue)
+- _check_ancestry_batch: git merge-base --is-ancestor per SHA per branch
+- _acquire_snapshot: git fetch + ref resolution + stale fallback to local refs/remotes/origin/*
+- CommitInventoryService.get_page: §2.3 precedence, needs_delivery/all filter, text search, bounded page size, opaque cursors, SourceChangedError
+- 60s TTL cache keyed by (project_id, frozenset(branches)) with per-key threading.Lock
+- get_default_service() singleton + reset_default_service()
+
+Tests: 75 tests in test_release_delivery_inventory.py, all passing.
 ---
 <!-- COMMENTS:END -->
