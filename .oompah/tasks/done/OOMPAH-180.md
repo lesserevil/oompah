@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:12.732590Z'
-updated_at: '2026-07-13T05:07:12.255984Z'
+updated_at: '2026-07-13T05:07:20.676760Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -109,5 +109,15 @@ author: oompah
 created: 2026-07-13 05:07
 ---
 Delivered task release-addendum selection and status UI. Added GET /api/v1/issues/{id}/release-addendums endpoint; replaced Release Picks section with Release addendums section (renderReleaseAddendumsSection, no child-task links, Merged-only button); added accessible Add release branches dialog (fieldset/legend/checkbox, catalog API, idempotency key, single POST for all selections, Escape-to-close, focus management, stale/empty/error states); 82 new tests, 7724 total pass.
+---
+author: oompah
+created: 2026-07-13 05:07
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 119
+- Tokens: 179 in / 5.4K out [5.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 30m 11s
+- Log: OOMPAH-180__20260713T043716Z.jsonl
 ---
 <!-- COMMENTS:END -->
