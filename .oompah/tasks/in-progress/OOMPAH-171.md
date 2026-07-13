@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:26:02.750063Z'
-updated_at: '2026-07-13T03:15:50.333433Z'
+updated_at: '2026-07-13T03:21:47.698318Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-07-13 03:15
 ---
 Understanding: Investigating whether OOMPAH-171 ('Remove automatic draft-epic lifecycle') is a duplicate of an existing task. Will search for prior tasks covering draft label removal, epic draft lifecycle, draft badges, or draft controls before proceeding with any implementation.
+---
+author: oompah
+created: 2026-07-13 03:21
+---
+DISCOVERY: Not a duplicate. OOMPAH-171 is a legitimate unique child of OOMPAH-166 ('Standardize epic workflow on shared strategy'), created to remove the draft-epic lifecycle. Siblings OOMPAH-168 (orchestration cleanup) and OOMPAH-169 (epic-strategy UI removal) cover different areas — neither removes draft labels, draft badges, or Mark as Draft/Finalize controls. No archived task covers this scope. Proceeding with implementation: (1) find automatic draft label assignment on epic creation, (2) find Draft Epic badge/swimlane badge/controls, (3) find draft label endpoints, (4) implement removal + migration, (5) add tests.
 ---
 <!-- COMMENTS:END -->
