@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:44.755827Z'
-updated_at: '2026-07-13T03:26:09.182970Z'
+updated_at: '2026-07-13T03:38:42.390561Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,28 @@ Plan:
 2. Add GET /api/v1/projects/{project_id}/release-branches endpoint in server.py (returns 503 on first-load failure, 404 for unknown project).
 3. Add cache invalidation in _handle_webhook_event for push events (on tracked-branch push), and expose invalidation function for addendum-merge hook.
 4. Tests: filtering, configured order, stale fallback, first-load 503, cache expiry/invalidation, deleted-branch history.
+---
+author: oompah
+created: 2026-07-13 03:38
+---
+Implementation: Added ReleaseBranchCatalog and GET /api/v1/projects/{project_id}/release-branches.
+
+New files:
+1. oompah/release_branch_catalog.py — ReleaseBranchCatalog class:
+   - list_candidates(project) runs git ls-remote --heads origin, caches 60s per-project
+   - Stale fallback: on remote failure uses local refs/remotes/origin/* (stale=True)
+   - First-load failure raises CatalogDiscoveryError (→ 503 from API)
+   - Expired cache used as last resort before failing
+   - Historic branches from oompah.release_addendums metadata included as available=false
+   - Configured ordering preserved; historic-only branches in reverse-natural order
+   - Thread-safe per-project locks (no duplicate ls-remote calls)
+   - Module singleton via get_default_catalog()
+
+2. oompah/server.py changes:
+   - GET /api/v1/projects/{project_id}/release-branches returns {project_id, source_branch, branches, refreshed_at, stale}; 404 for unknown project; 503 on first-load failure
+   - invalidate_release_branch_catalog(project_id) helper
+   - _handle_webhook_event: invalidates catalog on push events to tracked branches
+
+3. tests/test_release_branch_catalog.py — 42 tests covering all required scenarios.
 ---
 <!-- COMMENTS:END -->
