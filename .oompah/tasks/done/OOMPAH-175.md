@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:44.755827Z'
-updated_at: '2026-07-13T03:40:40.762895Z'
+updated_at: '2026-07-13T03:40:43.031415Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -114,5 +114,10 @@ Coverage:
 - 42 tests: filtering, configured order, stale fallback, first-load 503, cache expiry/invalidation, deleted historic branch behavior, API contracts, thread safety
 
 Acceptance satisfied: API returns only supported_release_branches entries verified remotely; no free-form or glob-derived candidates.
+---
+author: oompah
+created: 2026-07-13 03:40
+---
+Implemented ReleaseBranchCatalog and GET /api/v1/projects/{project_id}/release-branches. 42 tests pass. Remote discovery via git ls-remote, 60s cache, stale fallback, first-load 503, historic branch history, webhook invalidation.
 ---
 <!-- COMMENTS:END -->
