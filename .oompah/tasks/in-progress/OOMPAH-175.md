@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-175
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Implement current supported-release branch catalog API
 parent: OOMPAH-172
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:44.755827Z'
-updated_at: '2026-07-13T02:54:18.052421Z'
+updated_at: '2026-07-13T03:22:48.388130Z'
 work_branch: null
 target_branch: null
 review_url: null
