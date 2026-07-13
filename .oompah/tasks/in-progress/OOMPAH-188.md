@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-188
 type: task
-status: Open
+status: In Progress
 priority: null
 title: '[backend:webhooks] WebhookForwarder: disabling webhook forwarding for project
   coroot: gh: Resource not accessible by personal access token (HTTP 403)'
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-13T14:19:41.967141Z'
-updated_at: '2026-07-13T14:56:12.219435Z'
+updated_at: '2026-07-13T14:56:33.866006Z'
 work_branch: null
 target_branch: null
 review_url: null
