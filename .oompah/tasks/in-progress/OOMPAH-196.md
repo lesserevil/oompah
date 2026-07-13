@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:14.875922Z'
-updated_at: '2026-07-13T21:02:32.026521Z'
+updated_at: '2026-07-13T21:47:44.714352Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,5 +72,15 @@ Discovery: Found all relevant code. The 4 endpoints to adapt:
 4. POST .../archive (server.py:4251) - same
 
 Plan: create oompah/release_delivery_compat.py with delivery_to_compat_raw(), make_delivery_store(), make_delivery_adapter(), and approve_release_addendums_via_ledger(). Modify server.py endpoints to use the new module. Add tests in tests/test_server_release_addendums_ledger.py.
+---
+author: oompah
+created: 2026-07-13 21:47
+---
+Verification: Full test suite passes (8363 passed, 28 skipped, 0 failed). Key fixes applied:
+
+1. release_delivery_compat.py: delivery_to_compat_raw() now accepts optional included_child_ids parameter for epic approval responses
+2. server.py GET endpoint: now uses store.lookup_by_source_identifier() + adapter._fetch_legacy_addendums() combo so legacy addendums are served via addendum.to_raw() (preserving included_child_ids) and ledger deliveries via delivery_to_compat_raw()
+3. server.py POST endpoint: passes included_child_ids to delivery_to_compat_raw() for newly-created epic deliveries
+4. tests/test_server_release_addendums_ledger.py: replaced all asyncio.get_event_loop().run_until_complete() with asyncio.run() to avoid event loop isolation issues across the full test suite
 ---
 <!-- COMMENTS:END -->
