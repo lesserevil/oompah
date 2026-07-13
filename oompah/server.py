@@ -566,6 +566,13 @@ def set_orchestrator(orch: Orchestrator) -> None:
             )
     except Exception:
         logger.warning("draft-label migration: failed (non-fatal)", exc_info=True)
+    # Release-pick to release-addendum migration (OOMPAH-183).  Idempotent.
+    # Converts oompah.backports entries to oompah.release_addendums and
+    # archives child backport tasks with redirect comments.
+    try:
+        _migrate_release_picks_on_startup(orch)
+    except Exception:
+        logger.warning("release-pick migration: failed (non-fatal)", exc_info=True)
     # Error watcher: creates tasks for backend/frontend errors
     _error_watcher = ErrorWatcher(orch.tracker)
     _error_watcher.install_log_handler("oompah")
@@ -704,6 +711,59 @@ def remove_draft_labels_from_epics(tracker) -> int:
                     issue.identifier,
                 )
     return updated
+
+
+def _migrate_release_picks_on_startup(orch) -> None:
+    """Startup migration: convert oompah.backports to oompah.release_addendums.
+
+    Iterates over all configured projects (or the legacy single tracker) and
+    runs the idempotent release-pick migration for each.  Safe to call on
+    every restart — already-migrated entries are skipped.
+
+    OOMPAH-183.
+    """
+    from oompah.release_pick_migration import run_release_pick_migration  # noqa: PLC0415
+
+    projects = []
+    try:
+        projects = orch.project_store.list_all()
+    except Exception:
+        pass
+
+    if projects:
+        for project in projects:
+            try:
+                tracker = orch._tracker_for_project(project.id)
+                result = run_release_pick_migration(
+                    tracker,
+                    getattr(project, "default_branch", None) or "main",
+                )
+                if result.changed:
+                    logger.info(
+                        "release-pick migration: project=%s migrated=%d "
+                        "already_migrated=%d children_archived=%d",
+                        project.id,
+                        result.migrated,
+                        result.already_migrated,
+                        result.children_archived,
+                    )
+            except Exception:
+                logger.warning(
+                    "release-pick migration: project=%s failed (non-fatal)",
+                    project.id,
+                    exc_info=True,
+                )
+    else:
+        # Legacy single-tracker mode
+        result = run_release_pick_migration(orch.tracker, "main")
+        if result.changed:
+            logger.info(
+                "release-pick migration: (legacy) migrated=%d "
+                "already_migrated=%d children_archived=%d",
+                result.migrated,
+                result.already_migrated,
+                result.children_archived,
+            )
 
 
 def _set_agent_profile_store(store: AgentProfileStore) -> None:
