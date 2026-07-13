@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:12.785814Z'
-updated_at: '2026-07-13T04:52:01.813420Z'
+updated_at: '2026-07-13T04:54:48.211902Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,5 +45,10 @@ author: oompah
 created: 2026-07-13 04:52
 ---
 UNDERSTANDING: No duplicate found. OOMPAH-170 is a unique child of epic OOMPAH-166 covering the documentation layer. Siblings OOMPAH-167 (config), OOMPAH-168 (orchestration), OOMPAH-169 (UI) are all Done. Scope: update user-facing docs, operator docs, generated project guidance, design plans so they describe only shared epic workflow; remove/mark flat/stacked references; update Mermaid diagrams; add/update doc tests. Plan: (1) Find all docs with flat/stacked/strategy references, (2) Update them, (3) Find and update generated guidance templates, (4) Add doc coverage tests, (5) Run make test.
+---
+author: oompah
+created: 2026-07-13 04:54
+---
+DISCOVERY: Found all locations needing updates. Primary target: docs/task-epic-workflow.md has stale flat/stacked references in: (1) Epic Planning section - 'stacked and shared projects'; (2) Epic Branch Strategies section - table with flat/stacked/shared rows; (3) Mermaid diagram with flat/stacked branches; (4) Review and Repair - 'stacked or shared epics'; (5) Closing and Rollup - 'stacked and shared epics' (2x). Secondary: tests/test_epic_strategy.py module docstring mentions 'stacked mode' and 'stacked + shared'. Also: plans/multi-branch-support.md line 123 references test_epic_strategy.py as 'Epic strategies' (minor stale context). The generated project guidance (oompah/agent_instructions.py OOMPAH_TASK_AGENT_INSTRUCTIONS) has no flat/stacked references - already clean. No new test file needed beyond updating the test docstring. No duplicate found - proceeding with implementation.
 ---
 <!-- COMMENTS:END -->
