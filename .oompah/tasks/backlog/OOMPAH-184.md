@@ -6,11 +6,12 @@ priority: 2
 title: Document release-addendum workflow and operator migration
 parent: OOMPAH-172
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-183
 labels: []
 assignee: null
 created_at: '2026-07-13T02:37:55.470386Z'
-updated_at: '2026-07-13T02:37:55.470386Z'
+updated_at: '2026-07-13T02:38:56.509396Z'
 work_branch: null
 target_branch: null
 review_url: null
