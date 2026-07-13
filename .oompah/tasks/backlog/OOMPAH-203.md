@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T19:58:10.079940Z'
-updated_at: '2026-07-13T19:58:10.079940Z'
+updated_at: '2026-07-13T20:00:12.518608Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Acceptance criteria
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-13 20:00
+---
+Implemented and pushed auto-update filtering for tracker-only commits. Added regression coverage for tracker-only and runtime-code update paths; make test passed.
+---
+<!-- COMMENTS:END -->
