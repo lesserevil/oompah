@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:44:41.783116Z'
-updated_at: '2026-07-13T03:06:32.120678Z'
+updated_at: '2026-07-13T03:06:34.378132Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -114,5 +114,10 @@ Delivered:
 5. 47 new tests: parser coverage, set, replace, remove, empty source validation, missing task 404, server backend persistence
 
 All commands go through the server/tracker update path — no direct file editing needed. An operator can now: create a task, set its source, verify via task view, change the source, verify again, remove it, verify no source remains.
+---
+author: oompah
+created: 2026-07-13 03:06
+---
+Delivered set-source and remove-source CLI commands. Added _strip_source_header() helper and source_task_id/clear_source handling in server PATCH endpoint. 47 new tests, 7315 total tests pass. Branch OOMPAH-186 pushed.
 ---
 <!-- COMMENTS:END -->
