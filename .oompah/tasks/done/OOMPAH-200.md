@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:56.999746Z'
-updated_at: '2026-07-13T22:51:55.535024Z'
+updated_at: '2026-07-13T22:51:57.756219Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,10 @@ Acceptance criteria satisfied:
 ✓ Legacy Release branches overlay/state/helpers removed; task/epic release controls (openAddReleaseBranchesDialog, renderReleaseAddendumsSection, etc.) still work
 
 Tests cover: CSS, HTML, state, functions, open/close, Escape, focus restoration, project defaulting, filters, search, pagination, status rendering, selection/confirmation, outcome feedback, empty/error states, special-character escaping (textContent/DOM, never innerHTML for API text), XSS prevention, drawer evidence, and accessibility attributes.
+---
+author: oompah
+created: 2026-07-13 22:51
+---
+Replaced the Release branches overlay with Release delivery UI. Removed all _rbi* CSS/JS/HTML, added _rdi* overlay with commit inventory table, filter/search/branch controls, selection, queue delivery (POST with Idempotency-Key), outcome feedback, evidence drawer, and focus management. task/epic release controls retained. 249 new tests; all 8782 pass.
 ---
 <!-- COMMENTS:END -->
