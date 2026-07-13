@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:07.456716Z'
-updated_at: '2026-07-13T02:39:40.128188Z'
+updated_at: '2026-07-13T03:13:52.196268Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,5 +50,10 @@ author: oompah
 created: 2026-07-13 02:39
 ---
 DISCOVERY: Found all relevant code paths in oompah/orchestrator.py (17740 lines). Key changes needed: (1) _project_epic_strategy() always returns 'shared' — remove flat fallback; (2) Remove all strategy=='stacked' blocks (never true); (3) Remove all 'strategy not in (stacked, shared)' guards (always false → remove the skip); (4) Simplify 'strategy in (stacked, shared)' → keep body unconditionally; (5) Simplify 'strategy == shared' → keep body unconditionally. Affects ~25 sites across epic decomposition, dispatch, branch selection, review reconciliation, repair tasks, and rollup status. Also need to update tests in test_epic_strategy.py (strategy resolution tests) and related test files. No duplicate found — this is unique orchestration work not covered by OOMPAH-167 (config layer) or any other task.
+---
+author: oompah
+created: 2026-07-13 03:13
+---
+Agent failed: Reached maximum number of turns (200). Retrying in 10s (attempt #1)
 ---
 <!-- COMMENTS:END -->
