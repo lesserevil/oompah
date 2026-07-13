@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-168
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Simplify orchestration to the shared epic workflow
 parent: OOMPAH-166
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:07.456716Z'
-updated_at: '2026-07-13T03:56:28.450133Z'
+updated_at: '2026-07-13T03:56:34.020214Z'
 work_branch: null
 target_branch: null
 review_url: null
