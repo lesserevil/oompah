@@ -1274,6 +1274,55 @@ class TestHandleAutoUpdate:
         assert orch._restart_requested is True
         assert orch._stopping is True
 
+    def test_check_auto_update_skips_restart_for_tracker_only_commits(self, tmp_path):
+        """Task-tracker writes do not restart the service that wrote them."""
+        orch = _make_orchestrator(tmp_path)
+        calls: list[list[str]] = []
+
+        def fake_run(args, **kwargs):
+            calls.append(list(args))
+            if args[:3] == ["git", "rev-list", "HEAD..origin/main"]:
+                return MagicMock(returncode=0, stdout="1\n", stderr="")
+            if args[:3] == ["git", "rev-list", "origin/main..HEAD"]:
+                return MagicMock(returncode=0, stdout="0\n", stderr="")
+            if args[:3] == ["git", "diff", "--name-only"]:
+                return MagicMock(
+                    returncode=0,
+                    stdout=".oompah/tasks/open/PROJ-1.md\n",
+                    stderr="",
+                )
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.orchestrator.subprocess.run", side_effect=fake_run):
+            orch._check_auto_update()
+
+        assert ["git", "pull", "--ff-only", "--autostash", "origin", "main"] not in calls
+        assert ["git", "pull", "--rebase", "--autostash", "origin", "main"] not in calls
+        assert orch._restart_requested is False
+        assert orch._stopping is False
+
+    def test_check_auto_update_restarts_for_non_tracker_commit(self, tmp_path):
+        """A runtime code update still follows the normal restart path."""
+        orch = _make_orchestrator(tmp_path)
+        calls: list[list[str]] = []
+
+        def fake_run(args, **kwargs):
+            calls.append(list(args))
+            if args[:3] == ["git", "rev-list", "HEAD..origin/main"]:
+                return MagicMock(returncode=0, stdout="1\n", stderr="")
+            if args[:3] == ["git", "rev-list", "origin/main..HEAD"]:
+                return MagicMock(returncode=0, stdout="0\n", stderr="")
+            if args[:3] == ["git", "diff", "--name-only"]:
+                return MagicMock(returncode=0, stdout="oompah/server.py\n", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.orchestrator.subprocess.run", side_effect=fake_run):
+            orch._check_auto_update()
+
+        assert ["git", "pull", "--ff-only", "--autostash", "origin", "main"] in calls
+        assert orch._restart_requested is True
+        assert orch._stopping is True
+
     def test_check_auto_update_rebases_when_local_branch_has_commits(self, tmp_path):
         """Diverged main rebases local commits instead of surfacing ff-only failure."""
         orch = _make_orchestrator(tmp_path)

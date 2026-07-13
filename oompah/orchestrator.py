@@ -3068,6 +3068,44 @@ class Orchestrator:
                 ]
                 return
 
+            # Native tracker writes are committed and pushed to the same
+            # repository that runs this service.  Restarting for a commit
+            # which changes only task-tracker state can interrupt the API
+            # request that made that write (notably dashboard drag/drop),
+            # producing a client-side network error.  The service reads task
+            # state from each managed project's checkout, so its own source
+            # checkout does not need to pull or restart for these commits.
+            #
+            # Fail safe: if Git cannot list the changed paths, retain the
+            # existing update-and-restart behaviour rather than missing a
+            # runtime update.
+            changed_paths_result = subprocess.run(
+                ["git", "diff", "--name-only", "HEAD..origin/main"],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            changed_paths = [
+                path.strip()
+                for path in changed_paths_result.stdout.splitlines()
+                if path.strip()
+            ]
+            if (
+                changed_paths_result.returncode == 0
+                and changed_paths
+                and all(path.startswith(".oompah/tasks/") for path in changed_paths)
+            ):
+                logger.info(
+                    "Auto-update: %d tracker-only commit(s) on origin/main; "
+                    "skipping restart",
+                    count,
+                )
+                self._alerts = [
+                    a for a in self._alerts if a.get("source") != "auto_update"
+                ]
+                return
+
             logger.info(
                 "Auto-update: %d new commit(s) on origin/main, pulling and restarting",
                 count,
