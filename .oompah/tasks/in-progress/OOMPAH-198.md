@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:50.653200Z'
-updated_at: '2026-07-13T22:15:56.905035Z'
+updated_at: '2026-07-13T22:16:25.032744Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -114,5 +114,20 @@ author: oompah
 created: 2026-07-13 22:15
 ---
 Verification: make test passed — 8487 passed, 28 skipped, 0 failures. All 49 new tests in test_server_release_delivery_commits.py pass. Full regression suite clean.
+---
+author: oompah
+created: 2026-07-13 22:16
+---
+Completion: Delivered GET /api/v1/projects/{project_id}/release-delivery/commits.
+
+Key deliverables:
+- Endpoint wraps CommitInventoryService (OOMPAH-197) with full parameter validation and documented JSON response shape.
+- All Git work runs via asyncio.to_thread — event loop never blocked.
+- 404 (project not found), 400 (invalid branch/filter/limit/cursor), 409 (stale cursor/source_changed), 503 (no repo_path or InventoryError) error responses with structured error objects.
+- Per-project service registry with lazy creation and thread-safe access.
+- Cache invalidation wired to push webhooks and delivery lifecycle updates (_invalidate_addendum_caches → retry, archive, approve).
+- 49 tests in tests/test_server_release_delivery_commits.py covering all acceptance criteria.
+- Full test suite: 8487 passed, 28 skipped, 0 failures.
+- Branch epic-OOMPAH-192 pushed to origin.
 ---
 <!-- COMMENTS:END -->
