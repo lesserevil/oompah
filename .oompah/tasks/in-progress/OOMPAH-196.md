@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:14.875922Z'
-updated_at: '2026-07-13T21:47:44.714352Z'
+updated_at: '2026-07-13T21:48:43.370203Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -82,5 +82,18 @@ Verification: Full test suite passes (8363 passed, 28 skipped, 0 failed). Key fi
 2. server.py GET endpoint: now uses store.lookup_by_source_identifier() + adapter._fetch_legacy_addendums() combo so legacy addendums are served via addendum.to_raw() (preserving included_child_ids) and ledger deliveries via delivery_to_compat_raw()
 3. server.py POST endpoint: passes included_child_ids to delivery_to_compat_raw() for newly-created epic deliveries
 4. tests/test_server_release_addendums_ledger.py: replaced all asyncio.get_event_loop().run_until_complete() with asyncio.run() to avoid event loop isolation issues across the full test suite
+---
+author: oompah
+created: 2026-07-13 21:48
+---
+Completion: Delivered ledger-backed task/epic release-addendum compatibility.
+
+Implementation summary:
+- oompah/release_delivery_compat.py (new): Core compatibility layer with delivery_to_compat_raw(), approve_release_addendums_via_ledger(), retry_ledger_delivery(), archive_ledger_delivery(), factory helpers, and LedgerApprovalResult
+- oompah/server.py (4 endpoints updated): GET uses mixed ledger+legacy with included_child_ids preserved from original addendums; POST creates ledger entries and never writes oompah.release_addendums metadata; retry/archive use ledger-first with legacy shim fallback
+- tests/test_server_release_addendums_ledger.py (new, 48 tests): Covers all acceptance criteria including idempotency, epic reads/approvals, source-commit resolution failures, invalid transitions, and regression proofs (no legacy metadata written, no child task creation)
+- tests/test_server_release_addendums.py (5 tests updated): Updated for new event/response shapes
+
+All 8363 tests pass. Pushed to epic-OOMPAH-192.
 ---
 <!-- COMMENTS:END -->
