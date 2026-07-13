@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:36.808036Z'
-updated_at: '2026-07-13T20:08:44.208642Z'
+updated_at: '2026-07-13T20:18:39.298160Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -79,5 +79,28 @@ Implementation plan:
 - oompah/release_delivery_store.py: SourceKind enum, ReleaseDelivery dataclass (immutable source + mutable lifecycle fields), ReleaseDeliveryLedger, LedgerParseError/ImmutableFieldError/DeliveryNotFoundError, module-level project locks, ReleaseDeliveryStore with append/lookup_by_id/lookup_by_source_identifier/update
 - oompah/oompah_md_tracker.py: add write_and_commit_ledger_file()
 - tests/test_release_delivery_store.py: comprehensive coverage per acceptance criteria
+---
+author: oompah
+created: 2026-07-13 20:18
+---
+Implementation complete. Changes:
+
+1. oompah/release_delivery_store.py (new, ~550 lines):
+   - SourceKind enum: task | epic | commits with from_raw()
+   - ReleaseDelivery dataclass: 7 immutable source fields (id, project_id, source_branch, source_kind, source_identifier, source_commits, target_branch), 12 mutable lifecycle/evidence fields
+   - Full SHA validation via _FULL_SHA_RE and _validate_full_sha()
+   - Source-kind/source-identifier invariant enforced at parse time
+   - ReleaseDeliveryLedger: version-1 schema, empty/from_raw/to_raw
+   - LedgerParseError / ImmutableFieldError / DeliveryNotFoundError
+   - Module-level project-level RLocks (_delivery_lock) for atomic ops
+   - ReleaseDeliveryStore: read_ledger, append, lookup_by_id, lookup_by_source_identifier, update
+   - Reuses AddendumStatus + VALID_TRANSITIONS from release_addendum_schema (no duplication)
+   - Malformed ledger never overwritten; each error includes 'git show HEAD:.oompah/release-deliveries.yml' hint
+
+2. oompah/oompah_md_tracker.py (modified):
+   - Added write_and_commit_ledger_file(): atomic write + git add/commit/push with same fetch+ff-only sync path used for task files
+
+3. tests/test_release_delivery_store.py (new, 118 tests):
+   - All acceptance criteria covered: round-trip parsing, missing/malformed/version-mismatch, invalid entries, immutable-field protection, all lookup modes, concurrent locking, and git integration with real repo fixture
 ---
 <!-- COMMENTS:END -->
