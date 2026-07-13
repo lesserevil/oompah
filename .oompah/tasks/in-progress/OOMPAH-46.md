@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:11:02.984832Z'
-updated_at: '2026-07-13T14:58:20.910021Z'
+updated_at: '2026-07-13T15:00:29.779914Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,5 +76,10 @@ author: oompah
 created: 2026-07-13 14:58
 ---
 UNDERSTANDING: OOMPAH-46 is NOT a duplicate of OOMPAH-43. OOMPAH-43 was the original task but was Archived (not Done) because the PAT lacked 'workflow' scope to push .github/workflows/cli-release.yml. OOMPAH-46 was explicitly filed as a Needs Human follow-up. The user has now granted workflow PAT scope. Proceeding with: (1) update .github/workflows/cli-release.yml line 10 description from 'e.g. v0.1.0' to 'e.g. v1.0.0-draft or v1.0.0', (2) add test_release_workflow_dispatch_description_shows_v1_examples to tests/test_cli_release_packaging.py before test_release_workflow_is_tag_or_manual_github_release_only.
+---
+author: oompah
+created: 2026-07-13 15:00
+---
+IMPLEMENTATION: Made two changes: (1) .github/workflows/cli-release.yml line 10: description changed from 'e.g. v0.1.0' to 'e.g. v1.0.0-draft or v1.0.0'. (2) Added test_release_workflow_dispatch_description_shows_v1_examples to tests/test_cli_release_packaging.py (inserted before test_release_workflow_is_tag_or_manual_github_release_only as specified). Running tests now.
 ---
 <!-- COMMENTS:END -->
