@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:37:55.470386Z'
-updated_at: '2026-07-13T06:54:33.567585Z'
+updated_at: '2026-07-13T06:54:42.889718Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -122,5 +122,17 @@ Implementation: Added missing pieces to complete the release-addendum documentat
 Also committed the previously-untracked/unstaged docs (docs/README.md index, task-epic-workflow.md release delivery section, operator-runbook.md §1.3, github-issue-intake.md target-branch clarification, projects.html label improvement).
 
 All 7993 tests pass.
+---
+author: oompah
+created: 2026-07-13 06:54
+---
+Completion: OOMPAH-184 is fully delivered. A junior operator can now:
+
+1. Configure supported release lines: docs/managed-project-onboarding.md §4 (dashboard + PATCH API)
+2. Approve a merged task for two branches: docs/release-addendums.md 'Queue a merged task' section (dialog + POST API, Mermaid diagram)
+3. Inspect outcomes: docs/release-addendums.md lifecycle table + branch inspection section
+4. Understand migration: docs/release-addendums.md 'Migration from release picks' section with status mapping table
+
+Generated agent guidance (both AGENTS.md variants) explicitly prohibits creating/working child backport tasks. Historical migration references are clearly labelled. 2 new targeted documentation tests added. 7993/7993 tests pass.
 ---
 <!-- COMMENTS:END -->
