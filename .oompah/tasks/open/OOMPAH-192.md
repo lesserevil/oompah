@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-192
 type: epic
-status: Backlog
+status: Open
 priority: 1
 title: Replace release-branch inspector with commit-centric release delivery
 parent: null
@@ -20,7 +20,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:12.244396Z'
-updated_at: '2026-07-13T19:33:31.248645Z'
+updated_at: '2026-07-13T20:00:41.926596Z'
 work_branch: null
 target_branch: null
 review_url: null
