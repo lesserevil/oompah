@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-13T14:53:58.007707Z'
-updated_at: '2026-07-13T14:54:00.496605Z'
+updated_at: '2026-07-13T14:54:18.384353Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,6 +33,7 @@ oompah.external.github:
 ## Summary
 
 ### Problem
+
 Oompah detected a backend error from `backend:server`:
 
 > Add comment API error: Cannot sync native tracker: git merge --ff-only origin/main failed: hint: Diverging branches can't be fast-forwarded, you need to either:
@@ -46,12 +47,18 @@ hint:
 hint: Disable this message with "git config set advice.diverging false"
 fatal: Not possible to fast-forward, aborting.. Remediation: the local 'main' branch has diverged from origin. Run: git fetch origin && git merge --ff-only origin/main
 
+### Desired Behavior
+
+The operation in `backend:server` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
+
 ### Steps to Reproduce
+
 1. Run oompah with `backend:server` active.
 2. Let oompah execute the operation that involves `backend:server` (tracker: `github_issues:lesserevil/oompah`).
 3. Observe that the error is captured by `error_watcher` and auto-filed as this task.
 
 ### Actual Behavior
+
 An error occurs in `backend:server` and is recorded by oompah's `error_watcher`:
 
 > Add comment API error: Cannot sync native tracker: git merge --ff-only origin/main failed: hint: Diverging branches can't be fast-forwarded, you need to either:
@@ -65,10 +72,8 @@ hint:
 hint: Disable this message with "git config set advice.diverging false"
 fatal: Not possible to fast-forward, aborting.. Remediation: the local 'main' branch has diverged from origin. Run: git fetch origin && git merge --ff-only origin/main
 
-### Expected Behavior
-The operation in `backend:server` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
-
 ### Acceptance Criteria
+
 - The error from `backend:server` no longer occurs, or is handled gracefully so `error_watcher` is not triggered.
 - The root cause is identified and resolved, or documented as a known acceptable failure with explicit handling.
 - No regression: other error types continue to be reported correctly by `error_watcher`.
@@ -84,13 +89,11 @@ The operation in `backend:server` should complete successfully, or degrade grace
 - tracker_repo: oompah
 
 ## External GitHub Issue
+
 - URL: https://github.com/lesserevil/oompah/issues/411
 - Requestor: @NVShawn
 - Reference: lesserevil/oompah#411
 
-## Acceptance Criteria
-
-- [ ] Define acceptance criteria.
-
 ## Notes
+
 
