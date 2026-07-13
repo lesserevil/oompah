@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:50.653200Z'
-updated_at: '2026-07-13T22:06:10.720699Z'
+updated_at: '2026-07-13T22:09:27.236458Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,5 +62,18 @@ created: 2026-07-13 22:06
 Duplicate investigation complete: OOMPAH-198 is unique. No other task implements the GET /api/v1/projects/{project_id}/release-delivery/commits read-only inventory endpoint. OOMPAH-197 covers the CommitInventoryService itself; OOMPAH-199 covers the POST write endpoint; no archived task covers this GET contract.
 
 Proceeding with implementation. Plan: wrap CommitInventoryService (from OOMPAH-197) in a FastAPI/aiohttp route that validates project, release branch selection, filter/query/cursor/limit params, runs Git work via asyncio.to_thread, and returns the documented response shape from plans/release-delivery-commit-inventory.md section 4.2. Cache invalidation wired to push webhooks and delivery lifecycle updates. Tests will cover all required scenarios (happy path, branch filtering, needs_delivery, all commits, search, pagination, stale cursor, stale fallback, project isolation, error responses, and asyncio.to_thread assertion).
+---
+author: oompah
+created: 2026-07-13 22:09
+---
+Discovery: CommitInventoryService (OOMPAH-197) is already fully implemented in oompah/release_delivery_inventory.py. The server.py has no GET /api/v1/projects/{project_id}/release-delivery/commits route yet — that's what this task needs.
+
+Key code locations:
+- oompah/release_delivery_inventory.py: CommitInventoryService, InventoryPage, SourceChangedError, InventoryError
+- oompah/server.py ~line 3380: insert point after release-branch catalog endpoint
+- oompah/server.py ~line 9623: webhook push handler where invalidate_release_branch_catalog is called — also wire invalidate_commit_inventory here
+- oompah/server.py ~line 4157: _invalidate_addendum_caches — wire invalidate_commit_inventory here for delivery lifecycle updates
+
+Plan: (1) Add _commit_inventory_services registry + _get_commit_inventory_service helper, (2) Add invalidate_commit_inventory function, (3) Add GET endpoint with param validation, asyncio.to_thread, full response serialization, (4) Wire cache invalidation into webhook/lifecycle paths, (5) Write tests/test_server_release_delivery_commits.py.
 ---
 <!-- COMMENTS:END -->
