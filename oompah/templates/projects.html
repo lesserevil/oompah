@@ -375,7 +375,7 @@ async function loadProjects() {
           <input type="text" id="edit-default-branch-${esc(p.id)}" value="${esc(p.default_branch)}">
         </div>
         <div class="form-group" data-field="supported-release-branches-edit">
-          <label>Supported Release Lines <span style="font-weight:400;color:var(--text-muted);">(comma-separated exact branch names — only these are offered as release-addendum targets)</span></label>
+          <label>Supported Release Lines <span style="font-weight:400;color:var(--text-muted);">(comma-separated exact branch names — only these are offered as release-addendum targets; removing a line stops new approvals but keeps its history)</span></label>
           <input type="text" id="edit-supported-release-branches-${esc(p.id)}" value="${esc((p.supported_release_branches || []).join(', '))}" placeholder="e.g. release/1.1, release/1.0">
           <span style="font-size:0.7rem;color:var(--text-muted);">Removing a line stops new release-addendum approvals for that branch but does not delete the branch or cancel existing addendums. Each entry must match a pattern in Branches above and must not be the default branch.</span>
         </div>

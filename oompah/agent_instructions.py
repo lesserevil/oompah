@@ -64,6 +64,15 @@ metadata oompah needs:
   human context only. It is not sufficient for oompah rollups, dispatch, or
   dependency gates.
 
+### Release Addendums
+
+Ordinary work lands on the project's default branch first. When a merged task
+or epic must also be delivered to a supported release line, an operator queues
+a release addendum on that original source item. Do not create, assign, or work
+a child backport task for new release delivery: addendums retain their own
+per-branch lifecycle and remain attached to the merged source task or epic.
+See `docs/release-addendums.md` for the operator workflow.
+
 ### Rules
 
 - Always pass `--author oompah` when posting comments through the CLI. In the
@@ -129,6 +138,15 @@ ownership, dependencies, or orchestration. A task may link to a plan instead of
 copying the plan into task metadata. Checklists in a plan are specification or
 acceptance-criteria aids, not task status. The prohibition on standalone
 Markdown TODO lists does not prohibit design documents in `plans/`.
+
+### Release Addendums
+
+Ordinary work lands on the project's default branch first. When a merged task
+or epic must also be delivered to a supported release line, an operator queues
+a release addendum on that original source item. Do not create, assign, or work
+a child backport task for new release delivery: addendums retain their own
+per-branch lifecycle and remain attached to the merged source task or epic.
+See `docs/release-addendums.md` for the operator workflow.
 
 ### Install the Task CLI
 

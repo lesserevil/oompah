@@ -48,7 +48,7 @@ Every issue should include:
 | **Description** | Recommended | Context, acceptance criteria, reproduction steps (bugs), or design rationale |
 | **Issue type** | Recommended | `task`, `bug`, `feature`, `chore`, or `epic` — applied as a `type:*` label |
 | **Priority** | Optional | `p0`–`p3` label, or set by oompah according to project defaults |
-| **Target branch** | Optional | Required for release-pick or release-branch work |
+| **Target branch** | Optional | Ordinary work lands on the default branch. Operators select supported release lines later, after the task is merged. |
 
 Issues filed without enough detail stay in `Proposed` until the requestor
 edits the issue body with the missing information. Once the issue validates,
