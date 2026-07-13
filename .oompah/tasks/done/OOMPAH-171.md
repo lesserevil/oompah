@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:26:02.750063Z'
-updated_at: '2026-07-13T04:46:32.272867Z'
+updated_at: '2026-07-13T04:46:34.551241Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -114,5 +114,10 @@ Changes:
 - dashboard.html: Removed .draft-epic-badge CSS, .swimlane-draft-badge CSS, hasDraftLabel() JS function, toggleEpicDraft() JS function, draftEpicBadgeHtml variable, Mark as Draft/Finalize buttons, swimlane draft badge spans, and draft checks in shouldShowIssueAsWorkCard()/isEpicMergeFlowCard().
 
 Tests: Rewrote 5 draft-epic test files as regression tests (no draft UI/auto-label behavior). Added test_epic_draft_migration.py for migration coverage. Fixed mock orchestrator setup and API response format assertions. All 7248 tests pass.
+---
+author: oompah
+created: 2026-07-13 04:46
+---
+Removed automatic draft-epic lifecycle: no auto-draft label on epic create, removed draft UI from dashboard (badges, buttons, JS functions), added startup migration to clean up existing draft-labeled epics. All 7248 tests pass.
 ---
 <!-- COMMENTS:END -->
