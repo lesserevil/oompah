@@ -23,7 +23,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T02:38:39.181064Z'
+updated_at: '2026-07-13T02:38:45.447207Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,3 +40,11 @@ Implement plans/release-branch-addendums.md. Replace new release-pick child task
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-13 02:38
+---
+Filed implementation children OOMPAH-173 through OOMPAH-184 from plans/release-branch-addendums.md, with scoped tests and acceptance criteria. OOMPAH-185 was immediately archived as a duplicate of OOMPAH-184.
+---
+<!-- COMMENTS:END -->
