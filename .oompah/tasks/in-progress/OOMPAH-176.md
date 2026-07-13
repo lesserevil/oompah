@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:47.109837Z'
-updated_at: '2026-07-13T04:06:48.487361Z'
+updated_at: '2026-07-13T04:06:59.558947Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-07-13 04:06
 ---
 Verification: make test — 7606 passed, 28 skipped, 13 warnings (0 failures). 41 new tests added: two-target approval; duplicate request idempotency; concurrent approval (single row via asyncio.Lock); invalid/non-merged source (409); unavailable/default/unsupported/stale targets (400); unresolved commits (409); atomic all-or-nothing validation (no partial writes when one branch invalid); event failure recovery (row persisted open, queued=false, no rollback, event_failures in response); event emission per new row; no tracker child task created.
+---
+author: oompah
+created: 2026-07-13 04:06
+---
+Completion: Delivered POST /api/v1/issues/{identifier}/release-addendums (section 6 of plans/release-branch-addendums.md). Not a duplicate of any existing task. Blockers OOMPAH-173 (schema) and OOMPAH-175 (catalog) were both Done and provided all building blocks. Implementation: EventType.RELEASE_ADDENDUM_READY; oompah/release_addendum_approval.py (per-source asyncio lock, commit resolution via SCM+git, catalog validation, atomic write, event publication with failure recovery); server.py endpoint (all-or-nothing validation: Merged check, catalog/stale/default/unsupported branch rejection, commit resolution, under-lock create+write, invalidate caches, return full addendum list). 41 tests cover all acceptance criteria. Approval immediately leaves durable open queue items attached to the source and creates no tracker child task.
 ---
 <!-- COMMENTS:END -->
