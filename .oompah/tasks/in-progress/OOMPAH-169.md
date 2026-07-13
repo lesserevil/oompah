@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:10.333133Z'
-updated_at: '2026-07-13T04:17:34.821217Z'
+updated_at: '2026-07-13T04:32:15.774315Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -86,5 +86,17 @@ author: oompah
 created: 2026-07-13 04:17
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 04:32
+---
+UNDERSTANDING: This task is NOT a duplicate — OOMPAH-167 covered the backend (domain model, persistence, API validation) and OOMPAH-168 covered orchestration. OOMPAH-169 covers the UI layer.
+
+Work to do:
+1. oompah/templates/projects.html: Remove epic-strategy CSS classes, the 'Epic Strategy:' display row, the flat/stacked/shared radio button group from the edit form, and epic_strategy field from saveProject() JS
+2. dashboard.html: The 'flat' references there are VIEW MODES (kanban flat vs swimlane), not epic strategies — leave them
+3. Add tests (test_projects_epic_strategy_ui.py) verifying no strategy controls are rendered and saveProject() doesn't include the epic_strategy field
+
+There are already uncommitted changes in this worktree from previous work (OOMPAH-168: removing draft-epic lifecycle from dashboard, focus.py, server.py). I will keep those and add the OOMPAH-169 changes on top.
 ---
 <!-- COMMENTS:END -->
