@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:36.808036Z'
-updated_at: '2026-07-13T20:19:16.509886Z'
+updated_at: '2026-07-13T20:19:19.860888Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -138,5 +138,10 @@ Acceptance criteria met:
 ✓ Lifecycle vocabulary reused from release_addendum_schema (AddendumStatus, VALID_TRANSITIONS) — no duplication
 ✓ No task YAML metadata read or written in this store
 ✓ Git commit path via write_and_commit_ledger_file on native tracker uses same fetch+ff-only+push infrastructure
+---
+author: oompah
+created: 2026-07-13 20:19
+---
+Implemented .oompah/release-deliveries.yml ledger: ReleaseDelivery record with immutable source fields and mutable lifecycle/evidence, ReleaseDeliveryLedger versioned schema, ReleaseDeliveryStore with atomic CRUD under project-level lock, write_and_commit_ledger_file on OompahMarkdownTracker, 118 tests all passing.
 ---
 <!-- COMMENTS:END -->
