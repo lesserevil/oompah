@@ -24,7 +24,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T07:10:51.236358Z'
+updated_at: '2026-07-13T07:10:53.741585Z'
 work_branch: epic-OOMPAH-172
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/407
@@ -35,6 +35,22 @@ oompah.review_number: '407'
 oompah.work_branch: epic-OOMPAH-172
 oompah.target_branch: main
 oompah.agent_run_id: f808e288-e449-468b-9d16-3430c96bad7e
+oompah.task_costs:
+  total_input_tokens: 98
+  total_output_tokens: 2787
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 98
+      output_tokens: 2787
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: unknown
+    input_tokens: 98
+    output_tokens: 2787
+    cost_usd: 0.0
+    recorded_at: '2026-07-13T07:10:50.541327+00:00'
 ---
 ## Summary
 
