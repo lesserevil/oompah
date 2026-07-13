@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-13T20:02:50.911753Z'
-updated_at: '2026-07-13T20:04:36.441289Z'
+updated_at: '2026-07-13T20:05:11.578613Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-07-13 20:04
 ---
 Understanding: This bug reports that the native tracker sync fails with a git fast-forward error when the local 'main' branch has diverged from origin. The error is caught by error_watcher and auto-filed. My role as Duplicate Investigator is to check whether this is a duplicate of a previously-handled issue before doing any implementation work. Starting search now.
+---
+author: oompah
+created: 2026-07-13 20:05
+---
+Accepted as the durable native-tracker synchronization fix. Scope: serialize the entire prepare→write→commit→push transaction across processes, automatically rebase a local pending tracker commit when a concurrent remote tracker commit arrives, abort cleanly on genuine conflicts, and add regression tests for both recovery and conflict paths. This replaces the current ff-only failure for normal concurrent tracker writes.
 ---
 <!-- COMMENTS:END -->
