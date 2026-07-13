@@ -17,7 +17,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:33:31.162292Z'
-updated_at: '2026-07-13T23:07:20.202288Z'
+updated_at: '2026-07-13T23:09:07.397092Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,5 +62,12 @@ author: oompah
 created: 2026-07-13 23:07
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 23:09
+---
+Duplicate investigation complete: OOMPAH-202 is NOT a duplicate. All sibling tasks (OOMPAH-193 through OOMPAH-201) cover distinct implementation pieces — ledger schema, migration, queue/executor refactoring, task/epic compat, inventory service, GET API, POST API, UI overlay, and docs/deprecation. No existing task creates end-to-end integration tests using real temporary git repositories. The existing tests are unit/server tests with mocked stores and fake git subprocess calls.
+
+Understanding and plan: OOMPAH-202 is the final verification task. All dependency tasks are Done and their code is on branch epic-OOMPAH-192. I will write tests/test_release_delivery_e2e.py covering: (1) migrated task/epic delivery visible with no duplicate PR; (2) direct main commit selected for two release branches → two independent ledger deliveries, no task created; (3) merged cherry-pick → Delivered via source-to-result mapping; shared-history → Delivered by ancestry; (4) blocked/retry/archived/unavailable-target/source-head-change/concurrent/idempotent scenarios. Tests use real temporary git repos via subprocess and mock the SCM/PR layer only. Then run make test and attach the result.
 ---
 <!-- COMMENTS:END -->
