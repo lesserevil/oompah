@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-46
 type: task
-status: In Review
+status: Merged
 priority: null
 title: 'Maintainer: update workflow dispatch description to v1.0.0 examples (needs
   workflow PAT scope)'
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:11:02.984832Z'
-updated_at: '2026-07-13T15:51:33.507862Z'
+updated_at: '2026-07-13T22:54:22.304644Z'
 work_branch: OOMPAH-46
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/413
