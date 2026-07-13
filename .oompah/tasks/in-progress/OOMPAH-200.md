@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:56.999746Z'
-updated_at: '2026-07-13T22:41:39.526419Z'
+updated_at: '2026-07-13T22:50:53.495275Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -73,5 +73,22 @@ author: oompah
 created: 2026-07-13 22:41
 ---
 Discovery: Confirmed the scope. The dashboard.html has: (1) RBI CSS at ~lines 970-1139 (release-branch-inspector-overlay, rbi-* classes), (2) toolbar button at line 2102 (btn-release-branches / openReleaseBranchInspector), (3) RBI JS at lines 6695-6920 (_rbiCurrentProjectId, _rbiLoadBranchList, etc.), (4) RBI HTML overlay at lines 7145-7164. All four must be replaced with the new Release delivery overlay. Dependencies (OOMPAH-196, OOMPAH-198, OOMPAH-199) are all Done. The GET API at /api/v1/projects/{id}/release-delivery/commits returns rows with sha/selectable/release_status cells (state: not_selected|open|in_progress|in_review|blocked|delivered|archived, evidence: delivery|ancestry|null). The POST API returns created/already_active/already_delivered/invalid per-pair outcomes. Beginning implementation now.
+---
+author: oompah
+created: 2026-07-13 22:50
+---
+Implementation complete. Changes to oompah/templates/dashboard.html:
+
+1. CSS: Removed all RBI CSS (~170 lines), added RDI CSS (~290 lines) with overlay, panel, table, filter controls, status cell variants (not_selected/open/in_progress/in_review/blocked/delivered/archived), delivered-ancestry distinct from delivered-delivery, clickable cells, action bar, pagination, drawer, outcome banner.
+
+2. Toolbar: Changed 'Release branches' button (openReleaseBranchInspector) to 'Release delivery' button (openReleaseDelivery).
+
+3. JS: Removed 220-line RBI JS (_rbiCurrentProjectId/Branch/Loading, loadBranchList, loadBranchAddendums, etc). Added 860-line RDI JS with: state object (_rdiProjectId, _rdiVisibleBranches, _rdiFilter, _rdiQuery, _rdiCursor, _rdiSourceHead, _rdiSelectedSHAs, _rdiGen, _rdiCurrentPageData, _rdiOpener, _rdiDrawerSHA); open/close with focus restoration; Escape handler (closes drawer first, then overlay); project defaulting from dashboard filter; _rdiLoadPage with generation counter (ignores stale responses), 409/source_changed handling, filter/query/branches/cursor params; DOM-only rendering (_rdiRenderRow/_rdiRenderCell use createElement/textContent, never innerHTML for API text); all 7 status labels; delivered-ancestry vs delivered-cherry-pick distinction; selection with indeterminate checkbox; _rdiQueueSelected (POST with Idempotency-Key, ordered SHAs, clear only success/skipped, keep invalid selected); outcome banner; evidence drawer (SHA, parents, subject, author, association, per-branch evidence with distinct cherry-pick vs ancestry labels, PR links, delivery IDs, result SHAs); filter/search/branch filter handlers.
+
+4. HTML: Removed RBI overlay HTML, added RDI overlay + evidence drawer HTML with proper roles, aria attributes, focus management.
+
+5. Retained: openAddReleaseBranchesDialog, renderReleaseAddendumsSection, renderEpicReleaseAddendumsSection, add-release-branches-dialog HTML (task/epic release controls unchanged).
+
+Tests: Added tests/test_dashboard_release_delivery_ui.py with 249 tests covering CSS, HTML, state, functions, open/close, project defaulting, data loading, status rendering, XSS prevention, selection, queue delivery, outcome feedback, evidence drawer, filter/search, empty/error states, pagination, retained controls, accessibility, legacy removal.
 ---
 <!-- COMMENTS:END -->
