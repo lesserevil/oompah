@@ -613,11 +613,23 @@ class TestApproveReleaseAddendumsEndpoint:
         branches_created = {a["target_branch"] for a in data["addendums"]}
         assert branches_created == {"release/1.0", "release/1.1"}
         ids_created = set(data["newly_created"])
-        assert "FOO-10/release/1.0" in ids_created
-        assert "FOO-10/release/1.1" in ids_created
+        # Ledger delivery IDs are rd_<hex>, not the legacy FOO-10/branch format
+        assert len(ids_created) == 2
+        for delivery_id in ids_created:
+            assert delivery_id.startswith("rd_"), (
+                f"Expected ledger delivery ID with rd_ prefix, got {delivery_id!r}"
+            )
 
-    def test_duplicate_request_is_idempotent(self, client):
+    def test_duplicate_request_is_idempotent(self, client, tmp_path):
+        # Use a real tmpdir so the ledger persists between the two requests.
         orch, tracker, project, catalog = self._make_setup()
+        project.repo_path = str(tmp_path)
+        # Make the tracker's write_and_commit_ledger_file write to disk so the
+        # store persists across sequential requests.
+        def _write_ledger(rel_path, content, subject):
+            (tmp_path / rel_path).parent.mkdir(parents=True, exist_ok=True)
+            (tmp_path / rel_path).write_text(content, encoding="utf-8")
+        tracker.write_and_commit_ledger_file = MagicMock(side_effect=_write_ledger)
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
@@ -639,10 +651,10 @@ class TestApproveReleaseAddendumsEndpoint:
 
         assert resp1.status_code == 200
         assert resp2.status_code == 200
-        # Second call creates no new rows
+        # Second call creates no new rows (idempotent)
         data2 = resp2.json()
         assert data2["newly_created"] == []
-        # Addendum still present
+        # Delivery still present
         assert len(data2["addendums"]) == 1
 
     # --- Error cases ---
@@ -882,13 +894,22 @@ class TestApproveReleaseAddendumsEndpoint:
         # queued=false because event failed
         assert data["queued"] is False
         assert "event_failures" in data
-        assert "FOO-10/release/1.0" in data["event_failures"]
-        # set_metadata_field was called (row was persisted)
-        tracker.set_metadata_field.assert_called_once()
+        # Failure IDs are now ledger delivery IDs (rd_<hex>), not legacy addendum IDs
+        assert len(data["event_failures"]) == 1
+        assert data["event_failures"][0].startswith("rd_")
+        # New code does NOT call set_metadata_field (no legacy metadata writes)
+        tracker.set_metadata_field.assert_not_called()
 
-    def test_concurrent_approval_one_active_row(self, client):
-        """Two concurrent requests for the same branch yield exactly one addendum."""
+    def test_concurrent_approval_one_active_row(self, client, tmp_path):
+        """Two concurrent requests for the same branch yield exactly one delivery."""
         orch, tracker, project, catalog = self._make_setup()
+        # Use real tmpdir so the ledger persists between the two sequential calls.
+        project.repo_path = str(tmp_path)
+        def _write_ledger(rel_path, content, subject):
+            (tmp_path / rel_path).parent.mkdir(parents=True, exist_ok=True)
+            (tmp_path / rel_path).write_text(content, encoding="utf-8")
+        tracker.write_and_commit_ledger_file = MagicMock(side_effect=_write_ledger)
+
         all_results = []
 
         def _run():
@@ -911,10 +932,10 @@ class TestApproveReleaseAddendumsEndpoint:
         _run()
 
         total_new = sum(len(r.get("newly_created", [])) for r in all_results)
-        assert total_new == 1, f"Expected 1 newly created row, got {total_new}"
+        assert total_new == 1, f"Expected 1 newly created delivery, got {total_new}"
 
     def test_event_emitted_per_newly_created_row(self, client):
-        """One release_addendum_ready event per newly created row."""
+        """One release_addendum_ready event per newly created delivery."""
         orch, tracker, project, catalog = self._make_setup()
         received: list[dict] = []
 
@@ -939,9 +960,13 @@ class TestApproveReleaseAddendumsEndpoint:
 
         assert resp.status_code == 200
         assert len(received) == 2
-        addendum_ids = {p["addendum_id"] for p in received}
-        assert "FOO-10/release/1.0" in addendum_ids
-        assert "FOO-10/release/1.1" in addendum_ids
+        # New code emits delivery_id (rd_<hex>), not the legacy addendum_id
+        delivery_ids = {p["delivery_id"] for p in received}
+        assert len(delivery_ids) == 2
+        for did in delivery_ids:
+            assert did.startswith("rd_"), f"Expected rd_ prefix, got {did!r}"
+        # project_id is always included
+        assert all(p["project_id"] == "proj-1" for p in received)
 
     def test_no_tracker_child_task_created(self, client):
         """Approval must not call any task-creation method."""

@@ -78,10 +78,11 @@ Managed project settings (tracker owner/repo, paused state, etc.) are stored in
 `/api/v1/projects` API. Do not edit that file directly.
 
 For maintained release lines, configure the project's **Supported Release
-Lines** with exact branch names. This controls which branches can receive
-release addendums; it does not make release branches normal task targets. See
-[Release Addendums](release-addendums.md) for configuration, queueing,
-inspection, retry, and migration procedures.
+Lines** with exact branch names. This controls which branches appear in the
+**Release delivery** commit inventory and are available as delivery targets;
+it does not make release branches normal task targets. See
+[Release Delivery](release-addendums.md) for configuration, commit selection,
+status evidence, retry, and migration procedures.
 
 ---
 

@@ -126,9 +126,10 @@ and before unpausing.
 
 ### Why configure early
 
-Release lines control which branches are offered as addendum targets in the task
-detail dialog. Configuring them before unpausing means agents and operators see
-the correct target list from the first dispatch tick.
+Release lines control which branches appear in the **Release delivery** commit
+inventory and are available as delivery targets in the task detail panel.
+Configuring them before unpausing means agents and operators see the correct
+target list from the first dispatch tick.
 
 ### Configure via the dashboard
 
@@ -153,9 +154,10 @@ curl -X PATCH http://localhost:8080/api/v1/projects/<project-id> \
 
 If this project has no release branches, skip to §5.
 
-For the complete release-addendum workflow — queuing a merged task, checking
-addendum status, retrying a blocked addendum, and inspecting a release line —
-see [Release Addendums](release-addendums.md).
+For the complete release delivery workflow — configuring release lines, selecting
+commits from the inventory, checking delivery status, retrying a blocked
+delivery, and queuing from a task or epic detail panel —
+see [Release Delivery](release-addendums.md).
 
 ---
 

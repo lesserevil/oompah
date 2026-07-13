@@ -3383,9 +3383,1107 @@ def invalidate_release_branch_catalog(project_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# GET /api/v1/projects/{project_id}/release-delivery/commits
+# Commit inventory endpoint (OOMPAH-198)
+# Plan reference: plans/release-delivery-commit-inventory.md section 4.2
+# ---------------------------------------------------------------------------
+
+#: Per-project CommitInventoryService instances, keyed by project_id.
+_commit_inventory_services: dict = {}
+_commit_inventory_services_lock = threading.Lock()
+
+
+def _get_commit_inventory_service(project):
+    """Return (or create) the :class:`~oompah.release_delivery_inventory.CommitInventoryService`
+    for *project*.
+
+    The registry is keyed by ``project.id``.  A new instance is created on
+    first access.  The service caches ref snapshots and commit lists
+    internally; call :func:`invalidate_commit_inventory` to flush the cache.
+
+    Args:
+        project: Project model with ``id``, ``repo_path``, and
+            ``default_branch`` attributes.
+
+    Returns:
+        :class:`~oompah.release_delivery_inventory.CommitInventoryService`
+        instance for *project*.
+    """
+    from oompah.release_delivery_inventory import CommitInventoryService  # noqa: PLC0415
+    from oompah.release_delivery_compat import make_delivery_store  # noqa: PLC0415
+
+    project_id = project.id
+    with _commit_inventory_services_lock:
+        if project_id not in _commit_inventory_services:
+            store = make_delivery_store(project)
+            svc = CommitInventoryService(
+                project_root=project.repo_path,
+                project_id=str(project_id),
+                default_branch=project.default_branch,
+                delivery_store=store,
+            )
+            _commit_inventory_services[project_id] = svc
+        return _commit_inventory_services[project_id]
+
+
+def invalidate_commit_inventory(project_id: str) -> None:
+    """Invalidate the commit inventory snapshot cache for *project_id*.
+
+    Call this after a default-branch or release-branch push webhook and after
+    any delivery lifecycle update (retry, archive, approve) so the next
+    request fetches a fresh ref snapshot.
+
+    Args:
+        project_id: The project whose inventory cache should be dropped.
+    """
+    try:
+        with _commit_inventory_services_lock:
+            svc = _commit_inventory_services.get(project_id)
+        if svc is not None:
+            svc.invalidate(project_id)
+            logger.debug("invalidate_commit_inventory: invalidated cache for %s", project_id)
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning(
+            "invalidate_commit_inventory: failed for %s: %s", project_id, exc
+        )
+
+
+#: Accepted values for the ``filter`` query parameter.
+_VALID_INVENTORY_FILTERS = frozenset({"needs_delivery", "all"})
+
+#: Default page size for the commit inventory endpoint.
+_INVENTORY_DEFAULT_LIMIT = 100
+
+
+@app.get("/api/v1/projects/{project_id}/release-delivery/commits")
+async def api_release_delivery_commits(
+    project_id: str, request: Request
+) -> JSONResponse:
+    """Return a paginated commit inventory for the project's release delivery.
+
+    Enumerates non-merge commits reachable from ``origin/<default_branch>``
+    and returns per-release delivery status for each configured (and
+    requested) release branch.  All Git work runs in
+    ``asyncio.to_thread`` — the async event loop is never blocked.
+
+    Query parameters
+    ----------------
+    branches : str, optional
+        Comma-separated release branch names to include as columns.  Each
+        name must appear in the project's ``supported_release_branches``.
+        Defaults to all configured release branches.
+    filter : str, optional
+        ``"needs_delivery"`` (default) — include only rows where at least one
+        visible branch has a non-delivered, non-archived state.
+        ``"all"`` — include every commit regardless of delivery state.
+    query : str, optional
+        Case-insensitive text search over SHA, subject, author name,
+        association identifier, and PR URL.
+    cursor : str, optional
+        Opaque pagination cursor from a previous response's ``next_cursor``.
+    limit : int, optional
+        Maximum rows per page (1–250, default 100).
+
+    Response
+    --------
+    200
+        Inventory page in the documented shape (see plan section 4.2).
+    400
+        Invalid ``branches``, ``filter``, ``cursor``, or ``limit`` value.
+    404
+        Project not found.
+    409
+        Stale cursor: source HEAD changed since the cursor was issued.
+        The ``error.cursor_head`` and ``error.current_head`` fields show the
+        old and new HEADs; the UI should refresh from page one.
+    503
+        Git or tracker failure with no usable cached result, or project has
+        no configured repository.
+    """
+    try:
+        from oompah.release_delivery_inventory import (  # noqa: PLC0415
+            InventoryError,
+            SourceChangedError,
+        )
+
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+
+        if not project.repo_path:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "no_repo",
+                        "message": (
+                            f"Project {project_id!r} has no configured repository; "
+                            "cannot build commit inventory."
+                        ),
+                    }
+                },
+                status_code=503,
+            )
+
+        # ------------------------------------------------------------------
+        # Parse and validate query parameters
+        # ------------------------------------------------------------------
+        params = request.query_params
+
+        # branches — comma-separated; default to all configured
+        branches_raw = params.get("branches", "").strip()
+        if branches_raw:
+            requested_branches: list[str] = [
+                b.strip() for b in branches_raw.split(",") if b.strip()
+            ]
+        else:
+            requested_branches = list(project.supported_release_branches)
+
+        # Each requested branch must appear in supported_release_branches
+        configured_set = set(project.supported_release_branches)
+        invalid_branches = [b for b in requested_branches if b not in configured_set]
+        if invalid_branches:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_branch",
+                        "message": (
+                            "Branch(es) not in project's supported_release_branches: "
+                            + ", ".join(repr(b) for b in invalid_branches)
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+
+        # filter
+        filter_param = params.get("filter", "needs_delivery").strip()
+        if filter_param not in _VALID_INVENTORY_FILTERS:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_filter",
+                        "message": (
+                            f"Unknown filter {filter_param!r}; "
+                            f"accepted values: {sorted(_VALID_INVENTORY_FILTERS)}"
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+
+        # query — empty string treated as None (no filter)
+        query_param: str | None = params.get("query", "").strip() or None
+
+        # cursor — empty string treated as None (first page)
+        cursor_param: str | None = params.get("cursor", "").strip() or None
+
+        # limit
+        limit_raw = params.get("limit", "").strip()
+        if limit_raw:
+            try:
+                limit_param = int(limit_raw)
+                if limit_param < 1:
+                    raise ValueError("limit must be ≥ 1")
+            except ValueError as exc:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "invalid_limit",
+                            "message": f"Invalid limit {limit_raw!r}: {exc}",
+                        }
+                    },
+                    status_code=400,
+                )
+        else:
+            limit_param = _INVENTORY_DEFAULT_LIMIT
+
+        # ------------------------------------------------------------------
+        # Get or create the per-project inventory service and fetch the page.
+        # All Git work runs in asyncio.to_thread — never on the event loop.
+        # ------------------------------------------------------------------
+        service = _get_commit_inventory_service(project)
+
+        try:
+            page = await asyncio.to_thread(
+                service.get_page,
+                release_branches=requested_branches,
+                cursor=cursor_param,
+                filter=filter_param,
+                query=query_param,
+                limit=limit_param,
+            )
+        except SourceChangedError as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "source_changed",
+                        "message": str(exc),
+                        "cursor_head": exc.cursor_head,
+                        "current_head": exc.current_head,
+                    }
+                },
+                status_code=409,
+            )
+        except ValueError as exc:
+            # Malformed cursor — treat as a client error
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_cursor",
+                        "message": f"Malformed cursor: {exc}",
+                    }
+                },
+                status_code=400,
+            )
+        except InventoryError as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "inventory_unavailable",
+                        "message": (
+                            f"Could not build commit inventory: {exc}  "
+                            "Ensure the project repository is accessible and reachable."
+                        ),
+                    }
+                },
+                status_code=503,
+            )
+
+        # ------------------------------------------------------------------
+        # Serialise the InventoryPage to the documented JSON response shape
+        # ------------------------------------------------------------------
+        rows_json: list[dict] = []
+        for row in page.rows:
+            release_status_json: dict[str, dict] = {}
+            for branch, cell in row.release_status.items():
+                cell_dict: dict = {"state": cell.state}
+                if cell.evidence is not None:
+                    cell_dict["evidence"] = cell.evidence
+                if cell.delivery_id is not None:
+                    cell_dict["delivery_id"] = cell.delivery_id
+                if cell.pr_url is not None:
+                    cell_dict["pr_url"] = cell.pr_url
+                if cell.result_commits:
+                    cell_dict["result_commits"] = list(cell.result_commits)
+                release_status_json[branch] = cell_dict
+
+            rows_json.append(
+                {
+                    "sha": row.sha,
+                    "short_sha": row.short_sha,
+                    "subject": row.subject,
+                    "author_name": row.author_name,
+                    "authored_at": row.authored_at,
+                    "parents": row.parents,
+                    "selectable": row.selectable,
+                    "association": row.association,
+                    "release_status": release_status_json,
+                }
+            )
+
+        response_body: dict = {
+            "project_id": page.project_id,
+            "source_branch": page.source_branch,
+            "source_head": page.source_head,
+            "release_branches": [
+                {
+                    "name": bi.name,
+                    "head": bi.head,
+                    "available": bi.available,
+                    "stale": bi.stale,
+                }
+                for bi in page.release_branches
+            ],
+            "rows": rows_json,
+            "next_cursor": page.next_cursor,
+            "stale": page.stale,
+            "refreshed_at": page.refreshed_at,
+        }
+
+        return JSONResponse(response_body)
+
+    except Exception as exc:
+        logger.error(
+            "release-delivery-commits: unexpected error for %s: %s",
+            project_id,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "internal_error", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end release-delivery commits inventory endpoint)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/projects/{project_id}/release-delivery/commits
+# Commit delivery queue endpoint (OOMPAH-199)
+# Plan reference: plans/release-delivery-commit-inventory.md section 4.2 POST contract
+# ---------------------------------------------------------------------------
+
+#: Pattern for a valid full 40-char lowercase hex SHA.
+_FULL_COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+
+#: In-memory idempotency store: (project_id, key) → JSON response body dict.
+#: Ephemeral (per-process); replays within the same service lifetime.
+_delivery_idempotency_store: dict[tuple[str, str], dict] = {}
+_delivery_idempotency_lock = threading.Lock()
+
+
+def _run_delivery_git(
+    args: list[str],
+    *,
+    repo_path: str,
+    timeout: int = 30,
+) -> subprocess.CompletedProcess:
+    """Run a git command in *repo_path* for delivery queue validation.
+
+    Args:
+        args: Arguments after ``"git"`` (not including ``"git"`` itself).
+        repo_path: Working directory for the subprocess.
+        timeout: Subprocess timeout in seconds.
+
+    Returns:
+        :class:`subprocess.CompletedProcess` with ``stdout`` and ``stderr``
+        as text strings (``returncode`` not checked).
+
+    Raises:
+        RuntimeError: On subprocess timeout or OS error.
+    """
+    try:
+        return subprocess.run(
+            ["git"] + args,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"git {args[0]!r} timed out after {timeout}s in {repo_path}"
+        ) from exc
+    except OSError as exc:
+        raise RuntimeError(
+            f"Failed to run git {args[0]!r} in {repo_path}: {exc}"
+        ) from exc
+
+
+def _delivery_resolve_source_head(repo_path: str, default_branch: str) -> str | None:
+    """Resolve the current remote tracking HEAD SHA for *default_branch*.
+
+    Tries ``refs/remotes/origin/<branch>`` then ``origin/<branch>``.
+
+    Args:
+        repo_path: Local git clone path.
+        default_branch: Default branch name (e.g. ``"main"``).
+
+    Returns:
+        40-character hex SHA or ``None`` when the ref cannot be resolved.
+    """
+    for ref in (
+        f"refs/remotes/origin/{default_branch}",
+        f"origin/{default_branch}",
+    ):
+        result = _run_delivery_git(
+            ["rev-parse", "--verify", ref],
+            repo_path=repo_path,
+        )
+        if result.returncode == 0:
+            sha = result.stdout.strip()
+            if _FULL_COMMIT_SHA_RE.match(sha):
+                return sha
+    return None
+
+
+def _delivery_is_ancestor(repo_path: str, sha: str, target: str) -> bool:
+    """Return ``True`` when *sha* is a reachable ancestor of *target*.
+
+    Runs ``git merge-base --is-ancestor <sha> <target>``; exit code 0 means
+    *sha* IS an ancestor (reachable) of *target*.
+
+    Args:
+        repo_path: Local git clone path.
+        sha: Candidate commit SHA to check.
+        target: Target ref (SHA or branch ref) to check ancestry against.
+
+    Returns:
+        ``True`` when *sha* is an ancestor of *target*, ``False`` otherwise.
+    """
+    result = _run_delivery_git(
+        ["merge-base", "--is-ancestor", sha, target],
+        repo_path=repo_path,
+    )
+    return result.returncode == 0
+
+
+def _delivery_parent_count(repo_path: str, sha: str) -> int | None:
+    """Return the number of parents for *sha*, or ``None`` when not found.
+
+    Runs ``git log --format=%P -1 <sha>`` and counts space-separated parent
+    SHAs in the output.  Root commits produce an empty line (0 parents).
+
+    Args:
+        repo_path: Local git clone path.
+        sha: Commit SHA.
+
+    Returns:
+        Parent count (0 = root, 1 = normal, ≥2 = merge commit), or ``None``
+        when the commit does not exist in the repository.
+    """
+    result = _run_delivery_git(
+        ["log", "--format=%P", "-1", sha],
+        repo_path=repo_path,
+    )
+    if result.returncode != 0:
+        return None
+    parents_line = result.stdout.strip()
+    if not parents_line:
+        return 0
+    return len(parents_line.split())
+
+
+def _delivery_resolve_branch_head(repo_path: str, branch: str) -> str | None:
+    """Resolve the remote-tracking ref for *branch* to a SHA, or ``None``.
+
+    Tries ``refs/remotes/origin/<branch>`` then ``origin/<branch>``.  Returns
+    ``None`` when neither ref exists locally, indicating the branch is not
+    available.
+
+    Args:
+        repo_path: Local git clone path.
+        branch: Release branch name (without ``origin/`` prefix).
+
+    Returns:
+        40-character hex SHA, or ``None`` when unavailable.
+    """
+    for ref in (
+        f"refs/remotes/origin/{branch}",
+        f"origin/{branch}",
+    ):
+        result = _run_delivery_git(
+            ["rev-parse", "--verify", ref],
+            repo_path=repo_path,
+        )
+        if result.returncode == 0:
+            sha = result.stdout.strip()
+            if _FULL_COMMIT_SHA_RE.match(sha):
+                return sha
+    return None
+
+
+def _delivery_validate_git(
+    repo_path: str,
+    *,
+    default_branch: str,
+    source_head: str,
+    commits: list[str],
+    target_branches: list[str],
+    configured_branches: set[str],
+) -> tuple[str | None, str | None, str | None]:
+    """Validate source HEAD, commits, and target branches for the POST endpoint.
+
+    All git operations run synchronously; callers from async code must wrap
+    this in ``asyncio.to_thread``.
+
+    Args:
+        repo_path: Local git clone path.
+        default_branch: Project default branch name.
+        source_head: Source HEAD SHA submitted by the caller.
+        commits: Ordered list of commit SHAs to validate.
+        target_branches: List of target branch names.
+        configured_branches: Set of configured ``supported_release_branches``.
+
+    Returns:
+        ``(current_head, error_code, error_message)`` where:
+
+        - ``current_head`` is the resolved current source HEAD SHA (may be
+          ``None`` on resolution failure).
+        - ``error_code`` is ``None`` on success, or a short string error code.
+        - ``error_message`` is ``None`` on success, or a human-readable
+          description.
+    """
+    # 1. Resolve the current source HEAD
+    current_head = _delivery_resolve_source_head(repo_path, default_branch)
+    if current_head is None:
+        return None, "source_unavailable", (
+            f"Cannot resolve source branch {default_branch!r}. "
+            "Ensure the repository has been fetched recently."
+        )
+
+    # 2. Compare against the submitted source_head snapshot
+    if current_head != source_head:
+        return current_head, "source_changed", (
+            f"Source HEAD has changed. "
+            f"Submitted: {source_head!r}. Current: {current_head!r}. "
+            "Refresh the inventory and resubmit."
+        )
+
+    # 3. Validate each commit: reachable and non-merge
+    for sha in commits:
+        if not _delivery_is_ancestor(repo_path, sha, source_head):
+            return current_head, "unreachable_commit", (
+                f"Commit {sha!r} is not reachable from source HEAD "
+                f"{source_head!r}. Ensure the commit exists on the default branch."
+            )
+        parent_count = _delivery_parent_count(repo_path, sha)
+        if parent_count is None:
+            return current_head, "invalid_commit", (
+                f"Commit {sha!r} could not be retrieved from the repository."
+            )
+        if parent_count >= 2:
+            return current_head, "merge_commit", (
+                f"Commit {sha!r} is a merge commit ({parent_count} parents). "
+                "Merge commits are not eligible for direct delivery — "
+                "select the individual non-merge commits instead."
+            )
+
+    # 4. Validate target branches: in configured list and available remotely
+    for branch in target_branches:
+        if branch not in configured_branches:
+            return current_head, "invalid_branch", (
+                f"Branch {branch!r} is not in the project's "
+                "supported_release_branches."
+            )
+        if _delivery_resolve_branch_head(repo_path, branch) is None:
+            return current_head, "unavailable_branch", (
+                f"Branch {branch!r} is not available remotely. "
+                "Ensure the branch exists on the remote."
+            )
+
+    return current_head, None, None
+
+
+@app.post("/api/v1/projects/{project_id}/release-delivery/commits")
+async def api_post_release_delivery_commits(
+    project_id: str, request: Request
+) -> JSONResponse:
+    """Queue an immutable commit snapshot for delivery to one or more release branches.
+
+    Accepts a source-head snapshot, an ordered list of source commit SHAs, and
+    one or more target release branch names.  Re-validates source reachability,
+    non-merge eligibility, and branch availability server-side before writing
+    to the ledger.
+
+    Request headers
+    ---------------
+    Idempotency-Key : str (required)
+        Unique client-generated key (UUID recommended).  Replaying the same
+        key within the same service lifetime returns the original response and
+        makes no additional ledger write.
+
+    Request body (JSON)
+    -------------------
+    source_head : str
+        Full 40-char hex SHA of the source branch HEAD at selection time.
+        Rejected with ``409 source_changed`` when the HEAD has moved.
+    commits : list[str]
+        Ordered list of full 40-char hex source commit SHAs to deliver.
+        Must be non-empty, all reachable from *source_head*, and all
+        non-merge commits.
+    target_branches : list[str]
+        Non-empty list of release branch names to target.  Each must appear
+        in the project's ``supported_release_branches`` and be currently
+        available (resolvable from the local remote tracking refs).
+
+    Response (201)
+    --------------
+    Returns a JSON body with four per-pair outcome arrays:
+
+    - ``created`` — ``(commit, target, delivery_id)`` triples for newly
+      created delivery bundles.
+    - ``already_active`` — ``(commit, target, delivery_id)`` triples for
+      pairs blocked by an existing active delivery.
+    - ``already_delivered`` — ``(commit, target)`` pairs whose commits are
+      already present in a merged delivery for the target.
+    - ``invalid`` — empty in the current implementation (all validation
+      failures are pre-write rejections, not per-pair).
+
+    Pre-write rejections
+    --------------------
+    400 malformed_payload
+        Missing or invalid request body, SHA format, or field type.
+    400 missing_idempotency_key
+        ``Idempotency-Key`` header absent or empty.
+    400 invalid_branch
+        A target branch is not in ``supported_release_branches``.
+    400 unavailable_branch
+        A configured branch is not currently available remotely.
+    400 unreachable_commit
+        A source SHA is not reachable from the submitted *source_head*.
+    400 merge_commit
+        A source SHA has more than one parent (merge commit).
+    400 invalid_commit
+        A source SHA cannot be retrieved from the repository.
+    404 not_found
+        Project not found.
+    409 source_changed
+        The source branch HEAD has moved since the snapshot was taken.
+    503 no_repo
+        Project has no configured repository path.
+    503 source_unavailable
+        The source branch HEAD cannot be resolved locally.
+    """
+    try:
+        from oompah.release_delivery_store import (  # noqa: PLC0415
+            ReleaseDelivery,
+            ReleaseDeliveryLedger,
+            SourceKind,
+            _delivery_lock,
+            make_delivery_work_branch,
+        )
+        from oompah.release_delivery_compat import (  # noqa: PLC0415
+            _make_delivery_id,
+            make_delivery_store,
+        )
+        from oompah.release_addendum_schema import AddendumStatus  # noqa: PLC0415
+        from oompah.events import EventType  # noqa: PLC0415
+        import datetime as _dt  # noqa: PLC0415
+
+        # ------------------------------------------------------------------
+        # 1. Require Idempotency-Key header
+        # ------------------------------------------------------------------
+        idempotency_key = request.headers.get("Idempotency-Key", "").strip()
+        if not idempotency_key:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "missing_idempotency_key",
+                        "message": (
+                            "Idempotency-Key request header is required. "
+                            "Supply a unique UUID per delivery request."
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+
+        # ------------------------------------------------------------------
+        # 2. Idempotency check — replay stored response if key was seen before
+        # ------------------------------------------------------------------
+        idem_store_key = (project_id, idempotency_key)
+        with _delivery_idempotency_lock:
+            if idem_store_key in _delivery_idempotency_store:
+                return JSONResponse(
+                    _delivery_idempotency_store[idem_store_key],
+                    status_code=201,
+                )
+
+        # ------------------------------------------------------------------
+        # 3. Parse and validate the JSON payload
+        # ------------------------------------------------------------------
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "malformed_payload",
+                        "message": "Request body must be valid JSON.",
+                    }
+                },
+                status_code=400,
+            )
+
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "malformed_payload",
+                        "message": "Request body must be a JSON object.",
+                    }
+                },
+                status_code=400,
+            )
+
+        # source_head
+        source_head_raw = body.get("source_head")
+        if not source_head_raw or not isinstance(source_head_raw, str):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "malformed_payload",
+                        "message": "source_head is required and must be a string.",
+                    }
+                },
+                status_code=400,
+            )
+        source_head = source_head_raw.strip().lower()
+        if not _FULL_COMMIT_SHA_RE.match(source_head):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "malformed_payload",
+                        "message": (
+                            f"source_head {source_head_raw!r} is not a valid "
+                            "40-character lowercase hex SHA."
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+
+        # commits
+        commits_raw = body.get("commits")
+        if not isinstance(commits_raw, list) or not commits_raw:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "malformed_payload",
+                        "message": "commits must be a non-empty list.",
+                    }
+                },
+                status_code=400,
+            )
+        commits: list[str] = []
+        seen_commit_shas: set[str] = set()
+        for raw in commits_raw:
+            if not isinstance(raw, str):
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "malformed_payload",
+                            "message": (
+                                f"Each commit must be a string, got "
+                                f"{type(raw).__name__!r}."
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
+            sha = raw.strip().lower()
+            if not _FULL_COMMIT_SHA_RE.match(sha):
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "malformed_payload",
+                            "message": (
+                                f"Commit {raw!r} is not a valid 40-character "
+                                "lowercase hex SHA."
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
+            if sha not in seen_commit_shas:
+                seen_commit_shas.add(sha)
+                commits.append(sha)
+
+        # target_branches
+        target_branches_raw = body.get("target_branches")
+        if not isinstance(target_branches_raw, list) or not target_branches_raw:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "malformed_payload",
+                        "message": "target_branches must be a non-empty list.",
+                    }
+                },
+                status_code=400,
+            )
+        target_branches: list[str] = []
+        seen_branches: set[str] = set()
+        for raw in target_branches_raw:
+            if not isinstance(raw, str) or not raw.strip():
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "malformed_payload",
+                            "message": (
+                                "Each target_branch must be a non-empty string."
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
+            branch = raw.strip()
+            if branch not in seen_branches:
+                seen_branches.add(branch)
+                target_branches.append(branch)
+
+        # ------------------------------------------------------------------
+        # 4. Look up the project
+        # ------------------------------------------------------------------
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "Project not found."}},
+                status_code=404,
+            )
+
+        repo_path: str = getattr(project, "repo_path", None) or ""
+        if not repo_path:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "no_repo",
+                        "message": (
+                            f"Project {project_id!r} has no configured repository; "
+                            "cannot validate commits or write to the ledger."
+                        ),
+                    }
+                },
+                status_code=503,
+            )
+
+        configured_branches: set[str] = set(
+            getattr(project, "supported_release_branches", []) or []
+        )
+        default_branch: str = (
+            getattr(project, "default_branch", "main") or "main"
+        )
+
+        # ------------------------------------------------------------------
+        # 5. Server-side git validation — off the event loop
+        # ------------------------------------------------------------------
+        current_head, error_code, error_message = await asyncio.to_thread(
+            _delivery_validate_git,
+            repo_path,
+            default_branch=default_branch,
+            source_head=source_head,
+            commits=commits,
+            target_branches=target_branches,
+            configured_branches=configured_branches,
+        )
+
+        if error_code is not None:
+            if error_code == "source_changed":
+                err_body: dict = {
+                    "error": {
+                        "code": error_code,
+                        "message": error_message,
+                        "submitted_head": source_head,
+                        "current_head": current_head,
+                    }
+                }
+                return JSONResponse(err_body, status_code=409)
+            elif error_code == "source_unavailable":
+                return JSONResponse(
+                    {"error": {"code": error_code, "message": error_message}},
+                    status_code=503,
+                )
+            else:
+                return JSONResponse(
+                    {"error": {"code": error_code, "message": error_message}},
+                    status_code=400,
+                )
+
+        # ------------------------------------------------------------------
+        # 6. Build the ledger store
+        # ------------------------------------------------------------------
+        store = make_delivery_store(project)
+
+        # ------------------------------------------------------------------
+        # 7. Under ledger lock: determine per-target outcomes and append
+        #    new delivery bundles atomically.
+        # ------------------------------------------------------------------
+        created_pairs: list[dict] = []
+        already_active_pairs: list[dict] = []
+        already_delivered_pairs: list[dict] = []
+        invalid_pairs: list[dict] = []
+        new_deliveries: list[ReleaseDelivery] = []
+
+        now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+
+        _active_statuses = frozenset({
+            AddendumStatus.OPEN,
+            AddendumStatus.IN_PROGRESS,
+            AddendumStatus.IN_REVIEW,
+            AddendumStatus.BLOCKED,
+        })
+
+        with _delivery_lock(project_id):
+            ledger = store.read_ledger()
+
+            for target_branch in target_branches:
+                branch_deliveries = [
+                    d for d in ledger.deliveries
+                    if d.target_branch == target_branch
+                ]
+
+                # Check for an existing active delivery that contains any of
+                # our requested commits.  An active delivery blocks a new bundle
+                # for this target — the operator must wait for it to complete.
+                active_delivery = None
+                for d in branch_deliveries:
+                    if d.status in _active_statuses:
+                        if any(sha in d.source_commits for sha in commits):
+                            active_delivery = d
+                            break
+
+                if active_delivery is not None:
+                    for sha in commits:
+                        already_active_pairs.append({
+                            "commit": sha,
+                            "target": target_branch,
+                            "delivery_id": active_delivery.id,
+                        })
+                    continue
+
+                # Check whether ALL requested commits are already present in a
+                # merged delivery for this target.  If so, there is nothing new
+                # to deliver.
+                merged_commits: set[str] = set()
+                for d in branch_deliveries:
+                    if d.status is AddendumStatus.MERGED:
+                        merged_commits.update(d.source_commits)
+
+                if commits and all(sha in merged_commits for sha in commits):
+                    for sha in commits:
+                        already_delivered_pairs.append({
+                            "commit": sha,
+                            "target": target_branch,
+                        })
+                    continue
+
+                # No blocking active or merged delivery — create a new bundle.
+                delivery_id = _make_delivery_id()
+                # Build a draft to derive the deterministic work branch name.
+                draft = ReleaseDelivery(
+                    id=delivery_id,
+                    project_id=str(project_id),
+                    source_branch=default_branch,
+                    source_kind=SourceKind.COMMITS,
+                    source_identifier=None,
+                    source_commits=list(commits),
+                    target_branch=target_branch,
+                    status=AddendumStatus.OPEN,
+                    queued_at=now,
+                )
+                work_branch = make_delivery_work_branch(draft)
+
+                delivery = ReleaseDelivery(
+                    id=delivery_id,
+                    project_id=str(project_id),
+                    source_branch=default_branch,
+                    source_kind=SourceKind.COMMITS,
+                    source_identifier=None,
+                    source_commits=list(commits),
+                    target_branch=target_branch,
+                    status=AddendumStatus.OPEN,
+                    queued_at=now,
+                    work_branch=work_branch,
+                )
+                new_deliveries.append(delivery)
+                for sha in commits:
+                    created_pairs.append({
+                        "commit": sha,
+                        "target": target_branch,
+                        "delivery_id": delivery_id,
+                    })
+
+            # Atomic ledger write: append all new deliveries in one operation.
+            if new_deliveries:
+                new_ids = {d.id for d in new_deliveries}
+                updated = ReleaseDeliveryLedger(
+                    version=ledger.version,
+                    deliveries=list(ledger.deliveries) + list(new_deliveries),
+                )
+                ids_label = ", ".join(d.id for d in new_deliveries)
+                store._write_ledger(  # noqa: SLF001
+                    updated,
+                    f"Queue commit-selection deliveries: {ids_label}",
+                )
+
+        # ------------------------------------------------------------------
+        # 8. Wake the existing release queue after persistence — emit one
+        #    RELEASE_ADDENDUM_READY event per new delivery so the scanner
+        #    picks it up immediately rather than waiting for the next poll.
+        # ------------------------------------------------------------------
+        event_bus = None
+        try:
+            event_bus = orch.event_bus
+        except Exception:
+            pass
+
+        if event_bus is not None:
+            for delivery in new_deliveries:
+                try:
+                    event_bus.emit(
+                        EventType.RELEASE_ADDENDUM_READY,
+                        {
+                            "delivery_id": delivery.id,
+                            "source_identifier": None,
+                            "project_id": str(project_id),
+                        },
+                    )
+                    logger.debug(
+                        "post_release_delivery_commits: emitted RELEASE_ADDENDUM_READY "
+                        "for %s",
+                        delivery.id,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "post_release_delivery_commits: event publication failed "
+                        "for %s: %s",
+                        delivery.id,
+                        exc,
+                    )
+
+        # ------------------------------------------------------------------
+        # 9. Invalidate the commit inventory snapshot cache so new delivery
+        #    state is reflected immediately in the next GET response.
+        # ------------------------------------------------------------------
+        invalidate_commit_inventory(project_id)
+
+        # ------------------------------------------------------------------
+        # 10. Build response body and store for idempotency replay.
+        # ------------------------------------------------------------------
+        response_body = {
+            "created": created_pairs,
+            "already_active": already_active_pairs,
+            "already_delivered": already_delivered_pairs,
+            "invalid": invalid_pairs,
+        }
+
+        with _delivery_idempotency_lock:
+            _delivery_idempotency_store[idem_store_key] = response_body
+
+        return JSONResponse(response_body, status_code=201)
+
+    except Exception as exc:
+        logger.error(
+            "post-release-delivery-commits: unexpected error for %s: %s",
+            project_id,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "internal_error", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end post release-delivery commits queue endpoint)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
 # GET /api/v1/projects/{project_id}/release-branches/{branch_name:path}/addendums
 # Branch inspection endpoint (section 7 of plans/release-branch-addendums.md, OOMPAH-182)
+#
+# DEPRECATED — superseded by GET /api/v1/projects/{project_id}/release-delivery/commits
+# (plans/release-delivery-commit-inventory.md section 4.2, OOMPAH-201).
+#
+# This endpoint currently returns a compatibility/deprecation response that
+# includes the replacement path.  It will return HTTP 410 Gone after the
+# v1.0-to-v1.1 upgrade window (controlled by _LEGACY_BRANCH_INSPECTION_REMOVED).
 # ---------------------------------------------------------------------------
+
+#: Set to True at the v1.0→v1.1 removal point to return 410 Gone.
+#: Tests may patch this to exercise the 410 code path.
+_LEGACY_BRANCH_INSPECTION_REMOVED: bool = False
 
 #: Status order for grouping (plan section 7: open, in_progress, in_review, blocked, merged, archived)
 _BRANCH_INSPECTION_STATUS_ORDER = [
@@ -3466,56 +4564,61 @@ def _compute_untracked_commits(
 
 @app.get("/api/v1/projects/{project_id}/release-branches/{branch_name:path}/addendums")
 async def api_release_branch_addendums(project_id: str, branch_name: str) -> JSONResponse:
-    """Return all source tasks/epics with addendums for a release branch.
+    """**Deprecated** branch-inspection endpoint.
 
-    Scans all tasks in *project_id* for ``oompah.release_addendums`` entries
-    that target *branch_name*, then groups them by addendum status.  Also
-    computes an informational ``untracked_commits`` warning for commits on the
-    target branch that cannot be attributed to any release addendum.
+    .. deprecated::
+        Superseded by ``GET /api/v1/projects/{project_id}/release-delivery/commits``
+        (plans/release-delivery-commit-inventory.md §4.2, OOMPAH-201).
 
-    *branch_name* may contain ``/`` (e.g. ``release/1.0``).  The URL
-    parameter is captured via a ``{branch_name:path}`` pattern, so callers
-    may either pass the literal branch name as path segments or percent-encode
-    the slashes (``release%2F1.0``).
+    This endpoint returns a compatibility/deprecation response during the
+    v1.0→v1.1 transition window.  After the upgrade window it returns
+    ``410 Gone`` (controlled by :data:`_LEGACY_BRANCH_INSPECTION_REMOVED`).
 
-    Response shape::
+    When deprecated (not yet removed), the response body is::
 
         {
-            "project_id": "proj-1",
-            "branch": "release/1.0",
-            "groups": {
-                "open":        [<entry>, ...],
-                "in_progress": [<entry>, ...],
-                "in_review":   [<entry>, ...],
-                "blocked":     [<entry>, ...],
-                "merged":      [<entry>, ...],
-                "archived":    [<entry>, ...]
-            },
-            "untracked_commits": {
-                "count": 2,
-                "commits": ["sha1...", "sha2..."],
-                "warning": "2 commits on 'release/1.0' cannot be mapped..."
+            "deprecated": true,
+            "message": "This endpoint is deprecated. ...",
+            "replacement": "/api/v1/projects/{project_id}/release-delivery/commits"
+        }
+
+    When removed (HTTP 410)::
+
+        {
+            "error": {
+                "code": "gone",
+                "message": "This endpoint has been removed. ...",
+                "replacement": "/api/v1/projects/{project_id}/release-delivery/commits"
             }
         }
 
-    Each ``<entry>`` has::
-
-        {
-            "identifier": "FOO-10",
-            "title": "Task title",
-            "type": "task",
-            "addendum": {<ReleaseAddendum.to_raw() dict>}
-        }
-
-    The ``untracked_commits`` key is absent or ``null`` when there are no
-    untracked commits or when git analysis is unavailable.
-
     HTTP status codes:
 
-    * ``200`` — query successful (groups may be empty).
+    * ``200`` — compatibility/deprecation response (transition window).
+    * ``410`` — endpoint removed (after upgrade window).
     * ``404`` — project not found.
     * ``503`` — tracker or git error on inspection.
     """
+    replacement = (
+        f"/api/v1/projects/{project_id}/release-delivery/commits"
+        f"?branches={branch_name}&filter=all"
+    )
+
+    if _LEGACY_BRANCH_INSPECTION_REMOVED:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "gone",
+                    "message": (
+                        "This endpoint has been removed. "
+                        "Use the Release delivery commit inventory instead."
+                    ),
+                    "replacement": replacement,
+                }
+            },
+            status_code=410,
+        )
+
     try:
         from oompah.release_addendum_schema import AddendumRepository, AddendumStatus  # noqa: PLC0415
 
@@ -3607,6 +4710,13 @@ async def api_release_branch_addendums(project_id: str, branch_name: str) -> JSO
             )
 
         response: dict[str, object] = {
+            "deprecated": True,
+            "message": (
+                "This endpoint is deprecated and will be removed after the "
+                "v1.0→v1.1 upgrade window. "
+                "Use the Release delivery commit inventory instead."
+            ),
+            "replacement": replacement,
             "project_id": project_id,
             "branch": branch_name,
             "groups": groups,
@@ -3614,7 +4724,14 @@ async def api_release_branch_addendums(project_id: str, branch_name: str) -> JSO
         if untracked:
             response["untracked_commits"] = untracked
 
-        return JSONResponse(response)
+        return JSONResponse(
+            response,
+            headers={
+                "Deprecation": "true",
+                "Sunset": "v1.1",
+                "Link": f'<{replacement}>; rel="successor-version"',
+            },
+        )
 
     except Exception as exc:
         logger.error(
@@ -3797,7 +4914,6 @@ async def api_approve_release_addendums(identifier: str, request: Request):
         from oompah.release_addendum_approval import (
             CommitResolutionError,
             InvalidTargetBranchError,
-            approve_release_addendums,
             resolve_addendum_commits,
             resolve_epic_addendum_commits,
             validate_target_branches,
@@ -3900,7 +5016,7 @@ async def api_approve_release_addendums(identifier: str, request: Request):
             )
 
         # ------------------------------------------------------------------
-        # 6. Under per-source lock: create missing addendums, write atomically
+        # 6. Under per-source lock: create missing ledger deliveries atomically
         # 7. Publish release_addendum_ready events
         # ------------------------------------------------------------------
         event_bus = None
@@ -3909,8 +5025,35 @@ async def api_approve_release_addendums(identifier: str, request: Request):
         except Exception:
             pass
 
-        result = await approve_release_addendums(
-            tracker,
+        from oompah.release_delivery_compat import (
+            approve_release_addendums_via_ledger,
+            delivery_to_compat_raw,
+            make_delivery_adapter,
+            make_delivery_store,
+        )
+
+        # Require a repo_path for ledger writes — all managed projects have one.
+        repo_path = getattr(project, "repo_path", None)
+        if not repo_path:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "ledger_unavailable",
+                        "message": (
+                            f"Project {project_id!r} has no repo_path; "
+                            "cannot write to the release delivery ledger"
+                        ),
+                    }
+                },
+                status_code=503,
+            )
+
+        store = make_delivery_store(project, git_writer=tracker)
+        adapter = make_delivery_adapter(project, tracker)
+
+        result = await approve_release_addendums_via_ledger(
+            store,
+            adapter,
             issue,
             project,
             deduped_targets,
@@ -3925,7 +5068,21 @@ async def api_approve_release_addendums(identifier: str, request: Request):
         _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
         invalidate_release_branch_catalog(project_id)
 
-        addendums_raw = [a.to_raw() for a in result.addendums]
+        # For epic approvals, newly-created deliveries carry the list of
+        # included child task identifiers so the UI can display them.
+        # Pre-existing and legacy deliveries are not annotated.
+        newly_created_set = set(result.newly_created_ids)
+        addendums_raw = [
+            delivery_to_compat_raw(
+                d,
+                included_child_ids=(
+                    included_child_ids
+                    if (is_epic and d.id in newly_created_set)
+                    else None
+                ),
+            )
+            for d in result.deliveries
+        ]
         response_body: dict = {
             "identifier": resolved_identifier,
             "addendums": addendums_raw,
@@ -3962,20 +5119,31 @@ async def api_approve_release_addendums(identifier: str, request: Request):
 async def api_get_release_addendums(identifier: str, request: Request):
     """Return the release-addendum list for a task or epic.
 
-    Reads ``oompah.release_addendums`` frontmatter from the task identified
-    by *identifier* and returns a dict with:
+    Returns a dict with:
 
     * ``identifier`` — the resolved task identifier.
-    * ``addendums`` — list of addendum objects (full ``to_raw()`` dicts),
-      each containing ``id``, ``target_branch``, ``status``, ``pr_url``,
-      ``error``, ``queued_at``, ``started_at``, ``completed_at``,
-      ``work_branch``, ``commits``, and ``result_commits``.
+    * ``addendums`` — list of delivery objects in the backward-compatible
+      addendum shape.  Each entry contains ``id``, ``target_branch``,
+      ``status``, ``pr_url``, ``error``, ``queued_at``, ``started_at``,
+      ``completed_at``, ``work_branch``, ``commits``, ``result_commits``,
+      and additional ledger fields (``delivery_id``, ``source_kind``,
+      ``source_identifier``, ``pr_number``, ``migrated_from``).
 
-    Returns an empty list when no addendums have been created yet.
+    Reads from the project-owned delivery ledger via
+    :class:`~oompah.release_delivery_adapter.DualReadDeliveryAdapter` so
+    that historical (pre-migration) and new deliveries are both shown.
+    Falls back to reading ``oompah.release_addendums`` task metadata directly
+    when the project has no ``repo_path`` (pre-ledger projects).
+
+    Returns an empty list when no deliveries have been created yet.
     Accepts an optional ``project_id`` query parameter to narrow lookup.
     """
     try:
-        from oompah.release_addendum_schema import AddendumRepository
+        from oompah.release_delivery_compat import (
+            delivery_to_compat_raw,
+            make_delivery_adapter,
+            make_delivery_store,
+        )
 
         orch = _get_orchestrator()
         project_id = request.query_params.get("project_id")
@@ -3993,6 +5161,51 @@ async def api_get_release_addendums(identifier: str, request: Request):
                 },
                 status_code=404,
             )
+
+        # Try ledger-backed dual-read adapter first.
+        effective_project_id = resolved_project_id or project_id
+        project = None
+        if effective_project_id:
+            try:
+                project = orch.project_store.get(effective_project_id)
+            except Exception:
+                pass
+
+        if project is not None and getattr(project, "repo_path", None):
+            try:
+                adapter = make_delivery_adapter(project, tracker)
+                store = make_delivery_store(project)
+                # Ledger-backed deliveries (real records written to the YAML ledger)
+                ledger_deliveries = store.lookup_by_source_identifier(issue.identifier)
+                migrated_from_set: set[str] = {
+                    d.migrated_from
+                    for d in ledger_deliveries
+                    if d.migrated_from
+                }
+                # Legacy addendums not yet migrated — served in their original format
+                # so that fields like ``included_child_ids`` are preserved faithfully.
+                legacy_addendums = adapter._fetch_legacy_addendums(issue.identifier)  # noqa: SLF001
+                addendums_raw: list[dict] = [
+                    delivery_to_compat_raw(d) for d in ledger_deliveries
+                ]
+                for a in legacy_addendums:
+                    if a.id not in migrated_from_set:
+                        addendums_raw.append(a.to_raw())
+                return JSONResponse(
+                    {
+                        "identifier": issue.identifier,
+                        "addendums": addendums_raw,
+                    }
+                )
+            except Exception as ledger_exc:
+                logger.warning(
+                    "release-addendums GET: ledger read failed for %s: %s — falling back to legacy",
+                    issue.identifier,
+                    ledger_exc,
+                )
+
+        # Legacy fallback: read oompah.release_addendums task metadata directly.
+        from oompah.release_addendum_schema import AddendumRepository
         repo = AddendumRepository(tracker)
         addendums = repo.read(issue.identifier)
         return JSONResponse(
@@ -4066,6 +5279,9 @@ def _invalidate_addendum_caches(
     _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
     _api_cache.invalidate("issues:all")
     invalidate_release_branch_catalog(project_id)
+    # Also invalidate the commit inventory snapshot so delivery state changes
+    # (retry, archive, approve) are reflected immediately in the inventory.
+    invalidate_commit_inventory(project_id)
 
 
 @app.post("/api/v1/issues/{identifier}/release-addendums/{addendum_id:path}/retry")
@@ -4074,11 +5290,17 @@ async def api_retry_release_addendum(
     addendum_id: str,
     request: Request,
 ) -> JSONResponse:
-    """Retry a blocked or closed-unmerged in_review release addendum.
+    """Retry a blocked or closed-unmerged in_review release addendum or ledger delivery.
 
-    Transitions the addendum from ``blocked`` or ``in_review`` (with a
+    Transitions the delivery from ``blocked`` or ``in_review`` (with a
     closed-unmerged PR) to ``open``, preserving the immutable commit snapshot.
-    The addendum is re-queued for cherry-pick and PR creation.
+    The delivery is re-queued for cherry-pick and PR creation.
+
+    Looks up *addendum_id* in the project-owned release delivery ledger first.
+    If found there, the ledger record is updated and the queue is woken via a
+    ``release_addendum_ready`` event.  If not found in the ledger, falls back
+    to the legacy ``oompah.release_addendums`` task-metadata path (compatibility
+    shim during the migration window).
 
     **Request body** (JSON object)::
 
@@ -4090,16 +5312,28 @@ async def api_retry_release_addendum(
 
         {
             "identifier": "FOO-10",
-            "addendum_id": "FOO-10/release/1.0",
+            "addendum_id": "rd_...",
             "addendums": [...]
         }
 
     **Error responses**:
 
     - ``400`` — missing ``project_id``.
-    - ``404`` — project, issue, or addendum not found.
+    - ``404`` — project, issue, or delivery not found.
     - ``409`` — invalid transition (e.g. already open, merged, or archived).
     """
+    from oompah.release_addendum_schema import (
+        AddendumStatus,
+        InvalidTransitionError,
+    )
+    from oompah.release_delivery_compat import (
+        delivery_to_compat_raw,
+        make_delivery_adapter,
+        make_delivery_store,
+        retry_ledger_delivery,
+    )
+    from oompah.release_delivery_store import DeliveryNotFoundError, LedgerParseError
+
     try:
         # 1. Parse body
         try:
@@ -4125,9 +5359,121 @@ async def api_retry_release_addendum(
         resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
         orch = _get_orchestrator()
 
-        # 2. Load addendum
+        # 2. Resolve issue and project.
+        tracker, resolved_project_id, issue = _find_tracker_for_issue(
+            orch, resolved_identifier, project_id
+        )
+        if tracker is None or issue is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"issue {resolved_identifier!r} not found"}},
+                status_code=404,
+            )
+
+        effective_project_id = resolved_project_id or project_id
+        project = None
+        if effective_project_id:
+            try:
+                project = orch.project_store.get(effective_project_id)
+            except Exception:
+                pass
+
+        # 3a. Ledger path: look up delivery by ID in the ledger.
+        if project is not None and getattr(project, "repo_path", None):
+            store = None
+            try:
+                store = make_delivery_store(project, git_writer=tracker)
+                delivery = store.lookup_by_id(addendum_id)
+            except (ValueError, LedgerParseError) as ledger_exc:
+                logger.debug(
+                    "api_retry: ledger lookup failed for %s: %s", addendum_id, ledger_exc
+                )
+                delivery = None
+                store = None
+
+            if delivery is not None and store is not None:
+                # Validate: only blocked or in_review may be retried.
+                if delivery.status not in {AddendumStatus.BLOCKED, AddendumStatus.IN_REVIEW}:
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "invalid_transition",
+                                "message": (
+                                    f"Cannot retry delivery {addendum_id!r}: "
+                                    f"current status is {delivery.status.value!r}. "
+                                    f"Retry is only valid from 'blocked' or 'in_review' (closed-unmerged)."
+                                ),
+                            }
+                        },
+                        status_code=409,
+                    )
+                try:
+                    updated = retry_ledger_delivery(store, addendum_id)
+                except InvalidTransitionError as exc:
+                    return JSONResponse(
+                        {"error": {"code": "invalid_transition", "message": str(exc)}},
+                        status_code=409,
+                    )
+                except DeliveryNotFoundError as exc:
+                    return JSONResponse(
+                        {"error": {"code": "not_found", "message": str(exc)}},
+                        status_code=404,
+                    )
+
+                # Post comment on source task.
+                try:
+                    pr_clause = f"\nPR: {delivery.pr_url}" if delivery.pr_url else ""
+                    tracker.add_comment(
+                        issue.identifier,
+                        (
+                            f"🔁 Release delivery for `{delivery.target_branch}` "
+                            f"retried — status changed from "
+                            f"`{delivery.status.value}` to `open`.{pr_clause}\n\n"
+                            f"Branch: `{delivery.target_branch}`"
+                        ),
+                        author="oompah",
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "api_retry: failed to post comment on %s: %s",
+                        issue.identifier, exc,
+                    )
+
+                # Publish wake-up event.
+                try:
+                    event_bus = getattr(orch, "event_bus", None)
+                    if event_bus is not None:
+                        from oompah.events import EventType
+                        event_bus.emit(
+                            EventType.RELEASE_ADDENDUM_READY,
+                            {
+                                "delivery_id": addendum_id,
+                                "project_id": effective_project_id,
+                                "source_identifier": issue.identifier,
+                            },
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug(
+                        "api_retry: event emit failed (non-fatal): %s", exc
+                    )
+
+                # Read back full list via adapter and invalidate caches.
+                adapter = make_delivery_adapter(project, tracker)
+                deliveries = adapter.list_deliveries_for_source(issue.identifier)
+                _invalidate_addendum_caches(effective_project_id, resolved_identifier)
+
+                return JSONResponse(
+                    {
+                        "identifier": issue.identifier,
+                        "addendum_id": addendum_id,
+                        "addendums": [delivery_to_compat_raw(d) for d in deliveries],
+                    }
+                )
+
+        # 3b. Legacy shim: fall back to oompah.release_addendums task metadata.
+        from oompah.release_addendum_schema import AddendumRepository
+
         try:
-            tracker, resolved_project_id, issue, addendums, target_addendum = (
+            tracker_leg, resolved_project_id_leg, issue_leg, addendums, target_addendum = (
                 _load_addendum_for_control(orch, project_id, resolved_identifier, addendum_id)
             )
         except KeyError as exc:
@@ -4136,17 +5482,7 @@ async def api_retry_release_addendum(
                 status_code=404,
             )
 
-        # 3. Validate and apply transition (blocked → open  or  in_review → open)
-        from oompah.release_addendum_schema import (
-            AddendumRepository,
-            AddendumStatus,
-            InvalidTransitionError,
-        )
-
-        if target_addendum.status not in {
-            AddendumStatus.BLOCKED,
-            AddendumStatus.IN_REVIEW,
-        }:
+        if target_addendum.status not in {AddendumStatus.BLOCKED, AddendumStatus.IN_REVIEW}:
             return JSONResponse(
                 {
                     "error": {
@@ -4162,34 +5498,25 @@ async def api_retry_release_addendum(
             )
 
         try:
-            repo = AddendumRepository(tracker)
+            repo = AddendumRepository(tracker_leg)
             updated_list = repo.transition(
-                issue.identifier,
+                issue_leg.identifier,
                 target_addendum.id,
                 AddendumStatus.OPEN,
-                # Clear execution-lease fields; commits are immutable and preserved
                 claimed_by=None,
                 lease_expires_at=None,
                 error=None,
             )
         except InvalidTransitionError as exc:
             return JSONResponse(
-                {
-                    "error": {
-                        "code": "invalid_transition",
-                        "message": str(exc),
-                    }
-                },
+                {"error": {"code": "invalid_transition", "message": str(exc)}},
                 status_code=409,
             )
 
-        # 4. Post oompah comment on source task
         try:
-            pr_clause = (
-                f"\nPR: {target_addendum.pr_url}" if target_addendum.pr_url else ""
-            )
-            tracker.add_comment(
-                issue.identifier,
+            pr_clause = f"\nPR: {target_addendum.pr_url}" if target_addendum.pr_url else ""
+            tracker_leg.add_comment(
+                issue_leg.identifier,
                 (
                     f"🔁 Release addendum for `{target_addendum.target_branch}` "
                     f"retried — status changed from "
@@ -4201,34 +5528,34 @@ async def api_retry_release_addendum(
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "api_retry_release_addendum: failed to post comment on %s: %s",
-                issue.identifier,
+                issue_leg.identifier,
                 exc,
             )
 
-        # 5. Publish wake-up event so the queue picks it up immediately
         try:
             event_bus = getattr(orch, "event_bus", None)
             if event_bus is not None:
                 from oompah.events import EventType
-                event_bus.publish(
+                event_bus.emit(
                     EventType.RELEASE_ADDENDUM_READY,
                     {
-                        "project_id": resolved_project_id,
-                        "source_identifier": issue.identifier,
+                        "project_id": resolved_project_id_leg or project_id,
+                        "source_identifier": issue_leg.identifier,
                         "target_branch": target_addendum.target_branch,
                     },
                 )
         except Exception as exc:  # noqa: BLE001
             logger.debug(
-                "api_retry_release_addendum: event publish failed (non-fatal): %s", exc
+                "api_retry_release_addendum: event emit failed (non-fatal): %s", exc
             )
 
-        # 6. Invalidate caches
-        _invalidate_addendum_caches(resolved_project_id or project_id, resolved_identifier)
+        _invalidate_addendum_caches(
+            resolved_project_id_leg or project_id, resolved_identifier
+        )
 
         return JSONResponse(
             {
-                "identifier": issue.identifier,
+                "identifier": issue_leg.identifier,
                 "addendum_id": addendum_id,
                 "addendums": [a.to_raw() for a in updated_list],
             }
@@ -4254,10 +5581,15 @@ async def api_archive_release_addendum(
     addendum_id: str,
     request: Request,
 ) -> JSONResponse:
-    """Archive an open or blocked release addendum.
+    """Archive an open or blocked release addendum or ledger delivery.
 
-    Transitions the addendum from ``open`` or ``blocked`` to ``archived``.
-    This permanently cancels the addendum; it will not be re-queued.
+    Transitions the delivery from ``open`` or ``blocked`` to ``archived``.
+    This permanently cancels the delivery; it will not be re-queued.
+
+    Looks up *addendum_id* in the project-owned release delivery ledger first.
+    If found there, the ledger record is updated.  If not found in the ledger,
+    falls back to the legacy ``oompah.release_addendums`` task-metadata path
+    (compatibility shim during the migration window).
 
     **Request body** (JSON object)::
 
@@ -4269,16 +5601,28 @@ async def api_archive_release_addendum(
 
         {
             "identifier": "FOO-10",
-            "addendum_id": "FOO-10/release/1.0",
+            "addendum_id": "rd_...",
             "addendums": [...]
         }
 
     **Error responses**:
 
     - ``400`` — missing ``project_id``.
-    - ``404`` — project, issue, or addendum not found.
+    - ``404`` — project, issue, or delivery not found.
     - ``409`` — invalid transition (e.g. in_review, in_progress, merged, or already archived).
     """
+    from oompah.release_addendum_schema import (
+        AddendumStatus,
+        InvalidTransitionError,
+    )
+    from oompah.release_delivery_compat import (
+        archive_ledger_delivery,
+        delivery_to_compat_raw,
+        make_delivery_adapter,
+        make_delivery_store,
+    )
+    from oompah.release_delivery_store import DeliveryNotFoundError, LedgerParseError
+
     try:
         # 1. Parse body
         try:
@@ -4304,9 +5648,102 @@ async def api_archive_release_addendum(
         resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
         orch = _get_orchestrator()
 
-        # 2. Load addendum
+        # 2. Resolve issue and project.
+        tracker, resolved_project_id, issue = _find_tracker_for_issue(
+            orch, resolved_identifier, project_id
+        )
+        if tracker is None or issue is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"issue {resolved_identifier!r} not found"}},
+                status_code=404,
+            )
+
+        effective_project_id = resolved_project_id or project_id
+        project = None
+        if effective_project_id:
+            try:
+                project = orch.project_store.get(effective_project_id)
+            except Exception:
+                pass
+
+        # 3a. Ledger path: look up delivery by ID in the ledger.
+        if project is not None and getattr(project, "repo_path", None):
+            store = None
+            try:
+                store = make_delivery_store(project, git_writer=tracker)
+                delivery = store.lookup_by_id(addendum_id)
+            except (ValueError, LedgerParseError) as ledger_exc:
+                logger.debug(
+                    "api_archive: ledger lookup failed for %s: %s", addendum_id, ledger_exc
+                )
+                delivery = None
+                store = None
+
+            if delivery is not None and store is not None:
+                # Validate: only open or blocked may be archived.
+                if delivery.status not in {AddendumStatus.OPEN, AddendumStatus.BLOCKED}:
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "invalid_transition",
+                                "message": (
+                                    f"Cannot archive delivery {addendum_id!r}: "
+                                    f"current status is {delivery.status.value!r}. "
+                                    f"Archive is only valid from 'open' or 'blocked'."
+                                ),
+                            }
+                        },
+                        status_code=409,
+                    )
+                try:
+                    archive_ledger_delivery(store, addendum_id)
+                except InvalidTransitionError as exc:
+                    return JSONResponse(
+                        {"error": {"code": "invalid_transition", "message": str(exc)}},
+                        status_code=409,
+                    )
+                except DeliveryNotFoundError as exc:
+                    return JSONResponse(
+                        {"error": {"code": "not_found", "message": str(exc)}},
+                        status_code=404,
+                    )
+
+                # Post comment on source task.
+                try:
+                    tracker.add_comment(
+                        issue.identifier,
+                        (
+                            f"🗄️ Release delivery for `{delivery.target_branch}` "
+                            f"archived — status changed from "
+                            f"`{delivery.status.value}` to `archived`.\n\n"
+                            f"Branch: `{delivery.target_branch}`"
+                        ),
+                        author="oompah",
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "api_archive: failed to post comment on %s: %s",
+                        issue.identifier, exc,
+                    )
+
+                # Read back full list via adapter and invalidate caches.
+                adapter = make_delivery_adapter(project, tracker)
+                deliveries = adapter.list_deliveries_for_source(issue.identifier)
+                _invalidate_addendum_caches(effective_project_id, resolved_identifier)
+
+                return JSONResponse(
+                    {
+                        "identifier": issue.identifier,
+                        "addendum_id": addendum_id,
+                        "addendums": [delivery_to_compat_raw(d) for d in deliveries],
+                    }
+                )
+
+        # 3b. Legacy shim: fall back to oompah.release_addendums task metadata.
+        from oompah.release_addendum_schema import AddendumRepository
+
         try:
-            tracker, resolved_project_id, issue, addendums, target_addendum = (
+            tracker_leg, resolved_project_id_leg, issue_leg, addendums, target_addendum = (
                 _load_addendum_for_control(orch, project_id, resolved_identifier, addendum_id)
             )
         except KeyError as exc:
@@ -4315,17 +5752,7 @@ async def api_archive_release_addendum(
                 status_code=404,
             )
 
-        # 3. Validate and apply transition (open → archived  or  blocked → archived)
-        from oompah.release_addendum_schema import (
-            AddendumRepository,
-            AddendumStatus,
-            InvalidTransitionError,
-        )
-
-        if target_addendum.status not in {
-            AddendumStatus.OPEN,
-            AddendumStatus.BLOCKED,
-        }:
+        if target_addendum.status not in {AddendumStatus.OPEN, AddendumStatus.BLOCKED}:
             return JSONResponse(
                 {
                     "error": {
@@ -4341,27 +5768,21 @@ async def api_archive_release_addendum(
             )
 
         try:
-            repo = AddendumRepository(tracker)
+            repo = AddendumRepository(tracker_leg)
             updated_list = repo.transition(
-                issue.identifier,
+                issue_leg.identifier,
                 target_addendum.id,
                 AddendumStatus.ARCHIVED,
             )
         except InvalidTransitionError as exc:
             return JSONResponse(
-                {
-                    "error": {
-                        "code": "invalid_transition",
-                        "message": str(exc),
-                    }
-                },
+                {"error": {"code": "invalid_transition", "message": str(exc)}},
                 status_code=409,
             )
 
-        # 4. Post oompah comment on source task
         try:
-            tracker.add_comment(
-                issue.identifier,
+            tracker_leg.add_comment(
+                issue_leg.identifier,
                 (
                     f"🗄️ Release addendum for `{target_addendum.target_branch}` "
                     f"archived — status changed from "
@@ -4373,16 +5794,17 @@ async def api_archive_release_addendum(
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "api_archive_release_addendum: failed to post comment on %s: %s",
-                issue.identifier,
+                issue_leg.identifier,
                 exc,
             )
 
-        # 5. Invalidate caches
-        _invalidate_addendum_caches(resolved_project_id or project_id, resolved_identifier)
+        _invalidate_addendum_caches(
+            resolved_project_id_leg or project_id, resolved_identifier
+        )
 
         return JSONResponse(
             {
-                "identifier": issue.identifier,
+                "identifier": issue_leg.identifier,
                 "addendum_id": addendum_id,
                 "addendums": [a.to_raw() for a in updated_list],
             }
@@ -9319,6 +10741,12 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     if _project_id and event.event_type == "push" and project:
         try:
             invalidate_release_branch_catalog(_project_id)
+        except Exception:  # pragma: no cover — defensive
+            pass
+        # Also invalidate the commit inventory snapshot so the next GET
+        # /release-delivery/commits request fetches fresh ref SHAs.
+        try:
+            invalidate_commit_inventory(_project_id)
         except Exception:  # pragma: no cover — defensive
             pass
 
