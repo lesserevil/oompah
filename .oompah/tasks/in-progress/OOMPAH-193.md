@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:36.808036Z'
-updated_at: '2026-07-13T20:18:52.993629Z'
+updated_at: '2026-07-13T20:19:05.352978Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -124,5 +124,19 @@ Verification: 118 new tests pass, 8120 total tests pass (0 failures). Test cover
 - git writer called by append and update
 - write_and_commit_ledger_file: fetch+ff-only sync, stages ledger path (not tasks dir), push retry
 - real git repo integration: commits file on default branch, enforces branch guard
+---
+author: oompah
+created: 2026-07-13 20:19
+---
+COMPLETION: Delivered oompah/release_delivery_store.py + OompahMarkdownTracker.write_and_commit_ledger_file() + 118 unit tests (all passing, 8120 total green).
+
+Acceptance criteria met:
+✓ Ledger schema and store documented and validate: version, ID, full SHA format, enum values, target branch, source-kind/source-identifier invariants
+✓ Immutable fields (id, project_id, source_branch, source_kind, source_identifier, source_commits, target_branch) rejected by update()
+✓ Append, lookup by ID, lookup by source identifier, and update atomic under module-level project RLock
+✓ Missing ledger treated as empty version-1; malformed ledgers raise LedgerParseError and are never overwritten
+✓ Lifecycle vocabulary reused from release_addendum_schema (AddendumStatus, VALID_TRANSITIONS) — no duplication
+✓ No task YAML metadata read or written in this store
+✓ Git commit path via write_and_commit_ledger_file on native tracker uses same fetch+ff-only+push infrastructure
 ---
 <!-- COMMENTS:END -->
