@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:26:02.750063Z'
-updated_at: '2026-07-13T03:15:29.899867Z'
+updated_at: '2026-07-13T03:15:50.333433Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-13 03:15
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 03:15
+---
+Understanding: Investigating whether OOMPAH-171 ('Remove automatic draft-epic lifecycle') is a duplicate of an existing task. Will search for prior tasks covering draft label removal, epic draft lifecycle, draft badges, or draft controls before proceeding with any implementation.
 ---
 <!-- COMMENTS:END -->
