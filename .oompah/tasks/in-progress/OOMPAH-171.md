@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:26:02.750063Z'
-updated_at: '2026-07-13T04:28:40.265019Z'
+updated_at: '2026-07-13T04:46:12.783454Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -95,5 +95,12 @@ author: oompah
 created: 2026-07-13 04:28
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 04:46
+---
+VERIFICATION: All 7248 tests pass (0 failures). The 9 previously failing regression tests now pass after fixing:
+1. _make_mock_orchestrator() helpers in test files — added _tracker_for_project.return_value and project_store.list_all.return_value=[] so server code resolves to the configured mock tracker
+2. GET /api/v1/issues test assertions — API returns board format {state: [issues]} not {issues: [...]}, updated tests to use _all_issues_from_board() helper to flatten the board
 ---
 <!-- COMMENTS:END -->
