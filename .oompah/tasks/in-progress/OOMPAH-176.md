@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:47.109837Z'
-updated_at: '2026-07-13T03:45:00.999527Z'
+updated_at: '2026-07-13T03:59:27.222146Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-07-13 03:45
 ---
 Understanding: OOMPAH-176 is not a duplicate — no other task implements POST /api/v1/issues/{identifier}/release-addendums. OOMPAH-173 (Done) provided the schema/repository, OOMPAH-175 (Done) provided ReleaseBranchCatalog. This task implements the approval API endpoint, commit snapshot resolution, per-source locking, idempotency, and release_addendum_ready event publication. Plan: implement the endpoint in server.py using AddendumRepository and ReleaseBranchCatalog from prior tasks, resolve commits via existing SCM helpers, use a per-source asyncio.Lock for concurrency safety, publish events, and add all required tests.
+---
+author: oompah
+created: 2026-07-13 03:59
+---
+Discovery: OOMPAH-176 is not a duplicate. Prior tasks OOMPAH-173 (AddendumRepository, schema) and OOMPAH-175 (ReleaseBranchCatalog, GET catalog endpoint) are both Done and provide the building blocks. No existing code implements POST /api/v1/issues/{identifier}/release-addendums. Key files: oompah/events.py (need RELEASE_ADDENDUM_READY), oompah/release_addendum_schema.py (AddendumRepository), oompah/release_branch_catalog.py (ReleaseBranchCatalog), oompah/release_pick_commit_resolver.py (_resolve_via_scm/_resolve_via_git). Implementation plan: (1) add EventType.RELEASE_ADDENDUM_READY; (2) create oompah/release_addendum_approval.py with per-source asyncio.Lock, commit resolution, and atomic write; (3) add POST endpoint to server.py; (4) create tests/test_server_release_addendums.py covering all required scenarios.
 ---
 <!-- COMMENTS:END -->
