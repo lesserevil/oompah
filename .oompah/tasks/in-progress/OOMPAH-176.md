@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:47.109837Z'
-updated_at: '2026-07-13T03:41:02.897347Z'
+updated_at: '2026-07-13T03:45:00.999527Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-07-13 03:41
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 03:45
+---
+Understanding: OOMPAH-176 is not a duplicate — no other task implements POST /api/v1/issues/{identifier}/release-addendums. OOMPAH-173 (Done) provided the schema/repository, OOMPAH-175 (Done) provided ReleaseBranchCatalog. This task implements the approval API endpoint, commit snapshot resolution, per-source locking, idempotency, and release_addendum_ready event publication. Plan: implement the endpoint in server.py using AddendumRepository and ReleaseBranchCatalog from prior tasks, resolve commits via existing SCM helpers, use a per-source asyncio.Lock for concurrency safety, publish events, and add all required tests.
 ---
 <!-- COMMENTS:END -->
