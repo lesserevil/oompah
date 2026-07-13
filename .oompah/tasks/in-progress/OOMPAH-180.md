@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:12.732590Z'
-updated_at: '2026-07-13T04:37:13.696227Z'
+updated_at: '2026-07-13T04:43:44.410770Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,5 +42,14 @@ author: oompah
 created: 2026-07-13 04:37
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 04:43
+---
+Understanding: OOMPAH-180 is not a duplicate. Searched all tasks under OOMPAH-172 epic and the full task graph. OOMPAH-181 (epic UI) is the closest sibling but covers a different page/component. OOMPAH-180 uniquely covers the task-detail UI for release addendum selection and status display.
+
+Scope: Replace the task-detail Release Picks section and Add Release Picks dialog in oompah/templates/dashboard.html with Release addendums and an accessible Add release branches dialog. Show rows (target branch, lifecycle/queue state, PR link, blocked error) from the source task's oompah.release_addendums metadata only — no child-task links. For Merged tasks, fetch the catalog API (OOMPAH-175, Done), render checkboxes, precheck/disable active selections, submit all new selections via the approval API (OOMPAH-176). Add all required UI states. Tests required for all rendering/request-contract scenarios.
+
+OOMPAH-176 (approval API) is in-progress; will implement against its planned contract from plans/release-branch-addendums.md section 6 and any stub code already present.
 ---
 <!-- COMMENTS:END -->
