@@ -6,11 +6,12 @@ priority: 1
 title: Move release queue and executor identity to ledger delivery IDs
 parent: OOMPAH-192
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-193
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:43.705145Z'
-updated_at: '2026-07-13T19:31:43.705145Z'
+updated_at: '2026-07-13T19:34:01.721316Z'
 work_branch: null
 target_branch: null
 review_url: null
