@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:15.200697Z'
-updated_at: '2026-07-13T05:52:12.218906Z'
+updated_at: '2026-07-13T06:00:51.539378Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,22 @@ Implementation plan:
 5. Add renderEpicReleaseAddendumsSection() in dashboard.html (with snapshot_size, included_child_count, expandable snapshot)
 6. Update openDetailPanel() to dispatch to epic renderer for epics
 7. Add tests: schema included_child_ids, API rendering contract, no-auto-inclusion, accessible dialog
+---
+author: oompah
+created: 2026-07-13 06:00
+---
+Implementation: All changes complete.
+
+1. oompah/release_addendum_schema.py: Added included_child_ids: list[str] field to ReleaseAddendum. Updated from_raw() (optional, defaults to []), to_raw() (always serialized), and transition() (preserved across lifecycle changes).
+
+2. oompah/release_addendum_approval.py: Added resolve_epic_addendum_commits() that collects commits from all Merged descendants in order, deduplicates SHAs, returns (commits, included_child_ids). Uses tracker.fetch_children() + MERGED status filter. Raises CommitResolutionError when no Merged descendants found. Also updated approve_release_addendums() to accept included_child_ids parameter.
+
+3. oompah/server.py: POST /release-addendums now detects issue_type=epic and calls resolve_epic_addendum_commits instead of resolve_addendum_commits. Passes included_child_ids to approve_release_addendums().
+
+4. oompah/templates/dashboard.html: Added CSS for epic addendum UI (8 new CSS classes). Added renderEpicReleaseAddendumsSection() showing: target branch, snapshot size (commit count badge), included-child count badge, status, PR link, and expandable immutable snapshot (child list + commit list with aria-expanded). Updated openDetailPanel() to dispatch to renderEpicReleaseAddendumsSection for epics, renderReleaseAddendumsSection for tasks.
+
+5. tests/test_epic_release_addendum_ui.py: 50 new tests covering schema parsing/serialization/transitions, API rendering contract, no-auto-inclusion invariant, epic commit resolution, POST endpoint epic detection, UI rendering contract, dispatch logic, and CSS classes.
+
+No old child-by-branch matrix or apply-all behavior referenced.
 ---
 <!-- COMMENTS:END -->
