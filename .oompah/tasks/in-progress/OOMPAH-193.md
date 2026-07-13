@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:36.808036Z'
-updated_at: '2026-07-13T20:18:39.298160Z'
+updated_at: '2026-07-13T20:18:52.993629Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,5 +102,27 @@ Implementation complete. Changes:
 
 3. tests/test_release_delivery_store.py (new, 118 tests):
    - All acceptance criteria covered: round-trip parsing, missing/malformed/version-mismatch, invalid entries, immutable-field protection, all lookup modes, concurrent locking, and git integration with real repo fixture
+---
+author: oompah
+created: 2026-07-13 20:18
+---
+Verification: 118 new tests pass, 8120 total tests pass (0 failures). Test coverage includes:
+- round-trip parse (to_raw/from_raw)
+- missing ledger → empty version-1 (not an error)
+- malformed YAML → LedgerParseError with restore hint (file never overwritten)
+- version mismatch (v42 vs v1) → LedgerParseError
+- invalid SHA format in source_commits/result_commits → ValueError
+- source_kind=task/epic without identifier → ValueError
+- source_kind=commits with identifier → ValueError
+- 7 immutable fields each rejected by update() with ImmutableFieldError
+- invalid status transitions → InvalidTransitionError from reused FSM
+- unknown update fields rejected
+- lookup_by_id found/not-found
+- lookup_by_source_identifier: matches, empty, commits-kind excluded
+- concurrent append + concurrent update serialised under project lock
+- lock keyed independently per project_id
+- git writer called by append and update
+- write_and_commit_ledger_file: fetch+ff-only sync, stages ledger path (not tasks dir), push retry
+- real git repo integration: commits file on default branch, enforces branch guard
 ---
 <!-- COMMENTS:END -->
