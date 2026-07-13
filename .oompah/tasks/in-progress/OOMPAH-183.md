@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:21.418119Z'
-updated_at: '2026-07-13T06:37:24.387905Z'
+updated_at: '2026-07-13T06:38:12.246770Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,5 +58,10 @@ author: oompah
 created: 2026-07-13 06:37
 ---
 Implementation: Created oompah/release_pick_migration.py with:\n- map_release_pick_status(): maps all 9 legacy ReleasePick statuses to AddendumStatus per section 9 of plans/release-branch-addendums.md (waiting/task_created/cherry_picking→open, pr_open→in_review, conflict/needs_human→blocked, merged→merged, archived/skipped→archived)\n- build_addendum_from_entry(): converts one BackportEntry to ReleaseAddendum, preserving commits/PR URLs; uses MIGRATION_PENDING_COMMIT sentinel for non-terminal entries without commits, MIGRATION_NO_COMMITS sentinel for terminal ones\n- _archive_child_task(): archives child backport tasks with oompah-authored redirect comment pointing to source task addendum\n- migrate_source_task(): idempotent per-task migration (skips branches already having addendums)\n- run_release_pick_migration(): full-project scan, safe to run on every startup\n- _migrate_release_picks_on_startup(): wired into set_orchestrator() in server.py, handles both single-tracker and multi-project modes with per-project default_branch\n\nTests: 58 unit tests in tests/test_release_pick_migration.py covering all 9 status mappings, commit preservation, rerun idempotency, mixed migrated/new data, child archival, error handling, and no-new-task invariant. 7 integration tests in tests/test_release_pick_migration_startup.py covering startup call, single/multi-project modes, per-project failure isolation.\n\nNote: Removal steps (old reconciler disable, old UI/API removal) still depend on blockers OOMPAH-179/180/181/182.
+---
+author: oompah
+created: 2026-07-13 06:38
+---
+Verification: All 7990 tests pass (make test). New tests specifically:\n- tests/test_release_pick_migration.py: 58 tests — 100% pass\n  - TestMapReleasePickStatus: 11 tests (all 9 status mappings + enum completeness + ValueError on unmapped)\n  - TestBuildAddendumFromEntry: 10 tests (evidence preservation, sentinel commits, deterministic naming)\n  - TestMakeRedirectComment: 3 tests\n  - TestArchiveChildTask: 6 tests\n  - TestMigrateSourceTask: 14 tests\n  - TestRunReleasePickMigration: 10 tests\n  - TestMigrationResult: 5 tests\n- tests/test_release_pick_migration_startup.py: 7 tests — 100% pass\n  - startup call wired into set_orchestrator, multi-project mode, failure isolation\n\nAll acceptance criteria for this slice (section 9 step 1-3) satisfied. Removal of old code (step 5) still depends on OOMPAH-179/180/181/182.
 ---
 <!-- COMMENTS:END -->
