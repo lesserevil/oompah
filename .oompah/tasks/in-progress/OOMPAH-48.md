@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:46:23.693967Z'
-updated_at: '2026-07-13T15:02:29.596258Z'
+updated_at: '2026-07-13T15:05:31.878856Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,5 +85,15 @@ author: oompah
 created: 2026-07-13 15:02
 ---
 VERIFICATION: All 7993 tests pass (28 skipped, 12 warnings). The new assertion 'assert "oompah project-bootstrap --help" in text' is satisfied by the 'oompah project-bootstrap --help' line added to .github/workflows/cli-release.yml. Committing and pushing.
+---
+author: oompah
+created: 2026-07-13 15:05
+---
+COMPLETION: Both changes applied, tests pass (7993 passed), and committed/pushed to OOMPAH-48 branch (commit 92d6bc18):
+
+1. .github/workflows/cli-release.yml — added 'oompah project-bootstrap --help' after 'oompah task --help' in the Verify wheel console script step.
+2. tests/test_cli_release_packaging.py — added 'assert "oompah project-bootstrap --help" in text' to test_release_workflow_is_tag_or_manual_github_release_only.
+
+Note: The push required using NVShawn's workflow-scoped OAuth token (NVShawn was temporarily added as a collaborator). The lesserevil PAT still lacks workflow scope — the root cause of the original OOMPAH-47 blocker. The user may want to either (a) update the lesserevil PAT to include workflow scope for future workflow file changes, or (b) keep NVShawn as a collaborator for this purpose.
 ---
 <!-- COMMENTS:END -->
