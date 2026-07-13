@@ -24,7 +24,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T07:00:55.484627Z'
+updated_at: '2026-07-13T07:00:57.771032Z'
 work_branch: epic-OOMPAH-172
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/407
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-07-13 02:38
 ---
 Filed implementation children OOMPAH-173 through OOMPAH-184 from plans/release-branch-addendums.md, with scoped tests and acceptance criteria. OOMPAH-185 was immediately archived as a duplicate of OOMPAH-184.
+---
+author: oompah
+created: 2026-07-13 07:00
+---
+YOLO: CI tests failed on MR #407. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
