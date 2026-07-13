@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:32:50.653200Z'
-updated_at: '2026-07-13T22:15:48.394520Z'
+updated_at: '2026-07-13T22:15:56.905035Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -109,5 +109,10 @@ Implementation complete. Changes made:
    - TestCacheInvalidation: invalidate wires to service, noop for unknown project, _invalidate_addendum_caches calls it, push webhook path.
    - TestRowStructure: all required row fields present, parents is list, delivered cell evidence fields, null association for direct commits.
    - TestBranchAvailability: unavailable branch rendered with available=False, head=None.
+---
+author: oompah
+created: 2026-07-13 22:15
+---
+Verification: make test passed — 8487 passed, 28 skipped, 0 failures. All 49 new tests in test_server_release_delivery_commits.py pass. Full regression suite clean.
 ---
 <!-- COMMENTS:END -->
