@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:05.076076Z'
-updated_at: '2026-07-13T02:26:33.972020Z'
+updated_at: '2026-07-13T02:32:09.682372Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,5 +76,29 @@ DISCOVERY: Found all relevant code. Changes needed across 3 files:
 **tests/test_epic_strategy.py**: Extensive existing tests that will need updating (test_default_is_stacked → shared, back-compat flat → shared migration, invalid → shared not flat, update validation)
 
 Strategy: Remove epic_strategy from UPDATABLE_FIELDS (can no longer be changed once the field is removed from the API), OR keep it in UPDATABLE_FIELDS but change the validation to only accept 'shared'. Decision: Keep in UPDATABLE_FIELDS but reject flat/stacked (so clients can still set it to 'shared' explicitly). The key behavior changes are the migration and the default.
+---
+author: oompah
+created: 2026-07-13 02:32
+---
+IMPLEMENTATION: Made the following changes across 3 files to make 'shared' the only supported epic strategy:
+
+**oompah/models.py**:
+- Changed epic_strategy default: 'stacked' → 'shared'
+- Updated field docstring to reflect shared-only
+- from_dict(): all persisted values (flat, stacked, unknown) normalize to 'shared' at load time — restart-safe migration
+- to_dict(): updated comment to reflect shared-only
+
+**oompah/projects.py**:
+- ProjectStore.update(): changed validation to only accept 'shared'; flat/stacked now raise ProjectError with clear message; None now defaults to 'shared' (was 'flat')
+
+**oompah/server.py**:
+- PATCH /api/v1/projects/{id} epic_strategy handler: only accepts 'shared'; rejects flat/stacked with 400 and descriptive message; None → 'shared'
+
+**tests/test_epic_strategy.py**:
+- Updated TestProjectEpicStrategyField: renamed test_default_is_stacked → test_default_is_shared; added migration tests for flat→shared, stacked→shared, unknown→shared, serialization after migration
+- Updated TestProjectStoreUpdateEpicStrategy: stacked/flat now expect ProjectError; added test_update_to_flat_is_rejected; updated None behavior (→ shared not flat)
+
+**tests/test_projects_crud.py**:
+- Added 7 new API tests in TestProjectAPI covering: accept shared, accept SHARED (case), null→shared, reject flat, reject stacked, reject bogus, new project defaults to shared
 ---
 <!-- COMMENTS:END -->
