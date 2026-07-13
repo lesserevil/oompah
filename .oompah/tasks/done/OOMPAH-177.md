@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:49.472960Z'
-updated_at: '2026-07-13T04:46:17.407815Z'
+updated_at: '2026-07-13T04:46:27.593809Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,5 +111,15 @@ author: oompah
 created: 2026-07-13 04:46
 ---
 Implemented ReleaseAddendumQueue with durable scan/claim/recovery, orchestrator integration, and 7 passing tests. Queue key is (project_id, source_identifier, target_branch); never constructs Issue or child task. Added IN_PROGRESS→OPEN transition to schema for lease recovery. All 7614 tests pass.
+---
+author: oompah
+created: 2026-07-13 04:46
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
+- Turns: 0, Tool calls: 35
+- Tokens: 55 in / 1.5K out [1.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 18s
+- Log: OOMPAH-177__20260713T043718Z.jsonl
 ---
 <!-- COMMENTS:END -->
