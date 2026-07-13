@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-173
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Add release-addendum schema and metadata repository
 parent: OOMPAH-172
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:38.417683Z'
-updated_at: '2026-07-13T03:08:46.318523Z'
+updated_at: '2026-07-13T07:13:07.068745Z'
 work_branch: null
 target_branch: null
 review_url: null
