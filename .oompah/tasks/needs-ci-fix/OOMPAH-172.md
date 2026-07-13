@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-172
 type: epic
-status: In Review
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Implement queued release-branch addendums
 parent: null
 children:
@@ -20,10 +20,11 @@ children:
 - OOMPAH-184
 - OOMPAH-185
 blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T06:59:12.293844Z'
+updated_at: '2026-07-13T07:00:55.484627Z'
 work_branch: epic-OOMPAH-172
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/407
