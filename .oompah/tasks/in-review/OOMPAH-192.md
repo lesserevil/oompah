@@ -20,13 +20,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:12.244396Z'
-updated_at: '2026-07-13T23:31:22.571988Z'
+updated_at: '2026-07-13T23:31:24.856525Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/418
-review_number: null
+review_number: '418'
 merged_at: null
 oompah.review_url: https://github.com/lesserevil/oompah/pull/418
+oompah.review_number: '418'
 ---
 ## Summary
 
