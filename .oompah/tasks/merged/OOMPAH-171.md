@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-171
 type: task
-status: Done
+status: Merged
 priority: 2
 title: Remove automatic draft-epic lifecycle
 parent: OOMPAH-166
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:26:02.750063Z'
-updated_at: '2026-07-13T04:46:45.693250Z'
+updated_at: '2026-07-13T05:10:35.998246Z'
 work_branch: null
 target_branch: null
 review_url: null
