@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T02:35:38.417683Z'
-updated_at: '2026-07-13T02:57:46.623756Z'
+updated_at: '2026-07-13T03:06:49.231034Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,20 @@ created: 2026-07-13 02:57
 Understanding: Investigated for duplicate — OOMPAH-173 is a unique child of the OOMPAH-172 epic (no overlap with OOMPAH-174 through OOMPAH-184). This is a first-slice foundation task.
 
 Plan: Implement oompah/release_addendum_schema.py with AddendumStatus enum (open/in_progress/in_review/blocked/merged/archived), ReleaseAddendum dataclass with all fields from section 4, VALID_TRANSITIONS from section 4.2, is_valid_transition(), make_addendum_id/work_branch/worktree_key deterministic helpers, parse_addendums/addendums_to_raw serializer, and an AddendumRepository that reads/writes only oompah.release_addendums on a source task atomically via TrackerProtocol.set_metadata_field, enforcing one active addendum per target branch and immutable non-empty commits. Followed by full unit test coverage in tests/test_release_addendum_schema.py.
+---
+author: oompah
+created: 2026-07-13 03:06
+---
+Implementation: Created oompah/release_addendum_schema.py with:
+
+- AddendumStatus enum (open/in_progress/in_review/blocked/merged/archived) with is_terminal, is_active properties
+- VALID_TRANSITIONS table and is_valid_transition() enforcing section 4.2 FSM
+- make_addendum_id(), make_work_branch() (oompah/release/ namespaced), make_worktree_key() deterministic helpers with branch-safe sanitization
+- ReleaseAddendum dataclass: all fields from section 4; execution-evidence fields (pr_url, result_commits, claimed_by, lease_expires_at, error, timestamps) clearly separated from client input; to_raw()/from_raw() with validation
+- parse_addendums() / addendums_to_raw() top-level helpers
+- AddendumRepository: reads/writes only oompah.release_addendums atomically via TrackerProtocol.set_metadata_field; enforces one-active-per-branch; idempotent add(); validated transition() that preserves immutable commits
+- DuplicateTargetError, InvalidTransitionError custom exceptions
+
+No production caller was changed. The module is usable without release-pick child metadata.
 ---
 <!-- COMMENTS:END -->
