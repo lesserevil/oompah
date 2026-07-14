@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-170
 type: task
-status: In Progress
+status: Merged
 priority: 2
 title: Update epic workflow documentation for shared-only behavior
 parent: OOMPAH-166
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:12.785814Z'
-updated_at: '2026-07-14T17:30:31.656355Z'
+updated_at: '2026-07-14T17:30:33.943639Z'
 work_branch: null
 target_branch: null
 review_url: null
