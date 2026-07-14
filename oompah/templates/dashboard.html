@@ -2397,6 +2397,13 @@ let editingState = null;      // {identifier, field} or null
 let _pendingBoardData = null; // queued board data to render after editing ends
 let _editingDetailPanel = false; // true if user is typing in comment textarea
 
+// --- Incremental board reconciliation (OOMPAH-205) ---
+// Snapshot-based skip: avoid full DOM rebuilds when the board data is unchanged.
+// Card element cache: reuse card DOM elements across renders when issue data is unchanged.
+let _lastRenderedSnapshot = null;   // JSON fingerprint of last rendered display data
+let _lastRenderedRenderKey = null;  // view mode + swimlane state string of last render
+let _cardElementCache = new Map();  // identifier -> {fp: string, el: HTMLElement}
+
 // --- WebSocket connection ---
 let ws = null;
 let wsReconnectTimer = null;
@@ -2408,6 +2415,11 @@ function connectWebSocket() {
   ws.onopen = () => {
     document.getElementById('status-text').textContent = 'Connected';
     if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+    // Force a full board rebuild after reconnect so stale snapshot state
+    // doesn't suppress the first incoming 'issues' push.
+    _lastRenderedSnapshot = null;
+    _lastRenderedRenderKey = null;
+    _cardElementCache.clear();
     // Console WS reconnect backfill — pick up events that landed while
     // we were disconnected before the live stream resumes. Only for
     // the currently-active project; other projects refresh next time
@@ -3417,6 +3429,133 @@ function applyOptimisticOverrides(data) {
   return data;
 }
 
+// --- Incremental board reconciliation helpers (OOMPAH-205) ---
+
+// Compute a stable fingerprint for an issue from all fields that affect card rendering.
+function issueFingerprint(issue) {
+  return JSON.stringify({
+    identifier: issue.identifier,
+    title: issue.title,
+    description: issue.description || '',
+    state: issue.state,
+    priority: issue.priority,
+    issue_type: issue.issue_type,
+    parent_id: issue.parent_id,
+    url: issue.url,
+    intake_summary: issue.intake_summary,
+    attachments: issue.attachments,
+    labels: issue.labels,
+    has_open_review: issue.has_open_review,
+    children_counts: issue.children_counts,
+  });
+}
+
+// Return a cached card element if the issue fingerprint is unchanged,
+// otherwise create a new card and update the cache.
+function getOrCreateCard(issue) {
+  const fp = issueFingerprint(issue);
+  const cached = _cardElementCache.get(issue.identifier);
+  if (cached && cached.fp === fp) {
+    return cached.el;
+  }
+  const el = createCard(issue);
+  _cardElementCache.set(issue.identifier, {fp, el});
+  return el;
+}
+
+// Compute an opaque key that encodes all rendering-affecting state OTHER than
+// the board data itself (view mode and swimlane collapsed state).
+function _boardRenderKey() {
+  return viewMode + '|' + JSON.stringify(collapsedSwimlanes);
+}
+
+// Save scrollTop for each .column-body in the board, keyed by data-state.
+function saveColumnScrollPositions() {
+  const positions = {};
+  document.querySelectorAll('#board .column-body').forEach(el => {
+    if (el.dataset.state) positions[el.dataset.state] = el.scrollTop;
+  });
+  return positions;
+}
+
+// Restore saved scrollTop values to .column-body elements (matched by data-state).
+function restoreColumnScrollPositions(positions) {
+  document.querySelectorAll('#board .column-body').forEach(el => {
+    const state = el.dataset.state;
+    if (state && positions[state] != null) el.scrollTop = positions[state];
+  });
+}
+
+// Reconcile the contents of a single column body element in the flat view.
+// Reuses cached card elements for unchanged issues; rebuilds body content if
+// the card set or order changed.  Does NOT recreate the body element itself,
+// preserving its scrollTop and its existing drop-zone event listeners.
+function reconcileColumnBody(body, issues) {
+  const newIds = issues.map(i => i.identifier);
+  const existingCards = Array.from(body.querySelectorAll('.card'));
+  const existingIds = existingCards.map(c => c.dataset.id);
+
+  // Detect whether any card fingerprint has changed
+  const changedFingerprints = issues.some(issue => {
+    const fp = issueFingerprint(issue);
+    const cached = _cardElementCache.get(issue.identifier);
+    return !cached || cached.fp !== fp;
+  });
+
+  // Fast path: identical ids in identical order AND no fingerprint changes
+  if (existingIds.join(',') === newIds.join(',') && !changedFingerprints) return;
+
+  // Rebuild body content.  Drop-zone listeners are on the body element itself
+  // and survive innerHTML clearing; card elements are retrieved/created via
+  // getOrCreateCard so unchanged cards reuse their existing DOM nodes.
+  body.innerHTML = '';
+  for (let i = 0; i < issues.length; i++) {
+    const indicator = document.createElement('div');
+    indicator.className = 'drop-indicator';
+    indicator.dataset.position = String(i);
+    body.appendChild(indicator);
+    body.appendChild(getOrCreateCard(issues[i]));
+  }
+  const lastIndicator = document.createElement('div');
+  lastIndicator.className = 'drop-indicator';
+  lastIndicator.dataset.position = String(issues.length);
+  body.appendChild(lastIndicator);
+}
+
+// Attempt an incremental update of the flat-view board without destroying the
+// existing column elements (preserving scroll positions and drop-zone listeners).
+// Returns true when the incremental path was used, false when a full rebuild is
+// needed (e.g. column set/order changed).
+function tryIncrementalFlatView(board, data) {
+  const cols = visibleColumns(data);
+  const existingCols = Array.from(board.children).filter(
+    el => el.classList.contains('column')
+  );
+
+  // Bail out if the column set or order changed, or if there are non-column
+  // children left over from a previous swimlane render.
+  if (board.children.length !== existingCols.length) return false;
+  if (existingCols.map(el => el.dataset.state).join(',') !== cols.join(',')) return false;
+
+  for (let ci = 0; ci < cols.length; ci++) {
+    const col = cols[ci];
+    const colEl = existingCols[ci];
+    const allInCol = data[col] || [];
+    const issues = allInCol.filter(i => shouldShowIssueAsWorkCard(i));
+
+    // Update column card count badge
+    const countEl = colEl.querySelector('.col-count');
+    if (countEl) countEl.textContent = String(issues.length);
+
+    const body = colEl.querySelector('.column-body');
+    if (!body) continue;
+    reconcileColumnBody(body, issues);
+  }
+  return true;
+}
+
+// --- End incremental board reconciliation helpers ---
+
 function renderBoard(data) {
   data = normalizeBoardData(data);
   data = applyOptimisticOverrides(data);
@@ -3434,6 +3573,16 @@ function renderBoard(data) {
     return;
   }
 
+  // Bug fix: If the user is actively dragging a card, defer the DOM
+  // rebuild so the dragged card element is not removed from the DOM
+  // mid-drag. Pending data is flushed in the card's dragend handler.
+  if (dragState) {
+    _pendingBoardData = data;
+    boardData = data;
+    allIssuesFlat = flattenIssues(data);
+    return;
+  }
+
   // Keep the unfiltered payload as boardData so re-renders triggered by
   // the Hide-merged toggle, swimlane collapse, view-mode flip, etc. can
   // recover hidden tasks without an extra fetch.
@@ -3444,15 +3593,52 @@ function renderBoard(data) {
   setHideMergedLabel();
   allIssuesFlat = flattenIssues(data);
   _pendingBoardData = null;
-  const board = document.getElementById('board');
-  board.innerHTML = '';
 
-  if (viewMode === 'swimlane') {
-    board.className = 'board swimlane-view';
-    renderSwimlaneView(board, data);
-  } else {
+  // --- Snapshot dedup (OOMPAH-205) ---
+  // Skip the DOM rebuild entirely when the display data and render mode are
+  // identical to the last render.  This is the common case: the orchestrator
+  // emits a full observer update on every tick so most 'issues' pushes carry
+  // an unchanged payload.
+  const boardSnapshot = JSON.stringify(data);
+  const renderKey = _boardRenderKey();
+  if (boardSnapshot === _lastRenderedSnapshot && renderKey === _lastRenderedRenderKey) {
+    // Data unchanged — update timestamp but skip the DOM rebuild.
+    document.getElementById('status-text').textContent =
+      `Updated ${new Date().toLocaleTimeString()}`;
+    return;
+  }
+  _lastRenderedSnapshot = boardSnapshot;
+  _lastRenderedRenderKey = renderKey;
+
+  // Save scroll positions and focused-element path so they can be restored
+  // after the (possibly incremental) rebuild.
+  const scrollPositions = saveColumnScrollPositions();
+  const focusedEl = document.activeElement;
+  const focusedDataId = focusedEl && focusedEl.dataset && focusedEl.dataset.id;
+  const focusedDataField = focusedEl && focusedEl.dataset && focusedEl.dataset.field;
+
+  const board = document.getElementById('board');
+
+  if (viewMode === 'flat') {
     board.className = 'board';
-    renderFlatView(board, data);
+    if (!tryIncrementalFlatView(board, data)) {
+      // Column structure changed — full rebuild.
+      board.innerHTML = '';
+      renderFlatView(board, data);
+    }
+  } else {
+    board.className = 'board swimlane-view';
+    board.innerHTML = '';
+    renderSwimlaneView(board, data);
+  }
+
+  // Restore scroll positions (by data-state key) and keyboard focus.
+  restoreColumnScrollPositions(scrollPositions);
+  if (focusedDataId && focusedDataField) {
+    const toFocus = board.querySelector(
+      '[data-id="' + focusedDataId + '"][data-field="' + focusedDataField + '"]'
+    );
+    if (toFocus) toFocus.focus();
   }
 
   document.getElementById('status-text').textContent =
@@ -3488,7 +3674,7 @@ function renderFlatView(board, data) {
       indicator.className = 'drop-indicator';
       indicator.dataset.position = String(i);
       body.appendChild(indicator);
-      body.appendChild(createCard(issues[i]));
+      body.appendChild(getOrCreateCard(issues[i]));
     }
     const lastIndicator = document.createElement('div');
     lastIndicator.className = 'drop-indicator';
@@ -3599,7 +3785,7 @@ function renderSwimlaneView(board, data) {
         ind.className = 'drop-indicator';
         ind.dataset.position = String(i);
         scBody.appendChild(ind);
-        scBody.appendChild(createCard(colIssues[i]));
+        scBody.appendChild(getOrCreateCard(colIssues[i]));
       }
       const lastInd = document.createElement('div');
       lastInd.className = 'drop-indicator';
@@ -3647,7 +3833,7 @@ function renderSwimlaneView(board, data) {
         ind.className = 'drop-indicator';
         ind.dataset.position = String(i);
         scBody.appendChild(ind);
-        scBody.appendChild(createCard(colIssues[i]));
+        scBody.appendChild(getOrCreateCard(colIssues[i]));
       }
       const lastInd = document.createElement('div');
       lastInd.className = 'drop-indicator';
@@ -3852,6 +4038,12 @@ function createCard(issue) {
     card.classList.remove('dragging');
     clearAllIndicators();
     dragState = null;
+    // Flush any board data that arrived while the drag was in progress.
+    if (_pendingBoardData) {
+      const pending = _pendingBoardData;
+      _pendingBoardData = null;
+      renderBoard(pending);
+    }
   });
 
   // Inline editing
