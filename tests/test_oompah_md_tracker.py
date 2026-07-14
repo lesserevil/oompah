@@ -325,12 +325,12 @@ class TestOompahMarkdownTrackerGitSync:
         assert "Remediation" in error_msg or "remediation" in error_msg.lower()
 
     def test_ff_only_failure_raises_tracker_error_with_remediation(self, tmp_path):
-        """A diverged branch (ff-only fails) must raise TrackerError with actionable text.
+        """ff-only failure followed by rebase failure must raise TrackerError.
 
         This is the OOMPAH-10 regression: the old 'git pull --rebase origin main'
         would fail with 'Cannot rebase onto multiple branches' on clean managed
-        repos.  The new ff-only path must instead raise a TrackerError that
-        surfaces the problem without silently aborting dispatch.
+        repos.  The new path tries ff-only first, then rebase as a fallback.
+        When both fail, it must raise a TrackerError with actionable text.
         """
         tracker = _tracker(tmp_path, git_sync=True)
 
@@ -345,12 +345,16 @@ class TestOompahMarkdownTrackerGitSync:
             if cmd == "fetch":
                 return _make_completed_process(0)
             if cmd == "merge" and "--ff-only" in args:
-                # Simulates a diverged local branch — analogous to what
-                # `git pull --rebase` would report as
-                # "Cannot rebase onto multiple branches".
+                # Simulates a diverged local branch.
                 return _make_completed_process(
                     1, "", "fatal: Not possible to fast-forward, aborting."
                 )
+            if cmd == "rebase" and "--abort" not in args:
+                # Rebase fallback also fails (e.g. conflicting changes).
+                return _make_completed_process(
+                    1, "", "error: could not apply abc1234... task update"
+                )
+            # rebase --abort and other commands succeed.
             return _make_completed_process(0)
 
         tracker._git = _fake_git  # type: ignore[method-assign]
@@ -361,6 +365,53 @@ class TestOompahMarkdownTrackerGitSync:
         error_msg = str(exc_info.value)
         assert "ff-only" in error_msg or "fast-forward" in error_msg.lower() or "ff_only" in error_msg
         assert "Remediation" in error_msg or "remediation" in error_msg.lower()
+
+    def test_ff_only_failure_rebase_recovery_succeeds(self, tmp_path):
+        """When ff-only fails but rebase succeeds, _sync_from_remote must recover silently.
+
+        This is the OOMPAH-204 fix: when local main has diverged from origin
+        (e.g. a previous task commit was not pushed), a rebase of the local
+        commits onto origin/main puts the checkout back in a pushable state
+        without raising a TrackerError that would be filed by error_watcher.
+        """
+        tracker = _tracker(tmp_path, git_sync=True)
+        calls: list[tuple] = []
+
+        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+            calls.append(tuple(args))
+            cmd = args[0] if args else ""
+            if cmd == "rev-parse":
+                return _make_completed_process(0, "true")
+            if cmd == "symbolic-ref":
+                return _make_completed_process(0, "main")
+            if cmd == "remote":
+                return _make_completed_process(0, "git@example.com:org/repo.git")
+            if cmd == "fetch":
+                return _make_completed_process(0)
+            if cmd == "merge" and "--ff-only" in args:
+                # Diverged — fast-forward not possible.
+                return _make_completed_process(
+                    1, "", "fatal: Not possible to fast-forward, aborting."
+                )
+            if cmd == "rebase" and "--abort" not in args:
+                # Rebase fallback succeeds.
+                return _make_completed_process(0)
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+
+        # Must NOT raise — rebase should have recovered the diverged state.
+        tracker._prepare_default_branch_for_write()
+
+        arg_strings = [" ".join(c) for c in calls]
+        # Rebase fallback must have been attempted.
+        assert any("rebase" in s and "--abort" not in s for s in arg_strings), (
+            f"Expected rebase fallback call, got: {arg_strings}"
+        )
+        # Must never call 'git pull --rebase' (OOMPAH-10 regression guard).
+        assert not any("pull" in s and "rebase" in s for s in arg_strings), (
+            f"Must not use 'git pull --rebase', got: {arg_strings}"
+        )
 
     def test_clean_ff_succeeds_without_pull_rebase(self, tmp_path):
         """A clean up-to-date repo must sync without error and never call pull --rebase."""
@@ -389,7 +440,7 @@ class TestOompahMarkdownTrackerGitSync:
         )
 
     def test_commit_and_push_retry_uses_ff_only_not_pull_rebase(self, tmp_path):
-        """_commit_and_push retry path must also use fetch+ff-only, not pull --rebase."""
+        """_commit_and_push retry path must use fetch+ff-only (or rebase), not pull --rebase."""
         tracker = _tracker(tmp_path, git_sync=True)
         calls: list[tuple] = []
         push_count = [0]
@@ -428,7 +479,7 @@ class TestOompahMarkdownTrackerGitSync:
         tracker._commit_and_push("Test subject")
 
         arg_strings = [" ".join(c) for c in calls]
-        # After push failure, must sync via fetch + ff-only
+        # After push failure, must sync via fetch + ff-only (or rebase fallback)
         assert any("fetch" in s and "origin" in s for s in arg_strings), (
             f"Expected git fetch after push failure, got: {arg_strings}"
         )
@@ -438,6 +489,74 @@ class TestOompahMarkdownTrackerGitSync:
         # Must NOT use 'git pull --rebase' in retry
         assert not any("pull" in s and "rebase" in s for s in arg_strings), (
             f"Expected no 'git pull --rebase' in retry path, got: {arg_strings}"
+        )
+
+    def test_commit_and_push_retry_rebase_recovery_on_diverged_branch(self, tmp_path):
+        """When push is rejected and ff-only fails (diverged local+origin), rebase recovers.
+
+        This is the OOMPAH-204 scenario: _commit_and_push commits a task
+        update, the push is rejected because origin has new commits, and now
+        local main has diverged (our task commit + origin's new commits).
+        The ff-only merge fails, but the rebase fallback puts our commit on top
+        of origin so the second push succeeds.
+        """
+        tracker = _tracker(tmp_path, git_sync=True)
+        calls: list[tuple] = []
+        push_count = [0]
+
+        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+            calls.append(tuple(args))
+            cmd = args[0] if args else ""
+            if cmd == "rev-parse":
+                return _make_completed_process(0, "true")
+            if cmd == "symbolic-ref":
+                return _make_completed_process(0, "main")
+            if cmd == "remote":
+                return _make_completed_process(0, "git@example.com:org/repo.git")
+            if cmd == "add":
+                return _make_completed_process(0)
+            if cmd == "diff":
+                # Simulate staged changes so commit runs.
+                return _make_completed_process(1)
+            if cmd == "commit":
+                return _make_completed_process(0)
+            if cmd == "push":
+                push_count[0] += 1
+                if push_count[0] == 1:
+                    # First push rejected: origin has new commits since our base.
+                    return _make_completed_process(
+                        1, "", "! [rejected] main -> main (fetch first)"
+                    )
+                # Second push (after rebase) succeeds.
+                return _make_completed_process(0)
+            if cmd == "fetch":
+                return _make_completed_process(0)
+            if cmd == "merge" and "--ff-only" in args:
+                # Diverged: our task commit + origin's new commits → can't ff.
+                return _make_completed_process(
+                    1, "", "fatal: Not possible to fast-forward, aborting."
+                )
+            if cmd == "rebase" and "--abort" not in args:
+                # Rebase puts our task commit on top of origin/main.
+                return _make_completed_process(0)
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+
+        # Must not raise — the rebase fallback should recover the diverged branch.
+        tracker._commit_and_push("Test subject")
+
+        assert push_count[0] == 2, (
+            f"Expected 2 push attempts (first rejected, second after rebase), got {push_count[0]}"
+        )
+        arg_strings = [" ".join(c) for c in calls]
+        # Rebase fallback must have been attempted.
+        assert any("rebase" in s and "--abort" not in s for s in arg_strings), (
+            f"Expected rebase fallback in retry path, got: {arg_strings}"
+        )
+        # Must NOT use 'git pull --rebase' (OOMPAH-10 regression guard).
+        assert not any("pull" in s and "rebase" in s for s in arg_strings), (
+            f"Must not use 'git pull --rebase', got: {arg_strings}"
         )
 
 

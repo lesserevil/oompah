@@ -943,16 +943,20 @@ class OompahMarkdownTracker:
     def _sync_from_remote(self, branch: str) -> None:
         """Fetch and fast-forward the local default branch from origin.
 
-        Replaces ``git pull --rebase origin <branch>`` which can fail with
-        ``fatal: Cannot rebase onto multiple branches`` when git resolves the
-        remote ref ambiguously.  A plain fetch followed by ``--ff-only`` merge
-        is fully deterministic for clean, up-to-date managed repos and refuses
-        to silently overwrite uncommitted user work (``--ff-only`` fails if the
-        local branch has diverged).
+        Prefers a deterministic fetch + ``--ff-only`` merge (safe for clean,
+        up-to-date repos).  If the local branch has diverged from origin —
+        most commonly because a previous ``_commit_and_push`` committed a task
+        update but the push was rejected and a prior recovery attempt was
+        interrupted — falls back to ``git rebase origin/<branch>`` to place
+        the local commits on top of the fetched origin tip.
+
+        The rebase fallback avoids the ``fatal: Cannot rebase onto multiple
+        branches`` error that ``git pull --rebase origin <branch>`` can
+        produce when git resolves the remote ref ambiguously; specifying
+        ``origin/<branch>`` directly is unambiguous after the explicit fetch.
 
         Raises :class:`TrackerError` with an actionable remediation message
-        when the fast-forward cannot proceed so oompah can surface a dashboard
-        alert instead of silently aborting dispatch.
+        only when both fast-forward and rebase recovery fail.
         """
         fetch = self._git(["fetch", "origin", branch], check=False)
         if fetch.returncode != 0:
@@ -964,14 +968,25 @@ class OompahMarkdownTracker:
                 f"(git remote get-url origin)."
             )
         ff = self._git(["merge", "--ff-only", f"origin/{branch}"], check=False)
-        if ff.returncode != 0:
-            ff_err = (ff.stderr.strip() or ff.stdout.strip())
-            raise TrackerError(
-                f"Cannot sync native tracker: "
-                f"git merge --ff-only origin/{branch} failed: {ff_err}. "
-                f"Remediation: the local {branch!r} branch has diverged from origin. "
-                f"Run: git fetch origin && git merge --ff-only origin/{branch}"
-            )
+        if ff.returncode == 0:
+            return
+        # Fast-forward failed: the local branch has diverged (e.g. a task
+        # commit was created but not pushed in a previous operation).  Try
+        # rebasing local commits on top of origin so the next push can
+        # succeed without creating a merge commit.
+        ff_err = ff.stderr.strip() or ff.stdout.strip()
+        rebase = self._git(["rebase", f"origin/{branch}"], check=False)
+        if rebase.returncode == 0:
+            return
+        # Both recovery paths failed.  Abort the stranded rebase and surface
+        # an actionable error so the operator can intervene.
+        self._git(["rebase", "--abort"], check=False)
+        raise TrackerError(
+            f"Cannot sync native tracker: "
+            f"git merge --ff-only origin/{branch} failed: {ff_err}. "
+            f"Remediation: the local {branch!r} branch has diverged from origin. "
+            f"Run: git fetch origin && git rebase origin/{branch}"
+        )
 
     def _commit_and_push(self, subject: str) -> None:
         if not self._git_sync_requested() or not self._is_git_repo():
