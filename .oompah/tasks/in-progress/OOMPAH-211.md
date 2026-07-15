@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T21:25:05.707753Z'
+updated_at: '2026-07-15T21:25:14.536459Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -122,5 +122,10 @@ author: oompah
 created: 2026-07-15 21:25
 ---
 Implementation: Changed 6 files, added 2 new files. Key changes: (1) ClaudeAcpBackendSession.run_turn() restructured with a while-True outer loop — after each ResultMessage, drains comment_queue and injects pending comments as new SDK turns. (2) Orchestrator.deliver_comment_to_running_agent() added: resolves identifier→issue_id, idempotency check on comment_id, FIFO asyncio.Queue enqueue, audit log. (3) _run_acp_worker() creates and registers per-run asyncio.Queue; unregistered in finally. (4) server.py api_add_comment hook: non-oompah comments trigger delivery. (5) github_intake_bridge.py: _deliver_github_comment_to_agent() helper called on newly imported GitHub comments. (6) plans/comment-delivery.md: design doc with Mermaid sequence diagram.
+---
+author: oompah
+created: 2026-07-15 21:25
+---
+Verification: All 28 new tests pass (tests/test_comment_delivery.py). Pre-existing tests unaffected: test_acp_agent.py (42 tests), test_acp_backends.py (44 tests), test_github_intake_bridge.py (56 tests), test_orchestrator_handlers.py all pass. Full suite: 8915 passed, 36 skipped, 3 pre-existing failures in test_dashboard_release_delivery_ui.py (unrelated). Branch pushed: OOMPAH-211. Guarantees delivered: ordering (FIFO), idempotency (comment_id dedup), exactly-once delivery within a run, audit logging, retry via tracker on next dispatch, graceful fallback for CLI/api_agent workers.
 ---
 <!-- COMMENTS:END -->
