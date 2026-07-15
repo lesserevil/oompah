@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T21:38:20.810832Z'
+updated_at: '2026-07-15T21:38:23.044399Z'
 work_branch: OOMPAH-211
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/420
@@ -178,5 +178,10 @@ author: oompah
 created: 2026-07-15 21:37
 ---
 Understanding: CI failures are 3 pre-existing test failures in test_dashboard_release_delivery_ui.py::TestSelection — dashboard was refactored so _rdiToggleSHA now delegates to _rdiToggleSHAs (shared helper), but tests still check the body of _rdiToggleSHA for the add/delete/updateActionBar calls. Fix: update the 3 tests to check the _rdiToggleSHAs body instead. No change to the feature code.
+---
+author: oompah
+created: 2026-07-15 21:38
+---
+Implementation: Updated 3 test assertions in tests/test_dashboard_release_delivery_ui.py::TestSelection to check _rdiToggleSHAs (the shared helper) instead of _rdiToggleSHA (which now only delegates). The dashboard was previously refactored to extract shared toggle logic into _rdiToggleSHAs but the tests were not updated. Minimal fix: 6-line change, no feature code touched.
 ---
 <!-- COMMENTS:END -->
