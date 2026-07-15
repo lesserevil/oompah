@@ -7,11 +7,10 @@ title: Deliver new task comments to running agents
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:feature
+labels: []
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T20:57:40.783674Z'
+updated_at: '2026-07-15T20:57:43.313891Z'
 work_branch: null
 target_branch: null
 review_url: null
