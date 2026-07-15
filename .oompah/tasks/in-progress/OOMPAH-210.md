@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:39:59.115969Z'
-updated_at: '2026-07-15T21:02:39.205997Z'
+updated_at: '2026-07-15T21:02:51.033782Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -129,5 +129,21 @@ author: oompah
 created: 2026-07-15 21:02
 ---
 Verification: All 166 tests in tests/test_scm.py pass (149 pre-existing + 17 new regression tests). The 3 failures in test_dashboard_release_delivery_ui.py::TestSelection are pre-existing and unrelated to this change (confirmed by running them before applying my changes). Full test suite: 8912 passed, 3 pre-existing failures, 28 skipped.
+---
+author: oompah
+created: 2026-07-15 21:02
+---
+Completion: Delivered OOMPAH-210 — detect and surface unavailable GitHub check-run access.
+
+Root cause: HTTP 403 from GET /repos/.../commits/{sha}/check-runs was silently ignored, returning empty CI status and suppressing CI failure detection + ci-fix task dispatch.
+
+Delivered:
+1. Workflow-runs fallback (Actions: Read): _fetch_workflow_runs_ci_status() queries /actions/runs?head_sha= when check-runs returns 403. Correctly surfaces failed/passed/pending status from workflow run conclusions.
+2. Degraded-capability warning: When both check-runs and workflow-runs are forbidden, ci_warnings gains a check_runs_forbidden entry with a message directing operators to grant Actions: Read.
+3. Legacy CI signal preservation: legacy_pending and legacy_failure are honored in all fallback paths.
+4. Docs updated: managed-project-onboarding.md and operator-runbook.md now document Actions: Read as required for CI observation.
+5. 17 regression tests: cover all failure modes including 403 fallback, empty workflow runs, both-APIs-forbidden warning, and _fetch_workflow_runs_ci_status unit tests.
+
+Branch: OOMPAH-210 (pushed, rebased on main)
 ---
 <!-- COMMENTS:END -->
