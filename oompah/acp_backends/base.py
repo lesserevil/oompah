@@ -19,6 +19,7 @@ without dragging the orchestrator's event vocabulary along.
 from __future__ import annotations
 
 import abc
+import asyncio
 from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
@@ -116,6 +117,12 @@ class AcpBackendOptions:
     # execute ``oompah task ...`` commands directly instead of spawning the
     # HTTP-backed CLI, which would self-call the local server process.
     task_tracker: Any = None
+    # Optional asyncio.Queue for mid-run comment injection (OOMPAH-211).
+    # When set, the backend drains this queue at each turn boundary and
+    # sends any pending text as a new user turn in the same session.
+    # put_nowait()-safe from the async event loop thread.
+    # None = injection disabled for this session.
+    comment_queue: "asyncio.Queue[str] | None" = None
 
 
 @runtime_checkable

@@ -585,6 +585,25 @@ def _is_oompah_comment(author: str | None, body: str | None) -> bool:
     return author_key == "oompah" or text.startswith("**oompah**:")
 
 
+def _deliver_github_comment_to_agent(
+    orch: Any,
+    identifier: str,
+    *,
+    author: str | None,
+    body: str,
+    comment_id: str | None,
+) -> None:
+    """Attempt mid-run delivery of a newly imported GitHub comment to any
+    running agent for *identifier* (OOMPAH-211). Silently no-ops when no
+    running agent is found or the orchestrator lacks the delivery method."""
+    deliver = getattr(orch, "deliver_comment_to_running_agent", None)
+    if deliver is None:
+        return
+    author_label = author or "github"
+    text = f"[New comment from {author_label}]\n\n{body}"
+    deliver(identifier, text, comment_id=comment_id)
+
+
 def import_github_comment_to_native(
     native_tracker: Any,
     internal_identifier: str,
@@ -689,14 +708,33 @@ def handle_github_issue_event_for_native_project(
                 str((comment.get("user") or {}).get("login") or event.author or "").strip()
                 or None
             )
-            import_github_comment_to_native(
+            _comment_body = comment.get("body") or ""
+            _comment_id_raw = event.comment_id or comment.get("id")
+            imported = import_github_comment_to_native(
                 native_tracker,
                 internal.identifier,
                 metadata,
-                comment_id=event.comment_id or comment.get("id"),
+                comment_id=_comment_id_raw,
                 author=author,
-                body=comment.get("body"),
+                body=_comment_body,
             )
+            # OOMPAH-211: If we just imported a new comment, try to deliver
+            # it to any running agent for this task.
+            if imported and author != "oompah" and _comment_body.strip():
+                try:
+                    _deliver_github_comment_to_agent(
+                        orch,
+                        internal.identifier,
+                        author=author,
+                        body=_comment_body,
+                        comment_id=str(_comment_id_raw) if _comment_id_raw else None,
+                    )
+                except Exception as _exc:
+                    logger.debug(
+                        "github_intake: comment delivery to agent failed for %s: %s",
+                        internal.identifier,
+                        _exc,
+                    )
         return
 
     _reconcile_native_status_from_github_issue(native_tracker, github_issue)
