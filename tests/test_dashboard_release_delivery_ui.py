@@ -1088,17 +1088,20 @@ class TestSelection:
 
     def test_toggle_sha_adds_to_set(self):
         script = _load_dashboard_script()
-        body = _function_body(script, "_rdiToggleSHA")
+        # _rdiToggleSHA delegates to _rdiToggleSHAs which holds the shared logic
+        body = _function_body(script, "_rdiToggleSHAs")
         assert "_rdiSelectedSHAs.add(" in body
 
     def test_toggle_sha_removes_from_set(self):
         script = _load_dashboard_script()
-        body = _function_body(script, "_rdiToggleSHA")
+        # _rdiToggleSHA delegates to _rdiToggleSHAs which holds the shared logic
+        body = _function_body(script, "_rdiToggleSHAs")
         assert "_rdiSelectedSHAs.delete(" in body
 
     def test_toggle_sha_updates_action_bar(self):
         script = _load_dashboard_script()
-        body = _function_body(script, "_rdiToggleSHA")
+        # _rdiToggleSHA delegates to _rdiToggleSHAs which holds the shared logic
+        body = _function_body(script, "_rdiToggleSHAs")
         assert "_rdiUpdateActionBar()" in body
 
     def test_select_all_adds_selectable_rows(self):
