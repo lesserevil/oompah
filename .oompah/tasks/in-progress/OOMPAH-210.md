@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:39:59.115969Z'
-updated_at: '2026-07-15T20:53:41.427078Z'
+updated_at: '2026-07-15T20:53:54.891172Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,5 +102,10 @@ author: oompah
 created: 2026-07-15 20:53
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-15 20:53
+---
+Understanding: Previous agents identified the root cause in oompah/scm.py GitHubProvider._fetch_ci_status_and_warnings(). When GET /repos/{repo}/commits/{sha}/check-runs returns HTTP 403, the code silently falls through with no warning logged. The operator clarification says GitHub fine-grained PATs don't offer a Checks permission, so we should replace/augment check-runs polling with the GitHub Actions workflow-runs/jobs APIs using Actions: Read permission. Plan: (1) Read the current scm.py code around check-runs fetching, (2) Add workflow-runs/jobs API as primary/fallback source, (3) Add degraded-capability warning when neither source works, (4) Update PAT docs, (5) Write regression tests.
 ---
 <!-- COMMENTS:END -->
