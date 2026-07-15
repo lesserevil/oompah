@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:39:59.115969Z'
-updated_at: '2026-07-15T20:41:26.686888Z'
+updated_at: '2026-07-15T20:45:09.903730Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-07-15 20:41
 ---
 Understanding: This issue requires implementing 403 error handling for GitHub check-runs API. Plan: (1) Find where check-runs are fetched in oompah, (2) Add 403 detection + degraded-state surfacing, (3) Document required token permission, (4) Add fallback for CI repair dispatch when check-runs unavailable, (5) Write regression tests. Starting codebase exploration now.
+---
+author: oompah
+created: 2026-07-15 20:45
+---
+Discovery: Root cause found in oompah/scm.py GitHubProvider._fetch_ci_status_and_warnings() (line ~841). When GET /repos/{repo}/commits/{sha}/check-runs returns HTTP 403, the code silently falls through the 'if cr.status_code == 200:' check with NO warning logged. Three failure modes: (1) GitHub Actions-only repo + 403 → returns '' (unknown status, CI failures invisible); (2) legacy-pending + 403 → incorrectly returns '' instead of 'pending'; (3) legacy-failure + 403 → returns 'failed' (works, but no warning surfaced). The ci_warnings list (already used for 'unavailable_runner' warnings and surfaced in the UI) is the right place to expose a 'check_runs_forbidden' warning. Required token permission: fine-grained PAT needs 'Checks: Read'; classic tokens need 'repo' scope. Fix: (a) log WARNING once-per-repo per instance, (b) add check_runs_forbidden warning to ci_warnings, (c) fix legacy-pending+403 to return 'pending', (d) add regression tests.
 ---
 <!-- COMMENTS:END -->
