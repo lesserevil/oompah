@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T16:20:43.833803Z'
-updated_at: '2026-07-15T16:21:03.701733Z'
+updated_at: '2026-07-15T16:21:15.717085Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-07-15 16:21
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-15 16:21
+---
+Understanding: Investigating OOMPAH-209 as a Duplicate Investigator. The issue asks to group tracker-only commits (limited to .oompah/) in the Release delivery popup as a single checkbox rather than individual rows. It was triggered by OOMPAH-197. My plan: (1) read OOMPAH-197 to understand the relationship, (2) search for similar tasks about release delivery, commit grouping, or tracker-only commits, (3) determine if this is a duplicate or new work.
 ---
 <!-- COMMENTS:END -->
