@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T20:56:43.773446Z'
+updated_at: '2026-07-15T20:56:53.331974Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-07-15 20:56
 ---
 Discovery: OOMPAH-211 is NOT a duplicate. Searched all task states (in-progress, done, archived, merged), plans/, docs/, README.md and WORKFLOW.md for tasks covering: deliver/inject task comments to running agents mid-run, live context injection, mid-flight messages, human-in-loop injection, idempotent comment delivery. No existing task or plan covers this scenario. OOMPAH-210 (the trigger) is about GitHub check-run 403 errors — a completely different topic. This feature request is genuinely new and requires backend feature implementation: comment-delivery pipeline to active agent runs, ordering/idempotency guarantees, audit logging, retry behavior, provider fallback, and unit/integration tests.
+---
+author: oompah
+created: 2026-07-15 20:56
+---
+HANDOFF to feature agent: Duplicate investigation complete — this is a NEW feature, not a duplicate. No existing task covers delivering task comments to running agents mid-run. The implementation requires: (1) A mechanism to detect when a task has an active agent run, (2) A comment-delivery pipeline to inject new task comments into the live agent context, (3) Ordering and idempotency guarantees (exactly-once delivery), (4) Audit logging of delivery attempts, (5) Retry behavior on transient failures, (6) Graceful fallback for providers that cannot accept mid-run messages, (7) Unit and integration tests proving a running agent receives a newly posted task comment exactly once. Relevant codebase areas to explore: oompah/orchestrator.py (agent dispatch/run lifecycle), oompah/agents.py or similar (active run tracking), any ACP/SDK integration layers. Plans to read: plans/acp-agent.md, plans/acp-backends.md, plans/agent-watcher.md for context on agent run lifecycle.
 ---
 <!-- COMMENTS:END -->
