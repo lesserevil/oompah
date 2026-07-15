@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:39:59.115969Z'
-updated_at: '2026-07-15T20:53:54.891172Z'
+updated_at: '2026-07-15T21:01:58.091359Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,22 @@ author: oompah
 created: 2026-07-15 20:53
 ---
 Understanding: Previous agents identified the root cause in oompah/scm.py GitHubProvider._fetch_ci_status_and_warnings(). When GET /repos/{repo}/commits/{sha}/check-runs returns HTTP 403, the code silently falls through with no warning logged. The operator clarification says GitHub fine-grained PATs don't offer a Checks permission, so we should replace/augment check-runs polling with the GitHub Actions workflow-runs/jobs APIs using Actions: Read permission. Plan: (1) Read the current scm.py code around check-runs fetching, (2) Add workflow-runs/jobs API as primary/fallback source, (3) Add degraded-capability warning when neither source works, (4) Update PAT docs, (5) Write regression tests.
+---
+author: oompah
+created: 2026-07-15 21:01
+---
+Implementation complete. Changes in oompah/scm.py:
+
+1. Added _fetch_workflow_runs_ci_status() method: queries GET /repos/{repo}/actions/runs?head_sha={sha} (requires Actions: Read only). Returns ('', []) when API is accessible but no runs found (vs. None when API is unavailable/403), allowing callers to distinguish 'empty data' from 'API forbidden'.
+
+2. Modified _fetch_ci_status_and_warnings() to handle 403 from check-runs:
+   - On 403: logs a WARNING, then calls _fetch_workflow_runs_ci_status() as fallback
+   - If workflow-runs succeeds: uses its status (respecting legacy_pending/legacy_failure logic)
+   - If workflow-runs also fails (403/error): adds a check_runs_forbidden capability warning to ci_warnings so the UI can surface a degraded-state notice
+   - Fixes the previously-silent failure: before this change, a 403 from check-runs would silently return '' (making CI failures invisible)
+
+3. Docs updated: docs/managed-project-onboarding.md and docs/operator-runbook.md now document Actions: Read as required for CI observation with fine-grained PATs.
+
+17 new regression tests added in tests/test_scm.py::TestFetchCiStatusCheckRunsForbidden covering: 403 fallback to workflow-runs (failed/passed/pending/empty/timed_out), legacy_pending+403, legacy_failure+403, both-APIs-forbidden degraded warning, and unit tests for _fetch_workflow_runs_ci_status.
 ---
 <!-- COMMENTS:END -->
