@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T21:12:43.729454Z'
+updated_at: '2026-07-15T21:24:09.442118Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -112,5 +112,10 @@ author: oompah
 created: 2026-07-15 21:12
 ---
 Understanding: Implementing mid-run comment delivery for running agents. Architecture: (1) Add asyncio.Queue per running ACP session to Orchestrator; (2) Extend ClaudeAcpBackendSession.run_turn() to consume injected comments at each ResultMessage boundary (multi-turn injection within the same SDK session); (3) Add deliver_comment_to_running_agent() to Orchestrator with idempotency tracking and audit logging; (4) Hook into api_add_comment in server.py to trigger delivery; (5) Graceful fallback for CLI/API workers (no queue → comment available on next dispatch). Tests: unit tests for delivery, idempotency, multi-turn injection, and fallback. Starting implementation now.
+---
+author: oompah
+created: 2026-07-15 21:24
+---
+Discovery: Found the key integration points: (1) AcpAgentSession/ClaudeAcpBackendSession in acp_agent.py + acp_backends/claude.py — the Claude SDK drives multi-turn conversations; after each ResultMessage we can inject new turns via client.query(). (2) Orchestrator._run_acp_worker() creates the session and is the right place to attach a per-run comment queue. (3) api_add_comment in server.py is the main entry point for human-posted comments. (4) handle_github_issue_intake_webhook in github_intake_bridge.py handles GitHub comments. Implementation: structuring the ClaudeAcpBackendSession run_turn() as a while-True outer loop that checks for pending comments at each turn boundary.
 ---
 <!-- COMMENTS:END -->
