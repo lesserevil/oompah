@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-211
 type: feature
-status: In Progress
+status: Merged
 priority: 0
 title: Deliver new task comments to running agents
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T21:37:22.031815Z'
+updated_at: '2026-07-15T21:38:20.810832Z'
 work_branch: OOMPAH-211
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/420
