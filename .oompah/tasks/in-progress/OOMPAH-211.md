@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T21:05:49.134623Z'
+updated_at: '2026-07-15T21:12:43.729454Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,10 @@ author: oompah
 created: 2026-07-15 21:05
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-15 21:12
+---
+Understanding: Implementing mid-run comment delivery for running agents. Architecture: (1) Add asyncio.Queue per running ACP session to Orchestrator; (2) Extend ClaudeAcpBackendSession.run_turn() to consume injected comments at each ResultMessage boundary (multi-turn injection within the same SDK session); (3) Add deliver_comment_to_running_agent() to Orchestrator with idempotency tracking and audit logging; (4) Hook into api_add_comment in server.py to trigger delivery; (5) Graceful fallback for CLI/API workers (no queue → comment available on next dispatch). Tests: unit tests for delivery, idempotency, multi-turn injection, and fallback. Starting implementation now.
 ---
 <!-- COMMENTS:END -->
