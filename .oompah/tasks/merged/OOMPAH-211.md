@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T21:38:23.044399Z'
+updated_at: '2026-07-15T21:38:25.314860Z'
 work_branch: OOMPAH-211
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/420
@@ -183,5 +183,10 @@ author: oompah
 created: 2026-07-15 21:38
 ---
 Implementation: Updated 3 test assertions in tests/test_dashboard_release_delivery_ui.py::TestSelection to check _rdiToggleSHAs (the shared helper) instead of _rdiToggleSHA (which now only delegates). The dashboard was previously refactored to extract shared toggle logic into _rdiToggleSHAs but the tests were not updated. Minimal fix: 6-line change, no feature code touched.
+---
+author: oompah
+created: 2026-07-15 21:38
+---
+YOLO: merged PR #420.
 ---
 <!-- COMMENTS:END -->
