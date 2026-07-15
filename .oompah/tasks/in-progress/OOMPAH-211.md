@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-211
 type: feature
-status: Open
+status: In Progress
 priority: 2
 title: Deliver new task comments to running agents
 parent: null
@@ -11,7 +11,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T20:57:20.139800Z'
+updated_at: '2026-07-15T20:57:28.218192Z'
 work_branch: null
 target_branch: null
 review_url: null
