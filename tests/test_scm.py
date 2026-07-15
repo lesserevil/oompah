@@ -473,6 +473,273 @@ class TestFetchCiStatus:
         assert provider._fetch_ci_status("o/r", "deadbeef") == ""
 
 
+class TestFetchCiStatusCheckRunsForbidden:
+    """Regression tests for OOMPAH-210: HTTP 403 on check-runs endpoint.
+
+    When the GitHub token lacks Checks access (common with fine-grained PATs
+    that were not granted Actions: Read or the now-deprecated Checks: Read),
+    oompah must fall back to the GitHub Actions workflow-runs API rather than
+    silently returning an empty status.
+    """
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+    def _provider(
+        self,
+        *,
+        status_payload,
+        check_runs_status=403,
+        workflow_runs_payload=None,
+        workflow_runs_status=200,
+    ):
+        """Create a provider where check-runs always returns check_runs_status.
+
+        ``workflow_runs_payload`` is the JSON body for the
+        ``/actions/runs`` endpoint (used for the fallback path).
+        """
+        provider = GitHubProvider(access_token="t")
+
+        def fake_api(method, path, **kwargs):
+            if path.endswith("/status"):
+                return self._FakeResponse(status_payload)
+            if path.endswith("/check-runs"):
+                # Simulate the 403 (or other non-200) from check-runs
+                return self._FakeResponse({}, status_code=check_runs_status)
+            if path.endswith("/actions/runs"):
+                if workflow_runs_payload is None:
+                    return self._FakeResponse({}, status_code=403)
+                return self._FakeResponse(
+                    workflow_runs_payload, status_code=workflow_runs_status
+                )
+            raise AssertionError(f"unexpected call: {path}")
+
+        provider._api = fake_api
+        return provider
+
+    # ------------------------------------------------------------------ #
+    # Workflow-runs available as fallback                                  #
+    # ------------------------------------------------------------------ #
+
+    def test_check_runs_403_workflow_runs_failed(self):
+        """A failed workflow run is surfaced when check-runs returns 403."""
+        provider = self._provider(
+            status_payload={"state": "pending", "total_count": 0},
+            workflow_runs_payload={"workflow_runs": [
+                {"status": "completed", "conclusion": "failure"},
+                {"status": "completed", "conclusion": "success"},
+            ]},
+        )
+        status, warnings = provider._fetch_ci_status_and_warnings("o/r", "abc")
+        assert status == "failed"
+        assert warnings == []
+
+    def test_check_runs_403_workflow_runs_passed(self):
+        """All-green workflow runs surface 'passed' when check-runs is 403."""
+        provider = self._provider(
+            status_payload={"state": "pending", "total_count": 0},
+            workflow_runs_payload={"workflow_runs": [
+                {"status": "completed", "conclusion": "success"},
+                {"status": "completed", "conclusion": "skipped"},
+            ]},
+        )
+        status, warnings = provider._fetch_ci_status_and_warnings("o/r", "abc")
+        assert status == "passed"
+        assert warnings == []
+
+    def test_check_runs_403_workflow_runs_pending(self):
+        """In-progress workflow runs surface 'pending' when check-runs is 403."""
+        provider = self._provider(
+            status_payload={"state": "pending", "total_count": 0},
+            workflow_runs_payload={"workflow_runs": [
+                {"status": "in_progress", "conclusion": None},
+                {"status": "completed", "conclusion": "success"},
+            ]},
+        )
+        status, warnings = provider._fetch_ci_status_and_warnings("o/r", "abc")
+        assert status == "pending"
+        assert warnings == []
+
+    def test_check_runs_403_workflow_runs_empty_returns_empty(self):
+        """No workflow runs found → empty status (no CI data at all)."""
+        provider = self._provider(
+            status_payload={"state": "pending", "total_count": 0},
+            workflow_runs_payload={"workflow_runs": []},
+        )
+        status, warnings = provider._fetch_ci_status_and_warnings("o/r", "abc")
+        assert status == ""
+        assert warnings == []
+
+    def test_check_runs_403_timed_out_workflow_run_is_failed(self):
+        """A timed-out workflow run is treated as CI failure."""
+        provider = self._provider(
+            status_payload={"state": "pending", "total_count": 0},
+            workflow_runs_payload={"workflow_runs": [
+                {"status": "completed", "conclusion": "timed_out"},
+            ]},
+        )
+        status, warnings = provider._fetch_ci_status_and_warnings("o/r", "abc")
+        assert status == "failed"
+
+    # ------------------------------------------------------------------ #
+    # legacy_pending + 403                                                 #
+    # ------------------------------------------------------------------ #
+
+    def test_legacy_pending_plus_check_runs_403_workflow_failed_returns_pending(self):
+        """When legacy CI is pending, even a failed workflow run should not
+        override it — we trust the legacy pending verdict and wait."""
+        provider = self._provider(
+            status_payload={"state": "pending", "total_count": 2},
+            workflow_runs_payload={"workflow_runs": [
+                {"status": "completed", "conclusion": "failure"},
+            ]},
+        )
+        # legacy_pending is True → result should be "pending" regardless of
+        # workflow-run conclusions (the legacy statuses are still in flight).
+        status, warnings = provider._fetch_ci_status_and_warnings("o/r", "abc")
+        assert status == "pending"
+
+    def test_legacy_pending_plus_check_runs_403_workflow_passed_returns_pending(self):
+        """legacy_pending always wins over a clean workflow fallback."""
+        provider = self._provider(
+            status_payload={"state": "pending", "total_count": 2},
+            workflow_runs_payload={"workflow_runs": [
+                {"status": "completed", "conclusion": "success"},
+            ]},
+        )
+        status, _warnings = provider._fetch_ci_status_and_warnings("o/r", "abc")
+        assert status == "pending"
+
+    # ------------------------------------------------------------------ #
+    # legacy_failure + 403                                                 #
+    # ------------------------------------------------------------------ #
+
+    def test_legacy_failure_plus_check_runs_403_workflow_failed_returns_failed(self):
+        """Both legacy and workflow agree: CI has failed."""
+        provider = self._provider(
+            status_payload={"state": "failure", "total_count": 1},
+            workflow_runs_payload={"workflow_runs": [
+                {"status": "completed", "conclusion": "failure"},
+            ]},
+        )
+        status, _warnings = provider._fetch_ci_status_and_warnings("o/r", "abc")
+        assert status == "failed"
+
+    def test_legacy_failure_plus_check_runs_403_workflow_passed_returns_passed(self):
+        """Workflow-runs override a stale legacy failure when check-runs is 403."""
+        provider = self._provider(
+            status_payload={"state": "failure", "total_count": 1},
+            workflow_runs_payload={"workflow_runs": [
+                {"status": "completed", "conclusion": "success"},
+            ]},
+        )
+        status, _warnings = provider._fetch_ci_status_and_warnings("o/r", "abc")
+        assert status == "passed"
+
+    # ------------------------------------------------------------------ #
+    # Neither check-runs nor workflow-runs available → degraded warning    #
+    # ------------------------------------------------------------------ #
+
+    def test_check_runs_and_workflow_runs_both_403_emits_capability_warning(self):
+        """When both APIs are forbidden, a check_runs_forbidden warning is added."""
+        provider = self._provider(
+            status_payload={"state": "pending", "total_count": 0},
+            # workflow_runs_payload=None means 403 is returned
+        )
+        status, warnings = provider._fetch_ci_status_and_warnings("o/r", "abc")
+        assert status == ""
+        assert len(warnings) == 1
+        assert warnings[0]["type"] == "check_runs_forbidden"
+        assert "Actions: Read" in warnings[0]["message"]
+
+    def test_legacy_pending_both_forbidden_returns_pending_with_warning(self):
+        """legacy_pending + both APIs forbidden → pending + degraded warning."""
+        provider = self._provider(
+            status_payload={"state": "pending", "total_count": 2},
+        )
+        status, warnings = provider._fetch_ci_status_and_warnings("o/r", "abc")
+        assert status == "pending"
+        assert any(w["type"] == "check_runs_forbidden" for w in warnings)
+
+    def test_legacy_failure_both_forbidden_returns_failed_with_warning(self):
+        """legacy_failure + both APIs forbidden → failed + degraded warning."""
+        provider = self._provider(
+            status_payload={"state": "failure", "total_count": 1},
+        )
+        status, warnings = provider._fetch_ci_status_and_warnings("o/r", "abc")
+        assert status == "failed"
+        assert any(w["type"] == "check_runs_forbidden" for w in warnings)
+
+    # ------------------------------------------------------------------ #
+    # _fetch_workflow_runs_ci_status unit tests                           #
+    # ------------------------------------------------------------------ #
+
+    def test_fetch_workflow_runs_no_runs_returns_empty_status(self):
+        """Empty workflow_runs list → ("", []) to distinguish from API-unavailable.
+
+        An empty list means the Actions API is accessible but no workflow runs
+        exist for this SHA (fresh commit or repo doesn't use Actions). We
+        return ("", []) rather than None so the caller does NOT emit a
+        check_runs_forbidden warning — the API is reachable, just empty.
+        """
+        provider = GitHubProvider(access_token="t")
+        provider._api = lambda method, path, **kwargs: self._FakeResponse(
+            {"workflow_runs": []}
+        )
+        result = provider._fetch_workflow_runs_ci_status("o/r", "abc")
+        assert result is not None
+        assert result[0] == ""
+        assert result[1] == []
+
+    def test_fetch_workflow_runs_non_200_returns_none(self):
+        """Non-200 response (including 403) → None."""
+        provider = GitHubProvider(access_token="t")
+        provider._api = lambda method, path, **kwargs: self._FakeResponse(
+            {}, status_code=403
+        )
+        result = provider._fetch_workflow_runs_ci_status("o/r", "abc")
+        assert result is None
+
+    def test_fetch_workflow_runs_failure_conclusion(self):
+        provider = GitHubProvider(access_token="t")
+        provider._api = lambda method, path, **kwargs: self._FakeResponse({
+            "workflow_runs": [
+                {"status": "completed", "conclusion": "failure"},
+            ]
+        })
+        result = provider._fetch_workflow_runs_ci_status("o/r", "abc")
+        assert result is not None
+        assert result[0] == "failed"
+
+    def test_fetch_workflow_runs_all_success(self):
+        provider = GitHubProvider(access_token="t")
+        provider._api = lambda method, path, **kwargs: self._FakeResponse({
+            "workflow_runs": [
+                {"status": "completed", "conclusion": "success"},
+                {"status": "completed", "conclusion": "neutral"},
+            ]
+        })
+        result = provider._fetch_workflow_runs_ci_status("o/r", "abc")
+        assert result is not None
+        assert result[0] == "passed"
+
+    def test_fetch_workflow_runs_in_progress(self):
+        provider = GitHubProvider(access_token="t")
+        provider._api = lambda method, path, **kwargs: self._FakeResponse({
+            "workflow_runs": [
+                {"status": "in_progress", "conclusion": None},
+            ]
+        })
+        result = provider._fetch_workflow_runs_ci_status("o/r", "abc")
+        assert result is not None
+        assert result[0] == "pending"
+
+
 class TestGitHubCiRunnerWarnings:
     """Queued self-hosted Actions jobs should surface unavailable hardware."""
 

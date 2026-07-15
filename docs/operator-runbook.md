@@ -35,7 +35,7 @@ $EDITOR .env
 
 | Variable | Description |
 |---|---|
-| `GITHUB_TOKEN` | GitHub token used by `gh`. For fine-grained PATs, grant each forwarded repository **Webhooks: Read and write**; also grant only the feature-specific permissions oompah uses (for example Contents, Pull requests, and Issues intake). Classic tokens need the applicable repository scopes. You may instead use `gh auth login` and leave this blank. |
+| `GITHUB_TOKEN` | GitHub token used by `gh`. For fine-grained PATs, grant each forwarded repository **Webhooks: Read and write**; also grant only the feature-specific permissions oompah uses (for example Contents, Pull requests, Issues intake, and **Actions: Read** for CI observation). Classic tokens need the applicable repository scopes. You may instead use `gh auth login` and leave this blank. Without `Actions: Read`, oompah falls back to the workflow-runs API and emits a `check_runs_forbidden` capability warning when CI results cannot be read. |
 | `OOMPAH_GITHUB_TRACKER_OWNER` | GitHub org/user that owns the task hub repo (default tracker hub). |
 | `OOMPAH_GITHUB_TRACKER_REPO` | GitHub repo used as the default task hub. |
 | `OOMPAH_WORKSPACE_ROOT` | Directory where agent workspaces and git worktrees are created. Defaults to a temp directory if unset. |

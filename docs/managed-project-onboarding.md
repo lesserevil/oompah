@@ -19,6 +19,12 @@ Before registering the project, confirm the following:
       feature-specific permissions oompah needs (such as Contents, Pull
       requests, and Issues intake); classic PATs need the equivalent repository
       scopes.
+
+      **CI observation** requires **Actions: Read** on the target repository.
+      Without it, oompah cannot detect failed GitHub Actions workflow runs and
+      will surface a `check_runs_forbidden` capability warning in the UI. Grant
+      `Actions: Read` to your fine-grained PAT to restore full CI monitoring
+      and automatic CI-fix task dispatch.
 - [ ] **Repository is accessible.** oompah can clone or access the target repo
       from its network perspective.
 - [ ] **Webhook extension is installed.** `make install-gh-extensions` has been
