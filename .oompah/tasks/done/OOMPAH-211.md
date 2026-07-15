@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T21:25:33.896124Z'
+updated_at: '2026-07-15T21:25:36.226763Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -132,5 +132,10 @@ author: oompah
 created: 2026-07-15 21:25
 ---
 Completion: OOMPAH-211 delivered. New task comments are now injected into running ACP agent sessions as new turns at each ResultMessage boundary. Entry points: (1) POST /api/v1/issues/{id}/comments for native tasks, (2) GitHub webhook comment sync. Guarantees: FIFO ordering, comment_id idempotency, exactly-once per run, audit log, graceful fallback for non-ACP workers. 28 unit+integration tests. Design doc: plans/comment-delivery.md.
+---
+author: oompah
+created: 2026-07-15 21:25
+---
+Implemented mid-run comment delivery: new task comments injected into running ACP agent sessions as new turns at each ResultMessage boundary. Added deliver_comment_to_running_agent() to Orchestrator, per-run asyncio.Queue in _run_acp_worker, multi-turn injection loop in ClaudeAcpBackendSession.run_turn(), server/github intake hooks, idempotency/audit/fallback. 28 new tests, design doc in plans/comment-delivery.md.
 ---
 <!-- COMMENTS:END -->
