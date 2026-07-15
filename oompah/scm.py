@@ -780,6 +780,54 @@ class GitHubProvider(SCMProvider):
                 warnings.append(warning)
         return warnings
 
+    def _fetch_workflow_runs_ci_status(
+        self, repo: str, sha: str
+    ) -> tuple[str, list[dict[str, Any]]] | None:
+        """Query GitHub Actions workflow-runs API as a fallback CI status source.
+
+        Used when ``/commits/{sha}/check-runs`` returns HTTP 403 (the Checks
+        permission is not available on fine-grained PATs). The workflow-runs
+        API requires only ``Actions: Read`` repository permission.
+
+        Returns ``(status, warnings)`` where ``status`` is one of
+        ``"passed"``, ``"failed"``, ``"pending"``, or ``""``  — or ``None``
+        when the endpoint is also unavailable (HTTP 403, other error, or no
+        workflow runs found for this SHA).
+
+        Warnings are always empty for now (runner-availability warnings
+        require check-run data).
+        """
+        try:
+            r = self._api(
+                "GET",
+                f"/repos/{repo}/actions/runs",
+                params={"head_sha": sha, "per_page": 100},
+            )
+            if r.status_code != 200:
+                return None
+            runs = r.json().get("workflow_runs", [])
+            if not runs:
+                # API is accessible but no workflow runs exist for this SHA
+                # yet (e.g. very fresh commit, or repo doesn't use Actions).
+                # Return ("", []) to distinguish from API-unavailable (None).
+                return "", []
+            conclusions = {
+                run.get("conclusion")
+                for run in runs
+                if run.get("conclusion")
+            }
+            statuses = {run.get("status") for run in runs}
+            if "failure" in conclusions or "timed_out" in conclusions:
+                return "failed", []
+            if all(s == "completed" for s in statuses) and all(
+                c in ("success", "neutral", "skipped") for c in conclusions if c
+            ):
+                return "passed", []
+            # Some runs still queued or in progress
+            return "pending", []
+        except (httpx.HTTPError, json.JSONDecodeError):
+            return None
+
     def _fetch_ci_status_and_warnings(
         self, repo: str, sha: str
     ) -> tuple[str, list[dict[str, Any]]]:
@@ -812,6 +860,14 @@ class GitHubProvider(SCMProvider):
         labels. If GitHub is waiting for labels that have no online
         matching repository runner, the returned warning lets the UI
         say "offline/missing runner" instead of only "pending CI".
+
+        When ``/commits/{sha}/check-runs`` returns HTTP 403 (the fine-
+        grained PAT does not have ``Checks: Read`` — which GitHub's PAT
+        editor may not expose), the method falls back to the GitHub
+        Actions ``/actions/runs?head_sha=`` endpoint (requires only
+        ``Actions: Read``). If that too is unavailable, a
+        ``check_runs_forbidden`` capability warning is added so the UI
+        can surface a degraded-state notice. (OOMPAH-210)
         """
         try:
             r = self._api("GET", f"/repos/{repo}/commits/{sha}/status")
@@ -856,6 +912,44 @@ class GitHubProvider(SCMProvider):
                         # the modern check-runs instead.
                         return "passed", warnings
                     return "pending", warnings
+            elif cr.status_code == 403:
+                # The token lacks Checks access (common with fine-grained PATs
+                # that were not granted the Checks permission). Fall back to
+                # the Actions workflow-runs API which only needs Actions: Read.
+                logger.warning(
+                    "GitHub check-runs returned 403 for %s/%s — falling back "
+                    "to workflow-runs API. Grant Actions: Read to your PAT for "
+                    "CI observation.",
+                    repo, sha[:7],
+                )
+                wf_result = self._fetch_workflow_runs_ci_status(repo, sha)
+                if wf_result is not None:
+                    wf_status, wf_warnings = wf_result
+                    if legacy_pending:
+                        return "pending", wf_warnings
+                    if legacy_failure and not wf_status:
+                        return "failed", wf_warnings
+                    if wf_status:
+                        return wf_status, wf_warnings
+                    # wf_status == "" (no workflow runs found) — fall through
+                else:
+                    # Neither check-runs nor workflow-runs are accessible.
+                    # Surface a degraded-capability warning so the UI can
+                    # inform the operator.
+                    forbidden_warning: dict[str, Any] = {
+                        "type": "check_runs_forbidden",
+                        "message": (
+                            "CI check results are unavailable: HTTP 403 from "
+                            "check-runs and workflow-runs APIs. Grant "
+                            "Actions: Read to your fine-grained PAT so oompah "
+                            "can observe CI status."
+                        ),
+                    }
+                    if legacy_pending:
+                        return "pending", [forbidden_warning]
+                    if legacy_failure:
+                        return "failed", [forbidden_warning]
+                    return "", [forbidden_warning]
             # No usable check-runs response. If legacy reported failure,
             # honor it — there's no modern signal to override it.
             if legacy_failure:
