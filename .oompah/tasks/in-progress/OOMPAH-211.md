@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T21:05:44.384690Z'
+updated_at: '2026-07-15T21:05:46.889393Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,5 +97,10 @@ author: oompah
 created: 2026-07-15 20:57
 ---
 Understanding: Previous duplicate investigation confirmed this is a NEW feature. I am now the feature agent implementing: (1) comment-delivery pipeline to inject new task comments into live agent context, (2) ordering/idempotency guarantees, (3) audit logging, (4) retry behavior, (5) graceful fallback for providers that cannot accept mid-run messages, (6) unit and integration tests for exactly-once delivery. Starting codebase exploration now.
+---
+author: oompah
+created: 2026-07-15 21:05
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
