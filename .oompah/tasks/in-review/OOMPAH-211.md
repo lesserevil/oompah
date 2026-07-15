@@ -10,9 +10,9 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T21:30:24.990310Z'
+updated_at: '2026-07-15T21:30:27.192846Z'
 work_branch: OOMPAH-211
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/420
 review_number: '420'
 merged_at: null
@@ -42,6 +42,7 @@ oompah.task_costs:
 oompah.review_url: https://github.com/lesserevil/oompah/pull/420
 oompah.review_number: '420'
 oompah.work_branch: OOMPAH-211
+oompah.target_branch: main
 ---
 ## Summary
 
