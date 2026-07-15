@@ -144,6 +144,10 @@ class ClaudeAcpBackendSession(AcpBackendSession):
         # Removed in run_turn's finally.
         self._sysprompt_file: str | None = None
         self._stop_requested = False
+        # Mid-run comment injection queue (OOMPAH-211). Populated by
+        # inject_message() and drained at each ResultMessage boundary in
+        # run_turn(). None = injection not configured for this session.
+        self._comment_queue: asyncio.Queue | None = options.comment_queue
         self._session_id: str | None = None
         self._final_cost_usd: float | None = None
         self._permission_denials: list[Any] = []
@@ -202,6 +206,24 @@ class ClaudeAcpBackendSession(AcpBackendSession):
         if client is not None:
             with contextlib.suppress(Exception):
                 await client.interrupt()
+
+    # ---- Mid-run comment injection (OOMPAH-211) ----
+
+    def _dequeue_comment(self) -> str | None:
+        """Try to dequeue one pending injected comment. Returns None if
+        the queue is absent or empty. Safe to call from the event loop."""
+        if self._comment_queue is None:
+            return None
+        try:
+            return self._comment_queue.get_nowait()
+        except asyncio.QueueEmpty:
+            return None
+
+    async def inject_message(self, text: str) -> None:
+        """Enqueue *text* for delivery as a new agent turn at the next
+        ResultMessage boundary. No-op when the session has no queue."""
+        if self._comment_queue is not None:
+            await self._comment_queue.put(text)
 
     # ---- Internal: AgentEvent emission for back-compat on_event ----
 
@@ -457,122 +479,161 @@ class ClaudeAcpBackendSession(AcpBackendSession):
 
                 await client.query(self._options.prompt)
 
-                deadline = time.monotonic() + self._options.turn_timeout_s
-                async for msg in client.receive_response():
-                    if self._stop_requested:
-                        self._status = "interrupted"
-                        return
-                    if time.monotonic() > deadline:
-                        yield self._emit(
-                            "acp_turn_timeout",
-                            payload={"timeout_s": self._options.turn_timeout_s},
-                        )
-                        self._status = "stalled"
-                        return
+                # --- Multi-turn injection loop (OOMPAH-211) ---
+                # Each iteration consumes one response from the SDK. When a
+                # ResultMessage arrives, we check the comment_queue for any
+                # pending human comments and inject them as a new agent turn
+                # without restarting the session. This loop runs at most once
+                # for sessions with no comment_queue (the common case).
+                while True:
+                    deadline = time.monotonic() + self._options.turn_timeout_s
+                    _got_result = False  # set True when ResultMessage arrives
 
-                    # ---- Assistant: text, thinking, tool use ----
-                    if isinstance(msg, AssistantMessage):
-                        self._counters.turn_count += 1
-                        self._counters.absorb_assistant_usage(msg.usage)
-                        if msg.error:
-                            self._last_error = str(msg.error)
+                    async for msg in client.receive_response():
+                        if self._stop_requested:
+                            self._status = "interrupted"
+                            return
+                        if time.monotonic() > deadline:
                             yield self._emit(
-                                "acp_assistant_error",
-                                payload={"error": msg.error},
+                                "acp_turn_timeout",
+                                payload={"timeout_s": self._options.turn_timeout_s},
                             )
-                        for block in msg.content or []:
-                            if isinstance(block, TextBlock):
-                                self._counters.last_event = "text"
-                                yield self._emit(
-                                    "acp_text",
-                                    payload={"text": (block.text or "")[:2000]},
-                                )
-                            elif isinstance(block, ThinkingBlock):
-                                self._counters.last_event = "thinking"
-                                yield self._emit(
-                                    "acp_thinking",
-                                    payload={
-                                        "text": (
-                                            getattr(block, "thinking", "") or ""
-                                        )[:2000]
-                                    },
-                                )
-                            elif isinstance(block, ToolUseBlock):
-                                self._counters.last_event = "tool_use"
-                                yield self._emit(
-                                    "acp_tool_use",
-                                    payload={
-                                        "tool": block.name,
-                                        "input": _truncate_for_log(block.input),
-                                        "id": block.id,
-                                    },
-                                )
+                            self._status = "stalled"
+                            return
 
-                    # ---- User-side tool results (echoes from the SDK) ----
-                    elif isinstance(msg, UserMessage):
-                        if isinstance(msg.content, list):
-                            for block in msg.content:
-                                if isinstance(block, ToolResultBlock):
-                                    self._counters.last_event = "tool_result"
+                        # ---- Assistant: text, thinking, tool use ----
+                        if isinstance(msg, AssistantMessage):
+                            self._counters.turn_count += 1
+                            self._counters.absorb_assistant_usage(msg.usage)
+                            if msg.error:
+                                self._last_error = str(msg.error)
+                                yield self._emit(
+                                    "acp_assistant_error",
+                                    payload={"error": msg.error},
+                                )
+                            for block in msg.content or []:
+                                if isinstance(block, TextBlock):
+                                    self._counters.last_event = "text"
                                     yield self._emit(
-                                        "acp_tool_result",
+                                        "acp_text",
+                                        payload={"text": (block.text or "")[:2000]},
+                                    )
+                                elif isinstance(block, ThinkingBlock):
+                                    self._counters.last_event = "thinking"
+                                    yield self._emit(
+                                        "acp_thinking",
                                         payload={
-                                            "tool_use_id": block.tool_use_id,
-                                            "is_error": bool(block.is_error),
-                                            "content": _truncate_for_log(
-                                                block.content
-                                            ),
+                                            "text": (
+                                                getattr(block, "thinking", "") or ""
+                                            )[:2000]
+                                        },
+                                    )
+                                elif isinstance(block, ToolUseBlock):
+                                    self._counters.last_event = "tool_use"
+                                    yield self._emit(
+                                        "acp_tool_use",
+                                        payload={
+                                            "tool": block.name,
+                                            "input": _truncate_for_log(block.input),
+                                            "id": block.id,
                                         },
                                     )
 
-                    # ---- Terminal ----
-                    elif isinstance(msg, ResultMessage):
-                        self._session_id = msg.session_id
-                        self._final_cost_usd = msg.total_cost_usd
-                        if msg.permission_denials:
-                            self._permission_denials = list(msg.permission_denials)
-                        if msg.usage:
-                            # ResultMessage.usage may correct for prefix-
-                            # cache reads etc. Trust it as the final word.
-                            try:
-                                self._counters.input_tokens = int(
-                                    msg.usage.get(
-                                        "input_tokens",
-                                        self._counters.input_tokens,
-                                    )
-                                )
-                                self._counters.output_tokens = int(
-                                    msg.usage.get(
-                                        "output_tokens",
-                                        self._counters.output_tokens,
-                                    )
-                                )
-                            except (TypeError, ValueError):
-                                pass
-                        yield self._emit(
-                            "acp_result",
-                            payload={
-                                "subtype": msg.subtype,
-                                "is_error": msg.is_error,
-                                "stop_reason": msg.stop_reason,
-                                "duration_ms": msg.duration_ms,
-                                "num_turns": msg.num_turns,
-                                "total_cost_usd": msg.total_cost_usd,
-                                "errors": msg.errors,
-                            },
-                        )
-                        if msg.is_error:
-                            self._last_error = (
-                                "; ".join(msg.errors) if msg.errors else "errored"
-                            )
-                            self._status = "failed"
-                        else:
-                            self._status = "succeeded"
-                        return
+                        # ---- User-side tool results (echoes from the SDK) ----
+                        elif isinstance(msg, UserMessage):
+                            if isinstance(msg.content, list):
+                                for block in msg.content:
+                                    if isinstance(block, ToolResultBlock):
+                                        self._counters.last_event = "tool_result"
+                                        yield self._emit(
+                                            "acp_tool_result",
+                                            payload={
+                                                "tool_use_id": block.tool_use_id,
+                                                "is_error": bool(block.is_error),
+                                                "content": _truncate_for_log(
+                                                    block.content
+                                                ),
+                                            },
+                                        )
 
-                # Stream ended without a ResultMessage — treat as error.
-                self._last_error = "stream ended without ResultMessage"
-                self._status = "errored"
+                        # ---- Terminal ----
+                        elif isinstance(msg, ResultMessage):
+                            _got_result = True
+                            self._session_id = msg.session_id
+                            self._final_cost_usd = msg.total_cost_usd
+                            if msg.permission_denials:
+                                self._permission_denials = list(msg.permission_denials)
+                            if msg.usage:
+                                # ResultMessage.usage may correct for prefix-
+                                # cache reads etc. Trust it as the final word.
+                                try:
+                                    self._counters.input_tokens = int(
+                                        msg.usage.get(
+                                            "input_tokens",
+                                            self._counters.input_tokens,
+                                        )
+                                    )
+                                    self._counters.output_tokens = int(
+                                        msg.usage.get(
+                                            "output_tokens",
+                                            self._counters.output_tokens,
+                                        )
+                                    )
+                                except (TypeError, ValueError):
+                                    pass
+                            yield self._emit(
+                                "acp_result",
+                                payload={
+                                    "subtype": msg.subtype,
+                                    "is_error": msg.is_error,
+                                    "stop_reason": msg.stop_reason,
+                                    "duration_ms": msg.duration_ms,
+                                    "num_turns": msg.num_turns,
+                                    "total_cost_usd": msg.total_cost_usd,
+                                    "errors": msg.errors,
+                                },
+                            )
+                            if msg.is_error:
+                                self._last_error = (
+                                    "; ".join(msg.errors) if msg.errors else "errored"
+                                )
+                                self._status = "failed"
+                                return
+
+                            self._status = "succeeded"
+
+                            # --- Comment injection (OOMPAH-211) ---
+                            # If a human posted a comment while we were running,
+                            # deliver it as a new agent turn before returning.
+                            _injected = self._dequeue_comment()
+                            if _injected is not None:
+                                logger.info(
+                                    "Injecting mid-run comment (%d chars) as new agent turn",
+                                    len(_injected),
+                                )
+                                yield self._emit(
+                                    "acp_injected_comment",
+                                    payload={
+                                        "text": _injected[:200],
+                                        "full_length": len(_injected),
+                                    },
+                                )
+                                await client.query(_injected)
+                                # Reset status; outer while will start next
+                                # receive_response() cycle.
+                                self._status = "pending"
+                                break  # break inner for → restart receive loop
+                            # No injected comment → we are done.
+                            return
+
+                    # Inner async-for completed.
+                    if not _got_result:
+                        # Stream ended without a ResultMessage — treat as error.
+                        self._last_error = "stream ended without ResultMessage"
+                        self._status = "errored"
+                        return
+                    # _got_result=True means we injected a comment and broke
+                    # the inner loop. Continue outer while for the next turn.
         except Exception as exc:
             # SDK / subprocess failure. Don't crash the worker — log
             # and let the orchestrator retry.

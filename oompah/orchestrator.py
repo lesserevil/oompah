@@ -872,6 +872,20 @@ class Orchestrator:
         # and the orchestrator operates in single-process / combined mode.
         self._ipc: OrchestratorIPC | None = ipc if ipc is not None else get_ipc()
 
+        # --- Mid-run comment delivery (OOMPAH-211) ---
+        # Per-issue asyncio.Queue for comments pending delivery to a
+        # running ACP agent. Keyed by issue_id. Created when an ACP
+        # worker starts, removed when it exits.
+        self._agent_comment_queues: dict[str, asyncio.Queue] = {}
+        # Idempotency: set of comment_ids already delivered per issue_id.
+        # Prevents double-delivery if deliver_comment_to_running_agent is
+        # called twice with the same comment_id.
+        self._agent_delivered_comment_ids: dict[str, set[str]] = {}
+        # Audit log: list of delivery records per issue_id. Each record:
+        #   {"ts": float, "comment_id": str|None, "text_preview": str,
+        #    "status": "queued"|"fallback"}
+        self._agent_comment_delivery_log: dict[str, list[dict]] = {}
+
     # --- Bounded per-project refresh helpers (TASK-467.2) ---
 
     def _get_project_semaphore(self, project_id: str) -> asyncio.Semaphore:
@@ -12727,6 +12741,104 @@ class Orchestrator:
         except Exception as exc:
             logger.debug("Failed to post comment on %s: %s", identifier, exc)
 
+    def deliver_comment_to_running_agent(
+        self,
+        identifier: str,
+        text: str,
+        *,
+        comment_id: str | None = None,
+    ) -> bool:
+        """Deliver a newly posted comment into a running agent's live context.
+
+        When an ACP agent is active for *identifier*, the comment text is
+        enqueued on the agent's comment queue and will be delivered as a new
+        user turn at the next ResultMessage boundary (between SDK turns).
+
+        Returns True when the comment was successfully queued for delivery.
+        Returns False (graceful fallback) when:
+          - No agent is running for *identifier*.
+          - The running agent uses a backend that does not support injection
+            (e.g. the CLI or api_agent paths); the comment will be available
+            as context on the next dispatch.
+
+        Ordering guarantee: comments are delivered in the order they arrive at
+        this method (FIFO asyncio.Queue). Idempotency: if *comment_id* is
+        supplied and has already been queued for this run, the call is a no-op
+        that returns True (already delivered → idempotent success).
+
+        Audit log: every call appends an entry to
+        ``self._agent_comment_delivery_log[issue_id]`` with timestamp,
+        comment_id, text preview (first 100 chars), and status.
+        """
+        # Resolve issue_id from the identifier string.
+        issue_id: str | None = None
+        for iid, entry in self.state.running.items():
+            if entry.identifier == identifier:
+                issue_id = iid
+                break
+
+        if issue_id is None:
+            logger.debug(
+                "deliver_comment_to_running_agent: no running agent for %s",
+                identifier,
+            )
+            return False
+
+        queue = self._agent_comment_queues.get(issue_id)
+        if queue is None:
+            # Running agent without a comment queue (CLI / api_agent worker).
+            logger.info(
+                "Comment for %s: agent does not support mid-run injection "
+                "(non-ACP worker); comment will be available on next dispatch",
+                identifier,
+            )
+            self._agent_comment_delivery_log.setdefault(issue_id, []).append({
+                "ts": time.time(),
+                "comment_id": comment_id,
+                "text_preview": text[:100],
+                "status": "fallback",
+            })
+            return False
+
+        # Idempotency check.
+        if comment_id is not None:
+            delivered = self._agent_delivered_comment_ids.setdefault(issue_id, set())
+            if comment_id in delivered:
+                logger.debug(
+                    "Comment %s already delivered to agent for %s (idempotent)",
+                    comment_id,
+                    identifier,
+                )
+                return True  # already delivered — idempotent success
+            delivered.add(comment_id)
+
+        # Enqueue for delivery.
+        try:
+            queue.put_nowait(text)
+        except asyncio.QueueFull:
+            # Should not happen with an unbounded queue, but handle defensively.
+            logger.warning(
+                "Comment queue full for %s; dropping comment (comment_id=%s)",
+                identifier,
+                comment_id,
+            )
+            return False
+
+        # Audit log.
+        self._agent_comment_delivery_log.setdefault(issue_id, []).append({
+            "ts": time.time(),
+            "comment_id": comment_id,
+            "text_preview": text[:100],
+            "status": "queued",
+        })
+        logger.info(
+            "Queued mid-run comment for %s (comment_id=%s, queue_size=%d)",
+            identifier,
+            comment_id,
+            queue.qsize(),
+        )
+        return True
+
     def _mark_needs_human(
         self,
         tracker,
@@ -14678,6 +14790,14 @@ class Orchestrator:
                 else "per_token"
             )
 
+            # --- Mid-run comment delivery setup (OOMPAH-211) ---
+            # Create a per-run asyncio.Queue and register it so that
+            # deliver_comment_to_running_agent() can enqueue comments
+            # while the agent is working. The queue is unregistered in
+            # the finally block regardless of how the session exits.
+            _comment_queue: asyncio.Queue = asyncio.Queue()
+            self._agent_comment_queues[issue.id] = _comment_queue
+
             session = AcpAgentSession(
                 workspace_path=workspace_path,
                 prompt=prompt_text,
@@ -14690,11 +14810,18 @@ class Orchestrator:
                 project_store=self.project_store,
                 project_id=issue.project_id or None,
                 task_tracker=task_tracker,
+                comment_queue=_comment_queue,
             )
 
             try:
                 status = await session.run_task()
             finally:
+                # Unregister the comment queue. Any un-drained comments
+                # remain visible in the next dispatch via the task's
+                # comment history.
+                self._agent_comment_queues.pop(issue.id, None)
+                # Clean up idempotency tracking for this run.
+                self._agent_delivered_comment_ids.pop(issue.id, None)
                 try:
                     log_fp.close()
                 except Exception:

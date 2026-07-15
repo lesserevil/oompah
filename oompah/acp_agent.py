@@ -106,6 +106,7 @@ class AcpAgentSession:
         project_store: Any = None,
         project_id: str | None = None,
         task_tracker: Any = None,
+        comment_queue: Any = None,
     ):
         self.workspace_path = workspace_path
         self.prompt = prompt
@@ -125,6 +126,8 @@ class AcpAgentSession:
         self.project_store = project_store
         self.project_id = project_id
         self.task_tracker = task_tracker
+        # Mid-run comment injection queue (OOMPAH-211).
+        self.comment_queue = comment_queue
 
         # Resolve the backend class at construction time so an
         # unregistered name fails fast rather than at dispatch time.
@@ -236,6 +239,7 @@ class AcpAgentSession:
             project_store=self.project_store,
             project_id=self.project_id,
             task_tracker=self.task_tracker,
+            comment_queue=self.comment_queue,
         )
 
         try:
@@ -285,3 +289,31 @@ class AcpAgentSession:
                 await backend_session.close()
             except Exception as exc:  # pragma: no cover — defensive
                 logger.debug("backend close raised: %s", exc)
+
+    async def inject_message(self, text: str) -> bool:
+        """Inject *text* into the running session for delivery at the next
+        turn boundary (OOMPAH-211).
+
+        Returns True when the backend session accepted the message, False when
+        no session is active or the backend does not support injection (e.g.
+        the CLI worker). Callers should treat False as a graceful fallback —
+        the comment will be available on the next dispatch.
+        """
+        backend_session = self._backend_session
+        if backend_session is None:
+            return False
+        inject = getattr(backend_session, "inject_message", None)
+        if inject is None:
+            # Backend does not support mid-run injection — graceful fallback.
+            logger.debug(
+                "Backend %r does not support inject_message; "
+                "comment will be available on next dispatch",
+                self.backend_name,
+            )
+            return False
+        try:
+            await inject(text)
+            return True
+        except Exception as exc:
+            logger.warning("inject_message to backend %r failed: %s", self.backend_name, exc)
+            return False

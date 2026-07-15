@@ -6814,6 +6814,38 @@ async def api_add_comment(identifier: str, request: Request):
             author=author,
         )
 
+        # --- Mid-run comment delivery (OOMPAH-211) ---
+        # When a non-oompah author posts a comment, attempt to deliver it
+        # directly into the running agent's live context (if one is active).
+        # This is fire-and-forget: a failure to deliver is logged but does
+        # NOT fail the comment-add response — the comment is always persisted
+        # in the tracker regardless of delivery outcome.
+        if author != "oompah":
+            try:
+                import hashlib as _hashlib
+                _orch = _get_orchestrator()
+                if _orch is not None:
+                    import time as _time
+                    _comment_id = _hashlib.md5(
+                        f"{resolved_identifier}:{text}:{_time.time()}".encode()
+                    ).hexdigest()
+                    _delivered = _orch.deliver_comment_to_running_agent(
+                        resolved_identifier,
+                        f"[New comment from {author}]\n\n{text}",
+                        comment_id=_comment_id,
+                    )
+                    if _delivered:
+                        logger.info(
+                            "Delivered comment to running agent for %s",
+                            resolved_identifier,
+                        )
+            except Exception as _exc:
+                logger.warning(
+                    "Failed to deliver comment to running agent for %s: %s",
+                    resolved_identifier,
+                    _exc,
+                )
+
         # When a human (non-oompah) answers a question, move the task
         # back to Open so the orchestrator picks it up.
         if author != "oompah":
