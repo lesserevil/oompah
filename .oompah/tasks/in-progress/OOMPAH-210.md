@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:39:59.115969Z'
-updated_at: '2026-07-15T20:45:09.903730Z'
+updated_at: '2026-07-15T20:52:00.042200Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-07-15 20:45
 ---
 Discovery: Root cause found in oompah/scm.py GitHubProvider._fetch_ci_status_and_warnings() (line ~841). When GET /repos/{repo}/commits/{sha}/check-runs returns HTTP 403, the code silently falls through the 'if cr.status_code == 200:' check with NO warning logged. Three failure modes: (1) GitHub Actions-only repo + 403 → returns '' (unknown status, CI failures invisible); (2) legacy-pending + 403 → incorrectly returns '' instead of 'pending'; (3) legacy-failure + 403 → returns 'failed' (works, but no warning surfaced). The ci_warnings list (already used for 'unavailable_runner' warnings and surfaced in the UI) is the right place to expose a 'check_runs_forbidden' warning. Required token permission: fine-grained PAT needs 'Checks: Read'; classic tokens need 'repo' scope. Fix: (a) log WARNING once-per-repo per instance, (b) add check_runs_forbidden warning to ci_warnings, (c) fix legacy-pending+403 to return 'pending', (d) add regression tests.
+---
+author: oompah
+created: 2026-07-15 20:52
+---
+Operator clarification: GitHub's fine-grained PAT editor does not offer a Checks permission, so do not make Checks: Read a prerequisite or ask operators to grant it. Replace/augment check-runs polling with the GitHub Actions workflow-runs/jobs APIs using the available Actions: Read repository permission. The implementation must detect failed workflow jobs and dispatch CI repair from that data, retain a clear degraded-capability warning if neither source is available, and update PAT docs to list Actions: Read for CI observation.
 ---
 <!-- COMMENTS:END -->
