@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:39:59.115969Z'
-updated_at: '2026-07-15T20:41:04.563759Z'
+updated_at: '2026-07-15T20:41:26.686888Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-07-15 20:41
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-15 20:41
+---
+Understanding: This issue requires implementing 403 error handling for GitHub check-runs API. Plan: (1) Find where check-runs are fetched in oompah, (2) Add 403 detection + degraded-state surfacing, (3) Document required token permission, (4) Add fallback for CI repair dispatch when check-runs unavailable, (5) Write regression tests. Starting codebase exploration now.
 ---
 <!-- COMMENTS:END -->
