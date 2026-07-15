@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:39:59.115969Z'
-updated_at: '2026-07-15T20:52:37.233318Z'
+updated_at: '2026-07-15T20:52:39.819306Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,5 +72,15 @@ author: oompah
 created: 2026-07-15 20:52
 ---
 Operator clarification: GitHub's fine-grained PAT editor does not offer a Checks permission, so do not make Checks: Read a prerequisite or ask operators to grant it. Replace/augment check-runs polling with the GitHub Actions workflow-runs/jobs APIs using the available Actions: Read repository permission. The implementation must detect failed workflow jobs and dispatch CI repair from that data, retain a clear degraded-capability warning if neither source is available, and update PAT docs to list Actions: Read for CI observation.
+---
+author: oompah
+created: 2026-07-15 20:52
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 95
+- Tokens: 153 in / 3.9K out [4.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 35s
+- Log: OOMPAH-210__20260715T204107Z.jsonl
 ---
 <!-- COMMENTS:END -->
