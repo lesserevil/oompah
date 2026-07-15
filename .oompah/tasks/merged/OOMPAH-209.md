@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-209
 type: feature
-status: Done
+status: Merged
 priority: 2
 title: Group tracker-only commits in release delivery inventory
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T16:20:43.833803Z'
-updated_at: '2026-07-15T16:22:13.542361Z'
+updated_at: '2026-07-15T16:22:28.198363Z'
 work_branch: null
 target_branch: null
 review_url: null
