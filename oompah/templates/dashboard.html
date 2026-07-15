@@ -7348,7 +7348,7 @@ function _rdiRenderPage(data) {
 
   // Body rows
   const tbody = document.createElement('tbody');
-  for (const row of rows) {
+  for (const row of _rdiGroupTrackerRows(rows, branchNames)) {
     tbody.appendChild(_rdiRenderRow(row, branchNames, data));
   }
   table.appendChild(tbody);
@@ -7404,6 +7404,21 @@ function _rdiRenderBranchFilters(releaseBranches) {
   }
 }
 
+function _rdiGroupTrackerRows(rows, branchNames) {
+  const trackerRows = rows.filter(function(row) { return row.tracker_only; });
+  if (trackerRows.length === 0) return rows;
+  const normalRows = rows.filter(function(row) { return !row.tracker_only; });
+  const status = {};
+  branchNames.forEach(function(branch) { status[branch] = { state: 'not_selected' }; });
+  normalRows.unshift({
+    sha: 'tracker-only-commits', short_sha: trackerRows.length + ' commits',
+    subject: '.oompah tracker updates', author_name: '', authored_at: '',
+    parents: [], selectable: true, association: null, release_status: status,
+    member_shas: trackerRows.map(function(row) { return row.sha; }),
+  });
+  return normalRows;
+}
+
 function _rdiRenderRow(row, branchNames, pageData) {
   const tr = document.createElement('tr');
   const isMerge = !row.selectable;
@@ -7415,11 +7430,13 @@ function _rdiRenderRow(row, branchNames, pageData) {
   if (!isMerge) {
     const cb = document.createElement('input');
     cb.type = 'checkbox';
-    cb.checked = _rdiSelectedSHAs.has(row.sha);
+    const memberSHAs = row.member_shas || [row.sha];
+    cb.checked = memberSHAs.every(function(sha) { return _rdiSelectedSHAs.has(sha); });
+    cb.indeterminate = !cb.checked && memberSHAs.some(function(sha) { return _rdiSelectedSHAs.has(sha); });
     cb.dataset.sha = row.sha;
     cb.setAttribute('aria-label', 'Select commit ' + row.short_sha);
     cb.addEventListener('change', function() {
-      _rdiToggleSHA(this.dataset.sha, this.checked);
+      _rdiToggleSHAs(memberSHAs, this.checked);
     });
     tdSel.appendChild(cb);
   } else {
@@ -7504,7 +7521,7 @@ function _rdiRenderRow(row, branchNames, pageData) {
   }
 
   // Row click handler — clicking outside checkbox/assoc/cell opens drawer
-  if (!isMerge) {
+  if (!isMerge && !row.member_shas) {
     tr.addEventListener('click', function(e) {
       // Skip clicks on interactive elements
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'A' ||
@@ -7595,11 +7612,14 @@ function _rdiHidePagination() {
 // ---------------------------------------------------------------------------
 
 function _rdiToggleSHA(sha, checked) {
-  if (checked) {
-    _rdiSelectedSHAs.add(sha);
-  } else {
-    _rdiSelectedSHAs.delete(sha);
-  }
+  _rdiToggleSHAs([sha], checked);
+}
+
+function _rdiToggleSHAs(shas, checked) {
+  shas.forEach(function(sha) {
+    if (checked) _rdiSelectedSHAs.add(sha);
+    else _rdiSelectedSHAs.delete(sha);
+  });
   _rdiUpdateActionBar();
   _rdiUpdateSelectAll();
 }

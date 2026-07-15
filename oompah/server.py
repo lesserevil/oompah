@@ -3682,6 +3682,7 @@ async def api_release_delivery_commits(
                     "selectable": row.selectable,
                     "association": row.association,
                     "release_status": release_status_json,
+                    "tracker_only": row.tracker_only,
                 }
             )
 

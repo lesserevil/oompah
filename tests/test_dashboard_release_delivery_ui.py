@@ -921,6 +921,13 @@ class TestDataLoading:
         assert "cb.disabled = !hasUndeliveredCommit" in body
         assert "already delivered" in body
 
+    def test_tracker_only_rows_are_grouped_into_one_selectable_checkbox(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiGroupTrackerRows")
+        assert "tracker_only" in body
+        assert "member_shas" in body
+        assert ".oompah tracker updates" in body
+
 
 # ===========================================================================
 # Status Rendering Tests

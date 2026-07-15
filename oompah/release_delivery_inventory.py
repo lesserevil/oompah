@@ -266,6 +266,7 @@ class CommitRow:
     selectable: bool
     association: dict[str, str] | None
     release_status: dict[str, ReleaseStatusCell]
+    tracker_only: bool = False
 
 
 @dataclass
@@ -580,6 +581,19 @@ def _enumerate_commits(
             current.append(line)
 
     return commits
+
+
+def _is_tracker_only_commit(repo_path: str | Path, sha: str) -> bool:
+    """Whether a commit changes files exclusively beneath ``.oompah/``."""
+    result = _run_git(
+        ["diff-tree", "--no-commit-id", "--name-only", "-r", sha],
+        repo_path=repo_path,
+        timeout=10,
+    )
+    paths = [path.strip() for path in result.stdout.splitlines() if path.strip()]
+    return result.returncode == 0 and bool(paths) and all(
+        path == ".oompah" or path.startswith(".oompah/") for path in paths
+    )
 
 
 def _check_ancestry_batch(
@@ -1020,6 +1034,7 @@ class CommitInventoryService:
                 selectable=True,  # only non-merge commits are enumerated
                 association=assoc,
                 release_status=release_status,
+                tracker_only=_is_tracker_only_commit(self._repo_path, ci.sha),
             )
 
             # Apply filter
