@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-211
 type: feature
-status: Backlog
+status: Open
 priority: 2
 title: Deliver new task comments to running agents
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T20:52:07.206772Z'
+updated_at: '2026-07-15T20:54:34.074736Z'
 work_branch: null
 target_branch: null
 review_url: null
