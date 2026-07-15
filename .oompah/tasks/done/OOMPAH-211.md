@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T21:25:46.059526Z'
+updated_at: '2026-07-15T21:25:48.290914Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -143,5 +143,15 @@ author: oompah
 created: 2026-07-15 21:25
 ---
 Implemented mid-run comment delivery: new task comments injected into running ACP agent sessions as new turns at each ResultMessage boundary. Added deliver_comment_to_running_agent() to Orchestrator, per-run asyncio.Queue in _run_acp_worker, multi-turn injection loop in ClaudeAcpBackendSession.run_turn(), server/github intake hooks, idempotency/audit/fallback. 28 new tests, design doc in plans/comment-delivery.md.
+---
+author: oompah
+created: 2026-07-15 21:25
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 97
+- Tokens: 155 in / 4.0K out [4.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 59s
+- Log: OOMPAH-211__20260715T210552Z.jsonl
 ---
 <!-- COMMENTS:END -->
