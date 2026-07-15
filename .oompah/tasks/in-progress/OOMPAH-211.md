@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T21:25:14.536459Z'
+updated_at: '2026-07-15T21:25:24.180956Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -127,5 +127,10 @@ author: oompah
 created: 2026-07-15 21:25
 ---
 Verification: All 28 new tests pass (tests/test_comment_delivery.py). Pre-existing tests unaffected: test_acp_agent.py (42 tests), test_acp_backends.py (44 tests), test_github_intake_bridge.py (56 tests), test_orchestrator_handlers.py all pass. Full suite: 8915 passed, 36 skipped, 3 pre-existing failures in test_dashboard_release_delivery_ui.py (unrelated). Branch pushed: OOMPAH-211. Guarantees delivered: ordering (FIFO), idempotency (comment_id dedup), exactly-once delivery within a run, audit logging, retry via tracker on next dispatch, graceful fallback for CLI/api_agent workers.
+---
+author: oompah
+created: 2026-07-15 21:25
+---
+Completion: OOMPAH-211 delivered. New task comments are now injected into running ACP agent sessions as new turns at each ResultMessage boundary. Entry points: (1) POST /api/v1/issues/{id}/comments for native tasks, (2) GitHub webhook comment sync. Guarantees: FIFO ordering, comment_id idempotency, exactly-once per run, audit log, graceful fallback for non-ACP workers. 28 unit+integration tests. Design doc: plans/comment-delivery.md.
 ---
 <!-- COMMENTS:END -->
