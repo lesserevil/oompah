@@ -11,7 +11,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T20:57:17.930639Z'
+updated_at: '2026-07-15T20:57:20.139800Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -73,5 +73,15 @@ author: oompah
 created: 2026-07-15 20:56
 ---
 HANDOFF to feature agent: Duplicate investigation complete — this is a NEW feature, not a duplicate. No existing task covers delivering task comments to running agents mid-run. The implementation requires: (1) A mechanism to detect when a task has an active agent run, (2) A comment-delivery pipeline to inject new task comments into the live agent context, (3) Ordering and idempotency guarantees (exactly-once delivery), (4) Audit logging of delivery attempts, (5) Retry behavior on transient failures, (6) Graceful fallback for providers that cannot accept mid-run messages, (7) Unit and integration tests proving a running agent receives a newly posted task comment exactly once. Relevant codebase areas to explore: oompah/orchestrator.py (agent dispatch/run lifecycle), oompah/agents.py or similar (active run tracking), any ACP/SDK integration layers. Plans to read: plans/acp-agent.md, plans/acp-backends.md, plans/agent-watcher.md for context on agent run lifecycle.
+---
+author: oompah
+created: 2026-07-15 20:57
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 39
+- Tokens: 53 in / 1.9K out [1.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 31s
+- Log: OOMPAH-211__20260715T205451Z.jsonl
 ---
 <!-- COMMENTS:END -->
