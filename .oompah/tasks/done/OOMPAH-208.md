@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T16:17:14.607504Z'
-updated_at: '2026-07-15T16:18:52.250207Z'
+updated_at: '2026-07-15T16:18:54.690267Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-07-15 16:17
 ---
 Understanding: OOMPAH-208 asks to prevent duplicate commit deliveries to release branches. It was triggered by OOMPAH-199. As Duplicate Investigator, my first step is to read OOMPAH-199 and search for any other related tasks covering the same ground before deciding whether to implement or archive this as a duplicate.
+---
+author: oompah
+created: 2026-07-15 16:18
+---
+Implemented in e5fd7fcb: the popup disables a target when all selected commits are already delivered there, and the queue API removes Git-ancestry-proven commit-target pairs before writing delivery bundles. Added UI and API regression tests; make test passed.
 ---
 <!-- COMMENTS:END -->
