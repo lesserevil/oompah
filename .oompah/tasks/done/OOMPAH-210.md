@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:39:59.115969Z'
-updated_at: '2026-07-15T21:03:11.125766Z'
+updated_at: '2026-07-15T21:03:13.465196Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -156,5 +156,15 @@ author: oompah
 created: 2026-07-15 21:03
 ---
 Added workflow-runs API fallback when check-runs returns 403, check_runs_forbidden degraded-capability warning, updated PAT docs to require Actions: Read, and 17 regression tests.
+---
+author: oompah
+created: 2026-07-15 21:03
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 59
+- Tokens: 92 in / 2.8K out [2.8K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 32s
+- Log: OOMPAH-210__20260715T205343Z.jsonl
 ---
 <!-- COMMENTS:END -->
