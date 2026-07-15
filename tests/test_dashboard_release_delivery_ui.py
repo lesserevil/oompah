@@ -914,6 +914,13 @@ class TestDataLoading:
         assert "_rdiCursor = null" in body
         assert "_rdiLoadPage(null)" in body
 
+    def test_target_picker_disables_branch_when_all_selected_commits_are_delivered(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiRenderTargetBranches")
+        assert "hasUndeliveredCommit" in body
+        assert "cb.disabled = !hasUndeliveredCommit" in body
+        assert "already delivered" in body
+
 
 # ===========================================================================
 # Status Rendering Tests

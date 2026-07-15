@@ -3963,6 +3963,19 @@ def _delivery_validate_git(
     return current_head, None, None
 
 
+def _delivery_landed_commits_by_branch(
+    repo_path: str, commits: list[str], target_branches: list[str]
+) -> dict[str, set[str]]:
+    """Return requested commits already reachable from each target branch."""
+    return {
+        branch: {
+            sha for sha in commits
+            if _delivery_is_ancestor(repo_path, sha, f"refs/remotes/origin/{branch}")
+        }
+        for branch in target_branches
+    }
+
+
 @app.post("/api/v1/projects/{project_id}/release-delivery/commits")
 async def api_post_release_delivery_commits(
     project_id: str, request: Request
@@ -4278,6 +4291,12 @@ async def api_post_release_delivery_commits(
                     status_code=400,
                 )
 
+        # A commit can be present on a release line without a ledger record
+        # (for example, an ordinary merge).  Never queue it a second time.
+        landed_by_branch = await asyncio.to_thread(
+            _delivery_landed_commits_by_branch, repo_path, commits, target_branches
+        )
+
         # ------------------------------------------------------------------
         # 6. Build the ledger store
         # ------------------------------------------------------------------
@@ -4311,39 +4330,27 @@ async def api_post_release_delivery_commits(
                     if d.target_branch == target_branch
                 ]
 
-                # Check for an existing active delivery that contains any of
-                # our requested commits.  An active delivery blocks a new bundle
-                # for this target — the operator must wait for it to complete.
-                active_delivery = None
-                for d in branch_deliveries:
-                    if d.status in _active_statuses:
-                        if any(sha in d.source_commits for sha in commits):
-                            active_delivery = d
-                            break
-
-                if active_delivery is not None:
-                    for sha in commits:
-                        already_active_pairs.append({
-                            "commit": sha,
-                            "target": target_branch,
-                            "delivery_id": active_delivery.id,
-                        })
-                    continue
-
-                # Check whether ALL requested commits are already present in a
-                # merged delivery for this target.  If so, there is nothing new
-                # to deliver.
                 merged_commits: set[str] = set()
                 for d in branch_deliveries:
                     if d.status is AddendumStatus.MERGED:
                         merged_commits.update(d.source_commits)
-
-                if commits and all(sha in merged_commits for sha in commits):
-                    for sha in commits:
+                commits_to_queue: list[str] = []
+                for sha in commits:
+                    if sha in landed_by_branch.get(target_branch, set()) or sha in merged_commits:
                         already_delivered_pairs.append({
                             "commit": sha,
                             "target": target_branch,
                         })
+                        continue
+                    active = next((d for d in branch_deliveries
+                                   if d.status in _active_statuses and sha in d.source_commits), None)
+                    if active is not None:
+                        already_active_pairs.append({"commit": sha, "target": target_branch,
+                                                     "delivery_id": active.id})
+                        continue
+                    commits_to_queue.append(sha)
+
+                if not commits_to_queue:
                     continue
 
                 # No blocking active or merged delivery — create a new bundle.
@@ -4355,7 +4362,7 @@ async def api_post_release_delivery_commits(
                     source_branch=default_branch,
                     source_kind=SourceKind.COMMITS,
                     source_identifier=None,
-                    source_commits=list(commits),
+                    source_commits=commits_to_queue,
                     target_branch=target_branch,
                     status=AddendumStatus.OPEN,
                     queued_at=now,
@@ -4368,14 +4375,14 @@ async def api_post_release_delivery_commits(
                     source_branch=default_branch,
                     source_kind=SourceKind.COMMITS,
                     source_identifier=None,
-                    source_commits=list(commits),
+                    source_commits=commits_to_queue,
                     target_branch=target_branch,
                     status=AddendumStatus.OPEN,
                     queued_at=now,
                     work_branch=work_branch,
                 )
                 new_deliveries.append(delivery)
-                for sha in commits:
+                for sha in commits_to_queue:
                     created_pairs.append({
                         "commit": sha,
                         "target": target_branch,

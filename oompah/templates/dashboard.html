@@ -7693,12 +7693,20 @@ function _rdiRenderTargetBranches() {
     const lbl = document.createElement('label');
     const cb = document.createElement('input');
     cb.type = 'checkbox';
-    cb.checked = true;
+    const selectedRows = (_rdiCurrentPageData.rows || []).filter(function(row) {
+      return _rdiSelectedSHAs.has(row.sha);
+    });
+    const hasUndeliveredCommit = selectedRows.some(function(row) {
+      const cell = (row.release_status || {})[b.name] || { state: 'not_selected' };
+      return cell.state !== 'delivered';
+    });
+    cb.checked = hasUndeliveredCommit;
+    cb.disabled = !hasUndeliveredCommit;
     cb.dataset.branch = b.name;
     cb.setAttribute('aria-label', 'Queue for ' + b.name);
     lbl.appendChild(cb);
     const nameSpan = document.createElement('span');
-    nameSpan.textContent = b.name;
+    nameSpan.textContent = b.name + (hasUndeliveredCommit ? '' : ' (already delivered)');
     lbl.appendChild(nameSpan);
     list.appendChild(lbl);
   }

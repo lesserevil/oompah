@@ -1415,6 +1415,28 @@ class TestPostDuplicatePairs:
         assert data["already_delivered"][0]["target"] == _BRANCH_11
         assert data["created"] == []
 
+    def test_already_delivered_when_commit_is_on_target_branch(self, client, tmp_path):
+        """Git ancestry blocks duplicate delivery even without ledger evidence."""
+        orch = _make_post_orchestrator(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch_git_validation(),
+            patch("oompah.server._delivery_landed_commits_by_branch",
+                  return_value={_BRANCH_11: {_SHA_A}}),
+            patch("oompah.release_delivery_compat.make_delivery_store") as factory,
+        ):
+            store = MagicMock()
+            store.read_ledger.return_value = MagicMock(version=1, deliveries=[])
+            factory.return_value = store
+            response = client.post(_POST_ENDPOINT, json=_post_body(),
+                                   headers={"Idempotency-Key": _IDEM_KEY})
+        assert response.status_code == 201
+        assert response.json()["created"] == []
+        assert response.json()["already_delivered"] == [
+            {"commit": _SHA_A, "target": _BRANCH_11}
+        ]
+        store._write_ledger.assert_not_called()
+
     def test_no_duplicate_deliveries_when_active(self, client, tmp_path):
         """No new ledger write when delivery is already active."""
         active = self._make_active_delivery(_BRANCH_11, [_SHA_A])
