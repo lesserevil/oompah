@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:52:07.206772Z'
-updated_at: '2026-07-15T21:24:09.442118Z'
+updated_at: '2026-07-15T21:25:05.707753Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -117,5 +117,10 @@ author: oompah
 created: 2026-07-15 21:24
 ---
 Discovery: Found the key integration points: (1) AcpAgentSession/ClaudeAcpBackendSession in acp_agent.py + acp_backends/claude.py — the Claude SDK drives multi-turn conversations; after each ResultMessage we can inject new turns via client.query(). (2) Orchestrator._run_acp_worker() creates the session and is the right place to attach a per-run comment queue. (3) api_add_comment in server.py is the main entry point for human-posted comments. (4) handle_github_issue_intake_webhook in github_intake_bridge.py handles GitHub comments. Implementation: structuring the ClaudeAcpBackendSession run_turn() as a while-True outer loop that checks for pending comments at each turn boundary.
+---
+author: oompah
+created: 2026-07-15 21:25
+---
+Implementation: Changed 6 files, added 2 new files. Key changes: (1) ClaudeAcpBackendSession.run_turn() restructured with a while-True outer loop — after each ResultMessage, drains comment_queue and injects pending comments as new SDK turns. (2) Orchestrator.deliver_comment_to_running_agent() added: resolves identifier→issue_id, idempotency check on comment_id, FIFO asyncio.Queue enqueue, audit log. (3) _run_acp_worker() creates and registers per-run asyncio.Queue; unregistered in finally. (4) server.py api_add_comment hook: non-oompah comments trigger delivery. (5) github_intake_bridge.py: _deliver_github_comment_to_agent() helper called on newly imported GitHub comments. (6) plans/comment-delivery.md: design doc with Mermaid sequence diagram.
 ---
 <!-- COMMENTS:END -->
