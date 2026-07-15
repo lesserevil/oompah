@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-210
 type: bug
-status: Done
+status: In Review
 priority: 2
 title: Detect and surface unavailable GitHub check-run access
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:39:59.115969Z'
-updated_at: '2026-07-15T21:03:13.465196Z'
+updated_at: '2026-07-15T21:03:19.926408Z'
 work_branch: null
 target_branch: null
 review_url: null
