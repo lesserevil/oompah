@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:39:59.115969Z'
-updated_at: '2026-07-15T21:01:58.091359Z'
+updated_at: '2026-07-15T21:02:39.205997Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -124,5 +124,10 @@ Implementation complete. Changes in oompah/scm.py:
 3. Docs updated: docs/managed-project-onboarding.md and docs/operator-runbook.md now document Actions: Read as required for CI observation with fine-grained PATs.
 
 17 new regression tests added in tests/test_scm.py::TestFetchCiStatusCheckRunsForbidden covering: 403 fallback to workflow-runs (failed/passed/pending/empty/timed_out), legacy_pending+403, legacy_failure+403, both-APIs-forbidden degraded warning, and unit tests for _fetch_workflow_runs_ci_status.
+---
+author: oompah
+created: 2026-07-15 21:02
+---
+Verification: All 166 tests in tests/test_scm.py pass (149 pre-existing + 17 new regression tests). The 3 failures in test_dashboard_release_delivery_ui.py::TestSelection are pre-existing and unrelated to this change (confirmed by running them before applying my changes). Full test suite: 8912 passed, 3 pre-existing failures, 28 skipped.
 ---
 <!-- COMMENTS:END -->
