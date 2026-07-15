@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:39:59.115969Z'
-updated_at: '2026-07-15T21:02:59.295940Z'
+updated_at: '2026-07-15T21:03:01.523627Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,10 @@ Delivered:
 5. 17 regression tests: cover all failure modes including 403 fallback, empty workflow runs, both-APIs-forbidden warning, and _fetch_workflow_runs_ci_status unit tests.
 
 Branch: OOMPAH-210 (pushed, rebased on main)
+---
+author: oompah
+created: 2026-07-15 21:03
+---
+Added workflow-runs API fallback when check-runs returns 403, check_runs_forbidden degraded-capability warning, updated PAT docs to require Actions: Read, and 17 regression tests.
 ---
 <!-- COMMENTS:END -->
