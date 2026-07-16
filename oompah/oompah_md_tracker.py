@@ -831,7 +831,7 @@ class OompahMarkdownTracker:
             cached = self._read_cache
         if cached is not None:
             return cached
-        records: list[dict[str, Any]] = []
+        records_by_id: dict[str, dict[str, Any]] = {}
         corrupt_stubs: list[dict[str, Any]] = []
         if self.tasks_root.is_dir():
             for path in sorted(self.tasks_root.glob("*/*.md")):
@@ -848,7 +848,36 @@ class OompahMarkdownTracker:
                     )
                     corrupt_stubs.append({"path": path, "stem": path.stem})
                     continue
-                records.append({"path": path, "meta": meta, "body": body})
+                record = {"path": path, "meta": meta, "body": body}
+                identifier = self._lookup_id(str(meta.get("id") or path.stem))
+                previous = records_by_id.get(identifier)
+                if previous is None:
+                    records_by_id[identifier] = record
+                    continue
+
+                # A task can be left in two status directories if concurrent
+                # writers race while moving it.  Never expose both copies to
+                # the board or scheduler: prefer the most recently updated
+                # record and leave the obsolete file for an explicit repair.
+                def recency(item: dict[str, Any]) -> tuple[datetime, str]:
+                    updated = _parse_timestamp(item["meta"].get("updated_at"))
+                    return (
+                        updated or datetime.min.replace(tzinfo=timezone.utc),
+                        str(item["path"]),
+                    )
+
+                winner, loser = (record, previous) if recency(record) > recency(previous) else (previous, record)
+                records_by_id[identifier] = winner
+                logger.error(
+                    "Duplicate native oompah task ID %s at %s and %s; using %s "
+                    "and ignoring %s. Repair the stale record before editing this task.",
+                    identifier,
+                    previous["path"],
+                    record["path"],
+                    winner["path"],
+                    loser["path"],
+                )
+        records = list(records_by_id.values())
         with self._read_cache_guard:
             self._read_cache = records
             self._corrupt_stubs = corrupt_stubs

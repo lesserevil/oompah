@@ -95,6 +95,30 @@ class TestOompahMarkdownTrackerCreate:
 
 
 class TestOompahMarkdownTrackerMutations:
+    def test_duplicate_task_id_uses_most_recent_record_once(self, tmp_path):
+        """A stale status-directory copy cannot create a second board card."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Moved task")
+        tracker.update_issue(issue.identifier, status=MERGED)
+
+        merged_path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "merged" / "REPO-1.md"
+        )
+        stale_path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "open" / "REPO-1.md"
+        )
+        stale_meta = _frontmatter(merged_path)
+        stale_meta["status"] = OPEN
+        stale_meta["updated_at"] = "2026-01-01T00:00:00Z"
+        _write_markdown(stale_path, stale_meta, "## Summary\n\nStale copy\n")
+        tracker.invalidate_read_cache()
+
+        issues = [item for item in tracker.fetch_all_issues() if item.identifier == issue.identifier]
+
+        assert len(issues) == 1
+        assert issues[0].state == MERGED
+        assert tracker.fetch_issue_detail(issue.identifier).state == MERGED
+
     def test_setting_unchanged_metadata_does_not_commit_or_update_timestamp(
         self, tmp_path
     ):
