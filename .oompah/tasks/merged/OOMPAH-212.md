@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-16T19:14:43.051668Z'
-updated_at: '2026-07-16T19:16:44.226815Z'
+updated_at: '2026-07-16T19:16:47.165477Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ Repair the duplicate TRICKLE-16 Open record after confirming the canonical task 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-16 19:16
+---
+Repaired duplicate TRICKLE-16 record and added native tracker read deduplication with regression coverage.
+---
+<!-- COMMENTS:END -->
