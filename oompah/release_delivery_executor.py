@@ -282,6 +282,26 @@ def _is_target_available(
     return True, ""
 
 
+def _merge_source_branch(wt_path: str, source_branch: str) -> None:
+    """Merge the delivery source branch into a release worktree.
+
+    GitHub's ahead/behind display is ancestry-based.  Cherry-picking selected
+    commits copies content but leaves the release line behind ``main``.  A
+    merge preserves that ancestry and makes the release-line relationship
+    visible to operators.
+    """
+    result = subprocess.run(
+        ["git", "merge", "--no-edit", f"origin/{source_branch}"],
+        cwd=wt_path,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "git merge failed").strip()
+        raise CherryPickConflictError(detail)
+
+
 # ---------------------------------------------------------------------------
 # Public execution entry point
 # ---------------------------------------------------------------------------
@@ -298,6 +318,7 @@ def cherry_pick_delivery(
     source_title: str = "",
     project: Any = None,
     catalog: Any = None,
+    sync_source_branch: bool = False,
 ) -> ReleaseDelivery:
     """Apply cherry-pick commits, push the work branch, and open a release PR.
 
@@ -435,6 +456,20 @@ def cherry_pick_delivery(
             error = f"Failed to persist in_review after finding existing PR: {exc}"
             logger.warning("cherry_pick_delivery: %r: %s", delivery_id, error)
             result = _persist_blocked(store, delivery_id, error=str(error)[:600])
+            return result if result is not None else delivery
+
+    # A release-line synchronization deliberately merges the source branch
+    # before evaluating individual selected commits.  This preserves main's
+    # ancestry on the release PR, so GitHub's ahead/behind count is accurate.
+    if sync_source_branch:
+        try:
+            _merge_source_branch(wt_path, delivery.source_branch)
+        except CherryPickConflictError as exc:
+            error = (
+                f"Merge conflict synchronizing {delivery.source_branch!r} into "
+                f"{delivery.target_branch!r}: {exc}"
+            )
+            result = _persist_blocked(store, delivery_id, error=error[:600])
             return result if result is not None else delivery
 
     # ------------------------------------------------------------------

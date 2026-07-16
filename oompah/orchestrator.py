@@ -30,6 +30,9 @@ from oompah.config import (
 )
 from oompah.events import EventBus, EventType
 from oompah.release_addendum_queue import ReleaseAddendumQueue
+from oompah.release_delivery_compat import make_delivery_store
+from oompah.release_delivery_executor import cherry_pick_delivery
+from oompah.release_delivery_queue import ReleaseDeliveryQueue
 from oompah.epic_proposal import process_epic_proposal_issue
 from oompah.github_intake_bridge import (
     poll_github_issue_intake_project,
@@ -9078,6 +9081,57 @@ class Orchestrator:
             except Exception as exc:  # noqa: BLE001
                 logger.debug(
                     "release_pick reconciliation failed for project %s: %s",
+                    getattr(project, "name", project),
+                    exc,
+                )
+
+        # Commit-centric release delivery persists work in a project ledger,
+        # rather than task metadata.  Claim and execute it here so a UI queue
+        # action is processed by the same durable maintenance lane as legacy
+        # release picks.
+        self._process_release_delivery_queue()
+
+    def _process_release_delivery_queue(self) -> None:
+        """Claim and execute one pending ledger delivery per project."""
+        for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("release_picks"):
+                break
+            try:
+                tracker = self._tracker_for_project(str(project.id))
+                store = make_delivery_store(project, git_writer=tracker)
+                queue = ReleaseDeliveryQueue(
+                    str(project.id), store, worker_id="orchestrator-release-delivery"
+                )
+                item = queue.claim_one()
+                if item is None:
+                    continue
+                if not project.repo_url:
+                    logger.warning("release delivery %s has no repository URL", item.delivery_id)
+                    continue
+                scm = detect_provider(
+                    project.repo_url,
+                    access_token=getattr(project, "access_token", None),
+                )
+                repo = extract_repo_slug(project.repo_url)
+                result = cherry_pick_delivery(
+                    store,
+                    item.delivery,
+                    project_store=self.project_store,
+                    project_id=str(project.id),
+                    scm=scm,
+                    repo=repo,
+                    project=project,
+                    sync_source_branch=True,
+                )
+                logger.info(
+                    "release delivery %s for %s is now %s",
+                    result.id,
+                    project.name,
+                    result.status.value,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.exception(
+                    "release delivery processing failed for project %s: %s",
                     getattr(project, "name", project),
                     exc,
                 )

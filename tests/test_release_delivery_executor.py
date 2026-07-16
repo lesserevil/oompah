@@ -35,6 +35,7 @@ from oompah.release_delivery_executor import (
     _find_existing_pr,
     _get_result_commits,
     _is_target_available,
+    _merge_source_branch,
     _open_delivery_pr,
     _persist_blocked,
     cherry_pick_delivery,
@@ -171,6 +172,20 @@ def _make_project_store(wt_path: str = "/fake/wt") -> MagicMock:
     ps = MagicMock()
     ps.create_worktree.return_value = wt_path
     return ps
+
+
+def test_merge_source_branch_merges_origin_source_branch():
+    completed = SimpleNamespace(returncode=0, stdout="", stderr="")
+    with patch("oompah.release_delivery_executor.subprocess.run", return_value=completed) as run:
+        _merge_source_branch("/fake/wt", "main")
+
+    run.assert_called_once_with(
+        ["git", "merge", "--no-edit", "origin/main"],
+        cwd="/fake/wt",
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
 
 
 def _make_pr(url: str = "https://github.com/org/repo/pull/42", number: int = 42, state: str = "open") -> SimpleNamespace:
