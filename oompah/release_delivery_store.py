@@ -245,6 +245,7 @@ _MUTABLE_FIELDS: frozenset[str] = frozenset({
     "result_commits",
     "error",
     "migrated_from",
+    "conflict_agent_task_id",
 })
 
 
@@ -290,6 +291,12 @@ class ReleaseDelivery:
         error: Diagnostic message when ``blocked`` (nullable).
         migrated_from: Legacy addendum ID when this record was migrated from
             task-owned metadata (nullable).
+        conflict_agent_task_id: Internal oompah task identifier for the
+            conflict-resolution agent dispatched when this delivery is
+            ``blocked`` due to a merge conflict.  ``None`` when no agent
+            has been dispatched.  Set before dispatch to guard against
+            duplicate agent creation (idempotency).  Cleared when the
+            delivery is reset to ``open`` after successful resolution.
     """
 
     # -- Immutable source fields --
@@ -314,6 +321,7 @@ class ReleaseDelivery:
     result_commits: list[str] = field(default_factory=list)
     error: str | None = None
     migrated_from: str | None = None
+    conflict_agent_task_id: str | None = None
 
     def to_raw(self) -> dict[str, Any]:
         """Serialise this delivery to a raw dict for YAML storage.
@@ -345,6 +353,7 @@ class ReleaseDelivery:
             "result_commits": list(self.result_commits),
             "error": self.error,
             "migrated_from": self.migrated_from,
+            "conflict_agent_task_id": self.conflict_agent_task_id,
         }
 
     @classmethod
@@ -486,6 +495,7 @@ class ReleaseDelivery:
             result_commits=result_commits,
             error=_opt_str("error"),
             migrated_from=_opt_str("migrated_from"),
+            conflict_agent_task_id=_opt_str("conflict_agent_task_id"),
         )
 
 
@@ -1051,6 +1061,9 @@ class ReleaseDeliveryStore:
                 error=mutable_fields.get("error", current.error),
                 migrated_from=mutable_fields.get(
                     "migrated_from", current.migrated_from
+                ),
+                conflict_agent_task_id=mutable_fields.get(
+                    "conflict_agent_task_id", current.conflict_agent_task_id
                 ),
             )
 

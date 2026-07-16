@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
-from oompah.oompah_md_tracker import OompahMarkdownTracker
+from oompah.oompah_md_tracker import OompahMarkdownTracker, _write_markdown
 from oompah.statuses import (
     ARCHIVED,
     BACKLOG,
