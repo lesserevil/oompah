@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-16T20:45:48.746194Z'
-updated_at: '2026-07-16T20:48:20.403057Z'
+updated_at: '2026-07-16T20:48:23.231570Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ Wire the ledger-backed release delivery queue and executor into the orchestrator
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-16 20:48
+---
+Wired ledger-backed release delivery claiming/execution into the maintenance loop and added source-branch synchronization so release PRs carry main ancestry. The queued Trickle delivery was claimed and correctly blocked on a real merge conflict.
+---
+<!-- COMMENTS:END -->
