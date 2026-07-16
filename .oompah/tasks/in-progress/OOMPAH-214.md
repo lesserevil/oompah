@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-214
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Resolve release-delivery merge conflicts with oompah agents
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-16T20:52:52.685623Z'
-updated_at: '2026-07-16T21:20:14.166789Z'
+updated_at: '2026-07-16T21:20:24.272107Z'
 work_branch: OOMPAH-214
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/421
