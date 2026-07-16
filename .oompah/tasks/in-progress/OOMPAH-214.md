@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-16T20:52:52.685623Z'
-updated_at: '2026-07-16T21:03:32.117126Z'
+updated_at: '2026-07-16T21:10:48.963194Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,5 +58,10 @@ author: oompah
 created: 2026-07-16 21:03
 ---
 Implementation: Adding conflict-resolution agent dispatch for ledger deliveries. Changes: (1) release_delivery_store.py: new mutable field conflict_agent_task_id to track dispatched agent task (audit + idempotency); (2) orchestrator.py: new _dispatch_delivery_conflict_agents() scans all projects for blocked-with-conflict deliveries and dispatches an internal oompah task (NEEDS_REBASE + merge-conflict label, using self.tracker) for each unresolved one; (3) _dispatch_conflict_agent_for_delivery() creates the task and updates delivery.conflict_agent_task_id atomically; (4) _reconcile_release_picks_pass() now calls _dispatch_delivery_conflict_agents() after the queue pass. No child task created in the managed project. Retry/idempotency: delivery.conflict_agent_task_id guards against re-dispatch. Tests added in tests/test_release_delivery_conflict_dispatch.py.
+---
+author: oompah
+created: 2026-07-16 21:10
+---
+Verification: All 30 new tests pass (0 failures). Full test suite: 1 pre-existing failure (test_duplicate_task_id_uses_most_recent_record_once in oompah_md_tracker — missing _write_markdown helper, unrelated to this change), 8967 passed. The Trickle release/0.11 delivery (rd_a9e8232d4f3845e49d95f075861d3ec5) is now in_review with PR#279 created at https://github.com/NVIDIA-Omniverse/trickle/pull/279 (1480 commits landed). Branch OOMPAH-214 pushed to origin.
 ---
 <!-- COMMENTS:END -->
