@@ -1414,7 +1414,7 @@ class GitHubProvider(SCMProvider):
     def merge_review(self, repo: str, review_id: str) -> tuple[bool, str]:
         try:
             r = self._api("PUT", f"/repos/{repo}/pulls/{review_id}/merge",
-                          json={"merge_method": "squash"})
+                          json={"merge_method": "merge"})
             if r.status_code == 200:
                 # Delete source branch (post-merge cleanup) — but never a
                 # protected/long-lived branch (release/*, main, ...), even if
