@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-16T20:52:52.685623Z'
-updated_at: '2026-07-16T21:23:51.768920Z'
+updated_at: '2026-07-16T21:30:36.687186Z'
 work_branch: OOMPAH-214
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/421
@@ -181,5 +181,10 @@ author: oompah
 created: 2026-07-16 21:23
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-16 21:30
+---
+Understanding: The failing CI test is tests/test_oompah_md_tracker.py::TestOompahMarkdownTrackerMutations::test_duplicate_task_id_uses_most_recent_record_once. Root cause: the test calls _write_markdown() (from oompah.oompah_md_tracker) without importing it. Fix: add _write_markdown to the top-level import at line 11 of that test file.
 ---
 <!-- COMMENTS:END -->
