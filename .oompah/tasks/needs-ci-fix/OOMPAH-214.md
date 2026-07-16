@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-16T20:52:52.685623Z'
-updated_at: '2026-07-16T21:19:09.487844Z'
+updated_at: '2026-07-16T21:19:11.734071Z'
 work_branch: OOMPAH-214
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/421
@@ -114,5 +114,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 18m 13s
 - Log: OOMPAH-214__20260716T205317Z.jsonl
+---
+author: oompah
+created: 2026-07-16 21:19
+---
+YOLO: CI tests failed on MR #421. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
