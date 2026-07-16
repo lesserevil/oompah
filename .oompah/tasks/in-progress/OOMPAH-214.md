@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-214
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Resolve release-delivery merge conflicts with oompah agents
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-16T20:52:52.685623Z'
-updated_at: '2026-07-16T20:53:02.687673Z'
+updated_at: '2026-07-16T20:53:07.451983Z'
 work_branch: null
 target_branch: null
 review_url: null
