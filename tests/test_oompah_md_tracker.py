@@ -95,6 +95,31 @@ class TestOompahMarkdownTrackerCreate:
 
 
 class TestOompahMarkdownTrackerMutations:
+    def test_setting_unchanged_metadata_does_not_commit_or_update_timestamp(
+        self, tmp_path
+    ):
+        """Repeated review reconciliation must not churn the default branch."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Already linked to a review")
+
+        with patch.object(tracker, "_commit_and_push") as commit:
+            tracker.set_metadata_field(
+                issue.identifier,
+                "oompah.review_url",
+                "https://github.com/example/repo/pull/7",
+            )
+            path = tmp_path / "repo" / ".oompah" / "tasks" / "backlog" / "REPO-1.md"
+            first_meta = _frontmatter(path)
+
+            tracker.set_metadata_field(
+                issue.identifier,
+                "oompah.review_url",
+                "https://github.com/example/repo/pull/7",
+            )
+
+        assert commit.call_count == 1
+        assert _frontmatter(path)["updated_at"] == first_meta["updated_at"]
+
     def test_update_status_moves_file_between_status_directories(self, tmp_path):
         tracker = _tracker(tmp_path)
         issue = tracker.create_issue("Move me")

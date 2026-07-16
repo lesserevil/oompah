@@ -511,15 +511,26 @@ class OompahMarkdownTracker:
             if not rec:
                 raise TrackerError(f"Native oompah task not found: {identifier}")
             meta = dict(rec["meta"])
-            meta[key] = value
             compat_key = key.removeprefix("oompah.")
-            if compat_key in {
+            compat_keys = {
                 "work_branch",
                 "target_branch",
                 "review_url",
                 "review_number",
                 "merged_at",
-            }:
+            }
+            # Review reconciliation calls this method on every poll.  A
+            # metadata value that is already present must be a true no-op:
+            # changing only ``updated_at`` creates a tracker commit, which in
+            # turn invalidates GitHub merge queues for repositories that keep
+            # their native tasks on the default branch.
+            if meta.get(key) == value and (
+                compat_key not in compat_keys or meta.get(compat_key) == value
+            ):
+                return
+
+            meta[key] = value
+            if compat_key in compat_keys:
                 meta[compat_key] = value
             meta["updated_at"] = _now_iso()
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
