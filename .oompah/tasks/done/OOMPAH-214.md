@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-16T20:52:52.685623Z'
-updated_at: '2026-07-16T21:11:15.055868Z'
+updated_at: '2026-07-16T21:11:17.370574Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -78,5 +78,10 @@ Completion: Delivered two things:
    - Wired into _reconcile_release_picks_pass() after queue execution
 
 2. TRICKLE UNBLOCK: Resolved two conflicts in the blocked release/0.11 delivery worktree, pushed the work branch, reset delivery to open. Orchestrator created PR#279 at https://github.com/NVIDIA-Omniverse/trickle/pull/279 (1480 commits, delivery is now in_review).
+---
+author: oompah
+created: 2026-07-16 21:11
+---
+Implemented conflict-resolution agent dispatch for blocked ledger deliveries (conflict_agent_task_id field, _dispatch_delivery_conflict_agents, _dispatch_conflict_agent_for_delivery, _is_delivery_conflict_error, 30 tests). Applied to blocked Trickle release/0.11 delivery — conflicts resolved, PR#279 created at https://github.com/NVIDIA-Omniverse/trickle/pull/279.
 ---
 <!-- COMMENTS:END -->
