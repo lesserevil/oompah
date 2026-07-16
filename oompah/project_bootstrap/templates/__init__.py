@@ -236,6 +236,71 @@ exit 0
 """
 
 
+RELEASE_NOTES_WORKFLOW = f"""\
+name: Filtered release notes
+
+{COMMENT_BEGIN_MARKER}
+# Publish release notes that omit commits changing only .oompah/**.
+{COMMENT_END_MARKER}
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to refresh
+        required: true
+      previous_tag:
+        description: Previous release tag
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  filter-notes:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{{{ github.token }}}}
+      TAG: ${{{{ inputs.tag || github.event.release.tag_name }}}}
+      PREVIOUS_TAG: ${{{{ inputs.previous_tag || github.event.release.previous_tag_name }}}}
+    steps:
+      - name: Generate filtered commit notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$PREVIOUS_TAG" ]]; then
+            echo "Previous tag is required; rerun with workflow_dispatch and previous_tag." >&2
+            exit 1
+          fi
+          generated=$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            -f tag_name="$TAG" -f previous_tag_name="$PREVIOUS_TAG")
+          body=$(jq -r .body <<<"$generated")
+          commits=$(gh api "repos/$GITHUB_REPOSITORY/compare/$PREVIOUS_TAG...$TAG" --paginate \
+            --jq '.commits[] | @base64')
+          filtered=""
+          while IFS= read -r encoded; do
+            [[ -z "$encoded" ]] && continue
+            commit=$(base64 --decode <<<"$encoded")
+            sha=$(jq -r .sha <<<"$commit")
+            subject=$(jq -r '.commit.message | split("\\n")[0]' <<<"$commit")
+            files=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.files[].filename')
+            [[ -z "$files" ]] && continue
+            if grep -qv '^\\.oompah/' <<<"$files"; then
+              filtered+="- $subject ($sha)"$'\\n'
+            fi
+          done <<<"$commits"
+          {{
+            echo "$body"
+            echo
+            echo "## Included commits"
+            echo "$filtered"
+          }} > RELEASE_NOTES.md
+          gh release edit "$TAG" --notes-file RELEASE_NOTES.md
+"""
+
+
 CANONICAL_FILES: dict[str, str] = {
     "AGENTS.md": AGENTS_MD,
     "Makefile": MAKEFILE,
@@ -243,6 +308,7 @@ CANONICAL_FILES: dict[str, str] = {
     "docs/README.md": DOCS_README,
     "plans/README.md": PLANS_README,
     "scripts/githooks/pre-commit": PRE_COMMIT,
+    ".github/workflows/filtered-release-notes.yml": RELEASE_NOTES_WORKFLOW,
 }
 
 EXECUTABLE_PATHS = {"scripts/githooks/pre-commit"}

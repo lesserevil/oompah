@@ -67,6 +67,11 @@ def test_apply_writes_missing_files_without_commit(tmp_path: Path) -> None:
     assert hook.stat().st_mode & stat.S_IXUSR
     assert (repo / "docs/README.md").exists()
     assert (repo / "plans/README.md").exists()
+    workflow = (repo / ".github/workflows/filtered-release-notes.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "Generate filtered commit notes" in workflow
+    assert "grep -qv '^\\.oompah/'" in workflow
 
 
 def test_bootstrap_distinguishes_plans_from_tracked_tasks(tmp_path: Path) -> None:

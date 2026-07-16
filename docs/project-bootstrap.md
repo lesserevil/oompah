@@ -15,6 +15,7 @@ Project bootstrap covers these files:
 - `docs/README.md`
 - `plans/README.md`
 - `scripts/githooks/pre-commit`
+- `.github/workflows/filtered-release-notes.yml`
 
 `AGENTS.md` is special: when it already exists, oompah updates only the
 oompah-managed task-tracking section and preserves the rest of the file.
@@ -26,6 +27,11 @@ accepted or needs status, ownership, dependencies, or orchestration.
 Other files are only updated when they are missing or when they already carry
 an oompah bootstrap marker. Existing project-owned files without that marker
 are reported as protected and left unchanged.
+
+The release-notes workflow refreshes a published release with GitHub-generated
+notes plus a filtered commit list. Commits whose changed paths are exclusively
+under `.oompah/` are omitted. For a first release or an unusual history, run it
+manually and provide the preceding tag.
 
 ## Local CLI
 
