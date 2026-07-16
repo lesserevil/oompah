@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-16T20:52:52.685623Z'
-updated_at: '2026-07-16T20:53:14.821975Z'
+updated_at: '2026-07-16T20:53:44.916893Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-16 20:53
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-16 20:53
+---
+UI requirement: add a clear release-delivery status view for each target branch. It must show queued, claimed/in-progress, agent conflict-resolution in progress, blocked (with actionable error and retry), PR URL/number, CI/review state, and merged/archived outcomes. The view must update without requiring users to inspect ledger files or server logs. Include UI/API tests covering these states. This is part of the task's acceptance criteria, not a follow-up.
 ---
 <!-- COMMENTS:END -->
