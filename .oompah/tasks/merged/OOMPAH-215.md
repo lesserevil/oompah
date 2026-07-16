@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-215
 type: task
-status: Backlog
+status: Merged
 priority: null
 title: Bootstrap filtered GitHub release-notes workflow
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-16T21:19:00.154423Z'
-updated_at: '2026-07-16T21:19:00.154423Z'
+updated_at: '2026-07-16T21:20:02.114694Z'
 work_branch: null
 target_branch: null
 review_url: null
