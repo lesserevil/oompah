@@ -33,6 +33,7 @@ from oompah.release_addendum_queue import ReleaseAddendumQueue
 from oompah.release_delivery_compat import make_delivery_store
 from oompah.release_delivery_executor import cherry_pick_delivery
 from oompah.release_delivery_queue import ReleaseDeliveryQueue
+from oompah.release_delivery_store import make_delivery_worktree_key
 from oompah.epic_proposal import process_epic_proposal_issue
 from oompah.github_intake_bridge import (
     poll_github_issue_intake_project,
@@ -519,6 +520,34 @@ _CONFLICT_ERROR_SUBSTRINGS: tuple[str, ...] = (
     "has conflicts",
     "branch is not up to date",  # not strictly a conflict, but agent-fixable
 )
+
+
+def _is_delivery_conflict_error(error: str) -> bool:
+    """Return True when *error* from a blocked delivery indicates a merge conflict.
+
+    Used by :meth:`~Orchestrator._dispatch_delivery_conflict_agents` to
+    distinguish deliveries that need a conflict-resolution agent from those
+    that are blocked for other reasons (missing commits, push failures, etc.).
+
+    Args:
+        error: The ``error`` field from a ``blocked``
+            :class:`~oompah.release_delivery_store.ReleaseDelivery`.
+
+    Returns:
+        ``True`` when the error message mentions a merge conflict.
+    """
+    if not error:
+        return False
+    haystack = error.lower()
+    return any(
+        needle in haystack
+        for needle in (
+            "merge conflict",
+            "conflict",
+            "automatic merge failed",
+            "cannot merge",
+        )
+    )
 
 
 def _classify_yolo_merge_error(msg: str) -> str:
@@ -9090,6 +9119,11 @@ class Orchestrator:
         # action is processed by the same durable maintenance lane as legacy
         # release picks.
         self._process_release_delivery_queue()
+        # After execution, dispatch internal conflict-resolution agents for
+        # any deliveries that are blocked due to merge conflicts.  This must
+        # run after _process_release_delivery_queue so newly-blocked deliveries
+        # are visible before the dispatch pass.
+        self._dispatch_delivery_conflict_agents()
 
     def _process_release_delivery_queue(self) -> None:
         """Claim and execute one pending ledger delivery per project."""
@@ -9135,6 +9169,161 @@ class Orchestrator:
                     getattr(project, "name", project),
                     exc,
                 )
+
+    # ------------------------------------------------------------------
+    # Conflict-resolution agent dispatch for ledger deliveries (OOMPAH-214)
+    # ------------------------------------------------------------------
+
+    def _dispatch_delivery_conflict_agents(self) -> None:
+        """Dispatch an internal conflict-resolution task for each delivery
+        that is ``blocked`` due to a merge conflict and has not yet had an
+        agent dispatched.
+
+        Design invariants
+        -----------------
+
+        * Only ``blocked`` deliveries with a non-empty ``error`` containing
+          conflict keywords are considered.
+        * Idempotency: ``conflict_agent_task_id`` is set before the task is
+          created; a second call for the same delivery is a no-op.
+        * No child task is created in the managed project.  The
+          conflict-resolution task is created in the oompah management tracker
+          (``self.tracker``) so it is invisible to the managed project's users.
+        * On recovery, the conflict-resolution agent resets the delivery to
+          ``open`` and clears ``conflict_agent_task_id`` so the executor can
+          re-run and create the PR.
+        """
+        from oompah.release_addendum_schema import AddendumStatus as _AS
+
+        for project in self.project_store.list_all():
+            try:
+                tracker = self._tracker_for_project(str(project.id))
+                store = make_delivery_store(project, git_writer=tracker)
+                ledger = store.read_ledger()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "_dispatch_delivery_conflict_agents: cannot read ledger "
+                    "for project %s: %s",
+                    getattr(project, "name", project),
+                    exc,
+                )
+                continue
+
+            for delivery in ledger.deliveries:
+                if delivery.status is not _AS.BLOCKED:
+                    continue
+                if not delivery.error:
+                    continue
+                if not _is_delivery_conflict_error(delivery.error):
+                    continue
+                if delivery.conflict_agent_task_id:
+                    # Already dispatched — skip (idempotent).
+                    logger.debug(
+                        "_dispatch_delivery_conflict_agents: delivery %r already "
+                        "has conflict agent %r; skipping",
+                        delivery.id,
+                        delivery.conflict_agent_task_id,
+                    )
+                    continue
+                try:
+                    self._dispatch_conflict_agent_for_delivery(project, store, delivery)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "_dispatch_delivery_conflict_agents: failed to dispatch "
+                        "conflict agent for delivery %r in project %s: %s",
+                        delivery.id,
+                        getattr(project, "name", project),
+                        exc,
+                    )
+
+    def _dispatch_conflict_agent_for_delivery(
+        self,
+        project: Any,
+        store: Any,
+        delivery: Any,
+    ) -> None:
+        """Create an internal oompah conflict-resolution task for *delivery*
+        and stamp the delivery record with the new task ID.
+
+        The task is created in the oompah management tracker (``self.tracker``)
+        so it does not appear in the managed project's user-facing backlog.
+        The delivery's ``conflict_agent_task_id`` is updated atomically to
+        prevent duplicate dispatches across ticks.
+
+        Args:
+            project: Project owning the delivery (provides ``name``,
+                ``repo_path``, ``id``).
+            store: :class:`~oompah.release_delivery_store.ReleaseDeliveryStore`
+                for the managed project.
+            delivery: The ``blocked``
+                :class:`~oompah.release_delivery_store.ReleaseDelivery` to
+                dispatch a conflict agent for.
+        """
+        worktree_key = make_delivery_worktree_key(delivery)
+        try:
+            wt_path = self.project_store.worktree_path_for(
+                str(project.id), worktree_key
+            )
+        except Exception:  # noqa: BLE001
+            wt_path = "<unknown — check delivery worktree key>"
+
+        project_name = getattr(project, "name", str(project.id))
+        title = (
+            f"Resolve merge conflict: {project_name} {delivery.target_branch} "
+            f"delivery {delivery.id}"
+        )
+        description = (
+            f"Merge conflict in release delivery for project **{project_name}**.\n\n"
+            f"**Delivery ID:** `{delivery.id}`\n"
+            f"**Target branch:** `{delivery.target_branch}`\n"
+            f"**Work branch:** `{delivery.work_branch or '<not yet set>'}`\n"
+            f"**Worktree path:** `{wt_path}`\n\n"
+            f"**Conflict error:**\n```\n{delivery.error}\n```\n\n"
+            "**Instructions for the conflict-resolution agent:**\n\n"
+            "1. Navigate to the worktree path shown above.\n"
+            "2. Resolve all merge conflicts (check `git status`).\n"
+            "3. Stage the resolved files: `git add <files>`\n"
+            "4. Commit the resolution: `git commit --no-edit`\n"
+            f"5. Push the branch: "
+            f"`git push origin HEAD:{delivery.work_branch}`\n"
+            "6. Reset the delivery to open so the executor creates the PR:\n"
+            "   ```python\n"
+            "   from oompah.release_delivery_store import ReleaseDeliveryStore\n"
+            "   from oompah.release_addendum_schema import AddendumStatus\n"
+            f"   store = ReleaseDeliveryStore({project.repo_path!r}, "
+            f"{str(project.id)!r})\n"
+            f"   store.update({delivery.id!r}, "
+            f"status=AddendumStatus.OPEN,\n"
+            "              claimed_by=None, lease_expires_at=None,\n"
+            "              conflict_agent_task_id=None)\n"
+            "   ```\n\n"
+            "_This task was auto-filed by oompah for internal conflict resolution. "
+            "Do NOT create a branch or PR for this task itself._"
+        )
+
+        new_task = self.tracker.create_issue(
+            title=title,
+            issue_type="task",
+            description=description,
+            priority=0,
+            labels=["merge-conflict"],
+            initial_status=NEEDS_REBASE,
+        )
+
+        # Stamp the delivery with the new task ID so we don't re-dispatch.
+        store.update(
+            delivery.id,
+            conflict_agent_task_id=new_task.identifier,
+        )
+        logger.info(
+            "_dispatch_conflict_agent_for_delivery: filed %s for delivery %r "
+            "(project=%s target=%s worktree=%s)",
+            new_task.identifier,
+            delivery.id,
+            project_name,
+            delivery.target_branch,
+            wt_path,
+        )
 
     def _label_merged_epics(self) -> None:
         """When an epic→main PR has merged, mark the epic AND all its
