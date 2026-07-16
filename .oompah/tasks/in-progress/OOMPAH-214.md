@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-16T20:52:52.685623Z'
-updated_at: '2026-07-16T21:33:59.217687Z'
+updated_at: '2026-07-16T21:34:09.915836Z'
 work_branch: OOMPAH-214
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/421
@@ -196,5 +196,10 @@ author: oompah
 created: 2026-07-16 21:33
 ---
 Verification: All 8968 tests pass locally after fix (was 8967 passed + 1 FAILED). CI re-run triggered on PR #421 (run 29536475686, all 3 matrix jobs pending). Pushed with --force-with-lease to origin/OOMPAH-214.
+---
+author: oompah
+created: 2026-07-16 21:34
+---
+Completion: Fixed CI failure on PR #421. Root cause: test_duplicate_task_id_uses_most_recent_record_once in tests/test_oompah_md_tracker.py used _write_markdown() without importing it (NameError). Fix: added _write_markdown to the top-level import from oompah.oompah_md_tracker. 1-line change, all 8968 tests pass locally. PR CI re-running at https://github.com/lesserevil/oompah/actions/runs/29536475686.
 ---
 <!-- COMMENTS:END -->
