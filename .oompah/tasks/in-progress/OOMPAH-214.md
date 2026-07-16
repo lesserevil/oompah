@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-16T20:52:52.685623Z'
-updated_at: '2026-07-16T20:58:11.328956Z'
+updated_at: '2026-07-16T21:03:32.117126Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-07-16 20:55
 ---
 Discovery: Found the blocked Trickle delivery rd_a9e8232d4f3845e49d95f075861d3ec5 in worktree /home/shedwards/.oompah/worktrees/trickle/release-rd-f075861d3ec5-release-0.11 on branch oompah/release/rd-f075861d3ec5/release-0.11. Two conflicts: (1) .oompah/tasks/backlog/TRICKLE-11.md — deleted in main (archived to .oompah/tasks/archived/TRICKLE-11.md after PR#273 merged), modified in HEAD. Fix: accept deletion via git rm. (2) crates/trickle-client/src/overlay.rs — HEAD has File Issue button tests (TRICKLE-11), main added pacing overlay tests (TRICKLE-19) in the same test section. Fix: merge both sets of tests together.
+---
+author: oompah
+created: 2026-07-16 21:03
+---
+Implementation: Adding conflict-resolution agent dispatch for ledger deliveries. Changes: (1) release_delivery_store.py: new mutable field conflict_agent_task_id to track dispatched agent task (audit + idempotency); (2) orchestrator.py: new _dispatch_delivery_conflict_agents() scans all projects for blocked-with-conflict deliveries and dispatches an internal oompah task (NEEDS_REBASE + merge-conflict label, using self.tracker) for each unresolved one; (3) _dispatch_conflict_agent_for_delivery() creates the task and updates delivery.conflict_agent_task_id atomically; (4) _reconcile_release_picks_pass() now calls _dispatch_delivery_conflict_agents() after the queue pass. No child task created in the managed project. Retry/idempotency: delivery.conflict_agent_task_id guards against re-dispatch. Tests added in tests/test_release_delivery_conflict_dispatch.py.
 ---
 <!-- COMMENTS:END -->
