@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-216
 type: task
-status: In Review
+status: Merged
 priority: null
 title: Make Release Delivery show reconciled branch status and actionable retries
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T00:40:53.660377Z'
-updated_at: '2026-07-17T01:04:21.121576Z'
+updated_at: '2026-07-17T01:09:02.504059Z'
 work_branch: OOMPAH-216
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/423
