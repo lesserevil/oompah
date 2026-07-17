@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-17T18:24:58.199363Z'
-updated_at: '2026-07-17T19:44:55.826581Z'
+updated_at: '2026-07-17T19:44:58.177560Z'
 work_branch: OOMPAH-219
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/424
@@ -309,5 +309,10 @@ Discovery: Found 4 pre-existing CI failures from earlier commits (not introduced
 Fixes needed:
 - oompah/orchestrator.py: entry.id → entry.identifier (4 occurrences in _handoff_completed_focus)
 - tests/test_orchestrator_duplicate_detection.py: entry.id → entry.identifier (3 assertion lines) + add _tracker_for_project mock to setup
+---
+author: oompah
+created: 2026-07-17 19:44
+---
+YOLO: merged PR #424.
 ---
 <!-- COMMENTS:END -->
