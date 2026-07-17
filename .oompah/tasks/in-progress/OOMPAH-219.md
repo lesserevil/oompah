@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T18:24:58.199363Z'
-updated_at: '2026-07-17T18:36:14.345458Z'
+updated_at: '2026-07-17T18:38:36.761001Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,31 @@ author: oompah
 created: 2026-07-17 18:36
 ---
 Understanding: Investigating OOMPAH-219 as Duplicate Investigator. The issue describes a race condition in shared-epic worktrees where one task's uncommitted changes get absorbed by another task's commit (TRICKLE-44/TRICKLE-45 scenario). Searching for duplicate or closely related tasks before any implementation work.
+---
+author: oompah
+created: 2026-07-17 18:38
+---
+Focus handoff: duplicate_detector
+
+Outcome: No duplicate found. OOMPAH-219 describes a novel feature — persistent reconciliation for shared-epic worktree commit races — that is not covered by any existing task.
+
+Search scope:
+- All .oompah/tasks/{archived,merged,done,in-progress} files (150+ tasks)
+- oompah/ source, plans/, docs/ for keywords: shared-worktree, absorb, TRICKLE-44/45, base_sha, changed_paths, uncommitted, evidence+persist, commit race, landing gate
+
+Closest reviewed candidates (NOT duplicates):
+1. OOMPAH-218 (Merged): Count incomplete-agent safety limit per focus — covers the incomplete-session counter per focus, but does NOT cover the case where another task's commit absorbs uncommitted changes and the stale state persists.
+2. OOMPAH-168 (Merged): Orchestration cleanup for shared-only epic workflow — consolidates strategy to shared-only, but does NOT implement evidence persistence for unabsorbed dirty worktree changes.
+3. OOMPAH-165 (Merged): Epic rollup status bug for nested epics — different class of shared-epic bug (premature Merged state), not the commit-absorption race.
+
+Relevant code locations for the implementation agent:
+- oompah/orchestrator.py: _on_worker_exit / incomplete-session tracking (lines 16282-16330), _shared_epic_child_done, shared-epic landing gate block (lines 16315-16430)
+- oompah/landing_gate.py: check_landing_gate, shared-epic branch resolution (lines 89-263)
+- oompah/orchestrator.py: _epic_rebase_states pattern (lines 850-1177) — good precedent for persistence structure (service_state.json)
+- tests/ directory for existing patterns
+
+Remaining work: Full feature implementation per the task description (5 behavior requirements, 6 test requirements, 2 acceptance criteria). No blockers found.
+
+Recommended next focus: feature
 ---
 <!-- COMMENTS:END -->
