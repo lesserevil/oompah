@@ -145,6 +145,21 @@ class TestNeedsLabelShortCircuit:
         assert result.name == "test"
         assert called["flag"] is False  # never called the LLM
 
+    def test_completed_focus_is_skipped_on_async_path(self):
+        """The post-handoff dispatch uses the same rule on the async path."""
+        issue = _issue(
+            title="Update duplicate detection",
+            labels=["focus-complete:duplicate_detector"],
+        )
+        foci = [
+            _focus("duplicate_detector", keywords=["duplicate"], priority=20),
+            _focus("chore", keywords=["update"]),
+        ]
+
+        result = asyncio.run(select_focus_async(issue, foci=foci, provider=None))
+
+        assert result.name == "chore"
+
 
 class TestLlmTriage:
     def _patch_llm(self, monkeypatch, name: str | None, reasoning: str = ""):

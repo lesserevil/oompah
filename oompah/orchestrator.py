@@ -11700,7 +11700,11 @@ class Orchestrator:
             by_project.setdefault(c.project_id, []).append(c)
 
         for project_id, proj_candidates in by_project.items():
-            tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+            tracker = (
+                self._tracker_for_project(project_id)
+                if project_id
+                else self.tracker
+            )
             try:
                 # Fetch the full issue pool for this project (open + closed for comparison)
                 all_pool = tracker.fetch_issues_by_states(
@@ -11712,6 +11716,13 @@ class Orchestrator:
                 continue
 
             for candidate in proj_candidates:
+                # A completed duplicate-investigation focus is handed to a
+                # fresh agent. Do not rediscover the same closed match and
+                # route it back to that already-completed focus.
+                if "focus-complete:duplicate_detector" in {
+                    label.lower() for label in (candidate.labels or [])
+                }:
+                    continue
                 try:
                     similar = find_similar_issues(candidate, all_pool, min_score=_MIN_SCORE_TO_FLAG)
                 except Exception as exc:
@@ -13722,6 +13733,93 @@ class Orchestrator:
             logger.debug(
                 "Failed to clear handoff labels on %s: %s", issue.identifier, exc
             )
+
+    def _handoff_completed_focus(
+        self,
+        entry: RunningEntry,
+        current: Issue | None,
+        project_id: str | None,
+    ) -> bool:
+        """Queue a fresh agent when a completed focus asks for a handoff.
+
+        A focus is bound to one agent session. An active task with a
+        ``focus-complete:<current-focus>`` label has finished that phase and
+        is reopened for normal triage; a ``needs:<focus>`` label can name the
+        next focus explicitly. Terminal tasks intentionally receive no
+        handoff.
+        """
+        if current is None or _is_terminal_state(
+            current.state, self.config.tracker_terminal_states
+        ):
+            return False
+
+        labels = {label.lower() for label in (current.labels or [])}
+        completed_label = f"focus-complete:{entry.focus_name.lower()}"
+        requested_focus = any(label.startswith("needs:") for label in labels)
+        if completed_label not in labels and not requested_focus:
+            return False
+
+        try:
+            tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+            handoff_heading = f"focus handoff: {entry.focus_name.lower()}"
+            comments = tracker.fetch_comments(entry.identifier)
+            has_handoff = any(
+                handoff_heading in str(comment.get("text", "")).lower()
+                for comment in comments
+                if isinstance(comment, dict)
+            )
+            if not has_handoff:
+                # Do not let an empty label discard the outgoing focus's
+                # findings. Remove it and dispatch the same focus again so it
+                # can write the required durable task handoff.
+                for label in list(current.labels or []):
+                    if (
+                        label.lower() == completed_label
+                        or label.lower().startswith("needs:")
+                    ):
+                        tracker.remove_label(entry.identifier, label)
+                tracker.update_issue(entry.identifier, status=OPEN)
+                current.labels = [
+                    label for label in (current.labels or [])
+                    if label.lower() != completed_label
+                    and not label.lower().startswith("needs:")
+                ]
+                current.state = OPEN
+                self.state.reopen_counts.pop(entry.id, None)
+                self.state.stall_counts.pop(entry.id, None)
+                self._post_comment(
+                    entry.identifier,
+                    f"Focus handoff required before leaving `{entry.focus_name}`. "
+                    f"Add a comment headed `Focus handoff: {entry.focus_name}` "
+                    "with outcome, evidence, remaining work, and next focus.",
+                    project_id=project_id,
+                )
+                return True
+            tracker.update_issue(entry.identifier, status=OPEN)
+        except Exception as exc:
+            logger.warning(
+                "Failed to hand off completed focus for %s: %s",
+                entry.identifier,
+                exc,
+            )
+            return False
+
+        current.state = OPEN
+        self.state.reopen_counts.pop(entry.id, None)
+        self.state.stall_counts.pop(entry.id, None)
+        self._post_comment(
+            entry.identifier,
+            f"Focus handoff from `{entry.focus_name}` is complete. "
+            "Queued a fresh agent run for the next applicable focus. "
+            "The next agent should begin with the preceding Focus handoff comment.",
+            project_id=project_id,
+        )
+        logger.info(
+            "Focus %s completed for %s; handed off for fresh dispatch",
+            entry.focus_name,
+            entry.identifier,
+        )
+        return True
 
     def _is_first_dispatch(
         self, issue: Issue, attempt: int | None, override_profile: str | None
@@ -16108,7 +16206,14 @@ class Orchestrator:
                     else self.tracker
                 )
                 current = tracker.fetch_issue_detail(entry.identifier)
-                if current and not _is_terminal_state(
+                if self._handoff_completed_focus(
+                    entry, current, project_id
+                ):
+                    # The worker-exit event below wakes dispatch immediately.
+                    # Completed-focus markers prevent the selector from
+                    # returning the task to a focus that already finished.
+                    pass
+                elif current and not _is_terminal_state(
                     current.state, self.config.tracker_terminal_states
                 ):
                     # Merge-conflict agents just rebase — closure happens when

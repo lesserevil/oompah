@@ -1087,6 +1087,20 @@ class TestDuplicateDetectorFocus:
         focus = select_focus(issue, foci)
         assert focus.name == "duplicate_detector"
 
+    def test_completed_focus_does_not_receive_the_same_focus_again(self):
+        """A handoff lets the next run select a different applicable focus."""
+        foci = [
+            self._get_duplicate_detector(),
+            Focus(name="chore", role="Maintenance", description="",
+                  keywords=["update"], status="active"),
+        ]
+        issue = _make_issue(
+            title="Update duplicate detection documentation",
+            labels=["focus-complete:duplicate_detector"],
+        )
+
+        assert select_focus(issue, foci).name == "chore"
+
     def test_selected_for_rogers_prefix_issue(self):
         """An issue with a topic-prefix title should score duplicate_detector."""
         foci = [
@@ -1114,6 +1128,13 @@ class TestDuplicateDetectorFocus:
         focus = self._get_duplicate_detector()
         rendered = focus.render()
         assert "### You must NOT:" in rendered
+
+    def test_render_requires_a_contextual_focus_handoff(self):
+        rendered = self._get_duplicate_detector().render()
+        assert "Focus handoff" in rendered
+        assert "remaining work or risks" in rendered
+        assert "Focus handoff: duplicate_detector" in rendered
+        assert "focus-complete:duplicate_detector" in rendered
 
     def test_serialization_round_trip(self):
         focus = self._get_duplicate_detector()

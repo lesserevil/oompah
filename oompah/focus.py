@@ -151,6 +151,21 @@ class Focus:
             lines.append("### You must NOT:")
             for item in self.must_not_do:
                 lines.append(f"- {item}")
+        lines.extend([
+            "",
+            "### Focus handoff",
+            "If this focus phase is complete but the task needs another "
+            "specialist, do not change roles in this session. First add a "
+            f"task comment headed `Focus handoff: {self.name}` that states: "
+            "(1) the outcome "
+            "of this focus, (2) relevant files, commands, evidence, or "
+            "decisions, (3) remaining work or risks, and (4) the recommended "
+            "next focus. Then add the label "
+            f"`focus-complete:{self.name}` and end the run. Oompah will start "
+            "a fresh agent and include the task's handoff comments in its "
+            "context. To request a particular next focus, also add "
+            "`needs:<focus-name>`.",
+        ])
         # Append project-level test guidance whenever the project has
         # a configured test_command. This applies to ALL focuses so the
         # agent always sees the project's preferred command instead of
@@ -501,10 +516,12 @@ BUILTIN_FOCI: list[Focus] = [
             "<identifier> Archived --summary "
             "\"duplicate-of:<original-id>\"`. Do NOT implement "
             "anything — the original already covers this",
-            "If no clear duplicate is confirmed: continue with the work using "
-            "the topic/resolution from the most likely match as your starting "
-            "point, and close the candidate as non-duplicate if it truly "
-            "represents a new problem",
+            "If no clear duplicate is confirmed: post a short comment stating "
+            "that duplicate screening found no duplicate and identifies the "
+            "closest reviewed tasks and evidence, add the "
+            "`focus-complete:duplicate_detector` label, then end this run "
+            "without implementing the task. Oompah will dispatch a fresh agent "
+            "with the appropriate implementation focus.",
         ],
         must_not_do=[
             "Start implementing code until you have confirmed whether this "
@@ -557,6 +574,16 @@ def _text_matches(text: str, keywords: list[str]) -> int:
         if re.search(r'\b' + re.escape(kw.lower()) + r'\b', text_lower):
             count += 1
     return count
+
+
+def _completed_focus_names(issue: Issue) -> set[str]:
+    """Return focus names whose work phase has already completed on *issue*."""
+    prefix = "focus-complete:"
+    return {
+        label[len(prefix):].strip().lower()
+        for label in (issue.labels or [])
+        if label.lower().startswith(prefix) and label[len(prefix):].strip()
+    }
 
 
 def score_focus(focus: Focus, issue: Issue) -> int:
@@ -618,8 +645,13 @@ def select_focus(issue: Issue, foci: list[Focus] | None = None) -> Focus:
     best_focus = DEFAULT_FOCUS
     best_score = 0
 
+    completed_foci = _completed_focus_names(issue)
     for focus in foci:
         if focus.status != "active":
+            continue
+        # A completed focus is an explicit handoff. Do not route the next
+        # agent session back to a focus that has already finished its phase.
+        if focus.name.lower() in completed_foci:
             continue
         s = score_focus(focus, issue)
         if s > best_score:
@@ -963,7 +995,12 @@ async def select_focus_async(
     """
     if foci is None:
         foci = load_foci()
-    active_foci = [f for f in foci if f.status == "active"]
+    completed_foci = _completed_focus_names(issue)
+    active_foci = [
+        f for f in foci
+        if f.status == "active"
+        and f.name.lower() not in completed_foci
+    ]
 
     # Step 1: explicit handoff label wins.
     if issue.labels:

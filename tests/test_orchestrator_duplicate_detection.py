@@ -151,6 +151,9 @@ class TestApplyDuplicateDetection:
         orch.project_store = MagicMock()
         orch.project_store.list_all.return_value = []
         orch.tracker = MagicMock()
+        orch.tracker.fetch_comments.return_value = [
+            {"text": "Focus handoff: duplicate_detector\nNo duplicate found."}
+        ]
 
         candidate = _make_issue(
             identifier="rogers-proposal",
@@ -166,6 +169,119 @@ class TestApplyDuplicateDetection:
         orch.tracker.fetch_issues_by_states.assert_not_called()
         assert orch._last_duplicate_detection_metrics["prework_count"] == 1
         assert orch._last_duplicate_detection_metrics["scanned_count"] == 0
+
+    def test_completed_duplicate_focus_is_not_flagged_again(self):
+        """The implementation handoff must not loop back to screening."""
+        from oompah.orchestrator import Orchestrator
+        from oompah.config import ServiceConfig
+
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.config = ServiceConfig()
+        orch.project_store = MagicMock()
+        orch.project_store.list_all.return_value = []
+        orch.tracker = MagicMock()
+        candidate = _make_issue(
+            identifier="screened-task",
+            labels=["focus-complete:duplicate_detector"],
+        )
+
+        with patch("oompah.orchestrator.find_similar_issues") as find:
+            orch._apply_duplicate_detection([candidate])
+
+        find.assert_not_called()
+        orch.tracker.add_label.assert_not_called()
+
+
+class TestFocusHandoff:
+    """Tests for fresh agent sessions after a completed focus phase."""
+
+    def _make_orchestrator(self):
+        from oompah.orchestrator import Orchestrator
+        from oompah.config import ServiceConfig
+
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.config = ServiceConfig()
+        orch.tracker = MagicMock()
+        orch.state = MagicMock()
+        orch.state.reopen_counts = {"1": 2}
+        orch.state.stall_counts = {"1": 1}
+        orch._post_comment = MagicMock()
+        return orch
+
+    def _make_entry(self):
+        from datetime import datetime, timezone
+        from oompah.models import RunningEntry
+
+        issue = _make_issue(identifier="screened-task", state="In Progress")
+        return RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            focus_name="duplicate_detector",
+        )
+
+    def test_completed_focus_reopens_task_for_fresh_dispatch(self):
+        orch = self._make_orchestrator()
+        entry = self._make_entry()
+        current = _make_issue(
+            identifier=entry.identifier,
+            state="In Progress",
+            labels=["focus-complete:duplicate_detector"],
+        )
+
+        assert orch._handoff_completed_focus(entry, current, None)
+
+        orch.tracker.add_label.assert_not_called()
+        orch.tracker.update_issue.assert_called_once_with(entry.identifier, status="Open")
+        assert current.state == "Open"
+        assert "focus-complete:duplicate_detector" in current.labels
+        assert entry.id not in orch.state.reopen_counts
+        assert entry.id not in orch.state.stall_counts
+        orch._post_comment.assert_called_once()
+
+    def test_terminal_task_is_not_handed_off(self):
+        orch = self._make_orchestrator()
+        entry = self._make_entry()
+        current = _make_issue(identifier=entry.identifier, state="Archived")
+
+        assert not orch._handoff_completed_focus(entry, current, None)
+
+        orch.tracker.add_label.assert_not_called()
+        orch.tracker.update_issue.assert_not_called()
+
+    def test_explicit_next_focus_requests_a_handoff(self):
+        orch = self._make_orchestrator()
+        entry = self._make_entry()
+        entry.focus_name = "analysis"
+        current = _make_issue(
+            identifier=entry.identifier,
+            state="In Progress",
+            labels=["needs:bugfix"],
+        )
+
+        assert orch._handoff_completed_focus(entry, current, None)
+
+        orch.tracker.update_issue.assert_called_once_with(entry.identifier, status="Open")
+
+    def test_missing_handoff_comment_reopens_same_focus(self):
+        orch = self._make_orchestrator()
+        orch.tracker.fetch_comments.return_value = []
+        entry = self._make_entry()
+        current = _make_issue(
+            identifier=entry.identifier,
+            state="In Progress",
+            labels=["focus-complete:duplicate_detector", "needs:bugfix"],
+        )
+
+        assert orch._handoff_completed_focus(entry, current, None)
+
+        assert current.state == "Open"
+        assert current.labels == []
+        assert orch.tracker.remove_label.call_count == 2
+        orch._post_comment.assert_called_once()
 
     def test_detects_open_duplicate_and_labels_candidate(self, tmp_path, monkeypatch):
         """When candidate matches open issue by prefix, add duplicate-candidate label."""
