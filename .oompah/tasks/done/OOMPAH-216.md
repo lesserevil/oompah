@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T00:40:53.660377Z'
-updated_at: '2026-07-17T01:00:06.402242Z'
+updated_at: '2026-07-17T01:00:14.722675Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,5 +69,15 @@ author: oompah
 created: 2026-07-17 01:00
 ---
 Delivered PR reconciliation sweep (poll_delivery_pr wired into orchestrator), ahead/behind counts in ReleaseBranchInfo/API, error+conflict_agent+retry UI in drawer, project-scoped retry/archive endpoints, retry clears conflict_agent_task_id. 43 new tests; 9009 total pass.
+---
+author: oompah
+created: 2026-07-17 01:00
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 149
+- Tokens: 224 in / 6.0K out [6.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 10s
+- Log: OOMPAH-216__20260717T004110Z.jsonl
 ---
 <!-- COMMENTS:END -->
