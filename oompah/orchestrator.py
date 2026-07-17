@@ -14223,8 +14223,8 @@ class Orchestrator:
                     and not label.lower().startswith("needs:")
                 ]
                 current.state = OPEN
-                self._clear_reopen_count(entry.id)
-                self.state.stall_counts.pop(entry.id, None)
+                self._clear_reopen_count(entry.identifier)
+                self.state.stall_counts.pop(entry.identifier, None)
                 self._post_comment(
                     entry.identifier,
                     f"Focus handoff required before leaving `{entry.focus_name}`. "
@@ -14243,8 +14243,8 @@ class Orchestrator:
             return False
 
         current.state = OPEN
-        self._clear_reopen_count(entry.id)
-        self.state.stall_counts.pop(entry.id, None)
+        self._clear_reopen_count(entry.identifier)
+        self.state.stall_counts.pop(entry.identifier, None)
         self._post_comment(
             entry.identifier,
             f"Focus handoff from `{entry.focus_name}` is complete. "
