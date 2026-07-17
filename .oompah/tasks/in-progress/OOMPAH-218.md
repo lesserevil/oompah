@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-218
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Count incomplete-agent safety limit per focus
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T18:13:13.079649Z'
-updated_at: '2026-07-17T18:14:58.053566Z'
+updated_at: '2026-07-17T18:15:00.679644Z'
 work_branch: null
 target_branch: null
 review_url: null
