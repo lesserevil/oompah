@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-17T18:24:58.199363Z'
-updated_at: '2026-07-17T18:40:12.381246Z'
+updated_at: '2026-07-17T18:42:23.000910Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -170,5 +170,27 @@ author: oompah
 created: 2026-07-17 18:40
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-17 18:42
+---
+Understanding: As Test Engineer, my role is to write comprehensive tests for the shared-worktree commit absorption detection feature. Since no implementation exists yet, I need to write both the implementation and tests.
+
+The feature requires:
+1. A new SharedAbsorptionEvidence dataclass (branch, base_sha, changed_paths)
+2. Persistence to service_state.json (restore/persist pattern matching EpicRebaseStateEntry)
+3. Evidence capture in _on_worker_exit when shared-epic child fails landing gate
+4. Reconciliation checking commits after base_sha for path overlap
+5. On absorption found: reopen task, clear reopen_count, post comment identifying absorbing commit
+
+Test plan (6 tests required by issue):
+- test_capture: records branch, SHA, and paths for a dirty shared worktree
+- test_reconcile_reopens: later matching commit reopens task with attribution
+- test_unrelated_commit: unrelated commits do NOT reopen task
+- test_persistence: evidence survives service_state.json round-trip
+- test_terminal_ignored: terminal tasks and non-shared tasks are ignored
+- test_git_error_fail_open: Git errors fail open without changing task state
+
+Key files: oompah/models.py (new SharedAbsorptionEvidence), oompah/orchestrator.py (capture + reconcile logic), tests/test_shared_absorption.py (new test file)
 ---
 <!-- COMMENTS:END -->
