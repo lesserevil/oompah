@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T18:13:13.079649Z'
-updated_at: '2026-07-17T18:15:02.909468Z'
+updated_at: '2026-07-17T18:15:05.105745Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ A successful focus handoff must reset the count for the next focus. Preserve the
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-17 18:15
+---
+Implemented and pushed 64d68f5a. The incomplete-session safety count now tracks the last focus per task and resets when focus changes or a focus handoff succeeds. make test passed (9237 tests).
+---
+<!-- COMMENTS:END -->
