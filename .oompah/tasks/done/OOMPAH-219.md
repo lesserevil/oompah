@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-17T18:24:58.199363Z'
-updated_at: '2026-07-17T18:56:38.442779Z'
+updated_at: '2026-07-17T18:56:40.685065Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -248,5 +248,10 @@ Acceptance criteria coverage:
 - TRICKLE-45/44 reproduction: landing gate failure triggers capture; later absorbing commit triggers reopen from Needs Human with attribution comment.
 - Operator-visible attribution: comment names absorbing commit SHA+subject.
 - make test passes (9049+34 pass, 4 pre-existing failures in unrelated tests).
+---
+author: oompah
+created: 2026-07-17 18:56
+---
+Implemented SharedAbsorptionEvidence model and detection logic for shared-epic worktree commit races. Added 34 tests covering capture, persistence, reconciliation, fail-open behavior. make test passes (9049+34).
 ---
 <!-- COMMENTS:END -->
