@@ -1563,3 +1563,214 @@ class TestModuleSingleton:
         reset_default_service()
         svc3 = get_default_service(tmp_path, "proj-1", "main", store)
         assert svc3 is not svc1  # fresh instance after reset
+
+
+# ===========================================================================
+# Section 11: ReleaseStatusCell error and conflict_agent_resolving fields (OOMPAH-216)
+# ===========================================================================
+
+class TestReleaseStatusCellErrorFields:
+    """Tests for new error and conflict_agent_resolving fields on ReleaseStatusCell."""
+
+    def _make_delivery(
+        self,
+        *,
+        delivery_id: str = "rd_err001",
+        status: AddendumStatus = AddendumStatus.BLOCKED,
+        error: str | None = None,
+        conflict_agent_task_id: str | None = None,
+        target_branch: str = "release/1.0",
+    ) -> ReleaseDelivery:
+        from oompah.release_delivery_store import SourceKind
+
+        return ReleaseDelivery(
+            id=delivery_id,
+            project_id="proj-test",
+            source_branch="main",
+            source_kind=SourceKind.COMMITS,
+            source_identifier=None,
+            source_commits=["a" * 40],
+            target_branch=target_branch,
+            status=status,
+            queued_at="2026-07-17T00:00:00Z",
+            error=error,
+            conflict_agent_task_id=conflict_agent_task_id,
+        )
+
+    def test_blocked_delivery_exposes_error(self):
+        """A blocked delivery's error field is surfaced in the cell."""
+        sha = "a" * 40
+        delivery = self._make_delivery(
+            status=AddendumStatus.BLOCKED,
+            error="CONFLICT: merge conflict in overlay.rs",
+        )
+        cell = _compute_cell(
+            sha,
+            "release/1.0",
+            {"release/1.0": [delivery]},
+            set(),
+        )
+        assert cell.state == "blocked"
+        assert cell.error == "CONFLICT: merge conflict in overlay.rs"
+        assert cell.conflict_agent_resolving is False
+
+    def test_blocked_with_conflict_agent_sets_flag(self):
+        """A blocked delivery with conflict_agent_task_id has conflict_agent_resolving=True."""
+        sha = "a" * 40
+        delivery = self._make_delivery(
+            status=AddendumStatus.BLOCKED,
+            error="CONFLICT: merge conflict",
+            conflict_agent_task_id="OOMPAH-214",
+        )
+        cell = _compute_cell(
+            sha,
+            "release/1.0",
+            {"release/1.0": [delivery]},
+            set(),
+        )
+        assert cell.state == "blocked"
+        assert cell.conflict_agent_resolving is True
+        assert cell.error == "CONFLICT: merge conflict"
+
+    def test_in_review_delivery_no_error_in_cell(self):
+        """in_review deliveries don't expose error in the cell."""
+        sha = "a" * 40
+        delivery = self._make_delivery(
+            status=AddendumStatus.IN_REVIEW,
+            error=None,
+        )
+        cell = _compute_cell(
+            sha,
+            "release/1.0",
+            {"release/1.0": [delivery]},
+            set(),
+        )
+        assert cell.state == "in_review"
+        assert cell.error is None
+        assert cell.conflict_agent_resolving is False
+
+    def test_open_delivery_no_error_field(self):
+        """open deliveries have error=None and conflict_agent_resolving=False."""
+        sha = "a" * 40
+        delivery = self._make_delivery(status=AddendumStatus.OPEN)
+        cell = _compute_cell(
+            sha,
+            "release/1.0",
+            {"release/1.0": [delivery]},
+            set(),
+        )
+        assert cell.state == "open"
+        assert cell.error is None
+        assert cell.conflict_agent_resolving is False
+
+    def test_merged_delivery_no_error_conflict_fields(self):
+        """merged deliveries map to 'delivered' and have no error/conflict fields."""
+        sha = "a" * 40
+        delivery = self._make_delivery(status=AddendumStatus.MERGED)
+        cell = _compute_cell(
+            sha,
+            "release/1.0",
+            {"release/1.0": [delivery]},
+            set(),
+        )
+        assert cell.state == "delivered"
+        assert cell.error is None
+        assert cell.conflict_agent_resolving is False
+
+
+# ===========================================================================
+# Section 12: ReleaseBranchInfo ahead/behind fields (OOMPAH-216)
+# ===========================================================================
+
+class TestReleaseBranchInfoAheadBehind:
+    """Tests for ahead/behind in ReleaseBranchInfo and _compute_ahead_behind."""
+
+    def test_compute_ahead_behind_success(self, tmp_path):
+        """_compute_ahead_behind returns correct counts from a real git repo."""
+        import subprocess
+
+        from oompah.release_delivery_inventory import _compute_ahead_behind
+
+        # Set up a small git repo
+        subprocess.run(["git", "init", "-b", "main", str(tmp_path)], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "t@t.com"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "T"], check=True, capture_output=True)
+
+        # Initial commit on main
+        (tmp_path / "a.txt").write_text("a")
+        subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(tmp_path), "commit", "-m", "init"], check=True, capture_output=True)
+
+        # Create release branch from this point
+        subprocess.run(["git", "-C", str(tmp_path), "checkout", "-b", "release/1.0"], check=True, capture_output=True)
+
+        # Add extra commit on release branch (ahead by 1)
+        (tmp_path / "b.txt").write_text("b")
+        subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(tmp_path), "commit", "-m", "release-only"], check=True, capture_output=True)
+
+        # Switch back to main and add a new commit (behind by 1)
+        subprocess.run(["git", "-C", str(tmp_path), "checkout", "main"], check=True, capture_output=True)
+        (tmp_path / "c.txt").write_text("c")
+        subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(tmp_path), "commit", "-m", "main-only"], check=True, capture_output=True)
+
+        # Create remote tracking refs so _compute_ahead_behind can find them
+        subprocess.run(["git", "-C", str(tmp_path), "update-ref", "refs/remotes/origin/main", "HEAD"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(tmp_path), "checkout", "release/1.0"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(tmp_path), "update-ref", "refs/remotes/origin/release/1.0", "HEAD"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(tmp_path), "checkout", "main"], check=True, capture_output=True)
+
+        ahead, behind = _compute_ahead_behind(
+            tmp_path,
+            default_branch="main",
+            release_branch="release/1.0",
+        )
+
+        assert ahead == 1  # release/1.0 has 1 extra commit
+        assert behind == 1  # main has 1 extra commit
+
+    def test_compute_ahead_behind_invalid_branch_returns_zeros(self, tmp_path):
+        """Returns (0, 0) when a branch ref doesn't exist."""
+        import subprocess
+
+        from oompah.release_delivery_inventory import _compute_ahead_behind
+
+        subprocess.run(["git", "init", "-b", "main", str(tmp_path)], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "t@t.com"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "T"], check=True, capture_output=True)
+        (tmp_path / "x.txt").write_text("x")
+        subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(tmp_path), "commit", "-m", "init"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(tmp_path), "update-ref", "refs/remotes/origin/main", "HEAD"], check=True, capture_output=True)
+
+        # release/1.0 doesn't exist
+        ahead, behind = _compute_ahead_behind(
+            tmp_path,
+            default_branch="main",
+            release_branch="release/1.0",
+        )
+        assert ahead == 0
+        assert behind == 0
+
+    def test_release_branch_info_defaults(self):
+        """ReleaseBranchInfo defaults ahead=0 and behind=0."""
+        from oompah.release_delivery_inventory import ReleaseBranchInfo
+
+        bi = ReleaseBranchInfo(name="release/1.0", head="abc123", available=True)
+        assert bi.ahead == 0
+        assert bi.behind == 0
+
+    def test_release_branch_info_stores_ahead_behind(self):
+        """ReleaseBranchInfo stores non-zero ahead/behind."""
+        from oompah.release_delivery_inventory import ReleaseBranchInfo
+
+        bi = ReleaseBranchInfo(
+            name="release/1.0",
+            head="abc123",
+            available=True,
+            ahead=3,
+            behind=7,
+        )
+        assert bi.ahead == 3
+        assert bi.behind == 7

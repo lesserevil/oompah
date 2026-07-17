@@ -3669,6 +3669,10 @@ async def api_release_delivery_commits(
                     cell_dict["pr_url"] = cell.pr_url
                 if cell.result_commits:
                     cell_dict["result_commits"] = list(cell.result_commits)
+                if cell.error is not None:
+                    cell_dict["error"] = cell.error
+                if cell.conflict_agent_resolving:
+                    cell_dict["conflict_agent_resolving"] = True
                 release_status_json[branch] = cell_dict
 
             rows_json.append(
@@ -3696,6 +3700,8 @@ async def api_release_delivery_commits(
                     "head": bi.head,
                     "available": bi.available,
                     "stale": bi.stale,
+                    "ahead": bi.ahead,
+                    "behind": bi.behind,
                 }
                 for bi in page.release_branches
             ],
@@ -4475,6 +4481,292 @@ async def api_post_release_delivery_commits(
 # ---------------------------------------------------------------------------
 # (end post release-delivery commits queue endpoint)
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/projects/{project_id}/release-delivery/{delivery_id}/retry
+# Project-scoped retry for ledger deliveries (no source task required).
+# OOMPAH-216: commit-inventory deliveries have no source_identifier, so the
+# issue-scoped retry endpoint cannot serve them.
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/v1/projects/{project_id}/release-delivery/{delivery_id}/retry")
+async def api_retry_project_delivery(
+    project_id: str,
+    delivery_id: str,
+    request: Request,
+) -> JSONResponse:
+    """Retry a blocked or closed-unmerged in_review ledger delivery by project + delivery ID.
+
+    This endpoint is the project-scoped counterpart to the issue-scoped retry
+    (``POST /api/v1/issues/{id}/release-addendums/{aid}/retry``).  Use it for
+    deliveries created from the commit inventory that have no associated
+    source task/epic.
+
+    **Valid source states**: ``blocked``, ``in_review`` (closed-unmerged only).
+
+    **Response** (``200 OK``)::
+
+        {
+            "delivery_id": "rd_...",
+            "project_id": "...",
+            "status": "open"
+        }
+
+    **Error responses**:
+
+    - ``404`` — project or delivery not found.
+    - ``409`` — invalid transition (e.g. already open, merged, or archived).
+    """
+    from oompah.release_addendum_schema import (
+        AddendumStatus,
+        InvalidTransitionError,
+    )
+    from oompah.release_delivery_compat import (
+        make_delivery_store,
+        retry_ledger_delivery,
+    )
+    from oompah.release_delivery_store import DeliveryNotFoundError, LedgerParseError
+
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"project {project_id!r} not found"}},
+                status_code=404,
+            )
+
+        if not getattr(project, "repo_path", None):
+            return JSONResponse(
+                {"error": {"code": "no_repo", "message": "project has no repository path"}},
+                status_code=404,
+            )
+
+        tracker = _get_orchestrator()._tracker_for_project(project_id)
+        try:
+            store = make_delivery_store(project, git_writer=tracker)
+            delivery = store.lookup_by_id(delivery_id)
+        except (ValueError, LedgerParseError) as exc:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"delivery {delivery_id!r} not found: {exc}"}},
+                status_code=404,
+            )
+
+        if delivery is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"delivery {delivery_id!r} not found"}},
+                status_code=404,
+            )
+
+        if delivery.status not in {AddendumStatus.BLOCKED, AddendumStatus.IN_REVIEW}:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_transition",
+                        "message": (
+                            f"Cannot retry delivery {delivery_id!r}: "
+                            f"current status is {delivery.status.value!r}. "
+                            "Retry is only valid from 'blocked' or 'in_review' (closed-unmerged)."
+                        ),
+                    }
+                },
+                status_code=409,
+            )
+
+        try:
+            updated = retry_ledger_delivery(store, delivery_id)
+        except InvalidTransitionError as exc:
+            return JSONResponse(
+                {"error": {"code": "invalid_transition", "message": str(exc)}},
+                status_code=409,
+            )
+        except DeliveryNotFoundError as exc:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": str(exc)}},
+                status_code=404,
+            )
+
+        # Publish wake-up event
+        try:
+            event_bus = getattr(orch, "event_bus", None)
+            if event_bus is not None:
+                from oompah.events import EventType
+                event_bus.emit(
+                    EventType.RELEASE_ADDENDUM_READY,
+                    {
+                        "delivery_id": delivery_id,
+                        "project_id": project_id,
+                    },
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("api_retry_project_delivery: event emit failed (non-fatal): %s", exc)
+
+        # Invalidate commit inventory cache
+        try:
+            invalidate_commit_inventory(project_id)
+        except Exception:  # noqa: BLE001
+            pass
+
+        logger.info(
+            "api_retry_project_delivery: delivery %s/%s → open",
+            project_id,
+            delivery_id,
+        )
+        return JSONResponse(
+            {
+                "delivery_id": delivery_id,
+                "project_id": project_id,
+                "status": updated.status.value,
+                "target_branch": updated.target_branch,
+            }
+        )
+
+    except Exception as exc:
+        logger.error(
+            "api_retry_project_delivery: unexpected error for %s/%s: %s",
+            project_id,
+            delivery_id,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "internal_error", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/projects/{project_id}/release-delivery/{delivery_id}/archive
+# Project-scoped archive for ledger deliveries (no source task required).
+# OOMPAH-216
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/v1/projects/{project_id}/release-delivery/{delivery_id}/archive")
+async def api_archive_project_delivery(
+    project_id: str,
+    delivery_id: str,
+    request: Request,
+) -> JSONResponse:
+    """Archive an open or blocked ledger delivery by project + delivery ID.
+
+    **Valid source states**: ``open``, ``blocked``.
+
+    **Response** (``200 OK``)::
+
+        {
+            "delivery_id": "rd_...",
+            "project_id": "...",
+            "status": "archived"
+        }
+
+    **Error responses**:
+
+    - ``404`` — project or delivery not found.
+    - ``409`` — invalid transition.
+    """
+    from oompah.release_addendum_schema import (
+        AddendumStatus,
+        InvalidTransitionError,
+    )
+    from oompah.release_delivery_compat import (
+        archive_ledger_delivery,
+        make_delivery_store,
+    )
+    from oompah.release_delivery_store import DeliveryNotFoundError, LedgerParseError
+
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"project {project_id!r} not found"}},
+                status_code=404,
+            )
+
+        if not getattr(project, "repo_path", None):
+            return JSONResponse(
+                {"error": {"code": "no_repo", "message": "project has no repository path"}},
+                status_code=404,
+            )
+
+        tracker = _get_orchestrator()._tracker_for_project(project_id)
+        try:
+            store = make_delivery_store(project, git_writer=tracker)
+            delivery = store.lookup_by_id(delivery_id)
+        except (ValueError, LedgerParseError) as exc:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"delivery {delivery_id!r} not found: {exc}"}},
+                status_code=404,
+            )
+
+        if delivery is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"delivery {delivery_id!r} not found"}},
+                status_code=404,
+            )
+
+        if delivery.status not in {AddendumStatus.OPEN, AddendumStatus.BLOCKED}:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_transition",
+                        "message": (
+                            f"Cannot archive delivery {delivery_id!r}: "
+                            f"current status is {delivery.status.value!r}. "
+                            "Archive is only valid from 'open' or 'blocked'."
+                        ),
+                    }
+                },
+                status_code=409,
+            )
+
+        try:
+            updated = archive_ledger_delivery(store, delivery_id)
+        except InvalidTransitionError as exc:
+            return JSONResponse(
+                {"error": {"code": "invalid_transition", "message": str(exc)}},
+                status_code=409,
+            )
+        except DeliveryNotFoundError as exc:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": str(exc)}},
+                status_code=404,
+            )
+
+        try:
+            invalidate_commit_inventory(project_id)
+        except Exception:  # noqa: BLE001
+            pass
+
+        logger.info(
+            "api_archive_project_delivery: delivery %s/%s → archived",
+            project_id,
+            delivery_id,
+        )
+        return JSONResponse(
+            {
+                "delivery_id": delivery_id,
+                "project_id": project_id,
+                "status": updated.status.value,
+                "target_branch": updated.target_branch,
+            }
+        )
+
+    except Exception as exc:
+        logger.error(
+            "api_archive_project_delivery: unexpected error for %s/%s: %s",
+            project_id,
+            delivery_id,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "internal_error", "message": str(exc)}},
+            status_code=500,
+        )
 
 
 # ---------------------------------------------------------------------------
