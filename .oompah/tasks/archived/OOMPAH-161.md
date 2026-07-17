@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-161
 type: task
-status: Merged
+status: Archived
 priority: null
 title: '[backend:server] Create issue API error: Unknown project: coroot'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-10T02:17:34.435583Z'
-updated_at: '2026-07-10T02:49:13.913109Z'
+updated_at: '2026-07-17T03:19:53.246693Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/404
