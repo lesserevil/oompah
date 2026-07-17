@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T00:40:53.660377Z'
-updated_at: '2026-07-17T01:00:03.727604Z'
+updated_at: '2026-07-17T01:00:06.402242Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,10 @@ author: oompah
 created: 2026-07-17 00:59
 ---
 Completion: OOMPAH-216 delivered.\n\nAcceptance criteria met:\n- PR reconciliation sweep wired → future PRs that merge will automatically transition deliveries from 'In Review' to Merged on the next maintenance tick. Trickle PR #279 (and #280) will show as Delivered once the sweep runs against the Trickle project.\n- API returns real ahead/behind counts per release branch.\n- tracker-only commits remain grouped (OOMPAH-209 coverage intact, _rdiGroupTrackerRows untouched).\n- Blocked deliveries expose actionable error + Retry button in the drawer; new project-scoped retry endpoint handles commit-inventory deliveries with no source task.\n- Retry clears conflict_agent_task_id so the orchestrator can re-dispatch a conflict-resolution agent if the new attempt blocks again.\n\nNot a duplicate: OOMPAH-209 (tracker-only grouping) and OOMPAH-213/214 (executor wiring and conflict resolution) were related predecessors but none covered the four remaining gaps identified in this investigation.
+---
+author: oompah
+created: 2026-07-17 01:00
+---
+Delivered PR reconciliation sweep (poll_delivery_pr wired into orchestrator), ahead/behind counts in ReleaseBranchInfo/API, error+conflict_agent+retry UI in drawer, project-scoped retry/archive endpoints, retry clears conflict_agent_task_id. 43 new tests; 9009 total pass.
 ---
 <!-- COMMENTS:END -->
