@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-217
 type: task
-status: Open
+status: Done
 priority: null
 title: Handoff cleared duplicate investigations to normal-focus agents
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T03:17:53.831077Z'
-updated_at: '2026-07-17T03:24:29.127538Z'
+updated_at: '2026-07-17T03:24:31.588422Z'
 work_branch: null
 target_branch: null
 review_url: null
