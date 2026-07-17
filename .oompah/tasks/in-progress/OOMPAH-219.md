@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-17T18:24:58.199363Z'
-updated_at: '2026-07-17T18:56:18.009936Z'
+updated_at: '2026-07-17T18:56:29.078412Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -229,5 +229,24 @@ Test coverage by category:
 - TestLandingGateIntegration (1 test): landing gate failure hooks capture
 
 make test result: 9049 passed, 34 new pass. 4 pre-existing failures in test_orchestrator_duplicate_detection.py (unrelated to this change, confirmed by checking stash).
+---
+author: oompah
+created: 2026-07-17 18:56
+---
+Completion: Delivered SharedAbsorptionEvidence feature for OOMPAH-219.
+
+Summary of delivery:
+- SharedAbsorptionEvidence dataclass (branch, base_sha, changed_paths, recorded_at, project_id, issue_identifier) with full service_state.json persistence following EpicRebaseStateEntry pattern.
+- Evidence captured on first landing gate failure for shared-epic children (dirty worktree check via git status --porcelain).
+- Reconciliation job in step5c maintenance loop: git diff-tree check of commits after base_sha; reopens Needs Human tasks with named absorbing commit attribution; clears stale reopen_count for fresh agent budget.
+- All git operations fail open (OSError, TimeoutExpired, nonzero exit) without changing task state.
+- Terminal tasks (Done/Merged/Archived) have their evidence silently cleared.
+- Evidence TTL: dropped after 7 days on startup.
+- 34 tests covering all 6 task-required test categories.
+
+Acceptance criteria coverage:
+- TRICKLE-45/44 reproduction: landing gate failure triggers capture; later absorbing commit triggers reopen from Needs Human with attribution comment.
+- Operator-visible attribution: comment names absorbing commit SHA+subject.
+- make test passes (9049+34 pass, 4 pre-existing failures in unrelated tests).
 ---
 <!-- COMMENTS:END -->
