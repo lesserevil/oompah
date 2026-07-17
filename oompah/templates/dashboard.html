@@ -1157,6 +1157,7 @@
     .rdi-cell-delivered { color: var(--green, #3fb950); background: rgba(63, 185, 80, 0.1); }
     .rdi-cell-delivered-ancestry { color: var(--green, #3fb950); background: rgba(63, 185, 80, 0.06); font-style: italic; }
     .rdi-cell-archived { color: var(--text-muted); background: rgba(125, 133, 144, 0.1); }
+    .rdi-cell-merged { color: var(--green, #3fb950); background: rgba(63, 185, 80, 0.08); }
     .rdi-cell-clickable { cursor: pointer; text-decoration: underline; }
     .rdi-cell-clickable:hover { opacity: 0.85; }
     .rdi-action-bar {
@@ -7082,6 +7083,7 @@ const _RDI_STATUS_LABELS = {
   in_review: 'In review',
   blocked: 'Blocked',
   delivered: 'Delivered',
+  merged: 'Merged',
   archived: 'Archived',
 };
 
@@ -7398,7 +7400,11 @@ function _rdiRenderBranchFilters(releaseBranches) {
     });
     lbl.appendChild(cb);
     const nameSpan = document.createElement('span');
-    nameSpan.textContent = b.name + (!b.available ? ' (historical)' : b.stale ? ' ⚠' : '');
+    var _ab = '';
+    if (b.available && (b.ahead > 0 || b.behind > 0)) {
+      _ab = ' (↑' + (b.ahead || 0) + ' ↓' + (b.behind || 0) + ')';
+    }
+    nameSpan.textContent = b.name + (!b.available ? ' (historical)' : b.stale ? ' ⚠' : '') + _ab;
     lbl.appendChild(nameSpan);
     container.appendChild(lbl);
   }
@@ -8045,6 +8051,47 @@ function _rdiOpenDrawer(sha, rowData) {
         rowDiv.appendChild(rcDiv);
       }
 
+      // Conflict agent resolving indicator
+      if (cell.conflict_agent_resolving) {
+        const agentDiv = document.createElement('div');
+        agentDiv.style.fontSize = '0.75rem';
+        agentDiv.style.color = 'var(--yellow, #d29922)';
+        agentDiv.style.marginTop = '0.2rem';
+        agentDiv.textContent = '⚙ Conflict-resolution agent in progress…';
+        rowDiv.appendChild(agentDiv);
+      }
+
+      // Error message for blocked deliveries
+      if (state === 'blocked' && cell.error) {
+        const errDiv = document.createElement('div');
+        errDiv.style.fontSize = '0.75rem';
+        errDiv.style.color = 'var(--red, #f85149)';
+        errDiv.style.marginTop = '0.2rem';
+        errDiv.style.wordBreak = 'break-all';
+        errDiv.textContent = cell.error;
+        rowDiv.appendChild(errDiv);
+      }
+
+      // Retry button for blocked deliveries (project-scoped; works even without source task)
+      if (state === 'blocked' && cell.delivery_id && _rdiProjectId) {
+        const retryBtn = document.createElement('button');
+        retryBtn.textContent = 'Retry delivery';
+        retryBtn.style.marginTop = '0.35rem';
+        retryBtn.style.fontSize = '0.75rem';
+        retryBtn.style.padding = '2px 8px';
+        retryBtn.style.cursor = 'pointer';
+        retryBtn.style.borderRadius = '4px';
+        retryBtn.style.border = '1px solid var(--border)';
+        retryBtn.style.background = 'var(--surface)';
+        retryBtn.style.color = 'var(--text)';
+        retryBtn.dataset.deliveryId = cell.delivery_id;
+        retryBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          _rdiRetryDelivery(this.dataset.deliveryId, this);
+        });
+        rowDiv.appendChild(retryBtn);
+      }
+
       evidenceSection.appendChild(rowDiv);
     }
     body.appendChild(evidenceSection);
@@ -8053,6 +8100,35 @@ function _rdiOpenDrawer(sha, rowData) {
   drawer.classList.add('open');
   const closeBtn = drawer.querySelector('.rdi-drawer-close');
   if (closeBtn) setTimeout(function() { closeBtn.focus(); }, 50);
+}
+
+async function _rdiRetryDelivery(deliveryId, btn) {
+  if (!deliveryId || !_rdiProjectId) return;
+  const origText = btn.textContent;
+  btn.textContent = 'Retrying…';
+  btn.disabled = true;
+  try {
+    const resp = await fetch(
+      '/api/v1/projects/' + encodeURIComponent(_rdiProjectId) +
+        '/release-delivery/' + encodeURIComponent(deliveryId) + '/retry',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
+    );
+    const data = await resp.json().catch(function() { return {}; });
+    if (resp.ok) {
+      btn.textContent = 'Queued';
+      btn.style.color = 'var(--green)';
+      _rdiCloseDrawer();
+      // Refresh inventory so the updated state is visible
+      setTimeout(function() { _rdiRefresh(); }, 300);
+    } else {
+      btn.textContent = 'Failed: ' + ((data.error && data.error.message) || resp.status);
+      btn.style.color = 'var(--red)';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
 }
 
 function _rdiCloseDrawer() {

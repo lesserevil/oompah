@@ -9124,6 +9124,9 @@ class Orchestrator:
         # run after _process_release_delivery_queue so newly-blocked deliveries
         # are visible before the dispatch pass.
         self._dispatch_delivery_conflict_agents()
+        # Poll PR state for in_review deliveries and reconcile merged PRs.
+        # Runs after dispatch so conflicts don't block in_review polling.
+        self._reconcile_delivery_pr_outcomes_sweep()
 
     def _process_release_delivery_queue(self) -> None:
         """Claim and execute one pending ledger delivery per project."""
@@ -9324,6 +9327,87 @@ class Orchestrator:
             delivery.target_branch,
             wt_path,
         )
+
+    def _reconcile_delivery_pr_outcomes_sweep(self) -> None:
+        """Poll PR state for every ``in_review`` ledger delivery across all projects.
+
+        For each project with a configured repository, reads all ledger
+        deliveries whose status is ``in_review`` and calls
+        :func:`~oompah.release_delivery_poller.poll_delivery_pr` on each.
+        Merged PRs transition the delivery to ``merged``; closed-unmerged PRs
+        update the ``error`` field (the delivery remains ``in_review`` for
+        retry); open PRs are skipped.
+
+        Design invariants
+        -----------------
+
+        * Best-effort: per-project or per-delivery exceptions are caught and
+          logged; a failing project never prevents polling for other projects.
+        * Skips projects without ``repo_url``.
+        * Stops early when the job deadline is exceeded.
+        * At most one SCM provider is instantiated per project.
+        """
+        from oompah.release_addendum_schema import AddendumStatus as _AS
+        from oompah.release_delivery_poller import poll_delivery_pr
+        from oompah.release_delivery_compat import make_delivery_store
+        from oompah.scm import detect_provider, extract_repo_slug
+
+        for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("release_picks"):
+                logger.debug("delivery PR sweep: stopped at runtime budget")
+                break
+            if not getattr(project, "repo_url", None):
+                continue
+            try:
+                tracker = self._tracker_for_project(str(project.id))
+                store = make_delivery_store(project, git_writer=tracker)
+                try:
+                    ledger = store.read_ledger()
+                except Exception as ledger_exc:  # noqa: BLE001
+                    logger.debug(
+                        "delivery PR sweep: cannot read ledger for %s: %s",
+                        getattr(project, "name", project.id),
+                        ledger_exc,
+                    )
+                    continue
+                in_review = [
+                    d for d in ledger.deliveries
+                    if d.status is _AS.IN_REVIEW and d.pr_url
+                ]
+                if not in_review:
+                    continue
+                try:
+                    scm = detect_provider(
+                        project.repo_url,
+                        access_token=getattr(project, "access_token", None),
+                    )
+                    repo = extract_repo_slug(project.repo_url)
+                except Exception as scm_exc:  # noqa: BLE001
+                    logger.debug(
+                        "delivery PR sweep: SCM detection failed for %s: %s",
+                        getattr(project, "name", project.id),
+                        scm_exc,
+                    )
+                    continue
+                if scm is None:
+                    continue
+                for delivery in in_review:
+                    if self._job_deadline_exceeded("release_picks"):
+                        break
+                    try:
+                        poll_delivery_pr(store, delivery, scm=scm, repo=repo)
+                    except Exception as poll_exc:  # noqa: BLE001
+                        logger.debug(
+                            "delivery PR sweep: poll_delivery_pr failed for %r: %s",
+                            delivery.id,
+                            poll_exc,
+                        )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "delivery PR sweep: failed for project %s: %s",
+                    getattr(project, "name", project.id),
+                    exc,
+                )
 
     def _label_merged_epics(self) -> None:
         """When an epic→main PR has merged, mark the epic AND all its

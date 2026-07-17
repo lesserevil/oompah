@@ -229,6 +229,9 @@ class ReleaseStatusCell:
         pr_url: PR URL from the governing delivery, when present.
         result_commits: Target SHAs written by the executor (cherry-pick
             result), from the governing delivery.
+        error: Error message from a blocked delivery, when present.
+        conflict_agent_resolving: ``True`` when a conflict-resolution agent
+            has been dispatched for this blocked delivery.
     """
 
     state: str
@@ -236,6 +239,8 @@ class ReleaseStatusCell:
     delivery_id: str | None = None
     pr_url: str | None = None
     result_commits: list[str] = field(default_factory=list)
+    error: str | None = None
+    conflict_agent_resolving: bool = False
 
 
 @dataclass
@@ -279,12 +284,19 @@ class ReleaseBranchInfo:
         available: ``True`` when the branch exists on the remote (or locally
             in the stale-fallback case).
         stale: ``True`` when the info came from the local stale-fallback path.
+        ahead: Number of commits the release branch has that are not on the
+            default branch (release branch is ahead of main by this many).
+        behind: Number of commits the default branch has that are not on the
+            release branch (main is ahead of release by this many — potential
+            delivery candidates).
     """
 
     name: str
     head: str | None
     available: bool
     stale: bool = False
+    ahead: int = 0
+    behind: int = 0
 
 
 @dataclass
@@ -640,6 +652,55 @@ def _check_ancestry_batch(
     return ancestors
 
 
+def _compute_ahead_behind(
+    repo_path: str | Path,
+    *,
+    default_branch: str,
+    release_branch: str,
+    timeout: int = 15,
+) -> tuple[int, int]:
+    """Return ``(ahead, behind)`` commit counts between *release_branch* and *default_branch*.
+
+    Uses ``git rev-list --left-right --count`` on the symmetric difference::
+
+        git rev-list --left-right --count \\
+            refs/remotes/origin/<release_branch>...refs/remotes/origin/<default_branch>
+
+    Returns ``(ahead, behind)`` where *ahead* is the number of commits on the
+    release branch not on the default branch, and *behind* is the number of
+    commits on the default branch not on the release branch.
+
+    Returns ``(0, 0)`` on any error.
+
+    Args:
+        repo_path: Local git clone path.
+        default_branch: Default/main branch name.
+        release_branch: Release branch name.
+        timeout: Subprocess timeout in seconds.
+
+    Returns:
+        ``(ahead, behind)`` tuple of non-negative integers.
+    """
+    release_ref = f"refs/remotes/origin/{release_branch}"
+    default_ref = f"refs/remotes/origin/{default_branch}"
+    result = _run_git(
+        ["rev-list", "--left-right", "--count", f"{release_ref}...{default_ref}"],
+        repo_path=repo_path,
+        timeout=timeout,
+    )
+    if result.returncode != 0:
+        return (0, 0)
+    parts = result.stdout.strip().split()
+    if len(parts) != 2:
+        return (0, 0)
+    try:
+        ahead = int(parts[0])
+        behind = int(parts[1])
+        return (max(0, ahead), max(0, behind))
+    except ValueError:
+        return (0, 0)
+
+
 # ---------------------------------------------------------------------------
 # Status precedence helpers
 # ---------------------------------------------------------------------------
@@ -695,6 +756,11 @@ def _compute_cell(
                 delivery_id=d.id,
                 pr_url=d.pr_url,
                 result_commits=list(d.result_commits) if d.result_commits else [],
+                error=d.error if d.status == AddendumStatus.BLOCKED else None,
+                conflict_agent_resolving=(
+                    d.status == AddendumStatus.BLOCKED
+                    and bool(getattr(d, "conflict_agent_task_id", None))
+                ),
             )
 
     # Precedence 2: merged delivery
@@ -1075,18 +1141,39 @@ class CommitInventoryService:
             # We already found `limit` matching rows; there may be more
             next_cursor = _encode_cursor(snapshot.source_head, last_sha)
 
-        # Build release branch metadata for response
+        # Build release branch metadata for response (with ahead/behind counts)
         import datetime as _dt
 
-        branch_infos: list[ReleaseBranchInfo] = [
-            ReleaseBranchInfo(
-                name=branch,
-                head=snapshot.release_heads.get(branch),
-                available=snapshot.release_heads.get(branch) is not None,
-                stale=snapshot.stale,
+        branch_infos: list[ReleaseBranchInfo] = []
+        for branch in visible_branches:
+            branch_head = snapshot.release_heads.get(branch)
+            available = branch_head is not None
+            ahead = 0
+            behind = 0
+            if available:
+                try:
+                    ahead, behind = _compute_ahead_behind(
+                        self._repo_path,
+                        default_branch=self._default_branch,
+                        release_branch=branch,
+                        timeout=15,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug(
+                        "CommitInventoryService: ahead/behind computation failed for %s: %s",
+                        branch,
+                        exc,
+                    )
+            branch_infos.append(
+                ReleaseBranchInfo(
+                    name=branch,
+                    head=branch_head,
+                    available=available,
+                    stale=snapshot.stale,
+                    ahead=ahead,
+                    behind=behind,
+                )
             )
-            for branch in visible_branches
-        ]
 
         refreshed_at: str | None = None
         if snapshot.fetched_at:

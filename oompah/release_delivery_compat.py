@@ -509,6 +509,7 @@ def retry_ledger_delivery(
         claimed_by=None,
         lease_expires_at=None,
         error=None,
+        conflict_agent_task_id=None,
     )
 
 

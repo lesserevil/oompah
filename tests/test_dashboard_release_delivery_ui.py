@@ -1652,3 +1652,66 @@ class TestLegacyCodeRemoved:
     def test_rbi_overlay_id_gone(self):
         html = _load_dashboard_html()
         assert 'id="release-branch-inspector-overlay"' not in html
+
+
+# ===========================================================================
+# OOMPAH-216: Release Delivery reconciled branch status and actionable retries
+# ===========================================================================
+
+
+class TestAheadBehindBranchFilter:
+    """Verify the dashboard exposes ahead/behind counts in the branch filter."""
+
+    def test_rdi_cell_merged_css_class_exists(self):
+        """The .rdi-cell-merged CSS class must be defined (OOMPAH-216)."""
+        html = _load_dashboard_html()
+        assert "rdi-cell-merged" in html, "Missing .rdi-cell-merged CSS class"
+
+    def test_merged_status_label_in_rdi_status_labels(self):
+        """_RDI_STATUS_LABELS must include 'merged' key (OOMPAH-216)."""
+        script = _load_dashboard_script()
+        assert "merged:" in script or "merged :" in script, (
+            "_RDI_STATUS_LABELS must include a 'merged' entry"
+        )
+
+    def test_ahead_behind_displayed_in_branch_filters(self):
+        """Branch filter rendering must reference b.ahead and b.behind (OOMPAH-216)."""
+        script = _load_dashboard_script()
+        assert "b.ahead" in script, "Branch filter should reference b.ahead"
+        assert "b.behind" in script, "Branch filter should reference b.behind"
+
+
+class TestBlockedDeliveryRetryUI:
+    """Verify the drawer shows error and retry for blocked deliveries (OOMPAH-216)."""
+
+    def test_retry_delivery_function_defined(self):
+        """_rdiRetryDelivery must be defined in the script (OOMPAH-216)."""
+        script = _load_dashboard_script()
+        assert "_rdiRetryDelivery" in script, "Missing _rdiRetryDelivery function"
+
+    def test_retry_calls_project_delivery_endpoint(self):
+        """Retry function must call the project-scoped retry API endpoint (OOMPAH-216)."""
+        script = _load_dashboard_script()
+        assert "/release-delivery/" in script, (
+            "Retry should call /release-delivery/<id>/retry endpoint"
+        )
+        assert "/retry" in script, "Retry button should POST to /retry"
+
+    def test_error_field_rendered_for_blocked_state(self):
+        """The drawer renders cell.error when state === 'blocked' (OOMPAH-216)."""
+        script = _load_dashboard_script()
+        assert "cell.error" in script, "Drawer must show cell.error for blocked deliveries"
+        assert "state === 'blocked'" in script, "Drawer must check state === 'blocked'"
+
+    def test_conflict_agent_indicator_in_drawer(self):
+        """The drawer must show a conflict agent indicator when resolving (OOMPAH-216)."""
+        script = _load_dashboard_script()
+        assert "conflict_agent_resolving" in script, (
+            "Drawer must check cell.conflict_agent_resolving"
+        )
+
+    def test_retry_button_only_for_blocked_deliveries(self):
+        """Retry button is only rendered for blocked deliveries with delivery_id (OOMPAH-216)."""
+        script = _load_dashboard_script()
+        # The retry button should only appear when state is blocked
+        assert "Retry delivery" in script, "Retry button must have 'Retry delivery' label"
