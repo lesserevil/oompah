@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-17T18:24:58.199363Z'
-updated_at: '2026-07-17T18:56:06.004743Z'
+updated_at: '2026-07-17T18:56:18.009936Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -211,5 +211,23 @@ Key changes:
    - New maintenance job in _run_step5c_epic_maintenance: shared_absorption_reconcile, runs every 60s when evidence exists.
 
 3. tests/test_shared_absorption.py: 34 tests covering all 6 required behaviors (capture, reconciliation, unrelated commits, persistence, terminal tasks, git error fail-open).
+---
+author: oompah
+created: 2026-07-17 18:56
+---
+Verification: All 34 new tests pass.
+
+Test coverage by category:
+- TestCaptureSharedAbsorptionEvidence (7 tests): dirty worktree, worktree path selection, clean worktree skipped, git rev-parse error, git status timeout, disk persistence, rename porcelain format
+- TestSharedAbsorptionEvidencePersistence (5 tests): round-trip, stale TTL drop, fresh retained, malformed entries skipped, clear updates disk
+- TestReconcileSharedAbsorptionReopens (4 tests): overlapping commit reopens, stale reopen_count cleared, multiple commits listed, Needs Human state handled
+- TestReconcileSharedAbsorptionUnrelated (2 tests): unrelated paths no-op, no-new-commits no-op
+- TestReconcileSharedAbsorptionTerminal (3 tests): Done/Merged/Archived evidence cleared, missing issue cleared, no-project skip
+- TestReconcileSharedAbsorptionGitErrors (5 tests): fetch error, log error, diff-tree partial error, tracker error, nonzero exit — all fail open
+- TestNonSharedTasksIgnored (2 tests): clean worktree no evidence, empty evidence is noop
+- TestSharedAbsorptionEvidenceModel (3 tests): round-trip, defaults, mutation safety
+- TestLandingGateIntegration (1 test): landing gate failure hooks capture
+
+make test result: 9049 passed, 34 new pass. 4 pre-existing failures in test_orchestrator_duplicate_detection.py (unrelated to this change, confirmed by checking stash).
 ---
 <!-- COMMENTS:END -->
