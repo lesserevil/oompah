@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T00:40:53.660377Z'
-updated_at: '2026-07-17T00:59:45.368735Z'
+updated_at: '2026-07-17T00:59:56.182844Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-07-17 00:59
 ---
 Verification: make test passed — 9009 passed, 36 skipped, 0 failures.\n\nNew test coverage:\n- tests/test_release_delivery_pr_sweep.py: 10 tests covering _reconcile_delivery_pr_outcomes_sweep (merged PR transitions delivery, open/blocked skipped, deadline exceeded stops sweep, SCM detection failure per-project, missing pr_url skipped) and retry_ledger_delivery conflict_agent_task_id clearing.\n- tests/test_release_delivery_project_retry_api.py: 14 tests covering project-scoped retry/archive endpoints (200/404/409 responses, clears conflict_agent+error on retry).\n- tests/test_release_delivery_inventory.py: +9 tests covering error/conflict_agent_resolving fields in ReleaseStatusCell and ahead/behind in ReleaseBranchInfo and _compute_ahead_behind().\n- tests/test_dashboard_release_delivery_ui.py: +10 tests covering merged CSS, ahead/behind in filters, error+retry+conflict_agent in drawer.
+---
+author: oompah
+created: 2026-07-17 00:59
+---
+Completion: OOMPAH-216 delivered.\n\nAcceptance criteria met:\n- PR reconciliation sweep wired → future PRs that merge will automatically transition deliveries from 'In Review' to Merged on the next maintenance tick. Trickle PR #279 (and #280) will show as Delivered once the sweep runs against the Trickle project.\n- API returns real ahead/behind counts per release branch.\n- tracker-only commits remain grouped (OOMPAH-209 coverage intact, _rdiGroupTrackerRows untouched).\n- Blocked deliveries expose actionable error + Retry button in the drawer; new project-scoped retry endpoint handles commit-inventory deliveries with no source task.\n- Retry clears conflict_agent_task_id so the orchestrator can re-dispatch a conflict-resolution agent if the new attempt blocks again.\n\nNot a duplicate: OOMPAH-209 (tracker-only grouping) and OOMPAH-213/214 (executor wiring and conflict resolution) were related predecessors but none covered the four remaining gaps identified in this investigation.
 ---
 <!-- COMMENTS:END -->
