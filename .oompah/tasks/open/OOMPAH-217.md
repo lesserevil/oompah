@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T03:17:53.831077Z'
-updated_at: '2026-07-17T03:23:30.876905Z'
+updated_at: '2026-07-17T03:24:29.127538Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -141,5 +141,10 @@ Run #3 [attempt=3, profile=standard, role=standard -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 4s
 - Log: OOMPAH-217__20260717T032235Z.jsonl
+---
+author: oompah
+created: 2026-07-17 03:24
+---
+Implemented and pushed 2615bb98. Added generic focus-complete and needs handoffs, mandatory structured task handoff comments, re-triage into a fresh agent session, and duplicate-investigator integration. make test passed (9235 tests).
 ---
 <!-- COMMENTS:END -->
