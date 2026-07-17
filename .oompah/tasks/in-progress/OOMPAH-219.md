@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-17T18:24:58.199363Z'
-updated_at: '2026-07-17T18:42:23.000910Z'
+updated_at: '2026-07-17T18:56:06.004743Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -192,5 +192,24 @@ Test plan (6 tests required by issue):
 - test_git_error_fail_open: Git errors fail open without changing task state
 
 Key files: oompah/models.py (new SharedAbsorptionEvidence), oompah/orchestrator.py (capture + reconcile logic), tests/test_shared_absorption.py (new test file)
+---
+author: oompah
+created: 2026-07-17 18:56
+---
+Implementation: Added SharedAbsorptionEvidence model and detection logic to implement persistent reconciliation for shared-epic worktree commit races.
+
+Key changes:
+1. oompah/models.py: New SharedAbsorptionEvidence dataclass with to_dict/from_dict for service_state.json persistence. Stores branch, base_sha, changed_paths, recorded_at, project_id, issue_identifier.
+
+2. oompah/orchestrator.py:
+   - _restore_shared_absorption_evidence(): loads from service_state.json on startup, drops entries >7 days old.
+   - _persist_shared_absorption_evidence(): writes to service_state.json.
+   - _capture_shared_absorption_evidence(): runs git rev-parse + git status --porcelain; fails open on git errors; only records when dirty files exist.
+   - _clear_shared_absorption_evidence(): removes evidence after absorption handled.
+   - _reconcile_shared_absorption(): per-tick check; for each evidence entry, fetches shared branch commits after base_sha and runs git diff-tree; reopens task with attribution comment + clears stale reopen_count when path overlap found.
+   - Hook in _on_worker_exit: captures evidence when landing gate blocks a shared-epic child.
+   - New maintenance job in _run_step5c_epic_maintenance: shared_absorption_reconcile, runs every 60s when evidence exists.
+
+3. tests/test_shared_absorption.py: 34 tests covering all 6 required behaviors (capture, reconciliation, unrelated commits, persistence, terminal tasks, git error fail-open).
 ---
 <!-- COMMENTS:END -->
