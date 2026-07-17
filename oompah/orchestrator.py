@@ -52,6 +52,7 @@ from oompah.models import (
     Project,
     RetryEntry,
     RunningEntry,
+    SharedAbsorptionEvidence,
 )
 from oompah.statuses import (
     ARCHIVED,
@@ -174,6 +175,9 @@ def _error_class_for_tracker_exc(exc: BaseException) -> str:
 
 
 DEFAULT_SERVICE_STATE_PATH = ".oompah/service_state.json"
+
+# Timeout for git operations inside shared absorption detection.
+_GIT_TIMEOUT_ABSORPTION_S = 10.0
 
 
 def _state_key(state: str | None) -> str:
@@ -857,6 +861,13 @@ class Orchestrator:
         # is still settling and the forge hasn't recomputed PR mergeability.
         self._epic_rebase_filed_at: dict[str, float] = {}
 
+        # Shared-worktree absorption evidence (OOMPAH-219).
+        # Maps issue_id -> SharedAbsorptionEvidence.  Persisted across
+        # restarts so a later absorbing commit is detected even after a
+        # service restart.
+        self._shared_absorption_evidence: dict[str, SharedAbsorptionEvidence] = {}
+        self._restore_shared_absorption_evidence()
+
         # Fine-grained tick telemetry (TASK-465.1).
         # Stores the timing breakdown of the most-recently completed _tick()
         # call so the dashboard snapshot can surface per-substep latency
@@ -1175,6 +1186,392 @@ class Orchestrator:
             for epic_id, entry in self._epic_rebase_states.items()
         }
         self._save_state(epic_rebase_states=payload)
+
+    # ------------------------------------------------------------------
+    # Shared-worktree absorption evidence (OOMPAH-219)
+    # ------------------------------------------------------------------
+
+    def _restore_shared_absorption_evidence(self) -> None:
+        """Restore persisted absorption evidence on startup.
+
+        Loads ``shared_absorption_evidence`` from ``service_state.json``
+        and re-hydrates it into ``self._shared_absorption_evidence``.
+        Entries older than 7 days are silently dropped.
+        """
+        data = self._load_state()
+        raw = data.get("shared_absorption_evidence")
+        if not raw or not isinstance(raw, dict):
+            return
+        now = time.time()
+        cutoff = now - 7 * 86400.0  # 7 days
+        restored: dict[str, SharedAbsorptionEvidence] = {}
+        for issue_id, entry_dict in raw.items():
+            if not isinstance(entry_dict, dict):
+                continue
+            recorded_at = float(entry_dict.get("recorded_at", 0) or 0)
+            if recorded_at < cutoff:
+                logger.debug(
+                    "Dropping stale shared absorption evidence for %s (age=%.0fd)",
+                    issue_id,
+                    (now - recorded_at) / 86400.0,
+                )
+                continue
+            try:
+                restored[issue_id] = SharedAbsorptionEvidence.from_dict(entry_dict)
+            except Exception as exc:
+                logger.debug(
+                    "Failed to restore shared absorption evidence for %s: %s",
+                    issue_id,
+                    exc,
+                )
+        self._shared_absorption_evidence = restored
+        if restored:
+            logger.info(
+                "Restored %d shared absorption evidence entry(s) from disk",
+                len(restored),
+            )
+
+    def _persist_shared_absorption_evidence(self) -> None:
+        """Write ``self._shared_absorption_evidence`` to ``service_state.json``."""
+        payload = {
+            issue_id: evidence.to_dict()
+            for issue_id, evidence in self._shared_absorption_evidence.items()
+        }
+        self._save_state(shared_absorption_evidence=payload)
+
+    def _capture_shared_absorption_evidence(
+        self,
+        issue_id: str,
+        issue_identifier: str,
+        branch: str,
+        repo_path: str,
+        wt_path: str,
+        project_id: str | None,
+    ) -> None:
+        """Capture uncommitted-change evidence from a shared epic worktree.
+
+        Records the shared branch name, current HEAD SHA, and dirty file
+        paths so the reconciler can detect when a later commit absorbs
+        those changes.
+
+        Fails open on any git error: if we cannot determine the base SHA
+        or dirty file list, we silently skip recording rather than
+        disrupting the normal retry/escalation path.
+        """
+        # Get base SHA from shared worktree (prefer worktree path if it exists)
+        cwd = wt_path if os.path.isdir(wt_path) else repo_path
+        base_sha = ""
+        try:
+            r_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=_GIT_TIMEOUT_ABSORPTION_S,
+            )
+            if r_sha.returncode == 0:
+                base_sha = r_sha.stdout.strip()
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            logger.warning(
+                "shared_absorption: failed to get HEAD SHA for %s in %s: %s",
+                branch,
+                cwd,
+                exc,
+            )
+
+        if not base_sha:
+            logger.debug(
+                "shared_absorption: skipping capture for %s — no base SHA",
+                issue_identifier,
+            )
+            return
+
+        # Get dirty files from the shared worktree
+        changed_paths: list[str] = []
+        try:
+            r_status = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=_GIT_TIMEOUT_ABSORPTION_S,
+            )
+            if r_status.returncode == 0:
+                for line in r_status.stdout.splitlines():
+                    # Porcelain format: XY <filename> or XY <orig> -> <new>
+                    if len(line) > 3:
+                        path = line[3:].strip()
+                        # Handle rename format "old -> new"
+                        if " -> " in path:
+                            path = path.split(" -> ", 1)[-1].strip()
+                        if path:
+                            changed_paths.append(path)
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            logger.warning(
+                "shared_absorption: failed to get dirty files for %s in %s: %s",
+                branch,
+                cwd,
+                exc,
+            )
+
+        if not changed_paths:
+            logger.debug(
+                "shared_absorption: skipping capture for %s — no dirty files",
+                issue_identifier,
+            )
+            return
+
+        evidence = SharedAbsorptionEvidence(
+            branch=branch,
+            base_sha=base_sha,
+            changed_paths=changed_paths,
+            recorded_at=time.time(),
+            project_id=project_id,
+            issue_identifier=issue_identifier,
+        )
+        self._shared_absorption_evidence[issue_id] = evidence
+        self._persist_shared_absorption_evidence()
+        logger.info(
+            "shared_absorption: recorded evidence for %s on branch %s "
+            "(base=%s, %d dirty path(s))",
+            issue_identifier,
+            branch,
+            base_sha[:8],
+            len(changed_paths),
+        )
+
+    def _clear_shared_absorption_evidence(self, issue_id: str) -> None:
+        """Remove absorption evidence for a task that has reached terminal state."""
+        if issue_id in self._shared_absorption_evidence:
+            del self._shared_absorption_evidence[issue_id]
+            self._persist_shared_absorption_evidence()
+
+    def _reconcile_shared_absorption(self, candidates: list[Issue]) -> int:
+        """Check shared-branch commits that may have absorbed orphaned changes.
+
+        For each task with recorded :class:`SharedAbsorptionEvidence`,
+        inspect commits added to the shared branch after ``base_sha``.
+        When a commit touches any of the ``changed_paths``:
+
+        * Reopen the task (update status to Open).
+        * Post an attribution comment naming the absorbing commit(s).
+        * Clear the stale incomplete-session reopen count.
+        * Delete the evidence record.
+
+        Fails open on git errors: individual commit checks that raise
+        are skipped; the overall loop continues so other tasks are not
+        affected.
+
+        Returns:
+            Number of tasks reopened.
+        """
+        if not self._shared_absorption_evidence:
+            return 0
+
+        reopened = 0
+
+        for issue_id, evidence in list(self._shared_absorption_evidence.items()):
+            if not evidence.branch or not evidence.base_sha or not evidence.changed_paths:
+                # Incomplete evidence — drop it
+                del self._shared_absorption_evidence[issue_id]
+                continue
+
+            project_id = evidence.project_id
+            project = self.project_store.get(project_id) if project_id else None
+            if not project:
+                logger.debug(
+                    "shared_absorption: no project %s for issue %s, skipping",
+                    project_id,
+                    evidence.issue_identifier,
+                )
+                continue
+
+            repo_path = project.repo_path
+
+            # Look up current issue state directly (task may be in Needs Human,
+            # which is not in _last_candidates by default).
+            try:
+                tracker = (
+                    self._tracker_for_project(project_id) if project_id else self.tracker
+                )
+                current_issue = tracker.fetch_issue_detail(evidence.issue_identifier)
+            except Exception as exc:
+                logger.warning(
+                    "shared_absorption: failed to fetch issue %s: %s",
+                    evidence.issue_identifier,
+                    exc,
+                )
+                continue  # fail open
+
+            if current_issue is None:
+                # Issue removed — drop evidence
+                del self._shared_absorption_evidence[issue_id]
+                continue
+
+            # Terminal tasks: clear evidence, no action needed.
+            if _is_terminal_state(current_issue.state, self.config.tracker_terminal_states):
+                logger.debug(
+                    "shared_absorption: clearing evidence for terminal task %s",
+                    evidence.issue_identifier,
+                )
+                del self._shared_absorption_evidence[issue_id]
+                continue
+
+            # Fetch latest state of the shared branch so we see new commits.
+            try:
+                subprocess.run(
+                    ["git", "fetch", "origin", evidence.branch],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=30.0,
+                    check=False,
+                )
+            except (subprocess.TimeoutExpired, OSError) as exc:
+                logger.warning(
+                    "shared_absorption: git fetch failed for %s: %s",
+                    evidence.branch,
+                    exc,
+                )
+                continue  # fail open
+
+            # List commits added after base_sha.
+            try:
+                log_result = subprocess.run(
+                    [
+                        "git",
+                        "log",
+                        f"{evidence.base_sha}..origin/{evidence.branch}",
+                        "--format=%H %s",
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=15.0,
+                )
+                if log_result.returncode != 0:
+                    logger.debug(
+                        "shared_absorption: git log returned %d for %s/%s",
+                        log_result.returncode,
+                        evidence.branch,
+                        evidence.issue_identifier,
+                    )
+                    continue  # fail open
+            except (subprocess.TimeoutExpired, OSError) as exc:
+                logger.warning(
+                    "shared_absorption: git log failed for %s/%s: %s",
+                    evidence.branch,
+                    evidence.issue_identifier,
+                    exc,
+                )
+                continue  # fail open
+
+            new_commits: list[tuple[str, str]] = []
+            for line in log_result.stdout.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split(" ", 1)
+                sha = parts[0].strip()
+                subject = parts[1].strip() if len(parts) > 1 else ""
+                if sha:
+                    new_commits.append((sha, subject))
+
+            if not new_commits:
+                # No new commits yet — nothing to check.
+                continue
+
+            # Check each new commit for path overlap with the recorded evidence.
+            absorbing_commits: list[tuple[str, str]] = []
+            evidence_paths = set(evidence.changed_paths)
+            for sha, subject in new_commits:
+                try:
+                    diff_result = subprocess.run(
+                        [
+                            "git",
+                            "diff-tree",
+                            "--no-commit-id",
+                            "-r",
+                            "--name-only",
+                            sha,
+                        ],
+                        cwd=repo_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=10.0,
+                    )
+                    if diff_result.returncode != 0:
+                        continue
+                    commit_files = {
+                        f.strip()
+                        for f in diff_result.stdout.splitlines()
+                        if f.strip()
+                    }
+                    if commit_files & evidence_paths:
+                        absorbing_commits.append((sha, subject))
+                except (subprocess.TimeoutExpired, OSError) as exc:
+                    logger.warning(
+                        "shared_absorption: diff-tree failed for %s: %s",
+                        sha,
+                        exc,
+                    )
+                    continue  # fail open for this commit
+
+            if not absorbing_commits:
+                # No overlap with recorded paths — keep evidence for next check.
+                continue
+
+            # Absorption detected: reopen the task and post attribution.
+            commit_list = ", ".join(
+                f"`{sha[:8]}` ({subject})" if subject else f"`{sha[:8]}`"
+                for sha, subject in absorbing_commits[:5]
+            )
+            if len(absorbing_commits) > 5:
+                commit_list += f" (+{len(absorbing_commits) - 5} more)"
+            comment = (
+                f"Shared worktree absorption detected: the following commit(s) on "
+                f"`{evidence.branch}` appear to have absorbed this task's "
+                f"uncommitted changes — {commit_list}. "
+                f"Reopening for a fresh verification/closure run. "
+                f"Please verify that the absorbed changes satisfy this task's "
+                f"acceptance criteria and close the task if complete."
+            )
+
+            try:
+                tracker = (
+                    self._tracker_for_project(project_id) if project_id else self.tracker
+                )
+                tracker.update_issue(evidence.issue_identifier, status=OPEN)
+                self._post_comment(
+                    evidence.issue_identifier,
+                    comment,
+                    project_id=project_id,
+                )
+                # Clear stale incomplete-session state so the fresh agent
+                # gets its own three-session budget (not the exhausted one).
+                self._clear_reopen_count(issue_id)
+                self.state.stall_counts.pop(issue_id, None)
+                # Remove the evidence — absorption has been handled.
+                del self._shared_absorption_evidence[issue_id]
+                reopened += 1
+                logger.info(
+                    "shared_absorption: reopened %s — changes absorbed by "
+                    "%d commit(s) on %s",
+                    evidence.issue_identifier,
+                    len(absorbing_commits),
+                    evidence.branch,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "shared_absorption: failed to reopen %s: %s",
+                    evidence.issue_identifier,
+                    exc,
+                )
+
+        if reopened:
+            self._persist_shared_absorption_evidence()
+
+        return reopened
 
     def _save_state(self, **updates: object) -> None:
         """Persist service state to disk, merging with existing state."""
@@ -3067,6 +3464,15 @@ class Orchestrator:
             lambda: self._reset_orphaned_in_progress(self._fetch_in_progress_issues()),
             min_interval_s=60.0,
         )
+
+        # 8. Shared-worktree absorption reconciliation (OOMPAH-219).
+        # Only runs when there is evidence to check — fast-path skip otherwise.
+        if self._shared_absorption_evidence:
+            self._run_maintenance_job(
+                "shared_absorption_reconcile",
+                lambda: self._reconcile_shared_absorption(candidates),
+                min_interval_s=60.0,
+            )
 
     async def _handle_auto_update(self) -> None:
         """Trigger git auto-update when the orchestrator is idle.
@@ -13741,6 +14147,11 @@ class Orchestrator:
         if isinstance(focus_names, dict):
             focus_names.pop(issue_id, None)
 
+    def _clear_reopen_count_and_evidence(self, issue_id: str) -> None:
+        """Clear incomplete-session tracking AND shared absorption evidence."""
+        self._clear_reopen_count(issue_id)
+        self._clear_shared_absorption_evidence(issue_id)
+
     def _increment_reopen_count(self, issue_id: str, focus_name: str | None) -> int:
         """Count incomplete sessions only while the same focus repeats.
 
@@ -16363,6 +16774,30 @@ class Orchestrator:
                                     logger.info(
                                         json.dumps(telemetry),
                                     )
+                                    # Shared-epic child with uncommitted changes:
+                                    # capture evidence so the reconciler can detect
+                                    # a later absorbing commit (OOMPAH-219).
+                                    if lg_effective_branch and (
+                                        entry.issue.parent_id or ""
+                                    ).strip():
+                                        _epic_for_capture = self._resolve_parent_epic(
+                                            entry.issue
+                                        )
+                                        if _epic_for_capture is not None:
+                                            _wt_path = (
+                                                self.project_store.epic_worktree_path_for(
+                                                    project_id or "",
+                                                    _epic_for_capture.identifier,
+                                                )
+                                            )
+                                            self._capture_shared_absorption_evidence(
+                                                issue_id=issue_id,
+                                                issue_identifier=entry.identifier,
+                                                branch=lg_effective_branch,
+                                                repo_path=project.repo_path,
+                                                wt_path=_wt_path,
+                                                project_id=project_id,
+                                            )
 
                             # Try to escalate to a stronger profile before retrying
                             escalated, escalated_name = self._next_profile_for_retry(
