@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-219
 type: task
-status: In Review
-priority: null
+status: Needs CI Fix
+priority: 0
 title: Detect shared-worktree commits that absorb another task's changes
 parent: null
 children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- ci-fix
 assignee: null
 created_at: '2026-07-17T18:24:58.199363Z'
-updated_at: '2026-07-17T18:57:30.714633Z'
+updated_at: '2026-07-17T19:05:58.195224Z'
 work_branch: OOMPAH-219
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/424
