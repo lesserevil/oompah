@@ -89,6 +89,55 @@ class BlockerRef:
     state: str | None = None
 
 
+# ---------------------------------------------------------------------------
+# Shared-worktree absorption evidence (OOMPAH-219)
+#
+# Tracks uncommitted changes left in a shared epic worktree when a child
+# task exits without landing.  Persisted to service_state.json so the
+# reconciler can detect when a later commit on the same branch absorbs
+# those changes and reopen the task for a fresh verification run.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class SharedAbsorptionEvidence:
+    """Evidence of uncommitted changes in a shared epic worktree.
+
+    Recorded when a shared-epic child exits with uncommitted changes or
+    fails the landing gate.  The reconciler periodically inspects commits
+    added to ``branch`` after ``base_sha``; when a commit touches any of
+    the ``changed_paths``, the task is reopened with an attribution comment.
+    """
+
+    branch: str            # shared epic branch (e.g. "epic-TRICKLE-44")
+    base_sha: str          # HEAD SHA of the branch when the child exited
+    changed_paths: list[str]   # files the agent modified but did not commit
+    recorded_at: float     # epoch seconds — used for eventual TTL cleanup
+    project_id: str | None = None
+    issue_identifier: str = ""  # tracker identifier for direct lookup
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "branch": self.branch,
+            "base_sha": self.base_sha,
+            "changed_paths": list(self.changed_paths),
+            "recorded_at": self.recorded_at,
+            "project_id": self.project_id,
+            "issue_identifier": self.issue_identifier,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "SharedAbsorptionEvidence":
+        return cls(
+            branch=str(d.get("branch", "")),
+            base_sha=str(d.get("base_sha", "")),
+            changed_paths=list(d.get("changed_paths", [])),
+            recorded_at=float(d.get("recorded_at", 0) or 0),
+            project_id=d.get("project_id") or None,
+            issue_identifier=str(d.get("issue_identifier", "") or ""),
+        )
+
+
 @dataclass
 class Issue:
     """Normalized issue record used by orchestration, prompt rendering, and observability."""

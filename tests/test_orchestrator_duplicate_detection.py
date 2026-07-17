@@ -180,6 +180,7 @@ class TestApplyDuplicateDetection:
         orch.project_store = MagicMock()
         orch.project_store.list_all.return_value = []
         orch.tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=orch.tracker)
         candidate = _make_issue(
             identifier="screened-task",
             labels=["focus-complete:duplicate_detector"],
@@ -226,6 +227,9 @@ class TestFocusHandoff:
 
     def test_completed_focus_reopens_task_for_fresh_dispatch(self):
         orch = self._make_orchestrator()
+        orch.tracker.fetch_comments.return_value = [
+            {"text": "Focus handoff: duplicate_detector\nNo duplicate found."}
+        ]
         entry = self._make_entry()
         current = _make_issue(
             identifier=entry.identifier,
@@ -239,9 +243,9 @@ class TestFocusHandoff:
         orch.tracker.update_issue.assert_called_once_with(entry.identifier, status="Open")
         assert current.state == "Open"
         assert "focus-complete:duplicate_detector" in current.labels
-        assert entry.id not in orch.state.reopen_counts
-        assert entry.id not in orch.state.reopen_focus_names
-        assert entry.id not in orch.state.stall_counts
+        assert entry.identifier not in orch.state.reopen_counts
+        assert entry.identifier not in orch.state.reopen_focus_names
+        assert entry.identifier not in orch.state.stall_counts
         orch._post_comment.assert_called_once()
 
     def test_terminal_task_is_not_handed_off(self):
