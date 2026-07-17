@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-219
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Detect shared-worktree commits that absorb another task's changes
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T18:24:58.199363Z'
-updated_at: '2026-07-17T18:35:44.030384Z'
+updated_at: '2026-07-17T18:35:51.322560Z'
 work_branch: null
 target_branch: null
 review_url: null
