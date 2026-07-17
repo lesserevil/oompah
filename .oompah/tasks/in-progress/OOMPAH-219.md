@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-17T18:24:58.199363Z'
-updated_at: '2026-07-17T19:06:38.735095Z'
+updated_at: '2026-07-17T19:34:08.610291Z'
 work_branch: OOMPAH-219
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/424
@@ -294,5 +294,20 @@ author: oompah
 created: 2026-07-17 19:06
 ---
 Understanding: CI Failure Fixer dispatched. The branch OOMPAH-219 is up to date with origin. Running tests locally to identify failing tests before reading CI logs.
+---
+author: oompah
+created: 2026-07-17 19:34
+---
+Discovery: Found 4 pre-existing CI failures from earlier commits (not introduced by OOMPAH-219):
+
+1. test_completed_duplicate_focus_is_not_flagged_again: Orchestrator.__new__() skips __init__, so _project_trackers is never set. _apply_duplicate_detection calls _tracker_for_project() which needs it.
+
+2. Three TestFocusHandoff tests: _handoff_completed_focus() calls entry.id but RunningEntry has no 'id' attribute (should be entry.identifier). The AttributeError is caught and the function silently returns False instead of True.
+
+3. Test assertions also reference entry.id (same bug on the test side).
+
+Fixes needed:
+- oompah/orchestrator.py: entry.id → entry.identifier (4 occurrences in _handoff_completed_focus)
+- tests/test_orchestrator_duplicate_detection.py: entry.id → entry.identifier (3 assertion lines) + add _tracker_for_project mock to setup
 ---
 <!-- COMMENTS:END -->
