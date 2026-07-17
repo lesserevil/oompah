@@ -1144,7 +1144,10 @@ class OrchestratorState:
     stall_counts: dict[str, int] = field(default_factory=dict)  # issue_id → stall count
     reopen_counts: dict[str, int] = field(
         default_factory=dict
-    )  # issue_id → times agent completed without closing
+    )  # issue_id → consecutive incomplete sessions for the last focus
+    reopen_focus_names: dict[str, str] = field(
+        default_factory=dict
+    )  # issue_id → normalized focus name associated with reopen_counts
     reject_streak: dict[str, tuple[str, int]] = field(
         default_factory=dict
     )  # issue_id → (reason, count)

@@ -13734,6 +13734,33 @@ class Orchestrator:
                 "Failed to clear handoff labels on %s: %s", issue.identifier, exc
             )
 
+    def _clear_reopen_count(self, issue_id: str) -> None:
+        """Clear incomplete-session tracking after a terminal state or handoff."""
+        self.state.reopen_counts.pop(issue_id, None)
+        focus_names = getattr(self.state, "reopen_focus_names", None)
+        if isinstance(focus_names, dict):
+            focus_names.pop(issue_id, None)
+
+    def _increment_reopen_count(self, issue_id: str, focus_name: str | None) -> int:
+        """Count incomplete sessions only while the same focus repeats.
+
+        A focus handoff starts a new unit of work, so its first incomplete
+        session must not inherit the previous specialist's retry budget.
+        """
+        focus = (focus_name or "general").strip().lower() or "general"
+        focus_names = getattr(self.state, "reopen_focus_names", None)
+        if not isinstance(focus_names, dict):
+            focus_names = {}
+            self.state.reopen_focus_names = focus_names
+        previous_focus = focus_names.get(issue_id)
+        if previous_focus is not None and previous_focus != focus:
+            count = 1
+        else:
+            count = self.state.reopen_counts.get(issue_id, 0) + 1
+        self.state.reopen_counts[issue_id] = count
+        focus_names[issue_id] = focus
+        return count
+
     def _handoff_completed_focus(
         self,
         entry: RunningEntry,
@@ -13785,7 +13812,7 @@ class Orchestrator:
                     and not label.lower().startswith("needs:")
                 ]
                 current.state = OPEN
-                self.state.reopen_counts.pop(entry.id, None)
+                self._clear_reopen_count(entry.id)
                 self.state.stall_counts.pop(entry.id, None)
                 self._post_comment(
                     entry.identifier,
@@ -13805,7 +13832,7 @@ class Orchestrator:
             return False
 
         current.state = OPEN
-        self.state.reopen_counts.pop(entry.id, None)
+        self._clear_reopen_count(entry.id)
         self.state.stall_counts.pop(entry.id, None)
         self._post_comment(
             entry.identifier,
@@ -16229,7 +16256,7 @@ class Orchestrator:
                     if repair_finished is not None:
                         if repair_finished:
                             self.state.completed.add(issue_id)
-                            self.state.reopen_counts.pop(issue_id, None)
+                            self._clear_reopen_count(issue_id)
                             self._verifier_reject_counts.pop(issue_id, None)
                         else:
                             self.state.completed.discard(issue_id)
@@ -16252,13 +16279,16 @@ class Orchestrator:
                             pass
                         tracker.close_issue(entry.identifier)
                         self.state.completed.add(issue_id)
-                        self.state.reopen_counts.pop(issue_id, None)
+                        self._clear_reopen_count(issue_id)
                         # Reactive epic auto-close (oompah-zlz_2-lvcd).
                         self._maybe_auto_close_parent_epic(current)
                     else:
-                        # Track how many times this issue completed without closing
-                        reopen_count = self.state.reopen_counts.get(issue_id, 0) + 1
-                        self.state.reopen_counts[issue_id] = reopen_count
+                        # Count only consecutive incomplete sessions for this
+                        # focus. A handoff to another specialist gets its own
+                        # three-session safety budget.
+                        reopen_count = self._increment_reopen_count(
+                            issue_id, entry.focus_name
+                        )
                         max_reopens = 3
                         if reopen_count >= max_reopens:
                             # Stop re-dispatching — agent can't close this issue
@@ -16492,7 +16522,7 @@ class Orchestrator:
                                         exc,
                                     )
                                     self.state.completed.add(issue_id)
-                                    self.state.reopen_counts.pop(issue_id, None)
+                                    self._clear_reopen_count(issue_id)
                                     self._ensure_review_exists(entry, project_id)
                                 else:
                                     try:
@@ -16558,7 +16588,7 @@ class Orchestrator:
                                 )
                                 if review_ready:
                                     self.state.completed.add(issue_id)
-                                    self.state.reopen_counts.pop(issue_id, None)
+                                    self._clear_reopen_count(issue_id)
                                     self._verifier_reject_counts.pop(issue_id, None)
                                     # Reactive epic auto-close: if the just-closed
                                     # task is a child of an epic, evaluate the
@@ -17555,8 +17585,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 # If state reverted to an active state (e.g. open), mark as claimed
                 # with a cooldown to prevent immediate re-dispatch loops
                 if state_norm in active_norms and running_entry:
-                    reopen_count = self.state.reopen_counts.get(issue_id, 0) + 1
-                    self.state.reopen_counts[issue_id] = reopen_count
+                    reopen_count = self._increment_reopen_count(
+                        issue_id, running_entry.focus_name
+                    )
                     if reopen_count >= 3:
                         logger.warning(
                             "Reconcile: issue %s reverted to %s %d times — marking completed to stop loop",

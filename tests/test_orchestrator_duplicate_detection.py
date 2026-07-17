@@ -204,6 +204,7 @@ class TestFocusHandoff:
         orch.tracker = MagicMock()
         orch.state = MagicMock()
         orch.state.reopen_counts = {"1": 2}
+        orch.state.reopen_focus_names = {"1": "duplicate_detector"}
         orch.state.stall_counts = {"1": 1}
         orch._post_comment = MagicMock()
         return orch
@@ -239,6 +240,7 @@ class TestFocusHandoff:
         assert current.state == "Open"
         assert "focus-complete:duplicate_detector" in current.labels
         assert entry.id not in orch.state.reopen_counts
+        assert entry.id not in orch.state.reopen_focus_names
         assert entry.id not in orch.state.stall_counts
         orch._post_comment.assert_called_once()
 
@@ -282,6 +284,35 @@ class TestFocusHandoff:
         assert current.labels == []
         assert orch.tracker.remove_label.call_count == 2
         orch._post_comment.assert_called_once()
+
+
+class TestFocusScopedIncompleteSessionLimit:
+    """The three-session guard applies to consecutive sessions of one focus."""
+
+    def test_focus_change_resets_the_incomplete_session_count(self):
+        from oompah.models import OrchestratorState
+        from oompah.orchestrator import Orchestrator
+
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.state = OrchestratorState()
+
+        assert orch._increment_reopen_count("task-1", "duplicate_detector") == 1
+        assert orch._increment_reopen_count("task-1", "duplicate_detector") == 2
+        assert orch._increment_reopen_count("task-1", "docs") == 1
+        # Returning to an earlier focus after a different one is not
+        # consecutive, so it starts a new safety-limit sequence.
+        assert orch._increment_reopen_count("task-1", "duplicate_detector") == 1
+
+    def test_three_consecutive_sessions_of_one_focus_reach_limit(self):
+        from oompah.models import OrchestratorState
+        from oompah.orchestrator import Orchestrator
+
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.state = OrchestratorState()
+
+        assert [
+            orch._increment_reopen_count("task-1", "docs") for _ in range(3)
+        ] == [1, 2, 3]
 
     def test_detects_open_duplicate_and_labels_candidate(self, tmp_path, monkeypatch):
         """When candidate matches open issue by prefix, add duplicate-candidate label."""
