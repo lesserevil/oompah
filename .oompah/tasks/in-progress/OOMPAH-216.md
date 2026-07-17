@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-216
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make Release Delivery show reconciled branch status and actionable retries
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T00:40:53.660377Z'
-updated_at: '2026-07-17T00:40:56.274605Z'
+updated_at: '2026-07-17T00:41:00.676378Z'
 work_branch: null
 target_branch: null
 review_url: null
