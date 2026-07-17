@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T00:40:53.660377Z'
-updated_at: '2026-07-17T00:46:57.714645Z'
+updated_at: '2026-07-17T00:59:35.627601Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-07-17 00:46
 ---
 Discovery: Found all key gaps. OOMPAH-216 is NOT a duplicate.\n\nRoot causes:\n1. poll_delivery_pr() in release_delivery_poller.py is NEVER called from the orchestrator. PRs that merge don't automatically reconcile deliveries from in_review to merged (explains why #279 still shows In Review).\n2. ReleaseBranchInfo has no ahead/behind fields; the API never computes them.\n3. ReleaseStatusCell has no error or conflict_agent_resolving fields; the drawer can't show actionable error or retry UI.\n4. The retry endpoint (POST /issues/{id}/release-addendums/{aid}/retry) requires a source task identifier — but commit-inventory deliveries have no source task, so they can't be retried via this endpoint. Need a project-scoped retry endpoint.\n\nWhat OOMPAH-209 already did: tracker-only grouping via _rdiGroupTrackerRows is present in the UI.\n\nImplementation plan:\n1. orchestrator.py: Add _reconcile_delivery_pr_outcomes_sweep() and wire it into _reconcile_release_picks_pass()\n2. release_delivery_inventory.py: Add error+conflict_agent_resolving to ReleaseStatusCell; add ahead/behind to ReleaseBranchInfo\n3. server.py: Add POST /api/v1/projects/{id}/release-delivery/{delivery_id}/retry\n4. release_delivery_compat.py: Clear conflict_agent_task_id in retry_ledger_delivery()\n5. dashboard.html: Show ahead/behind in branch filter labels; add error+retry in drawer for blocked deliveries\n6. Tests for all above\n7. make test
+---
+author: oompah
+created: 2026-07-17 00:59
+---
+Implementation: Delivered all OOMPAH-216 scope in commit da879d86.\n\n1. orchestrator.py: Added _reconcile_delivery_pr_outcomes_sweep() method and wired it into _reconcile_release_picks_pass(). Polls all in_review ledger deliveries with pr_url against their SCM provider on every maintenance tick. Merged PRs now automatically transition deliveries to merged, resolving the stale 'In Review' display after PR merge (e.g. Trickle PR #279).\n\n2. release_delivery_inventory.py: Added error and conflict_agent_resolving fields to ReleaseStatusCell (blocked deliveries expose error message and conflict-agent status). Added ahead and behind fields to ReleaseBranchInfo with _compute_ahead_behind() helper using git rev-list --left-right --count.\n\n3. server.py: Serializes new cell error/conflict_agent_resolving and branch ahead/behind fields in the API response. Added POST /api/v1/projects/{id}/release-delivery/{delivery_id}/retry and /archive endpoints (project-scoped, work for commit-inventory deliveries without a source task).\n\n4. release_delivery_compat.py: retry_ledger_delivery() now also clears conflict_agent_task_id so a new conflict-resolution agent can be dispatched after retry.\n\n5. dashboard.html: Added 'merged' to _RDI_STATUS_LABELS and .rdi-cell-merged CSS. Branch filter checkbox labels now show ahead/behind counts. Evidence drawer shows blocked delivery error, conflict-agent-resolving indicator, and a Retry delivery button. Added _rdiRetryDelivery() async function calling the project-scoped retry endpoint.
 ---
 <!-- COMMENTS:END -->
