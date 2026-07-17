@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-17T18:24:58.199363Z'
-updated_at: '2026-07-17T19:06:13.771046Z'
+updated_at: '2026-07-17T19:06:15.996879Z'
 work_branch: OOMPAH-219
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/424
@@ -284,5 +284,10 @@ author: oompah
 created: 2026-07-17 19:06
 ---
 Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-17 19:06
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
