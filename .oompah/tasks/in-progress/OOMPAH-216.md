@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T00:40:53.660377Z'
-updated_at: '2026-07-17T00:59:35.627601Z'
+updated_at: '2026-07-17T00:59:45.368735Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-07-17 00:59
 ---
 Implementation: Delivered all OOMPAH-216 scope in commit da879d86.\n\n1. orchestrator.py: Added _reconcile_delivery_pr_outcomes_sweep() method and wired it into _reconcile_release_picks_pass(). Polls all in_review ledger deliveries with pr_url against their SCM provider on every maintenance tick. Merged PRs now automatically transition deliveries to merged, resolving the stale 'In Review' display after PR merge (e.g. Trickle PR #279).\n\n2. release_delivery_inventory.py: Added error and conflict_agent_resolving fields to ReleaseStatusCell (blocked deliveries expose error message and conflict-agent status). Added ahead and behind fields to ReleaseBranchInfo with _compute_ahead_behind() helper using git rev-list --left-right --count.\n\n3. server.py: Serializes new cell error/conflict_agent_resolving and branch ahead/behind fields in the API response. Added POST /api/v1/projects/{id}/release-delivery/{delivery_id}/retry and /archive endpoints (project-scoped, work for commit-inventory deliveries without a source task).\n\n4. release_delivery_compat.py: retry_ledger_delivery() now also clears conflict_agent_task_id so a new conflict-resolution agent can be dispatched after retry.\n\n5. dashboard.html: Added 'merged' to _RDI_STATUS_LABELS and .rdi-cell-merged CSS. Branch filter checkbox labels now show ahead/behind counts. Evidence drawer shows blocked delivery error, conflict-agent-resolving indicator, and a Retry delivery button. Added _rdiRetryDelivery() async function calling the project-scoped retry endpoint.
+---
+author: oompah
+created: 2026-07-17 00:59
+---
+Verification: make test passed — 9009 passed, 36 skipped, 0 failures.\n\nNew test coverage:\n- tests/test_release_delivery_pr_sweep.py: 10 tests covering _reconcile_delivery_pr_outcomes_sweep (merged PR transitions delivery, open/blocked skipped, deadline exceeded stops sweep, SCM detection failure per-project, missing pr_url skipped) and retry_ledger_delivery conflict_agent_task_id clearing.\n- tests/test_release_delivery_project_retry_api.py: 14 tests covering project-scoped retry/archive endpoints (200/404/409 responses, clears conflict_agent+error on retry).\n- tests/test_release_delivery_inventory.py: +9 tests covering error/conflict_agent_resolving fields in ReleaseStatusCell and ahead/behind in ReleaseBranchInfo and _compute_ahead_behind().\n- tests/test_dashboard_release_delivery_ui.py: +10 tests covering merged CSS, ahead/behind in filters, error+retry+conflict_agent in drawer.
 ---
 <!-- COMMENTS:END -->
