@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-163
 type: bug
-status: Merged
+status: Archived
 priority: 1
 title: Allow generated epic target branches through dispatch
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-10T17:20:29.690205Z'
-updated_at: '2026-07-10T17:29:50.895073Z'
+updated_at: '2026-07-17T18:11:12.475976Z'
 work_branch: null
 target_branch: null
 review_url: null
