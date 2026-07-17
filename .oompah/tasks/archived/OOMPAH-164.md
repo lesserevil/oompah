@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-164
 type: task
-status: Done
+status: Archived
 priority: 2
 title: Document task and epic workflow
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-10T19:08:04.317914Z'
-updated_at: '2026-07-10T19:14:04.015662Z'
+updated_at: '2026-07-17T19:17:08.198028Z'
 work_branch: null
 target_branch: null
 review_url: null
