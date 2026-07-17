@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-219
 type: task
-status: Done
+status: In Review
 priority: null
 title: Detect shared-worktree commits that absorb another task's changes
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-17T18:24:58.199363Z'
-updated_at: '2026-07-17T18:57:09.588973Z'
+updated_at: '2026-07-17T18:57:19.566482Z'
 work_branch: null
 target_branch: null
 review_url: null
