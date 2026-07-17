@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-17T03:17:53.831077Z'
-updated_at: '2026-07-17T03:24:33.839386Z'
+updated_at: '2026-07-17T03:24:36.279751Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -151,5 +151,10 @@ author: oompah
 created: 2026-07-17 03:24
 ---
 Understanding: This task requires a two-stage workflow for duplicate-detection. Currently, when a closed-issue match is found, oompah adds needs:duplicate_detector to the task and dispatches a Duplicate Investigator. But when the investigator clears the duplicate (doesnt archive), oompah falls through to the generic completed without closing path. Planned changes: 1) _on_worker_exit: when focus==duplicate_detector and task still active, add duplicate-screened label and reset to Open; 2) _apply_duplicate_detection: skip tasks with duplicate-screened; 3) Focus instructions: dont implement after clearing; 4) Tests: 4 focused tests.
+---
+author: oompah
+created: 2026-07-17 03:24
+---
+Implemented focus handoff workflow in 2615bb98; full test suite passed.
 ---
 <!-- COMMENTS:END -->
