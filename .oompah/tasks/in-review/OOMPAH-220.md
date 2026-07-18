@@ -14,10 +14,10 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T01:07:02.903959Z'
-updated_at: '2026-07-18T02:01:10.529864Z'
+updated_at: '2026-07-18T02:01:14.774570Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/438
 review_number: null
 merged_at: null
 oompah.external.github:
@@ -78,6 +78,7 @@ oompah.task_costs:
     output_tokens: 507
     cost_usd: 0.0
     recorded_at: '2026-07-18T02:00:45.611579+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/438
 ---
 ## Summary
 
