@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T11:58:00.682456Z'
-updated_at: '2026-07-18T12:08:33.289040Z'
+updated_at: '2026-07-18T12:08:41.146461Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -268,5 +268,10 @@ author: oompah
 created: 2026-07-18 12:08
 ---
 Verification: All 9055 tests pass (make test). The 6 git-sync tests all pass including the new test_ff_only_failure_rebase_fails_reset_recovers regression test.
+---
+author: oompah
+created: 2026-07-18 12:08
+---
+Completion: Added a third sync recovery path in _sync_from_remote() — git reset --hard origin/<branch> — that fires when both ff-only and rebase fail. This is the case that triggered OOMPAH-233: the error_watcher was catching TrackerError raised by the all-fail path. Now the reset --hard silently recovers (with a warning log), and error_watcher is only triggered for genuinely unrecoverable states where even the hard reset fails. One new regression test (test_ff_only_failure_rebase_fails_reset_recovers) added; existing TrackerError test updated to also fail the reset so its assertion remains valid.
 ---
 <!-- COMMENTS:END -->
