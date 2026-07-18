@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T01:07:12.334359Z'
-updated_at: '2026-07-18T01:16:11.184308Z'
+updated_at: '2026-07-18T01:19:58.671488Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -181,5 +181,18 @@ author: oompah
 created: 2026-07-18 01:16
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-18 01:19
+---
+Understanding: As Epic Planner, I'm decomposing the work identified by the duplicate_detector agent into actionable child tasks.
+
+**Root cause confirmed:** `oompah/oompah_md_tracker.py:871` uses `logger.error()` in the duplicate-ID deduplication block (`_read_records()`). The `error_watcher` logging handler (line 84 in `oompah/error_watcher.py`) is set to `logging.ERROR` level, so it captures this message and auto-files a bug task.
+
+**The situation is already handled gracefully** — the winner/loser selection is correct, no data is lost. The only problem is the log level. Downgrading to `logger.warning()` fixes all 13 sibling tasks at once.
+
+**Decomposition plan:**
+1. Child task: Fix logger.error → logger.warning + add regression test (single session, bug fix agent)
+2. No additional child tasks needed — the stale trickle repo files will be cleaned up through normal git operations and are not a code change in this repo
 ---
 <!-- COMMENTS:END -->
