@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:07.852089Z'
-updated_at: '2026-07-18T01:14:40.184055Z'
+updated_at: '2026-07-18T01:14:42.511519Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,6 +42,22 @@ oompah.intake:
   last_validator_result: pass
   last_validated_at: '2026-07-18T01:08:24.005423+00:00'
 oompah.agent_run_id: 21236893-831f-4bf5-9494-386de9dcef2f
+oompah.task_costs:
+  total_input_tokens: 48
+  total_output_tokens: 1995
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 48
+      output_tokens: 1995
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 48
+    output_tokens: 1995
+    cost_usd: 0.0
+    recorded_at: '2026-07-18T01:14:39.504949+00:00'
 ---
 ## Summary
 
