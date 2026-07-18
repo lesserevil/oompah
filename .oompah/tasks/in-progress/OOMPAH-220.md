@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:02.903959Z'
-updated_at: '2026-07-18T01:11:06.670474Z'
+updated_at: '2026-07-18T01:11:20.617183Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -103,5 +103,10 @@ author: oompah
 created: 2026-07-18 01:11
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-18 01:11
+---
+Understanding: This issue reports that the oompah_md_tracker backend emits a 'Duplicate native oompah task ID' error when the same task ID (trickle-30) exists in two different status directories (in-review/ and merged/). The error_watcher then auto-files this as a bug. My role is Duplicate Investigator — before any implementation, I need to check whether this exact bug has been reported and handled before.
 ---
 <!-- COMMENTS:END -->
