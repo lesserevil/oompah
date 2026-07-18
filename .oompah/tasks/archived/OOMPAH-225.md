@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:28.570449Z'
-updated_at: '2026-07-18T02:00:41.759673Z'
+updated_at: '2026-07-18T02:00:44.023403Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -112,5 +112,10 @@ author: oompah
 created: 2026-07-18 02:00
 ---
 Discovery: OOMPAH-225 is a confirmed duplicate of OOMPAH-220. Both report the exact same root cause: oompah/oompah_md_tracker.py used logger.error() to report duplicate task IDs (the code already handled them gracefully), causing error_watcher to auto-file each occurrence as a separate bug. OOMPAH-220's duplicate_detector already identified OOMPAH-225 (trickle-38) as a sibling duplicate in the same error_watcher burst. The fix (logger.error → logger.warning at oompah_md_tracker.py ~line 871) was implemented in OOMPAH-220. Archiving OOMPAH-225 as duplicate-of:OOMPAH-220.
+---
+author: oompah
+created: 2026-07-18 02:00
+---
+duplicate-of:OOMPAH-220
 ---
 <!-- COMMENTS:END -->
