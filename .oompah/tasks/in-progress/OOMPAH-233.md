@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T11:58:00.682456Z'
-updated_at: '2026-07-18T11:59:01.849448Z'
+updated_at: '2026-07-18T11:59:13.586922Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -121,5 +121,10 @@ author: oompah
 created: 2026-07-18 11:59
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-18 11:59
+---
+Understanding: This issue reports that the native tracker sync fails with 'git merge --ff-only origin/main' when the local main branch has diverged from origin. My role as Duplicate Investigator is to check whether an existing task already covers this same root cause before any implementation begins. Searching now for similar tasks.
 ---
 <!-- COMMENTS:END -->
