@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T12:01:21.441371Z'
-updated_at: '2026-07-18T12:01:23.748198Z'
+updated_at: '2026-07-18T12:01:45.029592Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,24 +32,29 @@ oompah.external.github:
 ## Summary
 
 ### Problem
+
 Oompah detected a backend error from `backend:webhooks`:
 
 > WebhookForwarder: disabling webhook forwarding for project trickle: configured repo_path is missing or not a directory
 
+### Desired Behavior
+
+The operation in `backend:webhooks` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
+
 ### Steps to Reproduce
+
 1. Run oompah with `backend:webhooks` active.
 2. Let oompah execute the operation that involves `backend:webhooks` (tracker: `github_issues:lesserevil/oompah`).
 3. Observe that the error is captured by `error_watcher` and auto-filed as this task.
 
 ### Actual Behavior
+
 An error occurs in `backend:webhooks` and is recorded by oompah's `error_watcher`:
 
 > WebhookForwarder: disabling webhook forwarding for project trickle: configured repo_path is missing or not a directory
 
-### Expected Behavior
-The operation in `backend:webhooks` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
-
 ### Acceptance Criteria
+
 - The error from `backend:webhooks` no longer occurs, or is handled gracefully so `error_watcher` is not triggered.
 - The root cause is identified and resolved, or documented as a known acceptable failure with explicit handling.
 - No regression: other error types continue to be reported correctly by `error_watcher`.
@@ -65,13 +70,11 @@ The operation in `backend:webhooks` should complete successfully, or degrade gra
 - tracker_repo: oompah
 
 ## External GitHub Issue
+
 - URL: https://github.com/lesserevil/oompah/issues/440
 - Requestor: @lesserevil
 - Reference: lesserevil/oompah#440
 
-## Acceptance Criteria
-
-- [ ] Define acceptance criteria.
-
 ## Notes
+
 
