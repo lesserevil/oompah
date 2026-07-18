@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T11:58:00.682456Z'
-updated_at: '2026-07-18T12:03:15.974722Z'
+updated_at: '2026-07-18T12:03:19.913489Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -235,5 +235,10 @@ author: oompah
 created: 2026-07-18 12:02
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-233`. Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-18 12:03
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
