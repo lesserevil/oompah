@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:12.334359Z'
-updated_at: '2026-07-18T01:11:46.861911Z'
+updated_at: '2026-07-18T01:14:56.765448Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,5 +108,20 @@ author: oompah
 created: 2026-07-18 01:11
 ---
 Understanding: Investigating whether OOMPAH-222 (duplicate native oompah task ID error in backend:oompah_md_tracker) is a duplicate of an existing issue. The error occurs when a task file exists in two state directories simultaneously (in-progress/ and merged/), causing the tracker to emit a duplicate-ID warning captured by error_watcher. Will search existing tasks for prior reports of this same error pattern.
+---
+author: oompah
+created: 2026-07-18 01:14
+---
+Discovery: Duplicate screening complete — OOMPAH-222 is NOT a duplicate.
+
+**Closest related task reviewed:** OOMPAH-212 (Merged, 2026-07-16) — 'Prevent duplicate native task records from appearing on the board'
+- OOMPAH-212 added the winner/loser deduplication logic in oompah/oompah_md_tracker.py (around line 862-879), selecting the most-recently-updated file when a task appears in two state directories simultaneously.
+- OOMPAH-212 is NOT the same issue: it fixed the board display (prevents duplicates from appearing as separate entries). It did NOT prevent the error from being reported to error_watcher.
+
+**Root cause of OOMPAH-222:** The deduplication code (oompah/oompah_md_tracker.py:872) uses logger.error() when a duplicate ID is detected. Error_watcher picks up logger.error() messages and auto-files them as bugs. The fix in OOMPAH-212 made the tracker handle duplicates gracefully but still emits an error-level log, triggering error_watcher.
+
+**Scale of the problem:** 13 instances total filed on 2026-07-18 — OOMPAH-220 (TRICKLE-30), OOMPAH-221 (TRICKLE-31), OOMPAH-222 (TRICKLE-32), OOMPAH-223 through OOMPAH-232 (TRICKLE-36 through TRICKLE-45) — all describe the identical root cause.
+
+**Evidence files:** oompah/oompah_md_tracker.py line 872 (logger.error call in the duplicate-resolution block)
 ---
 <!-- COMMENTS:END -->
