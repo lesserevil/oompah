@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T01:07:02.903959Z'
-updated_at: '2026-07-18T02:00:31.909771Z'
+updated_at: '2026-07-18T02:00:34.236808Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -268,5 +268,10 @@ Completion: All work on OOMPAH-220 is complete.
 5. **Sibling tasks** (OOMPAH-221 through OOMPAH-232) are all being independently handled by their own agents as duplicates of OOMPAH-220.
 
 The acceptance criteria are fully met: the error no longer fires at ERROR level, so `error_watcher` will not auto-file future duplicates of this issue.
+---
+author: oompah
+created: 2026-07-18 02:00
+---
+Fixed: downgraded logger.error to logger.warning in _read_records() duplicate-ID block (oompah_md_tracker.py:871). The code already handled duplicates gracefully; ERROR log level was incorrectly triggering error_watcher to auto-file bugs. Added regression test. Commit: 625014c3. Tests: 9054 passed.
 ---
 <!-- COMMENTS:END -->
