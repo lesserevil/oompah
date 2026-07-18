@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T12:01:21.441371Z'
-updated_at: '2026-07-18T12:18:01.073664Z'
+updated_at: '2026-07-18T12:18:10.318445Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -239,5 +239,10 @@ Changed the `repo_path is missing or not a directory` call site to pass `warn_on
 All other error paths (HTTP 404, 403, missing git repo, missing repo slug, etc.) remain at ERROR level and continue to trigger error_watcher correctly.
 
 Added regression test `test_missing_repo_path_disables_at_warning_not_error` in TestWebhookForwarderPoll that verifies: project is disabled AND no ERROR log is emitted (only WARNING).
+---
+author: oompah
+created: 2026-07-18 12:18
+---
+Verification: make test → 9055 passed, 36 skipped, 11 warnings. New test `test_missing_repo_path_disables_at_warning_not_error` passes. Pre-existing failure `test_default_webhook_url` (port 8080 vs 8090 mismatch) is unrelated to this change and pre-dates this branch.
 ---
 <!-- COMMENTS:END -->
