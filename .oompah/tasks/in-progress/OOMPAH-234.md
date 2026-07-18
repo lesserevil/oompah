@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T12:01:21.441371Z'
-updated_at: '2026-07-18T12:08:15.644699Z'
+updated_at: '2026-07-18T12:09:28.753453Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,27 @@ author: oompah
 created: 2026-07-18 12:08
 ---
 Understanding: Investigating whether this issue is a duplicate. The error 'WebhookForwarder: disabling webhook forwarding for project trickle: configured repo_path is missing or not a directory' was auto-filed by error_watcher. My role is to search for existing tasks covering the same root cause before any implementation begins.
+---
+author: oompah
+created: 2026-07-18 12:09
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate confirmed. This is a unique issue.
+
+**Evidence reviewed:**
+- Searched .oompah/tasks for 'repo_path is missing or not a directory' — only appears in OOMPAH-234 itself.
+- The fingerprint `622aaaa5848fc5b4` is unique to OOMPAH-234.
+- Many archived tasks (OOMPAH-62, OOMPAH-82, OOMPAH-113, OOMPAH-118, OOMPAH-125, etc.) have similar titles '[backend:webhooks] WebhookForwarder: disabling webhook forwarding for project trickle' but carry a different error: 'gh: Not Found (HTTP 404)'. These are a different root cause (GitHub API 404) handled in a different code path.
+- OOMPAH-188 (Merged) has error 'gh: Resource not accessible by personal access token (HTTP 403)' — again a different root cause.
+
+**Root cause location:** `oompah/webhooks.py` around line 1246–1258. When `_try_launch_project()` is called, it checks `if not repo_path or not os.path.isdir(repo_path)` and calls `_record_project_error(..., fatal=True)` which logs at ERROR level (triggering error_watcher). The 'trickle' project has a `repo_path` configured that either doesn't exist or isn't a directory on this host.
+
+**Remaining work:**
+- Determine why the 'trickle' project's repo_path is invalid (path missing, wrong config, or project shouldn't have webhook forwarding enabled).
+- Fix: either correct the repo_path config for 'trickle', or downgrade the log from ERROR to WARNING/DEBUG for the repo_path-missing case (since it's a configuration issue, not a runtime failure), so error_watcher doesn't auto-file tasks for it.
+- The code at line 1249 already has a `logger.debug(...)` for the same condition — but the subsequent `_record_project_error(..., fatal=True)` emits `logger.error(...)` which triggers error_watcher.
+
+**Recommended next focus:** `bug` (backend fix — either config correction or log-level adjustment in webhooks.py)
 ---
 <!-- COMMENTS:END -->
