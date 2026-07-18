@@ -1061,8 +1061,21 @@ class WebhookForwarder:
         detail: str,
         *,
         fatal: bool | None = None,
+        warn_only: bool = False,
     ) -> None:
-        """Record and surface the latest per-project forwarder error."""
+        """Record and surface the latest per-project forwarder error.
+
+        Args:
+            fp: The forwarder process state to update.
+            detail: Human-readable error detail string.
+            fatal: When True, disable the project and log the error. When None,
+                inferred from *detail* via :func:`_is_fatal_forwarder_error`.
+            warn_only: When True (and *fatal* resolves to True), log at WARNING
+                instead of ERROR.  Use this for configuration errors that are
+                expected when the local environment doesn't have the required
+                directory (e.g. ``repo_path`` not present on this host) — they
+                disable forwarding, but they shouldn't trigger ``error_watcher``.
+        """
         clean_detail = _truncate_error_detail(detail) or "unknown error"
         if fatal is None:
             fatal = _is_fatal_forwarder_error(clean_detail)
@@ -1071,11 +1084,18 @@ class WebhookForwarder:
         if fatal:
             fp.disabled = True
             fp.disabled_reason = clean_detail
-            logger.error(
-                "WebhookForwarder: disabling webhook forwarding for project %s: %s",
-                fp.project_name,
-                clean_detail,
-            )
+            if warn_only:
+                logger.warning(
+                    "WebhookForwarder: disabling webhook forwarding for project %s: %s",
+                    fp.project_name,
+                    clean_detail,
+                )
+            else:
+                logger.error(
+                    "WebhookForwarder: disabling webhook forwarding for project %s: %s",
+                    fp.project_name,
+                    clean_detail,
+                )
         self._notify_status()
 
     def _clear_project_error(self, fp: _ForwarderProcess) -> None:
@@ -1253,6 +1273,7 @@ class WebhookForwarder:
                 fp,
                 "configured repo_path is missing or not a directory",
                 fatal=True,
+                warn_only=True,
             )
             return
 

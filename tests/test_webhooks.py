@@ -1273,6 +1273,48 @@ class TestWebhookForwarderPoll:
         assert fwd._processes["proj-1"].process is None
 
     @pytest.mark.asyncio
+    async def test_missing_repo_path_disables_at_warning_not_error(self, caplog):
+        """When repo_path is missing/not-a-directory, the project is disabled but
+        only a WARNING is emitted (not ERROR), so error_watcher is not triggered.
+
+        Regression test for OOMPAH-234.
+        """
+        proj = Project(
+            id="proj-1",
+            name="trickle",
+            repo_url="https://github.com/org/repo.git",
+            repo_path="/nonexistent/path/that/does/not/exist",
+        )
+        store = _FakeProjectStore([proj])
+        fwd = WebhookForwarder(project_store=store)
+
+        with caplog.at_level("DEBUG", logger="oompah.webhooks"):
+            await fwd._poll_and_restart()
+
+        fp = fwd._processes["proj-1"]
+        # Project should be disabled (webhook forwarding cannot proceed).
+        assert fp.disabled is True
+        assert "repo_path is missing or not a directory" in fp.disabled_reason
+        assert fp.process is None
+
+        # The key assertion: no ERROR-level log emitted for this configuration
+        # issue. Only WARNING so that error_watcher is not triggered.
+        error_records = [
+            r for r in caplog.records
+            if r.levelname == "ERROR" and "trickle" in r.message
+        ]
+        assert error_records == [], (
+            "Expected no ERROR logs for missing repo_path, got: "
+            + str([r.message for r in error_records])
+        )
+        warning_records = [
+            r for r in caplog.records
+            if r.levelname == "WARNING" and "trickle" in r.message
+        ]
+        assert len(warning_records) == 1
+        assert "repo_path is missing or not a directory" in warning_records[0].message
+
+    @pytest.mark.asyncio
     async def test_launch_skips_missing_gh(self, tmp_path):
         """If gh CLI is not found, _launch logs a warning and sets process=None."""
         proj = Project(
