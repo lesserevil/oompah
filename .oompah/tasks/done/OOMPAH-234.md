@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T12:01:21.441371Z'
-updated_at: '2026-07-18T12:18:50.706051Z'
+updated_at: '2026-07-18T12:18:53.123400Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,8 +27,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/440
   requestor_login: lesserevil
   imported_comment_ids: []
-  last_synced_status: In Progress
-  last_synced_at: '2026-07-18T12:08:12.779555+00:00'
+  last_synced_status: Done
+  last_synced_at: '2026-07-18T12:18:52.431931+00:00'
 oompah.intake:
   missing_fields: []
   scope: small
