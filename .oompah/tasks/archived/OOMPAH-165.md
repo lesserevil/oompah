@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-165
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Fix shared epic landed detection before main merge
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-11T03:24:27.952153Z'
-updated_at: '2026-07-11T03:57:47.990455Z'
+updated_at: '2026-07-18T04:55:42.270897Z'
 work_branch: null
 target_branch: null
 review_url: null
