@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:22.064375Z'
-updated_at: '2026-07-18T01:46:49.867787Z'
+updated_at: '2026-07-18T01:46:58.723597Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,5 +102,10 @@ author: oompah
 created: 2026-07-18 01:46
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-18 01:46
+---
+Duplicate screening confirmed OOMPAH-224 is a duplicate of OOMPAH-220. Both describe the same backend:oompah_md_tracker duplicate-ID handling path and error_watcher false-positive; only the TRICKLE task ID and state directories differ. OOMPAH-220 is the canonical task and already contains the targeted warning-level fix and regression test.
 ---
 <!-- COMMENTS:END -->
