@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:50.707111Z'
-updated_at: '2026-07-18T02:10:48.729784Z'
+updated_at: '2026-07-18T02:10:52.011960Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,5 +120,10 @@ OOMPAH-220 is the canonical task for this exact bug class. The root cause was `o
 OOMPAH-220's duplicate_detector explicitly identified OOMPAH-230 (trickle-43) as one of the sibling tasks in the same error_watcher burst. All siblings (OOMPAH-221 through OOMPAH-232) were filed at the same time from the same stale trickle repo files being detected in the same scan.
 
 Archiving as duplicate-of:OOMPAH-220.
+---
+author: oompah
+created: 2026-07-18 02:10
+---
+duplicate-of:OOMPAH-220
 ---
 <!-- COMMENTS:END -->
