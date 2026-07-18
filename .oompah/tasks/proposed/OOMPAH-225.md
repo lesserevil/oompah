@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:28.570449Z'
-updated_at: '2026-07-18T01:08:51.550412Z'
+updated_at: '2026-07-18T01:08:53.843792Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,6 +28,19 @@ oompah.external.github:
   imported_comment_ids: []
   last_synced_status: Proposed
   last_synced_at: '2026-07-18T01:07:30.104124+00:00'
+oompah.intake:
+  missing_fields: []
+  scope: unknown
+  requestor_approved: false
+  requestor_approved_at: null
+  requestor_actor: null
+  owner_override: false
+  owner_override_at: null
+  owner_actor: null
+  decomposition_status: not_needed
+  proposal_fingerprint: null
+  last_validator_result: pass
+  last_validated_at: '2026-07-18T01:08:53.134249+00:00'
 ---
 ## Summary
 
