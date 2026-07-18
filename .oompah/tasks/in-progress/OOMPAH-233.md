@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T11:58:00.682456Z'
-updated_at: '2026-07-18T12:08:01.680254Z'
+updated_at: '2026-07-18T12:08:33.289040Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -263,5 +263,10 @@ New behavior: after rebase --abort, attempt 'git reset --hard origin/<branch>' t
 Test changes:
 - Updated test_ff_only_failure_raises_tracker_error_with_remediation: mock reset --hard as failing too, so the TrackerError assertion still holds for the all-three-fail case.
 - Added test_ff_only_failure_rebase_fails_reset_recovers: new regression test for OOMPAH-233, verifying silent recovery via reset when both ff-only and rebase fail.
+---
+author: oompah
+created: 2026-07-18 12:08
+---
+Verification: All 9055 tests pass (make test). The 6 git-sync tests all pass including the new test_ff_only_failure_rebase_fails_reset_recovers regression test.
 ---
 <!-- COMMENTS:END -->
