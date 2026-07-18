@@ -412,12 +412,13 @@ class TestOompahMarkdownTrackerGitSync:
         assert "Remediation" in error_msg or "remediation" in error_msg.lower()
 
     def test_ff_only_failure_raises_tracker_error_with_remediation(self, tmp_path):
-        """ff-only failure followed by rebase failure must raise TrackerError.
+        """ff-only failure followed by rebase AND reset failures must raise TrackerError.
 
         This is the OOMPAH-10 regression: the old 'git pull --rebase origin main'
         would fail with 'Cannot rebase onto multiple branches' on clean managed
-        repos.  The new path tries ff-only first, then rebase as a fallback.
-        When both fail, it must raise a TrackerError with actionable text.
+        repos.  The new path tries ff-only first, then rebase, then reset --hard
+        as cascading fallbacks.  Only when all three fail should a TrackerError
+        with actionable text be raised.
         """
         tracker = _tracker(tmp_path, git_sync=True)
 
@@ -441,6 +442,11 @@ class TestOompahMarkdownTrackerGitSync:
                 return _make_completed_process(
                     1, "", "error: could not apply abc1234... task update"
                 )
+            if cmd == "reset" and "--hard" in args:
+                # Force-reset also fails (e.g. catastrophically corrupted state).
+                return _make_completed_process(
+                    1, "", "error: Could not reset index file to revision"
+                )
             # rebase --abort and other commands succeed.
             return _make_completed_process(0)
 
@@ -452,6 +458,57 @@ class TestOompahMarkdownTrackerGitSync:
         error_msg = str(exc_info.value)
         assert "ff-only" in error_msg or "fast-forward" in error_msg.lower() or "ff_only" in error_msg
         assert "Remediation" in error_msg or "remediation" in error_msg.lower()
+
+    def test_ff_only_failure_rebase_fails_reset_recovers(self, tmp_path):
+        """When ff-only and rebase both fail, git reset --hard must recover silently.
+
+        This is the OOMPAH-233 fix: when local main has diverged from origin
+        and a rebase cannot auto-resolve conflicts, a git reset --hard
+        origin/<branch> restores the local branch to the remote state.
+        Remote is authoritative for tracker task files, so discarding
+        un-pushable local commits is safe and unblocks the write.
+        """
+        tracker = _tracker(tmp_path, git_sync=True)
+        calls: list[tuple] = []
+
+        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+            calls.append(tuple(args))
+            cmd = args[0] if args else ""
+            if cmd == "rev-parse":
+                return _make_completed_process(0, "true")
+            if cmd == "symbolic-ref":
+                return _make_completed_process(0, "main")
+            if cmd == "remote":
+                return _make_completed_process(0, "git@example.com:org/repo.git")
+            if cmd == "fetch":
+                return _make_completed_process(0)
+            if cmd == "merge" and "--ff-only" in args:
+                # Diverged — fast-forward not possible.
+                return _make_completed_process(
+                    1, "", "fatal: Not possible to fast-forward, aborting."
+                )
+            if cmd == "rebase" and "--abort" not in args:
+                # Rebase fallback also fails.
+                return _make_completed_process(
+                    1, "", "error: could not apply abc1234... task update"
+                )
+            # reset --hard, rebase --abort, and all other commands succeed.
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+
+        # Must NOT raise — reset --hard should have recovered the diverged state.
+        tracker._prepare_default_branch_for_write()
+
+        arg_strings = [" ".join(c) for c in calls]
+        # Force-reset fallback must have been attempted.
+        assert any("reset" in s and "--hard" in s for s in arg_strings), (
+            f"Expected reset --hard fallback call, got: {arg_strings}"
+        )
+        # Must never call 'git pull --rebase' (OOMPAH-10 regression guard).
+        assert not any("pull" in s and "rebase" in s for s in arg_strings), (
+            f"Must not use 'git pull --rebase', got: {arg_strings}"
+        )
 
     def test_ff_only_failure_rebase_recovery_succeeds(self, tmp_path):
         """When ff-only fails but rebase succeeds, _sync_from_remote must recover silently.
