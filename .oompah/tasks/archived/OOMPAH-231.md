@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:55.118753Z'
-updated_at: '2026-07-18T02:02:42.616614Z'
+updated_at: '2026-07-18T02:02:44.791074Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -168,5 +168,10 @@ Discovery: OOMPAH-231 is a CONFIRMED DUPLICATE of OOMPAH-220.
 - OOMPAH-231 (trickle-44) is one of the 13 sibling tasks identified in OOMPAH-220's handoff comment (OOMPAH-220 through OOMPAH-232).
 
 **Conclusion:** Archiving OOMPAH-231 as duplicate-of:OOMPAH-220. No implementation needed here — the fix is tracked in OOMPAH-220.
+---
+author: oompah
+created: 2026-07-18 02:02
+---
+duplicate-of:OOMPAH-220
 ---
 <!-- COMMENTS:END -->
