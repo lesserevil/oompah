@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:08:04.577980Z'
-updated_at: '2026-07-18T02:00:08.954884Z'
+updated_at: '2026-07-18T02:00:38.985834Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -164,5 +164,16 @@ author: oompah
 created: 2026-07-18 02:00
 ---
 Understanding: This issue reports a duplicate-detection error in backend:oompah_md_tracker when the same task ID (trickle-45) exists in two different state directories (merged/ and needs-human/). The error_watcher auto-filed this as a bug. My role is Duplicate Investigator — I'll search existing tasks to check if this same root cause was already reported and fixed before proceeding to implementation.
+---
+author: oompah
+created: 2026-07-18 02:00
+---
+Discovery: OOMPAH-232 is a confirmed duplicate of OOMPAH-220.
+
+OOMPAH-220 is the canonical task for this exact bug: `oompah/oompah_md_tracker.py:871` used `logger.error()` in the duplicate-ID resolution block (`_read_records()`). The code already handled duplicates gracefully (picks most-recently-updated file, continues), but ERROR level caused `error_watcher` to auto-file a bug for every occurrence.
+
+The fix was already applied in OOMPAH-220: `logger.error()` → `logger.warning()` (commit 625014c3). OOMPAH-220 explicitly identified OOMPAH-232 (trickle-45) as one of 12 sibling duplicates filed in the same error_watcher burst.
+
+Archiving OOMPAH-232 as duplicate-of:OOMPAH-220.
 ---
 <!-- COMMENTS:END -->
