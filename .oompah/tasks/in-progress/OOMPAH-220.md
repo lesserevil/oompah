@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T01:07:02.903959Z'
-updated_at: '2026-07-18T01:15:26.600890Z'
+updated_at: '2026-07-18T01:15:51.820566Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,10 @@ author: oompah
 created: 2026-07-18 01:15
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-18 01:15
+---
+Understanding: Taking over from duplicate_detector. The fix is clear: oompah/oompah_md_tracker.py uses logger.error() to report duplicate task IDs (~line 871), but the code already handles duplicates gracefully. Downgrading to logger.warning() will prevent error_watcher from auto-filing these as bugs. Plan: (1) confirm the exact code, (2) change log level to warning, (3) add a test, (4) archive sibling tasks OOMPAH-221 through OOMPAH-232, (5) run make test, (6) commit and push.
 ---
 <!-- COMMENTS:END -->
