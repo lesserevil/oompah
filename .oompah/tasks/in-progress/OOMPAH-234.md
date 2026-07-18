@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T12:01:21.441371Z'
-updated_at: '2026-07-18T12:14:04.664601Z'
+updated_at: '2026-07-18T12:18:01.073664Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -226,5 +226,18 @@ Discovery: Root cause confirmed in oompah/webhooks.py.
 The `_record_project_error()` method (line 1058) always logs `logger.error(...)` when `fatal=True`. When `repo_path` is missing/not-a-directory (line 1246-1258), it calls `_record_project_error(fp, 'configured repo_path is missing or not a directory', fatal=True)` which emits an ERROR log, triggering error_watcher.
 
 Fix: Add a `warn_only: bool = False` parameter to `_record_project_error`. When `warn_only=True` and `fatal=True`, log at WARNING instead of ERROR. Use `warn_only=True` for the repo_path check since it is a configuration issue (the path doesn't exist on this host), not a runtime failure. The project is still disabled so it won't keep retrying, but error_watcher won't trigger.
+---
+author: oompah
+created: 2026-07-18 12:18
+---
+Implementation: Fixed in oompah/webhooks.py.
+
+Added `warn_only: bool = False` parameter to `_record_project_error()`. When `warn_only=True` and `fatal=True`, logs at WARNING instead of ERROR (disabling the project but not triggering error_watcher).
+
+Changed the `repo_path is missing or not a directory` call site to pass `warn_only=True`. This is a configuration issue (the local host simply doesn't have the directory) — webhook forwarding is disabled gracefully with a WARNING, not an ERROR.
+
+All other error paths (HTTP 404, 403, missing git repo, missing repo slug, etc.) remain at ERROR level and continue to trigger error_watcher correctly.
+
+Added regression test `test_missing_repo_path_disables_at_warning_not_error` in TestWebhookForwarderPoll that verifies: project is disabled AND no ERROR log is emitted (only WARNING).
 ---
 <!-- COMMENTS:END -->
