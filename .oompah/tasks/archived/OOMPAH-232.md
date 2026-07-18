@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:08:04.577980Z'
-updated_at: '2026-07-18T02:00:51.918354Z'
+updated_at: '2026-07-18T02:00:54.116051Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -175,5 +175,10 @@ OOMPAH-220 is the canonical task for this exact bug: `oompah/oompah_md_tracker.p
 The fix was already applied in OOMPAH-220: `logger.error()` → `logger.warning()` (commit 625014c3). OOMPAH-220 explicitly identified OOMPAH-232 (trickle-45) as one of 12 sibling duplicates filed in the same error_watcher burst.
 
 Archiving OOMPAH-232 as duplicate-of:OOMPAH-220.
+---
+author: oompah
+created: 2026-07-18 02:00
+---
+duplicate-of:OOMPAH-220
 ---
 <!-- COMMENTS:END -->
