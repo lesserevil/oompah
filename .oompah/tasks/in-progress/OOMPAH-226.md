@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:33.012372Z'
-updated_at: '2026-07-18T02:02:39.953160Z'
+updated_at: '2026-07-18T02:03:03.209986Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -148,5 +148,10 @@ author: oompah
 created: 2026-07-18 02:02
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-18 02:03
+---
+Understanding: Investigating OOMPAH-226 as Duplicate Investigator. The issue reports that the oompah_md_tracker backend emits a warning/error when a task file exists in both the 'done' and 'merged' directories (duplicate native oompah task ID). The error_watcher then auto-files this as a bug task. I will search for existing tasks covering the same root cause before deciding whether to proceed with implementation or archive as a duplicate.
 ---
 <!-- COMMENTS:END -->
