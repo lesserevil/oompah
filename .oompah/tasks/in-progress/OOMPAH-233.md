@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T11:58:00.682456Z'
-updated_at: '2026-07-18T11:59:13.586922Z'
+updated_at: '2026-07-18T12:01:19.349908Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,5 +126,23 @@ author: oompah
 created: 2026-07-18 11:59
 ---
 Understanding: This issue reports that the native tracker sync fails with 'git merge --ff-only origin/main' when the local main branch has diverged from origin. My role as Duplicate Investigator is to check whether an existing task already covers this same root cause before any implementation begins. Searching now for similar tasks.
+---
+author: oompah
+created: 2026-07-18 12:01
+---
+Discovery: OOMPAH-233 is NOT a duplicate.
+
+Closest candidates reviewed:
+- OOMPAH-190 (Archived): exact same error/API, but archived as 'temporary divergence manually rebased' — no code fix.
+- OOMPAH-189 (Archived): same root cause, different API (Add comment), same manual resolution.
+- OOMPAH-191 (Archived): same root cause, different API (Create issue), same manual resolution.
+- OOMPAH-204 (Merged 2026-07-14, PR #416): **THIS IS THE CLOSEST** — same error, same API (Update issue). Added rebase fallback to _sync_from_remote() in oompah/oompah_md_tracker.py. Fix merged 2026-07-14.
+
+Evidence OOMPAH-233 is NOT a duplicate:
+1. OOMPAH-204's fix IS present in the code (lines 1010–1030 of oompah_md_tracker.py). The fix tries 'git rebase origin/<branch>' as fallback when --ff-only fails.
+2. OOMPAH-233 filed on 2026-07-18 — 4 days AFTER OOMPAH-204 merged. The fix did not prevent this occurrence.
+3. The error message in OOMPAH-233 is the format raised only when BOTH ff-only AND rebase fail (line 1024 in _sync_from_remote). This is a remaining gap in OOMPAH-204's fix: when there is a genuine merge conflict that rebase cannot auto-resolve.
+
+Remaining work: OOMPAH-204 added the easy-case recovery (rebase succeeds), but the hard-case — where rebase also fails due to genuine conflicts — still raises TrackerError and triggers error_watcher. A follow-up code change is needed to either: (a) auto-reset to origin head (force sync, discarding diverged local commits), (b) emit a structured warning instead of a TrackerError so error_watcher is not triggered, or (c) add smarter retry logic. Recommended next focus: bug implementation agent to handle the rebase-also-fails case in _sync_from_remote().
 ---
 <!-- COMMENTS:END -->
