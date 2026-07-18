@@ -15,7 +15,7 @@ labels:
 - needs:bug
 assignee: null
 created_at: '2026-07-18T01:07:12.334359Z'
-updated_at: '2026-07-18T01:16:00.761687Z'
+updated_at: '2026-07-18T01:16:06.810933Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 20s
 - Log: OOMPAH-222__20260718T011130Z.jsonl
+---
+author: oompah
+created: 2026-07-18 01:16
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
