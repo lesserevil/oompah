@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:02.903959Z'
-updated_at: '2026-07-18T01:11:20.617183Z'
+updated_at: '2026-07-18T01:14:15.400433Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,5 +108,33 @@ author: oompah
 created: 2026-07-18 01:11
 ---
 Understanding: This issue reports that the oompah_md_tracker backend emits a 'Duplicate native oompah task ID' error when the same task ID (trickle-30) exists in two different status directories (in-review/ and merged/). The error_watcher then auto-files this as a bug. My role is Duplicate Investigator — before any implementation, I need to check whether this exact bug has been reported and handled before.
+---
+author: oompah
+created: 2026-07-18 01:14
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** OOMPAH-220 is NOT a duplicate. No prior task exists for this exact bug class. This is the canonical report.
+
+**Evidence searched:**
+- All .oompah/tasks/ (archived, done, merged, open, backlog, in-progress)
+- No prior task with 'backend:oompah_md_tracker', 'Duplicate native oompah task ID', or 'stale record' in any terminal state
+- 166 archived tasks examined — zero matches
+
+**Root cause (code level):**
+oompah/oompah_md_tracker.py line 871 uses `logger.error(...)` to report duplicate task IDs. The code ALREADY handles duplicates gracefully (picks the most-recently-updated record and continues). However, `error_watcher` fires on any `logger.error` call, auto-filing each instance as a bug.
+
+The relevant code block is in `_read_records()` around line 860-880: when two files share the same task ID (e.g., in-review/ AND merged/), it picks the winner by recency and logs the issue at ERROR level.
+
+**Siblings (all duplicates of OOMPAH-220):**
+OOMPAH-221 (trickle-31), OOMPAH-222 (trickle-32), OOMPAH-223 (trickle-36), OOMPAH-224 (trickle-37), OOMPAH-225 (trickle-38), OOMPAH-226 (trickle-39), OOMPAH-227 (trickle-40), OOMPAH-228 (trickle-41), OOMPAH-229 (trickle-42), OOMPAH-230 (trickle-43), OOMPAH-231 (trickle-44), OOMPAH-232 (trickle-45) — all the same root cause, filed in the same error_watcher burst.
+
+**Remaining work:**
+1. Downgrade `logger.error` → `logger.warning` at oompah/oompah_md_tracker.py line 871 (the code already handles the case gracefully; this is not an unhandled error)
+2. Archive sibling tasks OOMPAH-221 through OOMPAH-232 as duplicate-of:OOMPAH-220
+3. Add/update a test confirming the warning is emitted (not error) on duplicate detection
+4. Run make test
+
+**Recommended next focus:** chore (small targeted log-level change + sibling archival)
 ---
 <!-- COMMENTS:END -->
