@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-18T22:26:05.196480Z'
-updated_at: '2026-07-18T22:26:05.196480Z'
+updated_at: '2026-07-18T22:27:48.834879Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,3 +44,11 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-18 22:27
+---
+Implemented and pushed in fdd61e4a. Native tracker sync now retries divergent default-branch writes with git rebase --autostash origin/<branch>, preserving unrelated working-tree edits. Failed rebases abort safely and report remediation; the reset --hard fallback was removed. Regression tests cover successful recovery, push-race recovery, and conflict preservation. make test passed (9,274 tests).
+---
+<!-- COMMENTS:END -->
