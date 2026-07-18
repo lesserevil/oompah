@@ -11,9 +11,10 @@ children: []
 blocked_by: []
 labels:
 - external:github
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T01:07:12.334359Z'
-updated_at: '2026-07-18T01:14:56.765448Z'
+updated_at: '2026-07-18T01:15:03.980019Z'
 work_branch: null
 target_branch: null
 review_url: null
