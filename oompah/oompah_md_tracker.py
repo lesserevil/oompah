@@ -986,9 +986,10 @@ class OompahMarkdownTracker:
         Prefers a deterministic fetch + ``--ff-only`` merge (safe for clean,
         up-to-date repos).  If the local branch has diverged from origin —
         most commonly because a previous ``_commit_and_push`` committed a task
-        update but the push was rejected and a prior recovery attempt was
-        interrupted — falls back to ``git rebase origin/<branch>`` to place
-        the local commits on top of the fetched origin tip.
+        update while another writer advanced the default branch — falls back
+        to ``git rebase --autostash origin/<branch>`` to place the local
+        commits on top of the fetched origin tip without losing unrelated
+        working-tree edits.
 
         The rebase fallback avoids the ``fatal: Cannot rebase onto multiple
         branches`` error that ``git pull --rebase origin <branch>`` can
@@ -996,7 +997,9 @@ class OompahMarkdownTracker:
         ``origin/<branch>`` directly is unambiguous after the explicit fetch.
 
         Raises :class:`TrackerError` with an actionable remediation message
-        only when both fast-forward and rebase recovery fail.
+        only when both fast-forward and the non-destructive rebase recovery
+        fail.  Never use ``reset --hard`` here: tracker writes must not
+        discard local commits or unrelated operator edits.
         """
         fetch = self._git(["fetch", "origin", branch], check=False)
         if fetch.returncode != 0:
@@ -1015,31 +1018,23 @@ class OompahMarkdownTracker:
         # rebasing local commits on top of origin so the next push can
         # succeed without creating a merge commit.
         ff_err = ff.stderr.strip() or ff.stdout.strip()
-        rebase = self._git(["rebase", f"origin/{branch}"], check=False)
+        rebase = self._git(
+            ["rebase", "--autostash", f"origin/{branch}"], check=False
+        )
         if rebase.returncode == 0:
             return
-        # Both recovery paths failed.  Abort the stranded rebase, then attempt
-        # a final recovery by force-resetting the local branch to origin.
-        # Remote is authoritative for tracker task files: any local commits
-        # that cannot be rebased are either already present on origin or are
-        # stale/conflicting copies that should not be re-pushed.  Discarding
-        # them unblocks the write without permanently losing task data.
+        # Both recovery paths failed.  Abort any in-progress rebase, but keep
+        # the original branch and its working tree intact so an operator can
+        # resolve the conflict without reconstructing lost tracker changes.
         self._git(["rebase", "--abort"], check=False)
-        reset = self._git(["reset", "--hard", f"origin/{branch}"], check=False)
-        if reset.returncode == 0:
-            logger.warning(
-                "Native tracker sync: git ff-only and rebase both failed for branch "
-                "%r; force-reset local branch to origin/%s. Any local-only commits "
-                "have been discarded.",
-                branch,
-                branch,
-            )
-            return
+        rebase_err = rebase.stderr.strip() or rebase.stdout.strip()
         raise TrackerError(
             f"Cannot sync native tracker: "
             f"git merge --ff-only origin/{branch} failed: {ff_err}. "
-            f"Remediation: the local {branch!r} branch has diverged from origin. "
-            f"Run: git fetch origin && git rebase origin/{branch}"
+            f"Automatic rebase --autostash origin/{branch} also failed: {rebase_err}. "
+            f"The local branch and working tree were preserved. Remediation: "
+            f"resolve the rebase conflict, then run: git fetch origin && "
+            f"git rebase --autostash origin/{branch}"
         )
 
     def _commit_and_push(self, subject: str) -> None:
