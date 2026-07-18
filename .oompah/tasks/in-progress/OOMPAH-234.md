@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T12:01:21.441371Z'
-updated_at: '2026-07-18T12:11:46.626971Z'
+updated_at: '2026-07-18T12:12:02.787405Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -212,5 +212,10 @@ author: oompah
 created: 2026-07-18 12:11
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-18 12:12
+---
+Understanding: Continuing from previous agent's work. The root cause is in oompah/webhooks.py in the _try_launch_project() function. When repo_path is missing or not a directory, it calls _record_project_error(..., fatal=True) which logs at ERROR level, triggering error_watcher. The fix should downgrade this to a WARNING (not a fatal error) since a missing repo_path is a configuration issue, not a runtime failure — webhook forwarding simply can't operate without it, so we disable it gracefully with a warning.
 ---
 <!-- COMMENTS:END -->
