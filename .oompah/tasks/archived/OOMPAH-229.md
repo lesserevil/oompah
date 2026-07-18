@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:46.132574Z'
-updated_at: '2026-07-18T02:11:30.542777Z'
+updated_at: '2026-07-18T02:20:00.667422Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -26,8 +26,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/434
   requestor_login: NVShawn
   imported_comment_ids: []
-  last_synced_status: Open
-  last_synced_at: '2026-07-18T01:47:23.144049+00:00'
+  last_synced_status: Archived
+  last_synced_at: '2026-07-18T02:19:59.989108+00:00'
   last_github_state: closed
 oompah.intake:
   missing_fields: []
