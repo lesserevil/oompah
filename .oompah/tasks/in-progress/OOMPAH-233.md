@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T11:58:00.682456Z'
-updated_at: '2026-07-18T12:03:36.354328Z'
+updated_at: '2026-07-18T12:08:01.680254Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -250,5 +250,18 @@ author: oompah
 created: 2026-07-18 12:03
 ---
 Understanding: Picking up from duplicate_detector handoff. Root cause: _sync_from_remote() in oompah/oompah_md_tracker.py has a two-step recovery (ff-only → rebase), but when both fail it raises TrackerError which triggers error_watcher. Fix: add a third recovery step — 'git reset --hard origin/<branch>' — to force-sync local to remote when rebase also fails, since remote wins for tracker state. Will implement + add regression test.
+---
+author: oompah
+created: 2026-07-18 12:08
+---
+Implementation: Added a third recovery step to _sync_from_remote() in oompah/oompah_md_tracker.py.
+
+Previous behavior: when both ff-only and rebase failed, a TrackerError was raised immediately, triggering error_watcher.
+
+New behavior: after rebase --abort, attempt 'git reset --hard origin/<branch>' to force-sync local to remote. Since remote is authoritative for tracker task files, discarding un-pushable local commits is safe and unblocks the write. Only when all three recovery paths (ff-only, rebase, reset --hard) fail is a TrackerError raised.
+
+Test changes:
+- Updated test_ff_only_failure_raises_tracker_error_with_remediation: mock reset --hard as failing too, so the TrackerError assertion still holds for the all-three-fail case.
+- Added test_ff_only_failure_rebase_fails_reset_recovers: new regression test for OOMPAH-233, verifying silent recovery via reset when both ff-only and rebase fail.
 ---
 <!-- COMMENTS:END -->
