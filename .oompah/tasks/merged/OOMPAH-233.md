@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T11:58:00.682456Z'
-updated_at: '2026-07-18T12:14:15.661109Z'
+updated_at: '2026-07-18T12:18:57.696289Z'
 work_branch: OOMPAH-233
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/441
@@ -28,8 +28,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/439
   requestor_login: NVShawn
   imported_comment_ids: []
-  last_synced_status: In Review
-  last_synced_at: '2026-07-18T12:13:34.302187+00:00'
+  last_synced_status: Merged
+  last_synced_at: '2026-07-18T12:18:57.048268+00:00'
 oompah.intake:
   missing_fields: []
   scope: small
