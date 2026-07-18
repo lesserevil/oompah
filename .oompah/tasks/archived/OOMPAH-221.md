@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:07.852089Z'
-updated_at: '2026-07-18T01:32:15.974945Z'
+updated_at: '2026-07-18T01:32:56.343826Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,6 +28,7 @@ oompah.external.github:
   imported_comment_ids: []
   last_synced_status: Archived
   last_synced_at: '2026-07-18T01:14:56.894613+00:00'
+  last_github_state: closed
 oompah.intake:
   missing_fields: []
   scope: unknown
