@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:46.132574Z'
-updated_at: '2026-07-18T02:07:26.563324Z'
+updated_at: '2026-07-18T02:08:41.296550Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,18 @@ author: oompah
 created: 2026-07-18 02:07
 ---
 Understanding: Investigating OOMPAH-229 as Duplicate Investigator. This bug reports that oompah_md_tracker emits an error when the same task ID (TRICKLE-42) exists in two subdirectories (done/ and merged/). The error_watcher then auto-files this as a task. I will search for prior tasks covering the same duplicate-ID detection issue in oompah_md_tracker before deciding if this is a new issue or a duplicate.
+---
+author: oompah
+created: 2026-07-18 02:08
+---
+Discovery: OOMPAH-229 is a confirmed duplicate of OOMPAH-220.
+
+OOMPAH-220 is the canonical task for this exact bug: `oompah/oompah_md_tracker.py:871` used `logger.error()` in the duplicate-ID resolution block (`_read_records()`). The code already handled duplicates gracefully (picks most-recently-updated file, continues), but the ERROR log level caused `error_watcher` to auto-file a bug for every occurrence.
+
+**Fix already applied in OOMPAH-220:** `logger.error()` → `logger.warning()` (commit 625014c3, PR #438, now merged). Current code at line 871 confirms `logger.warning`.
+
+**OOMPAH-220's duplicate_detector** explicitly named OOMPAH-229 (trickle-42) as one of 12 sibling tasks filed in the same error_watcher burst. All siblings were filed at the same time as a result of the same stale trickle repo files being detected on the same scan.
+
+Archiving OOMPAH-229 as duplicate-of:OOMPAH-220.
 ---
 <!-- COMMENTS:END -->
