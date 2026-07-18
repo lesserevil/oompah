@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-220
 type: bug
-status: In Review
+status: Merged
 priority: 2
 title: '[backend:oompah_md_tracker] Duplicate native oompah task ID trickle-30 at
   /home/shedwards/.oompah/repos/trickle/.oompah/tasks/in-review/TRICKLE-30.md and
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T01:07:02.903959Z'
-updated_at: '2026-07-18T02:01:27.258883Z'
+updated_at: '2026-07-18T02:01:31.613631Z'
 work_branch: OOMPAH-220
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/438
