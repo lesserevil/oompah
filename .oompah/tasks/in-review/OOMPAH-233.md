@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-233
 type: bug
-status: Done
+status: In Review
 priority: 2
 title: "[backend:server] Update issue API error: Cannot sync native tracker: git merge\
   \ --ff-only origin/main failed: hint: Diverging branches can't be fast-forwarded,\
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T11:58:00.682456Z'
-updated_at: '2026-07-18T12:08:59.865515Z'
+updated_at: '2026-07-18T12:09:38.937560Z'
 work_branch: null
 target_branch: null
 review_url: null
