@@ -12,9 +12,10 @@ blocked_by: []
 labels:
 - external:github
 - focus-complete:duplicate_detector
+- needs:chore
 assignee: null
 created_at: '2026-07-18T01:07:02.903959Z'
-updated_at: '2026-07-18T01:14:24.243431Z'
+updated_at: '2026-07-18T01:14:28.710074Z'
 work_branch: null
 target_branch: null
 review_url: null
