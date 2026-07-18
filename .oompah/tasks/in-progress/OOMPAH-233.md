@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T11:58:00.682456Z'
-updated_at: '2026-07-18T12:03:21.976107Z'
+updated_at: '2026-07-18T12:03:36.354328Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -245,5 +245,10 @@ author: oompah
 created: 2026-07-18 12:03
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-18 12:03
+---
+Understanding: Picking up from duplicate_detector handoff. Root cause: _sync_from_remote() in oompah/oompah_md_tracker.py has a two-step recovery (ff-only → rebase), but when both fail it raises TrackerError which triggers error_watcher. Fix: add a third recovery step — 'git reset --hard origin/<branch>' — to force-sync local to remote when rebase also fails, since remote wins for tracker state. Will implement + add regression test.
 ---
 <!-- COMMENTS:END -->
