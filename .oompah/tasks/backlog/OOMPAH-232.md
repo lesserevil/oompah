@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:08:04.577980Z'
-updated_at: '2026-07-18T01:10:09.699656Z'
+updated_at: '2026-07-18T01:10:11.912574Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -90,4 +90,17 @@ An error occurs in `backend:oompah_md_tracker` and is recorded by oompah's `erro
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-18 01:10
+---
+<!-- oompah:intake-action {"action": "override_readiness", "actor": "lesserevil"} -->
 
+Intake action: readiness override
+
+@lesserevil recorded an owner readiness override for this issue.
+
+Owner override accepted for Proposed to Backlog.
+---
+<!-- COMMENTS:END -->
