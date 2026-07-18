@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:50.707111Z'
-updated_at: '2026-07-18T02:09:36.710691Z'
+updated_at: '2026-07-18T02:10:31.522693Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,18 @@ author: oompah
 created: 2026-07-18 02:09
 ---
 Understanding: I am a Duplicate Investigator for this bug. The error is about a duplicate native oompah task ID (trickle-43) appearing in both the 'done' and 'merged' directories of the oompah_md_tracker. My plan: (1) search for similar tasks about duplicate task IDs or oompah_md_tracker errors, (2) review any candidate duplicates in full, (3) archive if confirmed duplicate or hand off to implementation if unique.
+---
+author: oompah
+created: 2026-07-18 02:10
+---
+Discovery: OOMPAH-230 is a confirmed duplicate of OOMPAH-220.
+
+OOMPAH-220 is the canonical task for this exact bug class. The root cause was `oompah/oompah_md_tracker.py:871` using `logger.error()` in the duplicate-ID resolution block (`_read_records()`). The code already handled duplicates gracefully (picks the most-recently-updated file and continues), but the ERROR log level caused `error_watcher` to auto-file a bug for every occurrence.
+
+**Fix already applied in OOMPAH-220:** `logger.error()` → `logger.warning()` (commit 625014c3, PR #438, merged). A regression test was also added: `test_duplicate_task_id_logs_warning_not_error` in `tests/test_oompah_md_tracker.py`.
+
+OOMPAH-220's duplicate_detector explicitly identified OOMPAH-230 (trickle-43) as one of the sibling tasks in the same error_watcher burst. All siblings (OOMPAH-221 through OOMPAH-232) were filed at the same time from the same stale trickle repo files being detected in the same scan.
+
+Archiving as duplicate-of:OOMPAH-220.
 ---
 <!-- COMMENTS:END -->
