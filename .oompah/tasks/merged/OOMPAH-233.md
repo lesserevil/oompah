@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-233
 type: bug
-status: In Review
+status: Merged
 priority: 2
 title: "[backend:server] Update issue API error: Cannot sync native tracker: git merge\
   \ --ff-only origin/main failed: hint: Diverging branches can't be fast-forwarded,\
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T11:58:00.682456Z'
-updated_at: '2026-07-18T12:13:34.965655Z'
+updated_at: '2026-07-18T12:14:11.259694Z'
 work_branch: OOMPAH-233
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/441
