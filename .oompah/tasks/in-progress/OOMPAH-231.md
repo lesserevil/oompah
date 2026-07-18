@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:55.118753Z'
-updated_at: '2026-07-18T02:00:26.876212Z'
+updated_at: '2026-07-18T02:02:23.398061Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,5 +149,10 @@ author: oompah
 created: 2026-07-18 02:00
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-18 02:02
+---
+Understanding: OOMPAH-231 reports a 'Duplicate native oompah task ID trickle-44' error auto-filed by error_watcher after backend:oompah_md_tracker detected the same task in two state directories (in-progress/ and merged/). My role is Duplicate Investigator. I will search for identical or substantially equivalent prior reports before any implementation.
 ---
 <!-- COMMENTS:END -->
