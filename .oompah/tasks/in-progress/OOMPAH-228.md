@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:41.804523Z'
-updated_at: '2026-07-18T02:04:44.925778Z'
+updated_at: '2026-07-18T02:05:00.377843Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,5 +102,10 @@ author: oompah
 created: 2026-07-18 02:04
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-18 02:05
+---
+Understanding: This issue is about a duplicate task ID error in backend:oompah_md_tracker. When TRICKLE-41.md exists in both .oompah/tasks/done/ and .oompah/tasks/merged/, the tracker logs an error and files it via error_watcher. The desired fix is either to prevent such duplicate detection from being treated as an error (or to handle it gracefully). My role is Duplicate Investigator — I'll search for any previously-handled issues covering the same duplicate-task-ID problem before any implementation begins.
 ---
 <!-- COMMENTS:END -->
