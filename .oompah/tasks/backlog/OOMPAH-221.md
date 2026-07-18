@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-221
 type: bug
-status: Proposed
+status: Backlog
 priority: 2
 title: '[backend:oompah_md_tracker] Duplicate native oompah task ID trickle-31 at
   /home/shedwards/.oompah/repos/trickle/.oompah/tasks/done/TRICKLE-31.md and /home/shedwards/.oompah/repos/trickle/.oompah/ta...'
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:07.852089Z'
-updated_at: '2026-07-18T01:08:24.841731Z'
+updated_at: '2026-07-18T01:08:29.220165Z'
 work_branch: null
 target_branch: null
 review_url: null
