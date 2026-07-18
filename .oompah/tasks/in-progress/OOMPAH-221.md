@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:07.852089Z'
-updated_at: '2026-07-18T01:11:30.986611Z'
+updated_at: '2026-07-18T01:14:26.531320Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,10 @@ author: oompah
 created: 2026-07-18 01:11
 ---
 Understanding: Investigating whether OOMPAH-221 is a duplicate. The issue reports that backend:oompah_md_tracker found duplicate native task ID trickle-31 in two directories (done/ and merged/), which triggered error_watcher to auto-file this task. Plan: search existing tasks for duplicate detection of this same error pattern before deciding whether to archive or hand off for implementation.
+---
+author: oompah
+created: 2026-07-18 01:14
+---
+Discovery: OOMPAH-221 is a confirmed duplicate of OOMPAH-220. Both are auto-filed by error_watcher for the same underlying bug in backend:oompah_md_tracker — 'Duplicate native oompah task ID' when a task file exists in two status directories simultaneously. The descriptions, desired behavior, acceptance criteria, and steps to reproduce are word-for-word identical. The only difference is the specific trickle task ID (trickle-31 vs trickle-30) and which two directories are involved. A single code fix to oompah_md_tracker would resolve all 13 instances (OOMPAH-220 through OOMPAH-232). OOMPAH-220 was filed 5 seconds earlier and is the canonical instance. Archiving OOMPAH-221 as duplicate-of:OOMPAH-220.
 ---
 <!-- COMMENTS:END -->
