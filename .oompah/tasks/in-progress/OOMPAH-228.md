@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:41.804523Z'
-updated_at: '2026-07-18T02:05:33.047411Z'
+updated_at: '2026-07-18T02:06:31.070462Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,10 @@ author: oompah
 created: 2026-07-18 02:05
 ---
 Understanding: This issue is about a duplicate task ID error in backend:oompah_md_tracker. When TRICKLE-41.md exists in both .oompah/tasks/done/ and .oompah/tasks/merged/, the tracker logs an error and files it via error_watcher. The desired fix is either to prevent such duplicate detection from being treated as an error (or to handle it gracefully). My role is Duplicate Investigator — I'll search for any previously-handled issues covering the same duplicate-task-ID problem before any implementation begins.
+---
+author: oompah
+created: 2026-07-18 02:06
+---
+Discovery: OOMPAH-228 is a confirmed duplicate of OOMPAH-220. Evidence:\n\n1. OOMPAH-220 (trickle-30, same error pattern, now Merged) was the canonical report for this entire bug class.\n2. The OOMPAH-220 duplicate_detector comment at 2026-07-18 01:14 explicitly listed OOMPAH-228 (trickle-41) as a sibling duplicate.\n3. The root cause — logger.error() at oompah/oompah_md_tracker.py:871 in _read_records() — was fixed by a Maintenance Engineer: downgraded to logger.warning() in commit 625014c3, merged via PR #438.\n4. Test test_duplicate_task_id_logs_warning_not_error was added to prevent regression.\n5. make test passed: 9054 passed, 36 skipped, 0 failures.\n\nThis issue is a duplicate-of:OOMPAH-220. Archiving.
 ---
 <!-- COMMENTS:END -->
