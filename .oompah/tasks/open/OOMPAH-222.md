@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-222
 type: bug
-status: In Progress
+status: Open
 priority: 2
 title: '[backend:oompah_md_tracker] Duplicate native oompah task ID trickle-32 at
   /home/shedwards/.oompah/repos/trickle/.oompah/tasks/in-progress/TRICKLE-32.md and
@@ -15,7 +15,7 @@ labels:
 - needs:bug
 assignee: null
 created_at: '2026-07-18T01:07:12.334359Z'
-updated_at: '2026-07-18T01:15:30.992972Z'
+updated_at: '2026-07-18T01:15:35.404004Z'
 work_branch: null
 target_branch: null
 review_url: null
