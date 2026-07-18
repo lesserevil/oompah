@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T01:07:12.334359Z'
-updated_at: '2026-07-18T01:15:03.980019Z'
+updated_at: '2026-07-18T01:15:19.733699Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -124,5 +124,26 @@ Discovery: Duplicate screening complete — OOMPAH-222 is NOT a duplicate.
 **Scale of the problem:** 13 instances total filed on 2026-07-18 — OOMPAH-220 (TRICKLE-30), OOMPAH-221 (TRICKLE-31), OOMPAH-222 (TRICKLE-32), OOMPAH-223 through OOMPAH-232 (TRICKLE-36 through TRICKLE-45) — all describe the identical root cause.
 
 **Evidence files:** oompah/oompah_md_tracker.py line 872 (logger.error call in the duplicate-resolution block)
+---
+author: oompah
+created: 2026-07-18 01:15
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-222 is a distinct issue from OOMPAH-212 (Merged).
+
+**Relevant files and evidence:**
+- oompah/oompah_md_tracker.py:872 — `logger.error()` call inside the duplicate-ID resolution block. This is what error_watcher captures to auto-file these bugs.
+- OOMPAH-212 (Merged) added winner/loser deduplication logic but uses logger.error(), so error_watcher still fires.
+- 13 concurrent sibling tasks: OOMPAH-220, OOMPAH-221, OOMPAH-223 through OOMPAH-232 — all the same root cause, different TRICKLE task IDs.
+
+**Remaining work:**
+1. Downgrade `logger.error()` to `logger.warning()` at oompah/oompah_md_tracker.py:872 so error_watcher is not triggered (the situation is handled gracefully — no new error should be filed). This single change fixes all 13 instances.
+2. Optionally: repair the stale in-progress/done/in-review files in the trickle managed repo to prevent recurrence.
+3. Add a regression test confirming the duplicate-ID path emits a warning (not error) and does NOT trigger error_watcher behavior.
+
+**Risks:** Ensure error_watcher is selective enough that downgrading this specific log level doesn't mask real errors.
+
+**Recommended next focus:** bug (fix logger.error → logger.warning in duplicate-ID block; add regression test; optionally repair stale trickle files)
 ---
 <!-- COMMENTS:END -->
