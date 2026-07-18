@@ -530,7 +530,13 @@ def build_parser() -> argparse.ArgumentParser:
     # --- create ---
     p_create = sub.add_parser("create", help="Create a new task")
     p_create.add_argument("--title", required=True, help="Task title")
-    p_create.add_argument("--description", "--desc", dest="description", default=None)
+    p_create.add_argument(
+        "--description",
+        "--desc",
+        dest="description",
+        required=True,
+        help="Required standalone implementation description",
+    )
     p_create.add_argument(
         "--project", "--project-id",
         dest="project",
@@ -572,7 +578,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_child = sub.add_parser("child-create", help="Create a child task under a parent")
     p_child.add_argument("parent_id", help="Parent task identifier")
     p_child.add_argument("--title", required=True, help="Child task title")
-    p_child.add_argument("--description", "--desc", dest="description", default=None)
+    p_child.add_argument(
+        "--description",
+        "--desc",
+        dest="description",
+        required=True,
+        help="Required standalone implementation description",
+    )
     p_child.add_argument(
         "--project", "--project-id",
         dest="project",

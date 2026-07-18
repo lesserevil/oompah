@@ -2648,6 +2648,21 @@ async def api_create_issue(request: Request):
                 status_code=400,
             )
 
+        # A task title alone is not actionable.  Enforce this at the API
+        # boundary as well as in the CLI because the dashboard and external
+        # callers can create issues directly.
+        description = str(body.get("description") or "").strip()
+        if not description:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "Description is required for every task and epic",
+                    }
+                },
+                status_code=400,
+            )
+
         project_id = body.get("project_id")
         # Optional tracker-identity / branch metadata.  Extract early so
         # managed_repo can be used as an alternative to project_id for tracker
@@ -2701,7 +2716,6 @@ async def api_create_issue(request: Request):
 
         # Optional enhancement pass (oompah-zlz_2-u8pz).
         enhance_mode = (request.query_params.get("enhance") or "").strip().lower()
-        description = body.get("description")
         if enhance_mode in ("true", "apply"):
             try:
                 enhancement = await asyncio.to_thread(
