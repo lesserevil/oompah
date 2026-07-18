@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T11:58:00.682456Z'
-updated_at: '2026-07-18T12:01:32.308344Z'
+updated_at: '2026-07-18T12:01:42.653337Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,23 @@ Evidence OOMPAH-233 is NOT a duplicate:
 3. The error message in OOMPAH-233 is the format raised only when BOTH ff-only AND rebase fail (line 1024 in _sync_from_remote). This is a remaining gap in OOMPAH-204's fix: when there is a genuine merge conflict that rebase cannot auto-resolve.
 
 Remaining work: OOMPAH-204 added the easy-case recovery (rebase succeeds), but the hard-case — where rebase also fails due to genuine conflicts — still raises TrackerError and triggers error_watcher. A follow-up code change is needed to either: (a) auto-reset to origin head (force sync, discarding diverged local commits), (b) emit a structured warning instead of a TrackerError so error_watcher is not triggered, or (c) add smarter retry logic. Recommended next focus: bug implementation agent to handle the rebase-also-fails case in _sync_from_remote().
+---
+author: oompah
+created: 2026-07-18 12:01
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: OOMPAH-233 is NOT a duplicate. The closest prior task is OOMPAH-204 (Merged), which added a rebase fallback to _sync_from_remote() in oompah/oompah_md_tracker.py. That fix is present in the codebase but does not cover the case where rebase also fails.
+
+2. Relevant files and evidence:
+   - oompah/oompah_md_tracker.py lines 983–1030: _sync_from_remote() with the OOMPAH-204 rebase fallback in place
+   - tests/test_oompah_md_tracker.py: tests added by OOMPAH-204 (test_ff_only_failure_rebase_recovery_succeeds, test_commit_and_push_retry_rebase_recovery_on_diverged_branch)
+   - OOMPAH-204 (Merged 2026-07-14 via PR #416): the prior fix; its fix handles --ff-only fails + rebase succeeds, but not --ff-only fails + rebase also fails
+   - OOMPAH-233 error fingerprint: 2f7202be5cd904cd (different from OOMPAH-204's f289e9452f5913f0, confirming it is a separate incident/code path)
+   - The TrackerError at line 1024 in _sync_from_remote() is what fires when both paths fail
+
+3. Remaining work: Implement handling for the 'both ff-only and rebase fail' case in _sync_from_remote(). Options: (a) auto-reset local to origin/branch (force-sync, discarding any un-pushed local task commits — acceptable since the remote version wins), (b) catch the TrackerError at the API layer and demote it from an error to a logged warning so error_watcher is not triggered for this known transient case. Option (a) is cleaner since it recovers and continues; option (b) suppresses noise but leaves the diverged state unresolved. Risk: any fix must not regress the OOMPAH-10 guard (avoid 'git pull --rebase').
+
+4. Recommended next focus: bug/feature implementation agent to fix _sync_from_remote() for the rebase-also-fails case and add a regression test.
 ---
 <!-- COMMENTS:END -->
