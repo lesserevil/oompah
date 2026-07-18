@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:46.132574Z'
-updated_at: '2026-07-18T02:07:05.626981Z'
+updated_at: '2026-07-18T02:07:26.563324Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,5 +102,10 @@ author: oompah
 created: 2026-07-18 02:07
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-18 02:07
+---
+Understanding: Investigating OOMPAH-229 as Duplicate Investigator. This bug reports that oompah_md_tracker emits an error when the same task ID (TRICKLE-42) exists in two subdirectories (done/ and merged/). The error_watcher then auto-files this as a task. I will search for prior tasks covering the same duplicate-ID detection issue in oompah_md_tracker before deciding if this is a new issue or a duplicate.
 ---
 <!-- COMMENTS:END -->
