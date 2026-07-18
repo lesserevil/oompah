@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-235
 type: task
-status: Backlog
+status: Done
 priority: null
 title: Recover native tracker writes after concurrent default-branch advancement
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-18T22:26:05.196480Z'
-updated_at: '2026-07-18T22:27:48.834879Z'
+updated_at: '2026-07-18T22:28:00.056535Z'
 work_branch: null
 target_branch: null
 review_url: null
