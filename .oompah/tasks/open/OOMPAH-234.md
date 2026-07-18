@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-234
 type: bug
-status: In Progress
+status: Open
 priority: 2
 title: '[backend:webhooks] WebhookForwarder: disabling webhook forwarding for project
   trickle: configured repo_path is missing or not a directory'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T12:01:21.441371Z'
-updated_at: '2026-07-18T12:10:03.529068Z'
+updated_at: '2026-07-18T12:10:05.728168Z'
 work_branch: null
 target_branch: null
 review_url: null
