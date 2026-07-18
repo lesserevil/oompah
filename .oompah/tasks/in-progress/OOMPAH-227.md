@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:37.379315Z'
-updated_at: '2026-07-18T02:02:48.611363Z'
+updated_at: '2026-07-18T02:03:42.127219Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,18 @@ author: oompah
 created: 2026-07-18 02:02
 ---
 Understanding: This bug reports that backend:oompah_md_tracker emits an error when the same task ID (trickle-40) exists in two different state directories (done/ and merged/). The error_watcher captured it and auto-filed this task. My role as Duplicate Investigator is to determine whether this has already been reported and handled before implementing any fix.
+---
+author: oompah
+created: 2026-07-18 02:03
+---
+Discovery: OOMPAH-227 is a confirmed duplicate of OOMPAH-220.
+
+**Evidence:**
+- OOMPAH-220 is the canonical task for this exact bug: backend:oompah_md_tracker uses logger.error() in the duplicate-ID resolution block (_read_records() ~line 871), causing error_watcher to auto-file bugs for each occurrence.
+- OOMPAH-220's own comments (from the duplicate_detector agent) explicitly list 'OOMPAH-227 (trickle-40)' as one of 12 sibling duplicates filed in the same error_watcher burst.
+- OOMPAH-220 was already fixed: logger.error() → logger.warning() at oompah/oompah_md_tracker.py:871 (commit 625014c3, PR #438, merged).
+- The fix includes a regression test: test_duplicate_task_id_logs_warning_not_error in tests/test_oompah_md_tracker.py.
+
+**Conclusion:** No implementation needed. The root cause is resolved in OOMPAH-220. Archiving OOMPAH-227 as duplicate-of:OOMPAH-220.
 ---
 <!-- COMMENTS:END -->
