@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-231
 type: bug
-status: Proposed
+status: Backlog
 priority: 2
 title: '[backend:oompah_md_tracker] Duplicate native oompah task ID trickle-44 at
   /home/shedwards/.oompah/repos/trickle/.oompah/tasks/in-progress/TRICKLE-44.md and
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:55.118753Z'
-updated_at: '2026-07-18T01:09:55.850109Z'
+updated_at: '2026-07-18T01:10:00.693435Z'
 work_branch: null
 target_branch: null
 review_url: null
