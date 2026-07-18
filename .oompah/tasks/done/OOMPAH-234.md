@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T12:01:21.441371Z'
-updated_at: '2026-07-18T12:18:48.329525Z'
+updated_at: '2026-07-18T12:18:50.706051Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -260,5 +260,10 @@ Completion: Fixed in commit e466c3d3 on branch OOMPAH-234.
 - ✅ Error no longer triggers error_watcher (WARNING, not ERROR)
 - ✅ Root cause identified and resolved
 - ✅ No regression — other error types still emit ERROR
+---
+author: oompah
+created: 2026-07-18 12:18
+---
+Downgraded repo_path-missing log from ERROR to WARNING in WebhookForwarder._record_project_error() via new warn_only parameter. Added regression test. All 9055 tests pass. Commit e466c3d3 on branch OOMPAH-234.
 ---
 <!-- COMMENTS:END -->
