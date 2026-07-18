@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import subprocess
 from unittest.mock import MagicMock, patch
 
@@ -118,6 +119,43 @@ class TestOompahMarkdownTrackerMutations:
         assert len(issues) == 1
         assert issues[0].state == MERGED
         assert tracker.fetch_issue_detail(issue.identifier).state == MERGED
+
+    def test_duplicate_task_id_logs_warning_not_error(self, tmp_path, caplog):
+        """Duplicate task ID detection must log at WARNING, not ERROR.
+
+        error_watcher fires on any logger.error() call and auto-files a bug
+        report.  Duplicate files are handled gracefully (the most-recently-
+        updated record wins and the stale one is ignored), so the log
+        entry should be a WARNING rather than an ERROR.
+        """
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Moved task")
+        tracker.update_issue(issue.identifier, status=MERGED)
+
+        merged_path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "merged" / "REPO-1.md"
+        )
+        stale_path = (
+            tmp_path / "repo" / ".oompah" / "tasks" / "open" / "REPO-1.md"
+        )
+        stale_meta = _frontmatter(merged_path)
+        stale_meta["status"] = OPEN
+        stale_meta["updated_at"] = "2026-01-01T00:00:00Z"
+        _write_markdown(stale_path, stale_meta, "## Summary\n\nStale copy\n")
+        tracker.invalidate_read_cache()
+
+        with caplog.at_level(logging.DEBUG, logger="oompah.oompah_md_tracker"):
+            tracker.fetch_all_issues()
+
+        dup_records = [
+            r for r in caplog.records
+            if "Duplicate native oompah task ID" in r.message
+        ]
+        assert dup_records, "Expected a duplicate-detection log entry"
+        for record in dup_records:
+            assert record.levelno == logging.WARNING, (
+                f"Duplicate detection must log at WARNING, got {record.levelname}"
+            )
 
     def test_setting_unchanged_metadata_does_not_commit_or_update_timestamp(
         self, tmp_path
