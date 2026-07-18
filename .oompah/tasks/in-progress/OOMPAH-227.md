@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:37.379315Z'
-updated_at: '2026-07-18T02:02:30.306365Z'
+updated_at: '2026-07-18T02:02:48.611363Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,5 +102,10 @@ author: oompah
 created: 2026-07-18 02:02
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-18 02:02
+---
+Understanding: This bug reports that backend:oompah_md_tracker emits an error when the same task ID (trickle-40) exists in two different state directories (done/ and merged/). The error_watcher captured it and auto-filed this task. My role as Duplicate Investigator is to determine whether this has already been reported and handled before implementing any fix.
 ---
 <!-- COMMENTS:END -->
