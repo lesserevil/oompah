@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T01:07:02.903959Z'
-updated_at: '2026-07-18T01:19:39.518520Z'
+updated_at: '2026-07-18T01:19:49.559289Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -193,5 +193,10 @@ author: oompah
 created: 2026-07-18 01:19
 ---
 Implementation: Changed logger.error() → logger.warning() at oompah/oompah_md_tracker.py line 871 in _read_records(). The code already handled duplicates gracefully (picks most-recently-updated record, continues); using ERROR level was what triggered error_watcher to auto-file bugs. Also added test_duplicate_task_id_logs_warning_not_error to tests/test_oompah_md_tracker.py to assert the log level is WARNING, not ERROR, on duplicate detection.
+---
+author: oompah
+created: 2026-07-18 01:19
+---
+Verification: make test passed — 9054 passed, 36 skipped, 0 failures. New test test_duplicate_task_id_logs_warning_not_error confirmed warning-only logging.
 ---
 <!-- COMMENTS:END -->
