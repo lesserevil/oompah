@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T01:07:02.903959Z'
-updated_at: '2026-07-18T01:46:27.158625Z'
+updated_at: '2026-07-18T02:00:24.596090Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -250,5 +250,23 @@ author: oompah
 created: 2026-07-18 01:46
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-18 02:00
+---
+Completion: All work on OOMPAH-220 is complete.
+
+**What was done:**
+1. **Root cause confirmed** (by duplicate_detector): `oompah/oompah_md_tracker.py` line 871 used `logger.error()` in the duplicate-ID resolution block (`_read_records()`). The code already handled duplicates gracefully (picks the most-recently-updated file and continues), but the ERROR log level caused `error_watcher` to auto-file bugs for every occurrence.
+
+2. **Fix applied** (by Maintenance Engineer): Downgraded `logger.error()` → `logger.warning()` at `oompah/oompah_md_tracker.py:871`. Commit: `625014c3`.
+
+3. **Test added**: `test_duplicate_task_id_logs_warning_not_error` in `tests/test_oompah_md_tracker.py` asserts that the duplicate-ID path emits WARNING (not ERROR), preventing regression.
+
+4. **Verification**: `make test` passed — 9054 passed, 36 skipped, 0 failures.
+
+5. **Sibling tasks** (OOMPAH-221 through OOMPAH-232) are all being independently handled by their own agents as duplicates of OOMPAH-220.
+
+The acceptance criteria are fully met: the error no longer fires at ERROR level, so `error_watcher` will not auto-file future duplicates of this issue.
 ---
 <!-- COMMENTS:END -->
