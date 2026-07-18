@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-18T12:01:21.441371Z'
-updated_at: '2026-07-18T12:18:10.318445Z'
+updated_at: '2026-07-18T12:18:41.041993Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -244,5 +244,21 @@ author: oompah
 created: 2026-07-18 12:18
 ---
 Verification: make test → 9055 passed, 36 skipped, 11 warnings. New test `test_missing_repo_path_disables_at_warning_not_error` passes. Pre-existing failure `test_default_webhook_url` (port 8080 vs 8090 mismatch) is unrelated to this change and pre-dates this branch.
+---
+author: oompah
+created: 2026-07-18 12:18
+---
+Completion: Fixed in commit e466c3d3 on branch OOMPAH-234.
+
+**Root cause:** `_record_project_error(..., fatal=True)` always logged at ERROR level. When the 'trickle' project's repo_path didn't exist on this host, it triggered error_watcher and auto-filed this task.
+
+**Fix:** Added `warn_only: bool = False` parameter to `_record_project_error()`. The missing-repo_path call site now passes `warn_only=True`, logging at WARNING instead of ERROR. The project is still disabled so forwarding is skipped cleanly. All other fatal error paths remain at ERROR.
+
+**Test:** `tests/test_webhooks.py::TestWebhookForwarderPoll::test_missing_repo_path_disables_at_warning_not_error` — verifies project is disabled AND no ERROR emitted.
+
+**Acceptance criteria met:**
+- ✅ Error no longer triggers error_watcher (WARNING, not ERROR)
+- ✅ Root cause identified and resolved
+- ✅ No regression — other error types still emit ERROR
 ---
 <!-- COMMENTS:END -->
