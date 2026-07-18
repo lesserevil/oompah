@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:33.012372Z'
-updated_at: '2026-07-18T02:03:03.209986Z'
+updated_at: '2026-07-18T02:03:44.799486Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -153,5 +153,22 @@ author: oompah
 created: 2026-07-18 02:03
 ---
 Understanding: Investigating OOMPAH-226 as Duplicate Investigator. The issue reports that the oompah_md_tracker backend emits a warning/error when a task file exists in both the 'done' and 'merged' directories (duplicate native oompah task ID). The error_watcher then auto-files this as a bug task. I will search for existing tasks covering the same root cause before deciding whether to proceed with implementation or archive as a duplicate.
+---
+author: oompah
+created: 2026-07-18 02:03
+---
+Discovery: OOMPAH-226 is a confirmed duplicate of OOMPAH-220.
+
+OOMPAH-220 is the canonical task for this bug class ('Duplicate native oompah task ID' errors auto-filed by error_watcher). The previous duplicate investigator for OOMPAH-220 explicitly listed OOMPAH-226 (trickle-39) as one of the sibling tasks filed in the same error_watcher burst.
+
+Fix already implemented in OOMPAH-220:
+- Downgraded logger.error() → logger.warning() at oompah/oompah_md_tracker.py:871 in _read_records()
+- The code already handled duplicates gracefully (picks most-recently-updated file and continues); ERROR level was incorrectly triggering error_watcher
+- Regression test added: test_duplicate_task_id_logs_warning_not_error
+- Commit: 625014c3
+- Tests: 9054 passed, 0 failures
+- PR: https://github.com/lesserevil/oompah/pull/438 (In Review)
+
+Archiving OOMPAH-226 as duplicate-of:OOMPAH-220.
 ---
 <!-- COMMENTS:END -->
