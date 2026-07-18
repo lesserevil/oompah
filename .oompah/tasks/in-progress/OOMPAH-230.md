@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-230
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:oompah_md_tracker] Duplicate native oompah task ID trickle-43 at
   /home/shedwards/.oompah/repos/trickle/.oompah/tasks/done/TRICKLE-43.md and /home/shedwards/.oompah/repos/trickle/.oompah/ta...'
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:50.707111Z'
-updated_at: '2026-07-18T01:47:26.630646Z'
+updated_at: '2026-07-18T02:09:06.443014Z'
 work_branch: null
 target_branch: null
 review_url: null
