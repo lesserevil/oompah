@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:12.334359Z'
-updated_at: '2026-07-18T01:11:25.378201Z'
+updated_at: '2026-07-18T01:11:46.861911Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -103,5 +103,10 @@ author: oompah
 created: 2026-07-18 01:11
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-18 01:11
+---
+Understanding: Investigating whether OOMPAH-222 (duplicate native oompah task ID error in backend:oompah_md_tracker) is a duplicate of an existing issue. The error occurs when a task file exists in two state directories simultaneously (in-progress/ and merged/), causing the tracker to emit a duplicate-ID warning captured by error_watcher. Will search existing tasks for prior reports of this same error pattern.
 ---
 <!-- COMMENTS:END -->
