@@ -1018,9 +1018,23 @@ class OompahMarkdownTracker:
         rebase = self._git(["rebase", f"origin/{branch}"], check=False)
         if rebase.returncode == 0:
             return
-        # Both recovery paths failed.  Abort the stranded rebase and surface
-        # an actionable error so the operator can intervene.
+        # Both recovery paths failed.  Abort the stranded rebase, then attempt
+        # a final recovery by force-resetting the local branch to origin.
+        # Remote is authoritative for tracker task files: any local commits
+        # that cannot be rebased are either already present on origin or are
+        # stale/conflicting copies that should not be re-pushed.  Discarding
+        # them unblocks the write without permanently losing task data.
         self._git(["rebase", "--abort"], check=False)
+        reset = self._git(["reset", "--hard", f"origin/{branch}"], check=False)
+        if reset.returncode == 0:
+            logger.warning(
+                "Native tracker sync: git ff-only and rebase both failed for branch "
+                "%r; force-reset local branch to origin/%s. Any local-only commits "
+                "have been discarded.",
+                branch,
+                branch,
+            )
+            return
         raise TrackerError(
             f"Cannot sync native tracker: "
             f"git merge --ff-only origin/{branch} failed: {ff_err}. "
