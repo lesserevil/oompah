@@ -868,7 +868,7 @@ class OompahMarkdownTracker:
 
                 winner, loser = (record, previous) if recency(record) > recency(previous) else (previous, record)
                 records_by_id[identifier] = winner
-                logger.error(
+                logger.warning(
                     "Duplicate native oompah task ID %s at %s and %s; using %s "
                     "and ignoring %s. Repair the stale record before editing this task.",
                     identifier,
