@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:07:55.118753Z'
-updated_at: '2026-07-18T02:02:23.398061Z'
+updated_at: '2026-07-18T02:02:34.687660Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -154,5 +154,19 @@ author: oompah
 created: 2026-07-18 02:02
 ---
 Understanding: OOMPAH-231 reports a 'Duplicate native oompah task ID trickle-44' error auto-filed by error_watcher after backend:oompah_md_tracker detected the same task in two state directories (in-progress/ and merged/). My role is Duplicate Investigator. I will search for identical or substantially equivalent prior reports before any implementation.
+---
+author: oompah
+created: 2026-07-18 02:02
+---
+Discovery: OOMPAH-231 is a CONFIRMED DUPLICATE of OOMPAH-220.
+
+**Evidence:**
+- OOMPAH-220 (In Progress) is titled '[backend:oompah_md_tracker] Duplicate native oompah task ID trickle-30...' — identical error class, same root cause.
+- Root cause (confirmed in OOMPAH-220 comments): oompah/oompah_md_tracker.py line 871 uses logger.error() inside _read_records() when a task file is found in two status directories. The code already handles this gracefully (picks most-recently-updated record), but ERROR level logging triggers error_watcher to auto-file a bug task.
+- OOMPAH-220's Maintenance Engineer comment documents both the fix (logger.error → logger.warning at line 871) and passing tests (make test 9054 passed). Branch OOMPAH-220 exists on origin.
+- Siblings already archived as duplicate-of:OOMPAH-220: OOMPAH-221 (trickle-31), OOMPAH-222 (trickle-32), OOMPAH-223 (trickle-36), OOMPAH-224 (trickle-37).
+- OOMPAH-231 (trickle-44) is one of the 13 sibling tasks identified in OOMPAH-220's handoff comment (OOMPAH-220 through OOMPAH-232).
+
+**Conclusion:** Archiving OOMPAH-231 as duplicate-of:OOMPAH-220. No implementation needed here — the fix is tracked in OOMPAH-220.
 ---
 <!-- COMMENTS:END -->
