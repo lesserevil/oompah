@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-18T01:08:04.577980Z'
-updated_at: '2026-07-18T01:59:51.484448Z'
+updated_at: '2026-07-18T02:00:08.954884Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -159,5 +159,10 @@ author: oompah
 created: 2026-07-18 01:59
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-18 02:00
+---
+Understanding: This issue reports a duplicate-detection error in backend:oompah_md_tracker when the same task ID (trickle-45) exists in two different state directories (merged/ and needs-human/). The error_watcher auto-filed this as a bug. My role is Duplicate Investigator — I'll search existing tasks to check if this same root cause was already reported and fixed before proceeding to implementation.
 ---
 <!-- COMMENTS:END -->
