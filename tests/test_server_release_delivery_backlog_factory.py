@@ -106,7 +106,10 @@ def _make_orchestrator(project: MagicMock) -> MagicMock:
     """Return a mock orchestrator wired to the given project."""
     orch = MagicMock()
     orch.project_store.get = MagicMock(return_value=project)
-    orch.tracker = None  # No tracker → title enrichment skipped
+    # Simulate no tracker configured — title enrichment is skipped.
+    # OOMPAH-250: the route now calls _get_tracker(orch, project_id) which
+    # calls orch._tracker_for_project; raising ensures tracker=None in the handler.
+    orch._tracker_for_project.side_effect = Exception("no tracker configured")
     return orch
 
 
@@ -444,7 +447,10 @@ class TestRouteDeletedBranchPRFallback:
             tracker_issues=[issue],
             branch_commits_map={},  # All branches deleted → empty map
         )
-        orch.tracker = mock_tracker
+        # OOMPAH-250: route now resolves tracker via _get_tracker(orch, project_id)
+        # which calls orch._tracker_for_project; wire mock_tracker here.
+        orch._tracker_for_project.side_effect = None
+        orch._tracker_for_project.return_value = mock_tracker
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
@@ -494,7 +500,9 @@ class TestRouteDeletedBranchPRFallback:
             commits=[ci],
             tracker_issues=[issue],
         )
-        orch.tracker = mock_tracker
+        # OOMPAH-250: route resolves tracker via orch._tracker_for_project
+        orch._tracker_for_project.side_effect = None
+        orch._tracker_for_project.return_value = mock_tracker
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
@@ -538,7 +546,9 @@ class TestRouteDeletedBranchPRFallback:
             commits=[ci],           # Only _PR_SHA is in main; _FOREIGN_SHA is absent
             tracker_issues=[issue],
         )
-        orch.tracker = mock_tracker
+        # OOMPAH-250: route resolves tracker via orch._tracker_for_project
+        orch._tracker_for_project.side_effect = None
+        orch._tracker_for_project.return_value = mock_tracker
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
@@ -583,7 +593,9 @@ class TestRouteDeletedBranchPRFallback:
             commits=[ci],
             tracker_issues=[issue],
         )
-        orch.tracker = mock_tracker
+        # OOMPAH-250: route resolves tracker via orch._tracker_for_project
+        orch._tracker_for_project.side_effect = None
+        orch._tracker_for_project.return_value = mock_tracker
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
