@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:09:26.969554Z'
+updated_at: '2026-07-19T22:09:29.195899Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 4ba1a6b4-9b3f-44a1-b20e-e359ad138411
 oompah.task_costs:
-  total_input_tokens: 89647
-  total_output_tokens: 593
+  total_input_tokens: 89662
+  total_output_tokens: 5509
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 89647
-      output_tokens: 593
+      input_tokens: 89662
+      output_tokens: 5509
       cost_usd: 0.0
   runs:
   - profile: default
@@ -35,6 +35,12 @@ oompah.task_costs:
     output_tokens: 593
     cost_usd: 0.0
     recorded_at: '2026-07-19T22:07:15.972029+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 15
+    output_tokens: 4916
+    cost_usd: 0.0
+    recorded_at: '2026-07-19T22:09:26.231670+00:00'
 ---
 ## Summary
 
