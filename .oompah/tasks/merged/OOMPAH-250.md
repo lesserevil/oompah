@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T21:11:24.255407Z'
-updated_at: '2026-07-19T21:41:05.525832Z'
+updated_at: '2026-07-19T22:01:15.691955Z'
 work_branch: OOMPAH-250
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/448
@@ -227,5 +227,10 @@ author: oompah
 created: 2026-07-19 21:41
 ---
 YOLO: merged PR #448.
+---
+author: oompah
+created: 2026-07-19 22:01
+---
+Post-deploy validation: the project-specific tracker correction is active, but the live Trickle release/0.11 backlog request now exceeds the UI timeout instead of returning rows. Candidate discovery is unbounded on the request path across historical Merged records and optional enrichment. Filed OOMPAH-251 for bounded/cached primary candidate discovery with a Trickle-scale API regression.
 ---
 <!-- COMMENTS:END -->
