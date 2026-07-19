@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-240
 type: task
-status: Open
+status: In Progress
 priority: null
 title: 'Dashboard test: newly merged task with no release history is visible and queueable'
 parent: OOMPAH-237
@@ -13,7 +13,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-19T02:30:36.850057Z'
-updated_at: '2026-07-19T03:41:41.983591Z'
+updated_at: '2026-07-19T03:42:35.777893Z'
 work_branch: null
 target_branch: null
 review_url: null
