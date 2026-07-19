@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:59:55.836080Z'
+updated_at: '2026-07-19T22:59:58.794066Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -302,5 +302,10 @@ author: oompah
 created: 2026-07-19 22:59
 ---
 Agent completed without closing this issue (28s (97259 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-19 22:59
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
