@@ -602,6 +602,27 @@ class TestAutoDecomposition:
         tracker.add_parent_child.assert_not_called()
         tracker.add_dependency.assert_called_once_with("child-2", "child-1")
 
+    def test_rejects_blank_description_before_creating_any_children(self, tmp_path):
+        """Invalid plans must not leave a title-only child task behind."""
+        orch = _make_orchestrator(tmp_path)
+        parent = _make_issue(
+            "parent-1",
+            issue_type="feature",
+            title="Large task",
+            description="Too large for one agent",
+        )
+        tasks = [
+            {"title": "Valid child", "description": "Implement and test it."},
+            {"title": "Invalid child", "description": "   "},
+        ]
+        tracker = MagicMock()
+
+        with pytest.raises(ValueError, match="child 2 has no description"):
+            asyncio.run(orch._execute_decomposition(parent, tasks, tracker, None))
+
+        tracker.create_issue.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
 
 class TestEpicPlannerFocusSelection:
     """Tests that the epic_planner focus is selected for epic issues."""
