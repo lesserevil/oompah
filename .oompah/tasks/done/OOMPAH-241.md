@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:55.182823Z'
-updated_at: '2026-07-19T04:09:43.411640Z'
+updated_at: '2026-07-19T04:09:51.441657Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -291,5 +291,15 @@ author: oompah
 created: 2026-07-19 04:09
 ---
 Added TestTrickleRelease011BacklogRegression (11 tests) to tests/test_release_delivery_backlog.py. Uses release/0.11 branch and OOMPAH-xxx identifiers (oompah_md style). Primary regression: merged task never queued appears as not_selected. Companion: delivered by ancestry excluded from needs_delivery. All acceptance criteria met. 9171 tests pass.
+---
+author: oompah
+created: 2026-07-19 04:09
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 35
+- Tokens: 60 in / 1.3K out [1.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 37s
+- Log: OOMPAH-241__20260719T040018Z.jsonl
 ---
 <!-- COMMENTS:END -->
