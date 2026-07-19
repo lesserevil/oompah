@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-242
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Require actionable descriptions for every auto-decomposed task
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T03:07:58.167396Z'
-updated_at: '2026-07-19T03:10:25.820705Z'
+updated_at: '2026-07-19T03:10:34.244864Z'
 work_branch: null
 target_branch: null
 review_url: null
