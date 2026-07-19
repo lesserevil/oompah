@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:03:50.663411Z'
-updated_at: '2026-07-19T23:47:50.837534Z'
+updated_at: '2026-07-19T23:48:21.444671Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -160,5 +160,24 @@ Implementation complete. Changes:
 **test_dashboard_release_delivery_ui.py**: Updated tests to use _load_release_delivery_*() helpers; fixed overlay-specific tests to reflect page structure; updated accessibility tests to check page-level attributes; fixed TestFunctionDefinitions and TestAsyncRefreshProgressFunctions.
 
 **test_release_delivery_page.py** (new, 74 tests): Route, navigation, page structure, URL persistence, bootstrap, OOMPAH-251 progress integration, empty states, and accessibility.
+---
+author: oompah
+created: 2026-07-19 23:48
+---
+Completion: OOMPAH-252 delivered.
+
+Release Delivery is now a dedicated navigable page at /release-delivery, not a dashboard dialog.
+
+What was delivered:
+- GET /release-delivery route serving oompah/templates/release_delivery.html
+- Full page with project/branch selectors, filter/search controls, OOMPAH-251 progress banner (phase, progress bar, elapsed, retry), candidate table, action bar, evidence drawer
+- URL persistence: ?project=<id>&branch=release/0.11 — bookmarkable, shareable, direct-link-safe
+- _rdiReadUrl() / _rdiPushUrl() + history.replaceState for URL sync on every selection change
+- Stale-while-revalidate: prior results stay visible while background refresh runs
+- pagehide listener stops polling timer when user navigates away
+- Dashboard nav button replaced: onclick navigates to /release-delivery instead of opening modal
+- rdi-overlay HTML, CSS, JS removed from dashboard.html
+- 74 new tests in test_release_delivery_page.py; test_dashboard_release_delivery_ui.py updated
+- All 9410 tests pass (make test green)
 ---
 <!-- COMMENTS:END -->
