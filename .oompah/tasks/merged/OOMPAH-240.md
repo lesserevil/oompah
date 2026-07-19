@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-240
 type: task
-status: Done
+status: Merged
 priority: null
 title: 'Dashboard test: newly merged task with no release history is visible and queueable'
 parent: OOMPAH-237
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:36.850057Z'
-updated_at: '2026-07-19T03:54:04.232178Z'
+updated_at: '2026-07-19T09:29:00.299075Z'
 work_branch: null
 target_branch: null
 review_url: null
