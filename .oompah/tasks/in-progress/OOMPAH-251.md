@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:06:49.923205Z'
+updated_at: '2026-07-19T22:06:52.426228Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,5 +58,10 @@ author: oompah
 created: 2026-07-19 22:02
 ---
 Requirement update from project owner: a long Trickle-scale discovery run is acceptable, provided the Release Delivery UI gives meaningful progress. This supersedes any implication that all discovery must complete synchronously within a short HTTP/UI timeout. Implement an observable asynchronous refresh model: (1) start or reuse one refresh job per project plus selected release branch, (2) retain and display the last completed candidate list while a refresh is active, (3) expose progress through the existing dashboard transport or a dedicated status endpoint with phase, completed/total counts where knowable, elapsed time, and actionable failure state, (4) render this status in the Release Delivery dialog with a determinate progress bar when a total is known and explicit phase text otherwise, and (5) allow retry after failure. Suggested phases: loading merged task metadata; resolving source commits/PR evidence; comparing release-branch ancestry; preparing rows; optional diagnostics. The primary list must not disappear or show an unexplained blank state while checks are running. Add dashboard and API tests for start, in-progress updates, successful completion, retained stale result, failure, and retry.
+---
+author: oompah
+created: 2026-07-19 22:06
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
