@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T03:07:56.020681Z'
+updated_at: '2026-07-19T03:08:55.189799Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -88,5 +88,33 @@ author: oompah
 created: 2026-07-19 03:07
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-19 03:08
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: OOMPAH-238 is NOT a duplicate. Duplicate screening is complete with no duplicate found.
+
+Candidates reviewed:
+- OOMPAH-237 (Open, parent): The parent epic — identifies both the candidate-discovery bug and the timeout bug. OOMPAH-238 is a purposefully decomposed child of OOMPAH-237, not a duplicate of it.
+- OOMPAH-239 (Open): Sibling child task covering the timeout/performance fix (bounded git operations). Covers different scope — OOMPAH-238 is about algorithm correctness, OOMPAH-239 is about latency.
+- OOMPAH-240 (Open): Sibling child task for dashboard tests; depends on OOMPAH-238. Different scope (UI test layer, not backend logic).
+- OOMPAH-241 (Open): Sibling child task for Trickle regression test; depends on OOMPAH-238. Different scope (integration fixture, not backend logic).
+- OOMPAH-236 (Merged): The implementation that introduced the bug. Not a duplicate — OOMPAH-238 is a fix for OOMPAH-236's candidate-discovery logic.
+
+2. Relevant files and evidence:
+- oompah/release_delivery_backlog.py — ItemBacklogService.get_backlog(); candidate list currently built from ledger entries only
+- oompah/release_delivery_inventory.py — delivery ledger data model
+- oompah/models.py — Issue.work_branch, Issue.state, Issue.issue_type, Issue.review_url used for tracker-sourced candidate discovery
+- oompah/oompah_md_tracker.py — fetch_issues_by_states(['Merged']) method to enumerate merged tracker items
+- tests/test_release_delivery_backlog.py — existing test patterns (mock tracker, delivery store)
+
+3. Remaining work:
+- Replace ledger-centric candidate discovery with tracker-sourced discovery in ItemBacklogService.get_backlog()
+- Add unit tests: test_merged_task_no_ledger_appears_as_not_selected, test_merged_epic_multiple_commits_appears_once, test_nonmerged_task_excluded, test_ledger_state_overrides_default_for_merged_item
+- Guard: remove any path that promotes items to primary list without valid merge evidence
+
+4. Recommended next focus: feature (backend Python implementation of the algorithm fix and unit tests)
 ---
 <!-- COMMENTS:END -->
