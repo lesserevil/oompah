@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T02:30:20.650720Z'
-updated_at: '2026-07-19T03:10:23.575501Z'
+updated_at: '2026-07-19T03:10:28.138429Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,5 +120,10 @@ author: oompah
 created: 2026-07-19 03:09
 ---
 Agent completed without landing — no commits found on origin for branch `epic-OOMPAH-237`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-19 03:10
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
