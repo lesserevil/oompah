@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:07:38.850179Z'
+updated_at: '2026-07-19T22:07:41.565509Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -104,5 +104,10 @@ author: oompah
 created: 2026-07-19 22:07
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-251`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-19 22:07
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
