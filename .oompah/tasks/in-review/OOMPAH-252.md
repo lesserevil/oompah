@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-252
 type: task
-status: Done
+status: In Review
 priority: null
 title: Move Release Delivery from dashboard dialog to a dedicated page
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:03:50.663411Z'
-updated_at: '2026-07-19T23:48:39.699745Z'
+updated_at: '2026-07-19T23:49:09.822778Z'
 work_branch: null
 target_branch: null
 review_url: null
