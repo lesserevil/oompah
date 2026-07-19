@@ -6,11 +6,12 @@ priority: null
 title: Make Release Delivery candidate discovery bounded for Trickle-scale history
 parent: null
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-250
 labels: []
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:01:10.371010Z'
+updated_at: '2026-07-19T22:01:12.966760Z'
 work_branch: null
 target_branch: null
 review_url: null
