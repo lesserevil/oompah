@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-237
 type: task
-status: In Progress
+status: Backlog
 priority: null
 title: Fix Release Delivery backlog candidate discovery and timeout
 parent: null
@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:22:21.578496Z'
-updated_at: '2026-07-19T02:30:55.293700Z'
+updated_at: '2026-07-19T02:31:00.556518Z'
 work_branch: null
 target_branch: null
 review_url: null
