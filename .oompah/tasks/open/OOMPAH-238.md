@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T02:52:04.211634Z'
+updated_at: '2026-07-19T03:07:32.868548Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,6 +20,17 @@ merged_at: null
 ---
 ## Summary
 
+Implement the backend correction for OOMPAH-237.
+
+Read first: oompah/release_delivery_backlog.py, oompah/release_delivery_inventory.py, the native tracker model, and OOMPAH-237.
+
+Replace ledger-only association discovery with tracker-sourced discovery: enumerate tasks and epics that have durable evidence of an individual merge to the default branch, resolve their source merge commit(s), and include only commits reachable from origin/main. A candidate with no release-delivery record must be returned as Not selected for the chosen release branch. Use the ledger and ancestry only for delivery status, not eligibility.
+
+Do not rewrite the delivery ledger or executor. Preserve the separate unassociated direct-commit diagnostic path.
+
+Tests: add focused unit tests for a merged task without ledger history, a merged epic with multiple commits, a non-merged task exclusion, and ledger/ancestry status precedence.
+
+Acceptance criteria: the backend returns a queueable item row for a merged task or epic that has never previously been queued to any release branch; it excludes tracker items lacking merged-to-main evidence.
 ## Problem
 
 ItemBacklogService.get_backlog() in oompah/release_delivery_backlog.py currently builds its primary candidate list from delivery ledger entries only. The association_by_sha dict is populated from ReleaseDelivery.source_identifier values. Tasks/epics merged to main that have never been queued for release delivery have no ledger entry and therefore never appear in the backlog — they are silently omitted.
@@ -64,4 +75,3 @@ Replace the ledger-centric candidate discovery with native tracker record discov
 - [ ] Define acceptance criteria.
 
 ## Notes
-
