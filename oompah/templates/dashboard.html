@@ -1228,6 +1228,74 @@
       color: var(--yellow, #d2a520);
       margin-left: 0.25rem;
     }
+    /* Async refresh progress banner (OOMPAH-251) */
+    .rdi-refresh-status {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 1.25rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      min-height: 2rem;
+    }
+    .rdi-refresh-status.active { display: flex; }
+    .rdi-refresh-spinner {
+      width: 12px;
+      height: 12px;
+      flex-shrink: 0;
+      animation: spin 1s linear infinite;
+    }
+    .rdi-refresh-phase { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rdi-refresh-progress {
+      display: none;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .rdi-refresh-progress.visible { display: flex; }
+    .rdi-refresh-bar-track {
+      width: 80px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .rdi-refresh-bar-fill {
+      height: 100%;
+      background: var(--accent, #58a6ff);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    .rdi-refresh-count { font-variant-numeric: tabular-nums; }
+    .rdi-refresh-elapsed { color: var(--text-muted); opacity: 0.7; }
+    .rdi-refresh-error {
+      color: var(--red, #f85149);
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .rdi-refresh-retry {
+      font-size: 0.75rem;
+      padding: 1px 7px;
+      border-radius: 4px;
+      border: 1px solid var(--red, #f85149);
+      background: transparent;
+      color: var(--red, #f85149);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .rdi-refresh-retry:hover { background: rgba(248,81,73,0.1); }
+    .rdi-stale-badge {
+      font-size: 0.7rem;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: rgba(210,153,34,0.15);
+      color: var(--yellow, #d2a520);
+      flex-shrink: 0;
+    }
     /* Evidence drawer */
     .rdi-drawer {
       display: none;
@@ -7092,6 +7160,8 @@ let _rdiLoading = false;
 let _rdiCurrentData = null;   // last successful backlog response
 let _rdiOpener = null;  // element that opened the overlay (focus restoration)
 let _rdiDrawerItem = null;  // identifier of currently open drawer item
+let _rdiPollTimer = null;   // setInterval handle for refresh-status polling (OOMPAH-251)
+let _rdiRefreshRunning = false;  // true when a background refresh is in-flight
 
 const _RDI_STATUS_LABELS = {
   not_selected: 'Not selected',
@@ -7125,6 +7195,7 @@ function closeReleaseDelivery() {
     overlay.classList.remove('open');
     overlay.removeEventListener('keydown', _rdiKeyHandler);
   }
+  _rdiStopPoll();
   _rdiCloseDrawer();
   if (_rdiOpener && typeof _rdiOpener.focus === 'function') {
     try { _rdiOpener.focus(); } catch (_) { /* ignore */ }
@@ -7258,6 +7329,19 @@ function _rdiOnBranchChange() {
 // Data loading
 // ---------------------------------------------------------------------------
 
+// Phase labels for the async refresh progress banner (OOMPAH-251)
+const _RDI_PHASE_LABELS = {
+  idle: 'Ready',
+  pending: 'Starting refresh…',
+  loading_merged: 'Loading merged task metadata…',
+  resolving_commits: 'Resolving source commits and PR evidence…',
+  comparing_ancestry: 'Comparing release-branch ancestry…',
+  preparing_rows: 'Preparing candidate rows…',
+  diagnostics: 'Computing optional diagnostics…',
+  complete: 'Refresh complete',
+  failed: 'Refresh failed',
+};
+
 function _rdiLoadBacklog() {
   if (!_rdiProjectId || !_rdiSelectedBranch) return;
   _rdiLoading = true;
@@ -7277,7 +7361,12 @@ function _rdiLoadBacklog() {
   const qs = params.toString();
   const url = '/api/v1/projects/' + encodeURIComponent(_rdiProjectId) + '/release-delivery/backlog?' + qs;
 
-  _rdiSetBody('<div class="rdi-loading"><svg width="16" height="16" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/></svg> Loading release backlog…</div>');
+  // Show loading state in body only when we have no cached data to display yet.
+  // If we already have data from a previous successful response, keep it visible
+  // while the refresh runs (stale-while-revalidate).
+  if (!_rdiCurrentData) {
+    _rdiSetBody('<div class="rdi-loading"><svg width="16" height="16" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/></svg> Loading release backlog…</div>');
+  }
 
   fetch(url)
     .then(function(resp) { return resp.json().then(function(data) { return { resp: resp, data: data }; }); })
@@ -7288,24 +7377,201 @@ function _rdiLoadBacklog() {
       if (!resp.ok) {
         const msg = (data.error && data.error.message) || ('HTTP ' + resp.status);
         _rdiSetBody('<div class="rdi-error">Failed to load release backlog: ' + esc(msg) + '</div>');
+        _rdiHideRefreshStatus();
         return;
       }
       _rdiSourceHead = data.source_head || null;
-      _rdiCurrentData = data;
-      _rdiRenderBacklog(data);
+
+      // Apply the refresh_status banner update BEFORE rendering rows so the
+      // progress banner is visible even when no items exist yet.
+      const rs = data.refresh_status || null;
+      _rdiUpdateRefreshStatus(rs, data);
+
+      // Render the rows if there are any (cached_result may be populated even
+      // while a refresh is running — stale-while-revalidate).
+      const hasItems = (data.items && data.items.length > 0) ||
+                       (data.unassociated_commits && data.unassociated_commits.length > 0);
+      if (hasItems) {
+        _rdiCurrentData = data;
+        _rdiRenderBacklog(data);
+      } else if (rs && (rs.phase === 'complete' || rs.phase === 'failed' || rs.phase === 'idle')) {
+        // Refresh is done but genuinely no items — render the empty state.
+        _rdiCurrentData = data;
+        _rdiRenderBacklog(data);
+      }
+      // else: refresh still running and no cached data yet — keep the loading spinner
+
+      // Start polling for progress updates if a refresh is in progress.
+      if (rs && rs.phase !== 'complete' && rs.phase !== 'failed' && rs.phase !== 'idle') {
+        _rdiStartPoll();
+      } else {
+        _rdiStopPoll();
+      }
     })
     .catch(function(err) {
       _rdiLoading = false;
       if (myGen !== _rdiGen) return;
       _rdiSetBody('<div class="rdi-error">Network error: ' + esc(String(err)) + '</div>');
+      _rdiHideRefreshStatus();
+      _rdiStopPoll();
+    });
+}
+
+// Force a new refresh via POST /backlog/refresh, then reload the backlog.
+// Used by the header Refresh button and the retry button in the error state.
+function _rdiForceRefresh() {
+  if (!_rdiProjectId || !_rdiSelectedBranch) return;
+  _rdiStopPoll();
+
+  const refreshUrl = '/api/v1/projects/' + encodeURIComponent(_rdiProjectId) +
+    '/release-delivery/backlog/refresh?branch=' + encodeURIComponent(_rdiSelectedBranch);
+
+  // Optimistically show "starting" state immediately
+  _rdiUpdateRefreshStatus({ phase: 'pending', completed: 0, elapsed_s: 0, has_result: !!_rdiCurrentData }, null);
+
+  fetch(refreshUrl, { method: 'POST' })
+    .then(function(resp) { return resp.json(); })
+    .then(function() {
+      // Reload the backlog — the GET will return the stale cached result plus
+      // the new refresh_status from the just-started background job.
+      _rdiLoadBacklog();
+    })
+    .catch(function(err) {
+      _rdiHideRefreshStatus();
+      _rdiSetBody('<div class="rdi-error">Failed to start refresh: ' + esc(String(err)) + '</div>');
     });
 }
 
 function _rdiRefresh() {
-  _rdiCurrentData = null;
   if (_rdiSelectedBranch) {
-    _rdiLoadBacklog();
+    _rdiForceRefresh();
   }
+}
+
+// Poll GET /backlog/status while a background refresh is running, and update
+// the progress banner without re-fetching the full backlog response.
+function _rdiPollStatus() {
+  if (!_rdiProjectId || !_rdiSelectedBranch) {
+    _rdiStopPoll();
+    return;
+  }
+  const statusUrl = '/api/v1/projects/' + encodeURIComponent(_rdiProjectId) +
+    '/release-delivery/backlog/status?branch=' + encodeURIComponent(_rdiSelectedBranch);
+
+  fetch(statusUrl)
+    .then(function(resp) { return resp.json(); })
+    .then(function(rs) {
+      if (!_rdiProjectId || !_rdiSelectedBranch) return;  // closed/reset
+      _rdiUpdateRefreshStatus(rs, _rdiCurrentData);
+
+      if (rs.phase === 'complete' || rs.phase === 'failed' || rs.phase === 'idle') {
+        // Refresh is done — stop polling and reload the full backlog to get results.
+        _rdiStopPoll();
+        if (rs.phase === 'complete') {
+          _rdiLoadBacklog();
+        }
+      }
+    })
+    .catch(function() {
+      // Network error during poll — keep polling, it may recover.
+    });
+}
+
+function _rdiStartPoll() {
+  if (_rdiPollTimer !== null) return;  // already polling
+  _rdiPollTimer = setInterval(_rdiPollStatus, 1500);
+}
+
+function _rdiStopPoll() {
+  if (_rdiPollTimer !== null) {
+    clearInterval(_rdiPollTimer);
+    _rdiPollTimer = null;
+  }
+}
+
+// Update the refresh-status progress banner based on the refresh_status object.
+// Pass data (the backlog response) to detect stale results.
+function _rdiUpdateRefreshStatus(rs, data) {
+  const banner = document.getElementById('rdi-refresh-status');
+  const phaseEl = document.getElementById('rdi-refresh-phase');
+  const progressWrap = document.getElementById('rdi-refresh-progress');
+  const barFill = document.getElementById('rdi-refresh-bar-fill');
+  const countEl = document.getElementById('rdi-refresh-count');
+  const elapsedEl = document.getElementById('rdi-refresh-elapsed');
+  const staleBadge = document.getElementById('rdi-stale-badge');
+  const errorEl = document.getElementById('rdi-refresh-error');
+  const retryBtn = document.getElementById('rdi-refresh-retry');
+  if (!banner) return;
+
+  if (!rs) {
+    _rdiHideRefreshStatus();
+    return;
+  }
+
+  const phase = rs.phase || 'idle';
+  const isRunning = phase !== 'complete' && phase !== 'idle';
+  const isFailed = phase === 'failed';
+  const isComplete = phase === 'complete';
+
+  // Hide banner entirely when complete and result is not stale
+  if (isComplete && !((data && data.stale))) {
+    _rdiHideRefreshStatus();
+    return;
+  }
+
+  // Show banner
+  banner.classList.add('active');
+
+  // Spinner visibility
+  const spinner = banner.querySelector('.rdi-refresh-spinner');
+  if (spinner) spinner.style.display = (isRunning && !isFailed) ? '' : 'none';
+
+  // Phase text
+  const phaseLabel = _RDI_PHASE_LABELS[phase] || phase;
+  if (phaseEl) phaseEl.textContent = phaseLabel;
+
+  // Progress bar
+  if (progressWrap && barFill && countEl) {
+    if (isRunning && !isFailed && rs.total != null && rs.total > 0) {
+      const pct = Math.min(100, Math.round((rs.completed / rs.total) * 100));
+      progressWrap.classList.add('visible');
+      barFill.style.width = pct + '%';
+      countEl.textContent = rs.completed + '/' + rs.total;
+      barFill.setAttribute('aria-valuenow', pct);
+    } else {
+      progressWrap.classList.remove('visible');
+      if (barFill) barFill.style.width = '0%';
+      if (countEl) countEl.textContent = '';
+    }
+  }
+
+  // Elapsed time — show while running
+  if (elapsedEl) {
+    if (isRunning && !isFailed && rs.elapsed_s != null) {
+      const s = Math.round(rs.elapsed_s);
+      elapsedEl.textContent = '(' + s + 's)';
+    } else {
+      elapsedEl.textContent = '';
+    }
+  }
+
+  // Stale badge — show when there is a previous result and refresh is running
+  if (staleBadge) {
+    const hasStale = rs.has_result && isRunning && !isFailed;
+    staleBadge.hidden = !hasStale;
+  }
+
+  // Error state
+  if (errorEl) errorEl.hidden = !isFailed;
+  if (isFailed && errorEl) {
+    errorEl.textContent = rs.error ? ('Error: ' + rs.error) : 'Refresh failed.';
+  }
+  if (retryBtn) retryBtn.hidden = !isFailed;
+}
+
+function _rdiHideRefreshStatus() {
+  const banner = document.getElementById('rdi-refresh-status');
+  if (banner) banner.classList.remove('active');
 }
 
 // ---------------------------------------------------------------------------
@@ -8094,6 +8360,8 @@ function _rdiShowNoProject() {
 function _rdiShowNoBranch() {
   _rdiSetBody('<div class="rdi-no-project">Select a release branch to load the delivery backlog.</div>');
   _rdiHideActionBar();
+  _rdiHideRefreshStatus();
+  _rdiStopPoll();
   const meta = document.getElementById('rdi-meta');
   if (meta) meta.textContent = '';
 }
@@ -8353,6 +8621,24 @@ function _rdiShowNoBranch() {
         </span>
         <input type="search" id="rdi-search" class="rdi-search" placeholder="Search identifier, title, subject…" aria-label="Search items" oninput="_rdiOnSearchInput()">
       </div>
+    </div>
+    <!-- Async refresh progress banner (OOMPAH-251) -->
+    <div id="rdi-refresh-status" class="rdi-refresh-status" role="status" aria-live="polite" aria-label="Backlog refresh progress">
+      <svg class="rdi-refresh-spinner" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".25"/>
+        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      <span class="rdi-refresh-phase" id="rdi-refresh-phase">Preparing…</span>
+      <span class="rdi-refresh-progress" id="rdi-refresh-progress">
+        <span class="rdi-refresh-bar-track" aria-hidden="true">
+          <span class="rdi-refresh-bar-fill" id="rdi-refresh-bar-fill" style="width:0%"></span>
+        </span>
+        <span class="rdi-refresh-count" id="rdi-refresh-count"></span>
+      </span>
+      <span class="rdi-refresh-elapsed" id="rdi-refresh-elapsed"></span>
+      <span class="rdi-stale-badge" id="rdi-stale-badge" hidden>stale</span>
+      <span class="rdi-refresh-error" id="rdi-refresh-error" hidden></span>
+      <button class="rdi-refresh-retry" id="rdi-refresh-retry" onclick="_rdiForceRefresh()" hidden>Retry</button>
     </div>
     <!-- Outcome banner (hidden by default) -->
     <div id="rdi-outcome" class="rdi-outcome-banner rdi-outcome-banner-success" hidden aria-live="polite"></div>

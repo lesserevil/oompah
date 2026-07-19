@@ -3762,6 +3762,25 @@ async def api_release_delivery_commits(
 _item_backlog_services: dict = {}
 _item_backlog_services_lock = threading.Lock()
 
+#: Per-(project_id, branch) async backlog refresh job manager (OOMPAH-251).
+#: Maintains one background refresh job per key so the HTTP endpoint can
+#: return the last completed result immediately while discovery runs.
+_backlog_refresh_manager: "Any | None" = None
+_backlog_refresh_manager_lock = threading.Lock()
+
+
+def _get_backlog_refresh_manager():
+    """Return the singleton :class:`~oompah.release_delivery_refresh.BacklogRefreshManager`.
+
+    Lazily initialised on first call.
+    """
+    global _backlog_refresh_manager  # noqa: PLW0603
+    with _backlog_refresh_manager_lock:
+        if _backlog_refresh_manager is None:
+            from oompah.release_delivery_refresh import BacklogRefreshManager  # noqa: PLC0415
+            _backlog_refresh_manager = BacklogRefreshManager()
+        return _backlog_refresh_manager
+
 
 def _get_item_backlog_service(project):
     """Return (or create) the :class:`~oompah.release_delivery_backlog.ItemBacklogService`
@@ -3955,27 +3974,25 @@ async def api_release_delivery_backlog(
         # Get or create the per-project backlog service
         service = _get_item_backlog_service(project)
 
-        try:
-            result = await asyncio.to_thread(
-                service.get_backlog,
-                selected_branch=branch_raw,
-                filter=filter_param,
-                query=query_param,
-                tracker=tracker,
-            )
-        except InventoryError as exc:
-            return JSONResponse(
-                {
-                    "error": {
-                        "code": "backlog_unavailable",
-                        "message": (
-                            f"Could not build release delivery backlog: {exc}  "
-                            "Ensure the project repository is accessible and reachable."
-                        ),
-                    }
-                },
-                status_code=503,
-            )
+        # Use the async refresh manager (OOMPAH-251).
+        #
+        # The refresh manager maintains one background job per (project_id, branch).
+        # It returns the last completed result immediately (stale-while-revalidate)
+        # and starts a new background refresh if the result is stale or absent.
+        #
+        # The cached result is always built with filter="all" so it is
+        # filter-agnostic; the requested filter/query are applied below at
+        # read time without blocking the HTTP response.
+        manager = _get_backlog_refresh_manager()
+
+        refresh_status, cached_result = await manager.get_or_start(
+            project_id,
+            branch_raw,
+            service=service,
+            filter="all",
+            query=None,
+            tracker=tracker,
+        )
 
         # Serialise the BacklogResult to JSON
         def _cell_to_dict(cell) -> dict:
@@ -3994,60 +4011,118 @@ async def api_release_delivery_backlog(
                 d["conflict_agent_resolving"] = True
             return d
 
-        items_json: list[dict] = []
-        for item in result.items:
-            items_json.append(
-                {
-                    "identifier": item.identifier,
-                    "title": item.title,
-                    "kind": item.kind,
-                    "source_commits": [
-                        {
-                            "sha": c.sha,
-                            "short_sha": c.short_sha,
-                            "subject": c.subject,
-                            "author_name": c.author_name,
-                            "authored_at": c.authored_at,
-                        }
-                        for c in item.source_commits
-                    ],
-                    "delivery_status": _cell_to_dict(item.delivery_status),
-                    "delivery_id": item.delivery_id,
-                    "commit_count": item.commit_count,
-                    "most_recent_commit_at": item.most_recent_commit_at,
-                    "tracker_only": item.tracker_only,
-                }
-            )
+        def _item_matches_filter(item) -> bool:
+            """Return True when *item* passes the requested filter."""
+            if filter_param == "needs_delivery":
+                return item.delivery_status.state not in ("delivered", "archived")
+            return True  # "all"
 
-        unassociated_json: list[dict] = []
-        for row in result.unassociated_commits:
-            unassociated_json.append(
-                {
-                    "sha": row.sha,
-                    "short_sha": row.short_sha,
-                    "subject": row.subject,
-                    "author_name": row.author_name,
-                    "authored_at": row.authored_at,
-                    "delivery_status": _cell_to_dict(row.delivery_status),
-                    "delivery_id": row.delivery_id,
-                    "tracker_only": row.tracker_only,
-                }
-            )
+        def _item_matches_query(item) -> bool:
+            """Return True when *item* matches the optional text query."""
+            if not query_param:
+                return True
+            q = query_param.lower()
+            parts = [item.identifier, item.title or ""]
+            for c in item.source_commits:
+                parts.extend([c.subject, c.author_name])
+            if item.delivery_status.pr_url:
+                parts.append(item.delivery_status.pr_url)
+            haystack = " ".join(p for p in parts if p).lower()
+            return q in haystack
 
-        response_body: dict = {
-            "project_id": result.project_id,
-            "source_branch": result.source_branch,
-            "source_head": result.source_head,
-            "selected_branch": result.selected_branch,
-            "branch_head": result.branch_head,
-            "branch_available": result.branch_available,
-            "items": items_json,
-            "unassociated_commits": unassociated_json,
-            "stale": result.stale,
-            "refreshed_at": result.refreshed_at,
-            "total_commit_count": result.total_commit_count,
-            # Explicitly no next_cursor — this is a complete bounded list
-        }
+        def _unassoc_matches_query(row) -> bool:
+            """Return True when *row* matches the optional text query."""
+            if not query_param:
+                return True
+            q = query_param.lower()
+            parts = [row.subject, row.author_name, row.sha]
+            if row.delivery_status.pr_url:
+                parts.append(row.delivery_status.pr_url)
+            haystack = " ".join(p for p in parts if p).lower()
+            return q in haystack
+
+        if cached_result is not None:
+            result = cached_result
+
+            items_json: list[dict] = []
+            for item in result.items:
+                if not _item_matches_filter(item):
+                    continue
+                if not _item_matches_query(item):
+                    continue
+                items_json.append(
+                    {
+                        "identifier": item.identifier,
+                        "title": item.title,
+                        "kind": item.kind,
+                        "source_commits": [
+                            {
+                                "sha": c.sha,
+                                "short_sha": c.short_sha,
+                                "subject": c.subject,
+                                "author_name": c.author_name,
+                                "authored_at": c.authored_at,
+                            }
+                            for c in item.source_commits
+                        ],
+                        "delivery_status": _cell_to_dict(item.delivery_status),
+                        "delivery_id": item.delivery_id,
+                        "commit_count": item.commit_count,
+                        "most_recent_commit_at": item.most_recent_commit_at,
+                        "tracker_only": item.tracker_only,
+                    }
+                )
+
+            unassociated_json: list[dict] = []
+            for row in result.unassociated_commits:
+                if not _unassoc_matches_query(row):
+                    continue
+                unassociated_json.append(
+                    {
+                        "sha": row.sha,
+                        "short_sha": row.short_sha,
+                        "subject": row.subject,
+                        "author_name": row.author_name,
+                        "authored_at": row.authored_at,
+                        "delivery_status": _cell_to_dict(row.delivery_status),
+                        "delivery_id": row.delivery_id,
+                        "tracker_only": row.tracker_only,
+                    }
+                )
+
+            response_body: dict = {
+                "project_id": result.project_id,
+                "source_branch": result.source_branch,
+                "source_head": result.source_head,
+                "selected_branch": result.selected_branch,
+                "branch_head": result.branch_head,
+                "branch_available": result.branch_available,
+                "items": items_json,
+                "unassociated_commits": unassociated_json,
+                "stale": result.stale,
+                "refreshed_at": result.refreshed_at,
+                "total_commit_count": result.total_commit_count,
+                # Explicitly no next_cursor — this is a complete bounded list
+                "refresh_status": refresh_status.to_dict(),
+            }
+        else:
+            # No cached result yet — background refresh is running.
+            # Return an empty response with refresh status so the client
+            # can show a meaningful loading state (not a blank/error).
+            response_body = {
+                "project_id": project_id,
+                "source_branch": None,
+                "source_head": None,
+                "selected_branch": branch_raw,
+                "branch_head": None,
+                "branch_available": False,
+                "items": [],
+                "unassociated_commits": [],
+                "stale": False,
+                "refreshed_at": None,
+                "total_commit_count": 0,
+                "refresh_status": refresh_status.to_dict(),
+            }
 
         return JSONResponse(response_body)
 
@@ -4067,6 +4142,203 @@ async def api_release_delivery_backlog(
 # ---------------------------------------------------------------------------
 # (end release-delivery backlog endpoint)
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/projects/{project_id}/release-delivery/backlog/status
+# Async refresh progress endpoint (OOMPAH-251)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/v1/projects/{project_id}/release-delivery/backlog/status")
+async def api_release_delivery_backlog_status(
+    project_id: str, request: Request
+) -> JSONResponse:
+    """Return the current async refresh status for the project's backlog.
+
+    This endpoint surfaces the :class:`~oompah.release_delivery_refresh.RefreshStatus`
+    for the in-flight (or most recently completed) background refresh job
+    associated with the given ``project_id`` and ``branch``.
+
+    Query parameters
+    ----------------
+    branch : str, required
+        The release branch whose refresh status is queried.
+
+    Response
+    --------
+    200
+        ``{"phase": ..., "completed": ..., "elapsed_s": ..., "has_result": ..., ...}``
+    400
+        Missing ``branch`` parameter.
+    404
+        Project not found.
+    """
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+
+        branch_raw = request.query_params.get("branch", "").strip()
+        if not branch_raw:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "missing_branch",
+                        "message": "The 'branch' query parameter is required.",
+                    }
+                },
+                status_code=400,
+            )
+
+        manager = _get_backlog_refresh_manager()
+        status = manager.get_status(project_id, branch_raw)
+        if status is None:
+            return JSONResponse(
+                {
+                    "phase": "idle",
+                    "completed": 0,
+                    "elapsed_s": 0.0,
+                    "has_result": False,
+                }
+            )
+
+        return JSONResponse(status.to_dict())
+
+    except Exception as exc:
+        logger.error(
+            "release-delivery-backlog-status: unexpected error for %s: %s",
+            project_id,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "internal_error", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/projects/{project_id}/release-delivery/backlog/refresh
+# Async refresh trigger endpoint (OOMPAH-251)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/v1/projects/{project_id}/release-delivery/backlog/refresh")
+async def api_release_delivery_backlog_refresh(
+    project_id: str, request: Request
+) -> JSONResponse:
+    """Trigger a fresh background refresh of the project's Release Delivery backlog.
+
+    Cancels any in-flight refresh job and starts a new one.  The last
+    completed result is preserved so callers can continue serving stale
+    data while the new job runs.  Use this endpoint to implement the
+    "retry" button after a failed refresh.
+
+    Query parameters
+    ----------------
+    branch : str, required
+        The release branch to refresh.  Must be in the project's
+        ``supported_release_branches``.
+
+    Response
+    --------
+    202
+        ``{"started": true, "phase": "pending", ...}``
+    400
+        Missing or invalid ``branch`` parameter.
+    404
+        Project not found.
+    503
+        Project has no configured repository.
+    """
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+
+        if not project.repo_path:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "no_repo",
+                        "message": (
+                            f"Project {project_id!r} has no configured repository; "
+                            "cannot refresh the release delivery backlog."
+                        ),
+                    }
+                },
+                status_code=503,
+            )
+
+        branch_raw = request.query_params.get("branch", "").strip()
+        if not branch_raw:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "missing_branch",
+                        "message": "The 'branch' query parameter is required.",
+                    }
+                },
+                status_code=400,
+            )
+
+        configured_set = set(project.supported_release_branches)
+        if branch_raw not in configured_set:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_branch",
+                        "message": (
+                            f"Branch {branch_raw!r} is not in the project's "
+                            "supported_release_branches."
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+
+        try:
+            tracker = _get_tracker(orch, project_id)
+        except Exception:
+            tracker = None
+
+        service = _get_item_backlog_service(project)
+        manager = _get_backlog_refresh_manager()
+
+        status = await manager.trigger_refresh(
+            project_id,
+            branch_raw,
+            service=service,
+            filter="all",
+            query=None,
+            tracker=tracker,
+        )
+
+        return JSONResponse(
+            {"started": True, **status.to_dict()},
+            status_code=202,
+        )
+
+    except Exception as exc:
+        logger.error(
+            "release-delivery-backlog-refresh: unexpected error for %s: %s",
+            project_id,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "internal_error", "message": str(exc)}},
+            status_code=500,
+        )
 
 
 # ---------------------------------------------------------------------------
