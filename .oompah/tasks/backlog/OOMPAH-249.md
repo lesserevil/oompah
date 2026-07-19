@@ -6,11 +6,12 @@ priority: null
 title: Wire Release Delivery PR fallback into server backlog service
 parent: null
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-248
 labels: []
 assignee: null
 created_at: '2026-07-19T19:14:04.819745Z'
-updated_at: '2026-07-19T19:14:04.819745Z'
+updated_at: '2026-07-19T19:14:07.535224Z'
 work_branch: null
 target_branch: null
 review_url: null
