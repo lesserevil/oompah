@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-238
 type: task
-status: Backlog
+status: Open
 priority: null
 title: 'Fix ItemBacklogService candidate discovery: derive from tracker Merged records,
   not ledger'
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T02:30:01.408523Z'
+updated_at: '2026-07-19T02:52:04.211634Z'
 work_branch: null
 target_branch: null
 review_url: null
