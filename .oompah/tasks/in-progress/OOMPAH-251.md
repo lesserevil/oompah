@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T23:02:45.934600Z'
+updated_at: '2026-07-19T23:11:45.025384Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -317,5 +317,10 @@ author: oompah
 created: 2026-07-19 23:02
 ---
 Understanding (Frontend): The backend async refresh model is implemented and tests pass. The frontend (dashboard.html) shows a blocking spinner while waiting for the synchronous backlog response. I need to update it to: (1) handle the refresh_status field returned by the new endpoint, (2) show the stale result immediately while a background refresh runs, (3) render a progress banner with phase text and determinate/indeterminate bar, (4) poll GET /backlog/status while a refresh is in-flight, (5) show error + retry button after failure, and (6) wire the existing Refresh button to POST /backlog/refresh. The relevant JavaScript starts at char ~256,298 in dashboard.html — function _rdiLoadBacklog() and _rdiRenderBacklog() are the key targets.
+---
+author: oompah
+created: 2026-07-19 23:11
+---
+Discovery (Frontend): The Release Delivery dialog (dashboard.html) shows a full-body spinner while waiting for the synchronous GET /backlog response. With the new backend async model, the endpoint now returns immediately with cached rows plus a refresh_status field (phase, completed, total, elapsed_s, has_result, error). Key targets: _rdiLoadBacklog() (fetch + render), _rdiRefresh() (header button), and the HTML panel structure. Two new endpoints available: GET /backlog/status (poll for progress) and POST /backlog/refresh (force restart).
 ---
 <!-- COMMENTS:END -->
