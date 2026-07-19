@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-252
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Move Release Delivery from dashboard dialog to a dedicated page
 parent: null
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T22:03:50.663411Z'
-updated_at: '2026-07-19T22:03:53.060199Z'
+updated_at: '2026-07-19T22:06:43.081570Z'
 work_branch: null
 target_branch: null
 review_url: null
