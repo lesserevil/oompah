@@ -6,11 +6,12 @@ priority: null
 title: Use the selected project's tracker for Release Delivery backlog discovery
 parent: null
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-249
 labels: []
 assignee: null
 created_at: '2026-07-19T21:11:24.255407Z'
-updated_at: '2026-07-19T21:11:24.255407Z'
+updated_at: '2026-07-19T21:11:26.785655Z'
 work_branch: null
 target_branch: null
 review_url: null
