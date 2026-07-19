@@ -17641,12 +17641,35 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         tracker: TrackerProtocol,
         project_id: str | None,
     ) -> None:
-        """Create child issues from a decomposition plan."""
+        """Create child issues from a validated decomposition plan.
+
+        Validate the whole plan before writing its first child. A partial
+        decomposition is worse than a rejected one: title-only children are
+        intentionally not dispatchable and leave the parent behind work that
+        no agent can start.
+        """
+        invalid_children: list[str] = []
+        for index, task in enumerate(tasks, start=1):
+            if not isinstance(task, dict):
+                invalid_children.append(f"child {index} is not an object")
+                continue
+            title = str(task.get("title") or "").strip()
+            description = str(task.get("description") or "").strip()
+            if not title:
+                invalid_children.append(f"child {index} has no title")
+            if not description:
+                invalid_children.append(f"child {index} has no description")
+        if invalid_children:
+            raise ValueError(
+                "Planner returned invalid decomposition: "
+                + "; ".join(invalid_children)
+            )
+
         created: list[Issue] = []
 
         for task in tasks:
-            title = task.get("title", "Untitled sub-task")
-            description = task.get("description", "")
+            title = str(task["title"]).strip()
+            description = str(task["description"]).strip()
             priority = task.get("priority", parent_issue.priority or 2)
             if not isinstance(priority, int) or priority < 0 or priority > 4:
                 priority = 2

@@ -100,6 +100,10 @@ comments.
 ### Rules
 
 - Search existing oompah tasks before creating follow-up work.
+- Every new task or decomposition child must have an actionable description.
+  Include the implementation scope, relevant files or context, required tests,
+  and objective acceptance criteria. Never create a title-only task: Oompah
+  will not dispatch it, and it blocks its parent epic or task rollup.
 - File follow-up work with `oompah task create --project <project-id>`, not
   GitHub Issues.
 - Create decomposition children with `oompah task child-create`; do not
