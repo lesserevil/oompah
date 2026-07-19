@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:57:54.545083Z'
+updated_at: '2026-07-19T22:58:01.939023Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -216,5 +216,10 @@ author: oompah
 created: 2026-07-19 22:57
 ---
 Discovery: Key files involved — oompah/release_delivery_backlog.py (get_backlog, needed progress_callback), oompah/server.py (endpoint, needed refresh manager singleton + status/refresh sub-endpoints), oompah/release_delivery_refresh.py (new — BacklogRefreshManager + RefreshStatus). Critical finding: BacklogRefreshManager needed threading.RLock (reentrant) because get_status() acquires the lock and is called while the manager already holds it (deadlock with regular Lock). Filter-agnostic cache design: always cache filter='all' result and apply filter/query at read time so one cached result serves all filter variants.
+---
+author: oompah
+created: 2026-07-19 22:58
+---
+Implementation: (1) oompah/release_delivery_refresh.py — BacklogRefreshManager with per-(project_id, branch) asyncio.Task lifecycle, stale-while-revalidate semantics, TTL-based auto-refresh (5 min default), force-refresh via trigger_refresh(), 8 named phases, thread-safe with RLock. (2) oompah/release_delivery_backlog.py — added progress_callback Callable[[str, int, int|None], None] to get_backlog(). (3) oompah/server.py — _get_backlog_refresh_manager() singleton, endpoint modified to use manager (returns cached result immediately + refresh_status field), new GET /backlog/status and POST /backlog/refresh endpoints.
 ---
 <!-- COMMENTS:END -->
