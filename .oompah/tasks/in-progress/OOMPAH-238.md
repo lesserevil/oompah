@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T03:11:02.399185Z'
+updated_at: '2026-07-19T03:12:17.708975Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -189,5 +189,38 @@ author: oompah
 created: 2026-07-19 03:11
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-19 03:12
+---
+Focus handoff: epic_planner
+
+1. Outcome: No decomposition needed. OOMPAH-238 is a concrete implementation task (type: task), not an epic requiring child tasks. It is already appropriately scoped for completion in a single agent session. No children were created.
+
+2. Relevant files and evidence:
+- oompah/release_delivery_backlog.py — ItemBacklogService.get_backlog(); bug is at lines ~270-290 where item_commits_map is built from ledger association_by_sha only, meaning items never in the ledger (new merged tasks) are invisible
+- oompah/release_delivery_inventory.py — _enumerate_commits, _check_ancestry_batch, _acquire_snapshot, _compute_cell helpers all reusable
+- oompah/oompah_md_tracker.py:261 — fetch_issues_by_states(['Merged']) returns all merged issues; Issue.work_branch and Issue.review_url carry the merge-commit evidence
+- oompah/models.py — Issue dataclass fields: work_branch, review_url, issue_type, state
+- tests/test_release_delivery_backlog.py — comprehensive existing test patterns; _patch_and_run helper patches _acquire_snapshot, _enumerate_commits, _check_ancestry_batch, _is_tracker_only_commit
+
+3. Implementation plan (for the feature agent):
+   Step A: In get_backlog(), after building deliveries_index and association_by_sha from the ledger, call tracker.fetch_issues_by_states(['Merged']) (when tracker is provided) to enumerate all merged tasks and epics.
+   Step B: For each merged tracker item, resolve its source commit SHA(s) from issue.work_branch (the merge commit branch, which usually resolves to the HEAD of that branch on origin/main ancestry) — specifically find the commit(s) on origin/main that are associated with that branch. A simpler approach: find git commits whose branch matches work_branch, or use git log --merges to find the merge commit for work_branch into main.
+   Step C: For each such commit that exists in all_commits (reachable from origin/main), add it to item_commits_map if not already there (ledger takes precedence for existing entries).
+   Step D: For items added only from tracker (no ledger association), the default status is not_selected.
+   Step E: Items from the tracker with no commits reachable from origin/main are excluded.
+   
+   Tests to add:
+   - test_merged_task_no_ledger_appears_as_not_selected: tracker returns merged task with work_branch, commit appears in all_commits → item row with not_selected status
+   - test_merged_epic_multiple_commits_appears_once: tracker returns merged epic with multiple commits → one item row
+   - test_nonmerged_task_excluded: tracker returns Open/In_Progress task → not included unless ledger has it
+   - test_ledger_state_overrides_default_for_merged_item: tracker returns merged task AND ledger has open delivery → item shows open (ledger wins)
+
+4. Key design constraint: tracker is optional (None when not provided). When tracker=None, fall back to current ledger-only behavior. Only add tracker-sourced candidates when tracker is available.
+
+5. Remaining work: Feature agent must implement the algorithm fix and write the 4 new unit tests. No architectural decisions needed — all helpers already exist.
+
+6. Recommended next focus: feature
 ---
 <!-- COMMENTS:END -->
