@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T02:30:55.182823Z'
-updated_at: '2026-07-19T03:57:50.845455Z'
+updated_at: '2026-07-19T03:59:38.575770Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,36 @@ author: oompah
 created: 2026-07-19 03:57
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-19 03:59
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: OOMPAH-241 is NOT a duplicate. Duplicate screening is complete with no duplicate found.
+
+Candidates reviewed:
+- OOMPAH-237 (Open, parent epic): Describes OOMPAH-241 as a child task in its children list. OOMPAH-241 is a decomposed child, not a duplicate of it.
+- OOMPAH-238 (Done, sibling): Backend algorithm fix — tracker-sourced candidate discovery in release_delivery_backlog.py. OOMPAH-238 comments explicitly called out OOMPAH-241 as 'Sibling child task for Trickle regression test... Different scope (integration fixture, not backend logic).'
+- OOMPAH-239 (Done, sibling): Timeout/performance fix. Comments: 'OOMPAH-240, OOMPAH-241 (Open, sibling children): Dashboard tests and Trickle regression tests respectively. Distinct from OOMPAH-239.'
+- OOMPAH-240 (Done, sibling): Dashboard UI tests. Comments: 'OOMPAH-241 (Open, sibling): Trickle-specific regression fixture at service/API level. Different test layer — integration/API fixture, not dashboard JS/UI tests.'
+- No archived, done, or merged task covers: building a Trickle-specific regression fixture using native tracker metadata for release/0.11 backlog candidate discovery.
+
+2. Relevant files and evidence:
+- oompah/release_delivery_backlog.py — ItemBacklogService.get_backlog(), tracker-sourced discovery at line 450 (OOMPAH-238 fix already in place)
+- oompah/release_delivery_inventory.py — _find_branch_commits_in_main() at line 655, resolves work_branch commits reachable from main
+- tests/test_release_delivery_backlog.py — 6 new tracker-sourced tests added by OOMPAH-238 (test_merged_task_no_ledger_appears_as_not_selected, etc.); pattern uses _patch_and_run helper
+- tests/test_server_release_delivery_backlog.py — server-level tests with BacklogResult, ItemRow, SourceCommitInfo shapes
+- The blocker (OOMPAH-238) is Done.
+
+3. Remaining work / risks:
+- Build a deterministic integration fixture using native oompah_md tracker metadata (a representative task or epic with merged state, work_branch, and no release delivery ledger entry for release/0.11)
+- Fixture must include: tracker issue with merged state + work_branch, release-delivery ledger entries showing the item was never queued for release/0.11, ancestry evidence (for companion 'delivered-by-ancestry' case), and a synthetic git graph (using _find_branch_commits_in_main mock or a real git dir)
+- Verify: merged item appears in needs_delivery list with state=not_selected and exposes source-main commits
+- Companion case: item delivered by ancestry is excluded from needs_delivery
+- Must NOT call live GitHub or live Trickle checkout
+- Key risk: _find_branch_commits_in_main calls git subprocesses; test must mock or use a controlled git repo fixture. Existing test pattern in test_release_delivery_backlog.py patches _find_branch_commits_in_main directly.
+
+4. Recommended next focus: test (implement the regression fixture in tests/test_release_delivery_backlog.py or tests/test_server_release_delivery_backlog.py, following existing mock patterns)
 ---
 <!-- COMMENTS:END -->
