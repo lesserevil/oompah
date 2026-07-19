@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T02:30:36.850057Z'
-updated_at: '2026-07-19T03:39:22.212114Z'
+updated_at: '2026-07-19T03:41:05.244619Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -74,5 +74,37 @@ author: oompah
 created: 2026-07-19 03:39
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-19 03:41
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: OOMPAH-240 is NOT a duplicate. Duplicate screening is complete with no duplicate found.
+
+Candidates reviewed:
+- OOMPAH-237 (Open, parent epic): Describes this dashboard test at line 81 as a specification item. OOMPAH-240 is a decomposed child of OOMPAH-237 created to implement that item — not a duplicate of it.
+- OOMPAH-238 (Done, sibling): Backend algorithm fix (tracker-sourced candidate discovery). Different layer — backend Python, not dashboard UI tests.
+- OOMPAH-239 (Done, sibling): Performance/timeout fix for unassociated-commit git ops. Different concern.
+- OOMPAH-241 (Open, sibling): Trickle-specific regression fixture at service/API level. Different test layer — integration/API fixture, not dashboard JS/UI tests.
+- OOMPAH-216 (Merged): Added dashboard tests for merged CSS, ahead/behind branch filters, error+retry+conflict_agent UI. Different scenarios; none cover 'newly merged task with no release history'.
+- Searched test file: rg confirmed no existing test in tests/test_dashboard_release_delivery_ui.py covers: (a) not_selected item with no delivery_id, (b) queueable primary row for a task never previously queued, (c) disabled checkboxes for delivered/active/archived items.
+
+2. Relevant files and evidence:
+- tests/test_dashboard_release_delivery_ui.py — existing dashboard test patterns (TestQueueSelected, TestStatusCellCSS); no test for 'never queued' scenario
+- oompah/templates/dashboard.html — _rdiRenderItemRow(), _rdiQueueSelected(), ReleaseStatusCell rendering
+- oompah/release_delivery_backlog.py — BacklogResult, ItemRow, ReleaseStatusCell (just fixed in OOMPAH-238)
+- OOMPAH-240.md — specifies exactly what to add: test that TASK-NEW with delivery_status.state='not_selected' and no delivery_id appears as queueable primary row; selection sends source_commits to POST /release-delivery/commits; delivered/active/archived items have disabled checkboxes
+
+3. Remaining work:
+- Add test class/methods to tests/test_dashboard_release_delivery_ui.py covering:
+  (a) not_selected item appears in primary table (not filtered by needs_delivery filter)
+  (b) item checkbox is enabled (not disabled)
+  (c) queuing sends correct POST body (source_commits, target_branches)
+  (d) item shows 'Not selected' status label
+  (e) delivered, active, and archived items have disabled checkboxes (cannot be re-queued)
+- Run make test to verify against the OOMPAH-238 fix (should pass) and optionally against pre-fix state (should fail — acceptance criterion)
+
+4. Recommended next focus: test (add the dashboard JS tests per spec in OOMPAH-240.md)
 ---
 <!-- COMMENTS:END -->
