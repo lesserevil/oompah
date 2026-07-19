@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T18:24:37.584983Z'
-updated_at: '2026-07-19T18:25:40.059938Z'
+updated_at: '2026-07-19T18:25:42.421881Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,3 +51,11 @@ Acceptance criteria
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-19 18:25
+---
+Implementation clarification for dispatch: native Markdown task records persist / even when  has been deleted. For a Merged item with no usable remote work branch, use that recorded PR reference through the existing SCM/PR integration to obtain the merged PR's merge commit and/or commit list; verify the resulting SHA(s) are reachable from origin/<default_branch>. Do not invent a new metadata schema unless inspection proves the existing review reference cannot supply durable evidence. The work-branch scan remains optional enrichment only.
+---
+<!-- COMMENTS:END -->
