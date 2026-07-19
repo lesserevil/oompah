@@ -7,10 +7,11 @@ title: 'Fix ItemBacklogService timeout: bound/batch unassociated-commit git oper
 parent: OOMPAH-237
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:20.650720Z'
-updated_at: '2026-07-19T03:12:15.390256Z'
+updated_at: '2026-07-19T03:12:19.885653Z'
 work_branch: null
 target_branch: null
 review_url: null
