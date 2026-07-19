@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:12:39.051300Z'
+updated_at: '2026-07-19T22:57:46.643682Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -206,5 +206,10 @@ Plan:
 3. Modify GET .../backlog to return cached result + refresh status
 4. Write all tests for new behavior plus missing existing coverage
 5. Run make test to verify
+---
+author: oompah
+created: 2026-07-19 22:57
+---
+Understanding: OOMPAH-251 requires an observable async refresh model so that the Release Delivery backlog endpoint returns immediately with a cached (stale-while-revalidate) result while candidate discovery runs as a background job. Per the requirement update, long discovery runs are acceptable; the UI must show meaningful progress while a refresh is active and must not show an unexplained blank state.
 ---
 <!-- COMMENTS:END -->
