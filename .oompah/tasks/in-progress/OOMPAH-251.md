@@ -14,7 +14,7 @@ labels:
 - needs:frontend
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:59:03.484397Z'
+updated_at: '2026-07-19T22:59:05.649899Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -272,5 +272,10 @@ author: oompah
 created: 2026-07-19 22:59
 ---
 Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-19 22:59
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
