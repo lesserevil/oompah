@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-241
 type: task
-status: Backlog
+status: Open
 priority: null
 title: 'Trickle regression test: release/0.11 backlog with tracker-sourced candidates'
 parent: OOMPAH-237
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T02:30:55.182823Z'
-updated_at: '2026-07-19T02:31:05.140455Z'
+updated_at: '2026-07-19T02:52:14.129777Z'
 work_branch: null
 target_branch: null
 review_url: null
