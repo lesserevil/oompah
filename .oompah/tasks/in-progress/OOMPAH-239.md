@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:20.650720Z'
-updated_at: '2026-07-19T03:27:54.556055Z'
+updated_at: '2026-07-19T03:30:22.267756Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -217,5 +217,24 @@ author: oompah
 created: 2026-07-19 03:27
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-19 03:30
+---
+Understanding & Plan (Test Engineer)
+
+Root cause confirmed: oompah/release_delivery_backlog.py step 7 (build unassociated rows) calls _is_tracker_only_commit() for EVERY unassociated commit — each spawns a git diff-tree subprocess. With thousands of unassociated commits on Trickle release/0.11, this causes an HTTP timeout.
+
+Two call sites to address:
+1. Step 6 (item rows, L532-534): calls _is_tracker_only_commit per commit per item — bounded by _max_items (500) so less critical
+2. Step 7 (unassociated rows, L605): calls _is_tracker_only_commit for ALL unassociated commits — the primary bottleneck
+
+Plan:
+- Add MAX_UNASSOC_TRACKER_ONLY_CHECK = 50 constant to release_delivery_backlog.py
+- Cap step 7's loop: only call _is_tracker_only_commit for first N unassociated commits; default tracker_only=False beyond the cap
+- Export the constant for tests to assert against
+- Add regression tests that count git subprocess calls for large synthetic commit sets
+- Add coverage that primary item rows are returned even with large unassociated sets
+- Run make test to confirm all pass
 ---
 <!-- COMMENTS:END -->
