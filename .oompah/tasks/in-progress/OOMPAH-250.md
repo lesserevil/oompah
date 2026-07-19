@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T21:11:24.255407Z'
-updated_at: '2026-07-19T21:12:28.224819Z'
+updated_at: '2026-07-19T21:13:20.212950Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,5 +62,36 @@ author: oompah
 created: 2026-07-19 21:12
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-19 21:13
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: OOMPAH-250 is NOT a duplicate. Duplicate screening complete.
+
+Candidates reviewed:
+- OOMPAH-248 (Merged, PR #446): Added _find_pr_commits_in_main() and PR fallback in ItemBacklogService for deleted-branch discovery. Post-merge validation found factory not passing scm/managed_repo — filed OOMPAH-249.
+- OOMPAH-249 (Merged, PR #447): Wired SCM + managed_repo into _get_item_backlog_service server factory. Post-merge validation found final gap: api_release_delivery_backlog still passes orch.tracker (legacy/global) to get_backlog(), so Trickle Merged tasks are never fetched — filed OOMPAH-250.
+
+OOMPAH-250 is the distinct third step in the fix chain. Neither OOMPAH-248 nor OOMPAH-249 addresses the tracker-resolution logic inside api_release_delivery_backlog itself.
+
+2. Relevant files and evidence:
+- oompah/server.py — api_release_delivery_backlog route; currently passes getattr(orch, 'tracker', None) to ItemBacklogService.get_backlog(); needs to use _get_tracker(orch, project_id) or equivalent project-scoped helper instead
+- oompah/server.py — _get_tracker helper (if it exists) or orch._tracker_for_project(project.id) is the project-scoped tracker API to use
+- oompah/release_delivery_backlog.py — ItemBacklogService.get_backlog(tracker=...) receives whatever tracker the route passes
+- tests/test_server_release_delivery_backlog_factory.py — existing route-level test patterns from OOMPAH-249
+
+3. Remaining work:
+- In api_release_delivery_backlog, replace getattr(orch, 'tracker', None) with project-scoped tracker resolution
+- Handle tracker resolution failures (not silently substitute another tracker)
+- Keep SCM/repo wiring from OOMPAH-249 unchanged
+- Add multi-project regression tests: legacy + Trickle tracker, Merged Trickle task with deleted branch and review_number appears only for the Trickle project request
+- Assert legacy tracker is not queried for a managed-project backlog request
+- Test unavailable project tracker yields documented error, not candidates from another project
+- Retain single-project/legacy-mode compatibility test
+- make test passes
+
+4. Recommended next focus: feature (backend fix to api_release_delivery_backlog in server.py + multi-project route regression tests)
 ---
 <!-- COMMENTS:END -->
