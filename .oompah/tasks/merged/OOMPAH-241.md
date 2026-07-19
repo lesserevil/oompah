@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-241
 type: task
-status: Done
+status: Merged
 priority: null
 title: 'Trickle regression test: release/0.11 backlog with tracker-sourced candidates'
 parent: OOMPAH-237
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:55.182823Z'
-updated_at: '2026-07-19T04:09:53.735246Z'
+updated_at: '2026-07-19T09:29:02.527447Z'
 work_branch: null
 target_branch: null
 review_url: null
