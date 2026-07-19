@@ -45,6 +45,7 @@ from oompah.release_delivery_backlog import (
     BacklogResult,
     ItemBacklogService,
     ItemRow,
+    MAX_UNASSOC_TRACKER_ONLY_CHECK,
     SourceCommitInfo,
     UnassociatedCommitRow,
     _aggregate_cell_for_item,
@@ -675,3 +676,249 @@ class TestItemBacklogService:
         assert result.items == [], "No tracker → no tracker-sourced items"
         assert len(result.unassociated_commits) == 1
         assert result.unassociated_commits[0].sha == _SHA_1
+
+
+# ---------------------------------------------------------------------------
+# Bounded unassociated tracker_only classification (OOMPAH-239)
+# ---------------------------------------------------------------------------
+
+
+class TestUnassociatedCommitTrackerOnlyBound:
+    """Regression tests for OOMPAH-239: git diff-tree subprocess count must be
+    bounded when there are many unassociated direct-to-main commits.
+
+    The backlog endpoint was timing out because _is_tracker_only_commit() was
+    called once per unassociated commit — O(N) git subprocesses for N
+    unassociated commits.  The fix caps classification at
+    MAX_UNASSOC_TRACKER_ONLY_CHECK and defaults tracker_only=False beyond
+    that cap so the primary item rows are never blocked.
+    """
+
+    # Exceed the cap by a comfortable margin so the test is meaningful
+    # even if MAX_UNASSOC_TRACKER_ONLY_CHECK changes slightly.
+    _LARGE_COMMIT_COUNT = MAX_UNASSOC_TRACKER_ONLY_CHECK * 4
+
+    def _run_with_call_counter(
+        self,
+        tmp_path: Path,
+        commits: list[Any],
+        deliveries: list[ReleaseDelivery] | None = None,
+    ) -> tuple[BacklogResult, int]:
+        """Run get_backlog and return (result, _is_tracker_only_commit call count).
+
+        Patches _is_tracker_only_commit with a side-effect that increments a
+        counter on every call, so we can assert on the total git subprocess count.
+        """
+        call_count = 0
+
+        def _counting_is_tracker_only(repo_path: Any, sha: str) -> bool:
+            nonlocal call_count
+            call_count += 1
+            return False
+
+        svc = _make_service(tmp_path, deliveries or [])
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=_mock_snapshot()),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=commits),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=set()),
+            patch(
+                "oompah.release_delivery_backlog._is_tracker_only_commit",
+                side_effect=_counting_is_tracker_only,
+            ),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", return_value=[]),
+        ):
+            result = svc.get_backlog(selected_branch=_RELEASE_BRANCH, filter="all")
+
+        return result, call_count
+
+    def _make_large_unassociated_commits(self, count: int) -> list[Any]:
+        """Return *count* unique mock commits with no ledger association."""
+        return [
+            _make_commit_info(f"{i:040x}", f"direct to main commit {i}")
+            for i in range(1, count + 1)
+        ]
+
+    # ------------------------------------------------------------------
+    # Core regression: bounded git call count
+    # ------------------------------------------------------------------
+
+    def test_git_calls_bounded_for_large_unassociated_set(self, tmp_path):
+        """With many unassociated commits, _is_tracker_only_commit is called at most
+        MAX_UNASSOC_TRACKER_ONLY_CHECK times.
+
+        Regression for OOMPAH-239: before the fix, every unassociated commit
+        spawned one git diff-tree subprocess, causing the HTTP endpoint to time out
+        for projects with hundreds of direct-to-main commits.
+        """
+        commits = self._make_large_unassociated_commits(self._LARGE_COMMIT_COUNT)
+
+        result, call_count = self._run_with_call_counter(tmp_path, commits)
+
+        assert result.total_commit_count == self._LARGE_COMMIT_COUNT, (
+            "All commits must be enumerated in the result"
+        )
+        assert len(result.unassociated_commits) == self._LARGE_COMMIT_COUNT, (
+            "All unassociated commits must appear in the result"
+        )
+        assert call_count <= MAX_UNASSOC_TRACKER_ONLY_CHECK, (
+            f"Expected at most {MAX_UNASSOC_TRACKER_ONLY_CHECK} git subprocess calls, "
+            f"got {call_count}. This is an O(N) regression — OOMPAH-239."
+        )
+
+    def test_git_call_count_does_not_grow_with_commit_count(self, tmp_path):
+        """Doubling the unassociated commit count must not double the git call count.
+
+        This verifies the bound is constant, not proportional to input size.
+        """
+        small_commits = self._make_large_unassociated_commits(MAX_UNASSOC_TRACKER_ONLY_CHECK + 10)
+        large_commits = self._make_large_unassociated_commits(MAX_UNASSOC_TRACKER_ONLY_CHECK * 10)
+
+        _, small_call_count = self._run_with_call_counter(tmp_path, small_commits)
+        _, large_call_count = self._run_with_call_counter(tmp_path, large_commits)
+
+        assert large_call_count <= MAX_UNASSOC_TRACKER_ONLY_CHECK, (
+            f"Call count must be capped: got {large_call_count} for "
+            f"{len(large_commits)} commits"
+        )
+        assert large_call_count <= small_call_count + 1, (
+            f"Call count must not grow with commit count: "
+            f"small={small_call_count}, large={large_call_count}"
+        )
+
+    # ------------------------------------------------------------------
+    # Primary item rows are not affected by the cap
+    # ------------------------------------------------------------------
+
+    def test_primary_items_returned_with_large_unassociated_set(self, tmp_path):
+        """Primary item rows are fully returned even when there are many unassociated commits.
+
+        The presence of O(N) unassociated commits must not prevent or delay
+        primary item row construction.  This is the user-visible acceptance
+        criterion: the backlog shows task rows even when many commits are
+        direct-to-main.
+        """
+        # 5 item-associated commits (each tied to a distinct task via ledger)
+        item_shas = [f"item{i:036x}" for i in range(5)]
+        item_commits = [
+            _make_commit_info(sha, f"TASK-{i + 1}: implement feature")
+            for i, sha in enumerate(item_shas)
+        ]
+        deliveries = [
+            _make_delivery(
+                [sha],
+                _RELEASE_BRANCH,
+                AddendumStatus.OPEN,
+                f"TASK-{i + 1}",
+                delivery_id=f"rd_{i}",
+            )
+            for i, sha in enumerate(item_shas)
+        ]
+
+        # Large set of unassociated commits that exceeds the cap
+        unassoc_count = self._LARGE_COMMIT_COUNT
+        unassoc_commits = self._make_large_unassociated_commits(unassoc_count)
+
+        all_commits = item_commits + unassoc_commits
+
+        result, call_count = self._run_with_call_counter(
+            tmp_path, all_commits, deliveries=deliveries
+        )
+
+        # Primary item rows must all be present
+        assert len(result.items) == 5, (
+            f"Expected 5 primary item rows, got {len(result.items)}"
+        )
+        returned_ids = {item.identifier for item in result.items}
+        assert returned_ids == {"TASK-1", "TASK-2", "TASK-3", "TASK-4", "TASK-5"}
+
+        # Unassociated commits must still be listed (even if tracker_only is truncated)
+        assert len(result.unassociated_commits) == unassoc_count
+
+        # Git subprocess count must be bounded.
+        # Item commits (step 6) also call _is_tracker_only_commit — the cap
+        # only applies to the unassociated loop (step 7).  The total must be
+        # at most MAX_UNASSOC_TRACKER_ONLY_CHECK (unassoc cap) + len(item_shas).
+        n_item_commits = len(item_shas)
+        max_expected_calls = MAX_UNASSOC_TRACKER_ONLY_CHECK + n_item_commits
+        assert call_count <= max_expected_calls, (
+            f"Git call count must be bounded even with {unassoc_count} unassociated commits: "
+            f"expected ≤ {max_expected_calls}, got {call_count}"
+        )
+
+    # ------------------------------------------------------------------
+    # Behaviour beyond the cap: tracker_only defaults to False
+    # ------------------------------------------------------------------
+
+    def test_commits_beyond_cap_have_tracker_only_false(self, tmp_path):
+        """Unassociated commits beyond MAX_UNASSOC_TRACKER_ONLY_CHECK get tracker_only=False.
+
+        The cap is for performance — not a filter.  Every unassociated commit
+        must appear in the result; commits beyond the cap default to
+        tracker_only=False (unknown / unchecked) rather than being dropped.
+        """
+        total = MAX_UNASSOC_TRACKER_ONLY_CHECK + 20
+        commits = self._make_large_unassociated_commits(total)
+
+        # Make _is_tracker_only_commit always return True so that any commit
+        # that IS checked will have tracker_only=True, making it easy to
+        # distinguish checked vs. unchecked entries in the result.
+        svc = _make_service(tmp_path, [])
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=_mock_snapshot()),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=commits),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=set()),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", return_value=True),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", return_value=[]),
+        ):
+            result = svc.get_backlog(selected_branch=_RELEASE_BRANCH, filter="all")
+
+        assert len(result.unassociated_commits) == total, (
+            "All commits must appear even when some are beyond the cap"
+        )
+
+        tracker_only_true_count = sum(
+            1 for row in result.unassociated_commits if row.tracker_only
+        )
+        tracker_only_false_count = sum(
+            1 for row in result.unassociated_commits if not row.tracker_only
+        )
+
+        # Exactly MAX_UNASSOC_TRACKER_ONLY_CHECK commits are checked (and returned True)
+        assert tracker_only_true_count == MAX_UNASSOC_TRACKER_ONLY_CHECK, (
+            f"Expected {MAX_UNASSOC_TRACKER_ONLY_CHECK} checked commits with tracker_only=True, "
+            f"got {tracker_only_true_count}"
+        )
+        # The remaining commits default to False
+        assert tracker_only_false_count == total - MAX_UNASSOC_TRACKER_ONLY_CHECK, (
+            f"Expected {total - MAX_UNASSOC_TRACKER_ONLY_CHECK} unchecked commits with tracker_only=False"
+        )
+
+    def test_small_unassociated_set_all_classified(self, tmp_path):
+        """When the unassociated count is ≤ MAX_UNASSOC_TRACKER_ONLY_CHECK, all are classified.
+
+        The cap must not unnecessarily skip classification for small commit sets.
+        """
+        small_count = MAX_UNASSOC_TRACKER_ONLY_CHECK - 5
+        commits = self._make_large_unassociated_commits(small_count)
+
+        result, call_count = self._run_with_call_counter(tmp_path, commits)
+
+        assert len(result.unassociated_commits) == small_count
+        # All commits must be checked when count ≤ cap
+        assert call_count == small_count, (
+            f"Expected all {small_count} commits to be classified, "
+            f"but only {call_count} were"
+        )
+
+    def test_exactly_cap_commits_all_classified(self, tmp_path):
+        """When the unassociated count is exactly MAX_UNASSOC_TRACKER_ONLY_CHECK, all are classified."""
+        commits = self._make_large_unassociated_commits(MAX_UNASSOC_TRACKER_ONLY_CHECK)
+
+        result, call_count = self._run_with_call_counter(tmp_path, commits)
+
+        assert len(result.unassociated_commits) == MAX_UNASSOC_TRACKER_ONLY_CHECK
+        assert call_count == MAX_UNASSOC_TRACKER_ONLY_CHECK, (
+            f"All {MAX_UNASSOC_TRACKER_ONLY_CHECK} commits (exactly at cap) must be classified"
+        )

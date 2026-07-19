@@ -94,6 +94,13 @@ logger = logging.getLogger(__name__)
 #: Maximum item rows returned by default.
 MAX_BACKLOG_ITEMS: int = 500
 
+#: Maximum number of unassociated commits that will have their
+#: ``tracker_only`` flag computed via a ``git diff-tree`` subprocess.
+#: Commits beyond this cap default to ``tracker_only=False`` so that
+#: the primary backlog (item rows) is never blocked by O(N) git calls
+#: when there are many direct-to-main commits (OOMPAH-239).
+MAX_UNASSOC_TRACKER_ONLY_CHECK: int = 50
+
 #: Status rank for aggregation (higher rank = more visible / actionable).
 _STATUS_RANK: dict[str, int] = {
     "blocked": 7,
@@ -594,7 +601,16 @@ class ItemBacklogService:
                 break
 
         # 7. Build unassociated commit rows
+        #
+        # Cap the number of ``_is_tracker_only_commit`` subprocess calls to
+        # MAX_UNASSOC_TRACKER_ONLY_CHECK so that a large direct-to-main commit
+        # history (e.g. hundreds of commits on the default branch without any
+        # delivery ledger entries) does not cause O(N) git diff-tree calls and
+        # time out the HTTP endpoint (OOMPAH-239).  Commits beyond the cap have
+        # their tracker_only flag defaulted to False — this is diagnostic
+        # information only and does not affect primary item row construction.
         unassociated_rows: list[UnassociatedCommitRow] = []
+        _unassoc_tracker_only_checked: int = 0
         for sha in unassociated_shas:
             ci = commit_info_by_sha.get(sha)
             if not ci:
@@ -602,7 +618,11 @@ class ItemBacklogService:
             sha_deliveries = deliveries_index.get(sha, {})
             cell = _compute_cell(sha, selected_branch, sha_deliveries, ancestry_set)
             delivery_id_for_commit = cell.delivery_id
-            tracker_only = _is_tracker_only_commit(self._repo_path, sha)
+            if _unassoc_tracker_only_checked < MAX_UNASSOC_TRACKER_ONLY_CHECK:
+                tracker_only = _is_tracker_only_commit(self._repo_path, sha)
+                _unassoc_tracker_only_checked += 1
+            else:
+                tracker_only = False
             unassociated_rows.append(
                 UnassociatedCommitRow(
                     sha=sha,

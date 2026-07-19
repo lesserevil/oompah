@@ -451,3 +451,225 @@ class TestAsyncioToThread:
 
         # The function passed to to_thread should be svc.get_backlog
         assert any(fn is svc.get_backlog for fn in calls)
+
+
+# ---------------------------------------------------------------------------
+# Test: large synthetic commit set — bounded git operations (OOMPAH-239)
+# ---------------------------------------------------------------------------
+
+
+class TestLargeCommitSetBoundedGitOps:
+    """API-level regression tests for OOMPAH-239.
+
+    Verifies that the backlog endpoint returns a 200 with primary item rows
+    populated when backed by a large synthetic commit set, and that the
+    underlying service's _is_tracker_only_commit is only called a bounded
+    number of times (not once per unassociated commit).
+    """
+
+    def _make_large_backlog_result(
+        self,
+        *,
+        n_items: int = 5,
+        n_unassociated: int = 300,
+    ) -> BacklogResult:
+        """Build a BacklogResult with *n_items* item rows and *n_unassociated* unassociated rows."""
+        from oompah.release_delivery_backlog import SourceCommitInfo, ItemRow, UnassociatedCommitRow
+
+        items = [
+            ItemRow(
+                identifier=f"TASK-{i}",
+                title=f"Task {i}",
+                kind="task",
+                source_commits=[
+                    SourceCommitInfo(
+                        sha=f"{i:040x}",
+                        short_sha=f"{i:07x}",
+                        subject=f"feat: task {i}",
+                        author_name="Dev",
+                        authored_at="2026-07-01T00:00:00Z",
+                    )
+                ],
+                delivery_status=ReleaseStatusCell(state="open"),
+                delivery_id=f"rd_{i}",
+                commit_count=1,
+                most_recent_commit_at="2026-07-01T00:00:00Z",
+                tracker_only=False,
+            )
+            for i in range(1, n_items + 1)
+        ]
+
+        unassociated = [
+            UnassociatedCommitRow(
+                sha=f"u{j:039x}",
+                short_sha=f"u{j:06x}",
+                subject=f"direct commit {j}",
+                author_name="Dev",
+                authored_at="2026-07-01T00:00:00Z",
+                delivery_status=ReleaseStatusCell(state="not_selected"),
+                delivery_id=None,
+                tracker_only=False,
+            )
+            for j in range(1, n_unassociated + 1)
+        ]
+
+        return BacklogResult(
+            project_id=_PROJECT_ID,
+            source_branch="main",
+            source_head=_SOURCE_HEAD,
+            selected_branch=_RELEASE_BRANCH,
+            branch_head=_RELEASE_HEAD,
+            branch_available=True,
+            items=items,
+            unassociated_commits=unassociated,
+            stale=False,
+            refreshed_at="2026-07-01T00:00:00+00:00",
+            total_commit_count=n_items + n_unassociated,
+        )
+
+    def test_large_commit_set_returns_200_with_items(self, tmp_path):
+        """Endpoint returns 200 with primary item rows when there are many unassociated commits.
+
+        Regression: the endpoint was timing out (503) for projects with hundreds
+        of direct-to-main commits because each triggered a git subprocess.
+        """
+        orch = _make_orchestrator(tmp_path)
+        backlog = self._make_large_backlog_result(n_items=5, n_unassociated=300)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "_get_item_backlog_service") as mock_svc_factory,
+        ):
+            svc = MagicMock()
+            svc.get_backlog.return_value = backlog
+            mock_svc_factory.return_value = svc
+
+            client = TestClient(app)
+            resp = client.get(f"{_ENDPOINT}?branch={_RELEASE_BRANCH}&filter=all")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["items"]) == 5
+        assert data["items"][0]["identifier"] == "TASK-1"
+        assert data["total_commit_count"] == 305
+
+    def test_large_commit_set_unassociated_count_in_response(self, tmp_path):
+        """Unassociated commit rows appear in the response for large commit sets."""
+        orch = _make_orchestrator(tmp_path)
+        backlog = self._make_large_backlog_result(n_items=2, n_unassociated=200)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "_get_item_backlog_service") as mock_svc_factory,
+        ):
+            svc = MagicMock()
+            svc.get_backlog.return_value = backlog
+            mock_svc_factory.return_value = svc
+
+            client = TestClient(app)
+            resp = client.get(f"{_ENDPOINT}?branch={_RELEASE_BRANCH}&filter=all")
+
+        data = resp.json()
+        assert resp.status_code == 200
+        assert len(data["unassociated_commits"]) == 200
+        assert len(data["items"]) == 2
+
+    def test_service_called_once_per_request(self, tmp_path):
+        """Service.get_backlog is called exactly once per HTTP request (not per commit).
+
+        Regression guard: the handler must not loop over commits and call the
+        service multiple times.
+        """
+        orch = _make_orchestrator(tmp_path)
+        backlog = self._make_large_backlog_result(n_items=5, n_unassociated=300)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "_get_item_backlog_service") as mock_svc_factory,
+        ):
+            svc = MagicMock()
+            svc.get_backlog.return_value = backlog
+            mock_svc_factory.return_value = svc
+
+            client = TestClient(app)
+            client.get(f"{_ENDPOINT}?branch={_RELEASE_BRANCH}&filter=all")
+
+        # get_backlog must have been called exactly once
+        assert svc.get_backlog.call_count == 1, (
+            f"service.get_backlog must be called once per request, "
+            f"got {svc.get_backlog.call_count}"
+        )
+
+    def test_bounded_git_calls_with_large_unassociated_set(self, tmp_path):
+        """Integration: _is_tracker_only_commit is called at most MAX_UNASSOC_TRACKER_ONLY_CHECK
+        times even when the backlog contains many more unassociated commits.
+
+        This test runs ItemBacklogService directly (bypassing the HTTP layer) with
+        a large synthetic commit set and asserts on the git call count.
+        """
+        from oompah.release_delivery_backlog import (
+            ItemBacklogService,
+            MAX_UNASSOC_TRACKER_ONLY_CHECK,
+        )
+        from oompah.release_delivery_store import ReleaseDeliveryStore
+        from unittest.mock import MagicMock, patch
+        import time
+
+        n_unassociated = MAX_UNASSOC_TRACKER_ONLY_CHECK * 4
+
+        # Build mock commits (no ledger entries → all are unassociated)
+        def _make_ci(i: int):
+            ci = MagicMock()
+            ci.sha = f"{i:040x}"
+            ci.parents = []
+            ci.subject = f"direct commit {i}"
+            ci.author_name = "Dev"
+            ci.authored_at = "2026-07-01T00:00:00Z"
+            ci.is_merge = False
+            return ci
+
+        commits = [_make_ci(i) for i in range(1, n_unassociated + 1)]
+
+        store = MagicMock(spec=ReleaseDeliveryStore)
+        ledger = MagicMock()
+        ledger.deliveries = []
+        store.read_ledger.return_value = ledger
+
+        svc = ItemBacklogService(
+            project_root=tmp_path,
+            project_id=_PROJECT_ID,
+            default_branch="main",
+            delivery_store=store,
+        )
+
+        snap = MagicMock()
+        snap.source_head = _SOURCE_HEAD
+        snap.release_heads = {_RELEASE_BRANCH: _RELEASE_HEAD}
+        snap.stale = False
+        snap.fetched_at = time.monotonic()
+
+        call_count = 0
+
+        def _counting_is_tracker_only(repo_path, sha):
+            nonlocal call_count
+            call_count += 1
+            return False
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=snap),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=commits),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=set()),
+            patch(
+                "oompah.release_delivery_backlog._is_tracker_only_commit",
+                side_effect=_counting_is_tracker_only,
+            ),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", return_value=[]),
+        ):
+            result = svc.get_backlog(selected_branch=_RELEASE_BRANCH, filter="all")
+
+        assert result.total_commit_count == n_unassociated
+        assert len(result.unassociated_commits) == n_unassociated
+        assert call_count <= MAX_UNASSOC_TRACKER_ONLY_CHECK, (
+            f"OOMPAH-239 regression: expected ≤ {MAX_UNASSOC_TRACKER_ONLY_CHECK} git calls "
+            f"for {n_unassociated} unassociated commits, got {call_count}"
+        )
