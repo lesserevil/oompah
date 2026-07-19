@@ -51,6 +51,15 @@ Cursor helpers
 Unit helpers
   - _compute_cell respects all 5 precedence levels.
   - _enumerate_commits skips merge commits and returns non-merges only.
+
+PR commit fallback (OOMPAH-248)
+  - _find_pr_commits_in_main returns intersection of SCM PR commits with main_shas.
+  - PR commits absent from main_shas are excluded.
+  - Empty PR commit list → empty result.
+  - scm.get_pr_commits exception → empty result without propagation.
+  - Empty review_number or managed_repo → empty result, no SCM call.
+  - Empty main_shas → empty result.
+  - Non-hex / short SHAs from SCM are filtered out.
 """
 
 from __future__ import annotations
@@ -1774,3 +1783,168 @@ class TestReleaseBranchInfoAheadBehind:
         )
         assert bi.ahead == 3
         assert bi.behind == 7
+
+
+# ===========================================================================
+# Section 13: _find_pr_commits_in_main (OOMPAH-248)
+# ===========================================================================
+
+
+class TestFindPrCommitsInMain:
+    """Unit tests for _find_pr_commits_in_main (OOMPAH-248).
+
+    This function is the durable fallback for tracker-sourced discovery when a
+    task's work branch has been deleted.  It calls scm.get_pr_commits to obtain
+    the commit list for a given PR number, then intersects with main_shas to
+    return only commits already on origin/<default_branch>.
+
+    Tests verify:
+    - Happy path: PR commits in main_shas → returned list.
+    - PR commits NOT in main_shas → empty list.
+    - Empty PR commit list → empty list.
+    - scm.get_pr_commits raises → empty list (graceful degradation).
+    - review_number or managed_repo empty/None → empty list.
+    - Duplicate SHAs from the SCM are deduplicated.
+    - Only full 40-char hex SHAs are accepted from the SCM.
+    """
+
+    _MANAGED_REPO = "org/trickle"
+    _REVIEW_NUMBER = "445"
+    _SHA_A = "aa" * 20   # 40-char hex
+    _SHA_B = "bb" * 20
+    _SHA_C = "cc" * 20
+
+    def _call(
+        self,
+        scm: Any,
+        review_number: str | None,
+        main_shas: set[str],
+        *,
+        managed_repo: str | None = None,
+    ) -> list[str]:
+        """Call _find_pr_commits_in_main with test parameters."""
+        from oompah.release_delivery_inventory import _find_pr_commits_in_main
+        return _find_pr_commits_in_main(
+            scm,
+            managed_repo or self._MANAGED_REPO,
+            review_number or "",
+            main_shas,
+        )
+
+    def test_pr_commits_in_main_returns_intersection(self):
+        """PR commits present in main_shas are returned."""
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = [self._SHA_A, self._SHA_B]
+        main_shas = {self._SHA_A, self._SHA_B, self._SHA_C}
+
+        result = self._call(scm, self._REVIEW_NUMBER, main_shas)
+
+        assert set(result) == {self._SHA_A, self._SHA_B}
+
+    def test_pr_commits_not_in_main_excluded(self):
+        """PR commits absent from main_shas are excluded."""
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = [self._SHA_A]
+        main_shas = {self._SHA_B, self._SHA_C}  # _SHA_A not present
+
+        result = self._call(scm, self._REVIEW_NUMBER, main_shas)
+
+        assert result == []
+
+    def test_empty_pr_commit_list_returns_empty(self):
+        """scm.get_pr_commits returning [] produces []."""
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = []
+        main_shas = {self._SHA_A}
+
+        result = self._call(scm, self._REVIEW_NUMBER, main_shas)
+
+        assert result == []
+
+    def test_scm_raises_returns_empty_no_propagation(self):
+        """scm.get_pr_commits raising an exception is caught and returns []."""
+        scm = MagicMock()
+        scm.get_pr_commits.side_effect = RuntimeError("API error")
+        main_shas = {self._SHA_A}
+
+        # Must not raise
+        result = self._call(scm, self._REVIEW_NUMBER, main_shas)
+
+        assert result == []
+
+    def test_empty_review_number_returns_empty(self):
+        """Empty review_number → empty list without SCM call."""
+        scm = MagicMock()
+        main_shas = {self._SHA_A}
+
+        result = self._call(scm, "", main_shas)
+
+        assert result == []
+        scm.get_pr_commits.assert_not_called()
+
+    def test_none_review_number_returns_empty(self):
+        """None review_number → empty list without SCM call."""
+        scm = MagicMock()
+        main_shas = {self._SHA_A}
+
+        from oompah.release_delivery_inventory import _find_pr_commits_in_main
+        result = _find_pr_commits_in_main(scm, self._MANAGED_REPO, "", main_shas)
+
+        assert result == []
+        scm.get_pr_commits.assert_not_called()
+
+    def test_empty_managed_repo_returns_empty(self):
+        """Empty managed_repo → empty list without SCM call."""
+        scm = MagicMock()
+        main_shas = {self._SHA_A}
+
+        from oompah.release_delivery_inventory import _find_pr_commits_in_main
+        result = _find_pr_commits_in_main(scm, "", self._REVIEW_NUMBER, main_shas)
+
+        assert result == []
+        scm.get_pr_commits.assert_not_called()
+
+    def test_empty_main_shas_returns_empty(self):
+        """Empty main_shas → empty list (nothing to intersect with)."""
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = [self._SHA_A]
+
+        result = self._call(scm, self._REVIEW_NUMBER, set())
+
+        assert result == []
+
+    def test_called_with_correct_args(self):
+        """scm.get_pr_commits is called with (managed_repo, review_number)."""
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = [self._SHA_A]
+        main_shas = {self._SHA_A}
+
+        self._call(scm, self._REVIEW_NUMBER, main_shas, managed_repo="myorg/myrepo")
+
+        scm.get_pr_commits.assert_called_once_with("myorg/myrepo", self._REVIEW_NUMBER)
+
+    def test_partial_overlap_returns_only_intersection(self):
+        """Only SHAs present in BOTH the PR and main_shas are returned."""
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = [self._SHA_A, self._SHA_B, self._SHA_C]
+        main_shas = {self._SHA_A, self._SHA_C}  # _SHA_B not in main
+
+        result = self._call(scm, self._REVIEW_NUMBER, main_shas)
+
+        assert set(result) == {self._SHA_A, self._SHA_C}
+        assert self._SHA_B not in result
+
+    def test_non_sha_strings_from_scm_are_filtered(self):
+        """Non-hex or short SHAs returned by SCM are excluded."""
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = [
+            "not-a-sha",          # not hex
+            "abc123",             # too short
+            self._SHA_A,          # valid 40-char hex
+        ]
+        main_shas = {self._SHA_A, "not-a-sha", "abc123"}
+
+        result = self._call(scm, self._REVIEW_NUMBER, main_shas)
+
+        # Only the valid 40-char hex SHA should pass
+        assert result == [self._SHA_A]

@@ -80,6 +80,7 @@ from oompah.release_delivery_inventory import (
     _compute_cell,
     _enumerate_commits,
     _find_branch_commits_in_main,
+    _find_pr_commits_in_main,
     _is_tracker_only_commit,
     MAX_COMMITS,
 )
@@ -310,6 +311,8 @@ class ItemBacklogService:
         revlist_timeout: int = 60,
         max_commits: int = MAX_COMMITS,
         max_items: int = MAX_BACKLOG_ITEMS,
+        scm: Any | None = None,
+        managed_repo: str | None = None,
     ) -> None:
         self._repo_path = Path(project_root)
         self._project_id = str(project_id).strip()
@@ -324,6 +327,8 @@ class ItemBacklogService:
         self._revlist_timeout = revlist_timeout
         self._max_commits = max_commits
         self._max_items = max_items
+        self._scm = scm
+        self._managed_repo = (managed_repo or "").strip() or None
 
     # ------------------------------------------------------------------
     # Public interface
@@ -437,14 +442,25 @@ class ItemBacklogService:
         # delivery.  Items that were merged to the default branch but never
         # queued are invisible to ledger-only discovery.  When a tracker is
         # provided, enumerate all Merged items and resolve their source commits
-        # from their work_branch.  Only commits already in all_commits (reachable
-        # from origin/<default_branch>) are eligible — this guards against
-        # stale/non-merged branches.
+        # using two strategies (in order of preference):
+        #
+        # Strategy 1 — live work branch (OOMPAH-238):
+        #   Enumerate commits from refs/remotes/origin/<work_branch> and
+        #   intersect with sha_set.  Only available while the branch ref exists.
+        #
+        # Strategy 2 — PR commit lookup (OOMPAH-248):
+        #   When the work branch ref is gone (branch was deleted after PR merge,
+        #   which is normal) or was never recorded, use the persisted review_number
+        #   to call scm.get_pr_commits() and intersect with sha_set.  This gives
+        #   durable merge evidence that survives branch cleanup.
+        #
+        # Only commits already in sha_set (reachable from origin/<default_branch>)
+        # are eligible — this guards against stale / non-merged branches.
         #
         # The ledger takes precedence: if an identifier is already in
         # item_commits_map (from the ledger) we extend its commit list with any
-        # additional commits found on the work_branch, but we never override
-        # a ledger-sourced association for a commit.
+        # additional commits found, but we never override a ledger-sourced
+        # association for a commit.
         if tracker is not None:
             try:
                 merged_issues = tracker.fetch_issues_by_states(["Merged"])
@@ -457,17 +473,34 @@ class ItemBacklogService:
 
             for issue in merged_issues:
                 ident = getattr(issue, "identifier", None)
-                work_branch = getattr(issue, "work_branch", None)
-                if not ident or not work_branch:
+                if not ident:
                     continue
 
-                # Find commits from this issue's work_branch that are on main.
-                branch_shas = _find_branch_commits_in_main(
-                    self._repo_path,
-                    work_branch,
-                    sha_set,
-                    timeout=self._revlist_timeout,
-                )
+                work_branch = getattr(issue, "work_branch", None)
+                review_number = getattr(issue, "review_number", None)
+
+                # Strategy 1: try live work branch first (fast, no network call).
+                branch_shas: list[str] = []
+                if work_branch:
+                    branch_shas = _find_branch_commits_in_main(
+                        self._repo_path,
+                        work_branch,
+                        sha_set,
+                        timeout=self._revlist_timeout,
+                    )
+
+                # Strategy 2: fallback to PR commit lookup when branch is missing.
+                # Triggered when the work branch produced no commits (ref gone)
+                # or when work_branch was never recorded (None).
+                if not branch_shas and review_number and self._scm and self._managed_repo:
+                    branch_shas = _find_pr_commits_in_main(
+                        self._scm,
+                        self._managed_repo,
+                        review_number,
+                        sha_set,
+                        timeout=self._revlist_timeout,
+                    )
+
                 # No evidence of a merge to main → exclude this item.
                 if not branch_shas:
                     continue
