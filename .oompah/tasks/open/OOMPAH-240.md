@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T02:30:36.850057Z'
-updated_at: '2026-07-19T02:52:09.825525Z'
+updated_at: '2026-07-19T03:07:37.713468Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,6 +20,15 @@ merged_at: null
 ---
 ## Summary
 
+Add dashboard-level regression coverage for the corrected item-centric Release Delivery workflow.
+
+This task depends on OOMPAH-238. Update the existing Release Delivery dashboard tests to model a selected release branch containing a newly merged task with no release-delivery ledger history.
+
+Verify the UI renders that task as a primary queueable row with its identifier, title, source commit count, and Not selected state; selection sends all associated source commits to the existing queue endpoint for the selected branch. Verify delivered, active, and archived items cannot be queued again.
+
+Do not change production UI behavior beyond adjustments required to make the testable interface match the corrected backend contract.
+
+Acceptance criteria: the dashboard test suite fails against the ledger-only candidate bug and passes with the tracker-sourced backlog implementation.
 ## Context
 
 After OOMPAH-238 fixes the candidate discovery algorithm, the dashboard should show tasks in 'Merged' tracker state that have never been queued for release delivery. This task adds the dashboard-level test that verifies this end-to-end behaviour.
@@ -52,4 +61,3 @@ In tests/test_dashboard_release_delivery_ui.py, add a test that:
 - [ ] Define acceptance criteria.
 
 ## Notes
-
