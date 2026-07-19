@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:55.182823Z'
-updated_at: '2026-07-19T04:08:50.424888Z'
+updated_at: '2026-07-19T04:09:35.153988Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -266,5 +266,25 @@ Additional edge cases:
 All 11 new tests pass (56 total in file). Full suite: 9171 passed, 0 failed.
 
 Defect reproduction confirmed: with tracker=None (pre-fix simulation) items=0; with tracker provided (post-fix) items=1, state=not_selected.
+---
+author: oompah
+created: 2026-07-19 04:09
+---
+Completion: Trickle release/0.11 regression fixture delivered.
+
+Added TestTrickleRelease011BacklogRegression (11 tests) to tests/test_release_delivery_backlog.py.
+
+Acceptance criteria met:
+✅ Uses release/0.11 branch (not a generic release branch)
+✅ Uses representative oompah_md (Trickle) native tracker metadata: OOMPAH-215 task, OOMPAH-200 epic, work_branch=identifier convention
+✅ No live GitHub or live Trickle checkout (all mocked)
+✅ Exercises the backlog service (ItemBacklogService.get_backlog) directly
+✅ Merged item appears in needs_delivery with state=not_selected (primary regression)
+✅ Exposes source-main commits (sha, subject, author_name, authored_at)
+✅ Companion delivered-by-ancestry case proves exclusion from needs_delivery
+✅ Regression reproduces the missing-release/0.11-candidate defect (tracker=None → 0 items) before the fix and passes after it (tracker provided → 1 item, not_selected)
+✅ Full test suite: 9171 passed, 0 failed (branch rebased, up to date)
+
+File changed: tests/test_release_delivery_backlog.py (+577 lines)
 ---
 <!-- COMMENTS:END -->
