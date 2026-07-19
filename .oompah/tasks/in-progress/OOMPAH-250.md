@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T21:11:24.255407Z'
-updated_at: '2026-07-19T21:39:40.638110Z'
+updated_at: '2026-07-19T21:40:09.309393Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -165,5 +165,18 @@ Implementation: Made two changes:
 - TestLegacyTrackerNotUsedForManagedProject: orch.tracker.fetch_issues_by_states not called; project-scoped tracker is passed to service
 - TestUnavailableProjectTracker: tracker failure → 200 with tracker=None (not substitution from orch.tracker)
 - TestSingleProjectLegacyModeCompatibility: legacy/single-project mode still works
+---
+author: oompah
+created: 2026-07-19 21:40
+---
+Verification: make test passes — 9217 passed, 36 skipped, 0 failures.
+
+All 10 new tracker tests pass:
+- TestMultiProjectTrackerIsolation (3 tests): Trickle task appears only for Trickle project; legacy items don't bleed; correct project_id used for tracker resolution
+- TestLegacyTrackerNotUsedForManagedProject (2 tests): orch.tracker not called; project-scoped tracker passed to service
+- TestUnavailableProjectTracker (3 tests): tracker failure yields 200 with tracker=None, not orch.tracker substitution (including end-to-end via real ItemBacklogService)
+- TestSingleProjectLegacyModeCompatibility (2 tests): single-project mode still works
+
+All 42 existing backlog tests (factory + server + unit) also pass.
 ---
 <!-- COMMENTS:END -->
