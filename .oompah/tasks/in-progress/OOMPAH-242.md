@@ -7,10 +7,11 @@ title: Require actionable descriptions for every auto-decomposed task
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T03:07:58.167396Z'
-updated_at: '2026-07-19T03:12:32.783539Z'
+updated_at: '2026-07-19T03:12:41.479066Z'
 work_branch: null
 target_branch: null
 review_url: null
