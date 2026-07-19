@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T21:11:24.255407Z'
-updated_at: '2026-07-19T21:14:02.629513Z'
+updated_at: '2026-07-19T21:14:16.626699Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -140,5 +140,10 @@ author: oompah
 created: 2026-07-19 21:14
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-19 21:14
+---
+Understanding: I'm the Test Engineer agent for OOMPAH-250. My role is to write the tests required by the issue. The task has two parts: (1) fix api_release_delivery_backlog in server.py to use project-scoped tracker resolution instead of legacy orch.tracker, and (2) write the multi-project regression tests. I'll start by exploring the relevant code to understand the existing patterns, then write the required tests. I may also need to implement the server.py fix if it's not already done.
 ---
 <!-- COMMENTS:END -->
