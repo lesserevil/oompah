@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T18:24:37.584983Z'
-updated_at: '2026-07-19T18:27:26.425343Z'
+updated_at: '2026-07-19T18:27:28.763315Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +45,6 @@ Acceptance criteria
 - Release Delivery for Trickle release/0.11 shows eligible merged task/epic changes that have never been queued, even if their original work branches no longer exist.
 - An empty primary list is not returned merely because merged task branches were cleaned up.
 - make test passes.
-
 ## Acceptance Criteria
 
 - [ ] Define acceptance criteria.
