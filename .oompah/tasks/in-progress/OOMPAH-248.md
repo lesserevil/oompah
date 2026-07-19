@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T18:24:37.584983Z'
-updated_at: '2026-07-19T18:28:29.151879Z'
+updated_at: '2026-07-19T18:32:22.121473Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -162,5 +162,19 @@ Understanding: As Test Engineer for OOMPAH-248, I need to write regression tests
 4. API/fixture regression for Trickle release/0.11 demonstrates selectable primary candidate after branch deletion
 
 Starting with codebase exploration to understand existing patterns and the current state of implementation.
+---
+author: oompah
+created: 2026-07-19 18:32
+---
+Discovery: The feature for OOMPAH-248 has NOT been implemented yet on this branch (only task metadata commits exist). 
+
+Root cause confirmed: In release_delivery_backlog.py, the tracker-sourced discovery loop (step 3b) calls _find_branch_commits_in_main() which requires refs/remotes/origin/<work_branch> to exist. When oompah deletes the task branch after merge, this ref is gone and the function returns [], causing the item to be silently excluded.
+
+Fix requires:
+1. ItemBacklogService to accept optional scm (SCMProvider) param
+2. When _find_branch_commits_in_main returns empty AND issue has review_number AND issue has managed_repo, fall back to scm.get_pr_commits(managed_repo, review_number) and intersect with main_shas
+3. New _find_pr_commits_in_main() function in release_delivery_inventory.py
+
+Writing regression tests now (TDD style - tests will fail until feature is implemented). Tests cover all 4 required scenarios from spec.
 ---
 <!-- COMMENTS:END -->
