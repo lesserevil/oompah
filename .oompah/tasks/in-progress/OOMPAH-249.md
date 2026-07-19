@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T19:14:04.819745Z'
-updated_at: '2026-07-19T19:18:01.916354Z'
+updated_at: '2026-07-19T19:24:03.707245Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -129,5 +129,10 @@ author: oompah
 created: 2026-07-19 19:18
 ---
 Discovery: Found the key code. The _get_item_backlog_service factory (oompah/server.py:3763) creates ItemBacklogService without scm or managed_repo arguments. ItemBacklogService accepts both (OOMPAH-248), but the server factory doesn't pass them. I need to: (1) update the factory to call detect_provider and extract_repo_slug on project.repo_url and pass them; (2) update the cache key to (project_id, repo_url) so config changes invalidate the cache; (3) write route-level tests that exercise the real factory without mocking _get_item_backlog_service.
+---
+author: oompah
+created: 2026-07-19 19:24
+---
+Implementation: Two changes made.\n\n1. oompah/server.py _get_item_backlog_service (lines 3758-3822): Updated factory to call detect_provider(repo_url) and extract_repo_slug(repo_url) from project.repo_url, then pass scm and managed_repo to ItemBacklogService. Cache key changed from project_id alone to (project_id, repo_url) so a config change (different host/slug) invalidates the stale entry and forces a fresh service with the correct SCM.\n\n2. tests/test_server_release_delivery_backlog_factory.py (new file, 12 tests): Route-level tests that exercise the real _get_item_backlog_service factory without mocking it. Tests cover: (a) factory_passes_scm_to_service, (b) factory_passes_managed_repo, (c) no_repo_url → graceful, (d) SCM detection failure → graceful, (e) cache keyed by repo_url, (f) same key returns same instance, (g) primary API regression (deleted branch + PR fallback → not_selected), (h) SCM receives correct owner/repo and review_number, (i) negative case (PR SHA not in main), (j) no review_number → excluded, (k) cache has scm/managed_repo after first request, (l) new repo_url evicts stale entry.
 ---
 <!-- COMMENTS:END -->
