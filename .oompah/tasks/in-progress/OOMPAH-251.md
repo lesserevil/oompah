@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:07:21.261552Z'
+updated_at: '2026-07-19T22:07:23.452459Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -99,5 +99,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 24s
 - Log: OOMPAH-251__20260719T220656Z.jsonl
+---
+author: oompah
+created: 2026-07-19 22:07
+---
+Agent completed without landing — no commits found on origin for branch `OOMPAH-251`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
