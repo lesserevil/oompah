@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-250
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Use the selected project's tracker for Release Delivery backlog discovery
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T21:11:24.255407Z'
-updated_at: '2026-07-19T21:40:19.714202Z'
+updated_at: '2026-07-19T21:40:30.595555Z'
 work_branch: null
 target_branch: null
 review_url: null
