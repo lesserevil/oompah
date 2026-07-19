@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T18:24:37.584983Z'
-updated_at: '2026-07-19T18:28:07.421360Z'
+updated_at: '2026-07-19T18:28:29.151879Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -151,5 +151,16 @@ author: oompah
 created: 2026-07-19 18:28
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-19 18:28
+---
+Understanding: As Test Engineer for OOMPAH-248, I need to write regression tests for the Release Delivery discovery fix when merged task branches are deleted. Required tests per spec:
+1. Merged task with deleted/missing work_branch ref + persisted merge commit reachable from main → appears as Not selected (not excluded)
+2. Same task with merge SHA NOT reachable from main → excluded
+3. Optional live work branch can add associated commits without being required
+4. API/fixture regression for Trickle release/0.11 demonstrates selectable primary candidate after branch deletion
+
+Starting with codebase exploration to understand existing patterns and the current state of implementation.
 ---
 <!-- COMMENTS:END -->
