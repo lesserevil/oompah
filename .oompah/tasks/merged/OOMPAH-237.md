@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-237
 type: task
-status: In Review
+status: Merged
 priority: 0
 title: Fix Release Delivery backlog candidate discovery and timeout
 parent: null
@@ -21,7 +21,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-19T02:22:21.578496Z'
-updated_at: '2026-07-19T04:15:41.133818Z'
+updated_at: '2026-07-19T09:28:44.586729Z'
 work_branch: epic-OOMPAH-237
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/445
