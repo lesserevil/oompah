@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T18:24:37.584983Z'
-updated_at: '2026-07-19T18:32:22.121473Z'
+updated_at: '2026-07-19T18:42:26.268751Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -176,5 +176,21 @@ Fix requires:
 3. New _find_pr_commits_in_main() function in release_delivery_inventory.py
 
 Writing regression tests now (TDD style - tests will fail until feature is implemented). Tests cover all 4 required scenarios from spec.
+---
+author: oompah
+created: 2026-07-19 18:42
+---
+Implementation: Added PR-based fallback for deleted-branch discovery.
+
+Changes made:
+1. oompah/release_delivery_inventory.py — Added _find_pr_commits_in_main(scm, managed_repo, review_number, main_shas, timeout) that calls scm.get_pr_commits() and intersects with main_shas. Only valid 40-char hex SHAs are returned. All SCM exceptions are caught and logged at DEBUG level (graceful degradation).
+
+2. oompah/release_delivery_backlog.py — Imported _find_pr_commits_in_main. Added optional scm and managed_repo constructor params to ItemBacklogService. In the tracker-sourced discovery loop (step 3b), after _find_branch_commits_in_main returns empty (branch deleted), falls back to _find_pr_commits_in_main when review_number and scm and managed_repo are all set.
+
+3. tests/test_release_delivery_backlog.py — Added TestDeletedBranchFallbackDiscovery (8 tests) and TestTrickleRelease011DeletedBranchRegression (5 tests) covering all spec scenarios.
+
+4. tests/test_release_delivery_inventory.py — Added TestFindPrCommitsInMain (11 tests) for the new helper function.
+
+Total: 24 new tests, all passing.
 ---
 <!-- COMMENTS:END -->
