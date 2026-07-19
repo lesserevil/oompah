@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T23:11:45.025384Z'
+updated_at: '2026-07-19T23:12:00.411657Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -322,5 +322,35 @@ author: oompah
 created: 2026-07-19 23:11
 ---
 Discovery (Frontend): The Release Delivery dialog (dashboard.html) shows a full-body spinner while waiting for the synchronous GET /backlog response. With the new backend async model, the endpoint now returns immediately with cached rows plus a refresh_status field (phase, completed, total, elapsed_s, has_result, error). Key targets: _rdiLoadBacklog() (fetch + render), _rdiRefresh() (header button), and the HTML panel structure. Two new endpoints available: GET /backlog/status (poll for progress) and POST /backlog/refresh (force restart).
+---
+author: oompah
+created: 2026-07-19 23:12
+---
+Implementation (Frontend): Updated oompah/templates/dashboard.html and tests/test_dashboard_release_delivery_ui.py.
+
+CSS added (.rdi-refresh-status family):
+- Progress banner: flex row, hidden by default (.active shows it)
+- Animated spinner (.rdi-refresh-spinner) during active phases
+- Determinate progress bar (.rdi-refresh-bar-track/fill) when completed/total are known
+- Phase label (.rdi-refresh-phase) with human-readable text
+- Elapsed counter (.rdi-refresh-elapsed)
+- Stale badge (.rdi-stale-badge) when serving previous result while refreshing
+- Error label + retry button (.rdi-refresh-error/.rdi-refresh-retry) on failure
+
+HTML: New <div id='rdi-refresh-status' role='status' aria-live='polite'> inserted between controls and outcome banner. Contains spinner SVG, phase span, progress bar track+fill, count, elapsed, stale badge, error span, and retry button.
+
+JavaScript new functions:
+- _RDI_PHASE_LABELS: phase→human-readable map (8 phases)
+- _rdiForceRefresh(): POST /backlog/refresh then reload; does NOT clear _rdiCurrentData (stale-while-revalidate)
+- _rdiRefresh(): now delegates to _rdiForceRefresh()
+- _rdiPollStatus(): GET /backlog/status every 1.5s; calls _rdiLoadBacklog() on complete
+- _rdiStartPoll()/_rdiStopPoll(): manage setInterval handle
+- _rdiUpdateRefreshStatus(rs, data): render phase text, bar, elapsed, stale badge, retry from RefreshStatus dict
+- _rdiHideRefreshStatus(): remove .active class
+
+Updated functions:
+- _rdiLoadBacklog(): keeps stale data visible (body spinner only when _rdiCurrentData==null), reads refresh_status field, calls _rdiUpdateRefreshStatus(), starts/stops poll
+- closeReleaseDelivery(): now calls _rdiStopPoll()
+- _rdiShowNoBranch(): now calls _rdiHideRefreshStatus() + _rdiStopPoll()
 ---
 <!-- COMMENTS:END -->
