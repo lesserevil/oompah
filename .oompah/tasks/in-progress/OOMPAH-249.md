@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T19:14:04.819745Z'
-updated_at: '2026-07-19T19:24:09.623884Z'
+updated_at: '2026-07-19T19:24:43.833321Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -139,5 +139,10 @@ author: oompah
 created: 2026-07-19 19:24
 ---
 Verification: make test passes — 9207 passed, 36 skipped, 12 warnings, 0 failures (130s). All 12 new factory/route tests pass. Verified that the old factory (without scm/managed_repo wiring) would fail the key assertions: svc._scm is None and svc._managed_repo is None with the old code.
+---
+author: oompah
+created: 2026-07-19 19:24
+---
+Completion: Delivered OOMPAH-249.\n\nFeature: Updated _get_item_backlog_service in oompah/server.py to pass scm (from detect_provider) and managed_repo (from extract_repo_slug) to ItemBacklogService. Cache key is now (project_id, repo_url) to handle config changes. SCM detection failure is caught gracefully.\n\nTests: New file tests/test_server_release_delivery_backlog_factory.py with 12 route-level tests — 6 factory unit tests and 6 API tests that exercise the real server factory without mocking _get_item_backlog_service. Covers the primary regression (deleted branch + review_number → not_selected item via SCM fallback), SCM args assertion, negative case (PR SHA not reachable from main), cache lifecycle, and initialization.\n\nmake test: 9207 passed, 0 failures.\n\nBranch pushed to origin/OOMPAH-249.
 ---
 <!-- COMMENTS:END -->
