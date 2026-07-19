@@ -7,10 +7,11 @@ title: Replace Release Delivery commit pagination with an item-centric release b
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T00:37:30.934317Z'
+updated_at: '2026-07-19T00:37:33.133790Z'
 work_branch: null
 target_branch: null
 review_url: null
