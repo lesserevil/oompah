@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T18:24:37.584983Z'
-updated_at: '2026-07-19T18:42:26.268751Z'
+updated_at: '2026-07-19T18:42:55.919468Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -192,5 +192,17 @@ Changes made:
 4. tests/test_release_delivery_inventory.py — Added TestFindPrCommitsInMain (11 tests) for the new helper function.
 
 Total: 24 new tests, all passing.
+---
+author: oompah
+created: 2026-07-19 18:42
+---
+Verification: make test passes — 9195 passed, 36 skipped, 12 warnings (pre-existing, unrelated to this change).
+
+New tests (24 total):
+- TestDeletedBranchFallbackDiscovery: 8 tests in test_release_delivery_backlog.py
+- TestTrickleRelease011DeletedBranchRegression: 5 tests in test_release_delivery_backlog.py  
+- TestFindPrCommitsInMain: 11 tests in test_release_delivery_inventory.py
+
+All 4 required spec scenarios covered and passing. Code pushed to OOMPAH-248 branch.
 ---
 <!-- COMMENTS:END -->
