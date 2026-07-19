@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T23:12:08.930954Z'
+updated_at: '2026-07-19T23:12:20.177156Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -357,5 +357,25 @@ author: oompah
 created: 2026-07-19 23:12
 ---
 Verification: make test passes — 9340 passed, 36 skipped. The new test_dashboard_release_delivery_ui.py grew from ~310 tests to 350 (+40 tests). New test classes: TestAsyncRefreshProgressCSS (9 tests: CSS classes present), TestAsyncRefreshProgressHTML (12 tests: HTML elements, aria attributes, ordering), TestAsyncRefreshProgressFunctions (25 tests: function definitions, function bodies, poll lifecycle, stale-data preservation). Updated: TestDataLoading.test_refresh_reloads_backlog replaced with test_refresh_calls_force_refresh plus 4 new load-backlog tests for refresh_status handling.
+---
+author: oompah
+created: 2026-07-19 23:12
+---
+Completion: OOMPAH-251 is fully implemented.
+
+Backend (committed 3078261f):
+- oompah/release_delivery_refresh.py (new): BacklogRefreshManager with per-(project_id, branch) asyncio jobs, stale-while-revalidate semantics, 8 named phases, progress callbacks, TTL auto-refresh.
+- oompah/release_delivery_backlog.py: progress_callback parameter added.
+- oompah/server.py: GET /backlog returns cached result + refresh_status; GET /backlog/status and POST /backlog/refresh endpoints added.
+- 47 new unit tests + 43 server tests + integration fixture updates.
+
+Frontend (committed 2335d607, rebased as e676b712):
+- oompah/templates/dashboard.html: async progress banner with spinner, determinate/indeterminate bar, phase text, elapsed time, stale badge, error+retry; stale-while-revalidate loading; 1.5s status polling; force-refresh via POST.
+- tests/test_dashboard_release_delivery_ui.py: +40 tests covering all new CSS/HTML/JS.
+
+Acceptance criteria met:
+1. Trickle release/0.11 dialog renders a non-empty selectable candidate list without timing out — discovery runs as background job; stale result shown immediately.
+2. Diagnostics cannot delay the primary backlog — async model separates them.
+3. make test passes — 9340 passed, 36 skipped.
 ---
 <!-- COMMENTS:END -->
