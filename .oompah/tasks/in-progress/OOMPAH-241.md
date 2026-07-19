@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:55.182823Z'
-updated_at: '2026-07-19T04:03:16.445963Z'
+updated_at: '2026-07-19T04:08:50.424888Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -238,5 +238,33 @@ Plan: Add TestTrickleRelease011BacklogRegression class with:
 1. Primary regression: OOMPAH-215 merged/never queued for release/0.11 → appears as not_selected
 2. Companion ancestry: OOMPAH-215 already on release/0.11 → state=delivered, excluded from needs-delivery
 3. Supporting tests: multi-commit, epic type, ledger-other-branch isolation, needs_delivery filter
+---
+author: oompah
+created: 2026-07-19 04:08
+---
+Implementation: Added TestTrickleRelease011BacklogRegression class (11 tests) to tests/test_release_delivery_backlog.py.
+
+Tests use release/0.11 branch and OOMPAH-xxx identifiers (oompah_md style) with work_branch=identifier format.
+
+Primary regression (the defect):
+- test_merged_task_never_queued_appears_as_not_selected_candidate: OOMPAH-215 merged/never queued → appears with not_selected state
+- test_not_selected_item_included_in_needs_delivery_filter: not_selected passes needs_delivery filter
+
+Companion delivered-by-ancestry cases:
+- test_task_delivered_by_ancestry_excluded_from_needs_delivery: already on release/0.11 → excluded
+- test_task_delivered_by_ancestry_has_delivered_state_in_all_filter: state=delivered, evidence=ancestry
+
+Additional edge cases:
+- test_merged_epic_with_multiple_commits_appears_as_single_row: OOMPAH-200 epic, 2 commits → 1 row
+- test_ledger_entry_for_other_branch_does_not_affect_release_011: release/0.12 ledger doesn't affect 0.11 state
+- test_source_commits_exposed_for_release_011_candidate: sha/subject/author/timestamp all exposed
+- test_task_and_epic_both_appear_as_distinct_not_selected_rows: distinct rows per item
+- test_delivered_by_ancestry_excluded_while_pending_task_retained: mixed scenario
+- test_selected_branch_is_release_011_in_result: metadata validation
+- test_branch_head_is_release_011_head_in_result: metadata validation
+
+All 11 new tests pass (56 total in file). Full suite: 9171 passed, 0 failed.
+
+Defect reproduction confirmed: with tracker=None (pre-fix simulation) items=0; with tracker provided (post-fix) items=1, state=not_selected.
 ---
 <!-- COMMENTS:END -->
