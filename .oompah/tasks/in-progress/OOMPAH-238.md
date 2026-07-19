@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T03:23:13.008441Z'
+updated_at: '2026-07-19T03:23:43.963222Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -279,5 +279,10 @@ author: oompah
 created: 2026-07-19 03:23
 ---
 Verification: All 9129 tests pass (make test). New backlog tests: 39 total (was 33), 6 new tests added. New tests: test_merged_task_no_ledger_appears_as_not_selected, test_merged_epic_multiple_commits_appears_once, test_nonmerged_task_excluded_from_tracker_sourced_discovery, test_ledger_status_overrides_default_for_tracker_sourced_item, test_tracker_item_with_no_main_commits_excluded, test_tracker_discovery_skipped_when_tracker_is_none. Regression check confirmed: tests fail when feature is disabled (bug state).
+---
+author: oompah
+created: 2026-07-19 03:23
+---
+Completion: Implemented and tested tracker-sourced candidate discovery for ItemBacklogService. Delivered: (1) _find_branch_commits_in_main() helper in release_delivery_inventory.py resolves work_branch commits reachable from origin/main; (2) get_backlog() step 3b adds merged tracker items not in the ledger with not_selected as default — acceptance criteria satisfied; (3) 6 new focused unit tests covering all 4 specified scenarios plus 2 edge cases (empty branch commits exclusion, tracker=None regression). Branch pushed: epic-OOMPAH-237. All 9129 tests pass.
 ---
 <!-- COMMENTS:END -->
