@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T02:22:21.578496Z'
-updated_at: '2026-07-19T02:24:10.203246Z'
+updated_at: '2026-07-19T02:24:12.948268Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,5 +93,10 @@ author: oompah
 created: 2026-07-19 02:24
 ---
 Agent completed successfully in 28s (91868 tokens)
+---
+author: oompah
+created: 2026-07-19 02:24
+---
+Agent completed without landing — no commits found on origin for branch `OOMPAH-237`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
