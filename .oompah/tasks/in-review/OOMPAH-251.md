@@ -13,9 +13,9 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T23:13:09.156753Z'
+updated_at: '2026-07-19T23:13:12.231540Z'
 work_branch: OOMPAH-251
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/449
 review_number: '449'
 merged_at: null
@@ -63,6 +63,7 @@ oompah.task_costs:
 oompah.review_url: https://github.com/lesserevil/oompah/pull/449
 oompah.review_number: '449'
 oompah.work_branch: OOMPAH-251
+oompah.target_branch: main
 ---
 ## Summary
 
