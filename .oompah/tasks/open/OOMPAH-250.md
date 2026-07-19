@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-250
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Use the selected project's tracker for Release Delivery backlog discovery
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-19T21:11:24.255407Z'
-updated_at: '2026-07-19T21:13:44.534263Z'
+updated_at: '2026-07-19T21:13:46.686870Z'
 work_branch: null
 target_branch: null
 review_url: null
