@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T18:24:37.584983Z'
-updated_at: '2026-07-19T18:42:55.919468Z'
+updated_at: '2026-07-19T18:43:05.870173Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -204,5 +204,21 @@ New tests (24 total):
 - TestFindPrCommitsInMain: 11 tests in test_release_delivery_inventory.py
 
 All 4 required spec scenarios covered and passing. Code pushed to OOMPAH-248 branch.
+---
+author: oompah
+created: 2026-07-19 18:43
+---
+Completion: OOMPAH-248 is fully implemented and tested.
+
+Delivered:
+1. _find_pr_commits_in_main() in release_delivery_inventory.py — durable SCM-based PR commit lookup that works after branch deletion
+2. ItemBacklogService gains optional scm and managed_repo constructor params
+3. Tracker-sourced discovery fallback in get_backlog() — when work_branch ref is gone, uses review_number + SCM to find PR commits reachable from main
+4. 24 new regression tests covering all spec scenarios
+
+Acceptance criteria satisfied:
+- Release Delivery for Trickle release/0.11 shows eligible merged task/epic changes even when original work branches were deleted
+- Empty primary list not returned merely because merged task branches were cleaned up
+- make test passes (9195 passed)
 ---
 <!-- COMMENTS:END -->
