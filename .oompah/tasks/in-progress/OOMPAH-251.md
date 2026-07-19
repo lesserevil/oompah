@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:09:47.630653Z'
+updated_at: '2026-07-19T22:12:39.051300Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -182,5 +182,29 @@ author: oompah
 created: 2026-07-19 22:09
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-19 22:12
+---
+Understanding + plan: I'm the Test Engineer focus for OOMPAH-251. The task requires implementing an observable asynchronous refresh model for Release Delivery candidate discovery, plus comprehensive tests.
+
+Current state:
+- The branch has no code changes yet (only task metadata)
+- Existing code: ItemBacklogService.get_backlog() runs synchronously via asyncio.to_thread, blocking the HTTP response while processing all Merged items (each requiring git rev-list subprocess and/or SCM API calls)
+- Existing tests cover: Trickle regression (OOMPAH-241), bounded unassociated-commit git calls (OOMPAH-239), deleted branch fallback (OOMPAH-248)
+
+What's MISSING (for OOMPAH-251):
+1. Async refresh model: per-(project, branch) background jobs with progress phases
+2. Trickle-scale fixture with thousands of source commits + dozens of Merged items including deleted branches + PR references
+3. Bounded SCM PR lookup test: assert external SCM calls are bounded (not proportional to all merged items)
+4. Title enrichment slow/fail test: primary rows returned even when tracker title fetch is slow or fails
+5. API tests for the async refresh lifecycle: start, in-progress, completed, stale result, failure, retry
+
+Plan:
+1. Implement async backlog refresh manager (BacklogRefreshJob + BacklogRefreshManager) in new module
+2. Add server endpoints: GET .../status and POST .../refresh
+3. Modify GET .../backlog to return cached result + refresh status
+4. Write all tests for new behavior plus missing existing coverage
+5. Run make test to verify
 ---
 <!-- COMMENTS:END -->
