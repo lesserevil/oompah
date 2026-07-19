@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T18:24:37.584983Z'
-updated_at: '2026-07-19T18:27:08.475445Z'
+updated_at: '2026-07-19T18:27:26.425343Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -78,5 +78,32 @@ author: oompah
 created: 2026-07-19 18:27
 ---
 Understanding: Investigating whether OOMPAH-248 is a duplicate of OOMPAH-237 or OOMPAH-238 (or other related tasks). Reviewing the full history of the release delivery backlog work (OOMPAH-237 epic and all children OOMPAH-238 through OOMPAH-247).
+---
+author: oompah
+created: 2026-07-19 18:27
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: OOMPAH-248 is NOT a duplicate. Duplicate screening complete.
+
+Candidates reviewed:
+- OOMPAH-237 (Merged, parent epic): 'Fix Release Delivery backlog candidate discovery and timeout' — merged via PR #445. OOMPAH-237's last comment explicitly states: 'Regression found after merge: the live Trickle release/0.11 backlog returns items=0 and unassociated=7513. Candidate discovery still requires refs/remotes/origin/<work_branch>; merged task branches are normally deleted, so no commits are resolved and eligible Merged tasks are excluded. Filed OOMPAH-248 with durable merge-evidence and deleted-branch regression requirements.' OOMPAH-248 is the successor bug, not a duplicate.
+- OOMPAH-238 (Merged, child): Implemented _find_branch_commits_in_main() using refs/remotes/origin/<work_branch> — this is exactly the mechanism OOMPAH-248 must replace. Not a duplicate; OOMPAH-248 fixes OOMPAH-238's residual hole.
+- OOMPAH-239–247 (Merged): Timeout fix, dashboard/Trickle regression tests, and rebase tasks. None cover durable merge evidence from deleted branches.
+
+2. Relevant files and evidence:
+- oompah/release_delivery_backlog.py — ItemBacklogService.get_backlog(); current tracker-sourced discovery path using _find_branch_commits_in_main() which requires a live remote work_branch ref
+- oompah/release_delivery_inventory.py — _find_branch_commits_in_main() added by OOMPAH-238; must be replaced or supplemented with PR-based durable evidence
+- oompah/models.py — Issue fields: review_number, review_url (persist after branch deletion), work_branch (may be missing/deleted)
+- oompah/oompah_md_tracker.py — existing SCM/PR integration (fetch_pull_request() or equivalent) for resolving merge commit from review_number
+- tests/test_release_delivery_backlog.py — existing test patterns to extend
+
+3. Remaining work:
+- Replace work-branch ref dependency with durable PR merge evidence (review_number/review_url → merge commit SHA via SCM API) when branch ref is absent
+- Verify resulting SHAs are reachable from origin/<default_branch>
+- Keep work-branch history as optional enrichment only
+- Add unit regression tests per spec: Merged task with deleted branch + persisted merge commit reachable from main → Not selected; same task with merge SHA not reachable → excluded; optional live branch can add commits; API/fixture for Trickle release/0.11
+
+4. Recommended next focus: feature (backend fix to release_delivery_inventory.py + release_delivery_backlog.py + new unit tests)
 ---
 <!-- COMMENTS:END -->
