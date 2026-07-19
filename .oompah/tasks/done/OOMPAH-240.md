@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:36.850057Z'
-updated_at: '2026-07-19T03:53:52.418219Z'
+updated_at: '2026-07-19T03:54:02.020163Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,15 @@ author: oompah
 created: 2026-07-19 03:53
 ---
 Added TestNewlyMergedTaskQueueable (20 tests) to tests/test_dashboard_release_delivery_ui.py covering the full UI contract for newly merged tasks with no release history: enabled checkbox, 'Not selected' label, source_commits queuing without delivery_id, no client-side filtering, delivered/archived disabled. All 9159 tests pass.
+---
+author: oompah
+created: 2026-07-19 03:54
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 0, Tool calls: 49
+- Tokens: 75 in / 2.3K out [2.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 22s
+- Log: OOMPAH-240__20260719T034249Z.jsonl
 ---
 <!-- COMMENTS:END -->
