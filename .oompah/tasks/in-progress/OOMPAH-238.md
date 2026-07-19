@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T03:23:01.069095Z'
+updated_at: '2026-07-19T03:23:13.008441Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -274,5 +274,10 @@ author: oompah
 created: 2026-07-19 03:23
 ---
 Implementation: Added tracker-sourced candidate discovery to ItemBacklogService.get_backlog(). Changes: (1) Added _find_branch_commits_in_main() to release_delivery_inventory.py — enumerates commits from origin/<work_branch> and intersects with main SHAs; (2) Imported new helper in release_delivery_backlog.py; (3) Added step 3b in get_backlog() that calls tracker.fetch_issues_by_states(['Merged']), resolves branch commits, and adds tracker-sourced items to item_commits_map with not_selected as default status. Ledger takes precedence for existing associations. Tracker is optional (None preserves old ledger-only behaviour).
+---
+author: oompah
+created: 2026-07-19 03:23
+---
+Verification: All 9129 tests pass (make test). New backlog tests: 39 total (was 33), 6 new tests added. New tests: test_merged_task_no_ledger_appears_as_not_selected, test_merged_epic_multiple_commits_appears_once, test_nonmerged_task_excluded_from_tracker_sourced_discovery, test_ledger_status_overrides_default_for_tracker_sourced_item, test_tracker_item_with_no_main_commits_excluded, test_tracker_discovery_skipped_when_tracker_is_none. Regression check confirmed: tests fail when feature is disabled (bug state).
 ---
 <!-- COMMENTS:END -->
