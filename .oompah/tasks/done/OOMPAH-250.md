@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T21:11:24.255407Z'
-updated_at: '2026-07-19T21:40:30.595555Z'
+updated_at: '2026-07-19T21:40:32.791474Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -197,5 +197,10 @@ Acceptance criteria met:
 - Unavailable tracker gracefully degrades to tracker=None (no 503, no substitution)
 - Single-project/legacy-mode compatibility preserved
 - make test passes (9217 passed)
+---
+author: oompah
+created: 2026-07-19 21:40
+---
+Fixed api_release_delivery_backlog to use project-scoped tracker (_get_tracker(orch, project_id)) instead of legacy orch.tracker. Added 10 multi-project regression tests. make test passes (9217 passed).
 ---
 <!-- COMMENTS:END -->
