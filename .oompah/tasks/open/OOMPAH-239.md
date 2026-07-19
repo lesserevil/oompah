@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-239
 type: task
-status: Backlog
+status: Open
 priority: null
 title: 'Fix ItemBacklogService timeout: bound/batch unassociated-commit git operations'
 parent: OOMPAH-237
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T02:30:20.650720Z'
-updated_at: '2026-07-19T02:30:20.650720Z'
+updated_at: '2026-07-19T02:52:06.732426Z'
 work_branch: null
 target_branch: null
 review_url: null
