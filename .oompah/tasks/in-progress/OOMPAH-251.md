@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T23:12:00.411657Z'
+updated_at: '2026-07-19T23:12:08.930954Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -352,5 +352,10 @@ Updated functions:
 - _rdiLoadBacklog(): keeps stale data visible (body spinner only when _rdiCurrentData==null), reads refresh_status field, calls _rdiUpdateRefreshStatus(), starts/stops poll
 - closeReleaseDelivery(): now calls _rdiStopPoll()
 - _rdiShowNoBranch(): now calls _rdiHideRefreshStatus() + _rdiStopPoll()
+---
+author: oompah
+created: 2026-07-19 23:12
+---
+Verification: make test passes — 9340 passed, 36 skipped. The new test_dashboard_release_delivery_ui.py grew from ~310 tests to 350 (+40 tests). New test classes: TestAsyncRefreshProgressCSS (9 tests: CSS classes present), TestAsyncRefreshProgressHTML (12 tests: HTML elements, aria attributes, ordering), TestAsyncRefreshProgressFunctions (25 tests: function definitions, function bodies, poll lifecycle, stale-data preservation). Updated: TestDataLoading.test_refresh_reloads_backlog replaced with test_refresh_calls_force_refresh plus 4 new load-backlog tests for refresh_status handling.
 ---
 <!-- COMMENTS:END -->
