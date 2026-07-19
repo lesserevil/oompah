@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:03:50.663411Z'
-updated_at: '2026-07-19T23:18:15.358492Z'
+updated_at: '2026-07-19T23:18:27.337794Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -135,5 +135,10 @@ author: oompah
 created: 2026-07-19 23:18
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-19 23:18
+---
+Understanding: Moving Release Delivery from dashboard dialog to a dedicated page. Plan: (1) Explore existing dashboard.html/server.py to understand current dialog structure; (2) Add /release-delivery route to server.py; (3) Create dedicated release_delivery.html page with project/branch selectors, candidate table, progress integration (OOMPAH-251 API), and accessibility; (4) Add nav entry; (5) Remove dashboard modal/trigger; (6) Write tests covering navigation, routing, UI, and accessibility; (7) Run make test.
 ---
 <!-- COMMENTS:END -->
