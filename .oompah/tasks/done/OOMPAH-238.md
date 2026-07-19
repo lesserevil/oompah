@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-238
 type: task
-status: In Progress
+status: Done
 priority: null
 title: 'Fix ItemBacklogService candidate discovery: derive from tracker Merged records,
   not ledger'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T03:23:43.963222Z'
+updated_at: '2026-07-19T03:23:51.855105Z'
 work_branch: null
 target_branch: null
 review_url: null
