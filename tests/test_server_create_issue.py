@@ -73,7 +73,7 @@ class TestCreateIssueEpicDraftLabel:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "My Epic", "type": "epic", "project_id": "proj-1"},
+                json={"title": "My Epic", "type": "epic", "project_id": "proj-1", "description": "Test epic"},
             )
 
         assert resp.status_code == 201
@@ -94,7 +94,7 @@ class TestCreateIssueEpicDraftLabel:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "My Task", "type": "task", "project_id": "proj-1"},
+                json={"title": "My Task", "type": "task", "project_id": "proj-1", "description": "Test task"},
             )
 
         assert resp.status_code == 201
@@ -118,6 +118,7 @@ class TestCreateIssueEpicDraftLabel:
                     "type": "task",
                     "project_id": "proj-1",
                     "parent_id": "TASK-1",
+                    "description": "Child task description",
                 },
             )
 
@@ -138,7 +139,7 @@ class TestCreateIssueEpicDraftLabel:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "My Bug", "type": "bug", "project_id": "proj-1"},
+                json={"title": "My Bug", "type": "bug", "project_id": "proj-1", "description": "Test bug"},
             )
 
         assert resp.status_code == 201
@@ -157,7 +158,7 @@ class TestCreateIssueEpicDraftLabel:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "My Feature", "type": "feature", "project_id": "proj-1"},
+                json={"title": "My Feature", "type": "feature", "project_id": "proj-1", "description": "Test feature"},
             )
 
         assert resp.status_code == 201
@@ -176,7 +177,7 @@ class TestCreateIssueEpicDraftLabel:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "Default type task", "project_id": "proj-1"},
+                json={"title": "Default type task", "project_id": "proj-1", "description": "Default type description"},
             )
 
         assert resp.status_code == 201
@@ -200,7 +201,7 @@ class TestCreateIssueEpicDraftLabel:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "My Epic", "type": "epic", "project_id": "proj-1"},
+                json={"title": "My Epic", "type": "epic", "project_id": "proj-1", "description": "Epic description"},
             )
 
         assert resp.status_code == 201
@@ -221,7 +222,7 @@ class TestCreateIssueEpicDraftLabel:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "My Epic", "type": "epic", "project_id": "proj-1"},
+                json={"title": "My Epic", "type": "epic", "project_id": "proj-1", "description": "Epic description"},
             )
 
         # Epic creation succeeds without any add_label call (OOMPAH-171)
@@ -258,7 +259,7 @@ class TestCreateIssueEpicDraftLabel:
         ):
             client.post(
                 "/api/v1/issues",
-                json={"title": "My Epic", "type": "epic", "project_id": "proj-1"},
+                json={"title": "My Epic", "type": "epic", "project_id": "proj-1", "description": "Epic description"},
             )
 
         mock_broadcast.assert_awaited_once()
@@ -277,7 +278,7 @@ class TestCreateIssueEpicDraftLabel:
         ):
             client.post(
                 "/api/v1/issues",
-                json={"title": "My Epic", "type": "epic", "project_id": "proj-1"},
+                json={"title": "My Epic", "type": "epic", "project_id": "proj-1", "description": "Epic description"},
             )
 
         invalidated_keys = [call.args[0] for call in mock_invalidate.call_args_list]
@@ -302,7 +303,7 @@ class TestCreateIssueEpicDraftLabel:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "Epic", "type": "epic", "project_id": "proj-1"},
+                json={"title": "Epic", "type": "epic", "project_id": "proj-1", "description": "Epic description"},
             )
 
         assert resp.status_code == 201
@@ -338,6 +339,7 @@ class TestCreateIssuePriority:
                     "title": "Prioritized task",
                     "project_id": "proj-1",
                     "priority": priority_name,
+                    "description": "Prioritized task description",
                 },
             )
 

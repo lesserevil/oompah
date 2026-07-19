@@ -162,7 +162,7 @@ class TestCreateIssueProjectNameFallback:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "Test task", "project_id": "coroot"},
+                json={"title": "Test task", "project_id": "coroot", "description": "Test task description"},
             )
 
         assert resp.status_code == 201
@@ -178,7 +178,7 @@ class TestCreateIssueProjectNameFallback:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "Test task", "project_id": "totally-unknown"},
+                json={"title": "Test task", "project_id": "totally-unknown", "description": "Test task description"},
             )
 
         assert resp.status_code == 500

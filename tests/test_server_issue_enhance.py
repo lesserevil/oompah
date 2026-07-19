@@ -233,6 +233,7 @@ class TestVerbatimBackCompat:
                     "title": "raw",
                     "project_id": "proj-1",
                     "type": "task",
+                    "description": "Raw verbatim description",
                 },
             )
         assert resp.status_code == 201
@@ -400,6 +401,7 @@ class TestCreateIssueManagedRepo:
                     "title": "New GitHub task",
                     "managed_repo": "example-org/trickle",
                     "type": "task",
+                    "description": "GitHub task description",
                 },
             )
         assert resp.status_code == 201
@@ -421,6 +423,7 @@ class TestCreateIssueManagedRepo:
                     "title": "SSH repo task",
                     "managed_repo": "example-org/trickle",
                     "type": "task",
+                    "description": "SSH repo task description",
                 },
             )
         assert resp.status_code == 201
@@ -435,7 +438,7 @@ class TestCreateIssueManagedRepo:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "no project"},
+                json={"title": "no project", "description": "No project description"},
             )
         assert resp.status_code == 400
         data = resp.json()
@@ -466,7 +469,7 @@ class TestCreateIssueManagedRepo:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "unknown repo", "managed_repo": "nobody/nowhere"},
+                json={"title": "unknown repo", "managed_repo": "nobody/nowhere", "description": "Unknown repo description"},
             )
         assert resp.status_code == 404
         assert resp.json()["error"]["code"] == "not_found"
@@ -487,6 +490,7 @@ class TestCreateIssueManagedRepo:
                     "project_id": "proj-2",
                     "managed_repo": "example-org/trickle",
                     "type": "task",
+                    "description": "Explicit project description",
                 },
             )
         assert resp.status_code == 201

@@ -511,7 +511,7 @@ class TestCreateIssueEnhancementOffLoop:
         ):
             resp = client.post(
                 "/api/v1/issues?enhance=true",
-                json={"title": "fix it", "project_id": "proj-1"},
+                json={"title": "fix it", "description": "broken", "project_id": "proj-1"},
             )
 
         assert resp.status_code == 502

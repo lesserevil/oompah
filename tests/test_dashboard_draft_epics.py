@@ -281,7 +281,7 @@ class TestEpicLabelAPIStillWorks:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "My Epic", "type": "epic", "project_id": "proj-1"},
+                json={"title": "My Epic", "type": "epic", "project_id": "proj-1", "description": "My epic description"},
             )
 
         assert resp.status_code == 201

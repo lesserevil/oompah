@@ -2651,8 +2651,12 @@ async def api_create_issue(request: Request):
         # A task title alone is not actionable.  Enforce this at the API
         # boundary as well as in the CLI because the dashboard and external
         # callers can create issues directly.
+        # Exception: when source_task_id is provided the "Triggered by: <id>"
+        # header is constructed as the description further below, so an empty
+        # description field is permitted in that case.
         description = str(body.get("description") or "").strip()
-        if not description:
+        source_task_id_raw = (body.get("source_task_id") or "").strip()
+        if not description and not source_task_id_raw:
             return JSONResponse(
                 {
                     "error": {
