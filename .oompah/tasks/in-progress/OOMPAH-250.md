@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T21:11:24.255407Z'
-updated_at: '2026-07-19T21:15:17.114948Z'
+updated_at: '2026-07-19T21:39:40.638110Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -150,5 +150,20 @@ author: oompah
 created: 2026-07-19 21:15
 ---
 Discovery: Confirmed the bug. Line 3947 of oompah/server.py has 'tracker = getattr(orch, "tracker", None)' which uses the legacy global tracker. The fix is to replace it with _get_tracker(orch, project_id) wrapped in try/except (best-effort for title enrichment). The _get_tracker helper already exists at line 2088. I'll implement the fix and add multi-project regression tests in a new test file.
+---
+author: oompah
+created: 2026-07-19 21:39
+---
+Implementation: Made two changes:
+
+1. oompah/server.py: In api_release_delivery_backlog, replaced 'tracker = getattr(orch, "tracker", None)' (legacy global tracker) with a try/except block calling '_get_tracker(orch, project_id)' which correctly calls orch._tracker_for_project(project_id). The exception handler sets tracker=None for best-effort graceful degradation.
+
+2. tests/test_server_release_delivery_backlog_factory.py: Updated _make_orchestrator to use orch._tracker_for_project.side_effect = Exception(...) instead of orch.tracker = None. Updated 4 route-level tests to wire mock_tracker via orch._tracker_for_project.return_value instead of orch.tracker.
+
+3. tests/test_server_release_delivery_backlog_tracker.py (new file): 10 tests across 4 classes covering:
+- TestMultiProjectTrackerIsolation: Merged Trickle task appears only for Trickle project; LEGACY items don't bleed; _tracker_for_project called with correct project_id
+- TestLegacyTrackerNotUsedForManagedProject: orch.tracker.fetch_issues_by_states not called; project-scoped tracker is passed to service
+- TestUnavailableProjectTracker: tracker failure → 200 with tracker=None (not substitution from orch.tracker)
+- TestSingleProjectLegacyModeCompatibility: legacy/single-project mode still works
 ---
 <!-- COMMENTS:END -->
