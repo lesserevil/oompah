@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>oompah - Release Delivery</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --text: #e6edf3; --text-muted: #7d8590; --accent: #58a6ff;
+      --green: #3fb950; --red: #f85149; --yellow: #e2b340; --purple: #bc8cff;
+      --blue: #58a6ff; --mono: 'SFMono-Regular', Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Toolbar */
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .toolbar h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; }
+    .toolbar h1 a { color: var(--accent); text-decoration: none; }
+    .toolbar h1 span { color: var(--text-muted); font-weight: 400; }
+    .toolbar-actions { display: flex; align-items: center; gap: 0.5rem; }
+    button {
+      background: var(--surface);
+      color: var(--accent);
+      border: 1px solid var(--border);
+      padding: 0.3rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    button:hover { background: rgba(88, 166, 255, 0.1); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: rgba(88, 166, 255, 0.25); }
+    /* Page layout */
+    .page-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    /* Controls bar */
+    .rdi-controls {
+      padding: 0.6rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      background: var(--surface);
+    }
+    .rdi-control-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .rdi-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    .rdi-filter-group {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .rdi-filter-group label {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .rdi-search {
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.8rem;
+      flex: 1;
+      min-width: 140px;
+      max-width: 260px;
+    }
+    select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.82rem;
+    }
+    /* Async refresh progress banner (OOMPAH-251) */
+    .rdi-refresh-status {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 1.5rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      min-height: 2rem;
+      background: var(--surface);
+    }
+    .rdi-refresh-status.active { display: flex; }
+    .rdi-refresh-spinner {
+      width: 12px;
+      height: 12px;
+      flex-shrink: 0;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .rdi-refresh-phase { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rdi-refresh-progress {
+      display: none;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .rdi-refresh-progress.visible { display: flex; }
+    .rdi-refresh-bar-track {
+      width: 80px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .rdi-refresh-bar-fill {
+      height: 100%;
+      background: var(--accent, #58a6ff);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    .rdi-refresh-count { font-variant-numeric: tabular-nums; }
+    .rdi-refresh-elapsed { color: var(--text-muted); opacity: 0.7; }
+    .rdi-refresh-error {
+      color: var(--red, #f85149);
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .rdi-refresh-retry {
+      font-size: 0.75rem;
+      padding: 1px 7px;
+      border-radius: 4px;
+      border: 1px solid var(--red, #f85149);
+      background: transparent;
+      color: var(--red, #f85149);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .rdi-refresh-retry:hover { background: rgba(248,81,73,0.1); }
+    .rdi-stale-badge {
+      font-size: 0.7rem;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: rgba(210,153,34,0.15);
+      color: var(--yellow, #d2a520);
+      flex-shrink: 0;
+    }
+    /* Main content area */
+    .rdi-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      position: relative;
+    }
+    /* Meta bar (shows source branch, head, refreshed_at) */
+    .rdi-meta-bar {
+      padding: 0.3rem 1.5rem;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      min-height: 1.8rem;
+      display: flex;
+      align-items: center;
+    }
+    /* Outcome banner */
+    .rdi-outcome-banner {
+      padding: 0.5rem 1.5rem;
+      font-size: 0.82rem;
+    }
+    .rdi-outcome-banner-success { background: rgba(63, 185, 80, 0.1); color: var(--green, #3fb950); }
+    .rdi-outcome-banner-partial { background: rgba(210, 153, 34, 0.12); color: #d29922; }
+    /* Table area */
+    .rdi-table-wrap {
+      overflow: auto;
+      flex: 1;
+    }
+    .rdi-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .rdi-table th {
+      position: sticky;
+      top: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.3rem 0.75rem;
+      text-align: left;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .rdi-table td {
+      padding: 0.3rem 0.75rem;
+      border-bottom: 1px solid rgba(125, 133, 144, 0.1);
+      vertical-align: middle;
+    }
+    .rdi-table tr:hover td { background: rgba(125, 133, 144, 0.05); }
+    .rdi-sha-plain {
+      font-family: var(--mono, monospace);
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+    .rdi-subject {
+      max-width: 360px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .rdi-author { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
+    .rdi-assoc {
+      font-size: 0.75rem;
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: underline;
+      white-space: nowrap;
+    }
+    /* Status cell states */
+    .rdi-cell {
+      font-size: 0.72rem;
+      border-radius: 3px;
+      padding: 2px 5px;
+      white-space: nowrap;
+      display: inline-block;
+    }
+    .rdi-cell-not_selected { color: var(--text-muted); }
+    .rdi-cell-open { color: #58a6ff; background: rgba(88, 166, 255, 0.1); }
+    .rdi-cell-in_progress { color: #d29922; background: rgba(210, 153, 34, 0.12); }
+    .rdi-cell-in_review { color: #8b949e; background: rgba(139, 148, 158, 0.12); }
+    .rdi-cell-blocked { color: var(--red, #f85149); background: rgba(248, 81, 73, 0.1); }
+    .rdi-cell-delivered { color: var(--green, #3fb950); background: rgba(63, 185, 80, 0.1); }
+    .rdi-cell-delivered-ancestry { color: var(--green, #3fb950); background: rgba(63, 185, 80, 0.06); font-style: italic; }
+    .rdi-cell-archived { color: var(--text-muted); background: rgba(125, 133, 144, 0.1); }
+    .rdi-cell-merged { color: var(--green, #3fb950); background: rgba(63, 185, 80, 0.08); }
+    .rdi-cell-clickable { cursor: pointer; text-decoration: underline; }
+    .rdi-cell-clickable:hover { opacity: 0.85; }
+    /* Action bar */
+    .rdi-action-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      padding: 0.5rem 1.5rem;
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+      flex-shrink: 0;
+    }
+    .rdi-action-count { font-size: 0.8rem; font-weight: 600; }
+    /* Loading / empty / error states */
+    .rdi-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      gap: 0.5rem;
+    }
+    .rdi-empty {
+      padding: 3rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+    .rdi-error {
+      padding: 1.5rem;
+      color: var(--red);
+      font-size: 0.85rem;
+      background: rgba(248, 81, 73, 0.08);
+      border-radius: 6px;
+      margin: 1rem 1.5rem;
+    }
+    .rdi-no-project {
+      padding: 3rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    .rdi-no-project a { color: var(--accent); }
+    /* Outcome row detail */
+    .rdi-outcome-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.6rem;
+      border-radius: 6px;
+      margin-bottom: 0.3rem;
+      font-size: 0.8rem;
+    }
+    .rdi-outcome-created { background: rgba(63, 185, 80, 0.1); }
+    .rdi-outcome-skipped { background: rgba(125, 133, 144, 0.1); }
+    .rdi-outcome-failed { background: rgba(248, 81, 73, 0.08); }
+    /* Unassociated commits section */
+    .rdi-unassoc-section { margin-top: 0.5rem; }
+    .rdi-unassoc-header {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.3rem 0.75rem;
+      list-style: none;
+    }
+    .rdi-unassoc-header::-webkit-details-marker { display: none; }
+    .rdi-unassoc-note {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin: 0.25rem 0.75rem 0.5rem;
+      max-width: 640px;
+    }
+    /* Evidence drawer */
+    .rdi-drawer {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 300;
+      justify-content: flex-end;
+      align-items: stretch;
+    }
+    .rdi-drawer.open { display: flex; }
+    .rdi-drawer-panel {
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      width: 420px;
+      max-width: 90vw;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .rdi-drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .rdi-drawer-header h4 { margin: 0; font-size: 0.88rem; }
+    .rdi-drawer-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+    .rdi-drawer-body {
+      overflow-y: auto;
+      flex: 1;
+      padding: 0.75rem 1rem;
+      font-size: 0.82rem;
+    }
+    .rdi-drawer-section { margin-bottom: 0.75rem; }
+    .rdi-drawer-section-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 0.2rem;
+    }
+    .rdi-drawer-mono {
+      font-family: var(--mono, monospace);
+      font-size: 0.75rem;
+      word-break: break-all;
+    }
+    /* Responsive */
+    @media (max-width: 600px) {
+      .toolbar { flex-wrap: wrap; gap: 0.5rem; }
+      .rdi-control-row { gap: 0.4rem; }
+      .rdi-search { max-width: none; }
+    }
+  </style>
+  <script>
+    window.onerror = function(msg, src, line, col, err) {
+      fetch('/api/v1/errors', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          source: 'frontend',
+          message: String(msg).slice(0, 200),
+          detail: (err && err.stack) || (src + ':' + line + ':' + col),
+          priority: 3
+        })
+      }).catch(function() {});
+    };
+    window.addEventListener('unhandledrejection', function(e) {
+      var msg = e.reason ? (e.reason.message || String(e.reason)) : 'Unhandled promise rejection';
+      fetch('/api/v1/errors', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          source: 'frontend',
+          message: msg.slice(0, 200),
+          detail: e.reason && e.reason.stack,
+          priority: 3
+        })
+      }).catch(function() {});
+    });
+  </script>
+</head>
+<body>
+  <div class="toolbar">
+    <h1><a href="/">oompah</a> <span>/ Release Delivery</span></h1>
+    <div class="toolbar-actions">
+      <button id="rdi-refresh-btn" onclick="_rdiForceRefresh()" title="Reload release backlog">Refresh</button>
+      <button onclick="window.location='/'">Dashboard</button>
+    </div>
+  </div>
+
+  <div class="page-body">
+    <!-- Controls -->
+    <div class="rdi-controls" id="rdi-controls">
+      <div class="rdi-control-row">
+        <label for="rdi-project-select" class="rdi-label">Project:</label>
+        <select id="rdi-project-select" onchange="_rdiOnProjectChange()" aria-label="Select project">
+          <option value="">Loading projects…</option>
+        </select>
+        <label for="rdi-branch-select" class="rdi-label">Branch:</label>
+        <select id="rdi-branch-select" onchange="_rdiOnBranchChange()" aria-label="Select release branch">
+          <option value="">— select a release branch —</option>
+        </select>
+        <span class="rdi-label">Filter:</span>
+        <span class="rdi-filter-group" role="radiogroup" aria-label="Item filter">
+          <label><input type="radio" name="rdi-filter" value="needs_delivery" checked onchange="_rdiOnFilterChange()"> Needs delivery</label>
+          <label><input type="radio" name="rdi-filter" value="all" onchange="_rdiOnFilterChange()"> All items</label>
+        </span>
+        <input type="search" id="rdi-search" class="rdi-search" placeholder="Search identifier, title, subject…" aria-label="Search items" oninput="_rdiOnSearchInput()">
+      </div>
+    </div>
+
+    <!-- Async refresh progress banner (OOMPAH-251) -->
+    <div id="rdi-refresh-status" class="rdi-refresh-status" role="status" aria-live="polite" aria-label="Backlog refresh progress">
+      <svg class="rdi-refresh-spinner" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".25"/>
+        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      <span class="rdi-refresh-phase" id="rdi-refresh-phase">Preparing…</span>
+      <span class="rdi-refresh-progress" id="rdi-refresh-progress">
+        <span class="rdi-refresh-bar-track" aria-hidden="true">
+          <span class="rdi-refresh-bar-fill" id="rdi-refresh-bar-fill" style="width:0%"></span>
+        </span>
+        <span class="rdi-refresh-count" id="rdi-refresh-count"></span>
+      </span>
+      <span class="rdi-refresh-elapsed" id="rdi-refresh-elapsed"></span>
+      <span class="rdi-stale-badge" id="rdi-stale-badge" hidden>stale</span>
+      <span class="rdi-refresh-error" id="rdi-refresh-error" hidden></span>
+      <button class="rdi-refresh-retry" id="rdi-refresh-retry" onclick="_rdiForceRefresh()" hidden>Retry</button>
+    </div>
+
+    <!-- Meta bar (source branch info) -->
+    <div class="rdi-meta-bar" id="rdi-meta" aria-live="polite"></div>
+
+    <!-- Outcome banner (hidden by default) -->
+    <div id="rdi-outcome" class="rdi-outcome-banner rdi-outcome-banner-success" hidden aria-live="polite"></div>
+
+    <div class="rdi-main">
+      <!-- Table body -->
+      <div class="rdi-table-wrap" id="rdi-body" role="region" aria-live="polite" aria-label="Release delivery candidates">
+        <div class="rdi-no-project">Select a project and release branch to view the delivery backlog.</div>
+      </div>
+
+      <!-- Bulk action bar (shown when items are selected) -->
+      <div class="rdi-action-bar" id="rdi-action-bar" hidden>
+        <span class="rdi-action-count" id="rdi-action-count">0 items selected</span>
+        <button class="btn-primary" id="rdi-queue-btn" onclick="_rdiQueueSelected()">Queue selected items</button>
+        <button onclick="_rdiClearSelection()">Clear selection</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Evidence drawer -->
+  <div class="rdi-drawer" id="rdi-drawer"
+       onclick="if(event.target===this)_rdiCloseDrawer()"
+       role="dialog" aria-modal="true" aria-labelledby="rdi-drawer-title">
+    <div class="rdi-drawer-panel">
+      <div class="rdi-drawer-header">
+        <h4 id="rdi-drawer-title">Item details</h4>
+        <button class="rdi-drawer-close" onclick="_rdiCloseDrawer()" aria-label="Close item details">&times;</button>
+      </div>
+      <div class="rdi-drawer-body" id="rdi-drawer-body"></div>
+    </div>
+  </div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Utility
+// ---------------------------------------------------------------------------
+
+function esc(s) {
+  if (!s && s !== 0) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+let _rdiProjectId = null;
+let _rdiSelectedBranch = '';    // single selected release branch (required)
+let _rdiFilter = 'needs_delivery';
+let _rdiQuery = '';
+let _rdiSourceHead = null;
+let _rdiSelectedIdentifiers = new Set();  // identifiers of selected items
+let _rdiSelectedUnassocSHAs = new Set();  // SHAs of selected unassociated commits
+let _rdiGen = 0;        // incremented each time we start a new backlog load
+let _rdiLoading = false;
+let _rdiCurrentData = null;   // last successful backlog response
+let _rdiDrawerItem = null;  // identifier of currently open drawer item
+let _rdiPollTimer = null;   // setInterval handle for refresh-status polling (OOMPAH-251)
+let _rdiRefreshRunning = false;  // true when a background refresh is in-flight
+let _rdiSearchTimer = null;
+
+const _RDI_STATUS_LABELS = {
+  not_selected: 'Not selected',
+  open: 'Open',
+  in_progress: 'In progress',
+  in_review: 'In review',
+  blocked: 'Blocked',
+  delivered: 'Delivered',
+  merged: 'Delivered',
+  archived: 'Archived',
+};
+
+const _RDI_PHASE_LABELS = {
+  pending: 'Preparing…',
+  loading_merged: 'Loading merged task metadata…',
+  resolving_commits: 'Resolving source commits…',
+  comparing_ancestry: 'Comparing release-branch ancestry…',
+  preparing_rows: 'Preparing candidate rows…',
+  diagnostics: 'Running diagnostics…',
+  complete: 'Up to date',
+  failed: 'Refresh failed',
+};
+
+// ---------------------------------------------------------------------------
+// URL persistence
+// ---------------------------------------------------------------------------
+
+function _rdiReadUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    project: params.get('project') || '',
+    branch: params.get('branch') || '',
+  };
+}
+
+function _rdiPushUrl(projectId, branch) {
+  const params = new URLSearchParams();
+  if (projectId) params.set('project', projectId);
+  if (branch) params.set('branch', branch);
+  const qs = params.toString();
+  const newUrl = window.location.pathname + (qs ? '?' + qs : '');
+  history.replaceState(null, '', newUrl);
+}
+
+// ---------------------------------------------------------------------------
+// Project + branch initialisation (called once on page load)
+// ---------------------------------------------------------------------------
+
+async function _rdiInit() {
+  try {
+    const res = await fetch('/api/v1/projects');
+    if (!res.ok) {
+      _rdiSetBody('<div class="rdi-error">Failed to load projects: HTTP ' + esc(res.status) + '</div>');
+      return;
+    }
+    const projects = await res.json();
+    _rdiPopulateProject(projects);
+  } catch (err) {
+    _rdiSetBody('<div class="rdi-error">Failed to load projects: ' + esc(String(err)) + '</div>');
+  }
+}
+
+function _rdiPopulateProject(projects) {
+  const sel = document.getElementById('rdi-project-select');
+  if (!sel) return;
+
+  sel.innerHTML = '';
+  if (!projects || projects.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'No projects configured';
+    sel.appendChild(opt);
+    _rdiShowNoProject();
+    return;
+  }
+
+  for (const p of projects) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name || p.id;
+    sel.appendChild(opt);
+  }
+
+  // Apply URL-persisted selection, or default to first project
+  const { project: urlProject, branch: urlBranch } = _rdiReadUrl();
+  if (urlProject && projects.some(function(p) { return p.id === urlProject; })) {
+    sel.value = urlProject;
+  } else {
+    sel.value = projects[0].id;
+  }
+
+  _rdiProjectId = sel.value;
+  _rdiPopulateBranchSelector(projects, urlBranch);
+}
+
+function _rdiPopulateBranchSelector(projects, preferredBranch) {
+  const branchSel = document.getElementById('rdi-branch-select');
+  if (!branchSel) return;
+  branchSel.innerHTML = '<option value="">— select a release branch —</option>';
+
+  const project = projects.find(function(p) { return p.id === _rdiProjectId; });
+  const branches = (project && project.supported_release_branches) || [];
+  for (const b of branches) {
+    const opt = document.createElement('option');
+    opt.value = b;
+    opt.textContent = b;
+    branchSel.appendChild(opt);
+  }
+
+  if (preferredBranch && branches.includes(preferredBranch)) {
+    branchSel.value = preferredBranch;
+    _rdiSelectedBranch = preferredBranch;
+    _rdiLoadBacklog();
+  } else if (branches.length === 1) {
+    branchSel.value = branches[0];
+    _rdiSelectedBranch = branches[0];
+    _rdiLoadBacklog();
+  } else {
+    _rdiShowNoBranch();
+  }
+}
+
+function _rdiOnProjectChange() {
+  const sel = document.getElementById('rdi-project-select');
+  if (!sel) return;
+  const projectId = sel.value;
+  if (!projectId) {
+    _rdiShowNoProject();
+    return;
+  }
+  // Reset state
+  _rdiProjectId = projectId;
+  _rdiSelectedBranch = '';
+  _rdiSourceHead = null;
+  _rdiSelectedIdentifiers = new Set();
+  _rdiSelectedUnassocSHAs = new Set();
+  _rdiCurrentData = null;
+  _rdiQuery = '';
+  _rdiFilter = 'needs_delivery';
+  _rdiStopPoll();
+  // Reset filter controls
+  const searchEl = document.getElementById('rdi-search');
+  if (searchEl) searchEl.value = '';
+  const filterNd = document.querySelector('input[name="rdi-filter"][value="needs_delivery"]');
+  if (filterNd) filterNd.checked = true;
+  // Update URL (branch will be set after branch selector updates)
+  _rdiPushUrl(projectId, '');
+  // Reload projects to get branch list (they're already fetched — use stored data)
+  fetch('/api/v1/projects').then(function(r) { return r.json(); }).then(function(projects) {
+    _rdiPopulateBranchSelectorOnly(projects);
+  }).catch(function() {});
+  _rdiShowNoBranch();
+  _rdiHideActionBar();
+  _rdiHideRefreshStatus();
+}
+
+function _rdiPopulateBranchSelectorOnly(projects) {
+  const branchSel = document.getElementById('rdi-branch-select');
+  if (!branchSel) return;
+  branchSel.innerHTML = '<option value="">— select a release branch —</option>';
+  const project = projects.find(function(p) { return p.id === _rdiProjectId; });
+  const branches = (project && project.supported_release_branches) || [];
+  for (const b of branches) {
+    const opt = document.createElement('option');
+    opt.value = b;
+    opt.textContent = b;
+    branchSel.appendChild(opt);
+  }
+  if (branches.length === 1) {
+    branchSel.value = branches[0];
+    _rdiOnBranchChange();
+  }
+}
+
+function _rdiOnBranchChange() {
+  const branchSel = document.getElementById('rdi-branch-select');
+  if (!branchSel) return;
+  const branch = branchSel.value;
+  if (!branch) {
+    _rdiSelectedBranch = '';
+    _rdiCurrentData = null;
+    _rdiSelectedIdentifiers = new Set();
+    _rdiSelectedUnassocSHAs = new Set();
+    _rdiPushUrl(_rdiProjectId, '');
+    _rdiShowNoBranch();
+    _rdiHideActionBar();
+    return;
+  }
+  _rdiSelectedBranch = branch;
+  _rdiCurrentData = null;
+  _rdiSelectedIdentifiers = new Set();
+  _rdiSelectedUnassocSHAs = new Set();
+  _rdiPushUrl(_rdiProjectId, branch);
+  _rdiLoadBacklog();
+}
+
+// ---------------------------------------------------------------------------
+// Data loading (OOMPAH-251 async model)
+// ---------------------------------------------------------------------------
+
+function _rdiLoadBacklog() {
+  if (!_rdiProjectId || !_rdiSelectedBranch) return;
+
+  const myGen = ++_rdiGen;
+
+  // Build query string
+  const params = new URLSearchParams();
+  params.set('branch', _rdiSelectedBranch);
+  if (_rdiFilter && _rdiFilter !== 'needs_delivery') {
+    params.set('filter', _rdiFilter);
+  }
+  if (_rdiQuery) {
+    params.set('query', _rdiQuery);
+  }
+
+  const qs = params.toString();
+  const url = '/api/v1/projects/' + encodeURIComponent(_rdiProjectId) + '/release-delivery/backlog?' + qs;
+
+  // Show spinner only when we have no stale data
+  if (!_rdiCurrentData) {
+    _rdiSetBody('<div class="rdi-loading"><svg width="16" height="16" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/></svg> Loading release backlog…</div>');
+  }
+
+  fetch(url)
+    .then(function(resp) { return resp.json().then(function(data) { return { resp: resp, data: data }; }); })
+    .then(function(r) {
+      if (myGen !== _rdiGen) return;  // superseded request — ignore
+      const resp = r.resp, data = r.data;
+      if (!resp.ok) {
+        const msg = (data.error && data.error.message) || ('HTTP ' + resp.status);
+        if (!_rdiCurrentData) {
+          _rdiSetBody('<div class="rdi-error">Failed to load release backlog: ' + esc(msg) + '</div>');
+        }
+        return;
+      }
+      _rdiSourceHead = data.source_head || null;
+      _rdiCurrentData = data;
+      _rdiRenderBacklog(data);
+
+      // Handle OOMPAH-251 refresh_status field
+      const rs = data.refresh_status;
+      if (rs) {
+        _rdiUpdateRefreshStatus(rs, data);
+        if (rs.phase !== 'complete' && rs.phase !== 'failed') {
+          _rdiStartPoll();
+        } else {
+          _rdiStopPoll();
+          if (rs.phase === 'complete') {
+            _rdiHideRefreshStatus();
+          }
+        }
+      } else {
+        _rdiStopPoll();
+        _rdiHideRefreshStatus();
+      }
+    })
+    .catch(function(err) {
+      if (myGen !== _rdiGen) return;
+      if (!_rdiCurrentData) {
+        _rdiSetBody('<div class="rdi-error">Network error: ' + esc(String(err)) + '</div>');
+      }
+    });
+}
+
+async function _rdiForceRefresh() {
+  if (!_rdiProjectId || !_rdiSelectedBranch) return;
+  const refreshUrl = '/api/v1/projects/' + encodeURIComponent(_rdiProjectId) +
+    '/release-delivery/backlog/refresh';
+  try {
+    await fetch(refreshUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ branch: _rdiSelectedBranch }),
+    });
+  } catch (_) { /* ignore — we'll reload regardless */ }
+  // Reload backlog (stale data remains visible while refresh runs)
+  _rdiLoadBacklog();
+}
+
+function _rdiPollStatus() {
+  if (!_rdiProjectId || !_rdiSelectedBranch) return;
+  const statusUrl = '/api/v1/projects/' + encodeURIComponent(_rdiProjectId) +
+    '/release-delivery/backlog/status?branch=' + encodeURIComponent(_rdiSelectedBranch);
+  fetch(statusUrl)
+    .then(function(r) { return r.json(); })
+    .then(function(rs) {
+      _rdiUpdateRefreshStatus(rs, null);
+      if (rs.phase === 'complete' || rs.phase === 'failed') {
+        _rdiStopPoll();
+        if (rs.phase === 'complete') {
+          _rdiHideRefreshStatus();
+          _rdiLoadBacklog();
+        }
+      }
+    })
+    .catch(function() { /* ignore transient polling errors */ });
+}
+
+function _rdiStartPoll() {
+  if (_rdiPollTimer) return;
+  _rdiPollTimer = setInterval(_rdiPollStatus, 1500);
+}
+
+function _rdiStopPoll() {
+  if (_rdiPollTimer) {
+    clearInterval(_rdiPollTimer);
+    _rdiPollTimer = null;
+  }
+}
+
+function _rdiUpdateRefreshStatus(rs, data) {
+  const banner = document.getElementById('rdi-refresh-status');
+  if (!banner) return;
+
+  const phaseEl = document.getElementById('rdi-refresh-phase');
+  const progressEl = document.getElementById('rdi-refresh-progress');
+  const barFill = document.getElementById('rdi-refresh-bar-fill');
+  const countEl = document.getElementById('rdi-refresh-count');
+  const elapsedEl = document.getElementById('rdi-refresh-elapsed');
+  const staleBadge = document.getElementById('rdi-stale-badge');
+  const errorEl = document.getElementById('rdi-refresh-error');
+  const retryBtn = document.getElementById('rdi-refresh-retry');
+  const spinner = banner.querySelector('.rdi-refresh-spinner');
+
+  if (!rs) return;
+
+  const phase = rs.phase || 'pending';
+  const isActive = phase !== 'pending';
+  const isFailed = phase === 'failed';
+  const isComplete = phase === 'complete';
+
+  if (!isActive) { banner.classList.remove('active'); return; }
+  banner.classList.add('active');
+
+  // Phase label
+  if (phaseEl) phaseEl.textContent = _RDI_PHASE_LABELS[phase] || phase;
+
+  // Spinner visibility
+  if (spinner) spinner.style.display = (isFailed || isComplete) ? 'none' : '';
+
+  // Progress bar
+  if (progressEl && barFill && countEl) {
+    if (rs.completed != null && rs.total != null && rs.total > 0) {
+      const pct = Math.min(100, Math.round((rs.completed / rs.total) * 100));
+      barFill.style.width = pct + '%';
+      countEl.textContent = rs.completed + '/' + rs.total;
+      progressEl.classList.add('visible');
+    } else {
+      progressEl.classList.remove('visible');
+    }
+  }
+
+  // Elapsed
+  if (elapsedEl) {
+    elapsedEl.textContent = rs.elapsed_s != null ? Math.round(rs.elapsed_s) + 's' : '';
+  }
+
+  // Stale badge (has result but refresh is in flight, or data is stale)
+  if (staleBadge) {
+    const stale = (rs.has_result && phase !== 'complete' && phase !== 'failed') ||
+                  (data && data.stale);
+    staleBadge.hidden = !stale;
+  }
+
+  // Error
+  if (errorEl) {
+    if (isFailed && rs.error) {
+      errorEl.textContent = rs.error;
+      errorEl.hidden = false;
+    } else {
+      errorEl.hidden = true;
+    }
+  }
+
+  // Retry button
+  if (retryBtn) retryBtn.hidden = !isFailed;
+}
+
+function _rdiHideRefreshStatus() {
+  const banner = document.getElementById('rdi-refresh-status');
+  if (banner) banner.classList.remove('active');
+}
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+
+function _rdiSetBody(html) {
+  const body = document.getElementById('rdi-body');
+  if (body) body.innerHTML = html;
+}
+
+function _rdiRenderBacklog(data) {
+  _rdiRenderMeta(data);
+
+  const items = data.items || [];
+  const unassocCommits = data.unassociated_commits || [];
+  const body = document.getElementById('rdi-body');
+  if (!body) return;
+
+  if (items.length === 0 && unassocCommits.length === 0) {
+    const filterLabel = _rdiFilter === 'needs_delivery' ? '"Needs delivery"' : '"All items"';
+    body.innerHTML = '<div class="rdi-empty">No items match the current filter (' + esc(filterLabel) + ').' +
+      (_rdiQuery ? ' Try clearing the search.' : '') + '</div>';
+    _rdiHideActionBar();
+    return;
+  }
+
+  const wrap = document.createElement('div');
+
+  // Item table (tasks/epics)
+  if (items.length > 0) {
+    const table = document.createElement('table');
+    table.className = 'rdi-table';
+    table.setAttribute('role', 'grid');
+
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+
+    const thSel = document.createElement('th');
+    const selectAll = document.createElement('input');
+    selectAll.type = 'checkbox';
+    selectAll.setAttribute('aria-label', 'Select all items');
+    selectAll.id = 'rdi-select-all';
+    selectAll.addEventListener('change', function() { _rdiSelectAll(this.checked); });
+    thSel.appendChild(selectAll);
+    headerRow.appendChild(thSel);
+
+    for (const label of ['Identifier', 'Title', 'Commits', 'Merged', 'Status']) {
+      const th = document.createElement('th');
+      th.textContent = label;
+      headerRow.appendChild(th);
+    }
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for (const item of items) {
+      tbody.appendChild(_rdiRenderItemRow(item, data));
+    }
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+  }
+
+  // Unassociated commits section
+  if (unassocCommits.length > 0) {
+    const section = document.createElement('div');
+    section.style.marginTop = '1.2rem';
+
+    const header = document.createElement('details');
+    header.className = 'rdi-unassoc-section';
+    const summary = document.createElement('summary');
+    summary.className = 'rdi-unassoc-header';
+    summary.textContent = 'Direct-to-main commits without task association (' + unassocCommits.length + ')';
+    summary.setAttribute('aria-label', 'Toggle display of unassociated direct-to-main commits (diagnostic section)');
+    header.appendChild(summary);
+
+    const note = document.createElement('p');
+    note.className = 'rdi-unassoc-note';
+    note.textContent = 'These commits were pushed directly to the default branch without an associated task or epic in the release delivery ledger. They are shown here for diagnostics only and are not included in the item count above.';
+    header.appendChild(note);
+
+    const unassocTable = document.createElement('table');
+    unassocTable.className = 'rdi-table';
+    unassocTable.setAttribute('role', 'grid');
+    const uThead = document.createElement('thead');
+    const uHRow = document.createElement('tr');
+    for (const lbl of ['SHA', 'Subject', 'Author / Date', 'Status']) {
+      const th = document.createElement('th');
+      th.textContent = lbl;
+      uHRow.appendChild(th);
+    }
+    uThead.appendChild(uHRow);
+    unassocTable.appendChild(uThead);
+    const uTbody = document.createElement('tbody');
+    for (const row of unassocCommits) {
+      uTbody.appendChild(_rdiRenderUnassocRow(row));
+    }
+    unassocTable.appendChild(uTbody);
+    header.appendChild(unassocTable);
+    section.appendChild(header);
+    wrap.appendChild(section);
+  }
+
+  body.innerHTML = '';
+  body.appendChild(wrap);
+
+  _rdiUpdateActionBar();
+  _rdiUpdateSelectAll();
+}
+
+function _rdiRenderMeta(data) {
+  const meta = document.getElementById('rdi-meta');
+  if (!meta) return;
+  const head = data.source_head ? data.source_head.slice(0, 8) : '';
+  let text = data.source_branch ? (data.source_branch + (head ? ' @ ' + head : '')) : '';
+  if (data.selected_branch) text += ' → ' + data.selected_branch;
+  if (data.stale) text += ' (stale)';
+  if (data.refreshed_at) text += ' \xb7 ' + data.refreshed_at.replace('T', ' ').replace(/\.\d+Z$/, 'Z');
+  meta.textContent = text;
+}
+
+function _rdiRenderItemRow(item, data) {
+  const tr = document.createElement('tr');
+  tr.dataset.identifier = item.identifier;
+
+  // Checkbox column
+  const tdSel = document.createElement('td');
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = _rdiSelectedIdentifiers.has(item.identifier);
+  cb.dataset.identifier = item.identifier;
+  cb.setAttribute('aria-label', 'Select item ' + item.identifier);
+  cb.addEventListener('change', function() {
+    _rdiToggleIdentifier(item.identifier, this.checked);
+  });
+  tdSel.appendChild(cb);
+  tr.appendChild(tdSel);
+
+  // Identifier column
+  const tdIdent = document.createElement('td');
+  const identSpan = document.createElement('span');
+  identSpan.className = 'rdi-assoc';
+  identSpan.textContent = item.identifier;
+  identSpan.dataset.identifier = item.identifier;
+  identSpan.setAttribute('role', 'button');
+  identSpan.setAttribute('tabindex', '0');
+  identSpan.setAttribute('aria-label', 'Open ' + item.identifier + ' details');
+  identSpan.addEventListener('click', function() {
+    _rdiOpenItemDrawer(item);
+  });
+  identSpan.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
+  });
+  tdIdent.appendChild(identSpan);
+  // Kind badge
+  if (item.kind === 'epic') {
+    const badge = document.createElement('span');
+    badge.textContent = 'epic';
+    badge.style.fontSize = '0.65rem';
+    badge.style.background = 'rgba(88,166,255,0.15)';
+    badge.style.color = '#58a6ff';
+    badge.style.borderRadius = '3px';
+    badge.style.padding = '1px 4px';
+    badge.style.marginLeft = '4px';
+    badge.setAttribute('aria-label', 'epic');
+    tdIdent.appendChild(badge);
+  }
+  tr.appendChild(tdIdent);
+
+  // Title column
+  const tdTitle = document.createElement('td');
+  const titleSpan = document.createElement('span');
+  titleSpan.className = 'rdi-subject';
+  titleSpan.textContent = item.title || item.identifier;
+  titleSpan.title = item.title || item.identifier;
+  tdTitle.appendChild(titleSpan);
+  tr.appendChild(tdTitle);
+
+  // Commits column
+  const tdCommits = document.createElement('td');
+  const commitCount = document.createElement('span');
+  commitCount.className = 'rdi-author';
+  commitCount.textContent = item.commit_count + (item.commit_count === 1 ? ' commit' : ' commits');
+  tdCommits.appendChild(commitCount);
+  tr.appendChild(tdCommits);
+
+  // Merged date column
+  const tdDate = document.createElement('td');
+  const dateSpan = document.createElement('span');
+  dateSpan.className = 'rdi-author';
+  dateSpan.textContent = item.most_recent_commit_at ? item.most_recent_commit_at.slice(0, 10) : '';
+  tdDate.appendChild(dateSpan);
+  tr.appendChild(tdDate);
+
+  // Status cell
+  const tdStatus = document.createElement('td');
+  const cellEl = _rdiRenderStatusCell(item.delivery_status || {state: 'not_selected'}, item.identifier);
+  tdStatus.appendChild(cellEl);
+  tr.appendChild(tdStatus);
+
+  // Row click → open evidence drawer
+  tr.addEventListener('click', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'A' ||
+        e.target.classList.contains('rdi-assoc') ||
+        e.target.closest('.rdi-assoc') ||
+        e.target.classList.contains('rdi-cell-clickable') ||
+        e.target.closest('.rdi-cell-clickable')) {
+      return;
+    }
+    _rdiOpenItemDrawer(item);
+  });
+
+  // Prevent queueing when already delivered/archived
+  const status = (item.delivery_status || {}).state || 'not_selected';
+  if (status === 'delivered' || status === 'archived') {
+    cb.disabled = true;
+    cb.setAttribute('aria-label', 'Item ' + item.identifier + ' is ' + status + ' — cannot queue again');
+    tr.style.opacity = '0.7';
+  }
+
+  return tr;
+}
+
+function _rdiRenderUnassocRow(row) {
+  const tr = document.createElement('tr');
+  tr.dataset.sha = row.sha;
+
+  const tdSha = document.createElement('td');
+  const shaSpan = document.createElement('span');
+  shaSpan.className = 'rdi-sha-plain';
+  shaSpan.textContent = row.short_sha || row.sha.slice(0, 7);
+  tdSha.appendChild(shaSpan);
+  tr.appendChild(tdSha);
+
+  const tdSubj = document.createElement('td');
+  const subjSpan = document.createElement('span');
+  subjSpan.className = 'rdi-subject';
+  subjSpan.textContent = row.subject || '';
+  subjSpan.title = row.subject || '';
+  tdSubj.appendChild(subjSpan);
+  tr.appendChild(tdSubj);
+
+  const tdAuth = document.createElement('td');
+  const authSpan = document.createElement('span');
+  authSpan.className = 'rdi-author';
+  authSpan.textContent = (row.author_name || '') + (row.authored_at ? ' \xb7 ' + row.authored_at.slice(0, 10) : '');
+  tdAuth.appendChild(authSpan);
+  tr.appendChild(tdAuth);
+
+  const tdStatus = document.createElement('td');
+  const cell = row.delivery_status || {state: 'not_selected'};
+  tdStatus.appendChild(_rdiRenderStatusCell(cell, row.sha));
+  tr.appendChild(tdStatus);
+
+  return tr;
+}
+
+function _rdiRenderStatusCell(cell, identifier) {
+  const state = cell.state || 'not_selected';
+  const label = _RDI_STATUS_LABELS[state] || state.replace(/_/g, ' ');
+  const span = document.createElement('span');
+
+  let cssClass = 'rdi-cell rdi-cell-' + state;
+  if (state === 'delivered' && cell.evidence === 'ancestry') {
+    cssClass = 'rdi-cell rdi-cell-delivered-ancestry';
+  }
+  span.className = cssClass;
+
+  if (state === 'delivered' && cell.evidence === 'ancestry') {
+    span.textContent = 'Delivered (ancestry)';
+  } else if (state === 'delivered' && cell.evidence === 'delivery') {
+    span.textContent = 'Delivered (cherry-pick)';
+  } else {
+    span.textContent = label;
+  }
+
+  if (cell.delivery_id || (state === 'delivered' && cell.evidence)) {
+    span.classList.add('rdi-cell-clickable');
+    span.setAttribute('role', 'button');
+    span.setAttribute('tabindex', '0');
+    span.setAttribute('aria-label', label + ' — click for details');
+    span.dataset.identifier = identifier;
+    span.addEventListener('click', function(e) {
+      e.stopPropagation();
+      _rdiOpenItemDrawerById(identifier);
+    });
+    span.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
+    });
+  }
+
+  return span;
+}
+
+// ---------------------------------------------------------------------------
+// Selection
+// ---------------------------------------------------------------------------
+
+function _rdiToggleIdentifier(identifier, checked) {
+  if (checked) _rdiSelectedIdentifiers.add(identifier);
+  else _rdiSelectedIdentifiers.delete(identifier);
+  _rdiUpdateActionBar();
+  _rdiUpdateSelectAll();
+}
+
+function _rdiSelectAll(checked) {
+  if (!_rdiCurrentData) return;
+  const items = _rdiCurrentData.items || [];
+  for (const item of items) {
+    const status = (item.delivery_status || {}).state || 'not_selected';
+    if (status === 'delivered' || status === 'archived') continue;
+    if (checked) {
+      _rdiSelectedIdentifiers.add(item.identifier);
+    } else {
+      _rdiSelectedIdentifiers.delete(item.identifier);
+    }
+  }
+  const table = document.querySelector('#rdi-body .rdi-table');
+  if (table) {
+    table.querySelectorAll('input[type="checkbox"][data-identifier]').forEach(function(cb) {
+      if (!cb.disabled) cb.checked = checked;
+    });
+  }
+  _rdiUpdateActionBar();
+}
+
+function _rdiUpdateSelectAll() {
+  const selectAll = document.getElementById('rdi-select-all');
+  if (!selectAll || !_rdiCurrentData) return;
+  const items = _rdiCurrentData.items || [];
+  const queueableItems = items.filter(function(item) {
+    const status = (item.delivery_status || {}).state || 'not_selected';
+    return status !== 'delivered' && status !== 'archived';
+  });
+  if (queueableItems.length === 0) {
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+    return;
+  }
+  const selectedCount = queueableItems.filter(function(item) {
+    return _rdiSelectedIdentifiers.has(item.identifier);
+  }).length;
+  if (selectedCount === 0) {
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+  } else if (selectedCount === queueableItems.length) {
+    selectAll.checked = true;
+    selectAll.indeterminate = false;
+  } else {
+    selectAll.checked = false;
+    selectAll.indeterminate = true;
+  }
+}
+
+function _rdiClearSelection() {
+  _rdiSelectedIdentifiers = new Set();
+  _rdiSelectedUnassocSHAs = new Set();
+  const table = document.querySelector('#rdi-body .rdi-table');
+  if (table) {
+    table.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+      cb.checked = false;
+    });
+  }
+  const selectAll = document.getElementById('rdi-select-all');
+  if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
+  _rdiUpdateActionBar();
+}
+
+function _rdiUpdateActionBar() {
+  const bar = document.getElementById('rdi-action-bar');
+  const countEl = document.getElementById('rdi-action-count');
+  if (!bar) return;
+  const n = _rdiSelectedIdentifiers.size;
+  if (n === 0) {
+    bar.hidden = true;
+    return;
+  }
+  bar.hidden = false;
+  if (countEl) {
+    countEl.textContent = n + ' item' + (n !== 1 ? 's' : '') + ' selected';
+  }
+}
+
+function _rdiHideActionBar() {
+  const bar = document.getElementById('rdi-action-bar');
+  if (bar) bar.hidden = true;
+}
+
+// ---------------------------------------------------------------------------
+// Queue item delivery
+// ---------------------------------------------------------------------------
+
+async function _rdiQueueSelected() {
+  if (!_rdiProjectId || !_rdiSelectedBranch || _rdiSelectedIdentifiers.size === 0) return;
+
+  const allCommitSHAs = [];
+  const selectedItems = [];
+  if (_rdiCurrentData) {
+    for (const item of (_rdiCurrentData.items || [])) {
+      if (_rdiSelectedIdentifiers.has(item.identifier)) {
+        selectedItems.push(item);
+        for (const c of (item.source_commits || [])) {
+          if (!allCommitSHAs.includes(c.sha)) {
+            allCommitSHAs.push(c.sha);
+          }
+        }
+      }
+    }
+  }
+
+  if (allCommitSHAs.length === 0) {
+    alert('No commits found for selected items.');
+    return;
+  }
+
+  const n = selectedItems.length;
+  const identList = selectedItems.slice(0, 5).map(function(it) { return it.identifier; }).join(', ') +
+    (selectedItems.length > 5 ? ', …' : '');
+  const confirmMsg = 'Queue ' + n + ' item' + (n !== 1 ? 's' : '') + ' (' + allCommitSHAs.length + ' commit' +
+    (allCommitSHAs.length !== 1 ? 's' : '') + ') for "' + _rdiSelectedBranch + '"?\n\nItems: ' + identList;
+  if (!confirm(confirmMsg)) return;
+
+  const submitBtn = document.getElementById('rdi-queue-btn');
+  if (submitBtn) submitBtn.disabled = true;
+
+  const idempotencyKey = 'rdi-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+
+  try {
+    const resp = await fetch(
+      '/api/v1/projects/' + encodeURIComponent(_rdiProjectId) + '/release-delivery/commits',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify({
+          source_head: _rdiSourceHead || '',
+          commits: allCommitSHAs,
+          target_branches: [_rdiSelectedBranch],
+        }),
+      }
+    );
+
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      const msg = (data.error && data.error.message) || ('HTTP ' + resp.status);
+      _rdiShowOutcomeError('Failed to queue: ' + msg);
+      if (submitBtn) submitBtn.disabled = false;
+      return;
+    }
+
+    const submittedIdentifiers = new Set(_rdiSelectedIdentifiers);
+    for (const ident of submittedIdentifiers) {
+      _rdiSelectedIdentifiers.delete(ident);
+    }
+
+    const table = document.querySelector('#rdi-body .rdi-table');
+    if (table) {
+      table.querySelectorAll('input[type="checkbox"][data-identifier]').forEach(function(cb) {
+        if (submittedIdentifiers.has(cb.dataset.identifier)) cb.checked = false;
+      });
+    }
+
+    _rdiUpdateActionBar();
+    _rdiUpdateSelectAll();
+    _rdiShowOutcomeSummary(data);
+    _rdiLoadBacklog();
+
+  } catch (err) {
+    _rdiShowOutcomeError('Network error: ' + String(err));
+    if (submitBtn) submitBtn.disabled = false;
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+function _rdiShowOutcomeSummary(data) {
+  const created = (data.created || []).length;
+  const active = (data.already_active || []).length;
+  const delivered = (data.already_delivered || []).length;
+  const invalid = (data.invalid || []).length;
+
+  const total = created + active + delivered;
+  let text = '';
+  if (created > 0) text += created + ' queued. ';
+  if (active > 0) text += active + ' already active. ';
+  if (delivered > 0) text += delivered + ' already delivered. ';
+  if (invalid > 0) text += invalid + ' invalid (kept selected). ';
+
+  const outcomeEl = document.getElementById('rdi-outcome');
+  if (outcomeEl) {
+    outcomeEl.textContent = text.trim();
+    outcomeEl.className = 'rdi-outcome-banner ' + (invalid > 0 && total === 0 ? 'rdi-outcome-banner-partial' : 'rdi-outcome-banner-success');
+    outcomeEl.hidden = false;
+    setTimeout(function() { if (outcomeEl) outcomeEl.hidden = true; }, 6000);
+  }
+}
+
+function _rdiShowOutcomeError(msg) {
+  const outcomeEl = document.getElementById('rdi-outcome');
+  if (outcomeEl) {
+    outcomeEl.textContent = msg;
+    outcomeEl.className = 'rdi-outcome-banner rdi-outcome-banner-partial';
+    outcomeEl.hidden = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Evidence drawer
+// ---------------------------------------------------------------------------
+
+function _rdiOpenItemDrawer(item) {
+  if (!item) return;
+  _rdiDrawerItem = item.identifier;
+  const drawer = document.getElementById('rdi-drawer');
+  if (!drawer) return;
+
+  const drawerTitle = document.getElementById('rdi-drawer-title');
+  if (drawerTitle) drawerTitle.textContent = item.identifier + ' details';
+
+  const body = document.getElementById('rdi-drawer-body');
+  if (!body) return;
+  body.innerHTML = '';
+
+  // Identifier + kind
+  _rdiDrawerAddSection(body, 'Identifier', function(cont) {
+    const span = document.createElement('span');
+    span.className = 'rdi-assoc';
+    span.textContent = item.identifier + (item.kind === 'epic' ? ' (epic)' : ' (task)');
+    cont.appendChild(span);
+  });
+
+  // Title
+  if (item.title) {
+    _rdiDrawerAddSection(body, 'Title', function(cont) {
+      const d = document.createElement('div');
+      d.textContent = item.title;
+      cont.appendChild(d);
+    });
+  }
+
+  // Delivery status for selected branch
+  const cell = item.delivery_status || {state: 'not_selected'};
+  _rdiDrawerAddSection(body, 'Delivery status → ' + (_rdiSelectedBranch || ''), function(cont) {
+    cont.appendChild(_rdiRenderCellDetail(cell));
+  });
+
+  // Source commits
+  if (item.source_commits && item.source_commits.length > 0) {
+    _rdiDrawerAddSection(body, 'Source commits on ' + ((_rdiCurrentData && _rdiCurrentData.source_branch) || 'main') + ' (' + item.commit_count + ')', function(cont) {
+      for (const c of item.source_commits) {
+        const rowDiv = document.createElement('div');
+        rowDiv.style.marginBottom = '0.4rem';
+        rowDiv.style.paddingBottom = '0.3rem';
+        rowDiv.style.borderBottom = '1px solid var(--border, #444)';
+
+        const shaDiv = document.createElement('div');
+        shaDiv.className = 'rdi-drawer-mono';
+        shaDiv.style.fontSize = '0.75rem';
+        shaDiv.textContent = c.sha || c.short_sha;
+        rowDiv.appendChild(shaDiv);
+
+        const subjDiv = document.createElement('div');
+        subjDiv.style.fontSize = '0.8rem';
+        subjDiv.textContent = c.subject || '';
+        rowDiv.appendChild(subjDiv);
+
+        if (c.author_name || c.authored_at) {
+          const authDiv = document.createElement('div');
+          authDiv.className = 'rdi-author';
+          authDiv.textContent = (c.author_name || '') + (c.authored_at ? ' \xb7 ' + c.authored_at.slice(0, 10) : '');
+          rowDiv.appendChild(authDiv);
+        }
+
+        cont.appendChild(rowDiv);
+      }
+    });
+  }
+
+  drawer.classList.add('open');
+  const closeBtn = drawer.querySelector('.rdi-drawer-close');
+  if (closeBtn) setTimeout(function() { closeBtn.focus(); }, 50);
+}
+
+function _rdiOpenItemDrawerById(identifier) {
+  if (!_rdiCurrentData) return;
+  const item = (_rdiCurrentData.items || []).find(function(it) { return it.identifier === identifier; });
+  if (item) _rdiOpenItemDrawer(item);
+}
+
+function _rdiDrawerAddSection(body, labelText, contentFn) {
+  const section = document.createElement('div');
+  section.className = 'rdi-drawer-section';
+  const label = document.createElement('div');
+  label.className = 'rdi-drawer-section-label';
+  label.textContent = labelText;
+  section.appendChild(label);
+  const cont = document.createElement('div');
+  contentFn(cont);
+  section.appendChild(cont);
+  body.appendChild(section);
+}
+
+function _rdiRenderCellDetail(cell) {
+  const wrap = document.createElement('div');
+  const state = cell.state || 'not_selected';
+  const label = _RDI_STATUS_LABELS[state] || state.replace(/_/g, ' ');
+
+  const stateSpan = document.createElement('span');
+  let cssClass = 'rdi-cell rdi-cell-' + state;
+  if (state === 'delivered' && cell.evidence === 'ancestry') {
+    cssClass = 'rdi-cell rdi-cell-delivered-ancestry';
+    stateSpan.textContent = 'Delivered by ancestry';
+  } else if (state === 'delivered' && cell.evidence === 'delivery') {
+    stateSpan.textContent = 'Delivered by cherry-pick';
+  } else {
+    stateSpan.textContent = label;
+  }
+  stateSpan.className = cssClass;
+  wrap.appendChild(stateSpan);
+
+  if (cell.pr_url) {
+    const prA = document.createElement('a');
+    prA.href = cell.pr_url;
+    prA.target = '_blank';
+    prA.rel = 'noopener noreferrer';
+    prA.textContent = ' PR';
+    prA.style.marginLeft = '0.4rem';
+    prA.style.fontSize = '0.78rem';
+    wrap.appendChild(prA);
+  }
+  if (cell.delivery_id) {
+    const idDiv = document.createElement('div');
+    idDiv.className = 'rdi-drawer-mono';
+    idDiv.style.fontSize = '0.7rem';
+    idDiv.style.color = 'var(--text-muted)';
+    idDiv.textContent = 'Delivery: ' + cell.delivery_id;
+    wrap.appendChild(idDiv);
+  }
+  if (cell.result_commits && cell.result_commits.length > 0) {
+    const rcDiv = document.createElement('div');
+    rcDiv.className = 'rdi-drawer-mono';
+    rcDiv.style.fontSize = '0.7rem';
+    rcDiv.style.color = 'var(--text-muted)';
+    rcDiv.textContent = 'Result: ' + cell.result_commits.map(function(s) { return s.slice(0, 8); }).join(', ');
+    wrap.appendChild(rcDiv);
+  }
+  if (cell.conflict_agent_resolving) {
+    const agentDiv = document.createElement('div');
+    agentDiv.style.fontSize = '0.75rem';
+    agentDiv.style.color = 'var(--yellow, #d29922)';
+    agentDiv.style.marginTop = '0.2rem';
+    agentDiv.textContent = '⚙ Conflict-resolution agent in progress…';
+    wrap.appendChild(agentDiv);
+  }
+  if (state === 'blocked' && cell.error) {
+    const errDiv = document.createElement('div');
+    errDiv.style.fontSize = '0.75rem';
+    errDiv.style.color = 'var(--red, #f85149)';
+    errDiv.style.marginTop = '0.2rem';
+    errDiv.style.wordBreak = 'break-all';
+    errDiv.textContent = cell.error;
+    wrap.appendChild(errDiv);
+  }
+  if (state === 'blocked' && cell.delivery_id && _rdiProjectId) {
+    const retryBtn = document.createElement('button');
+    retryBtn.textContent = 'Retry delivery';
+    retryBtn.style.marginTop = '0.35rem';
+    retryBtn.style.fontSize = '0.75rem';
+    retryBtn.style.padding = '2px 8px';
+    retryBtn.dataset.deliveryId = cell.delivery_id;
+    retryBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      _rdiRetryDelivery(this.dataset.deliveryId, this);
+    });
+    wrap.appendChild(retryBtn);
+  }
+  return wrap;
+}
+
+async function _rdiRetryDelivery(deliveryId, btn) {
+  if (!deliveryId || !_rdiProjectId) return;
+  const origText = btn.textContent;
+  btn.textContent = 'Retrying…';
+  btn.disabled = true;
+  try {
+    const resp = await fetch(
+      '/api/v1/projects/' + encodeURIComponent(_rdiProjectId) +
+        '/release-delivery/' + encodeURIComponent(deliveryId) + '/retry',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
+    );
+    const data = await resp.json().catch(function() { return {}; });
+    if (resp.ok) {
+      btn.textContent = 'Queued';
+      btn.style.color = 'var(--green)';
+      _rdiCloseDrawer();
+      setTimeout(function() { _rdiLoadBacklog(); }, 300);
+    } else {
+      btn.textContent = 'Failed: ' + ((data.error && data.error.message) || resp.status);
+      btn.style.color = 'var(--red)';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
+
+function _rdiCloseDrawer() {
+  const drawer = document.getElementById('rdi-drawer');
+  if (drawer) drawer.classList.remove('open');
+  _rdiDrawerItem = null;
+}
+
+// ---------------------------------------------------------------------------
+// Filter / search handlers
+// ---------------------------------------------------------------------------
+
+function _rdiOnFilterChange() {
+  const checked = document.querySelector('input[name="rdi-filter"]:checked');
+  _rdiFilter = checked ? checked.value : 'needs_delivery';
+  if (_rdiSelectedBranch) _rdiLoadBacklog();
+}
+
+function _rdiOnSearchInput() {
+  clearTimeout(_rdiSearchTimer);
+  _rdiSearchTimer = setTimeout(function() {
+    const searchEl = document.getElementById('rdi-search');
+    _rdiQuery = searchEl ? searchEl.value : '';
+    if (_rdiSelectedBranch) _rdiLoadBacklog();
+  }, 350);
+}
+
+// ---------------------------------------------------------------------------
+// Empty states
+// ---------------------------------------------------------------------------
+
+function _rdiShowNoProject() {
+  _rdiSetBody('<div class="rdi-no-project">Select a project and release branch to view the delivery backlog. <a href="/projects-manage">Configure projects</a></div>');
+  _rdiHideActionBar();
+  const meta = document.getElementById('rdi-meta');
+  if (meta) meta.textContent = '';
+  const branchSel = document.getElementById('rdi-branch-select');
+  if (branchSel) {
+    branchSel.innerHTML = '<option value="">— select a release branch —</option>';
+  }
+}
+
+function _rdiShowNoBranch() {
+  _rdiSetBody('<div class="rdi-no-project">Select a release branch to load the delivery backlog.</div>');
+  _rdiHideActionBar();
+  _rdiHideRefreshStatus();
+  _rdiStopPoll();
+  const meta = document.getElementById('rdi-meta');
+  if (meta) meta.textContent = '';
+}
+
+// ---------------------------------------------------------------------------
+// Refresh button handler (thin wrapper called by toolbar button)
+// ---------------------------------------------------------------------------
+
+function _rdiRefresh() {
+  _rdiForceRefresh();
+}
+
+// ---------------------------------------------------------------------------
+// Stop polling when navigating away from the page (OOMPAH-251)
+// ---------------------------------------------------------------------------
+
+window.addEventListener('pagehide', function() {
+  _rdiStopPoll();
+});
+
+// ---------------------------------------------------------------------------
+// Keyboard: close drawer on Escape
+// ---------------------------------------------------------------------------
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const drawer = document.getElementById('rdi-drawer');
+    if (drawer && drawer.classList.contains('open')) {
+      _rdiCloseDrawer();
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Bootstrap
+// ---------------------------------------------------------------------------
+
+_rdiInit();
+</script>
+</body>
+</html>

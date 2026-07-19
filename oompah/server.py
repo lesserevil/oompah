@@ -13169,6 +13169,12 @@ async def reviews_page():
     return _html_response("reviews.html")
 
 
+@app.get("/release-delivery", response_class=HTMLResponse)
+async def release_delivery_page():
+    """Serve the dedicated Release Delivery page (OOMPAH-252)."""
+    return _html_response("release_delivery.html")
+
+
 def _esc(s: str) -> str:
     """Basic HTML escaping."""
     return (
