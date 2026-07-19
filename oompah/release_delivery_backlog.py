@@ -79,6 +79,7 @@ from oompah.release_delivery_inventory import (
     _check_ancestry_batch,
     _compute_cell,
     _enumerate_commits,
+    _find_branch_commits_in_main,
     _is_tracker_only_commit,
     MAX_COMMITS,
 )
@@ -92,6 +93,13 @@ logger = logging.getLogger(__name__)
 
 #: Maximum item rows returned by default.
 MAX_BACKLOG_ITEMS: int = 500
+
+#: Maximum number of unassociated commits that will have their
+#: ``tracker_only`` flag computed via a ``git diff-tree`` subprocess.
+#: Commits beyond this cap default to ``tracker_only=False`` so that
+#: the primary backlog (item rows) is never blocked by O(N) git calls
+#: when there are many direct-to-main commits (OOMPAH-239).
+MAX_UNASSOC_TRACKER_ONLY_CHECK: int = 50
 
 #: Status rank for aggregation (higher rank = more visible / actionable).
 _STATUS_RANK: dict[str, int] = {
@@ -423,6 +431,65 @@ class ItemBacklogService:
             else:
                 unassociated_shas.append(ci.sha)
 
+        # 3b. Tracker-sourced discovery: add merged tasks/epics with no ledger record.
+        #
+        # The ledger only contains items that have previously been queued for
+        # delivery.  Items that were merged to the default branch but never
+        # queued are invisible to ledger-only discovery.  When a tracker is
+        # provided, enumerate all Merged items and resolve their source commits
+        # from their work_branch.  Only commits already in all_commits (reachable
+        # from origin/<default_branch>) are eligible — this guards against
+        # stale/non-merged branches.
+        #
+        # The ledger takes precedence: if an identifier is already in
+        # item_commits_map (from the ledger) we extend its commit list with any
+        # additional commits found on the work_branch, but we never override
+        # a ledger-sourced association for a commit.
+        if tracker is not None:
+            try:
+                merged_issues = tracker.fetch_issues_by_states(["Merged"])
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "ItemBacklogService: failed to fetch merged issues from tracker: %s",
+                    exc,
+                )
+                merged_issues = []
+
+            for issue in merged_issues:
+                ident = getattr(issue, "identifier", None)
+                work_branch = getattr(issue, "work_branch", None)
+                if not ident or not work_branch:
+                    continue
+
+                # Find commits from this issue's work_branch that are on main.
+                branch_shas = _find_branch_commits_in_main(
+                    self._repo_path,
+                    work_branch,
+                    sha_set,
+                    timeout=self._revlist_timeout,
+                )
+                # No evidence of a merge to main → exclude this item.
+                if not branch_shas:
+                    continue
+
+                kind = (getattr(issue, "issue_type", None) or "task").strip() or "task"
+
+                if ident not in item_commits_map:
+                    item_commits_map[ident] = []
+                    item_kind_map[ident] = kind
+
+                existing_for_ident = set(item_commits_map[ident])
+                for sha in branch_shas:
+                    # Skip commits already ledger-associated to a *different* item.
+                    if sha in association_by_sha and association_by_sha[sha].get("identifier") != ident:
+                        continue
+                    if sha not in existing_for_ident:
+                        item_commits_map[ident].append(sha)
+                        existing_for_ident.add(sha)
+                        # Remove from unassociated list if it was placed there
+                        if sha in unassociated_shas:
+                            unassociated_shas.remove(sha)
+
         # 4. Ancestry check — check which unassociated SHAs + item SHAs need it
         all_shas_for_ancestry = list(sha_set)
         ancestry_set: set[str] = set()
@@ -534,7 +601,16 @@ class ItemBacklogService:
                 break
 
         # 7. Build unassociated commit rows
+        #
+        # Cap the number of ``_is_tracker_only_commit`` subprocess calls to
+        # MAX_UNASSOC_TRACKER_ONLY_CHECK so that a large direct-to-main commit
+        # history (e.g. hundreds of commits on the default branch without any
+        # delivery ledger entries) does not cause O(N) git diff-tree calls and
+        # time out the HTTP endpoint (OOMPAH-239).  Commits beyond the cap have
+        # their tracker_only flag defaulted to False — this is diagnostic
+        # information only and does not affect primary item row construction.
         unassociated_rows: list[UnassociatedCommitRow] = []
+        _unassoc_tracker_only_checked: int = 0
         for sha in unassociated_shas:
             ci = commit_info_by_sha.get(sha)
             if not ci:
@@ -542,7 +618,11 @@ class ItemBacklogService:
             sha_deliveries = deliveries_index.get(sha, {})
             cell = _compute_cell(sha, selected_branch, sha_deliveries, ancestry_set)
             delivery_id_for_commit = cell.delivery_id
-            tracker_only = _is_tracker_only_commit(self._repo_path, sha)
+            if _unassoc_tracker_only_checked < MAX_UNASSOC_TRACKER_ONLY_CHECK:
+                tracker_only = _is_tracker_only_commit(self._repo_path, sha)
+                _unassoc_tracker_only_checked += 1
+            else:
+                tracker_only = False
             unassociated_rows.append(
                 UnassociatedCommitRow(
                     sha=sha,
