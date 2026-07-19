@@ -3755,7 +3755,10 @@ async def api_release_delivery_commits(
 # Plan reference: plans/release-delivery-commit-inventory.md
 # ---------------------------------------------------------------------------
 
-#: Per-project ItemBacklogService instances, keyed by project_id.
+#: Per-project ItemBacklogService instances, keyed by (project_id, repo_url).
+#: Including repo_url in the key ensures that a configuration change (e.g. a
+#: different SCM host or owner/repo slug) invalidates the cached service so
+#: the new SCM provider and managed_repo are picked up without a restart.
 _item_backlog_services: dict = {}
 _item_backlog_services_lock = threading.Lock()
 
@@ -3764,9 +3767,19 @@ def _get_item_backlog_service(project):
     """Return (or create) the :class:`~oompah.release_delivery_backlog.ItemBacklogService`
     for *project*.
 
+    The service is cached per ``(project_id, repo_url)`` so that a change in
+    ``repo_url`` (which implies a different SCM provider and/or managed-repo
+    slug) causes the next request to build a fresh instance with updated
+    dependencies rather than reusing a stale one.
+
+    The SCM provider and canonical ``owner/repo`` slug are derived from
+    ``project.repo_url`` and forwarded to the service so that the
+    tracker-sourced PR commit fallback added in OOMPAH-248 can be invoked for
+    tasks whose work branches were deleted after their PR was merged.
+
     Args:
-        project: Project model with ``id``, ``repo_path``, and
-            ``default_branch`` attributes.
+        project: Project model with ``id``, ``repo_path``, ``repo_url``,
+            ``access_token``, and ``default_branch`` attributes.
 
     Returns:
         :class:`~oompah.release_delivery_backlog.ItemBacklogService` for *project*.
@@ -3775,17 +3788,41 @@ def _get_item_backlog_service(project):
     from oompah.release_delivery_compat import make_delivery_store  # noqa: PLC0415
 
     project_id = project.id
+    repo_url = getattr(project, "repo_url", None) or ""
+    cache_key = (project_id, repo_url)
+
     with _item_backlog_services_lock:
-        if project_id not in _item_backlog_services:
+        if cache_key not in _item_backlog_services:
+            # Resolve the SCM provider and canonical owner/repo slug from
+            # project.repo_url.  Both are optional — when repo_url is absent
+            # or unparseable the service falls back to ledger-only discovery.
+            scm = None
+            managed_repo: str | None = None
+            if repo_url:
+                try:
+                    scm = detect_provider(
+                        repo_url,
+                        access_token=getattr(project, "access_token", None),
+                    )
+                    managed_repo = extract_repo_slug(repo_url)
+                except Exception as _scm_exc:  # noqa: BLE001
+                    logger.debug(
+                        "_get_item_backlog_service: SCM detection failed for %s: %s",
+                        project_id,
+                        _scm_exc,
+                    )
+
             store = make_delivery_store(project)
             svc = ItemBacklogService(
                 project_root=project.repo_path,
                 project_id=str(project_id),
                 default_branch=project.default_branch,
                 delivery_store=store,
+                scm=scm,
+                managed_repo=managed_repo,
             )
-            _item_backlog_services[project_id] = svc
-        return _item_backlog_services[project_id]
+            _item_backlog_services[cache_key] = svc
+        return _item_backlog_services[cache_key]
 
 
 @app.get("/api/v1/projects/{project_id}/release-delivery/backlog")
