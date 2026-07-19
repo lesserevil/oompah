@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T18:24:37.584983Z'
-updated_at: '2026-07-19T18:43:12.430942Z'
+updated_at: '2026-07-19T18:43:14.672403Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -220,5 +220,10 @@ Acceptance criteria satisfied:
 - Release Delivery for Trickle release/0.11 shows eligible merged task/epic changes even when original work branches were deleted
 - Empty primary list not returned merely because merged task branches were cleaned up
 - make test passes (9195 passed)
+---
+author: oompah
+created: 2026-07-19 18:43
+---
+Implemented PR-based fallback for deleted-branch discovery in Release Delivery backlog. Added _find_pr_commits_in_main() helper, scm/managed_repo params to ItemBacklogService, and 24 regression tests covering all spec scenarios. make test passes (9195 passed).
 ---
 <!-- COMMENTS:END -->
