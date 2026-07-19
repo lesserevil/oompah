@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:22:21.578496Z'
-updated_at: '2026-07-19T02:27:02.118042Z'
+updated_at: '2026-07-19T02:29:40.072033Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -209,5 +209,16 @@ author: oompah
 created: 2026-07-19 02:27
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-19 02:29
+---
+Understanding: This epic has two bugs introduced by OOMPAH-236's item-centric backlog.
+
+Bug 1 (candidate discovery): ItemBacklogService builds its candidate list exclusively from delivery ledger entries (source_identifier). Tasks/epics merged to main that have never been queued for release delivery have no ledger entry, so they never appear in the backlog. Fix: derive candidates from native tracker records (issues in 'Merged' state with work_branch metadata), not from ledger entries. Use the ledger only for status calculation.
+
+Bug 2 (timeout): For each unassociated commit, the service calls _is_tracker_only_commit() which spawns git diff-tree as a subprocess. At Trickle scale (thousands of commits), this times out the endpoint. Fix: bound/batch git calls for the unassociated-commit diagnostic section so they don't block the primary response.
+
+Plan: decompose into 4 child tasks covering (1) backend algorithm fix + core unit tests, (2) performance fix + API regression test, (3) dashboard test, (4) Trickle regression test.
 ---
 <!-- COMMENTS:END -->
