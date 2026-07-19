@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:55.182823Z'
-updated_at: '2026-07-19T04:00:35.079529Z'
+updated_at: '2026-07-19T04:03:16.445963Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -219,5 +219,24 @@ Key files from prior investigation:
 - oompah/release_delivery_inventory.py (_find_branch_commits_in_main ~line 655)
 - tests/test_release_delivery_backlog.py (existing patterns with _patch_and_run helper)
 - tests/test_server_release_delivery_backlog.py (server-level tests)
+---
+author: oompah
+created: 2026-07-19 04:03
+---
+Discovery: Confirmed code structure and test patterns.
+
+Key findings:
+- release_delivery_backlog.py:get_backlog() handles tracker-sourced discovery (OOMPAH-238 fix is present at ~line 310+)
+- Tracker-sourced discovery: tracker.fetch_issues_by_states(['Merged']) → _find_branch_commits_in_main() → adds item with not_selected state
+- Ancestry detection at step 4: sha in ancestry_set → _compute_cell returns delivered → excluded from needs_delivery
+- _aggregate_cell_for_item uses STATUS_RANK (not_selected=1, delivered=3) — delivery beats not_selected, ancestry beats not_selected
+- Existing tests use generic release/1.1 and TASK-XX identifiers. OOMPAH-241 needs release/0.11 + oompah_md-style OOMPAH-XXX identifiers
+- work_branch in oompah_md tracker = task identifier directly (e.g. 'OOMPAH-215')
+- Tests follow _patch_and_run pattern with 5 mock patches (snapshot, commits, ancestry, is_tracker_only, find_branch_commits_in_main)
+
+Plan: Add TestTrickleRelease011BacklogRegression class with:
+1. Primary regression: OOMPAH-215 merged/never queued for release/0.11 → appears as not_selected
+2. Companion ancestry: OOMPAH-215 already on release/0.11 → state=delivered, excluded from needs-delivery
+3. Supporting tests: multi-commit, epic type, ledger-other-branch isolation, needs_delivery filter
 ---
 <!-- COMMENTS:END -->
