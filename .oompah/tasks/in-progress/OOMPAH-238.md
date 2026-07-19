@@ -8,10 +8,11 @@ title: 'Fix ItemBacklogService candidate discovery: derive from tracker Merged r
 parent: OOMPAH-237
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T03:08:55.189799Z'
+updated_at: '2026-07-19T03:09:00.388572Z'
 work_branch: null
 target_branch: null
 review_url: null
