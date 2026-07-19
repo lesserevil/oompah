@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:36.850057Z'
-updated_at: '2026-07-19T03:43:00.183421Z'
+updated_at: '2026-07-19T03:47:26.460548Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -158,5 +158,10 @@ author: oompah
 created: 2026-07-19 03:43
 ---
 Understanding: Adding dashboard-level regression tests for the corrected item-centric Release Delivery workflow. Plan: (1) Read existing test file and source files to understand patterns, (2) Add tests covering: newly merged task with no release history appears as queueable primary row with correct fields; selection sends source_commits to queue endpoint; delivered/active/archived items have disabled checkboxes. Tests must fail against ledger-only bug and pass with tracker-sourced backlog fix from OOMPAH-238.
+---
+author: oompah
+created: 2026-07-19 03:47
+---
+Discovery: Existing test file uses static analysis of JS source code — no browser/DOM needed. Tests read dashboard.html and inspect function bodies via text matching. Key gaps identified: (1) No test verifies 'not_selected' status shows 'Not selected' label in _RDI_STATUS_LABELS, (2) No test verifies not_selected items have ENABLED checkboxes (only tests that delivered/archived have DISABLED ones), (3) No test verifies _rdiRenderBacklog renders ALL items without client-side status filtering, (4) No test verifies _rdiQueueSelected collects source_commits without checking delivery_id. Will add TestNewlyMergedTaskQueueable class covering all four gaps.
 ---
 <!-- COMMENTS:END -->
