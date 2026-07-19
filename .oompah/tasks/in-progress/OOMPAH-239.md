@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T02:30:20.650720Z'
-updated_at: '2026-07-19T03:11:16.461408Z'
+updated_at: '2026-07-19T03:12:15.390256Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -150,5 +150,35 @@ author: oompah
 created: 2026-07-19 03:11
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-19 03:12
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: OOMPAH-239 is NOT a duplicate. Duplicate screening is complete with no duplicate found.
+
+Candidates reviewed:
+- OOMPAH-237 (Open, parent epic): Covers two bugs in the Release Delivery backlog (candidate discovery + timeout). OOMPAH-239 is a child of OOMPAH-237 specifically scoped to Bug 2 (the per-commit git subprocess timeout). Not a duplicate — it is a decomposed child task.
+- OOMPAH-238 (In Progress, sibling child): Covers Bug 1 (candidate discovery from tracker Merged records). Distinct scope from OOMPAH-239.
+- OOMPAH-240, OOMPAH-241 (Open, sibling children): Dashboard tests and Trickle regression tests respectively. Distinct from OOMPAH-239.
+- OOMPAH-236 (Merged): Implemented the item-centric backlog that OOMPAH-237/239 are fixing. Not a duplicate.
+- All other merged/archived tasks in .oompah/tasks — no task covers bounding/batching unassociated-commit git operations for the backlog endpoint.
+
+2. Relevant files and evidence:
+- oompah/release_delivery_backlog.py — ItemBacklogService.get_backlog() step 7 (unassociated_rows loop) is where _is_tracker_only_commit() is called per commit
+- oompah/release_delivery_inventory.py — _is_tracker_only_commit() spawns git diff-tree subprocess per commit; this is the root cause
+- tests/test_server_release_delivery_backlog.py — add API regression test for large synthetic commit set
+- tests/test_release_delivery_backlog.py — add unit test for bounded git calls
+
+3. Remaining work (from task description):
+- Add MAX_UNASSOC_TRACKER_ONLY_CHECK constant and cap calls to _is_tracker_only_commit to first N unassociated commits
+- OR batch diff-tree calls into a single subprocess invocation
+- Ensure unassociated diagnostics do not delay primary item list construction
+- Consider lazy/async computation or total execution-time bound with unassoc_truncated flag
+- Add API regression test: large synthetic commit set, mock _is_tracker_only_commit, assert call count bounded, assert primary item list non-empty
+- Run make test to verify
+
+4. Recommended next focus: feature (backend implementation in release_delivery_backlog.py + tests)
 ---
 <!-- COMMENTS:END -->
