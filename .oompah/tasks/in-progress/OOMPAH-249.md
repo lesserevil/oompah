@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-249
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Wire Release Delivery PR fallback into server backlog service
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-19T19:14:04.819745Z'
-updated_at: '2026-07-19T19:15:42.584749Z'
+updated_at: '2026-07-19T19:15:47.446383Z'
 work_branch: null
 target_branch: null
 review_url: null
