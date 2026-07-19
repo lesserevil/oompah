@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T19:14:04.819745Z'
-updated_at: '2026-07-19T19:25:24.300672Z'
+updated_at: '2026-07-19T21:11:29.499613Z'
 work_branch: OOMPAH-249
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/447
@@ -174,5 +174,10 @@ author: oompah
 created: 2026-07-19 19:25
 ---
 YOLO: merged PR #447.
+---
+author: oompah
+created: 2026-07-19 21:11
+---
+Post-merge live validation still fails. The service factory now has SCM context, but api_release_delivery_backlog passes legacy orch.tracker instead of the selected managed project tracker into get_backlog. Thus Trickle Merged task records are never fetched. Filed OOMPAH-250 for project-scoped tracker injection and multi-project route regression coverage.
 ---
 <!-- COMMENTS:END -->
