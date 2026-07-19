@@ -12,7 +12,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-19T03:07:58.167396Z'
-updated_at: '2026-07-19T03:13:47.402802Z'
+updated_at: '2026-07-19T03:13:49.906134Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -138,5 +138,10 @@ author: oompah
 created: 2026-07-19 03:13
 ---
 Implemented in PR #444: validates every auto-decomposition child before any tracker write, rejects blank titles/descriptions atomically, and adds the actionable-description rule to AGENTS.md. Full make test passed (9,342 tests).
+---
+author: oompah
+created: 2026-07-19 03:13
+---
+Implementation is awaiting PR #444 merge.
 ---
 <!-- COMMENTS:END -->
