@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T01:26:56.302189Z'
+updated_at: '2026-07-19T01:32:33.372147Z'
 work_branch: OOMPAH-236
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/443
@@ -354,5 +354,10 @@ author: oompah
 created: 2026-07-19 01:26
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-19 01:32
+---
+Understanding: CI Failure Fixer analyzing 44 failing tests. Root cause: POST /api/v1/issues and oompah task create now require a 'description' field (added to main after this branch's tests were written). The fix is to add description to test payloads in 8 test files. OOMPAH-236 changes do NOT touch these files - this is a pre-existing gap between tests and implementation that must be fixed for the MR to pass CI.
 ---
 <!-- COMMENTS:END -->
