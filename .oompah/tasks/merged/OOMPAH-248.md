@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T18:24:37.584983Z'
-updated_at: '2026-07-19T18:54:26.217036Z'
+updated_at: '2026-07-19T19:14:10.422606Z'
 work_branch: OOMPAH-248
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/446
@@ -250,5 +250,10 @@ author: oompah
 created: 2026-07-19 18:54
 ---
 YOLO: merged PR #446.
+---
+author: oompah
+created: 2026-07-19 19:14
+---
+Post-merge production validation failed: after restart, Trickle release/0.11 GET backlog still returns items=0 and unassociated=7513. Root cause is missing server integration: server.py constructs ItemBacklogService without the new scm and managed_repo constructor parameters, so the deleted-branch PR fallback is unreachable. Filed OOMPAH-249 with route-level regression coverage.
 ---
 <!-- COMMENTS:END -->
