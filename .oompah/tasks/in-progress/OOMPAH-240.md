@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:36.850057Z'
-updated_at: '2026-07-19T03:47:26.460548Z'
+updated_at: '2026-07-19T03:52:56.417965Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -163,5 +163,10 @@ author: oompah
 created: 2026-07-19 03:47
 ---
 Discovery: Existing test file uses static analysis of JS source code — no browser/DOM needed. Tests read dashboard.html and inspect function bodies via text matching. Key gaps identified: (1) No test verifies 'not_selected' status shows 'Not selected' label in _RDI_STATUS_LABELS, (2) No test verifies not_selected items have ENABLED checkboxes (only tests that delivered/archived have DISABLED ones), (3) No test verifies _rdiRenderBacklog renders ALL items without client-side status filtering, (4) No test verifies _rdiQueueSelected collects source_commits without checking delivery_id. Will add TestNewlyMergedTaskQueueable class covering all four gaps.
+---
+author: oompah
+created: 2026-07-19 03:52
+---
+Implementation: Added TestNewlyMergedTaskQueueable class (20 tests) to tests/test_dashboard_release_delivery_ui.py. Tests cover: (1) _RDI_STATUS_LABELS maps 'not_selected' to 'Not selected'; (2) not_selected status cell is non-clickable (requires delivery_id for clickability); (3) _rdiRenderItemRow creates enabled checkbox by default, only disabled for delivered/archived; (4) if-condition guard for disabled references only 'delivered'/'archived', not 'not_selected'; (5) item row shows identifier, title with identifier fallback, commit_count; (6) _rdiRenderBacklog renders all items without client-side status filtering; (7) _rdiQueueSelected collects source_commits without gating on delivery_id; (8) queue sends target_branches=[_rdiSelectedBranch] and commits array of SHAs; (9) _rdiSelectAll skip condition references only delivered/archived, not not_selected; (10) select-all skips disabled checkboxes.
 ---
 <!-- COMMENTS:END -->
