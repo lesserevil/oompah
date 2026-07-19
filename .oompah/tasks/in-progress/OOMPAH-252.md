@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T22:03:50.663411Z'
-updated_at: '2026-07-19T23:12:48.262786Z'
+updated_at: '2026-07-19T23:13:53.653854Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,5 +67,26 @@ author: oompah
 created: 2026-07-19 23:12
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-19 23:13
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate confirmed. OOMPAH-252 is a distinct, original task. Duplicate screening reviewed all Release Delivery-related tasks (OOMPAH-201, OOMPAH-208, OOMPAH-216, OOMPAH-236, OOMPAH-237, OOMPAH-238, OOMPAH-239, OOMPAH-240, OOMPAH-241, OOMPAH-248, OOMPAH-249, OOMPAH-250, OOMPAH-251) and no existing task covers moving Release Delivery from a dashboard dialog to a dedicated navigable page with URL persistence, project/branch selectors, and removal of the modal.
+
+2. Evidence reviewed:
+   - OOMPAH-251 (Done): Implements the async refresh model and progress UI within the existing dashboard dialog. Its task file explicitly lists OOMPAH-252 as a separate dependent task: 'OOMPAH-252 (Open): Depends on OOMPAH-251; it moves Release Delivery to a dedicated page. Different scope.'
+   - OOMPAH-236 (Merged): Replaced commit pagination with item-centric backlog — stays in the dialog, no navigation change.
+   - OOMPAH-216 (Merged): Added reconciled branch status and retry controls — still in the dialog.
+   - No other task addresses: dedicated page route, nav entry, URL-persisted project/branch selection, or removing the dashboard modal.
+
+3. Remaining work / risks:
+   - OOMPAH-251 is listed as a blocker and is in Done state, so the async backend API (GET /backlog/status, POST /backlog/refresh, stale-while-revalidate) is already available.
+   - Key frontend files to examine: oompah/dashboard.html (existing RDI dialog markup + JS), oompah/server.py (routing), static JS/CSS if separated.
+   - The implementation must preserve all existing Release Delivery semantics (candidate table, selection, queue action, per-item status) and integrate OOMPAH-251 progress API.
+   - Accessibility (labelled controls, keyboard nav, focus management, status announcements) is a stated requirement.
+
+4. Recommended next focus: frontend (dedicated Release Delivery page, navigation entry, URL routing, modal removal, OOMPAH-251 progress integration).
 ---
 <!-- COMMENTS:END -->
