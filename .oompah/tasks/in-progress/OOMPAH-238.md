@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T03:14:20.156202Z'
+updated_at: '2026-07-19T03:14:38.371280Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -259,5 +259,10 @@ author: oompah
 created: 2026-07-19 03:14
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-19 03:14
+---
+Understanding: As the Test Engineer for OOMPAH-238, my role is to write focused unit tests for the tracker-sourced candidate discovery fix in ItemBacklogService.get_backlog(). The previous epic_planner and feature agents have already identified the implementation. I need to write 4 tests: (1) merged task with no ledger history appears as not_selected, (2) merged epic with multiple commits appears once, (3) non-merged task is excluded, (4) ledger state overrides default for merged item. Starting by reading the existing test patterns and implementation.
 ---
 <!-- COMMENTS:END -->
