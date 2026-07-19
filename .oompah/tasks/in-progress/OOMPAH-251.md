@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:58:01.939023Z'
+updated_at: '2026-07-19T22:58:09.856840Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -221,5 +221,10 @@ author: oompah
 created: 2026-07-19 22:58
 ---
 Implementation: (1) oompah/release_delivery_refresh.py — BacklogRefreshManager with per-(project_id, branch) asyncio.Task lifecycle, stale-while-revalidate semantics, TTL-based auto-refresh (5 min default), force-refresh via trigger_refresh(), 8 named phases, thread-safe with RLock. (2) oompah/release_delivery_backlog.py — added progress_callback Callable[[str, int, int|None], None] to get_backlog(). (3) oompah/server.py — _get_backlog_refresh_manager() singleton, endpoint modified to use manager (returns cached result immediately + refresh_status field), new GET /backlog/status and POST /backlog/refresh endpoints.
+---
+author: oompah
+created: 2026-07-19 22:58
+---
+Verification: make test passes — 9287 passed, 36 skipped. New test files: tests/test_release_delivery_refresh.py (47 tests: RefreshStatus serialisation, BacklogRefreshManager lifecycle, Trickle-scale fixture with 2000 commits + 60 merged items verifying bounded SCM calls, title enrichment failure isolation, filter regression, thread-safety). Updated tests: test_server_release_delivery_backlog.py (43 tests, complete rewrite for async model), test_server_release_delivery_backlog_factory.py and test_server_release_delivery_backlog_tracker.py (_sync_backlog_refresh fixture added to restore integration test behaviour under async model).
 ---
 <!-- COMMENTS:END -->
