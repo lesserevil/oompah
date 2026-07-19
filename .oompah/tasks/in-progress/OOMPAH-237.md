@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-237
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fix Release Delivery backlog candidate discovery and timeout
 parent: null
@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-19T02:22:21.578496Z'
-updated_at: '2026-07-19T03:55:36.387739Z'
+updated_at: '2026-07-19T03:57:05.375062Z'
 work_branch: null
 target_branch: null
 review_url: null
