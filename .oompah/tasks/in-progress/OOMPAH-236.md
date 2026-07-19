@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T00:35:29.434492Z'
+updated_at: '2026-07-19T00:35:42.302167Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-07-19 00:35
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-19 00:35
+---
+Understanding: I am the Duplicate Investigator for OOMPAH-236. This issue requests replacing the Release Delivery commit-pagination model with an item-centric backlog (one row per task/epic, not per commit). I will now search for existing tasks that cover the same ground before any implementation begins.
 ---
 <!-- COMMENTS:END -->
