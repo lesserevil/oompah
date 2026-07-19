@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:03:50.663411Z'
-updated_at: '2026-07-19T23:18:27.337794Z'
+updated_at: '2026-07-19T23:22:14.600764Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -140,5 +140,10 @@ author: oompah
 created: 2026-07-19 23:18
 ---
 Understanding: Moving Release Delivery from dashboard dialog to a dedicated page. Plan: (1) Explore existing dashboard.html/server.py to understand current dialog structure; (2) Add /release-delivery route to server.py; (3) Create dedicated release_delivery.html page with project/branch selectors, candidate table, progress integration (OOMPAH-251 API), and accessibility; (4) Add nav entry; (5) Remove dashboard modal/trigger; (6) Write tests covering navigation, routing, UI, and accessibility; (7) Run make test.
+---
+author: oompah
+created: 2026-07-19 23:22
+---
+Discovery: Found all relevant code. The RDI dialog in dashboard.html (lines 970-1400 CSS, 7148-8375 JS, 8595-8665 HTML) is the complete Release Delivery interface. OOMPAH-251 added async refresh model (release_delivery_refresh.py, /backlog/status, /backlog/refresh endpoints) and wired it into the dashboard dialog. The existing test_dashboard_release_delivery_ui.py covers the dialog. Plan: (1) Create oompah/templates/release_delivery.html — full page with nav, URL-based project+branch selection, complete RDI workflow, OOMPAH-251 progress integration; (2) Add /release-delivery route to server.py; (3) Replace dashboard 'Release delivery' button with nav link; (4) Remove overlay HTML/CSS/JS from dashboard.html; (5) Update test_dashboard_release_delivery_ui.py to verify modal is absent; (6) Write tests/test_release_delivery_page.py for route, nav, URL persistence, routing, UI, accessibility.
 ---
 <!-- COMMENTS:END -->
