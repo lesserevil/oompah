@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:03:50.663411Z'
-updated_at: '2026-07-19T23:48:26.747084Z'
+updated_at: '2026-07-19T23:48:29.162503Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -179,5 +179,10 @@ What was delivered:
 - rdi-overlay HTML, CSS, JS removed from dashboard.html
 - 74 new tests in test_release_delivery_page.py; test_dashboard_release_delivery_ui.py updated
 - All 9410 tests pass (make test green)
+---
+author: oompah
+created: 2026-07-19 23:48
+---
+Release Delivery moved to a dedicated page at /release-delivery with URL persistence, OOMPAH-251 progress integration, full candidate workflow, and 74 new tests. Dashboard dialog and its HTML/CSS/JS removed. All 9410 tests pass.
 ---
 <!-- COMMENTS:END -->
