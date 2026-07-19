@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-248
 type: task
-status: Done
+status: In Review
 priority: null
 title: Fix Release Delivery discovery when merged task branches were deleted
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T18:24:37.584983Z'
-updated_at: '2026-07-19T18:43:24.782419Z'
+updated_at: '2026-07-19T18:44:10.823357Z'
 work_branch: null
 target_branch: null
 review_url: null
