@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:03:50.663411Z'
-updated_at: '2026-07-19T23:22:14.600764Z'
+updated_at: '2026-07-19T23:47:50.837534Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,20 @@ author: oompah
 created: 2026-07-19 23:22
 ---
 Discovery: Found all relevant code. The RDI dialog in dashboard.html (lines 970-1400 CSS, 7148-8375 JS, 8595-8665 HTML) is the complete Release Delivery interface. OOMPAH-251 added async refresh model (release_delivery_refresh.py, /backlog/status, /backlog/refresh endpoints) and wired it into the dashboard dialog. The existing test_dashboard_release_delivery_ui.py covers the dialog. Plan: (1) Create oompah/templates/release_delivery.html — full page with nav, URL-based project+branch selection, complete RDI workflow, OOMPAH-251 progress integration; (2) Add /release-delivery route to server.py; (3) Replace dashboard 'Release delivery' button with nav link; (4) Remove overlay HTML/CSS/JS from dashboard.html; (5) Update test_dashboard_release_delivery_ui.py to verify modal is absent; (6) Write tests/test_release_delivery_page.py for route, nav, URL persistence, routing, UI, accessibility.
+---
+author: oompah
+created: 2026-07-19 23:47
+---
+Implementation complete. Changes:
+
+**release_delivery.html** (new, ~1730 lines): Full dedicated Release Delivery page with toolbar, project/branch selectors, filter/search controls, OOMPAH-251 progress banner, candidate table, action bar, evidence drawer. URL persistence via _rdiReadUrl()/_rdiPushUrl() + history.replaceState. _rdiRefresh() wrapper delegates to _rdiForceRefresh(). pagehide listener stops polling on navigation. No rdi-overlay div — this is a first-class page, not a dialog.
+
+**server.py**: Added GET /release-delivery route serving release_delivery.html.
+
+**dashboard.html**: Removed RDI overlay HTML (75 lines), CSS (424 lines), JS (1230 lines). Nav button now navigates to /release-delivery instead of opening a dialog.
+
+**test_dashboard_release_delivery_ui.py**: Updated tests to use _load_release_delivery_*() helpers; fixed overlay-specific tests to reflect page structure; updated accessibility tests to check page-level attributes; fixed TestFunctionDefinitions and TestAsyncRefreshProgressFunctions.
+
+**test_release_delivery_page.py** (new, 74 tests): Route, navigation, page structure, URL persistence, bootstrap, OOMPAH-251 progress integration, empty states, and accessibility.
 ---
 <!-- COMMENTS:END -->
