@@ -1043,10 +1043,303 @@ class TestDataLoading:
         # Should not iterate _rdiVisibleBranches
         assert "_rdiVisibleBranches" not in body
 
-    def test_refresh_reloads_backlog(self):
+    def test_refresh_calls_force_refresh(self):
+        """_rdiRefresh delegates to _rdiForceRefresh (OOMPAH-251 async model).
+
+        The refresh button now POSTs to /backlog/refresh to cancel any
+        in-flight background job and start a fresh one.  _rdiRefresh is
+        the thin wrapper called by the header button; _rdiForceRefresh does
+        the actual POST.
+        """
         script = _load_dashboard_script()
         body = _function_body(script, "_rdiRefresh")
+        assert "_rdiForceRefresh()" in body
+
+    def test_load_backlog_handles_refresh_status_field(self):
+        """_rdiLoadBacklog reads data.refresh_status from the response (OOMPAH-251)."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiLoadBacklog")
+        assert "refresh_status" in body
+
+    def test_load_backlog_starts_poll_when_running(self):
+        """_rdiLoadBacklog calls _rdiStartPoll when a background refresh is in flight."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiLoadBacklog")
+        assert "_rdiStartPoll()" in body
+
+    def test_load_backlog_stops_poll_on_error(self):
+        """_rdiLoadBacklog calls _rdiStopPoll in the catch handler."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiLoadBacklog")
+        assert "_rdiStopPoll()" in body
+
+    def test_load_backlog_shows_stale_data_while_refresh_runs(self):
+        """_rdiLoadBacklog only replaces body with loading spinner when no cached data.
+
+        When _rdiCurrentData is already set, the spinner should not replace
+        the visible table — the stale-while-revalidate model keeps the last
+        result visible until the refresh completes.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiLoadBacklog")
+        assert "_rdiCurrentData" in body
+
+
+# ===========================================================================
+# Async Refresh Progress UI Tests (OOMPAH-251)
+# ===========================================================================
+
+
+class TestAsyncRefreshProgressCSS:
+    """Verify CSS for the async refresh progress banner is present."""
+
+    def test_rdi_refresh_status_class(self):
+        styles = _load_dashboard_styles()
+        assert ".rdi-refresh-status" in styles
+
+    def test_rdi_refresh_status_active_variant(self):
+        styles = _load_dashboard_styles()
+        assert ".rdi-refresh-status.active" in styles
+
+    def test_rdi_refresh_spinner_class(self):
+        styles = _load_dashboard_styles()
+        assert ".rdi-refresh-spinner" in styles
+
+    def test_rdi_refresh_bar_track_class(self):
+        styles = _load_dashboard_styles()
+        assert ".rdi-refresh-bar-track" in styles
+
+    def test_rdi_refresh_bar_fill_class(self):
+        styles = _load_dashboard_styles()
+        assert ".rdi-refresh-bar-fill" in styles
+
+    def test_rdi_refresh_error_class(self):
+        styles = _load_dashboard_styles()
+        assert ".rdi-refresh-error" in styles
+
+    def test_rdi_refresh_retry_class(self):
+        styles = _load_dashboard_styles()
+        assert ".rdi-refresh-retry" in styles
+
+    def test_rdi_stale_badge_class(self):
+        styles = _load_dashboard_styles()
+        assert ".rdi-stale-badge" in styles
+
+    def test_rdi_refresh_progress_class(self):
+        styles = _load_dashboard_styles()
+        assert ".rdi-refresh-progress" in styles
+
+
+class TestAsyncRefreshProgressHTML:
+    """Verify the async refresh progress banner HTML element is present."""
+
+    def test_rdi_refresh_status_element_present(self):
+        html = _load_dashboard_html()
+        assert 'id="rdi-refresh-status"' in html
+
+    def test_rdi_refresh_status_has_role_status(self):
+        html = _load_dashboard_html()
+        assert 'role="status"' in html
+
+    def test_rdi_refresh_status_has_aria_live(self):
+        html = _load_dashboard_html()
+        # Should be aria-live="polite" on the progress banner
+        assert 'aria-live="polite"' in html
+
+    def test_rdi_refresh_phase_element_present(self):
+        html = _load_dashboard_html()
+        assert 'id="rdi-refresh-phase"' in html
+
+    def test_rdi_refresh_bar_fill_element_present(self):
+        html = _load_dashboard_html()
+        assert 'id="rdi-refresh-bar-fill"' in html
+
+    def test_rdi_refresh_count_element_present(self):
+        html = _load_dashboard_html()
+        assert 'id="rdi-refresh-count"' in html
+
+    def test_rdi_refresh_elapsed_element_present(self):
+        html = _load_dashboard_html()
+        assert 'id="rdi-refresh-elapsed"' in html
+
+    def test_rdi_stale_badge_element_present(self):
+        html = _load_dashboard_html()
+        assert 'id="rdi-stale-badge"' in html
+
+    def test_rdi_refresh_error_element_present(self):
+        html = _load_dashboard_html()
+        assert 'id="rdi-refresh-error"' in html
+
+    def test_rdi_refresh_retry_element_present(self):
+        html = _load_dashboard_html()
+        assert 'id="rdi-refresh-retry"' in html
+
+    def test_rdi_refresh_retry_calls_force_refresh(self):
+        html = _load_dashboard_html()
+        assert '_rdiForceRefresh()' in html
+
+    def test_rdi_refresh_status_before_outcome_banner(self):
+        """Progress banner must appear before the outcome banner."""
+        html = _load_dashboard_html()
+        rs_idx = html.index('id="rdi-refresh-status"')
+        outcome_idx = html.index('id="rdi-outcome"')
+        assert rs_idx < outcome_idx
+
+    def test_rdi_refresh_status_has_aria_label(self):
+        """The banner must have an aria-label for screen reader context."""
+        html = _load_dashboard_html()
+        assert 'aria-label="Backlog refresh progress"' in html
+
+
+class TestAsyncRefreshProgressFunctions:
+    """Verify all async refresh management functions are defined."""
+
+    def test_rdi_update_refresh_status_defined(self):
+        script = _load_dashboard_script()
+        assert "function _rdiUpdateRefreshStatus(" in script
+
+    def test_rdi_hide_refresh_status_defined(self):
+        script = _load_dashboard_script()
+        assert "function _rdiHideRefreshStatus(" in script
+
+    def test_rdi_force_refresh_defined(self):
+        script = _load_dashboard_script()
+        assert "function _rdiForceRefresh(" in script
+
+    def test_rdi_poll_status_defined(self):
+        script = _load_dashboard_script()
+        assert "function _rdiPollStatus(" in script
+
+    def test_rdi_start_poll_defined(self):
+        script = _load_dashboard_script()
+        assert "function _rdiStartPoll(" in script
+
+    def test_rdi_stop_poll_defined(self):
+        script = _load_dashboard_script()
+        assert "function _rdiStopPoll(" in script
+
+    def test_rdi_phase_labels_constant_defined(self):
+        """_RDI_PHASE_LABELS maps phase names to human-readable strings."""
+        script = _load_dashboard_script()
+        assert "_RDI_PHASE_LABELS" in script
+
+    def test_rdi_phase_labels_includes_loading_merged(self):
+        script = _load_dashboard_script()
+        assert "loading_merged" in script
+
+    def test_rdi_phase_labels_includes_resolving_commits(self):
+        script = _load_dashboard_script()
+        assert "resolving_commits" in script
+
+    def test_rdi_phase_labels_includes_comparing_ancestry(self):
+        script = _load_dashboard_script()
+        assert "comparing_ancestry" in script
+
+    def test_rdi_phase_labels_includes_preparing_rows(self):
+        script = _load_dashboard_script()
+        assert "preparing_rows" in script
+
+    def test_rdi_phase_labels_includes_diagnostics(self):
+        script = _load_dashboard_script()
+        assert "diagnostics" in script
+
+    def test_poll_timer_state_variable_present(self):
+        """_rdiPollTimer holds the setInterval handle."""
+        script = _load_dashboard_script()
+        assert "_rdiPollTimer = null" in script
+
+    def test_rdi_force_refresh_posts_to_backlog_refresh(self):
+        """_rdiForceRefresh must POST to /release-delivery/backlog/refresh."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiForceRefresh")
+        assert "backlog/refresh" in body
+        assert "POST" in body
+
+    def test_rdi_poll_status_hits_backlog_status(self):
+        """_rdiPollStatus must GET from /release-delivery/backlog/status."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiPollStatus")
+        assert "backlog/status" in body
+
+    def test_rdi_start_poll_uses_set_interval(self):
+        """_rdiStartPoll sets up polling via setInterval."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiStartPoll")
+        assert "setInterval" in body
+
+    def test_rdi_stop_poll_uses_clear_interval(self):
+        """_rdiStopPoll clears the interval via clearInterval."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiStopPoll")
+        assert "clearInterval" in body
+
+    def test_rdi_update_refresh_status_shows_phase_text(self):
+        """_rdiUpdateRefreshStatus writes phase text to the phase element."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiUpdateRefreshStatus")
+        assert "rdi-refresh-phase" in body
+
+    def test_rdi_update_refresh_status_shows_progress_bar(self):
+        """_rdiUpdateRefreshStatus updates the bar fill width."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiUpdateRefreshStatus")
+        assert "rdi-refresh-bar-fill" in body or "barFill" in body
+
+    def test_rdi_update_refresh_status_shows_elapsed(self):
+        """_rdiUpdateRefreshStatus writes elapsed time."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiUpdateRefreshStatus")
+        assert "elapsed_s" in body
+
+    def test_rdi_update_refresh_status_shows_retry_on_failure(self):
+        """_rdiUpdateRefreshStatus shows the retry button when phase=failed."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiUpdateRefreshStatus")
+        assert "failed" in body
+        assert "retryBtn" in body or "rdi-refresh-retry" in body
+
+    def test_rdi_update_refresh_status_shows_stale_badge(self):
+        """_rdiUpdateRefreshStatus shows stale badge when result exists and refresh is running."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiUpdateRefreshStatus")
+        assert "has_result" in body
+        assert "staleBadge" in body or "rdi-stale-badge" in body
+
+    def test_close_release_delivery_stops_poll(self):
+        """closeReleaseDelivery must stop the polling timer (OOMPAH-251)."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "closeReleaseDelivery")
+        assert "_rdiStopPoll()" in body
+
+    def test_show_no_branch_hides_refresh_status(self):
+        """_rdiShowNoBranch must hide the progress banner when no branch is selected."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiShowNoBranch")
+        assert "_rdiHideRefreshStatus()" in body
+
+    def test_show_no_branch_stops_poll(self):
+        """_rdiShowNoBranch must stop polling (OOMPAH-251)."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiShowNoBranch")
+        assert "_rdiStopPoll()" in body
+
+    def test_rdi_force_refresh_preserves_stale_data(self):
+        """_rdiForceRefresh must not clear _rdiCurrentData.
+
+        The stale-while-revalidate model keeps the previous result visible
+        while the new refresh runs. _rdiForceRefresh must not wipe the
+        current data before the new result arrives.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiForceRefresh")
+        assert "_rdiCurrentData = null" not in body
+
+    def test_rdi_poll_status_reloads_backlog_on_complete(self):
+        """_rdiPollStatus calls _rdiLoadBacklog when phase=complete."""
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiPollStatus")
         assert "_rdiLoadBacklog()" in body
+        assert "complete" in body
 
 
 # ===========================================================================
