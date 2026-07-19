@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T00:35:42.302167Z'
+updated_at: '2026-07-19T00:37:17.989406Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,22 @@ author: oompah
 created: 2026-07-19 00:35
 ---
 Understanding: I am the Duplicate Investigator for OOMPAH-236. This issue requests replacing the Release Delivery commit-pagination model with an item-centric backlog (one row per task/epic, not per commit). I will now search for existing tasks that cover the same ground before any implementation begins.
+---
+author: oompah
+created: 2026-07-19 00:37
+---
+Discovery: Duplicate screening complete for OOMPAH-236. No duplicate found.
+
+Candidates reviewed:
+- OOMPAH-192 (Merged): Epic 'Replace release-branch inspector with commit-centric release delivery' — this is the PREDECESSOR. It implemented the commit-centric model that OOMPAH-236 is now asking to replace. Not a duplicate; OOMPAH-236 supersedes it.
+- OOMPAH-197 (Merged): 'Build the default-branch commit inventory service' — implements the commit inventory that OOMPAH-236 replaces.
+- OOMPAH-198 (Merged): 'Expose the read-only release delivery inventory API' — the existing API OOMPAH-236 will adapt.
+- OOMPAH-199 (Merged): 'Add commit-selection release delivery queue API' — the queue API OOMPAH-236 will reuse (not rewrite).
+- OOMPAH-200 (Merged): 'Replace the Release branches overlay with Release delivery UI' — the commit-centric UI OOMPAH-236 will replace with item-centric.
+- OOMPAH-208 (Merged): 'Exclude already-landed commits from release delivery targets' — a bug fix within the old model; OOMPAH-236 addresses the same concern via item-centric ancestry checks.
+- OOMPAH-209 (Merged): 'Group tracker-only commits in release delivery inventory' — a grouping UX improvement within the old model; OOMPAH-236 goes further by making tasks/epics the primary row unit.
+- OOMPAH-216 (Merged): 'Make Release Delivery show reconciled branch status and actionable retries' — added retry/state surface to the commit-centric model; OOMPAH-236 will carry this state display forward in the item-centric model.
+
+Conclusion: OOMPAH-236 is a genuinely new task — it replaces the commit-centric design (shipped in OOMPAH-192 + follow-ups) with an item-centric backlog. No existing open or in-progress task covers this same scope.
 ---
 <!-- COMMENTS:END -->
