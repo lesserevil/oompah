@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:20.650720Z'
-updated_at: '2026-07-19T03:36:39.527439Z'
+updated_at: '2026-07-19T03:36:41.764230Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -261,5 +261,10 @@ tests/test_server_release_delivery_backlog.py — TestLargeCommitSetBoundedGitOp
   - test_bounded_git_calls_with_large_unassociated_set: integration test counting calls via ItemBacklogService
 
 Full suite: 9139 passed, 36 skipped — no regressions.
+---
+author: oompah
+created: 2026-07-19 03:36
+---
+Added MAX_UNASSOC_TRACKER_ONLY_CHECK=50 cap in unassociated-commit loop of ItemBacklogService.get_backlog() to bound O(N) git diff-tree subprocess calls. Added 10 regression tests (6 unit + 4 server-level) covering bounded call count, primary-row availability, and boundary cases. Full suite: 9139 passed, no regressions.
 ---
 <!-- COMMENTS:END -->
