@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T03:22:58.838118Z'
-updated_at: '2026-07-19T03:24:15.477351Z'
+updated_at: '2026-07-19T03:24:31.623917Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-07-19 03:24
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-19 03:24
+---
+Understanding: I am the Duplicate Investigator for OOMPAH-244 ('Rebase epic-OOMPAH-237 onto main'). My role is to determine whether this task is a duplicate of an existing task before any implementation proceeds. I will search for existing tasks related to rebasing epic-OOMPAH-237, stale epic detection, or similar rebase tasks and report findings.
 ---
 <!-- COMMENTS:END -->
