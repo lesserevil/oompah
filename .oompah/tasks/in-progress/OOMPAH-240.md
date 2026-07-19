@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:36.850057Z'
-updated_at: '2026-07-19T03:53:34.239051Z'
+updated_at: '2026-07-19T03:53:43.138705Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -173,5 +173,10 @@ author: oompah
 created: 2026-07-19 03:53
 ---
 Verification: All tests pass. 20/20 new tests in TestNewlyMergedTaskQueueable pass. Full suite: 9159 passed, 36 skipped. No regressions. Branch pushed: epic-OOMPAH-237, commit c8076754.
+---
+author: oompah
+created: 2026-07-19 03:53
+---
+Completion: Added TestNewlyMergedTaskQueueable class (20 static analysis tests) to tests/test_dashboard_release_delivery_ui.py. Tests verify the full UI contract for newly merged tasks with no release-delivery ledger history (tracker-sourced items from OOMPAH-238 fix): (1) 'not_selected' maps to 'Not selected' in status labels; (2) not_selected status cells are non-clickable; (3) not_selected item checkboxes are enabled; (4) disabled guard only targets delivered/archived; (5) row renders identifier, title (with fallback), commit_count; (6) backlog renders ALL items without client-side filtering; (7) queue collects source_commits without requiring delivery_id; (8) queue sends correct POST body; (9) select-all skips only delivered/archived; (10) disabled checkboxes have accessible aria-labels. All 9159 tests pass.
 ---
 <!-- COMMENTS:END -->
