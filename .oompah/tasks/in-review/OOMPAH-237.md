@@ -18,10 +18,9 @@ children:
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
-- epic:rebasing
 assignee: null
 created_at: '2026-07-19T02:22:21.578496Z'
-updated_at: '2026-07-19T04:14:02.333583Z'
+updated_at: '2026-07-19T04:14:16.994485Z'
 work_branch: epic-OOMPAH-237
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/445
