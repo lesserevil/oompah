@@ -28,6 +28,15 @@ API response shape
 
 Branch requirement
   - ValueError raised when selected_branch is empty.
+
+Trickle release/0.11 regression (OOMPAH-241)
+  - Merged oompah_md task never queued for release/0.11 appears as not_selected candidate.
+  - Merged oompah_md task delivered by ancestry is excluded from needs-delivery.
+  - Merged oompah_md epic with multiple commits appears as a single not_selected row.
+  - Ledger entry for a different branch does not affect release/0.11 not_selected state.
+  - Tracker-sourced source_commits exposed in item row for release/0.11 candidate.
+  - Task and epic both appear as distinct rows when both merged and never queued.
+  - Delivered task excluded, pending task retained in release/0.11 needs-delivery.
 """
 
 from __future__ import annotations
@@ -922,3 +931,571 @@ class TestUnassociatedCommitTrackerOnlyBound:
         assert call_count == MAX_UNASSOC_TRACKER_ONLY_CHECK, (
             f"All {MAX_UNASSOC_TRACKER_ONLY_CHECK} commits (exactly at cap) must be classified"
         )
+
+
+# ---------------------------------------------------------------------------
+# Trickle release/0.11 regression fixture (OOMPAH-241)
+# ---------------------------------------------------------------------------
+
+
+class TestTrickleRelease011BacklogRegression:
+    """Regression fixture for OOMPAH-241: Trickle release/0.11 backlog candidate discovery.
+
+    The defect (fixed by OOMPAH-238): the backlog service only used the delivery
+    ledger to discover candidate items.  Tasks and epics that were merged to
+    ``main`` but *never* queued for ``release/0.11`` had no ledger entry and were
+    therefore invisible in the backlog — users could not queue them for release.
+
+    This class reproduces the defect using representative native oompah_md tracker
+    metadata (OOMPAH-xxx identifiers, work_branch = task identifier) and the
+    real ``release/0.11`` branch name.  All tests:
+
+    - Use no live GitHub calls and no live Trickle checkout.
+    - Pass with the OOMPAH-238 fix in place.
+    - Would *fail* (assertions about ``result.items`` being non-empty) with the
+      pre-fix code that skipped tracker-sourced discovery.
+
+    Primary regression
+    ------------------
+    A merged oompah_md task (state=Merged, work_branch=identifier) with no
+    ``release/0.11`` ledger entry appears in ``needs_delivery`` with
+    ``state=not_selected`` and exposes its source commits.
+
+    Companion case
+    --------------
+    The same task, when its commits are already reachable from ``release/0.11``
+    by ancestry (e.g. cherry-picked directly without the delivery queue), is
+    classified as ``delivered`` and is excluded from ``needs_delivery``.
+    """
+
+    # ------------------------------------------------------------------
+    # Fixture constants: release/0.11 and representative oompah identifiers
+    # ------------------------------------------------------------------
+
+    #: The specific release branch targeted by this regression fixture.
+    _RELEASE_011 = "release/0.11"
+
+    #: Synthetic SHA for origin/main at snapshot time.
+    _SOURCE_HEAD_011 = "0" * 39 + "1"
+
+    #: Synthetic SHA for origin/release/0.11 at snapshot time.
+    _RELEASE_011_HEAD = "0" * 39 + "2"
+
+    # Representative oompah_md task (state=Merged) that was merged to main
+    # but never queued for release/0.11.  In the real Trickle project the
+    # work_branch field is set to the task identifier string.
+    _TASK_ID = "OOMPAH-215"
+    _TASK_BRANCH = "OOMPAH-215"  # oompah_md stores work_branch = identifier
+
+    # Representative oompah_md epic (multi-commit)
+    _EPIC_ID = "OOMPAH-200"
+    _EPIC_BRANCH = "OOMPAH-200"
+
+    # Synthetic commit SHAs for test assertions
+    _COMMIT_TASK_1 = "a1" * 20  # 40-char hex
+    _COMMIT_TASK_2 = "a2" * 20
+    _COMMIT_EPIC_1 = "b1" * 20
+    _COMMIT_EPIC_2 = "b2" * 20
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _mock_snapshot_011(self, stale: bool = False) -> Any:
+        """Return a mock RefSnapshot anchored to release/0.11."""
+        snap = MagicMock()
+        snap.source_head = self._SOURCE_HEAD_011
+        snap.release_heads = {self._RELEASE_011: self._RELEASE_011_HEAD}
+        snap.stale = stale
+        snap.fetched_at = time.monotonic()
+        return snap
+
+    def _make_oompah_tracker(self, merged_issues: list[Any]) -> Any:
+        """Return a mock oompah_md tracker that reports *merged_issues* as Merged.
+
+        Mimics the oompah_md tracker's ``fetch_issues_by_states(['Merged'])``
+        and ``get_issue(identifier)`` contracts.
+        """
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = merged_issues
+        tracker.get_issue.return_value = None  # title resolution not tested here
+        return tracker
+
+    def _make_oompah_issue(
+        self,
+        identifier: str,
+        work_branch: str,
+        issue_type: str = "task",
+        title: str | None = None,
+    ) -> Any:
+        """Return a mock Issue as returned by the oompah_md tracker.
+
+        Fields match the ``models.Issue`` dataclass attributes used by
+        ``ItemBacklogService.get_backlog()`` during tracker-sourced discovery:
+        ``identifier``, ``work_branch``, ``issue_type``, ``state``, ``title``.
+        """
+        issue = MagicMock()
+        issue.identifier = identifier
+        issue.work_branch = work_branch
+        issue.issue_type = issue_type
+        issue.state = "Merged"
+        issue.title = title or f"{issue_type.title()} {identifier}"
+        return issue
+
+    def _run_backlog_011(
+        self,
+        tmp_path: Path,
+        deliveries: list[ReleaseDelivery],
+        commits: list[Any],
+        *,
+        ancestry_shas: set[str] | None = None,
+        tracker: Any | None = None,
+        branch_commits_map: dict[str, list[str]] | None = None,
+        filter: str = "needs_delivery",
+    ) -> BacklogResult:
+        """Run ItemBacklogService.get_backlog with mocked git/store for release/0.11.
+
+        Patches the same five functions as the shared ``_patch_and_run`` helper
+        but targets ``self._RELEASE_011`` instead of the generic release/1.1
+        constant, and uses a release/0.11 snapshot.
+        """
+        svc = _make_service(tmp_path, deliveries)
+        snapshot = self._mock_snapshot_011()
+        if ancestry_shas is None:
+            ancestry_shas = set()
+
+        def _mock_find_branch(repo_path: Any, work_branch: str, main_shas: Any, *, timeout: int = 60) -> list[str]:
+            if branch_commits_map is None:
+                return []
+            return branch_commits_map.get(work_branch, [])
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=snapshot),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=commits),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=ancestry_shas),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", return_value=False),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", side_effect=_mock_find_branch),
+        ):
+            return svc.get_backlog(
+                selected_branch=self._RELEASE_011,
+                filter=filter,
+                tracker=tracker,
+            )
+
+    # ------------------------------------------------------------------
+    # Primary regression: missing release/0.11 candidate
+    # ------------------------------------------------------------------
+
+    def test_merged_task_never_queued_appears_as_not_selected_candidate(self, tmp_path):
+        """Primary regression: a merged oompah task never queued for release/0.11 is queueable.
+
+        Before the OOMPAH-238 fix the backlog only checked the delivery ledger.
+        OOMPAH-215 was Merged to main but had no release/0.11 ledger entry, so it
+        was invisible — users could not find it in the backlog to queue it.
+
+        After the fix, tracker-sourced discovery enumerates Merged items and
+        resolves their commits from ``work_branch`` via
+        ``_find_branch_commits_in_main``.  OOMPAH-215 must appear with
+        ``state=not_selected`` so the user can select it for release.
+
+        Defect reproduction: this assertion (``len == 1``) would fail against the
+        pre-OOMPAH-238 code because items would be 0.
+        """
+        # One commit on main from OOMPAH-215's work branch
+        ci = _make_commit_info(
+            self._COMMIT_TASK_1,
+            "feat: implement release delivery tracker-sourced discovery [OOMPAH-215]",
+        )
+        ci.author_name = "oompah"
+        ci.authored_at = "2026-07-10T12:00:00Z"
+
+        # oompah_md tracker: OOMPAH-215 is in Merged state
+        issue = self._make_oompah_issue(
+            self._TASK_ID,
+            work_branch=self._TASK_BRANCH,
+            issue_type="task",
+            title="Implement tracker-sourced backlog candidate discovery",
+        )
+        tracker = self._make_oompah_tracker(merged_issues=[issue])
+
+        # No ledger entries for release/0.11 (the defect scenario)
+        result = self._run_backlog_011(
+            tmp_path,
+            deliveries=[],
+            commits=[ci],
+            tracker=tracker,
+            branch_commits_map={self._TASK_BRANCH: [self._COMMIT_TASK_1]},
+            filter="needs_delivery",
+        )
+
+        # Must surface as a queueable candidate
+        assert len(result.items) == 1, (
+            f"OOMPAH-215 (Merged, no release/0.11 ledger entry) must appear in "
+            f"needs_delivery backlog.  Before OOMPAH-238 this would be 0 items — "
+            f"the missing-candidate defect."
+        )
+        item = result.items[0]
+        assert item.identifier == self._TASK_ID
+        assert item.kind == "task"
+        assert item.delivery_status.state == "not_selected", (
+            f"Expected not_selected (queueable), got {item.delivery_status.state!r}. "
+            f"The item has no release/0.11 delivery and no ancestry evidence."
+        )
+        # Source commits must be exposed so the UI can show commit details
+        assert item.commit_count == 1
+        assert len(item.source_commits) == 1
+        assert item.source_commits[0].sha == self._COMMIT_TASK_1
+
+        # The commit is now item-associated; must NOT be in unassociated list
+        unassoc_shas = {r.sha for r in result.unassociated_commits}
+        assert self._COMMIT_TASK_1 not in unassoc_shas, (
+            "OOMPAH-215 commit must not appear in unassociated_commits after tracker discovery"
+        )
+
+    def test_not_selected_item_included_in_needs_delivery_filter(self, tmp_path):
+        """The needs_delivery filter includes not_selected items (they need queuing).
+
+        not_selected means the item has never been queued for release/0.11.
+        It is neither delivered nor archived, so it must pass the needs_delivery
+        filter and be actionable by the user.
+        """
+        ci = _make_commit_info(self._COMMIT_TASK_1, "feat: OOMPAH-215 implementation")
+        issue = self._make_oompah_issue(self._TASK_ID, work_branch=self._TASK_BRANCH)
+        tracker = self._make_oompah_tracker(merged_issues=[issue])
+
+        result = self._run_backlog_011(
+            tmp_path,
+            deliveries=[],
+            commits=[ci],
+            tracker=tracker,
+            branch_commits_map={self._TASK_BRANCH: [self._COMMIT_TASK_1]},
+            filter="needs_delivery",
+        )
+
+        # not_selected must pass through the needs_delivery filter
+        assert len(result.items) == 1
+        assert result.items[0].delivery_status.state == "not_selected"
+
+    # ------------------------------------------------------------------
+    # Companion case: delivered-by-ancestry exclusion
+    # ------------------------------------------------------------------
+
+    def test_task_delivered_by_ancestry_excluded_from_needs_delivery(self, tmp_path):
+        """Companion case: a task already on release/0.11 by ancestry is excluded.
+
+        If OOMPAH-215's commits were cherry-picked directly into release/0.11
+        without going through the delivery queue, ancestry detection classifies
+        the item as delivered.  It must NOT appear in the needs_delivery backlog
+        because no further action is required.
+        """
+        ci = _make_commit_info(
+            self._COMMIT_TASK_1,
+            "feat: OOMPAH-215 implementation (cherry-picked to release/0.11)",
+        )
+        issue = self._make_oompah_issue(self._TASK_ID, work_branch=self._TASK_BRANCH)
+        tracker = self._make_oompah_tracker(merged_issues=[issue])
+
+        # ancestry_shas proves COMMIT_TASK_1 is already reachable from release/0.11
+        result = self._run_backlog_011(
+            tmp_path,
+            deliveries=[],
+            commits=[ci],
+            tracker=tracker,
+            branch_commits_map={self._TASK_BRANCH: [self._COMMIT_TASK_1]},
+            ancestry_shas={self._COMMIT_TASK_1},
+            filter="needs_delivery",
+        )
+
+        # Task already on release/0.11 by ancestry — must be excluded
+        assert result.items == [], (
+            "OOMPAH-215 with all commits on release/0.11 by ancestry must be "
+            "excluded from needs_delivery (delivered, no further action needed)."
+        )
+
+    def test_task_delivered_by_ancestry_has_delivered_state_in_all_filter(self, tmp_path):
+        """Companion case: delivered-by-ancestry shows state=delivered in 'all' filter view."""
+        ci = _make_commit_info(self._COMMIT_TASK_1, "feat: OOMPAH-215 implementation")
+        issue = self._make_oompah_issue(self._TASK_ID, work_branch=self._TASK_BRANCH)
+        tracker = self._make_oompah_tracker(merged_issues=[issue])
+
+        result = self._run_backlog_011(
+            tmp_path,
+            deliveries=[],
+            commits=[ci],
+            tracker=tracker,
+            branch_commits_map={self._TASK_BRANCH: [self._COMMIT_TASK_1]},
+            ancestry_shas={self._COMMIT_TASK_1},
+            filter="all",
+        )
+
+        assert len(result.items) == 1
+        item = result.items[0]
+        assert item.identifier == self._TASK_ID
+        assert item.delivery_status.state == "delivered", (
+            "Tracker-sourced item proved by ancestry must show state=delivered"
+        )
+        assert item.delivery_status.evidence == "ancestry", (
+            "Delivery evidence must be 'ancestry' when proved via git ancestry"
+        )
+
+    # ------------------------------------------------------------------
+    # Multi-commit epic
+    # ------------------------------------------------------------------
+
+    def test_merged_epic_with_multiple_commits_appears_as_single_row(self, tmp_path):
+        """A merged oompah epic with two commits on main appears as one not_selected row.
+
+        Epics in the Trickle project may span multiple commits.  All commits
+        from the work_branch must be grouped under one item row, not one row
+        per commit.
+        """
+        ci1 = _make_commit_info(
+            self._COMMIT_EPIC_1,
+            "feat: OOMPAH-200 epic part 1 — add delivery backlog service",
+        )
+        ci2 = _make_commit_info(
+            self._COMMIT_EPIC_2,
+            "feat: OOMPAH-200 epic part 2 — wire backlog API endpoint",
+        )
+        epic_issue = self._make_oompah_issue(
+            self._EPIC_ID,
+            work_branch=self._EPIC_BRANCH,
+            issue_type="epic",
+            title="Item-centric release delivery backlog",
+        )
+        tracker = self._make_oompah_tracker(merged_issues=[epic_issue])
+
+        result = self._run_backlog_011(
+            tmp_path,
+            deliveries=[],
+            commits=[ci1, ci2],
+            tracker=tracker,
+            branch_commits_map={self._EPIC_BRANCH: [self._COMMIT_EPIC_1, self._COMMIT_EPIC_2]},
+            filter="needs_delivery",
+        )
+
+        assert len(result.items) == 1, (
+            f"OOMPAH-200 (epic, 2 commits) must appear as exactly 1 item row, "
+            f"got {len(result.items)}"
+        )
+        item = result.items[0]
+        assert item.identifier == self._EPIC_ID
+        assert item.kind == "epic"
+        assert item.delivery_status.state == "not_selected"
+        assert item.commit_count == 2
+        sha_set = {sc.sha for sc in item.source_commits}
+        assert sha_set == {self._COMMIT_EPIC_1, self._COMMIT_EPIC_2}
+        # Both commits now item-associated — unassociated list must be empty
+        assert result.unassociated_commits == []
+
+    # ------------------------------------------------------------------
+    # Ledger isolation: other-branch entry doesn't affect release/0.11 state
+    # ------------------------------------------------------------------
+
+    def test_ledger_entry_for_other_branch_does_not_affect_release_011(self, tmp_path):
+        """A ledger delivery for a *different* branch does not set the release/0.11 state.
+
+        OOMPAH-215 may have been queued for release/0.12 (open delivery).
+        That ledger entry must not contaminate its release/0.11 status — it must
+        still appear as not_selected for release/0.11.
+        """
+        # Ledger has an open delivery for OOMPAH-215 targeting release/0.12 (not 0.11)
+        d_other_branch = _make_delivery(
+            [self._COMMIT_TASK_1],
+            "release/0.12",  # different branch
+            AddendumStatus.OPEN,
+            self._TASK_ID,
+            delivery_id="rd_0012_001",
+        )
+
+        ci = _make_commit_info(self._COMMIT_TASK_1, "feat: OOMPAH-215 implementation")
+        issue = self._make_oompah_issue(self._TASK_ID, work_branch=self._TASK_BRANCH)
+        tracker = self._make_oompah_tracker(merged_issues=[issue])
+
+        result = self._run_backlog_011(
+            tmp_path,
+            deliveries=[d_other_branch],  # ledger only has release/0.12 entry
+            commits=[ci],
+            tracker=tracker,
+            branch_commits_map={self._TASK_BRANCH: [self._COMMIT_TASK_1]},
+            filter="needs_delivery",
+        )
+
+        # Must appear in release/0.11 backlog as not_selected (open on 0.12 doesn't count)
+        assert len(result.items) == 1, (
+            "OOMPAH-215 with a release/0.12 ledger entry must still appear "
+            "as a not_selected candidate for release/0.11"
+        )
+        item = result.items[0]
+        assert item.identifier == self._TASK_ID
+        assert item.delivery_status.state == "not_selected", (
+            f"Expected not_selected for release/0.11, got {item.delivery_status.state!r}. "
+            f"The open delivery is for release/0.12 and must not affect release/0.11 state."
+        )
+
+    # ------------------------------------------------------------------
+    # Source commit exposure
+    # ------------------------------------------------------------------
+
+    def test_source_commits_exposed_for_release_011_candidate(self, tmp_path):
+        """Source commit details (sha, subject, author_name, authored_at) are exposed.
+
+        The UI needs commit details to display item rows.  Tracker-sourced
+        items must include full SourceCommitInfo objects, not just SHAs.
+        """
+        ci = _make_commit_info(
+            self._COMMIT_TASK_1,
+            "feat: add tracker-sourced candidate discovery to backlog service [OOMPAH-215]",
+        )
+        ci.author_name = "oompah-agent"
+        ci.authored_at = "2026-07-10T14:30:00Z"
+
+        issue = self._make_oompah_issue(self._TASK_ID, work_branch=self._TASK_BRANCH)
+        tracker = self._make_oompah_tracker(merged_issues=[issue])
+
+        result = self._run_backlog_011(
+            tmp_path,
+            deliveries=[],
+            commits=[ci],
+            tracker=tracker,
+            branch_commits_map={self._TASK_BRANCH: [self._COMMIT_TASK_1]},
+            filter="all",
+        )
+
+        assert len(result.items) == 1
+        item = result.items[0]
+        assert item.commit_count == 1
+        assert len(item.source_commits) == 1
+
+        sc = item.source_commits[0]
+        assert sc.sha == self._COMMIT_TASK_1
+        assert sc.short_sha == self._COMMIT_TASK_1[:7]
+        assert "OOMPAH-215" in sc.subject
+        assert sc.author_name == "oompah-agent"
+        assert sc.authored_at == "2026-07-10T14:30:00Z"
+
+    # ------------------------------------------------------------------
+    # Task and epic as distinct rows
+    # ------------------------------------------------------------------
+
+    def test_task_and_epic_both_appear_as_distinct_not_selected_rows(self, tmp_path):
+        """Both OOMPAH-215 (task) and OOMPAH-200 (epic) appear as separate not_selected rows.
+
+        When multiple oompah_md items have been merged to main but never queued
+        for release/0.11, each must appear as its own item row with the correct
+        kind and independent not_selected state.
+        """
+        ci_task = _make_commit_info(self._COMMIT_TASK_1, "feat: OOMPAH-215 task commit")
+        ci_epic = _make_commit_info(self._COMMIT_EPIC_1, "feat: OOMPAH-200 epic commit")
+
+        task_issue = self._make_oompah_issue(
+            self._TASK_ID, work_branch=self._TASK_BRANCH, issue_type="task"
+        )
+        epic_issue = self._make_oompah_issue(
+            self._EPIC_ID, work_branch=self._EPIC_BRANCH, issue_type="epic"
+        )
+        tracker = self._make_oompah_tracker(merged_issues=[task_issue, epic_issue])
+
+        result = self._run_backlog_011(
+            tmp_path,
+            deliveries=[],
+            commits=[ci_task, ci_epic],
+            tracker=tracker,
+            branch_commits_map={
+                self._TASK_BRANCH: [self._COMMIT_TASK_1],
+                self._EPIC_BRANCH: [self._COMMIT_EPIC_1],
+            },
+            filter="needs_delivery",
+        )
+
+        assert len(result.items) == 2, (
+            f"Both OOMPAH-215 and OOMPAH-200 must appear as item rows, "
+            f"got {len(result.items)}"
+        )
+
+        by_id = {item.identifier: item for item in result.items}
+        assert self._TASK_ID in by_id, f"{self._TASK_ID} must be in backlog"
+        assert self._EPIC_ID in by_id, f"{self._EPIC_ID} must be in backlog"
+
+        assert by_id[self._TASK_ID].kind == "task"
+        assert by_id[self._TASK_ID].delivery_status.state == "not_selected"
+        assert by_id[self._EPIC_ID].kind == "epic"
+        assert by_id[self._EPIC_ID].delivery_status.state == "not_selected"
+
+    # ------------------------------------------------------------------
+    # Mixed: delivered and pending items in the same result
+    # ------------------------------------------------------------------
+
+    def test_delivered_by_ancestry_excluded_while_pending_task_retained(self, tmp_path):
+        """Delivered task is excluded; pending task is retained in the same backlog call.
+
+        When release/0.11 is partially delivered:
+        - OOMPAH-215 commits are already on release/0.11 by ancestry → excluded.
+        - OOMPAH-200 commits are NOT on release/0.11 → retained as not_selected.
+        """
+        ci_task = _make_commit_info(
+            self._COMMIT_TASK_1, "feat: OOMPAH-215 already cherry-picked"
+        )
+        ci_epic = _make_commit_info(
+            self._COMMIT_EPIC_1, "feat: OOMPAH-200 not yet on release/0.11"
+        )
+
+        task_issue = self._make_oompah_issue(
+            self._TASK_ID, work_branch=self._TASK_BRANCH, issue_type="task"
+        )
+        epic_issue = self._make_oompah_issue(
+            self._EPIC_ID, work_branch=self._EPIC_BRANCH, issue_type="epic"
+        )
+        tracker = self._make_oompah_tracker(merged_issues=[task_issue, epic_issue])
+
+        # COMMIT_TASK_1 is in ancestry_shas (already on release/0.11)
+        # COMMIT_EPIC_1 is NOT in ancestry_shas
+        result = self._run_backlog_011(
+            tmp_path,
+            deliveries=[],
+            commits=[ci_task, ci_epic],
+            tracker=tracker,
+            branch_commits_map={
+                self._TASK_BRANCH: [self._COMMIT_TASK_1],
+                self._EPIC_BRANCH: [self._COMMIT_EPIC_1],
+            },
+            ancestry_shas={self._COMMIT_TASK_1},  # only task commit is on release/0.11
+            filter="needs_delivery",
+        )
+
+        # OOMPAH-215 delivered by ancestry → excluded from needs_delivery
+        # OOMPAH-200 not yet delivered → retained
+        returned_ids = {item.identifier for item in result.items}
+        assert self._TASK_ID not in returned_ids, (
+            f"{self._TASK_ID} is delivered by ancestry and must be excluded from needs_delivery"
+        )
+        assert self._EPIC_ID in returned_ids, (
+            f"{self._EPIC_ID} is not yet delivered and must appear in needs_delivery"
+        )
+        assert len(result.items) == 1
+        assert result.items[0].delivery_status.state == "not_selected"
+
+    # ------------------------------------------------------------------
+    # result metadata for release/0.11
+    # ------------------------------------------------------------------
+
+    def test_selected_branch_is_release_011_in_result(self, tmp_path):
+        """BacklogResult.selected_branch must be 'release/0.11' (not release/1.1 or other)."""
+        result = self._run_backlog_011(
+            tmp_path,
+            deliveries=[],
+            commits=[],
+            filter="all",
+        )
+        assert result.selected_branch == self._RELEASE_011
+
+    def test_branch_head_is_release_011_head_in_result(self, tmp_path):
+        """BacklogResult.branch_head reflects the release/0.11 snapshot SHA."""
+        result = self._run_backlog_011(
+            tmp_path,
+            deliveries=[],
+            commits=[],
+            filter="all",
+        )
+        assert result.branch_available is True
+        assert result.branch_head == self._RELEASE_011_HEAD
