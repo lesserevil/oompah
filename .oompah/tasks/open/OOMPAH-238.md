@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-238
 type: task
-status: In Progress
+status: Open
 priority: null
 title: 'Fix ItemBacklogService candidate discovery: derive from tracker Merged records,
   not ledger'
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T03:09:14.792456Z'
+updated_at: '2026-07-19T03:09:16.930901Z'
 work_branch: null
 target_branch: null
 review_url: null
