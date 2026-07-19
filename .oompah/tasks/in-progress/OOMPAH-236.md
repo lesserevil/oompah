@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T00:39:02.713353Z'
+updated_at: '2026-07-19T00:43:27.075120Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -195,5 +195,33 @@ author: oompah
 created: 2026-07-19 00:39
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-19 00:43
+---
+Understanding: Frontend Developer taking over from duplicate_detector.
+
+This issue replaces the commit-centric release delivery model with an item-centric backlog. My plan:
+
+**Backend changes:**
+1. New `oompah/release_delivery_backlog.py` — ItemBacklogService that groups commits by source_identifier (task/epic) from the delivery ledger, returns one ItemRow per task/epic plus a separate list of unassociated direct-to-main commits. No cursor pagination — complete bounded list.
+2. New API endpoint `GET /api/v1/projects/{project_id}/release-delivery/backlog?branch=release/1.1&filter=needs_delivery` in server.py. Single required branch param, returns item rows, no next_cursor field.
+
+**Dashboard changes (dashboard.html):**
+1. Replace multi-branch visible column model with single-branch selection (required before load)
+2. Replace per-commit rows with per-task/epic item rows (identifier, title, commit count, merge date, delivery status)
+3. Remove cursor state and 'Load next page' button
+4. Add separate unassociated commits section (collapsed/non-primary)
+5. Update queue action to send source_commits for selected items
+6. Keep evidence drawer for commit-level detail (subordinate)
+
+**Tests:**
+- tests/test_release_delivery_backlog.py — unit tests for backlog service
+- tests/test_server_release_delivery_backlog.py — API tests
+- Update tests/test_dashboard_release_delivery_ui.py for new UI patterns
+
+**Docs:**
+- Update plans/release-delivery-commit-inventory.md
+- Update docs/release-addendums.md
 ---
 <!-- COMMENTS:END -->
