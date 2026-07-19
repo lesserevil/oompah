@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-239
 type: task
-status: In Progress
+status: Done
 priority: null
 title: 'Fix ItemBacklogService timeout: bound/batch unassociated-commit git operations'
 parent: OOMPAH-237
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:20.650720Z'
-updated_at: '2026-07-19T03:36:32.053622Z'
+updated_at: '2026-07-19T03:36:39.527439Z'
 work_branch: null
 target_branch: null
 review_url: null
