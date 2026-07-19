@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-252
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Move Release Delivery from dashboard dialog to a dedicated page
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:frontend
 assignee: null
 created_at: '2026-07-19T22:03:50.663411Z'
-updated_at: '2026-07-19T23:14:21.126277Z'
+updated_at: '2026-07-19T23:18:05.906421Z'
 work_branch: null
 target_branch: null
 review_url: null
