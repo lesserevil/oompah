@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T03:24:04.005240Z'
+updated_at: '2026-07-19T03:24:06.318555Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 34bacc75-ff81-496b-9595-4fea9f009e90
 oompah.task_costs:
-  total_input_tokens: 36
-  total_output_tokens: 6885
+  total_input_tokens: 89
+  total_output_tokens: 7902
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 36
-      output_tokens: 6885
+      input_tokens: 89
+      output_tokens: 7902
       cost_usd: 0.0
   runs:
   - profile: default
@@ -48,6 +48,12 @@ oompah.task_costs:
     output_tokens: 3629
     cost_usd: 0.0
     recorded_at: '2026-07-19T03:13:04.386138+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 53
+    output_tokens: 1017
+    cost_usd: 0.0
+    recorded_at: '2026-07-19T03:24:03.285304+00:00'
 ---
 ## Summary
 
