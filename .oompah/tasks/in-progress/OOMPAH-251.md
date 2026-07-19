@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:07:44.061232Z'
+updated_at: '2026-07-19T22:09:10.881051Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -114,5 +114,36 @@ author: oompah
 created: 2026-07-19 22:07
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-19 22:09
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: OOMPAH-251 is NOT a duplicate. Duplicate screening complete.
+
+Candidates reviewed:
+- OOMPAH-237 (Merged, epic): "Fix Release Delivery backlog candidate discovery and timeout" — the parent epic that covered the original candidate-discovery and timeout bugs. Already merged. OOMPAH-251 is a distinct, follow-on issue arising AFTER OOMPAH-250 was deployed.
+- OOMPAH-238 (Merged, child of OOMPAH-237): Fixed candidate discovery algorithm to derive from tracker Merged records. Different scope — was about algorithm correctness, not performance at Trickle scale with many Merged records.
+- OOMPAH-239 (Merged, child of OOMPAH-237): Bounded unassociated-commit diagnostic git calls (per-commit diff-tree subprocess cap). Different scope — was about the unassociated-commit diagnostics section, not the primary candidate list construction.
+- OOMPAH-240, OOMPAH-241 (Merged, children of OOMPAH-237): Dashboard and Trickle regression tests. Distinct scopes.
+- OOMPAH-250 (Merged): Injected the correct project-scoped tracker for Release Delivery. Its own comment explicitly filed OOMPAH-251 after post-deploy validation showed the next bottleneck.
+- OOMPAH-252 (Open): Depends on OOMPAH-251; it moves Release Delivery to a dedicated page. Different scope.
+- No other merged/archived task covers: async refresh model, per-project candidate index/cache, progress phase reporting, or the specific bottleneck of sequential SCM/rev-list calls when iterating many Trickle Merged records.
+
+2. Key evidence:
+- OOMPAH-250 comment (post-deploy): 'the live Trickle release/0.11 backlog request now exceeds the UI timeout instead of returning rows. Candidate discovery is unbounded on the request path across historical Merged records and optional enrichment. Filed OOMPAH-251 for bounded/cached primary candidate discovery with a Trickle-scale API regression.'
+- OOMPAH-251's requirement update: 'implement an observable asynchronous refresh model' with per-project refresh jobs, stale result retention, progress phases, and UI progress bar. This is architecturally distinct from the per-commit subprocess cap in OOMPAH-239.
+
+3. Relevant files (from prior work context):
+- oompah/release_delivery_backlog.py — ItemBacklogService.get_backlog() — primary candidate list construction, sequential per-item SCM/subprocess calls
+- oompah/server.py — api_release_delivery_backlog route
+- oompah/release_delivery_inventory.py — SCM/subprocess helpers used during discovery
+- tests/test_server_release_delivery_backlog.py — API regression tests
+- tests/test_release_delivery_backlog.py — unit tests
+
+4. Remaining work: Full implementation of async refresh model for Release Delivery candidate discovery, with progress visibility in the UI.
+
+Recommended next focus: feature (backend async refresh model + API endpoints) followed by frontend (progress UI in Release Delivery dialog).
 ---
 <!-- COMMENTS:END -->
