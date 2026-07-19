@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T23:12:26.766399Z'
+updated_at: '2026-07-19T23:12:29.028183Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -377,5 +377,10 @@ Acceptance criteria met:
 1. Trickle release/0.11 dialog renders a non-empty selectable candidate list without timing out — discovery runs as background job; stale result shown immediately.
 2. Diagnostics cannot delay the primary backlog — async model separates them.
 3. make test passes — 9340 passed, 36 skipped.
+---
+author: oompah
+created: 2026-07-19 23:12
+---
+Implemented observable async refresh model for Release Delivery candidate discovery. Backend: BacklogRefreshManager with per-(project_id, branch) asyncio jobs, stale-while-revalidate, 8 progress phases, GET /backlog/status and POST /backlog/refresh endpoints. Frontend: progress banner with spinner/bar/phase text/elapsed/stale badge/retry, polling loop, force-refresh. All 9340 tests pass.
 ---
 <!-- COMMENTS:END -->
