@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T03:07:58.167396Z'
-updated_at: '2026-07-19T03:11:08.874343Z'
+updated_at: '2026-07-19T03:12:32.783539Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,29 @@ author: oompah
 created: 2026-07-19 03:11
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-19 03:12
+---
+Focus handoff: duplicate_detector
+
+(1) Outcome: No duplicate found. OOMPAH-242 is a unique task.
+
+(2) Evidence reviewed:
+- Searched .oompah/tasks/ (archived, done, merged, in-progress, open) for: 'decompos', 'description.*required', 'validate.*child', 'title-only', 'actionable', 'AGENTS.md', 'planner.*valid'.
+- Closest candidate OOMPAH-15: error_watcher generating structured task descriptions for intake validation — different scope (error_watcher auto-filed bugs, not decomposition planner children).
+- OOMPAH-30: validates decomposition boundary (GitHub vs native tracker), not description content/validity.
+- OOMPAH-158/159: GitHub issue intake body parsing — completely different.
+- No existing task covers: validating decomposition-planner children have substantive descriptions before creation, rejecting entire plan on invalid child, or adding AGENTS.md rules.
+
+(3) Remaining work:
+- Locate decomposition planner code (likely oompah/epic_planner.py or similar).
+- Add validation: non-empty title + substantive description required for every child in the plan.
+- Reject entire plan (no children created) if any child is invalid; retain retry path.
+- Update AGENTS.md with description requirements (scope, test requirements, acceptance criteria).
+- Add tests: valid plan, blank description, whitespace-only description, mixed invalid plan.
+- Run make test to confirm all pass.
+
+(4) Recommended next focus: feature (implement the validation + AGENTS.md update).
 ---
 <!-- COMMENTS:END -->
