@@ -1,0 +1,67 @@
+---
+id: OOMPAH-238
+type: task
+status: Backlog
+priority: null
+title: 'Fix ItemBacklogService candidate discovery: derive from tracker Merged records,
+  not ledger'
+parent: OOMPAH-237
+children: []
+blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-07-19T02:30:01.408523Z'
+updated_at: '2026-07-19T02:30:01.408523Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+---
+## Summary
+
+## Problem
+
+ItemBacklogService.get_backlog() in oompah/release_delivery_backlog.py currently builds its primary candidate list from delivery ledger entries only. The association_by_sha dict is populated from ReleaseDelivery.source_identifier values. Tasks/epics merged to main that have never been queued for release delivery have no ledger entry and therefore never appear in the backlog — they are silently omitted.
+
+## Required fix
+
+Replace the ledger-centric candidate discovery with native tracker record discovery:
+
+1. When a tracker is provided, call tracker.fetch_issues_by_states(['Merged']) to get all tasks and epics that have merged to the project default branch.
+2. For each merged issue, resolve its source commits on the default branch using:
+   - Issue.work_branch metadata (the branch the agent worked on, stored as oompah.work_branch in issue metadata)
+   - Use git to find commits from that work_branch that are reachable from origin/<default_branch> but not from origin/<default_branch> excluding the merge point (e.g., using git log origin/<default_branch> --ancestry-path <work_branch>^..origin/<default_branch> or similar git rev-list technique)
+   - Alternatively: match commits by merge commit SHA if it can be derived from review_url/review_number metadata
+3. Include only commits that are in the all_commits enumeration (reachable from origin/<default_branch>).
+4. Continue using the delivery ledger ONLY for status calculation: use ledger records and ancestry checks to determine not_selected / open / in_progress / blocked / delivered / archived state per item.
+5. Items derived from tracker records but with no ledger entry must appear as 'Not selected' — they are queueable.
+6. Guard: do NOT promote an item to the primary list if it lacks valid merge evidence (the old behaviour of promoting items solely because they have a ledger entry but no merge evidence must also be removed).
+
+## Acceptance criteria (for this task)
+- Merged task with no ledger delivery appears as 'not_selected' in the backlog
+- Merged epic whose work spans multiple commits appears exactly once, with all commits listed
+- Non-merged task (state != Merged) is excluded from the primary candidate list
+- Existing ledger delivery states (open, in_progress, blocked, delivered, archived) correctly override the default 'not_selected' for items that do have ledger entries
+- make test passes
+
+## Files to change
+- oompah/release_delivery_backlog.py — algorithm changes
+- tests/test_release_delivery_backlog.py — add unit tests per spec:
+  * test_merged_task_no_ledger_appears_as_not_selected
+  * test_merged_epic_multiple_commits_appears_once
+  * test_nonmerged_task_excluded
+  * test_ledger_state_overrides_default_for_merged_item
+
+## Key references
+- oompah/models.py: Issue.work_branch, Issue.issue_type, Issue.state, Issue.review_url
+- oompah/oompah_md_tracker.py: fetch_issues_by_states(['Merged'])
+- oompah/release_delivery_backlog.py: ItemBacklogService.get_backlog() — current implementation
+- tests/test_release_delivery_backlog.py — existing test patterns (mock tracker, delivery store)
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
