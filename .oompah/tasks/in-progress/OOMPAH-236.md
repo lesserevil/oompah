@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T01:14:03.532593Z'
+updated_at: '2026-07-19T01:14:48.348330Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -258,5 +258,19 @@ Changes made:
 8. **docs/release-addendums.md** (updated to describe item-centric primary workflow)
 
 All 326 new/modified tests pass. Pre-existing failures in test_draft_epic_kanban/test_server_create_issue/test_task_cli/etc. are unrelated to this change (confirmed by running without changes).
+---
+author: oompah
+created: 2026-07-19 01:14
+---
+Verification: All 326 new/modified release delivery tests pass.
+
+Test counts:
+- 33 tests in test_release_delivery_backlog.py (unit tests for ItemBacklogService)
+- 16 tests in test_server_release_delivery_backlog.py (API tests for new backlog endpoint)
+- 277 tests in test_dashboard_release_delivery_ui.py (dashboard UI tests, fully updated for item-centric model)
+
+Pre-existing failures (44 tests in test_draft_epic_kanban, test_server_create_issue, test_server_create_labels, test_server_issue_enhance, test_task_cli, test_tracker_for_project_name_fallback, test_server_blocking_off_loop) are confirmed pre-existing and unrelated to this change — they fail identically on the base branch without my changes.
+
+Branch OOMPAH-236 pushed to origin.
 ---
 <!-- COMMENTS:END -->
