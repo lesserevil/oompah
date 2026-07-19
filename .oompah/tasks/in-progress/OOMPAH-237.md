@@ -14,10 +14,9 @@ children:
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
-- epic:stale
 assignee: null
 created_at: '2026-07-19T02:22:21.578496Z'
-updated_at: '2026-07-19T03:12:39.301374Z'
+updated_at: '2026-07-19T03:12:43.712718Z'
 work_branch: null
 target_branch: null
 review_url: null
