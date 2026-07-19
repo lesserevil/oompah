@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:20.650720Z'
-updated_at: '2026-07-19T03:36:52.877909Z'
+updated_at: '2026-07-19T03:36:55.060463Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -272,5 +272,15 @@ author: oompah
 created: 2026-07-19 03:36
 ---
 Added MAX_UNASSOC_TRACKER_ONLY_CHECK=50 cap in unassociated-commit loop of ItemBacklogService.get_backlog() to bound O(N) git diff-tree subprocess calls. Added 10 regression tests (6 unit + 4 server-level) covering bounded call count, primary-row availability, and boundary cases. Full suite: 9139 passed, no regressions.
+---
+author: oompah
+created: 2026-07-19 03:36
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 0, Tool calls: 41
+- Tokens: 74 in / 1.4K out [1.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 8s
+- Log: OOMPAH-239__20260719T032758Z.jsonl
 ---
 <!-- COMMENTS:END -->
