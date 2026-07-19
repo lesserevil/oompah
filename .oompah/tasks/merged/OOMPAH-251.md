@@ -11,9 +11,10 @@ blocked_by:
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:test
+- focus-complete:merge_conflict
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T23:17:48.062753Z'
+updated_at: '2026-07-19T23:17:50.233113Z'
 work_branch: OOMPAH-251
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/449
