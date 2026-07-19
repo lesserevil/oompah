@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:55.182823Z'
-updated_at: '2026-07-19T04:00:16.853099Z'
+updated_at: '2026-07-19T04:00:35.079529Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -201,5 +201,23 @@ author: oompah
 created: 2026-07-19 04:00
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-19 04:00
+---
+Understanding & Plan: Implementing Trickle-specific regression fixture for release/0.11 backlog candidate discovery.
+
+Plan:
+1. Read existing tests in test_release_delivery_backlog.py to understand mock patterns
+2. Read the backlog service code to understand the data flow
+3. Build fixture with: (a) a representative oompah_md task with merged state + work_branch, (b) no release/0.11 ledger entry, (c) ancestry evidence for companion case
+4. Add regression tests: needs-delivery case (not_selected), delivered-by-ancestry exclusion case
+5. Verify tests fail before fix (by temporarily reverting logic) and pass after
+
+Key files from prior investigation:
+- oompah/release_delivery_backlog.py (ItemBacklogService.get_backlog, tracker-sourced discovery ~line 450)
+- oompah/release_delivery_inventory.py (_find_branch_commits_in_main ~line 655)
+- tests/test_release_delivery_backlog.py (existing patterns with _patch_and_run helper)
+- tests/test_server_release_delivery_backlog.py (server-level tests)
 ---
 <!-- COMMENTS:END -->
