@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-236
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Replace Release Delivery commit pagination with an item-centric release backlog
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T00:37:56.312023Z'
+updated_at: '2026-07-19T00:37:58.506300Z'
 work_branch: null
 target_branch: null
 review_url: null
