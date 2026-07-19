@@ -12,7 +12,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-19T03:07:58.167396Z'
-updated_at: '2026-07-19T03:13:40.964364Z'
+updated_at: '2026-07-19T03:13:43.085582Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,10 @@ author: oompah
 created: 2026-07-19 03:13
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-19 03:13
+---
+Implemented in PR #444: validates every auto-decomposition child before any tracker write, rejects blank titles/descriptions atomically, and adds the actionable-description rule to AGENTS.md. Full make test passed (9,342 tests).
 ---
 <!-- COMMENTS:END -->
