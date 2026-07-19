@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-236
 type: task
-status: Done
+status: In Review
 priority: null
 title: Replace Release Delivery commit pagination with an item-centric release backlog
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T01:15:34.366597Z'
+updated_at: '2026-07-19T01:16:43.641346Z'
 work_branch: null
 target_branch: null
 review_url: null
