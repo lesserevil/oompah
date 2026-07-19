@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T03:17:20.813229Z'
+updated_at: '2026-07-19T03:23:01.069095Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -269,5 +269,10 @@ author: oompah
 created: 2026-07-19 03:17
 ---
 Discovery: Confirmed the feature implementation is missing — release_delivery_backlog.py still uses ledger-only candidate discovery. The feature agent didn't run (only metadata commits exist on this branch). As the Test Engineer I'll implement both the feature fix and the 4 required tests (TDD approach requires the implementation for meaningful tests). Key design: add _find_branch_commits_in_main() to release_delivery_inventory.py, import it in backlog.py, and augment get_backlog() to call tracker.fetch_issues_by_states(['Merged']) when a tracker is provided.
+---
+author: oompah
+created: 2026-07-19 03:23
+---
+Implementation: Added tracker-sourced candidate discovery to ItemBacklogService.get_backlog(). Changes: (1) Added _find_branch_commits_in_main() to release_delivery_inventory.py — enumerates commits from origin/<work_branch> and intersects with main SHAs; (2) Imported new helper in release_delivery_backlog.py; (3) Added step 3b in get_backlog() that calls tracker.fetch_issues_by_states(['Merged']), resolves branch commits, and adds tracker-sourced items to item_commits_map with not_selected as default status. Ledger takes precedence for existing associations. Tracker is optional (None preserves old ledger-only behaviour).
 ---
 <!-- COMMENTS:END -->
