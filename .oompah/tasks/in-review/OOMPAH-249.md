@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-249
 type: task
-status: Done
+status: In Review
 priority: null
 title: Wire Release Delivery PR fallback into server backlog service
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T19:14:04.819745Z'
-updated_at: '2026-07-19T19:25:03.735672Z'
+updated_at: '2026-07-19T19:25:06.386683Z'
 work_branch: null
 target_branch: null
 review_url: null
