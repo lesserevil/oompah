@@ -37,6 +37,17 @@ Trickle release/0.11 regression (OOMPAH-241)
   - Tracker-sourced source_commits exposed in item row for release/0.11 candidate.
   - Task and epic both appear as distinct rows when both merged and never queued.
   - Delivered task excluded, pending task retained in release/0.11 needs-delivery.
+
+Deleted-branch fallback via PR commits (OOMPAH-248)
+  - Merged task with deleted work_branch + review_number + SCM → not_selected (primary regression).
+  - Same task with PR commits NOT in main_shas → excluded.
+  - No SCM configured → graceful degradation (no item, no error).
+  - No review_number → graceful degradation (no item, no SCM call).
+  - scm.get_pr_commits raises → item excluded, no propagation.
+  - Live work_branch found commits → SCM not consulted (existing path preserved).
+  - Mixed deleted + live branches → both appear correctly.
+  - Trickle release/0.11 selectable primary candidate after branch cleanup (OOMPAH-248 acceptance).
+  - Empty primary list not returned solely because all branches were deleted.
 """
 
 from __future__ import annotations
@@ -1499,3 +1510,753 @@ class TestTrickleRelease011BacklogRegression:
         )
         assert result.branch_available is True
         assert result.branch_head == self._RELEASE_011_HEAD
+
+
+# ---------------------------------------------------------------------------
+# Deleted branch fallback via PR commits (OOMPAH-248)
+# ---------------------------------------------------------------------------
+
+
+class TestDeletedBranchFallbackDiscovery:
+    """OOMPAH-248: Discovery when merged task work branch has been deleted.
+
+    Oompah normally deletes the task branch after a PR merges.  The prior
+    implementation required refs/remotes/origin/<work_branch> to exist for
+    tracker-sourced discovery; a deleted branch caused the item to be silently
+    excluded.
+
+    The fix uses the persisted review_number field (durable after branch
+    deletion) and an SCM provider to fetch the PR's commit list, then
+    intersects with origin/<default_branch> to verify the commits are reachable.
+
+    Tests here assume:
+    - ItemBacklogService gains optional ``scm`` and ``managed_repo`` constructor params.
+    - A new ``_find_pr_commits_in_main`` function is imported by the backlog module
+      and used as a fallback when ``_find_branch_commits_in_main`` returns empty.
+    - The fallback is only attempted when ``review_number`` and ``scm`` are both set.
+    - SCM errors are swallowed (logged at DEBUG), causing the item to be excluded
+      rather than raising to the caller.
+    """
+
+    _MANAGED_REPO = "org/trickle"
+    _REVIEW_NUMBER = "445"
+    _PR_SHA = "ff" * 20          # 40-char hex SHA present in main
+    _FOREIGN_SHA = "ee" * 20     # 40-char hex SHA NOT in main
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _make_service_with_scm(
+        self,
+        tmp_path: Path,
+        deliveries: list | None = None,
+        *,
+        scm: Any | None = None,
+        managed_repo: str | None = None,
+    ) -> ItemBacklogService:
+        """Create an ItemBacklogService with optional SCM provider."""
+        store = MagicMock(spec=ReleaseDeliveryStore)
+        ledger = MagicMock()
+        ledger.deliveries = deliveries or []
+        store.read_ledger.return_value = ledger
+
+        return ItemBacklogService(
+            project_root=tmp_path,
+            project_id=_PROJECT_ID,
+            default_branch=_DEFAULT_BRANCH,
+            delivery_store=store,
+            scm=scm,
+            managed_repo=managed_repo,
+        )
+
+    def _make_issue_with_review(
+        self,
+        identifier: str,
+        *,
+        review_number: str | None = "445",
+        work_branch: str | None = None,
+        issue_type: str = "task",
+    ) -> Any:
+        """Return a mock Issue with review_number (work_branch may be None/deleted)."""
+        issue = MagicMock()
+        issue.identifier = identifier
+        issue.work_branch = work_branch
+        issue.review_number = review_number
+        issue.issue_type = issue_type
+        issue.state = "Merged"
+        issue.title = f"Title for {identifier}"
+        return issue
+
+    def _run(
+        self,
+        tmp_path: Path,
+        commits: list[Any],
+        issues: list[Any],
+        *,
+        scm: Any | None = None,
+        ancestry_shas: set[str] | None = None,
+        branch_commits_map: dict[str, list[str]] | None = None,
+        filter: str = "all",
+        deliveries: list | None = None,
+    ) -> BacklogResult:
+        """Run get_backlog with a tracker returning *issues*, optionally with SCM."""
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = list(issues)
+        tracker.get_issue.return_value = None
+
+        svc = self._make_service_with_scm(
+            tmp_path,
+            deliveries=deliveries,
+            scm=scm,
+            managed_repo=self._MANAGED_REPO,
+        )
+        snapshot = _mock_snapshot()
+        if ancestry_shas is None:
+            ancestry_shas = set()
+
+        def _mock_find_branch(repo_path: Any, work_branch: str, main_shas: Any, *, timeout: int = 60) -> list[str]:
+            if branch_commits_map is None:
+                return []
+            return branch_commits_map.get(work_branch, [])
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=snapshot),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=commits),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=ancestry_shas),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", return_value=False),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", side_effect=_mock_find_branch),
+        ):
+            return svc.get_backlog(
+                selected_branch=_RELEASE_BRANCH,
+                filter=filter,
+                tracker=tracker,
+            )
+
+    # ------------------------------------------------------------------
+    # Primary regression: deleted branch + review_number → item appears
+    # ------------------------------------------------------------------
+
+    def test_merged_task_deleted_branch_with_pr_commits_reachable_from_main_appears_not_selected(self, tmp_path):
+        """Primary regression (OOMPAH-248): deleted branch + persisted review_number → not_selected.
+
+        Before OOMPAH-248, when work_branch ref was gone, the item was silently
+        excluded.  After the fix, scm.get_pr_commits is used as a fallback to
+        resolve commits, and the item appears as not_selected (queueable).
+        """
+        ci = _make_commit_info(self._PR_SHA, "feat: TASK-100 implementation")
+        issue = self._make_issue_with_review(
+            "TASK-100",
+            review_number=self._REVIEW_NUMBER,
+            work_branch=None,       # Branch has been deleted
+        )
+
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = [self._PR_SHA]
+
+        result = self._run(
+            tmp_path,
+            commits=[ci],
+            issues=[issue],
+            scm=scm,
+            branch_commits_map={},  # empty: _find_branch_commits_in_main returns []
+        )
+
+        assert len(result.items) == 1, (
+            "Merged task with deleted branch but persisted review_number must appear in backlog. "
+            "Before OOMPAH-248 this was 0 items — the deleted-branch exclusion bug."
+        )
+        item = result.items[0]
+        assert item.identifier == "TASK-100"
+        assert item.delivery_status.state == "not_selected", (
+            "Item with no ledger entry must be not_selected (queueable)"
+        )
+        assert item.commit_count == 1
+        assert item.source_commits[0].sha == self._PR_SHA
+
+        # Verify SCM was queried with the correct arguments
+        scm.get_pr_commits.assert_called_once_with(self._MANAGED_REPO, self._REVIEW_NUMBER)
+
+        # Commit is now item-associated; must NOT be in unassociated list
+        assert all(r.sha != self._PR_SHA for r in result.unassociated_commits)
+
+    def test_merged_task_deleted_branch_pr_commits_not_in_main_excluded(self, tmp_path):
+        """Merged task with PR commits NOT reachable from main must be excluded.
+
+        scm.get_pr_commits returns a SHA that does not appear in the enumerated
+        main commits (sha_set).  Only commits already on origin/<default_branch>
+        are eligible — the item must be excluded when the intersection is empty.
+        """
+        # Main has only _SHA_1; the PR commit (_FOREIGN_SHA) is NOT in main
+        ci = _make_commit_info(_SHA_1, "feat: unrelated commit on main")
+        issue = self._make_issue_with_review(
+            "TASK-101",
+            review_number=self._REVIEW_NUMBER,
+            work_branch=None,
+        )
+
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = [self._FOREIGN_SHA]  # not in main_shas
+
+        result = self._run(
+            tmp_path,
+            commits=[ci],       # only _SHA_1 is in main
+            issues=[issue],
+            scm=scm,
+            branch_commits_map={},
+        )
+
+        assert result.items == [], (
+            "Merged task whose PR commits are NOT in main_shas must be excluded. "
+            f"PR SHA {self._FOREIGN_SHA[:7]} is absent from origin/main, "
+            "so no evidence of reachability."
+        )
+
+    # ------------------------------------------------------------------
+    # Graceful degradation: missing SCM or missing review_number
+    # ------------------------------------------------------------------
+
+    def test_merged_task_deleted_branch_no_scm_configured_excluded_gracefully(self, tmp_path):
+        """When no SCM is configured the PR fallback is skipped without error.
+
+        Existing behaviour is preserved: without an SCM, tracker-sourced items
+        are discoverable only via live work_branch refs.  A missing SCM must not
+        raise — it degrades to no item row for the deleted-branch case.
+        """
+        ci = _make_commit_info(self._PR_SHA, "feat: TASK-102")
+        issue = self._make_issue_with_review(
+            "TASK-102",
+            review_number=self._REVIEW_NUMBER,
+            work_branch=None,
+        )
+
+        result = self._run(
+            tmp_path,
+            commits=[ci],
+            issues=[issue],
+            scm=None,           # No SCM configured
+            branch_commits_map={},
+        )
+
+        # Without SCM the item cannot be discovered via PR commits
+        assert result.items == [], (
+            "Without SCM configured, deleted-branch item must not appear "
+            "and no exception must be raised."
+        )
+
+    def test_merged_task_deleted_branch_no_review_number_excluded(self, tmp_path):
+        """Merged task with no review_number and deleted branch is excluded.
+
+        Without review_number there is no durable PR reference to consult.
+        The item must not appear even when an SCM is configured.
+        """
+        ci = _make_commit_info(self._PR_SHA, "feat: TASK-103")
+        issue = self._make_issue_with_review(
+            "TASK-103",
+            review_number=None,   # No review_number persisted
+            work_branch=None,     # Branch also deleted
+        )
+
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = [self._PR_SHA]  # would find commits if called
+
+        result = self._run(
+            tmp_path,
+            commits=[ci],
+            issues=[issue],
+            scm=scm,
+            branch_commits_map={},
+        )
+
+        assert result.items == [], (
+            "Task with no work_branch and no review_number has no durable merge evidence "
+            "and must be excluded."
+        )
+        # SCM should not be invoked when review_number is absent
+        scm.get_pr_commits.assert_not_called()
+
+    def test_scm_get_pr_commits_exception_handled_gracefully(self, tmp_path):
+        """When scm.get_pr_commits raises, the item is excluded without propagating the error.
+
+        Network or API failures must be caught and logged (at DEBUG level).
+        The item is silently excluded — the backlog continues with remaining candidates.
+        """
+        ci = _make_commit_info(self._PR_SHA, "feat: TASK-104")
+        issue = self._make_issue_with_review(
+            "TASK-104",
+            review_number=self._REVIEW_NUMBER,
+            work_branch=None,
+        )
+
+        scm = MagicMock()
+        scm.get_pr_commits.side_effect = RuntimeError("GitHub API rate limit exceeded")
+
+        # Must not raise
+        result = self._run(
+            tmp_path,
+            commits=[ci],
+            issues=[issue],
+            scm=scm,
+            branch_commits_map={},
+        )
+
+        assert result.items == [], (
+            "SCM error during PR lookup must be caught silently. "
+            "Item is excluded (no evidence), not raised to the caller."
+        )
+
+    # ------------------------------------------------------------------
+    # Live work_branch still works (no regression on existing path)
+    # ------------------------------------------------------------------
+
+    def test_live_work_branch_uses_existing_path_scm_not_called(self, tmp_path):
+        """When work_branch ref still exists, existing discovery path is used.
+
+        The SCM-based fallback must only trigger when branch-based discovery
+        yields zero commits.  If _find_branch_commits_in_main succeeds, the SCM
+        must not be consulted.
+        """
+        ci = _make_commit_info(_SHA_1, "feat: TASK-105")
+        issue = self._make_issue_with_review(
+            "TASK-105",
+            review_number=self._REVIEW_NUMBER,
+            work_branch="task/TASK-105",   # Branch still alive
+        )
+
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = []  # Would return empty if called
+
+        result = self._run(
+            tmp_path,
+            commits=[ci],
+            issues=[issue],
+            scm=scm,
+            branch_commits_map={"task/TASK-105": [_SHA_1]},  # branch ref exists
+        )
+
+        assert len(result.items) == 1, (
+            "Merged task with live work_branch must appear via branch-based discovery"
+        )
+        assert result.items[0].identifier == "TASK-105"
+        assert result.items[0].source_commits[0].sha == _SHA_1
+
+        # SCM's get_pr_commits must NOT have been called (live branch found commits)
+        scm.get_pr_commits.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # Work branch missing (None) but review_number present
+    # ------------------------------------------------------------------
+
+    def test_work_branch_none_falls_back_to_review_number(self, tmp_path):
+        """work_branch=None triggers PR-based fallback when review_number is set.
+
+        Some oompah_md tasks are created without a work_branch field (e.g.,
+        manual merges, or tasks whose work_branch was never persisted).  When
+        review_number is available the fallback must still work.
+        """
+        ci = _make_commit_info(self._PR_SHA, "feat: TASK-106 no work_branch")
+        issue = self._make_issue_with_review(
+            "TASK-106",
+            review_number=self._REVIEW_NUMBER,
+            work_branch=None,   # No work_branch at all
+        )
+
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = [self._PR_SHA]
+
+        result = self._run(
+            tmp_path,
+            commits=[ci],
+            issues=[issue],
+            scm=scm,
+            branch_commits_map={},
+        )
+
+        assert len(result.items) == 1
+        assert result.items[0].identifier == "TASK-106"
+        assert result.items[0].delivery_status.state == "not_selected"
+
+    # ------------------------------------------------------------------
+    # Multiple issues: mixed deleted and live branches
+    # ------------------------------------------------------------------
+
+    def test_mixed_deleted_and_live_branches_both_appear(self, tmp_path):
+        """Items with deleted branches (via PR fallback) and live branches both appear.
+
+        TASK-107 has a deleted branch but review_number → PR fallback.
+        TASK-108 has a live branch → existing path.
+        Both must appear in the backlog.
+        """
+        sha_deleted = "dd" * 20  # from deleted-branch PR
+        sha_live = _SHA_2        # from live branch
+
+        ci_deleted = _make_commit_info(sha_deleted, "feat: TASK-107 deleted branch")
+        ci_live = _make_commit_info(sha_live, "feat: TASK-108 live branch")
+
+        issue_deleted = self._make_issue_with_review(
+            "TASK-107",
+            review_number="300",
+            work_branch=None,
+        )
+        issue_live = self._make_issue_with_review(
+            "TASK-108",
+            review_number="301",
+            work_branch="task/TASK-108",
+        )
+
+        scm = MagicMock()
+        # PR fallback returns sha_deleted for review 300; live branch handles 108
+        scm.get_pr_commits.side_effect = lambda repo, rev: (
+            [sha_deleted] if rev == "300" else []
+        )
+
+        result = self._run(
+            tmp_path,
+            commits=[ci_deleted, ci_live],
+            issues=[issue_deleted, issue_live],
+            scm=scm,
+            branch_commits_map={"task/TASK-108": [sha_live]},
+        )
+
+        identifiers = {item.identifier for item in result.items}
+        assert "TASK-107" in identifiers, (
+            "TASK-107 (deleted branch, PR fallback) must appear in the backlog"
+        )
+        assert "TASK-108" in identifiers, (
+            "TASK-108 (live branch, existing path) must appear in the backlog"
+        )
+        assert len(result.items) == 2
+
+
+# ---------------------------------------------------------------------------
+# Trickle release/0.11 regression for deleted branches (OOMPAH-248)
+# ---------------------------------------------------------------------------
+# These tests extend the class defined above (TestTrickleRelease011BacklogRegression)
+# but are written as a separate standalone class to avoid modifying existing tests.
+# They share the same fixture constants and follow the same helper conventions.
+
+
+class TestTrickleRelease011DeletedBranchRegression:
+    """OOMPAH-248 extension: Trickle release/0.11 with deleted merged-task branches.
+
+    The live Trickle release/0.11 backlog returned items=0, unassociated=7513.
+    The cause was that all merged task branches had been cleaned up after their
+    PRs were merged.  After OOMPAH-248 the backlog must use the persisted
+    review_number to retrieve PR commits from the SCM and return selectable
+    primary candidates.
+
+    These tests represent the Trickle release/0.11 scenario using the same
+    fixture constants as TestTrickleRelease011BacklogRegression.
+    """
+
+    # Same constants as TestTrickleRelease011BacklogRegression
+    _RELEASE_011 = "release/0.11"
+    _SOURCE_HEAD_011 = "0" * 39 + "1"
+    _RELEASE_011_HEAD = "0" * 39 + "2"
+    _TASK_ID = "OOMPAH-215"
+    _EPIC_ID = "OOMPAH-200"
+    _MANAGED_REPO = "lesserevil/trickle"
+    _TASK_REVIEW_NUMBER = "445"
+    _EPIC_REVIEW_NUMBER = "446"
+    _COMMIT_TASK_1 = "a1" * 20
+    _COMMIT_EPIC_1 = "b1" * 20
+    _COMMIT_EPIC_2 = "b2" * 20
+
+    def _mock_snapshot_011(self, stale: bool = False) -> Any:
+        snap = MagicMock()
+        snap.source_head = self._SOURCE_HEAD_011
+        snap.release_heads = {self._RELEASE_011: self._RELEASE_011_HEAD}
+        snap.stale = stale
+        snap.fetched_at = time.monotonic()
+        return snap
+
+    def _make_oompah_tracker(self, merged_issues: list[Any]) -> Any:
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = merged_issues
+        tracker.get_issue.return_value = None
+        return tracker
+
+    def _make_oompah_issue_deleted_branch(
+        self,
+        identifier: str,
+        *,
+        review_number: str,
+        issue_type: str = "task",
+        title: str | None = None,
+    ) -> Any:
+        """Return a mock Issue with review_number but NO work_branch (deleted after merge)."""
+        issue = MagicMock()
+        issue.identifier = identifier
+        issue.work_branch = None          # Branch deleted after PR merge
+        issue.review_number = review_number
+        issue.issue_type = issue_type
+        issue.state = "Merged"
+        issue.title = title or f"{issue_type.title()} {identifier}"
+        return issue
+
+    def _run_backlog_011_with_scm(
+        self,
+        tmp_path: Path,
+        deliveries: list,
+        commits: list[Any],
+        *,
+        tracker: Any | None = None,
+        scm: Any | None = None,
+        ancestry_shas: set[str] | None = None,
+        branch_commits_map: dict[str, list[str]] | None = None,
+        filter: str = "needs_delivery",
+    ) -> BacklogResult:
+        """Run ItemBacklogService.get_backlog targeting release/0.11 with SCM support."""
+        store = MagicMock(spec=ReleaseDeliveryStore)
+        ledger = MagicMock()
+        ledger.deliveries = deliveries or []
+        store.read_ledger.return_value = ledger
+
+        svc = ItemBacklogService(
+            project_root=tmp_path,
+            project_id="proj-trickle-test",
+            default_branch="main",
+            delivery_store=store,
+            scm=scm,
+            managed_repo=self._MANAGED_REPO,
+        )
+        snapshot = self._mock_snapshot_011()
+        if ancestry_shas is None:
+            ancestry_shas = set()
+
+        def _mock_find_branch(repo_path: Any, work_branch: str, main_shas: Any, *, timeout: int = 60) -> list[str]:
+            if branch_commits_map is None:
+                return []
+            return branch_commits_map.get(work_branch, [])
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=snapshot),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=commits),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=ancestry_shas),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", return_value=False),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", side_effect=_mock_find_branch),
+        ):
+            return svc.get_backlog(
+                selected_branch=self._RELEASE_011,
+                filter=filter,
+                tracker=tracker,
+            )
+
+    # ------------------------------------------------------------------
+    # Primary OOMPAH-248 regression for Trickle
+    # ------------------------------------------------------------------
+
+    def test_trickle_011_merged_task_deleted_branch_appears_as_not_selected(self, tmp_path):
+        """OOMPAH-248 primary: Trickle release/0.11 backlog shows candidate with deleted branch.
+
+        This is the specific regression scenario: OOMPAH-215 was Merged to main with
+        PR #445, its branch was cleaned up, and the backlog returned items=0.
+        After the fix, the backlog must surface OOMPAH-215 as a selectable not_selected
+        candidate using review_number=445 + SCM fallback.
+        """
+        ci = _make_commit_info(
+            self._COMMIT_TASK_1,
+            "feat: OOMPAH-215 implement tracker-sourced backlog discovery",
+        )
+
+        issue = self._make_oompah_issue_deleted_branch(
+            self._TASK_ID,
+            review_number=self._TASK_REVIEW_NUMBER,
+            issue_type="task",
+            title="Implement tracker-sourced backlog candidate discovery",
+        )
+        tracker = self._make_oompah_tracker(merged_issues=[issue])
+
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = [self._COMMIT_TASK_1]
+
+        result = self._run_backlog_011_with_scm(
+            tmp_path,
+            deliveries=[],
+            commits=[ci],
+            tracker=tracker,
+            scm=scm,
+            branch_commits_map={},  # All branches deleted
+            filter="needs_delivery",
+        )
+
+        assert len(result.items) == 1, (
+            f"{self._TASK_ID} (Merged, deleted branch, review_number={self._TASK_REVIEW_NUMBER}) "
+            f"must appear as a selectable candidate for {self._RELEASE_011}. "
+            "Before OOMPAH-248 this was 0 items — the deleted-branch exclusion bug."
+        )
+        item = result.items[0]
+        assert item.identifier == self._TASK_ID
+        assert item.kind == "task"
+        assert item.delivery_status.state == "not_selected", (
+            "Item with no release/0.11 delivery must be not_selected (queueable)"
+        )
+        assert item.commit_count == 1
+        assert item.source_commits[0].sha == self._COMMIT_TASK_1
+
+        # SCM must have been called with the correct managed_repo and review_number
+        scm.get_pr_commits.assert_called_once_with(self._MANAGED_REPO, self._TASK_REVIEW_NUMBER)
+
+        # The commit is now item-associated; must NOT be in unassociated
+        unassoc_shas = {r.sha for r in result.unassociated_commits}
+        assert self._COMMIT_TASK_1 not in unassoc_shas
+
+    def test_trickle_011_empty_primary_list_not_returned_when_all_branches_deleted(self, tmp_path):
+        """Acceptance criterion: empty primary list not returned solely due to branch cleanup.
+
+        Multiple merged tasks/epics all with deleted branches must appear as primary
+        candidates when their review_numbers are persisted and the SCM can return
+        commits reachable from main.
+        """
+        ci_task = _make_commit_info(self._COMMIT_TASK_1, "feat: OOMPAH-215 delivery")
+        ci_epic = _make_commit_info(self._COMMIT_EPIC_1, "feat: OOMPAH-200 epic part 1")
+
+        task_issue = self._make_oompah_issue_deleted_branch(
+            self._TASK_ID,
+            review_number=self._TASK_REVIEW_NUMBER,
+            issue_type="task",
+        )
+        epic_issue = self._make_oompah_issue_deleted_branch(
+            self._EPIC_ID,
+            review_number=self._EPIC_REVIEW_NUMBER,
+            issue_type="epic",
+        )
+        tracker = self._make_oompah_tracker(merged_issues=[task_issue, epic_issue])
+
+        scm = MagicMock()
+        scm.get_pr_commits.side_effect = lambda repo, review_number: {
+            self._TASK_REVIEW_NUMBER: [self._COMMIT_TASK_1],
+            self._EPIC_REVIEW_NUMBER: [self._COMMIT_EPIC_1],
+        }.get(review_number, [])
+
+        result = self._run_backlog_011_with_scm(
+            tmp_path,
+            deliveries=[],
+            commits=[ci_task, ci_epic],
+            tracker=tracker,
+            scm=scm,
+            branch_commits_map={},  # All branches deleted
+            filter="needs_delivery",
+        )
+
+        assert len(result.items) == 2, (
+            f"Expected 2 items ({self._TASK_ID}, {self._EPIC_ID}), got {len(result.items)}. "
+            "Empty primary list must not be returned when branches were deleted."
+        )
+        identifiers = {item.identifier for item in result.items}
+        assert self._TASK_ID in identifiers, f"{self._TASK_ID} must appear"
+        assert self._EPIC_ID in identifiers, f"{self._EPIC_ID} must appear"
+        for item in result.items:
+            assert item.delivery_status.state == "not_selected"
+
+    def test_trickle_011_deleted_branch_pr_commits_not_reachable_from_main_excluded(self, tmp_path):
+        """Companion: PR commits not reachable from main are still excluded.
+
+        Even after adding SCM fallback, commits must be verified against
+        origin/main before inclusion. If scm.get_pr_commits returns a SHA
+        not in main_shas, the item is still excluded.
+        """
+        # Main only has this unrelated SHA
+        ci_other = _make_commit_info(_SHA_1, "chore: unrelated direct-to-main commit")
+
+        issue = self._make_oompah_issue_deleted_branch(
+            self._TASK_ID,
+            review_number=self._TASK_REVIEW_NUMBER,
+            issue_type="task",
+        )
+        tracker = self._make_oompah_tracker(merged_issues=[issue])
+
+        scm = MagicMock()
+        # PR commit is a SHA NOT in main_shas
+        scm.get_pr_commits.return_value = [self._COMMIT_TASK_1]  # not in main
+
+        result = self._run_backlog_011_with_scm(
+            tmp_path,
+            deliveries=[],
+            commits=[ci_other],         # only _SHA_1 is in main, not COMMIT_TASK_1
+            tracker=tracker,
+            scm=scm,
+            branch_commits_map={},
+            filter="needs_delivery",
+        )
+
+        assert result.items == [], (
+            f"{self._TASK_ID}: PR commit {self._COMMIT_TASK_1[:7]} is not reachable "
+            f"from main, so it must be excluded even with SCM fallback."
+        )
+
+    def test_trickle_011_deleted_branch_delivered_by_ancestry_excluded_from_needs_delivery(self, tmp_path):
+        """Companion: item discovered via PR fallback but already on release/0.11 is excluded.
+
+        When PR commits are found via scm.get_pr_commits AND those commits are
+        already in ancestry_set (reachable from release/0.11), the item is
+        delivered and must not appear in needs_delivery.
+        """
+        ci = _make_commit_info(self._COMMIT_TASK_1, "feat: OOMPAH-215 (cherry-picked)")
+
+        issue = self._make_oompah_issue_deleted_branch(
+            self._TASK_ID,
+            review_number=self._TASK_REVIEW_NUMBER,
+            issue_type="task",
+        )
+        tracker = self._make_oompah_tracker(merged_issues=[issue])
+
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = [self._COMMIT_TASK_1]
+
+        # COMMIT_TASK_1 is already in ancestry_set (on release/0.11 by ancestry)
+        result = self._run_backlog_011_with_scm(
+            tmp_path,
+            deliveries=[],
+            commits=[ci],
+            tracker=tracker,
+            scm=scm,
+            branch_commits_map={},
+            ancestry_shas={self._COMMIT_TASK_1},   # already on release/0.11
+            filter="needs_delivery",
+        )
+
+        assert result.items == [], (
+            f"{self._TASK_ID} already on release/0.11 by ancestry must be excluded "
+            "from needs_delivery even when discovered via PR fallback."
+        )
+
+    def test_trickle_011_epic_multi_commit_deleted_branch_appears_as_single_row(self, tmp_path):
+        """Epic with multiple PR commits and deleted branch appears as a single item row.
+
+        OOMPAH-200 (epic) had 2 commits on its PR.  After branch cleanup, both
+        commits must be discovered via scm.get_pr_commits and grouped under one row.
+        """
+        ci1 = _make_commit_info(self._COMMIT_EPIC_1, "feat: OOMPAH-200 part 1")
+        ci2 = _make_commit_info(self._COMMIT_EPIC_2, "feat: OOMPAH-200 part 2")
+
+        issue = self._make_oompah_issue_deleted_branch(
+            self._EPIC_ID,
+            review_number=self._EPIC_REVIEW_NUMBER,
+            issue_type="epic",
+        )
+        tracker = self._make_oompah_tracker(merged_issues=[issue])
+
+        scm = MagicMock()
+        scm.get_pr_commits.return_value = [self._COMMIT_EPIC_1, self._COMMIT_EPIC_2]
+
+        result = self._run_backlog_011_with_scm(
+            tmp_path,
+            deliveries=[],
+            commits=[ci1, ci2],
+            tracker=tracker,
+            scm=scm,
+            branch_commits_map={},
+            filter="needs_delivery",
+        )
+
+        assert len(result.items) == 1, (
+            f"{self._EPIC_ID} (epic, 2 commits, deleted branch) must appear as exactly "
+            f"1 item row, got {len(result.items)}"
+        )
+        item = result.items[0]
+        assert item.identifier == self._EPIC_ID
+        assert item.kind == "epic"
+        assert item.commit_count == 2
+        sha_set = {sc.sha for sc in item.source_commits}
+        assert sha_set == {self._COMMIT_EPIC_1, self._COMMIT_EPIC_2}

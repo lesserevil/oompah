@@ -720,6 +720,66 @@ def _find_branch_commits_in_main(
     return found
 
 
+def _find_pr_commits_in_main(
+    scm: Any,
+    managed_repo: str,
+    review_number: str,
+    main_shas: set[str],
+    *,
+    timeout: int = 60,
+) -> list[str]:
+    """Return commits from a merged PR that are also reachable from origin/main.
+
+    This is the durable fallback for tracker-sourced candidate discovery when the
+    task's work branch has been deleted after the PR merged.  Unlike
+    :func:`_find_branch_commits_in_main` (which requires a live remote branch ref),
+    this function uses the SCM provider's ``get_pr_commits`` call — which resolves
+    against the persisted PR number — so it works even after branch cleanup.
+
+    Args:
+        scm: An SCM provider instance implementing ``get_pr_commits(repo, review_id)``.
+        managed_repo: Repository identifier (e.g. ``"owner/repo"``) passed to
+            ``scm.get_pr_commits``.
+        review_number: PR/MR number as a string (e.g. ``"445"``).
+        main_shas: Set of non-merge commit SHAs already enumerated from the
+            default branch (``origin/main``).
+        timeout: Unused (reserved for future rate-limit back-off).  Kept for
+            signature symmetry with :func:`_find_branch_commits_in_main`.
+
+    Returns:
+        Ordered list of SHAs that appear in both the PR's commit list and
+        *main_shas*, in the order returned by the SCM.  Empty when *scm*,
+        *managed_repo*, or *review_number* is absent, when the SCM call
+        fails, or when no PR commits are reachable from the default branch.
+
+    Note:
+        All errors from ``scm.get_pr_commits`` are caught and logged at DEBUG
+        level so that a single PR lookup failure does not abort the entire
+        backlog request.
+    """
+    if not scm or not managed_repo or not review_number:
+        return []
+    if not main_shas:
+        return []
+
+    try:
+        pr_commits: list[str] = scm.get_pr_commits(managed_repo, review_number)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug(
+            "_find_pr_commits_in_main: scm.get_pr_commits failed for %r PR#%s: %s",
+            managed_repo,
+            review_number,
+            exc,
+        )
+        return []
+
+    found: list[str] = []
+    for sha in pr_commits:
+        if _FULL_SHA_RE.match(sha) and sha in main_shas:
+            found.append(sha)
+    return found
+
+
 def _compute_ahead_behind(
     repo_path: str | Path,
     *,
