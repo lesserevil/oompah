@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T19:14:04.819745Z'
-updated_at: '2026-07-19T19:24:52.913824Z'
+updated_at: '2026-07-19T19:25:01.368857Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,5 +149,15 @@ author: oompah
 created: 2026-07-19 19:24
 ---
 Wired SCM provider and managed_repo slug into _get_item_backlog_service server factory. Cache now keyed by (project_id, repo_url) to handle config changes. Added 12 route-level tests in test_server_release_delivery_backlog_factory.py covering the deleted-branch PR fallback through the real server factory. make test passes (9207 passed).
+---
+author: oompah
+created: 2026-07-19 19:25
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 0, Tool calls: 49
+- Tokens: 70 in / 1.9K out [1.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 9s
+- Log: OOMPAH-249__20260719T191558Z.jsonl
 ---
 <!-- COMMENTS:END -->
