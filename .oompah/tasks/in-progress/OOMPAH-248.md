@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-248
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fix Release Delivery discovery when merged task branches were deleted
 parent: null
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T18:24:37.584983Z'
-updated_at: '2026-07-19T18:25:44.587050Z'
+updated_at: '2026-07-19T18:25:49.409557Z'
 work_branch: null
 target_branch: null
 review_url: null
