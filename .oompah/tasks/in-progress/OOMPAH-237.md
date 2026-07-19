@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T02:22:21.578496Z'
-updated_at: '2026-07-19T02:24:32.381994Z'
+updated_at: '2026-07-19T02:25:31.500262Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,5 +108,33 @@ author: oompah
 created: 2026-07-19 02:24
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-19 02:25
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: OOMPAH-237 is NOT a duplicate. Duplicate screening is complete with no duplicate found.
+
+Candidates reviewed:
+- OOMPAH-236 (Merged): The direct predecessor — implemented the item-centric release delivery backlog that OOMPAH-237 is now bug-fixing. Not a duplicate; OOMPAH-237 is a follow-up fix on delivered OOMPAH-236 work.
+- All other tasks searched (in-progress, done, merged, archived directories) — no task covers the two specific bugs described: (a) candidate discovery limited to ledger entries (items merged but never queued are excluded) and (b) endpoint timeout due to per-commit Git operations in the unassociated-commit diagnostic.
+
+2. Relevant files and evidence:
+- oompah/release_delivery_backlog.py — the ItemBacklogService added by OOMPAH-236; this is where candidate discovery logic and the unassociated-commit computation live
+- oompah/server.py — the GET /api/v1/projects/{project_id}/release-delivery/backlog endpoint
+- oompah/templates/dashboard.html — the item-centric dashboard UI
+- plans/release-delivery-commit-inventory.md — design doc for the release delivery backlog
+- tests/test_release_delivery_backlog.py, tests/test_server_release_delivery_backlog.py, tests/test_dashboard_release_delivery_ui.py — existing tests that need to be extended
+
+3. Remaining work:
+- Fix candidate discovery to use native tracker merged PR/merge commit evidence (not just ledger entries), so items merged to main but never queued appear as 'Not selected'
+- Add bounded/cached Git operations for unassociated-commit diagnostics to fix timeout
+- Add unit tests per the spec (merged task with no ledger entry → Not selected; merged epic with multiple commits → appears once; non-merged task excluded; ledger/ancestry states override)
+- API regression test proving no per-commit subprocess calls for unassociated diagnostics
+- Dashboard test for newly merged task with no release history being visible and queueable
+- Trickle regression test (release/0.11 fixture)
+
+4. Recommended next focus: feature (backend fix to release_delivery_backlog.py + new tests)
 ---
 <!-- COMMENTS:END -->
