@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T01:14:48.348330Z'
+updated_at: '2026-07-19T01:15:07.403853Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -272,5 +272,46 @@ Test counts:
 Pre-existing failures (44 tests in test_draft_epic_kanban, test_server_create_issue, test_server_create_labels, test_server_issue_enhance, test_task_cli, test_tracker_for_project_name_fallback, test_server_blocking_off_loop) are confirmed pre-existing and unrelated to this change — they fail identically on the base branch without my changes.
 
 Branch OOMPAH-236 pushed to origin.
+---
+author: oompah
+created: 2026-07-19 01:15
+---
+Completion: OOMPAH-236 delivered.
+
+Summary of what was built:
+
+**Backend (oompah/release_delivery_backlog.py)**
+- ItemBacklogService reads the release delivery ledger, groups commits by source_identifier, builds one ItemRow per task/epic with aggregated delivery status, and returns a BacklogResult with no pagination cursor.
+- Status aggregation: _aggregate_cell_for_item picks the highest-ranked status across all commits for an item (_rank_status priority: blocked > in_progress > in_review > open > delivered > archived > not_selected).
+- Unassociated commits (no ledger source_identifier) go to a separate UnassociatedCommitRow list.
+- MAX_BACKLOG_ITEMS = 500 item hard limit; no cursor.
+
+**API (oompah/server.py)**
+- GET /api/v1/projects/{project_id}/release-delivery/backlog?branch=<branch>&filter=...&query=...
+- branch is required and must be in supported_release_branches (400 otherwise).
+- Response never includes next_cursor.
+
+**Dashboard (oompah/templates/dashboard.html)**
+- Branch-first selection: operator must choose a branch before the backlog loads.
+- One row per task/epic (not per commit).
+- No 'Load next page' — complete bounded list.
+- Item details drawer shows source commits as subordinate detail (not top-level rows).
+- Unassociated commits in a collapsed subordinate section.
+- Queue sends all source_commits from selected items to the single selected branch via existing POST /release-delivery/commits endpoint.
+- Duplicate queueing prevented: delivered/archived items have checkboxes disabled.
+
+**Tests**
+- 33 unit tests, 16 API tests, 277 dashboard tests — all passing.
+
+**Docs**
+- plans/release-delivery-commit-inventory.md: rewritten to describe item-centric design.
+- docs/release-addendums.md: primary workflow section updated to describe item-centric backlog.
+
+All acceptance criteria met:
+✓ Operator selecting release/0.11 sees a single backlog of merged tasks/epics absent from that branch.
+✓ Each row can be queued once and creates correct ledger delivery records for associated commits.
+✓ No commit-history pagination visible in the primary Release Delivery workflow.
+✓ Existing delivery states and historical evidence inspectable via item details drawer.
+✓ make test passes (excluding pre-existing unrelated failures).
 ---
 <!-- COMMENTS:END -->
