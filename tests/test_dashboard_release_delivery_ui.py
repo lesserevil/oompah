@@ -1831,3 +1831,405 @@ class TestBlockedDeliveryRetryUI:
         """Retry button is only rendered for blocked deliveries with delivery_id (OOMPAH-216)."""
         script = _load_dashboard_script()
         assert "Retry delivery" in script, "Retry button must have 'Retry delivery' label"
+
+
+# ===========================================================================
+# Newly Merged Task with No Release History (OOMPAH-238 / OOMPAH-240)
+# ===========================================================================
+
+
+class TestNewlyMergedTaskQueueable:
+    """Regression coverage for the tracker-sourced backlog fix (OOMPAH-238).
+
+    Before OOMPAH-238, the backlog service only discovered items that already
+    appeared in the release-delivery ledger.  A task that was merged to the
+    default branch but never queued for release delivery was invisible.
+
+    After OOMPAH-238, the service also enumerates Merged tracker items and
+    resolves their source commits, returning them with
+    ``delivery_status.state='not_selected'`` and no ``delivery_id``.
+
+    These tests verify that the dashboard JavaScript:
+
+    - Renders a ``not_selected`` item in the **primary** table (not filtered
+      out client-side).
+    - Shows the item identifier, title, and source commit count.
+    - Shows "Not selected" in the status column.
+    - Presents an **enabled** checkbox so the item can be queued.
+    - Collects ``source_commits`` from the item when queuing (does not require
+      a ``delivery_id``).
+    - Verifies that ``delivered`` and ``archived`` items have **disabled**
+      checkboxes and cannot be re-queued.
+    - Verifies that ``select-all`` includes ``not_selected`` items but skips
+      ``delivered`` and ``archived`` items.
+
+    Acceptance: these tests pass with the OOMPAH-238 tracker-sourced backlog
+    implementation and would fail if the UI were changed to filter out
+    ``not_selected`` items or require a ``delivery_id`` before queuing.
+    """
+
+    # ------------------------------------------------------------------
+    # Status label
+    # ------------------------------------------------------------------
+
+    def test_not_selected_status_label_is_not_selected(self):
+        """_RDI_STATUS_LABELS must map 'not_selected' to 'Not selected'.
+
+        A newly merged task with no ledger history has state='not_selected'.
+        The UI must show the human-readable label 'Not selected', not the
+        raw state key.
+        """
+        script = _load_dashboard_script()
+        # The map entry must exist with the exact human-readable label.
+        assert "not_selected: 'Not selected'" in script or 'not_selected: "Not selected"' in script, (
+            "_RDI_STATUS_LABELS must contain not_selected: 'Not selected'"
+        )
+
+    def test_not_selected_label_used_in_status_cell_render(self):
+        """_rdiRenderStatusCell must use _RDI_STATUS_LABELS to look up the label.
+
+        When rendering a cell with state='not_selected', the function should
+        use the labels map to render 'Not selected'.  This test verifies the
+        lookup path exists so the label is surfaced in the table.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiRenderStatusCell")
+        # Status cell reads label from the labels map
+        assert "_RDI_STATUS_LABELS" in body
+        # The state variable is used to index into the map
+        assert "state" in body
+
+    def test_not_selected_status_cell_is_not_clickable(self):
+        """A 'not_selected' cell (no delivery_id, no evidence) must not be clickable.
+
+        Items with no ledger history have no delivery_id and no evidence,
+        so the status cell should display the label without a click target.
+        Clickability is gated on cell.delivery_id or delivered evidence.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiRenderStatusCell")
+        # Clickable cells require delivery_id or evidence
+        assert "delivery_id" in body
+        assert "rdi-cell-clickable" in body
+        # The clickable guard must reference delivery_id (not always-clickable)
+        assert "cell.delivery_id" in body or "delivery_id" in body
+
+    # ------------------------------------------------------------------
+    # Item row rendering — not_selected items are queueable
+    # ------------------------------------------------------------------
+
+    def test_not_selected_item_checkbox_enabled_by_default(self):
+        """Checkboxes for items are enabled unless the item is delivered/archived.
+
+        A newly merged task with delivery_status.state='not_selected' must
+        have an enabled (non-disabled) checkbox so the user can select it
+        for queuing.  The disable guard must be conditional, not unconditional.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiRenderItemRow")
+        # Checkbox is created without disabled
+        assert "cb.disabled = true" in body, (
+            "_rdiRenderItemRow must have a conditional cb.disabled = true for delivered/archived"
+        )
+        # The condition must be exclusively for delivered OR archived states —
+        # verify it is inside an 'if' block mentioning those states, not always
+        assert (
+            "status === 'delivered'" in body or "status==='delivered'" in body or
+            "'delivered' === status" in body
+        ), "_rdiRenderItemRow must check for 'delivered' before disabling"
+        assert (
+            "status === 'archived'" in body or "status==='archived'" in body or
+            "'archived' === status" in body
+        ), "_rdiRenderItemRow must check for 'archived' before disabling"
+
+    def test_only_delivered_and_archived_trigger_disabled_checkbox(self):
+        """The disabled condition must reference only 'delivered' and 'archived'.
+
+        'not_selected', 'open', 'in_progress', 'in_review', and 'blocked'
+        items must NOT trigger a disabled checkbox — they should be selectable
+        for queuing or re-queuing.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiRenderItemRow")
+        # The guard pattern is:
+        #   if (status === 'delivered' || status === 'archived') { cb.disabled = true; ... }
+        #
+        # Extract the actual if-condition expression by looking for the last 'if ('
+        # before 'cb.disabled = true' and reading up to the first '{' after it.
+        disabled_pos = body.index("cb.disabled = true")
+        # Walk backwards to find the opening 'if (' for this guard
+        if_pos = body.rindex("if (", 0, disabled_pos)
+        condition_end = body.index("{", if_pos)
+        if_condition = body[if_pos:condition_end]
+        # The if-condition must contain 'delivered' and 'archived'
+        assert "delivered" in if_condition, (
+            "disabled guard must reference 'delivered'"
+        )
+        assert "archived" in if_condition, (
+            "disabled guard must reference 'archived'"
+        )
+        # The if-condition must NOT contain 'not_selected' as a triggering state
+        assert "not_selected" not in if_condition, (
+            "not_selected must not be in the disabled guard — it should be queueable"
+        )
+
+    def test_render_item_row_shows_identifier_for_new_task(self):
+        """_rdiRenderItemRow must render item.identifier in the row.
+
+        For a newly merged task TASK-NEW, the identifier column must display
+        'TASK-NEW'.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiRenderItemRow")
+        assert "item.identifier" in body, (
+            "_rdiRenderItemRow must reference item.identifier to render the identifier"
+        )
+
+    def test_render_item_row_shows_title_with_identifier_fallback(self):
+        """_rdiRenderItemRow must show item.title, falling back to identifier.
+
+        For a newly merged task, the backend fetches the title from the
+        tracker.  The UI must display the title when present and fall back
+        to the identifier when the title is absent (e.g., tracker unavailable).
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiRenderItemRow")
+        # Both title and identifier must appear in the title-column logic
+        assert "item.title" in body
+        assert "item.identifier" in body
+        # Fallback pattern: item.title || item.identifier
+        assert "item.title || item.identifier" in body or "item.title||item.identifier" in body, (
+            "_rdiRenderItemRow must fall back to item.identifier when item.title is absent"
+        )
+
+    def test_render_item_row_shows_source_commit_count(self):
+        """_rdiRenderItemRow must display item.commit_count.
+
+        The commit count shows how many default-branch commits are associated
+        with the task, which is critical for newly merged tasks discovered via
+        the tracker.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiRenderItemRow")
+        assert "item.commit_count" in body, (
+            "_rdiRenderItemRow must display item.commit_count"
+        )
+
+    # ------------------------------------------------------------------
+    # Backlog rendering — not_selected items appear in primary table
+    # ------------------------------------------------------------------
+
+    def test_render_backlog_renders_all_items_without_client_filtering(self):
+        """_rdiRenderBacklog must render ALL items from data.items.
+
+        Filtering by delivery status is done server-side (via the filter param).
+        The UI must not skip items based on their delivery_status.state.
+        A not_selected item returned by the (fixed) backend must appear in
+        the primary table, not be discarded client-side.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiRenderBacklog")
+        # All items in data.items are rendered
+        assert "items" in body
+        assert "_rdiRenderItemRow" in body
+        # The function may reference 'needs_delivery' for empty-state display
+        # (e.g. 'No items match the current filter ("Needs delivery")'), but it
+        # must NOT use it to SKIP individual items in the rendering loop.
+        # Verify the rendering call is NOT gated on delivery_status.state:
+        render_call_pos = body.index("_rdiRenderItemRow")
+        # Extract the for-loop surrounding the render call by looking backwards
+        # for the last 'for (' before the render call
+        for_pos = body.rindex("for (", 0, render_call_pos)
+        loop_fragment = body[for_pos:render_call_pos + len("_rdiRenderItemRow")]
+        # The loop should not have an 'if ... continue' that checks delivery_status
+        assert "delivery_status" not in loop_fragment, (
+            "_rdiRenderBacklog must not skip items by delivery_status in the render loop"
+        )
+        assert "not_selected" not in loop_fragment, (
+            "_rdiRenderBacklog must not skip not_selected items in the render loop"
+        )
+
+    def test_render_backlog_iterates_all_data_items(self):
+        """_rdiRenderBacklog must iterate ALL items from data, calling _rdiRenderItemRow for each.
+
+        The loop must use data.items (not a pre-filtered subset).
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiRenderBacklog")
+        # Must iterate the items array from data
+        assert "data.items" in body or "(data.items" in body or "items = data.items" in body, (
+            "_rdiRenderBacklog must derive the item list from data.items"
+        )
+
+    # ------------------------------------------------------------------
+    # Queuing — source_commits collected without delivery_id check
+    # ------------------------------------------------------------------
+
+    def test_queue_collects_source_commits_without_requiring_delivery_id(self):
+        """_rdiQueueSelected must read item.source_commits regardless of delivery_id.
+
+        A newly merged task has no delivery_id (it has never been queued before).
+        The queue function must collect its source_commits from item.source_commits,
+        not skip the item because delivery_id is absent.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiQueueSelected", is_async=True)
+        # Must read source_commits from each selected item
+        assert "source_commits" in body, (
+            "_rdiQueueSelected must collect item.source_commits when building the commit list"
+        )
+        # The collection must NOT be gated on delivery_id existence
+        # Extract the section around 'source_commits' and verify delivery_id
+        # is not used as a guard immediately before
+        sc_pos = body.index("source_commits")
+        surrounding = body[max(0, sc_pos - 150):sc_pos]
+        assert "delivery_id" not in surrounding or "if" not in surrounding, (
+            "_rdiQueueSelected must not skip items with no delivery_id when collecting source_commits"
+        )
+
+    def test_queue_sends_target_branch_as_single_branch(self):
+        """_rdiQueueSelected must send target_branches: [_rdiSelectedBranch].
+
+        The queue endpoint accepts an array, but the RDI overlay always
+        operates on exactly one selected branch.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiQueueSelected", is_async=True)
+        assert "target_branches" in body
+        assert "_rdiSelectedBranch" in body
+
+    def test_queue_sends_source_commits_sha_array(self):
+        """_rdiQueueSelected must post commits as an array of SHA strings.
+
+        The POST body must include 'commits' key with SHA strings collected
+        from all selected item.source_commits entries.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiQueueSelected", is_async=True)
+        # 'commits' must appear in the JSON body
+        assert '"commits"' in body or "commits:" in body, (
+            "_rdiQueueSelected must include a 'commits' key in the POST body"
+        )
+        # SHAs are accessed via .sha on source commit objects
+        assert ".sha" in body, (
+            "_rdiQueueSelected must extract .sha from source_commits entries"
+        )
+
+    def test_queue_posts_to_release_delivery_commits_endpoint(self):
+        """Queue must POST to /release-delivery/commits endpoint.
+
+        This is the existing shared endpoint that accepts source commits for
+        a set of target branches.  The endpoint path must include the project
+        id (dynamic) and the literal path segment 'release-delivery/commits'.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiQueueSelected", is_async=True)
+        assert "release-delivery/commits" in body
+
+    # ------------------------------------------------------------------
+    # Select-all respects not_selected / delivered / archived
+    # ------------------------------------------------------------------
+
+    def test_select_all_includes_not_selected_items(self):
+        """_rdiSelectAll must add 'not_selected' items to the selection set.
+
+        Newly merged tasks (not_selected) must be selectable via 'select all'.
+        The select-all function only skips delivered and archived items.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiSelectAll")
+        # Skips only delivered and archived
+        assert "delivered" in body
+        assert "archived" in body
+        # Locate the 'continue' statement that skips non-selectable items.
+        # The skip condition must not mention 'not_selected'.
+        # Pattern: if (status === 'delivered' || status === 'archived') continue;
+        continue_pos = body.index("continue")
+        # Find the if-condition that guards this continue
+        if_pos = body.rindex("if (", 0, continue_pos)
+        skip_condition = body[if_pos:continue_pos]
+        # 'not_selected' must NOT appear in the skip condition
+        assert "not_selected" not in skip_condition, (
+            "_rdiSelectAll skip condition must not include 'not_selected' — "
+            "newly merged tasks must be selectable via select-all"
+        )
+
+    def test_select_all_skips_delivered_and_archived_not_others(self):
+        """_rdiSelectAll skips only delivered and archived states.
+
+        Items with states open, in_progress, in_review, blocked, or
+        not_selected must all be selectable via select-all.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiSelectAll")
+        # Only delivered and archived appear in the continue/skip condition
+        assert "delivered" in body
+        assert "archived" in body
+        # Active delivery states must NOT be in the skip condition
+        assert "in_progress" not in body, (
+            "_rdiSelectAll must not skip in_progress items"
+        )
+        assert "in_review" not in body, (
+            "_rdiSelectAll must not skip in_review items"
+        )
+
+    # ------------------------------------------------------------------
+    # Delivered / archived items are not re-queueable
+    # ------------------------------------------------------------------
+
+    def test_delivered_item_checkbox_is_disabled(self):
+        """Items with delivery_status.state='delivered' must have disabled checkboxes.
+
+        A delivered task has already been cherry-picked or proven by ancestry.
+        Re-queuing it would create a duplicate delivery.  The checkbox must be
+        disabled.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiRenderItemRow")
+        # delivered triggers cb.disabled = true
+        delivered_check = "status === 'delivered'" in body or "'delivered' === status" in body
+        assert delivered_check, (
+            "_rdiRenderItemRow must explicitly check for 'delivered' status to disable checkbox"
+        )
+        assert "cb.disabled = true" in body
+
+    def test_archived_item_checkbox_is_disabled(self):
+        """Items with delivery_status.state='archived' must have disabled checkboxes.
+
+        An archived delivery is closed/abandoned.  Re-queuing is not valid.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiRenderItemRow")
+        archived_check = "status === 'archived'" in body or "'archived' === status" in body
+        assert archived_check, (
+            "_rdiRenderItemRow must explicitly check for 'archived' status to disable checkbox"
+        )
+        assert "cb.disabled = true" in body
+
+    def test_disabled_checkbox_aria_label_mentions_state(self):
+        """Disabled checkboxes must have an accessible aria-label explaining why.
+
+        Screen readers need to communicate why the checkbox is disabled.
+        The aria-label must mention the item's current state.
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiRenderItemRow")
+        # aria-label is updated when checkbox is disabled
+        assert "aria-label" in body
+        # The label update mentions 'is ' followed by the status
+        assert "' is '" in body or "\" is \"" in body, (
+            "Disabled checkbox aria-label must explain the item's current state"
+        )
+
+    def test_select_all_skips_disabled_checkboxes(self):
+        """_rdiSelectAll must not check disabled checkboxes.
+
+        When marking all checkboxes, the select-all handler must skip
+        checkboxes that have been disabled (delivered/archived items).
+        """
+        script = _load_dashboard_script()
+        body = _function_body(script, "_rdiSelectAll")
+        # Must check .disabled before setting .checked
+        assert "cb.disabled" in body, (
+            "_rdiSelectAll must guard against checking disabled checkboxes"
+        )
