@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T19:14:04.819745Z'
-updated_at: '2026-07-19T19:15:56.286151Z'
+updated_at: '2026-07-19T19:16:08.523448Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,5 +119,10 @@ author: oompah
 created: 2026-07-19 19:15
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-19 19:16
+---
+Understanding: I am the Test Engineer for this task. My goal is to write route-level tests that exercise the real server factory (_get_item_backlog_service in oompah/server.py) with the SCM and managed_repo arguments added by OOMPAH-248. I will: (1) explore the existing ItemBacklogService and server factory code; (2) identify existing test patterns for the release delivery route; (3) write API regression tests covering the deleted-branch PR fallback via the server factory; (4) verify make test passes.
 ---
 <!-- COMMENTS:END -->
