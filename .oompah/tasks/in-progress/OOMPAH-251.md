@@ -11,10 +11,9 @@ blocked_by:
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:test
-- needs:frontend
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:59:05.649899Z'
+updated_at: '2026-07-19T22:59:07.919160Z'
 work_branch: null
 target_branch: null
 review_url: null
