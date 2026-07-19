@@ -8,10 +8,11 @@ parent: null
 children: []
 blocked_by:
 - OOMPAH-251
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:03:50.663411Z'
-updated_at: '2026-07-19T23:13:53.653854Z'
+updated_at: '2026-07-19T23:13:59.979546Z'
 work_branch: null
 target_branch: null
 review_url: null
