@@ -10,10 +10,9 @@ blocked_by:
 - OOMPAH-251
 labels:
 - focus-complete:duplicate_detector
-- needs:frontend
 assignee: null
 created_at: '2026-07-19T22:03:50.663411Z'
-updated_at: '2026-07-19T23:18:13.180396Z'
+updated_at: '2026-07-19T23:18:15.358492Z'
 work_branch: null
 target_branch: null
 review_url: null
