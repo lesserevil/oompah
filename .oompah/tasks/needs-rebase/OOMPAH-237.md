@@ -22,7 +22,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-19T02:22:21.578496Z'
-updated_at: '2026-07-19T04:14:23.377765Z'
+updated_at: '2026-07-19T04:14:25.559924Z'
 work_branch: epic-OOMPAH-237
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/445
@@ -251,5 +251,10 @@ Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 13s
 - Log: OOMPAH-237__20260719T022703Z.jsonl
+---
+author: oompah
+created: 2026-07-19 04:14
+---
+The epic branch `epic-OOMPAH-237` is stale: it has fallen behind `main`. Rebase the branch onto `origin/main`, resolve any conflicts, and force-push with `git push --force-with-lease`.
 ---
 <!-- COMMENTS:END -->
