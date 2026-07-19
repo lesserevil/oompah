@@ -6,11 +6,12 @@ priority: null
 title: Move Release Delivery from dashboard dialog to a dedicated page
 parent: null
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-251
 labels: []
 assignee: null
 created_at: '2026-07-19T22:03:50.663411Z'
-updated_at: '2026-07-19T22:03:50.663411Z'
+updated_at: '2026-07-19T22:03:53.060199Z'
 work_branch: null
 target_branch: null
 review_url: null
