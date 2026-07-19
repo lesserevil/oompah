@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T01:15:21.586507Z'
+updated_at: '2026-07-19T01:15:23.864927Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -313,5 +313,10 @@ All acceptance criteria met:
 ✓ No commit-history pagination visible in the primary Release Delivery workflow.
 ✓ Existing delivery states and historical evidence inspectable via item details drawer.
 ✓ make test passes (excluding pre-existing unrelated failures).
+---
+author: oompah
+created: 2026-07-19 01:15
+---
+Replaced Release Delivery commit pagination with item-centric release backlog
 ---
 <!-- COMMENTS:END -->
