@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T21:11:24.255407Z'
-updated_at: '2026-07-19T21:40:09.309393Z'
+updated_at: '2026-07-19T21:40:19.714202Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -178,5 +178,24 @@ All 10 new tracker tests pass:
 - TestSingleProjectLegacyModeCompatibility (2 tests): single-project mode still works
 
 All 42 existing backlog tests (factory + server + unit) also pass.
+---
+author: oompah
+created: 2026-07-19 21:40
+---
+Completion: Delivered full fix for OOMPAH-250.
+
+Root cause: api_release_delivery_backlog used getattr(orch, 'tracker', None) — the legacy global tracker — instead of the project-scoped tracker. ItemBacklogService therefore fetched no Trickle Merged tasks, returning items=0.
+
+Changes delivered:
+1. oompah/server.py: Replace legacy tracker access with _get_tracker(orch, project_id) + try/except (best-effort, no 503 on failure)
+2. tests/test_server_release_delivery_backlog_factory.py: Updated 5 locations to use orch._tracker_for_project instead of orch.tracker
+3. tests/test_server_release_delivery_backlog_tracker.py (new, 10 tests): Full multi-project regression suite per issue requirements
+
+Acceptance criteria met:
+- Trickle release/0.11 endpoint uses project-scoped tracker → returns eligible Merged tasks
+- Candidate rows never sourced from another project's tracker
+- Unavailable tracker gracefully degrades to tracker=None (no 503, no substitution)
+- Single-project/legacy-mode compatibility preserved
+- make test passes (9217 passed)
 ---
 <!-- COMMENTS:END -->
