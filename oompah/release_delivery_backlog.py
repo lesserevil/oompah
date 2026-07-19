@@ -79,6 +79,7 @@ from oompah.release_delivery_inventory import (
     _check_ancestry_batch,
     _compute_cell,
     _enumerate_commits,
+    _find_branch_commits_in_main,
     _is_tracker_only_commit,
     MAX_COMMITS,
 )
@@ -422,6 +423,65 @@ class ItemBacklogService:
                 item_commits_map[ident].append(ci.sha)
             else:
                 unassociated_shas.append(ci.sha)
+
+        # 3b. Tracker-sourced discovery: add merged tasks/epics with no ledger record.
+        #
+        # The ledger only contains items that have previously been queued for
+        # delivery.  Items that were merged to the default branch but never
+        # queued are invisible to ledger-only discovery.  When a tracker is
+        # provided, enumerate all Merged items and resolve their source commits
+        # from their work_branch.  Only commits already in all_commits (reachable
+        # from origin/<default_branch>) are eligible — this guards against
+        # stale/non-merged branches.
+        #
+        # The ledger takes precedence: if an identifier is already in
+        # item_commits_map (from the ledger) we extend its commit list with any
+        # additional commits found on the work_branch, but we never override
+        # a ledger-sourced association for a commit.
+        if tracker is not None:
+            try:
+                merged_issues = tracker.fetch_issues_by_states(["Merged"])
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "ItemBacklogService: failed to fetch merged issues from tracker: %s",
+                    exc,
+                )
+                merged_issues = []
+
+            for issue in merged_issues:
+                ident = getattr(issue, "identifier", None)
+                work_branch = getattr(issue, "work_branch", None)
+                if not ident or not work_branch:
+                    continue
+
+                # Find commits from this issue's work_branch that are on main.
+                branch_shas = _find_branch_commits_in_main(
+                    self._repo_path,
+                    work_branch,
+                    sha_set,
+                    timeout=self._revlist_timeout,
+                )
+                # No evidence of a merge to main → exclude this item.
+                if not branch_shas:
+                    continue
+
+                kind = (getattr(issue, "issue_type", None) or "task").strip() or "task"
+
+                if ident not in item_commits_map:
+                    item_commits_map[ident] = []
+                    item_kind_map[ident] = kind
+
+                existing_for_ident = set(item_commits_map[ident])
+                for sha in branch_shas:
+                    # Skip commits already ledger-associated to a *different* item.
+                    if sha in association_by_sha and association_by_sha[sha].get("identifier") != ident:
+                        continue
+                    if sha not in existing_for_ident:
+                        item_commits_map[ident].append(sha)
+                        existing_for_ident.add(sha)
+                        # Remove from unassociated list if it was placed there
+                        if sha in unassociated_shas:
+                            unassociated_shas.remove(sha)
 
         # 4. Ancestry check — check which unassociated SHAs + item SHAs need it
         all_shas_for_ancestry = list(sha_set)

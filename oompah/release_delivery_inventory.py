@@ -652,6 +652,74 @@ def _check_ancestry_batch(
     return ancestors
 
 
+def _find_branch_commits_in_main(
+    repo_path: str | Path,
+    work_branch: str,
+    main_shas: set[str],
+    *,
+    timeout: int = 60,
+) -> list[str]:
+    """Return commits from *work_branch* that are also reachable from origin/main.
+
+    Enumerates non-merge commits reachable from
+    ``refs/remotes/origin/<work_branch>`` and returns those whose SHA also
+    appears in *main_shas* (i.e. they are already on the default branch).
+
+    This is used for tracker-sourced candidate discovery: when the tracker
+    reports a task/epic as Merged, we can find its associated commits by
+    looking for branch-head commits that landed on main.
+
+    Returns an empty list when the branch ref does not exist locally or on
+    any subprocess failure.  Errors are logged at DEBUG level rather than
+    raised so that a missing branch ref is treated as "no commits found" —
+    a graceful degradation that lets the backlog continue with the remaining
+    candidates.
+
+    Args:
+        repo_path: Local git clone path.
+        work_branch: Branch name (without ``origin/`` prefix) that was merged.
+        main_shas: Set of non-merge commit SHAs already enumerated from the
+            default branch (``origin/main``).
+        timeout: Subprocess timeout in seconds.
+
+    Returns:
+        Ordered list of SHAs that appear in both *main_shas* and the
+        commit history of *work_branch*, in the order they appear in the
+        branch's commit log.
+    """
+    if not work_branch or not main_shas:
+        return []
+
+    branch_ref = f"refs/remotes/origin/{work_branch}"
+    # Enumerate up to len(main_shas) commits from the branch; the
+    # intersection with main_shas gives us the candidates.
+    result = _run_git(
+        [
+            "rev-list",
+            "--no-merges",
+            f"--max-count={len(main_shas)}",
+            branch_ref,
+        ],
+        repo_path=repo_path,
+        timeout=timeout,
+    )
+    if result.returncode != 0:
+        logger.debug(
+            "_find_branch_commits_in_main: git rev-list failed for %r (rc=%d): %s",
+            branch_ref,
+            result.returncode,
+            (result.stderr or result.stdout or "").strip()[:200],
+        )
+        return []
+
+    found: list[str] = []
+    for raw_line in result.stdout.splitlines():
+        sha = raw_line.strip()
+        if _FULL_SHA_RE.match(sha) and sha in main_shas:
+            found.append(sha)
+    return found
+
+
 def _compute_ahead_behind(
     repo_path: str | Path,
     *,

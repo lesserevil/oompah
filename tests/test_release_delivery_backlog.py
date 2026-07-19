@@ -241,23 +241,41 @@ class TestItemBacklogService:
         query: str | None = None,
         stale: bool = False,
         is_tracker_only: bool = False,
+        tracker: Any | None = None,
+        branch_commits_map: dict[str, list[str]] | None = None,
     ) -> BacklogResult:
-        """Helper: run get_backlog with mocked git operations."""
+        """Helper: run get_backlog with mocked git operations.
+
+        Args:
+            tracker: Optional mock tracker.  When provided, it is passed
+                through to ``get_backlog`` so tracker-sourced discovery runs.
+            branch_commits_map: Mapping from work_branch name to the list
+                of SHAs that ``_find_branch_commits_in_main`` should return
+                for that branch.  When ``None``, the mock returns ``[]`` for
+                every branch.
+        """
         svc = _make_service(tmp_path, deliveries)
         snapshot = _mock_snapshot(stale=stale)
         if ancestry_shas is None:
             ancestry_shas = set()
+
+        def _mock_find_branch(repo_path, work_branch, main_shas, *, timeout=60):
+            if branch_commits_map is None:
+                return []
+            return branch_commits_map.get(work_branch, [])
 
         with (
             patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=snapshot),
             patch("oompah.release_delivery_backlog._enumerate_commits", return_value=commits),
             patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=ancestry_shas),
             patch("oompah.release_delivery_backlog._is_tracker_only_commit", return_value=is_tracker_only),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", side_effect=_mock_find_branch),
         ):
             return svc.get_backlog(
                 selected_branch=_RELEASE_BRANCH,
                 filter=filter,
                 query=query,
+                tracker=tracker,
             )
 
     def test_empty_backlog(self, tmp_path):
@@ -453,3 +471,207 @@ class TestItemBacklogService:
             ci = _make_commit_info(_SHA_1)
             result = self._patch_and_run(tmp_path, [d], [ci], filter="needs_delivery")
             assert len(result.items) == 1, f"Expected item for status={status.value}"
+
+    # ------------------------------------------------------------------
+    # Tracker-sourced candidate discovery (OOMPAH-238)
+    # ------------------------------------------------------------------
+
+    def _make_tracker(
+        self,
+        merged_issues: list[Any] | None = None,
+    ) -> Any:
+        """Return a minimal mock tracker for tracker-sourced discovery tests.
+
+        Args:
+            merged_issues: Issues returned by ``fetch_issues_by_states(['Merged'])``.
+        """
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = merged_issues or []
+        # get_issue returns None for all identifiers (titles not needed in these tests)
+        tracker.get_issue.return_value = None
+        return tracker
+
+    def _make_issue(
+        self,
+        identifier: str,
+        work_branch: str,
+        issue_type: str = "task",
+        state: str = "Merged",
+    ) -> Any:
+        """Return a minimal mock Issue for tracker-sourced discovery tests."""
+        issue = MagicMock()
+        issue.identifier = identifier
+        issue.work_branch = work_branch
+        issue.issue_type = issue_type
+        issue.state = state
+        issue.title = f"Title for {identifier}"
+        return issue
+
+    def test_merged_task_no_ledger_appears_as_not_selected(self, tmp_path):
+        """A merged task with no ledger history appears in the backlog with not_selected status.
+
+        Acceptance criterion from OOMPAH-238: the backend must return a queueable
+        item row for a merged task that has never previously been queued to any
+        release branch.
+        """
+        # No ledger entries for this task
+        ci = _make_commit_info(_SHA_1, "feat: implement TASK-42")
+        issue = self._make_issue("TASK-42", work_branch="task/TASK-42")
+        tracker = self._make_tracker(merged_issues=[issue])
+
+        result = self._patch_and_run(
+            tmp_path,
+            deliveries=[],
+            commits=[ci],
+            filter="all",
+            tracker=tracker,
+            branch_commits_map={"task/TASK-42": [_SHA_1]},
+        )
+
+        assert len(result.items) == 1, "Merged task with no ledger record must appear in backlog"
+        item = result.items[0]
+        assert item.identifier == "TASK-42"
+        assert item.kind == "task"
+        assert item.delivery_status.state == "not_selected", (
+            "Item with no ledger and no branch delivery must be not_selected"
+        )
+        assert item.commit_count == 1
+        assert item.source_commits[0].sha == _SHA_1
+        # The commit is now item-associated, so it must NOT appear in unassociated
+        assert all(r.sha != _SHA_1 for r in result.unassociated_commits)
+
+    def test_merged_epic_multiple_commits_appears_once(self, tmp_path):
+        """A merged epic with multiple commits on main appears as a single item row.
+
+        Acceptance criterion: the backlog returns exactly one item row for the
+        epic, with all associated commits included and their count correct.
+        """
+        ci1 = _make_commit_info(_SHA_1, "feat: epic commit 1")
+        ci2 = _make_commit_info(_SHA_2, "feat: epic commit 2")
+        issue = self._make_issue("EPIC-5", work_branch="epic/EPIC-5", issue_type="epic")
+        tracker = self._make_tracker(merged_issues=[issue])
+
+        result = self._patch_and_run(
+            tmp_path,
+            deliveries=[],
+            commits=[ci1, ci2],
+            filter="all",
+            tracker=tracker,
+            branch_commits_map={"epic/EPIC-5": [_SHA_1, _SHA_2]},
+        )
+
+        # Must be exactly ONE item row, not two
+        assert len(result.items) == 1, (
+            f"Merged epic with 2 commits must produce 1 item row, got {len(result.items)}"
+        )
+        item = result.items[0]
+        assert item.identifier == "EPIC-5"
+        assert item.kind == "epic"
+        assert item.commit_count == 2
+        sha_set = {sc.sha for sc in item.source_commits}
+        assert sha_set == {_SHA_1, _SHA_2}
+        # Both commits now item-associated, unassociated list must be empty
+        assert result.unassociated_commits == []
+
+    def test_nonmerged_task_excluded_from_tracker_sourced_discovery(self, tmp_path):
+        """A task that is NOT Merged is excluded from tracker-sourced candidate discovery.
+
+        The tracker's fetch_issues_by_states(['Merged']) only returns Merged items;
+        tasks in any other state (Open, In Progress, etc.) must not appear in the
+        backlog unless they are present in the ledger.
+        """
+        ci = _make_commit_info(_SHA_3, "fix: unmerged task commit")
+        # Tracker returns an empty Merged list (the non-merged task is filtered out
+        # by fetch_issues_by_states — we verify the integration handles this correctly)
+        tracker = self._make_tracker(merged_issues=[])  # no merged issues
+
+        result = self._patch_and_run(
+            tmp_path,
+            deliveries=[],
+            commits=[ci],
+            filter="all",
+            tracker=tracker,
+            branch_commits_map={},  # no branches map to commits
+        )
+
+        # No item rows (the commit has no ledger record and is not Merged in tracker)
+        assert result.items == [], (
+            "Non-merged task must not appear as an item row"
+        )
+        # The commit appears in unassociated (it's still on main, just unknown)
+        assert len(result.unassociated_commits) == 1
+        assert result.unassociated_commits[0].sha == _SHA_3
+
+    def test_ledger_status_overrides_default_for_tracker_sourced_item(self, tmp_path):
+        """When both ledger and tracker agree on an item, ledger delivery status wins.
+
+        If a merged task is in the tracker AND has an open delivery in the ledger,
+        the item row must show the ledger status (open), not the tracker-default
+        (not_selected).  The ledger is the authoritative source for delivery status.
+        """
+        # Ledger has an open delivery for TASK-99 targeting the release branch
+        d = _make_delivery([_SHA_1], _RELEASE_BRANCH, AddendumStatus.OPEN, "TASK-99")
+        ci = _make_commit_info(_SHA_1, "feat: TASK-99 implementation")
+
+        # Tracker also reports TASK-99 as Merged (e.g. it was merged to main)
+        issue = self._make_issue("TASK-99", work_branch="task/TASK-99")
+        tracker = self._make_tracker(merged_issues=[issue])
+
+        result = self._patch_and_run(
+            tmp_path,
+            deliveries=[d],
+            commits=[ci],
+            filter="all",
+            tracker=tracker,
+            branch_commits_map={"task/TASK-99": [_SHA_1]},
+        )
+
+        assert len(result.items) == 1
+        item = result.items[0]
+        assert item.identifier == "TASK-99"
+        assert item.delivery_status.state == "open", (
+            "Ledger's open delivery must take precedence over tracker-default not_selected"
+        )
+
+    def test_tracker_item_with_no_main_commits_excluded(self, tmp_path):
+        """A merged tracker item whose commits are not reachable from origin/main is excluded.
+
+        Acceptance criterion from OOMPAH-238: only commits reachable from
+        origin/main are eligible.  If _find_branch_commits_in_main returns an
+        empty list (branch was merged elsewhere, branch ref gone, etc.), the item
+        must not appear.
+        """
+        ci = _make_commit_info(_SHA_4, "feat: some other commit")
+        # Tracker returns merged task but its work_branch has NO commits in main_shas
+        issue = self._make_issue("TASK-77", work_branch="task/TASK-77")
+        tracker = self._make_tracker(merged_issues=[issue])
+
+        result = self._patch_and_run(
+            tmp_path,
+            deliveries=[],
+            commits=[ci],
+            filter="all",
+            tracker=tracker,
+            branch_commits_map={"task/TASK-77": []},  # empty → no main commits
+        )
+
+        assert result.items == [], (
+            "Tracker item with no commits on main must be excluded from backlog"
+        )
+
+    def test_tracker_discovery_skipped_when_tracker_is_none(self, tmp_path):
+        """When tracker=None, only ledger-sourced items appear (existing behaviour preserved)."""
+        # Commit with no ledger association
+        ci = _make_commit_info(_SHA_1, "feat: untracked commit")
+
+        result = self._patch_and_run(
+            tmp_path,
+            deliveries=[],
+            commits=[ci],
+            filter="all",
+            tracker=None,  # no tracker
+        )
+
+        assert result.items == [], "No tracker → no tracker-sourced items"
+        assert len(result.unassociated_commits) == 1
+        assert result.unassociated_commits[0].sha == _SHA_1
