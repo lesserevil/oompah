@@ -14,7 +14,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T03:14:12.750310Z'
+updated_at: '2026-07-19T03:14:15.018852Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -250,5 +250,10 @@ author: oompah
 created: 2026-07-19 03:13
 ---
 Focus handoff from `epic_planner` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-19 03:14
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
