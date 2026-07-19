@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:57:46.643682Z'
+updated_at: '2026-07-19T22:57:54.545083Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -211,5 +211,10 @@ author: oompah
 created: 2026-07-19 22:57
 ---
 Understanding: OOMPAH-251 requires an observable async refresh model so that the Release Delivery backlog endpoint returns immediately with a cached (stale-while-revalidate) result while candidate discovery runs as a background job. Per the requirement update, long discovery runs are acceptable; the UI must show meaningful progress while a refresh is active and must not show an unexplained blank state.
+---
+author: oompah
+created: 2026-07-19 22:57
+---
+Discovery: Key files involved — oompah/release_delivery_backlog.py (get_backlog, needed progress_callback), oompah/server.py (endpoint, needed refresh manager singleton + status/refresh sub-endpoints), oompah/release_delivery_refresh.py (new — BacklogRefreshManager + RefreshStatus). Critical finding: BacklogRefreshManager needed threading.RLock (reentrant) because get_status() acquires the lock and is called while the manager already holds it (deadlock with regular Lock). Filter-agnostic cache design: always cache filter='all' result and apply filter/query at read time so one cached result serves all filter variants.
 ---
 <!-- COMMENTS:END -->
