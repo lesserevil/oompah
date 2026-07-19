@@ -3943,8 +3943,14 @@ async def api_release_delivery_backlog(
         # query — empty string treated as None (no filter)
         query_param: str | None = params.get("query", "").strip() or None
 
-        # Fetch tracker for title enrichment (best-effort)
-        tracker = getattr(orch, "tracker", None)
+        # Fetch tracker for title enrichment (best-effort, project-scoped).
+        # Do NOT fall back to orch.tracker (the legacy/global tracker): for a
+        # managed project that would return tasks from the wrong project and
+        # produce zero items for the correct one (OOMPAH-250).
+        try:
+            tracker = _get_tracker(orch, project_id)
+        except Exception:
+            tracker = None
 
         # Get or create the per-project backlog service
         service = _get_item_backlog_service(project)
