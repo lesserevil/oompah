@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:36.850057Z'
-updated_at: '2026-07-19T03:42:44.982797Z'
+updated_at: '2026-07-19T03:43:00.183421Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -153,5 +153,10 @@ author: oompah
 created: 2026-07-19 03:42
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-19 03:43
+---
+Understanding: Adding dashboard-level regression tests for the corrected item-centric Release Delivery workflow. Plan: (1) Read existing test file and source files to understand patterns, (2) Add tests covering: newly merged task with no release history appears as queueable primary row with correct fields; selection sends source_commits to queue endpoint; delivered/active/archived items have disabled checkboxes. Tests must fail against ledger-only bug and pass with tracker-sourced backlog fix from OOMPAH-238.
 ---
 <!-- COMMENTS:END -->
