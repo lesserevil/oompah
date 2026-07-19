@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:58:09.856840Z'
+updated_at: '2026-07-19T22:58:21.490760Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -226,5 +226,28 @@ author: oompah
 created: 2026-07-19 22:58
 ---
 Verification: make test passes — 9287 passed, 36 skipped. New test files: tests/test_release_delivery_refresh.py (47 tests: RefreshStatus serialisation, BacklogRefreshManager lifecycle, Trickle-scale fixture with 2000 commits + 60 merged items verifying bounded SCM calls, title enrichment failure isolation, filter regression, thread-safety). Updated tests: test_server_release_delivery_backlog.py (43 tests, complete rewrite for async model), test_server_release_delivery_backlog_factory.py and test_server_release_delivery_backlog_tracker.py (_sync_backlog_refresh fixture added to restore integration test behaviour under async model).
+---
+author: oompah
+created: 2026-07-19 22:58
+---
+Focus handoff: test
+
+Outcome: Test Engineer focus complete. All test requirements from OOMPAH-251 are implemented and passing.
+
+Delivered tests:
+- test_release_delivery_refresh.py (47 tests): Trickle-scale fixture (2000 commits, 60 merged items), bounded SCM call assertions, title enrichment failure tests, filter/query regression, concurrent get_or_start deduplication, phase transition tracking, progress callback safety.
+- test_server_release_delivery_backlog.py (43 tests, rewritten): GET backlog via refresh manager, GET /backlog/status, POST /backlog/refresh, stale result retention, failure state, retry.
+- test_server_release_delivery_backlog_factory.py and _tracker.py: _sync_backlog_refresh autouse fixture restores all existing integration tests under the async model.
+
+Relevant files:
+- oompah/release_delivery_refresh.py (new)
+- oompah/release_delivery_backlog.py (modified)
+- oompah/server.py (modified)
+- tests/test_release_delivery_refresh.py (new)
+- tests/test_server_release_delivery_backlog.py (rewritten)
+- tests/test_server_release_delivery_backlog_factory.py (fixture added)
+- tests/test_server_release_delivery_backlog_tracker.py (fixture added)
+
+Remaining work: The requirement update calls for the Release Delivery UI to render a progress bar (determinate when total is known, explicit phase text otherwise), show stale results while a refresh is active, and allow retry after failure. The backend surfaces all necessary data (refresh_status.phase, completed, total, elapsed_s, error, has_result). The UI work is the outstanding piece — recommended next focus: frontend.
 ---
 <!-- COMMENTS:END -->
