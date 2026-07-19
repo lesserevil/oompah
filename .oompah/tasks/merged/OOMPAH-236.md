@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T01:41:44.401865Z'
+updated_at: '2026-07-19T01:41:46.619630Z'
 work_branch: OOMPAH-236
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/443
@@ -364,5 +364,10 @@ author: oompah
 created: 2026-07-19 01:33
 ---
 Discovery: All 44 CI failures have the same root cause — POST /api/v1/issues and oompah task create now require a 'description' field (enforced at API boundary), but tests written before this requirement was added don't provide it. Fix: add 'description' to 8 test files: test_server_create_issue.py, test_server_create_labels.py, test_server_issue_enhance.py, test_draft_epic_kanban.py, test_dashboard_draft_epics.py, test_server_blocking_off_loop.py, test_tracker_for_project_name_fallback.py, test_task_cli.py. All changes are in test files only — no production code changes needed.
+---
+author: oompah
+created: 2026-07-19 01:41
+---
+YOLO: merged PR #443.
 ---
 <!-- COMMENTS:END -->
