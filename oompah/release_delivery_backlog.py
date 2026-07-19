@@ -64,6 +64,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -341,6 +342,7 @@ class ItemBacklogService:
         filter: str = "needs_delivery",
         query: str | None = None,
         tracker: Any | None = None,
+        progress_callback: Callable[[str, int, int | None], None] | None = None,
     ) -> BacklogResult:
         """Return the complete item-centric backlog for *selected_branch*.
 
@@ -354,6 +356,16 @@ class ItemBacklogService:
                 title, commit subject, or author name.  Case-insensitive.
             tracker: Optional tracker instance for resolving item titles.
                 When ``None``, titles are not fetched.
+            progress_callback: Optional callable invoked at each phase
+                transition to report progress.  Signature:
+                ``(phase: str, completed: int, total: int | None) → None``.
+                Phases emitted (in order):
+                - ``"loading_merged"`` — fetching merged issue list from tracker
+                - ``"resolving_commits"`` — resolving source commits per issue
+                - ``"comparing_ancestry"`` — batch ancestry check
+                - ``"preparing_rows"`` — building item rows / fetching titles
+                - ``"diagnostics"`` — computing tracker_only for unassociated commits
+                Exceptions raised by the callback are silently suppressed.
 
         Returns:
             :class:`BacklogResult` with the complete bounded item list.
@@ -367,6 +379,13 @@ class ItemBacklogService:
             raise ValueError("selected_branch must not be empty")
 
         selected_branch = selected_branch.strip()
+
+        def _emit(phase: str, completed: int, total: int | None) -> None:
+            if progress_callback is not None:
+                try:
+                    progress_callback(phase, completed, total)
+                except Exception:  # noqa: BLE001
+                    pass
 
         # 1. Fetch refs and build snapshot
         snapshot = _acquire_snapshot(
@@ -462,6 +481,7 @@ class ItemBacklogService:
         # additional commits found, but we never override a ledger-sourced
         # association for a commit.
         if tracker is not None:
+            _emit("loading_merged", 0, None)
             try:
                 merged_issues = tracker.fetch_issues_by_states(["Merged"])
             except Exception as exc:  # noqa: BLE001
@@ -471,9 +491,13 @@ class ItemBacklogService:
                 )
                 merged_issues = []
 
-            for issue in merged_issues:
+            _n_merged = len(merged_issues)
+            _emit("resolving_commits", 0, _n_merged)
+
+            for _i, issue in enumerate(merged_issues):
                 ident = getattr(issue, "identifier", None)
                 if not ident:
+                    _emit("resolving_commits", _i + 1, _n_merged)
                     continue
 
                 work_branch = getattr(issue, "work_branch", None)
@@ -501,6 +525,8 @@ class ItemBacklogService:
                         timeout=self._revlist_timeout,
                     )
 
+                _emit("resolving_commits", _i + 1, _n_merged)
+
                 # No evidence of a merge to main → exclude this item.
                 if not branch_shas:
                     continue
@@ -524,6 +550,7 @@ class ItemBacklogService:
                             unassociated_shas.remove(sha)
 
         # 4. Ancestry check — check which unassociated SHAs + item SHAs need it
+        _emit("comparing_ancestry", 0, None)
         all_shas_for_ancestry = list(sha_set)
         ancestry_set: set[str] = set()
         if branch_available and branch_head:
@@ -546,9 +573,11 @@ class ItemBacklogService:
                 )
 
         # 5. Fetch titles from tracker (best-effort)
+        _n_items_for_titles = len(item_commits_map)
+        _emit("preparing_rows", 0, _n_items_for_titles)
         title_map: dict[str, str | None] = {}
         if tracker is not None:
-            for ident in item_commits_map:
+            for _ti, ident in enumerate(item_commits_map):
                 try:
                     issue = tracker.get_issue(ident)
                     if issue is not None:
@@ -559,6 +588,7 @@ class ItemBacklogService:
                         ident,
                         exc,
                     )
+                _emit("preparing_rows", _ti + 1, _n_items_for_titles)
 
         # 6. Build item rows
         query_lower = query.lower().strip() if query else None
@@ -634,6 +664,7 @@ class ItemBacklogService:
                 break
 
         # 7. Build unassociated commit rows
+        _emit("diagnostics", 0, None)
         #
         # Cap the number of ``_is_tracker_only_commit`` subprocess calls to
         # MAX_UNASSOC_TRACKER_ONLY_CHECK so that a large direct-to-main commit

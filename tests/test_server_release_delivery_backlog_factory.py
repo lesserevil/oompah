@@ -182,6 +182,49 @@ def _clear_backlog_service_cache():
     server_module._item_backlog_services.clear()
 
 
+@pytest.fixture(autouse=True)
+def _sync_backlog_refresh():
+    """Run the backlog refresh synchronously during TestClient HTTP tests.
+
+    The async refresh model (OOMPAH-251) starts a background asyncio task, which
+    does not complete before a synchronous TestClient response is returned.  This
+    fixture patches BacklogRefreshManager.get_or_start so that it calls
+    service.get_backlog() directly (no background task) and returns the result
+    immediately.  This allows HTTP-level tests to assert on backlog contents and
+    tracker call args without setting up an async event-loop harness.
+    """
+    from oompah.release_delivery_refresh import BacklogRefreshManager, RefreshStatus
+
+    # Reset the singleton so the patched class method applies to a fresh instance.
+    with server_module._backlog_refresh_manager_lock:
+        server_module._backlog_refresh_manager = None
+
+    async def _sync_get_or_start(
+        self,
+        project_id: str,
+        branch: str,
+        *,
+        service,
+        filter: str = "all",
+        query=None,
+        tracker=None,
+    ):
+        result = service.get_backlog(
+            selected_branch=branch,
+            filter="all",
+            query=query,
+            tracker=tracker,
+        )
+        return RefreshStatus(phase="complete", has_result=True), result
+
+    with patch.object(BacklogRefreshManager, "get_or_start", _sync_get_or_start):
+        yield
+
+    # Clean up singleton after test
+    with server_module._backlog_refresh_manager_lock:
+        server_module._backlog_refresh_manager = None
+
+
 # ---------------------------------------------------------------------------
 # Unit tests: _get_item_backlog_service factory
 # ---------------------------------------------------------------------------
