@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T00:43:27.075120Z'
+updated_at: '2026-07-19T01:14:03.532593Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -223,5 +223,40 @@ This issue replaces the commit-centric release delivery model with an item-centr
 **Docs:**
 - Update plans/release-delivery-commit-inventory.md
 - Update docs/release-addendums.md
+---
+author: oompah
+created: 2026-07-19 01:14
+---
+Implementation: Replaced Release Delivery commit pagination with item-centric release backlog.
+
+Changes made:
+
+1. **oompah/release_delivery_backlog.py** (new, ~520 lines)
+   - ItemBacklogService.get_backlog() — reads ledger, groups commits by source_identifier, aggregates status per item, applies filter/search
+   - BacklogResult, ItemRow, UnassociatedCommitRow, SourceCommitInfo dataclasses
+   - _rank_status / _aggregate_cell_for_item for highest-priority status selection across commits
+   - MAX_BACKLOG_ITEMS = 500 (no pagination cursor)
+
+2. **oompah/server.py** (modified)
+   - Added GET /api/v1/projects/{project_id}/release-delivery/backlog endpoint
+   - branch param required (400 if missing/invalid), filter param, query param
+   - Returns BacklogResult as JSON — no next_cursor field ever
+   - 400/404/503 error handling; asyncio.to_thread for sync service call
+
+3. **oompah/templates/dashboard.html** (modified — major JS/HTML rework)
+   - Branch-first selection: added <select id='rdi-branch-select'> dropdown
+   - Removed: branch-filter checkboxes, pagination element, target-branch list
+   - New functions: _rdiPopulateBranchSelector, _rdiOnBranchChange, _rdiLoadBacklog, _rdiRenderBacklog, _rdiRenderItemRow, _rdiRenderUnassocRow, _rdiRenderStatusCell, _rdiToggleIdentifier, _rdiOpenItemDrawer, _rdiShowNoBranch
+   - Removed: _rdiLoadPage, _rdiRenderPage, _rdiRenderRow, _rdiRenderCell, _rdiToggleSHA, _rdiOpenDrawer, _rdiBranchFilterChange, _rdiRenderPagination, _rdiFindRow
+   - State renamed: _rdiSelectedBranch, _rdiSelectedIdentifiers, _rdiCurrentData, _rdiDrawerItem (no _rdiCursor)
+   - Queue: collects all source_commits from selected items, sends to existing POST endpoint with single target branch
+
+4. **tests/test_release_delivery_backlog.py** (new, ~500 lines — 33 tests)
+5. **tests/test_server_release_delivery_backlog.py** (new, ~480 lines — 16 tests)
+6. **tests/test_dashboard_release_delivery_ui.py** (replaced — 277 tests; updated to item-centric model)
+7. **plans/release-delivery-commit-inventory.md** (rewritten to describe item-centric design)
+8. **docs/release-addendums.md** (updated to describe item-centric primary workflow)
+
+All 326 new/modified tests pass. Pre-existing failures in test_draft_epic_kanban/test_server_create_issue/test_task_cli/etc. are unrelated to this change (confirmed by running without changes).
 ---
 <!-- COMMENTS:END -->
