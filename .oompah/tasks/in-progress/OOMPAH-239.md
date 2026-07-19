@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T02:30:20.650720Z'
-updated_at: '2026-07-19T03:30:22.267756Z'
+updated_at: '2026-07-19T03:36:32.053622Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -236,5 +236,30 @@ Plan:
 - Add regression tests that count git subprocess calls for large synthetic commit sets
 - Add coverage that primary item rows are returned even with large unassociated sets
 - Run make test to confirm all pass
+---
+author: oompah
+created: 2026-07-19 03:36
+---
+Implementation & Verification
+
+Fix: Added MAX_UNASSOC_TRACKER_ONLY_CHECK = 50 constant to oompah/release_delivery_backlog.py. The unassociated-commit loop (step 7 of get_backlog) now caps _is_tracker_only_commit() subprocess calls to the first 50 unassociated commits; commits beyond the cap default to tracker_only=False. Primary item rows (step 6) are built before the unassociated loop and are unaffected. The constant is exported so tests can assert against it.
+
+Tests added (10 new passing tests):
+
+tests/test_release_delivery_backlog.py — TestUnassociatedCommitTrackerOnlyBound:
+  - test_git_calls_bounded_for_large_unassociated_set: regression for OOMPAH-239, counts mock calls for 200 unassociated commits, asserts ≤ MAX_UNASSOC_TRACKER_ONLY_CHECK
+  - test_git_call_count_does_not_grow_with_commit_count: verifies bound is O(1) not O(N)
+  - test_primary_items_returned_with_large_unassociated_set: 5 primary rows + 200 unassociated; all primary rows present, call count bounded
+  - test_commits_beyond_cap_have_tracker_only_false: commits past cap appear with tracker_only=False
+  - test_small_unassociated_set_all_classified: small sets (≤ cap) are fully classified
+  - test_exactly_cap_commits_all_classified: boundary case — exactly 50 commits all classified
+
+tests/test_server_release_delivery_backlog.py — TestLargeCommitSetBoundedGitOps:
+  - test_large_commit_set_returns_200_with_items: API returns 200 with primary items for large commit set
+  - test_large_commit_set_unassociated_count_in_response: unassociated rows appear correctly
+  - test_service_called_once_per_request: get_backlog() called exactly once per request
+  - test_bounded_git_calls_with_large_unassociated_set: integration test counting calls via ItemBacklogService
+
+Full suite: 9139 passed, 36 skipped — no regressions.
 ---
 <!-- COMMENTS:END -->
