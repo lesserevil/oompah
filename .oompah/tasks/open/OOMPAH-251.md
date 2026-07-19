@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-251
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Make Release Delivery candidate discovery bounded for Trickle-scale history
 parent: null
@@ -14,7 +14,7 @@ labels:
 - needs:frontend
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T22:58:31.895890Z'
+updated_at: '2026-07-19T22:58:36.667787Z'
 work_branch: null
 target_branch: null
 review_url: null
