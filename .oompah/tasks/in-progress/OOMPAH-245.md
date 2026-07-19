@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-245
 type: task
-status: Open
+status: In Progress
 priority: 0
 title: Rebase epic-OOMPAH-237 onto main
 parent: OOMPAH-237
@@ -12,7 +12,7 @@ labels:
 - needs:devops
 assignee: null
 created_at: '2026-07-19T03:36:50.594425Z'
-updated_at: '2026-07-19T03:39:12.991659Z'
+updated_at: '2026-07-19T03:41:49.309192Z'
 work_branch: null
 target_branch: null
 review_url: null
