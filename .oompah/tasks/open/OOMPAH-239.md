@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T02:30:20.650720Z'
-updated_at: '2026-07-19T02:52:06.732426Z'
+updated_at: '2026-07-19T03:07:35.186276Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,6 +19,15 @@ merged_at: null
 ---
 ## Summary
 
+Remove the Release Delivery backlog timeout caused by per-commit Git subprocess work.
+
+Read first: oompah/release_delivery_backlog.py and the OOMPAH-237 description. The primary task/epic backlog must return without waiting on tracker-only classification for every unassociated main-branch commit.
+
+Replace repeated per-commit Git checks with bounded or batched operations and cache reusable results. Keep unassociated direct-to-main commits diagnostic-only; they must not delay construction of primary item rows. Preserve correct tracker-only classification where it is displayed.
+
+Tests: add a large synthetic commit-set regression test that counts Git calls or enforces a bounded execution path, plus coverage that primary candidate rows are returned when diagnostic commit classification is skipped/deferred.
+
+Acceptance criteria: the Trickle release/0.11 backlog endpoint returns within its HTTP timeout, and the implementation does not issue one subprocess per unassociated commit during primary backlog rendering.
 ## Problem
 
 When the unassociated-commit diagnostic section is computed, ItemBacklogService calls _is_tracker_only_commit() for each unassociated commit. This function spawns a git diff-tree subprocess per commit. At Trickle scale (thousands of commits on main), this causes the backlog endpoint to time out.
@@ -62,4 +71,3 @@ Add a test in tests/test_server_release_delivery_backlog.py (or tests/test_relea
 - [ ] Define acceptance criteria.
 
 ## Notes
-
