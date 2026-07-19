@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-19T02:30:55.182823Z'
-updated_at: '2026-07-19T02:52:14.129777Z'
+updated_at: '2026-07-19T03:07:41.661857Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,6 +20,15 @@ merged_at: null
 ---
 ## Summary
 
+Add a Trickle-specific regression fixture for release/0.11 Release Delivery backlog candidate discovery.
+
+This task depends on OOMPAH-238. Build a deterministic fixture using representative native tracker metadata for a task or epic merged to main but never queued for release/0.11, plus representative release-delivery ledger and ancestry evidence.
+
+Exercise the backlog service or API and verify the merged item appears in the primary needs-delivery list, has a queueable Not selected state, and exposes its source-main commits. Add a companion delivered-by-ancestry case to prove it is excluded from needs-delivery.
+
+Do not depend on live GitHub or the live Trickle checkout.
+
+Acceptance criteria: the regression reproduces the missing-release/0.11-candidate defect before the backend fix and passes after it.
 ## Context
 
 The bug was discovered on Trickle (the project that uses this oompah instance to manage its own releases). The Trickle release/0.11 backlog was not showing merged tasks because they had never been queued through the delivery ledger. After OOMPAH-238 and OOMPAH-239 are fixed, this regression test proves that the correct data appears and the endpoint doesn't time out.
@@ -65,4 +74,3 @@ Add a regression test in tests/test_release_delivery_backlog.py or a new file te
 - [ ] Define acceptance criteria.
 
 ## Notes
-
