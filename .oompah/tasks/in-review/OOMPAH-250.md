@@ -12,9 +12,9 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T21:11:24.255407Z'
-updated_at: '2026-07-19T21:40:54.488251Z'
+updated_at: '2026-07-19T21:40:57.965873Z'
 work_branch: OOMPAH-250
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/448
 review_number: '448'
 merged_at: null
@@ -44,6 +44,7 @@ oompah.task_costs:
 oompah.review_url: https://github.com/lesserevil/oompah/pull/448
 oompah.review_number: '448'
 oompah.work_branch: OOMPAH-250
+oompah.target_branch: main
 ---
 ## Summary
 
