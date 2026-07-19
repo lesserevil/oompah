@@ -21,7 +21,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-19T02:22:21.578496Z'
-updated_at: '2026-07-19T09:28:53.552080Z'
+updated_at: '2026-07-19T18:24:44.070079Z'
 work_branch: epic-OOMPAH-237
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/445
@@ -291,5 +291,10 @@ author: oompah
 created: 2026-07-19 09:28
 ---
 YOLO: merged PR #445.
+---
+author: oompah
+created: 2026-07-19 18:24
+---
+Regression found after merge: the live Trickle release/0.11 backlog returns items=0 and unassociated=7513. Candidate discovery still requires refs/remotes/origin/<work_branch>; merged task branches are normally deleted, so no commits are resolved and eligible Merged tasks are excluded. Filed OOMPAH-248 with durable merge-evidence and deleted-branch regression requirements. OOMPAH-237 acceptance criterion for Trickle is therefore not met in production.
 ---
 <!-- COMMENTS:END -->
