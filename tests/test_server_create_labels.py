@@ -72,6 +72,7 @@ class TestCreateIssueLabelsAsList:
                     "title": "GitHub task with labels",
                     "project_id": "proj-1",
                     "labels": ["needs:frontend", "area:api"],
+                    "description": "Task with labels",
                 },
             )
         assert resp.status_code == 201
@@ -91,6 +92,7 @@ class TestCreateIssueLabelsAsList:
                     "title": "single label",
                     "project_id": "proj-1",
                     "labels": ["needs:backend"],
+                    "description": "Single label task",
                 },
             )
         assert resp.status_code == 201
@@ -110,6 +112,7 @@ class TestCreateIssueLabelsAsList:
                     "title": "no labels",
                     "project_id": "proj-1",
                     "labels": [],
+                    "description": "No labels task",
                 },
             )
         assert resp.status_code == 201
@@ -129,6 +132,7 @@ class TestCreateIssueLabelsAsList:
                     "title": "padded labels",
                     "project_id": "proj-1",
                     "labels": ["  needs:frontend  ", "  ", "area:api"],
+                    "description": "Padded labels task",
                 },
             )
         assert resp.status_code == 201
@@ -155,6 +159,7 @@ class TestCreateIssueLabelsAsString:
                     "title": "string labels",
                     "project_id": "proj-1",
                     "labels": "needs:frontend, area:api",
+                    "description": "String labels task",
                 },
             )
         assert resp.status_code == 201
@@ -174,6 +179,7 @@ class TestCreateIssueLabelsAsString:
                     "title": "one string label",
                     "project_id": "proj-1",
                     "labels": "needs:frontend",
+                    "description": "One label task",
                 },
             )
         assert resp.status_code == 201
@@ -193,6 +199,7 @@ class TestCreateIssueLabelsAsString:
                     "title": "empty string labels",
                     "project_id": "proj-1",
                     "labels": "",
+                    "description": "Empty labels task",
                 },
             )
         assert resp.status_code == 201
@@ -218,6 +225,7 @@ class TestCreateIssueNoLabels:
                 json={
                     "title": "no labels field",
                     "project_id": "proj-1",
+                    "description": "No labels field task",
                 },
             )
         assert resp.status_code == 201
@@ -237,6 +245,7 @@ class TestCreateIssueNoLabels:
                     "title": "null labels",
                     "project_id": "proj-1",
                     "labels": None,
+                    "description": "Null labels task",
                 },
             )
         assert resp.status_code == 201
@@ -266,6 +275,7 @@ class TestCreateIssueLabelsPlusTargetBranch:
                     "priority": 1,
                     "labels": ["needs:frontend"],
                     "target_branch": "release/2.0",
+                    "description": "Full GitHub issue description",
                 },
             )
         assert resp.status_code == 201

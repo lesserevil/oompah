@@ -110,7 +110,7 @@ class TestNoAutoDraftOnCreate:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "New Epic", "type": "epic", "project_id": "proj-1"},
+                json={"title": "New Epic", "type": "epic", "project_id": "proj-1", "description": "New epic description"},
             )
 
         assert resp.status_code == 201
@@ -128,7 +128,7 @@ class TestNoAutoDraftOnCreate:
         ):
             resp = client.post(
                 "/api/v1/issues",
-                json={"title": "New Task", "type": "task", "project_id": "proj-1"},
+                json={"title": "New Task", "type": "task", "project_id": "proj-1", "description": "New task description"},
             )
 
         assert resp.status_code == 201

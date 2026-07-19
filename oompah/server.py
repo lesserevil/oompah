@@ -2651,8 +2651,12 @@ async def api_create_issue(request: Request):
         # A task title alone is not actionable.  Enforce this at the API
         # boundary as well as in the CLI because the dashboard and external
         # callers can create issues directly.
+        # Exception: when source_task_id is provided the "Triggered by: <id>"
+        # header is constructed as the description further below, so an empty
+        # description field is permitted in that case.
         description = str(body.get("description") or "").strip()
-        if not description:
+        source_task_id_raw = (body.get("source_task_id") or "").strip()
+        if not description and not source_task_id_raw:
             return JSONResponse(
                 {
                     "error": {
@@ -3742,6 +3746,283 @@ async def api_release_delivery_commits(
 
 # ---------------------------------------------------------------------------
 # (end release-delivery commits inventory endpoint)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/projects/{project_id}/release-delivery/backlog
+# Item-centric release delivery backlog endpoint (OOMPAH-236)
+# Plan reference: plans/release-delivery-commit-inventory.md
+# ---------------------------------------------------------------------------
+
+#: Per-project ItemBacklogService instances, keyed by project_id.
+_item_backlog_services: dict = {}
+_item_backlog_services_lock = threading.Lock()
+
+
+def _get_item_backlog_service(project):
+    """Return (or create) the :class:`~oompah.release_delivery_backlog.ItemBacklogService`
+    for *project*.
+
+    Args:
+        project: Project model with ``id``, ``repo_path``, and
+            ``default_branch`` attributes.
+
+    Returns:
+        :class:`~oompah.release_delivery_backlog.ItemBacklogService` for *project*.
+    """
+    from oompah.release_delivery_backlog import ItemBacklogService  # noqa: PLC0415
+    from oompah.release_delivery_compat import make_delivery_store  # noqa: PLC0415
+
+    project_id = project.id
+    with _item_backlog_services_lock:
+        if project_id not in _item_backlog_services:
+            store = make_delivery_store(project)
+            svc = ItemBacklogService(
+                project_root=project.repo_path,
+                project_id=str(project_id),
+                default_branch=project.default_branch,
+                delivery_store=store,
+            )
+            _item_backlog_services[project_id] = svc
+        return _item_backlog_services[project_id]
+
+
+@app.get("/api/v1/projects/{project_id}/release-delivery/backlog")
+async def api_release_delivery_backlog(
+    project_id: str, request: Request
+) -> JSONResponse:
+    """Return the item-centric release delivery backlog for one branch.
+
+    Returns one row per task or epic that has merged commits on the default
+    branch and is not yet fully delivered to the selected release branch.
+    Unassociated direct-to-main commits (no task/epic in the ledger) are
+    returned in a separate ``unassociated_commits`` array.
+
+    There is no cursor or pagination — the backlog is a complete bounded list.
+    When the commit count is very large, an explicit ``total_commit_count``
+    is included so the UI can display a count rather than hiding excess rows.
+
+    Query parameters
+    ----------------
+    branch : str, required
+        The single release branch to compute delivery status for.  Must
+        appear in the project's ``supported_release_branches``.
+    filter : str, optional
+        ``"needs_delivery"`` (default) — include only items where the
+        selected branch has a non-delivered, non-archived state.
+        ``"all"`` — include all items.
+    query : str, optional
+        Case-insensitive text search over identifier, title, commit subject,
+        author name, and PR URL.
+
+    Response
+    --------
+    200
+        Backlog result with ``items``, ``unassociated_commits``, and metadata.
+        The response never contains a ``next_cursor`` field.
+    400
+        Missing or invalid ``branch`` parameter; unknown ``filter`` value.
+    404
+        Project not found.
+    503
+        Git or tracker failure, or project has no configured repository.
+    """
+    try:
+        from oompah.release_delivery_backlog import ItemBacklogService, InventoryError as BacklogError  # noqa: PLC0415, F401
+        from oompah.release_delivery_inventory import InventoryError  # noqa: PLC0415
+
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+
+        if not project.repo_path:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "no_repo",
+                        "message": (
+                            f"Project {project_id!r} has no configured repository; "
+                            "cannot build release delivery backlog."
+                        ),
+                    }
+                },
+                status_code=503,
+            )
+
+        params = request.query_params
+
+        # branch — required, single branch
+        branch_raw = params.get("branch", "").strip()
+        if not branch_raw:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "missing_branch",
+                        "message": (
+                            "The 'branch' query parameter is required. "
+                            "Select a configured release branch to load the backlog."
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+
+        configured_set = set(project.supported_release_branches)
+        if branch_raw not in configured_set:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_branch",
+                        "message": (
+                            f"Branch {branch_raw!r} is not in the project's "
+                            "supported_release_branches."
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+
+        # filter
+        filter_param = params.get("filter", "needs_delivery").strip()
+        if filter_param not in _VALID_INVENTORY_FILTERS:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "invalid_filter",
+                        "message": (
+                            f"Unknown filter {filter_param!r}; "
+                            f"accepted values: {sorted(_VALID_INVENTORY_FILTERS)}"
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+
+        # query — empty string treated as None (no filter)
+        query_param: str | None = params.get("query", "").strip() or None
+
+        # Fetch tracker for title enrichment (best-effort)
+        tracker = getattr(orch, "tracker", None)
+
+        # Get or create the per-project backlog service
+        service = _get_item_backlog_service(project)
+
+        try:
+            result = await asyncio.to_thread(
+                service.get_backlog,
+                selected_branch=branch_raw,
+                filter=filter_param,
+                query=query_param,
+                tracker=tracker,
+            )
+        except InventoryError as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "backlog_unavailable",
+                        "message": (
+                            f"Could not build release delivery backlog: {exc}  "
+                            "Ensure the project repository is accessible and reachable."
+                        ),
+                    }
+                },
+                status_code=503,
+            )
+
+        # Serialise the BacklogResult to JSON
+        def _cell_to_dict(cell) -> dict:
+            d: dict = {"state": cell.state}
+            if cell.evidence is not None:
+                d["evidence"] = cell.evidence
+            if cell.delivery_id is not None:
+                d["delivery_id"] = cell.delivery_id
+            if cell.pr_url is not None:
+                d["pr_url"] = cell.pr_url
+            if cell.result_commits:
+                d["result_commits"] = list(cell.result_commits)
+            if cell.error is not None:
+                d["error"] = cell.error
+            if cell.conflict_agent_resolving:
+                d["conflict_agent_resolving"] = True
+            return d
+
+        items_json: list[dict] = []
+        for item in result.items:
+            items_json.append(
+                {
+                    "identifier": item.identifier,
+                    "title": item.title,
+                    "kind": item.kind,
+                    "source_commits": [
+                        {
+                            "sha": c.sha,
+                            "short_sha": c.short_sha,
+                            "subject": c.subject,
+                            "author_name": c.author_name,
+                            "authored_at": c.authored_at,
+                        }
+                        for c in item.source_commits
+                    ],
+                    "delivery_status": _cell_to_dict(item.delivery_status),
+                    "delivery_id": item.delivery_id,
+                    "commit_count": item.commit_count,
+                    "most_recent_commit_at": item.most_recent_commit_at,
+                    "tracker_only": item.tracker_only,
+                }
+            )
+
+        unassociated_json: list[dict] = []
+        for row in result.unassociated_commits:
+            unassociated_json.append(
+                {
+                    "sha": row.sha,
+                    "short_sha": row.short_sha,
+                    "subject": row.subject,
+                    "author_name": row.author_name,
+                    "authored_at": row.authored_at,
+                    "delivery_status": _cell_to_dict(row.delivery_status),
+                    "delivery_id": row.delivery_id,
+                    "tracker_only": row.tracker_only,
+                }
+            )
+
+        response_body: dict = {
+            "project_id": result.project_id,
+            "source_branch": result.source_branch,
+            "source_head": result.source_head,
+            "selected_branch": result.selected_branch,
+            "branch_head": result.branch_head,
+            "branch_available": result.branch_available,
+            "items": items_json,
+            "unassociated_commits": unassociated_json,
+            "stale": result.stale,
+            "refreshed_at": result.refreshed_at,
+            "total_commit_count": result.total_commit_count,
+            # Explicitly no next_cursor — this is a complete bounded list
+        }
+
+        return JSONResponse(response_body)
+
+    except Exception as exc:
+        logger.error(
+            "release-delivery-backlog: unexpected error for %s: %s",
+            project_id,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            {"error": {"code": "internal_error", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end release-delivery backlog endpoint)
 # ---------------------------------------------------------------------------
 
 

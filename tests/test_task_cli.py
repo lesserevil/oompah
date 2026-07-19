@@ -1009,7 +1009,7 @@ class TestBuildParser:
     def test_create_subcommand_parses(self):
         parser = task_cli.build_parser()
         args = parser.parse_args(
-            ["create", "--title", "My Task", "--project", "proj-1"]
+            ["create", "--title", "My Task", "--description", "My task description", "--project", "proj-1"]
         )
         assert args.subcommand == "create"
         assert args.title == "My Task"
@@ -1022,6 +1022,7 @@ class TestBuildParser:
             [
                 "create",
                 "--title", "T",
+                "--description", "T description",
                 "--project", "p",
                 "--label", "bug",
                 "--label", "p0",
@@ -1032,21 +1033,21 @@ class TestBuildParser:
     def test_create_with_source_flag(self):
         parser = task_cli.build_parser()
         args = parser.parse_args(
-            ["create", "--title", "Follow-up", "--project", "p", "--source", "TASK-42"]
+            ["create", "--title", "Follow-up", "--description", "Follow-up description", "--project", "p", "--source", "TASK-42"]
         )
         assert args.source == "TASK-42"
 
     def test_create_source_defaults_to_none(self):
         parser = task_cli.build_parser()
         args = parser.parse_args(
-            ["create", "--title", "No source", "--project", "p"]
+            ["create", "--title", "No source", "--description", "No source description", "--project", "p"]
         )
         assert args.source is None
 
     def test_child_create_subcommand_parses(self):
         parser = task_cli.build_parser()
         args = parser.parse_args(
-            ["child-create", "TASK-5", "--title", "Sub"]
+            ["child-create", "TASK-5", "--title", "Sub", "--description", "Sub task description"]
         )
         assert args.subcommand == "child-create"
         assert args.parent_id == "TASK-5"
@@ -1168,12 +1169,12 @@ class TestMainDispatch:
 
     def test_main_dispatches_create(self):
         with patch.object(task_cli, "_cmd_create") as mock_fn:
-            task_cli.main(["create", "--title", "T", "--project", "p"])
+            task_cli.main(["create", "--title", "T", "--description", "T description", "--project", "p"])
         mock_fn.assert_called_once()
 
     def test_main_dispatches_child_create(self):
         with patch.object(task_cli, "_cmd_child_create") as mock_fn:
-            task_cli.main(["child-create", "TASK-5", "--title", "Sub"])
+            task_cli.main(["child-create", "TASK-5", "--title", "Sub", "--description", "Sub description"])
         mock_fn.assert_called_once()
 
     def test_main_dispatches_set_status(self):
