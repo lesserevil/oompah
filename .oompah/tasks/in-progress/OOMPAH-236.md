@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T00:37:17.989406Z'
+updated_at: '2026-07-19T00:37:30.934317Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -88,5 +88,29 @@ Candidates reviewed:
 - OOMPAH-216 (Merged): 'Make Release Delivery show reconciled branch status and actionable retries' — added retry/state surface to the commit-centric model; OOMPAH-236 will carry this state display forward in the item-centric model.
 
 Conclusion: OOMPAH-236 is a genuinely new task — it replaces the commit-centric design (shipped in OOMPAH-192 + follow-ups) with an item-centric backlog. No existing open or in-progress task covers this same scope.
+---
+author: oompah
+created: 2026-07-19 00:37
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: OOMPAH-236 is NOT a duplicate. No existing task covers replacing the commit-centric release delivery model with an item-centric backlog. The closest candidates are all Merged predecessors that built the current commit-centric system (OOMPAH-192 epic and its children OOMPAH-197/198/199/200, OOMPAH-208, OOMPAH-209, OOMPAH-216).
+
+2. Relevant files and evidence:
+   - plans/release-delivery-commit-inventory.md — describes the current commit-centric design (what to replace/update per OOMPAH-236 impl notes)
+   - docs/release-addendums.md — user-facing doc to update
+   - The existing release delivery ledger, ancestry checks, and executor must be REUSED not rewritten
+   - OOMPAH-192 children (OOMPAH-193–202, 206) implemented the current ledger, API, and UI
+   - OOMPAH-209 (Merged) already handles tracker-only commit grouping — may interact with the new item-centric view's 'unassociated direct-to-main commits' section
+   - OOMPAH-216 (Merged) added reconciled state display and retry controls — the item-centric UI should carry these forward
+
+3. Remaining work:
+   - Replace/adapt the commit inventory API to return item rows (one per task/epic) instead of commit rows
+   - Replace the dashboard overlay with branch-first selection and item-row rendering
+   - Add unit tests, API tests, and dashboard tests per the issue description
+   - Update plans/release-delivery-commit-inventory.md and docs/release-addendums.md
+   - Verify make test passes
+
+4. Recommended next focus: feature (significant new behavior replacing existing commit-centric API + UI)
 ---
 <!-- COMMENTS:END -->
