@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T19:14:04.819745Z'
-updated_at: '2026-07-19T19:16:08.523448Z'
+updated_at: '2026-07-19T19:18:01.916354Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -124,5 +124,10 @@ author: oompah
 created: 2026-07-19 19:16
 ---
 Understanding: I am the Test Engineer for this task. My goal is to write route-level tests that exercise the real server factory (_get_item_backlog_service in oompah/server.py) with the SCM and managed_repo arguments added by OOMPAH-248. I will: (1) explore the existing ItemBacklogService and server factory code; (2) identify existing test patterns for the release delivery route; (3) write API regression tests covering the deleted-branch PR fallback via the server factory; (4) verify make test passes.
+---
+author: oompah
+created: 2026-07-19 19:18
+---
+Discovery: Found the key code. The _get_item_backlog_service factory (oompah/server.py:3763) creates ItemBacklogService without scm or managed_repo arguments. ItemBacklogService accepts both (OOMPAH-248), but the server factory doesn't pass them. I need to: (1) update the factory to call detect_provider and extract_repo_slug on project.repo_url and pass them; (2) update the cache key to (project_id, repo_url) so config changes invalidate the cache; (3) write route-level tests that exercise the real factory without mocking _get_item_backlog_service.
 ---
 <!-- COMMENTS:END -->
