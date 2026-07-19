@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-19T02:30:01.408523Z'
-updated_at: '2026-07-19T03:23:51.855105Z'
+updated_at: '2026-07-19T03:23:54.072453Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -284,5 +284,10 @@ author: oompah
 created: 2026-07-19 03:23
 ---
 Completion: Implemented and tested tracker-sourced candidate discovery for ItemBacklogService. Delivered: (1) _find_branch_commits_in_main() helper in release_delivery_inventory.py resolves work_branch commits reachable from origin/main; (2) get_backlog() step 3b adds merged tracker items not in the ledger with not_selected as default — acceptance criteria satisfied; (3) 6 new focused unit tests covering all 4 specified scenarios plus 2 edge cases (empty branch commits exclusion, tracker=None regression). Branch pushed: epic-OOMPAH-237. All 9129 tests pass.
+---
+author: oompah
+created: 2026-07-19 03:23
+---
+Implemented tracker-sourced candidate discovery in ItemBacklogService.get_backlog(): added _find_branch_commits_in_main() helper, tracker enumeration step in get_backlog(), and 6 new unit tests covering all acceptance criteria. All 9129 tests pass.
 ---
 <!-- COMMENTS:END -->
