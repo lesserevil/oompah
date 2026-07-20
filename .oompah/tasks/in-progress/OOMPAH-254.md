@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:10.225678Z'
-updated_at: '2026-07-20T16:35:33.889380Z'
+updated_at: '2026-07-20T16:36:15.313788Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -165,5 +165,14 @@ author: oompah
 created: 2026-07-20 16:35
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-20 16:36
+---
+Understanding: This task requires writing two key documents: (1) plans/state-branch-design.md — the internal architecture spec for Git-backed per-project state branches, covering naming conventions, layout, durable vs ephemeral data classification, checkpoint coalescing, migration/rollback, and affected APIs/test layers; (2) docs/state-branch-migration.md — operator-facing migration guide.
+
+After reviewing the codebase, I understand the current state: task data lives on the project's default branch under .oompah/tasks/, written by OompahMarkdownTracker with synchronous commit+push on every write. The 'state branch' design would move this write path to a dedicated oompah/state/<project-id> branch to avoid contaminating main with task metadata commits, enabling cleaner merge queues and reducing write conflicts on busy projects.
+
+Beginning document authoring now.
 ---
 <!-- COMMENTS:END -->
