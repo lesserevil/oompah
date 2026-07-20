@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T22:54:50.695408Z'
-updated_at: '2026-07-20T23:31:10.180860Z'
+updated_at: '2026-07-20T23:37:41.694755Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +185,32 @@ Plan:
 A. models.py: when state_branch_enabled=True, always emit state_branch_name, state_branch_shadow_write, state_branch_migration_stage
 B. oompah_md_tracker.py: get_checkpoint_observability() falls back to git log -1 --format=%aI when _last_push_at is None
 C. Tests: Stage B serialization assertions (to_dict + HTTP GET), observability bootstrap-fallback test
+---
+author: oompah
+created: 2026-07-20 23:37
+---
+Implementation complete. Changes pushed to branch OOMPAH-283.
+
+**Feature fixes:**
+
+1. oompah/models.py (to_dict): When state_branch_enabled=True, always emit state_branch_name (computed), state_branch_shadow_write (boolean, even False), and state_branch_migration_stage (string, even empty). Legacy projects (enabled=False) retain compact/omit behavior for backward compatibility.
+
+2. oompah/oompah_md_tracker.py (get_checkpoint_observability + new _get_state_branch_last_commit_at): When CheckpointQueue._last_push_at is None (e.g. right after bootstrap before any flush), falls back to 'git log -1 --format=%aI <state_branch>' to report the actual bootstrap commit time.
+
+**Tests added:**
+
+tests/test_state_branch_project_config.py — TestStageBApiContract (16 tests):
+- to_dict/to_safe_dict: Stage B returns state_branch_name='oompah/state/proj-stageb', shadow_write=False, migration_stage='B'
+- Stage A: shadow_write=True, migration_stage='A', state_branch_name present
+- Legacy: state_branch_name, shadow_write, migration_stage all absent
+- HTTP GET /api/v1/projects/{id}: Stage B returns non-null branch name and explicit false shadow_write
+- HTTP GET /api/v1/projects: list includes state_branch_name for Stage B
+
+tests/test_checkpoint_coalescing.py — TestCheckpointObservability (+3 tests, 1 updated):
+- Updated existing test: last_push_at now reflects bootstrap commit (not None)
+- New: last_push_at is None when branch has no commits (edge case)
+- New: bootstrap-commit fallback exactly reproduces and verifies the 'Last push: never' fix
+
+All 9790 tests pass.
 ---
 <!-- COMMENTS:END -->
