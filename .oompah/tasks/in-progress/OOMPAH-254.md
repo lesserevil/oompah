@@ -12,7 +12,7 @@ labels:
 - needs:docs
 assignee: null
 created_at: '2026-07-20T16:29:10.225678Z'
-updated_at: '2026-07-20T16:35:21.848991Z'
+updated_at: '2026-07-20T16:35:24.986147Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -161,5 +161,10 @@ author: oompah
 created: 2026-07-20 16:35
 ---
 Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-20 16:35
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
