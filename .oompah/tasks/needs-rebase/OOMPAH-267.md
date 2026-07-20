@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-267
 type: bug
-status: In Review
+status: Needs Rebase
 priority: 0
 title: "[backend:server] Add comment API error: git commit -m Comment on oompah task\
   \ OOMPAH-266\n\n\U0001F916 Generated with https://github.com/lesserevil/oompah\n\
@@ -14,9 +14,10 @@ labels:
 - focus-complete:duplicate_detector
 - focus-complete:docs
 - focus-complete:merge_conflict
+- merge-conflict
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T22:00:37.115244Z'
+updated_at: '2026-07-20T22:00:39.484345Z'
 work_branch: OOMPAH-267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/456
