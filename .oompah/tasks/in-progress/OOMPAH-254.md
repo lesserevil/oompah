@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:10.225678Z'
-updated_at: '2026-07-20T16:46:06.527997Z'
+updated_at: '2026-07-20T16:47:05.119270Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -234,5 +234,21 @@ Implementation: Created three new files:
    - State branch naming parametrized tests
 
 make test: 9430 passed, 36 skipped, 2 xfailed (new xfails document not-yet-implemented Project fields)
+---
+author: oompah
+created: 2026-07-20 16:47
+---
+Completion: All deliverables for OOMPAH-254 are committed and pushed to epic-OOMPAH-253 (commit 0095b1ef).
+
+Delivered:
+- plans/state-branch-design.md: Implementable design with no unresolved choices. Covers naming, layout, bootstrap, durable/ephemeral classification, checkpoint coalescing with all tunable values in .env, migration stages A/B/C, rollback for each stage, and all affected APIs/CLI/test layers. All 9 design decisions are explicitly resolved with rationale.
+- docs/state-branch-migration.md: Operator guide clearly separated from internal design. Written for operators who don't read the plans/ doc. Covers prerequisites, GitHub branch protection setup, step-by-step migration commands, monitoring, rollback, and tuning.
+- tests/test_state_branch_design.py: Design-validation tests using a git fixture with historical .oompah task data on main and active release/1.0 branch. Validates env var naming, defaults, checkpoint constraint formula, orphan branch property, directory layout contract, YAML integrity, and no-duplicate pre-migration check. make test: 9430 passed, 2 xfailed (xfails document not-yet-implemented Project fields).
+
+Acceptance criteria met:
+- plans/ contains an implementable design with no unresolved choices
+- docs/ clearly distinguishes operator migration steps from internal design
+- The design includes concrete compatibility, migration, rollback, and checkpoint semantics
+- make test passes
 ---
 <!-- COMMENTS:END -->
