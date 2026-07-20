@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T17:18:25.121129Z'
+updated_at: '2026-07-20T17:18:35.493435Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -302,5 +302,20 @@ Verification: All tests pass.
 - Full suite: 9493 passed, 5 skipped, 0 failures
 
 Branch OOMPAH-265 pushed to origin (commit 26fbf86e).
+---
+author: oompah
+created: 2026-07-20 17:18
+---
+Completion: OOMPAH-265 resolved.
+
+Root cause: _commit_and_push() had a single-retry mechanism (2 total push attempts) that was insufficient when 3+ concurrent tracker writers raced. The retry push was also rejected by a second racing write, causing TrackerError to propagate to the 'Create issue API error' error_watcher path.
+
+Fix: Extended _commit_and_push() and write_and_commit_ledger_file() to retry up to _PUSH_MAX_RETRIES=3 total times with exponential backoff between retries. Added _PUSH_MAX_RETRIES module constant for easy tuning.
+
+Files changed:
+- oompah/oompah_md_tracker.py: _PUSH_MAX_RETRIES constant, retry loop in _commit_and_push() and write_and_commit_ledger_file()
+- tests/test_oompah_md_tracker.py: 2 new tests covering the second-race and exhausted-retries paths
+
+No regressions: 9493 tests pass.
 ---
 <!-- COMMENTS:END -->
