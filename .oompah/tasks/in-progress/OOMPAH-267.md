@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:06:06.272859Z'
+updated_at: '2026-07-20T17:13:47.376271Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -242,5 +242,24 @@ author: oompah
 created: 2026-07-20 17:06
 ---
 Understanding: As Technical Writer, I'm picking up from the duplicate_detector's handoff. The issue is a concurrent git commit race condition in oompah_md_tracker.py where two operations race to commit to the same git repo, causing 'cannot lock ref HEAD' errors. My job is to document the concurrency architecture and the fix approach (in plans/) so the implementation agent has a clear spec and future maintainers understand the design. I'll also check existing docs for anything that needs updating.
+---
+author: oompah
+created: 2026-07-20 17:13
+---
+Discovery: Root cause identified. The race condition happens during graceful reload (make graceful / orchestrator.reload_config()). Here is the sequence:
+
+1. reload_config() calls _project_trackers.clear()
+2. An in-flight add_comment still holds the OLD OompahMdTracker instance and its _write_lock
+3. A new add_comment request gets a NEW OompahMdTracker via _tracker_for_project() — a new _write_lock
+4. Both instances run _commit_and_push() concurrently (each with its own lock acquired)
+5. Both spawn git commit subprocesses; git's atomic ref-update catches the race with 'cannot lock ref HEAD'
+
+The per-instance threading.RLock in _write_lock (oompah_md_tracker.py:207) serializes threads within ONE tracker instance, but does NOT protect against concurrent operations across TWO instances sharing the same git repo.
+
+Fix options (for implementor):
+- (Recommended) Replace per-instance RLock with a module-level dict keyed by resolved repo path — all tracker instances for the same git repo share one lock, eliminating the cross-instance race.
+- (Simpler) Catch 'cannot lock ref HEAD' in _commit_and_push, sync from remote, and retry the commit once.
+
+Writing plans/concurrent-git-tracker-writes.md with full design spec and updating operator docs now.
 ---
 <!-- COMMENTS:END -->
