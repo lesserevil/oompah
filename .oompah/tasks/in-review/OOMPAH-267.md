@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:39:34.002105Z'
+updated_at: '2026-07-20T17:39:36.546367Z'
 work_branch: OOMPAH-267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/456
@@ -29,8 +29,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/453
   requestor_login: NVShawn
   imported_comment_ids: []
-  last_synced_status: Done
-  last_synced_at: '2026-07-20T17:33:30.854439+00:00'
+  last_synced_status: In Review
+  last_synced_at: '2026-07-20T17:39:35.275624+00:00'
 oompah.intake:
   missing_fields: []
   scope: small
