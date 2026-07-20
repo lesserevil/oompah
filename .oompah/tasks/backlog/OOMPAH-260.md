@@ -6,11 +6,12 @@ priority: null
 title: Validate state-branch workflow end to end and publish migration readiness guide
 parent: OOMPAH-253
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-257
 labels: []
 assignee: null
 created_at: '2026-07-20T16:30:27.106890Z'
-updated_at: '2026-07-20T16:30:27.106890Z'
+updated_at: '2026-07-20T16:30:52.838076Z'
 work_branch: null
 target_branch: null
 review_url: null
