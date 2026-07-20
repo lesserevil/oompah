@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:19:11.160164Z'
+updated_at: '2026-07-20T17:19:26.773423Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -274,5 +274,28 @@ Implementation: Added three documentation artifacts:
 3. docs/operator-runbook.md — New §6.6 troubleshooting entry for concurrent git write errors with symptom, cause, immediate workaround (re-issue the failed request; kill any stale processes), and pointer to the permanent fix in plans/.
 
 No code changed — this is documentation-only. The code fix is tracked separately and described in the plans document.
+---
+author: oompah
+created: 2026-07-20 17:19
+---
+Focus handoff: docs
+
+1. **Outcome**: Documentation phase complete. Root cause is fully documented. No code was changed.
+
+   - Root cause: `reload_config()` calls `_project_trackers.clear()`, causing a new `OompahMdTracker` instance to be created while an in-flight write still uses the old instance. Both instances have separate `threading.RLock` objects and can run `git commit` concurrently, triggering git's atomic ref-update failure ('cannot lock ref HEAD').
+
+2. **Relevant files, evidence, decisions**:
+   - `plans/concurrent-git-tracker-writes.md` — full design doc with fix options, test requirements, files to change
+   - `docs/native-markdown-tracker.md` — new Concurrency section
+   - `docs/operator-runbook.md` — new §6.6 troubleshooting entry
+   - Key code: `oompah/oompah_md_tracker.py` line 207 (`_write_lock = threading.RLock()`), line 1040 (`_commit_and_push`), `oompah/orchestrator.py` line 1631 (`_project_trackers.clear()`)
+
+3. **Remaining work**:
+   - Implement Option A from the design doc: add `_repo_write_locks` module-level dict + `_repo_write_lock()` factory in `oompah_md_tracker.py`, replace per-instance `threading.RLock()` with the shared lock
+   - Add regression test in `tests/test_oompah_md_tracker.py` that creates two tracker instances for the same `tmp_path` and verifies they serialize concurrent `_commit_and_push` calls
+   - Clear `_repo_write_locks` between tests to prevent lock leakage
+   - OOMPAH-268 (index.lock sibling) is fixed by the same change
+
+4. **Recommended next focus**: `feature` — implement the module-level lock described in `plans/concurrent-git-tracker-writes.md`
 ---
 <!-- COMMENTS:END -->
