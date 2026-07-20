@@ -14,13 +14,13 @@ labels:
 - needs:chore
 assignee: null
 created_at: '2026-07-20T17:42:07.889576Z'
-updated_at: '2026-07-20T17:56:46.272215Z'
+updated_at: '2026-07-20T17:56:48.624876Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 25154d6f-ed4a-4633-8400-ed263f42d8de
+oompah.agent_run_id: dd151cf2-3ec8-410a-8f4c-2550d141be19
 oompah.task_costs:
   total_input_tokens: 112555
   total_output_tokens: 16874
