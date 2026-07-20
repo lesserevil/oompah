@@ -908,6 +908,12 @@ _PROJECT_TRACKER_CACHE_FIELDS = frozenset(
         "tracker_repo",
         "github_issue_intake_enabled",
         "github_project_node_id",
+        # Changing the state-branch setting changes which branch the tracker
+        # reads and writes — the tracker instance and the read cache must be
+        # invalidated so the next request picks up the new configuration.
+        "state_branch_enabled",
+        "state_branch_checkpoint_debounce_ms",
+        "state_branch_checkpoint_max_delay_ms",
     }
 )
 
@@ -10314,6 +10320,51 @@ async def api_update_project(project_id: str, request: Request):
                     },
                     status_code=400,
                 )
+        # State-branch configuration (OOMPAH-255).
+        if "state_branch_enabled" in body:
+            val = body["state_branch_enabled"]
+            if isinstance(val, bool):
+                fields["state_branch_enabled"] = val
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "state_branch_enabled must be a boolean",
+                        }
+                    },
+                    status_code=400,
+                )
+        for key in (
+            "state_branch_checkpoint_debounce_ms",
+            "state_branch_checkpoint_max_delay_ms",
+        ):
+            if key in body:
+                val = body[key]
+                if val is None:
+                    fields[key] = None
+                elif isinstance(val, bool) or not isinstance(val, int):
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "validation",
+                                "message": f"{key} must be a positive integer or null",
+                            }
+                        },
+                        status_code=400,
+                    )
+                elif val <= 0:
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "validation",
+                                "message": f"{key} must be a positive integer or null",
+                            }
+                        },
+                        status_code=400,
+                    )
+                else:
+                    fields[key] = val
         if (
             "access_token" in fields
             and "status_actor_login" not in fields
