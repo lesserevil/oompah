@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T21:55:47.116883Z'
+updated_at: '2026-07-20T21:56:47.463420Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -187,5 +187,20 @@ Files added/modified:
 - tests/test_self_hosted_runner.py — 49 tests covering workflow labels, .env.example vars, runner script integrity, Makefile targets, and documentation completeness.
 
 Test results: 9675 passed, 5 skipped (pre-existing). All 49 new tests pass.
+---
+author: oompah
+created: 2026-07-20 21:56
+---
+Verification: make test passes — 9675 passed, 5 skipped.
+
+All 49 new tests in tests/test_self_hosted_runner.py passed:
+- 5 tests: CI workflow targets [self-hosted, linux, x64, oompah] and not ubuntu-latest
+- 5 tests: CLI release workflow targets same labels
+- 9 tests: .env.example documents all OOMPAH_RUNNER_* vars, PAT permission, OR limitation
+- 14 tests: scripts/runner.sh exists, is executable, contains required logic, no hardcoded tokens
+- 7 tests: Makefile has runner-* targets, all in .PHONY, script delegation
+- 9 tests: docs/self-hosted-runner.md covers Mermaid diagram, OR limitation, PAT permission, troubleshooting
+
+Branch OOMPAH-281 pushed to origin.
 ---
 <!-- COMMENTS:END -->
