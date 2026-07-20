@@ -12,7 +12,7 @@ labels:
 - yolo-watchdog
 assignee: null
 created_at: '2026-07-20T17:42:07.889576Z'
-updated_at: '2026-07-20T17:43:55.189958Z'
+updated_at: '2026-07-20T17:43:57.840976Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 25585040-0420-455b-9867-392d30b55375
 oompah.task_costs:
-  total_input_tokens: 68943
-  total_output_tokens: 690
+  total_input_tokens: 112534
+  total_output_tokens: 1101
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 68943
-      output_tokens: 690
+      input_tokens: 112534
+      output_tokens: 1101
       cost_usd: 0.0
   runs:
   - profile: default
@@ -35,6 +35,12 @@ oompah.task_costs:
     output_tokens: 690
     cost_usd: 0.0
     recorded_at: '2026-07-20T17:42:54.868319+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 43591
+    output_tokens: 411
+    cost_usd: 0.0
+    recorded_at: '2026-07-20T17:43:52.286964+00:00'
 ---
 ## Summary
 
