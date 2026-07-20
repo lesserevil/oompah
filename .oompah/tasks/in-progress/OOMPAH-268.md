@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-268
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:server] Add comment API error: git add .oompah/tasks failed: fatal:
   Unable to create ''/home/shedwards/.oompah/repos/oompah/.git/index.lock'': File
@@ -16,7 +16,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:52:04.570031Z'
-updated_at: '2026-07-20T16:55:36.217170Z'
+updated_at: '2026-07-20T16:55:44.040778Z'
 work_branch: null
 target_branch: null
 review_url: null
