@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T16:49:00.743485Z'
-updated_at: '2026-07-20T16:51:17.042517Z'
+updated_at: '2026-07-20T16:51:58.018576Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,6 +54,11 @@ Acceptance criteria
 <!-- COMMENTS:BEGIN -->
 author: oompah
 created: 2026-07-20 16:50
+---
+Archived by project owner direction: the tracker-only rebase tasks are harmless extra work, and OOMPAH-253 will remove the underlying main-branch metadata churn. Do not implement a separate interim suppression change.
+---
+author: oompah
+created: 2026-07-20 16:51
 ---
 Archived by project owner direction: the tracker-only rebase tasks are harmless extra work, and OOMPAH-253 will remove the underlying main-branch metadata churn. Do not implement a separate interim suppression change.
 ---
