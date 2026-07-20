@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:39.587340Z'
-updated_at: '2026-07-20T20:08:43.963557Z'
+updated_at: '2026-07-20T20:09:50.533655Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -230,5 +230,22 @@ Tests with fire_immediately=True caused a deadlock: schedule() holds the lock, s
 Files changed:
 - oompah/checkpoint_queue.py: threading.Lock() → threading.RLock()
 - oompah/oompah_md_tracker.py: _commit_and_push() reordered to schedule before git_sync check
+---
+author: oompah
+created: 2026-07-20 20:09
+---
+Verification: All 59 tests in tests/test_checkpoint_coalescing.py pass. Also verified 306 tests across test_oompah_md_tracker.py, test_oompah_md_tracker_state_branch.py, test_state_branch_design.py, and test_state_branch_project_config.py all pass.
+
+Completion summary:
+OOMPAH-257 delivered a checkpoint coalescing queue (oompah/checkpoint_queue.py) that reduces Git commit volume for state-branch projects. Key capabilities:
+- CheckpointQueue with configurable debounce + max-delay timers coalesces N mutations into 1 atomic commit
+- Mandatory immediate flush for terminal statuses (Done/Merged/Archived), In Review, human edits, and shutdown
+- Thread-safe with RLock for in-process concurrency; push-race recovery with fetch/rebase/retry
+- Observability dict (pending_mutations, last_push_at, push_failures, alert) for GET /api/v1/state
+- 59 tests cover all acceptance criteria: debounce coalescing, max-delay, mandatory flush, concurrent-writer safety, push-race recovery, ephemeral-vs-durable classification, state-branch isolation, shutdown, and observability
+
+Two bugs fixed in this session:
+1. CheckpointQueue: threading.Lock → threading.RLock (prevents deadlock in synchronous timer tests)
+2. OompahMarkdownTracker._commit_and_push(): move checkpoint schedule() before git_sync guard so pending_mutations is accurate in test mode
 ---
 <!-- COMMENTS:END -->
