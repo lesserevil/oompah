@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:01:57.761498Z'
+updated_at: '2026-07-20T17:02:19.403276Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -179,5 +179,26 @@ Key evidence OOMPAH-267 is unique:
 Relevant files for implementor:
 - \`oompah/oompah_md_tracker.py\` — \`_commit_and_push()\` (line ~1040), \`_write_lock\` (threading.RLock, line 207)
 - The fix likely needs to either: (a) add retry logic on \`cannot lock ref HEAD\` in \`_commit_and_push\`, or (b) identify why the per-process lock is insufficient (multiple server instances, or per-request tracker instantiation).
+---
+author: oompah
+created: 2026-07-20 17:02
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: OOMPAH-267 is NOT a duplicate. The \`git commit failed: cannot lock ref HEAD\` error during Add comment is a new/unique failure mode — no existing task addresses it. Prior fixes (OOMPAH-204, OOMPAH-233) addressed \`_sync_from_remote()\` diverged-branch recovery (push phase), not the commit phase.
+
+2. **Relevant files and evidence**:
+   - \`oompah/oompah_md_tracker.py\` line ~1040: \`_commit_and_push()\` — performs git add, git commit, git push. The git commit at line ~1053 raises TrackerError which bubbles up and triggers error_watcher.
+   - \`oompah/oompah_md_tracker.py\` line 207: \`self._write_lock = threading.RLock()\` — this is a per-instance, per-process lock. If multiple tracker instances exist (e.g., one per request) or multiple server processes share the same repo, this lock does NOT protect across them.
+   - Sibling open issue: OOMPAH-268 (\`git add\` fails with index.lock exists) — same root cause, different git operation.
+   - Prior merged fixes: OOMPAH-204 + OOMPAH-233 fixed \`_sync_from_remote()\` but left the commit phase unprotected.
+
+3. **Remaining work and risks**:
+   - Root cause may be per-request tracker instantiation (each request gets a new tracker object, so each has its own \`_write_lock\` — no serialization). Check how tracker is created in \`server.py\`.
+   - Fix options: (a) Make tracker a singleton (one lock guards all commits), (b) add retry loop in \`_commit_and_push()\` on \`cannot lock ref HEAD\` error, (c) use a file-based lock (e.g., lockfile) for cross-process/instance serialization.
+   - Test: must add regression test that triggers concurrent git commit and verifies retry/recovery.
+   - Sibling OOMPAH-268 should probably be addressed in the same PR.
+
+4. **Recommended next focus**: bug/feature implementation agent to fix \`_commit_and_push()\` for the concurrent-commit HEAD lock error.
 ---
 <!-- COMMENTS:END -->
