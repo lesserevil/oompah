@@ -1028,6 +1028,12 @@ class ProjectStore:
             "github_project_node_id",
             # Supported release lines (section 5 of release-branch-addendums.md)
             "supported_release_branches",
+            # State-branch configuration (OOMPAH-255 / OOMPAH-253 / OOMPAH-259)
+            "state_branch_enabled",
+            "state_branch_checkpoint_debounce_ms",
+            "state_branch_checkpoint_max_delay_ms",
+            "state_branch_shadow_write",
+            "state_branch_migration_stage",
         }
     )
 
@@ -1251,6 +1257,70 @@ class ProjectStore:
                         val, eff_branches, eff_default
                     )
                 )
+
+        # ---- State-branch configuration (OOMPAH-255 / OOMPAH-259) ----
+
+        # state_branch_enabled: must be a boolean.
+        if "state_branch_enabled" in fields:
+            val = fields["state_branch_enabled"]
+            if not isinstance(val, bool):
+                raise ProjectError("'state_branch_enabled' must be a boolean")
+
+        # state_branch_shadow_write: must be a boolean.
+        if "state_branch_shadow_write" in fields:
+            val = fields["state_branch_shadow_write"]
+            if not isinstance(val, bool):
+                raise ProjectError("'state_branch_shadow_write' must be a boolean")
+
+        # state_branch_migration_stage: must be one of "", "A", "B".
+        if "state_branch_migration_stage" in fields:
+            val = fields["state_branch_migration_stage"]
+            if val not in ("", "A", "B"):
+                raise ProjectError(
+                    "'state_branch_migration_stage' must be '', 'A', or 'B'"
+                )
+
+        # state_branch_checkpoint_debounce_ms / state_branch_checkpoint_max_delay_ms:
+        # optional positive integer or null.  When both are supplied in the same
+        # update, cross-validate that max_delay >= debounce + 1000.
+        for key in (
+            "state_branch_checkpoint_debounce_ms",
+            "state_branch_checkpoint_max_delay_ms",
+        ):
+            if key in fields:
+                val = fields[key]
+                if val is None:
+                    fields[key] = None
+                elif isinstance(val, bool) or not isinstance(val, int):
+                    # Strict type check: booleans, strings, floats etc. are
+                    # all rejected.  Only bare int values (not bool subclass)
+                    # are accepted.
+                    raise ProjectError(f"'{key}' must be a positive integer or null")
+                elif val <= 0:
+                    raise ProjectError(
+                        f"'{key}' must be a positive integer or null"
+                    )
+                else:
+                    fields[key] = val
+
+        # Cross-validate that max_delay >= debounce + 1000 when both are set
+        # (either in this update or carried over from the existing project).
+        if "state_branch_checkpoint_debounce_ms" in fields or \
+                "state_branch_checkpoint_max_delay_ms" in fields:
+            eff_debounce = fields.get(
+                "state_branch_checkpoint_debounce_ms",
+                project.state_branch_checkpoint_debounce_ms,
+            )
+            eff_max_delay = fields.get(
+                "state_branch_checkpoint_max_delay_ms",
+                project.state_branch_checkpoint_max_delay_ms,
+            )
+            if eff_debounce is not None and eff_max_delay is not None:
+                if eff_max_delay < eff_debounce + 1000:
+                    raise ProjectError(
+                        "'state_branch_checkpoint_max_delay_ms' must be at least "
+                        "'state_branch_checkpoint_debounce_ms' + 1000 ms"
+                    )
 
         for key, value in fields.items():
             setattr(project, key, value)
