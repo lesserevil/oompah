@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:27:54.531615Z'
+updated_at: '2026-07-20T17:28:02.397529Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -345,5 +345,10 @@ Tests added in tests/test_oompah_md_tracker.py (class TestRepoWriteLock, 3 tests
 - test_two_instances_same_path_share_write_lock: confirms shared identity of lock objects
 - test_two_instances_different_paths_have_different_write_locks: confirms isolation across repos
 - test_shared_lock_blocks_concurrent_commit_and_push: threading regression test verifying second instance waits for first to release before running git operations
+---
+author: oompah
+created: 2026-07-20 17:28
+---
+Verification: All 9414 tests pass (36 skipped). New TestRepoWriteLock tests (3/3) confirm: (1) same repo → shared lock object, (2) different repos → independent locks, (3) concurrent _commit_and_push calls serialize correctly via the shared lock.
 ---
 <!-- COMMENTS:END -->
