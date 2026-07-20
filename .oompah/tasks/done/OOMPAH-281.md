@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-281
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Run Oompah CI on a containerized self-hosted GitHub Actions runner
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T23:37:31.618221Z'
+updated_at: '2026-07-20T23:41:04.663130Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
@@ -424,5 +424,10 @@ author: oompah
 created: 2026-07-20 23:37
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-20 23:40
+---
+Verification: Branch OOMPAH-281 is clean and pushed. make test passes: 9835 passed, 36 skipped. All 63 tests in tests/test_self_hosted_runner.py pass. Ready to close.
 ---
 <!-- COMMENTS:END -->

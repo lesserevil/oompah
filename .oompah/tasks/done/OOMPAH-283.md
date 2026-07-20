@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T22:54:50.695408Z'
-updated_at: '2026-07-20T23:40:51.648738Z'
+updated_at: '2026-07-20T23:41:00.950918Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: ae956562-0967-4190-9762-22eca0ea7d39
 oompah.task_costs:
-  total_input_tokens: 85458
-  total_output_tokens: 10104
+  total_input_tokens: 85573
+  total_output_tokens: 13086
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 85458
-      output_tokens: 10104
+      input_tokens: 85573
+      output_tokens: 13086
       cost_usd: 0.0
   runs:
   - profile: default
@@ -40,6 +40,12 @@ oompah.task_costs:
     output_tokens: 9421
     cost_usd: 0.0
     recorded_at: '2026-07-20T23:23:48.887655+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 115
+    output_tokens: 2982
+    cost_usd: 0.0
+    recorded_at: '2026-07-20T23:40:59.423926+00:00'
 ---
 ## Summary
 
@@ -212,5 +218,20 @@ tests/test_checkpoint_coalescing.py — TestCheckpointObservability (+3 tests, 1
 - New: bootstrap-commit fallback exactly reproduces and verifies the 'Last push: never' fix
 
 All 9790 tests pass.
+---
+author: oompah
+created: 2026-07-20 23:40
+---
+Implemented OOMPAH-253 API contract: to_dict() now always emits state_branch_name, shadow_write (even False), migration_stage for state-branch-enabled projects; get_checkpoint_observability() falls back to git log for last_push_at after bootstrap. Added 19 new tests covering Stage B API contract and checkpoint bootstrap-commit fallback. All 9790 tests pass.
+---
+author: oompah
+created: 2026-07-20 23:41
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 0, Tool calls: 77
+- Tokens: 115 in / 3.0K out [3.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 17m 2s
+- Log: OOMPAH-283__20260720T232359Z.jsonl
 ---
 <!-- COMMENTS:END -->
