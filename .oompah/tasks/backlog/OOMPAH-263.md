@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T16:47:15.264773Z'
-updated_at: '2026-07-20T16:47:15.264773Z'
+updated_at: '2026-07-20T16:49:13.909029Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,3 +38,11 @@ Acceptance criteria
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-20 16:49
+---
+Implemented in PR #452: responsive dashboard detail-pane width of min(800px, 40vw), with a template regression test. make test passed.
+---
+<!-- COMMENTS:END -->
