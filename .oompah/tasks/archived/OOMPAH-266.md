@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T16:49:00.743485Z'
-updated_at: '2026-07-20T16:52:01.321491Z'
+updated_at: '2026-07-20T16:52:04.642459Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-07-20 16:51
 ---
 Archived by project owner direction: the tracker-only rebase tasks are harmless extra work, and OOMPAH-253 will remove the underlying main-branch metadata churn. Do not implement a separate interim suppression change.
+---
+author: oompah
+created: 2026-07-20 16:52
+---
+Superseded by the state-branch epic OOMPAH-253; no separate fix needed.
 ---
 <!-- COMMENTS:END -->
