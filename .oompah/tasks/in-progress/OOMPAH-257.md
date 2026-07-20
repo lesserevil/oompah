@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:29:39.587340Z'
-updated_at: '2026-07-20T18:40:54.756958Z'
+updated_at: '2026-07-20T18:43:20.173533Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,5 +70,44 @@ author: oompah
 created: 2026-07-20 18:40
 ---
 Understanding: I am the Duplicate Investigator for OOMPAH-257. This task proposes a checkpoint queue system that coalesces native-tracker file mutations into single atomic state-branch commits, reducing Git commit volume. Key concepts: debounce/coalesce logic, durable state-branch commits, mandatory flush for terminal states/human edits/shutdown, ephemeral-vs-durable distinction, rebase-race safety. I will now search for existing tasks covering the same ground before any implementation begins.
+---
+author: oompah
+created: 2026-07-20 18:43
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-257 is NOT a duplicate of any existing task.
+
+**Evidence reviewed:**
+- Searched all .oompah/tasks/ directories for: coalesce, checkpoint, debounce, commit volume, mutation, batch commit, durable, state-branch
+- Read plans/state-branch-design.md (§5 Checkpoint coalescing policy) — the authoritative design spec for this task's implementation scope
+- Reviewed all sibling tasks in the OOMPAH-253 epic:
+  - OOMPAH-254 (Done): design document creation — distinct, covers design not implementation
+  - OOMPAH-255 (Done): project model fields (state_branch_enabled, checkpoint_debounce_ms, checkpoint_max_delay_ms) — distinct, config model only, no coalescing logic
+  - OOMPAH-256 (Done): state-branch-aware tracker reads/writes via git worktree — distinct, write routing not coalescing; OOMPAH-256's duplicate investigator explicitly noted OOMPAH-257 is 'write coalescing, not read/write routing'
+  - OOMPAH-258 (Open): bootstrap and docs — distinct scope
+  - OOMPAH-259 (Open): migration of existing projects — distinct scope
+  - OOMPAH-260 (Open): E2E validation — distinct scope
+  - OOMPAH-265, OOMPAH-267, OOMPAH-268, OOMPAH-270: git lock/push-race bug fixes — different scope, no coalescing logic
+- Also reviewed archived tasks OOMPAH-264, OOMPAH-266 — about suppressing rebase task auto-filing, not coalescing
+
+**Closest reviewed tasks (all confirmed distinct):**
+- OOMPAH-256 (Done): Implements git worktree write routing, not the debounce/coalesce/flush-on-terminal-state behavior
+- OOMPAH-255 (Done): Added the per-project config fields that OOMPAH-257 will consume, but no runtime coalescing logic
+
+**Key implementation scope for the next agent (from plans/state-branch-design.md §5 and §7.3):**
+- _schedule_checkpoint(): start/reset debounce timer (OOMPAH_STATE_BRANCH_CHECKPOINT_DEBOUNCE_MS, default 5s)
+- _flush_checkpoint(reason): commit all pending in-memory mutations atomically and push to origin
+- Maximum delay timer (OOMPAH_STATE_BRANCH_CHECKPOINT_MAX_DELAY_MS, default 30s) forcing flush regardless of ongoing activity
+- Mandatory immediate flush: terminal task states (Done/Merged/Archived), In Review, agent session exit, SIGTERM, human API mutations, release_addendum transitions
+- Durable vs ephemeral classification (§4): only commit task status/title/description/labels/deps/human-comments/handoffs; never commit heartbeats/token-counters/retry-counts/cache state
+- Concurrent-writer safety: _write_lock RLock covers entire in-memory mutation + checkpoint flush
+- Push-race recovery: fetch → rebase --autostash → retry (OOMPAH_STATE_BRANCH_PUSH_RETRY_COUNT, default 3)
+- Observability: GET /api/v1/state → state_branch block with pending_mutations, last_push_at, push_failures, alert
+- Tests per task description: deterministic clock test (debounce coalescing), max-delay test, mandatory-flush test, concurrent-writer/rebase-race test, ephemeral-vs-durable regression test, integration test (commits target state branch only)
+
+**Blocker status:** OOMPAH-256 is Done — OOMPAH-257 is now unblocked.
+
+**Recommended next focus:** feature (backend implementation of checkpoint coalescing queue)
 ---
 <!-- COMMENTS:END -->
