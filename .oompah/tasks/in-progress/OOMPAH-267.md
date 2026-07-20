@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:28:02.397529Z'
+updated_at: '2026-07-20T17:28:38.513351Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -350,5 +350,16 @@ author: oompah
 created: 2026-07-20 17:28
 ---
 Verification: All 9414 tests pass (36 skipped). New TestRepoWriteLock tests (3/3) confirm: (1) same repo → shared lock object, (2) different repos → independent locks, (3) concurrent _commit_and_push calls serialize correctly via the shared lock.
+---
+author: oompah
+created: 2026-07-20 17:28
+---
+Completion: Implemented module-level per-repo write lock in oompah/oompah_md_tracker.py to eliminate the concurrent git commit race condition.
+
+Root cause: per-instance threading.RLock did not protect across two OompahMarkdownTracker instances created when reload_config() cleared the tracker cache while an in-flight write held the old instance's lock.
+
+Fix: _repo_write_locks dict keyed by resolved repo path ensures all instances for the same git repo share one RLock. Two commits can no longer race on 'git commit' or 'git add', eliminating both the 'cannot lock ref HEAD' error (OOMPAH-267) and the 'index.lock exists' error (OOMPAH-268).
+
+Delivered: 2 files changed (229 insertions), 3 new tests passing, full test suite green (9414 passed). Branch OOMPAH-267 pushed to origin.
 ---
 <!-- COMMENTS:END -->
