@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-267
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: "[backend:server] Add comment API error: git commit -m Comment on oompah task\
   \ OOMPAH-266\n\n\U0001F916 Generated with https://github.com/lesserevil/oompah\n\
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T16:52:28.028711Z'
+updated_at: '2026-07-20T16:54:47.663167Z'
 work_branch: null
 target_branch: null
 review_url: null
