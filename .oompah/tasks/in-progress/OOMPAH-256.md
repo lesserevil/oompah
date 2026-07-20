@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:29.498883Z'
-updated_at: '2026-07-20T17:42:54.056930Z'
+updated_at: '2026-07-20T17:43:06.541266Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-07-20 17:39
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-20 17:43
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
