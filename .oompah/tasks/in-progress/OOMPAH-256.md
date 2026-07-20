@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-20T16:29:29.498883Z'
-updated_at: '2026-07-20T18:08:07.005012Z'
+updated_at: '2026-07-20T18:12:18.921992Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -267,5 +267,26 @@ Key design constraints:
 - Never auto-create the state branch during normal reads (bootstrap is explicit)
 - Never use reset --hard in conflict recovery
 - Raise actionable TrackerError when state branch is missing
+---
+author: oompah
+created: 2026-07-20 18:12
+---
+Discovery: Key implementation decisions confirmed:
+
+**Architecture:** Use git worktree add to create an isolated worktree for the state branch. The shared code checkout stays on main/default. All task reads/writes go through the state worktree when state_branch_enabled=True.
+
+**Git call routing:** The _git() method needs an optional 'cwd' parameter so ALL git operations (including state worktree commits) route through self._git(). This allows test mocking via tracker._git = fake_git to intercept all calls. Tests need minor updates to their _fake_git functions to handle the cwd kwarg.
+
+**Key methods to add:**
+- OompahMarkdownTracker.__init__: state_branch_enabled, state_branch_name params
+- _get_state_root(): creates/reuses git worktree, raises TrackerError if branch missing
+- _state_worktree_path(): deterministic path under .git/oompah-state-worktrees/
+- _prepare_state_branch_for_write(): syncs state worktree from remote (no branch check on shared checkout)
+- _sync_state_branch_from_remote(): fetch + ff-only, fallback to rebase --autostash (never reset --hard)
+- _commit_and_push_state_branch(): commit + push in state worktree
+
+**Orchestrator:** _new_tracker_for_project() needs to pass state_branch_enabled and state_branch_name for oompah_md projects.
+
+**Test updates needed:** The 5 failure test _fake_git functions need **kwargs to handle the new cwd parameter. All xfail tests should then pass.
 ---
 <!-- COMMENTS:END -->
