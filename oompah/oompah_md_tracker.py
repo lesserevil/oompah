@@ -71,6 +71,12 @@ _STATUS_DIRS: dict[str, str] = {
 }
 _ISSUE_TYPES = frozenset({"bug", "feature", "task", "epic", "chore"})
 
+# Maximum number of push attempts in _commit_and_push and write_and_commit_ledger_file.
+# Each failed push is followed by a _sync_from_remote + short backoff before the next
+# attempt, so 3 total attempts means 2 sync+retry cycles.  Under concurrent writers
+# this dramatically reduces the probability of all attempts failing (OOMPAH-265).
+_PUSH_MAX_RETRIES = 3
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -612,12 +618,19 @@ class OompahMarkdownTracker:
             branch = self.default_branch or self._infer_default_branch() or "main"
             if not self._has_remote("origin"):
                 return
-            push = self._git(["push", "origin", f"HEAD:{branch}"], check=False)
-            if push.returncode == 0:
-                return
-            # Push was rejected — sync from remote and retry once
-            self._sync_from_remote(branch)
-            self._git(["push", "origin", f"HEAD:{branch}"], check=True)
+            # Retry loop mirrors _commit_and_push: up to _PUSH_MAX_RETRIES total
+            # attempts, each preceded by a sync after a rejected push (OOMPAH-265).
+            last_push = self._git(["push", "origin", f"HEAD:{branch}"], check=False)
+            for attempt in range(1, _PUSH_MAX_RETRIES):
+                if last_push.returncode == 0:
+                    break
+                if attempt > 1:
+                    time.sleep(0.1 * (2 ** (attempt - 2)))
+                self._sync_from_remote(branch)
+                last_push = self._git(["push", "origin", f"HEAD:{branch}"], check=False)
+            if last_push.returncode != 0:
+                stderr = last_push.stderr.strip() or last_push.stdout.strip()
+                raise TrackerError(f"git push origin HEAD:{branch} failed: {stderr}")
 
     def invalidate_read_cache(self) -> None:
         with self._read_cache_guard:
@@ -1052,12 +1065,26 @@ class OompahMarkdownTracker:
         branch = self.default_branch or self._infer_default_branch() or "main"
         if not self._has_remote("origin"):
             return
-        push = self._git(["push", "origin", f"HEAD:{branch}"], check=False)
-        if push.returncode == 0:
+        # Retry loop: attempt up to _PUSH_MAX_RETRIES total pushes.  Each rejected
+        # push triggers a _sync_from_remote (fetch + ff-only or rebase) before the
+        # next attempt, with a short exponential backoff to spread out concurrent
+        # writers.  This replaces the previous single-retry path (OOMPAH-235) which
+        # was insufficient when three or more writers raced simultaneously (OOMPAH-265).
+        last_push = self._git(["push", "origin", f"HEAD:{branch}"], check=False)
+        for attempt in range(1, _PUSH_MAX_RETRIES):
+            if last_push.returncode == 0:
+                return
+            # Push was rejected — sync from remote and retry.
+            if attempt > 1:
+                # Exponential backoff between retries (0.1 s, 0.2 s, …) to reduce
+                # thundering-herd contention when many concurrent writers race.
+                time.sleep(0.1 * (2 ** (attempt - 2)))
+            self._sync_from_remote(branch)
+            last_push = self._git(["push", "origin", f"HEAD:{branch}"], check=False)
+        if last_push.returncode == 0:
             return
-        # Push was rejected — sync from remote and retry once.
-        self._sync_from_remote(branch)
-        self._git(["push", "origin", f"HEAD:{branch}"], check=True)
+        stderr = last_push.stderr.strip() or last_push.stdout.strip()
+        raise TrackerError(f"git push origin HEAD:{branch} failed: {stderr}")
 
     def _is_git_repo(self) -> bool:
         return self._git(["rev-parse", "--is-inside-work-tree"], check=False).returncode == 0
