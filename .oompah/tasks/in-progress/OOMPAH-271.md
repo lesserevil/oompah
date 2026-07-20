@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T17:39:04.653084Z'
-updated_at: '2026-07-20T17:39:31.182479Z'
+updated_at: '2026-07-20T17:41:38.587979Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,31 @@ author: oompah
 created: 2026-07-20 17:39
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 17:41
+---
+**Duplicate screening: no duplicate confirmed.**
+
+OOMPAH-271 is NOT a duplicate of any existing open task.
+
+**Closest candidate reviewed:**
+- OOMPAH-269 (Done, closed 17:36): Identical title 'Rebase epic-OOMPAH-253 onto main' — the rebase was completed successfully 3 minutes before this task was filed (17:39). However, OOMPAH-269 is closed, and the epic has become stale again.
+
+**Current git state (verified):**
+- epic-OOMPAH-253 is **46 commits behind** origin/main (new .oompah task-metadata commits landed on main after OOMPAH-269's rebase at 17:36)
+- epic-OOMPAH-253 is 2 commits ahead of main (OOMPAH-254 design doc, OOMPAH-255 state-branch config)
+
+**Evidence searched:**
+- .oompah/tasks/ for 'rebase', 'epic-OOMPAH-253', 'stale' — only prior rebase tasks (OOMPAH-261, OOMPAH-262, OOMPAH-269) are Done; none are open
+- OOMPAH-266 (Archived): proposed suppressing these auto-rebase tasks; archived — they should continue firing until OOMPAH-253 state-branch migration is complete
+
+**Remaining work:**
+- Rebase epic-OOMPAH-253 onto origin/main (currently 46 commits behind)
+- Force-push with --force-with-lease
+- Can use: git -C /home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-253 rebase origin/main && git -C /home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-253 push --force-with-lease
+- OOMPAH-269's agent confirmed the metadata commits are automatically skipped during rebase (already on main), so this should be clean
+
+**Recommended next focus:** devops
 ---
 <!-- COMMENTS:END -->
