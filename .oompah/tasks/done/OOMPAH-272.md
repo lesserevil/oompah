@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-272
 type: task
-status: In Progress
+status: Done
 priority: 0
 title: 'YOLO stuck on oompah/456: merge failing 5 ticks running'
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T17:42:07.889576Z'
-updated_at: '2026-07-20T18:05:47.918539Z'
+updated_at: '2026-07-20T18:05:58.764195Z'
 work_branch: null
 target_branch: null
 review_url: null
