@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-283
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Expose active state-branch identity and checkpoint health in project APIs
 parent: null
@@ -10,12 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T22:54:50.695408Z'
-updated_at: '2026-07-20T23:02:18.076601Z'
+updated_at: '2026-07-20T23:09:15.473809Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 1789a27b-7ced-4941-888a-2bba229f0e6a
 ---
 ## Summary
 
@@ -27,3 +28,16 @@ Problem: after a successful Stage B migration, GET /api/v1/projects reports stat
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-20 23:09
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-20 23:09
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

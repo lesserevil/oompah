@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-48
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Apply workflow+test assertion for oompah project-bootstrap --help (needs workflow-scoped
   PAT)
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-06-22T02:46:23.693967Z'
-updated_at: '2026-07-13T23:02:04.406668Z'
+updated_at: '2026-07-20T23:09:16.899713Z'
 work_branch: OOMPAH-48
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/414
