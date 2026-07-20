@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:30:00.848090Z'
-updated_at: '2026-07-20T20:36:38.433687Z'
+updated_at: '2026-07-20T20:58:50.377630Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -186,5 +186,52 @@ Plan:
 6. Write tests covering end-to-end, interruption, rollback, and concurrent-write scenarios
 7. Run make test and fix any failures
 8. Commit, push, close task
+---
+author: oompah
+created: 2026-07-20 20:58
+---
+Implementation complete. All tests pass (9727 passed, 36 skipped).
+
+Changes made:
+
+**oompah/models.py**: Added two new fields to Project:
+- state_branch_shadow_write: bool = False (Stage A migration — shadow writes to both branches)
+- state_branch_migration_stage: str = '' (tracks completed stages: '', 'A', 'B')
+Both fields serialize/deserialize with backward-compatible defaults.
+
+**oompah/projects.py**: Added both new fields to UPDATABLE_FIELDS with validation (shadow_write must be bool; migration_stage must be '', 'A', or 'B').
+
+**oompah/oompah_md_tracker.py**: Added state_branch_shadow_write parameter to __init__ and factory function. Added _shadow_write_to_default_branch() method for Stage A. Updated _do_checkpoint_flush to call shadow write when flag is set. Updated orchestrator.py to pass shadow_write from project config.
+
+**oompah/state_branch_migration.py** (NEW): Core migration engine with:
+- validate_state_branch() — 7 pre-migration checks (clean tree, up-to-date, push access, branch protection, valid YAML, no duplicates)
+- migrate_stage_a() — creates orphan state branch, seeds from main, idempotent
+- migrate_stage_b() — disables shadow writes, validates state branch health
+- migrate_stage_c() — optional cleanup: removes .oompah/tasks/ from main
+- rollback_migration() — restores legacy mode from any stage
+- get_migration_status() — observability helper
+
+**oompah/admin_cli.py** (NEW): oompah admin CLI with validate-state-branch, migrate-state-branch, state-branch-status subcommands.
+
+**oompah/__main__.py**: Wired oompah admin dispatch.
+
+**oompah/server.py**: Added 4 new API endpoints:
+- POST /api/v1/projects/{id}/state-branch/validate
+- POST /api/v1/projects/{id}/state-branch/migrate
+- GET /api/v1/projects/{id}/state-branch/status
+- GET /api/v1/projects/{id}/state-branch/sync-check
+
+**tests/test_state_branch_migration.py** (NEW): 58 tests covering all acceptance criteria:
+- validate_state_branch checks
+- Stage A/B/C migration
+- Rollback from each stage
+- End-to-end with rich task data (comments, dependencies, active code branches)
+- Idempotency at each stage
+- Interrupted migration retry safety
+- Concurrent-write serialization
+- Model serialization/deserialization
+- ProjectStore field validation
+- Shadow write tracker behavior
+- get_migration_status helper
 ---
 <!-- COMMENTS:END -->
