@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-256
 type: task
-status: Done
+status: Merged
 priority: null
 title: Make the native Markdown tracker read and write the configured state branch
 parent: OOMPAH-253
@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-20T16:29:29.498883Z'
-updated_at: '2026-07-20T18:37:03.184392Z'
+updated_at: '2026-07-20T21:59:50.435813Z'
 work_branch: null
 target_branch: null
 review_url: null
