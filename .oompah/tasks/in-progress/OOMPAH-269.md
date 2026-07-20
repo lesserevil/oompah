@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:57:37.275313Z'
-updated_at: '2026-07-20T17:04:16.337564Z'
+updated_at: '2026-07-20T17:04:27.980396Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -140,5 +140,10 @@ author: oompah
 created: 2026-07-20 17:03
 ---
 Agent completed without closing this issue (70s (90056 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-20 17:04
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
