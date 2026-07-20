@@ -193,7 +193,16 @@ def _write_markdown(path: Path, meta: dict[str, Any], body: str) -> None:
 
 
 class OompahMarkdownTracker:
-    """Tracker adapter backed by native Markdown files under ``.oompah/tasks``."""
+    """Tracker adapter backed by native Markdown files under ``.oompah/tasks``.
+
+    When ``state_branch_enabled=True``, all task reads and writes are routed
+    through a dedicated git worktree checked out on ``state_branch_name``
+    (e.g. ``oompah/state/<project-id>``).  The shared code checkout is never
+    switched to the state branch; it remains on the default branch throughout.
+
+    Legacy behavior (``state_branch_enabled=False``, the default) is unchanged:
+    reads and writes use the default branch in the project's main checkout.
+    """
 
     def __init__(
         self,
@@ -203,6 +212,8 @@ class OompahMarkdownTracker:
         cwd: str | None = None,
         default_branch: str | None = None,
         git_sync: bool = True,
+        state_branch_enabled: bool = False,
+        state_branch_name: str | None = None,
     ) -> None:
         self.active_states = [canonicalize_status(s) for s in active_states]
         self.terminal_states = [canonicalize_status(s) for s in terminal_states]
@@ -210,6 +221,17 @@ class OompahMarkdownTracker:
         self._root = Path(cwd or os.getcwd()).resolve()
         self.default_branch = (default_branch or "").strip() or None
         self.git_sync = bool(git_sync)
+        self.state_branch_enabled = bool(state_branch_enabled)
+        self.state_branch_name = (state_branch_name or "").strip() or None
+        if self.state_branch_enabled and not self.state_branch_name:
+            raise TrackerError(
+                "state_branch_enabled=True requires state_branch_name to be set"
+            )
+        # Lazily-initialised path to the state-branch git worktree.
+        # Protected by _state_worktree_lock so concurrent reads don't race
+        # on first-time worktree creation.
+        self._state_root: Path | None = None
+        self._state_worktree_lock = threading.Lock()
         self._write_lock = threading.RLock()
         self._read_cache: list[dict[str, Any]] | None = None
         self._corrupt_stubs: list[dict[str, Any]] | None = None
@@ -221,6 +243,14 @@ class OompahMarkdownTracker:
 
     @property
     def tasks_root(self) -> Path:
+        """Return the ``.oompah/tasks`` directory for this tracker.
+
+        When ``state_branch_enabled=True``, returns the tasks directory inside
+        the dedicated state-branch git worktree so that all reads and writes
+        target the state branch without switching the shared code checkout.
+        """
+        if self.state_branch_enabled:
+            return self._get_state_root() / TASKS_DIR
         return self._root / TASKS_DIR
 
     def fetch_candidate_issues(self) -> list[Issue]:
@@ -980,8 +1010,266 @@ class OompahMarkdownTracker:
         raw = os.environ.get("OOMPAH_MD_TRACKER_GIT_SYNC", "1").strip().lower()
         return raw not in {"0", "false", "no", "off"}
 
+    # ------------------------------------------------------------------
+    # State-branch worktree management
+    # ------------------------------------------------------------------
+
+    def _state_worktree_path(self) -> Path:
+        """Return the deterministic filesystem path for the state-branch worktree.
+
+        The worktree is placed inside the git common directory (the ``.git``
+        directory of the main checkout, which is shared across all worktrees
+        of the same repository).  Using the common directory ensures that the
+        worktree registration is visible to all git operations on this repo,
+        and that the worktree is NOT tracked by the repository itself.
+
+        Branch name slashes are replaced with ``__`` to produce a valid
+        directory name; e.g. ``oompah/state/proj-abc`` →
+        ``oompah__state__proj-abc``.
+        """
+        assert self.state_branch_name
+        safe_name = self.state_branch_name.replace("/", "__").replace("\\", "__")
+        result = self._git(["rev-parse", "--git-common-dir"], check=False)
+        if result.returncode == 0:
+            git_common_dir = Path(result.stdout.strip())
+            if not git_common_dir.is_absolute():
+                git_common_dir = (self._root / git_common_dir).resolve()
+        else:
+            # Not inside a git repo — fall back to a sibling of .git
+            git_common_dir = self._root / ".git"
+        return git_common_dir / "oompah-state-worktrees" / safe_name
+
+    def _get_state_root(self) -> Path:
+        """Return the state-branch worktree path, creating the worktree if needed.
+
+        The first call (when ``_state_root`` is ``None``) checks that the
+        configured state branch exists locally or at ``origin``, then creates
+        (or reuses) a dedicated git worktree checked out on that branch.
+        Subsequent calls return the cached path immediately.
+
+        Raises :class:`TrackerError` if the state branch does not exist.
+        Normal reads must NOT auto-create the state branch — that is the
+        explicit bootstrap / migration flow's responsibility.
+        """
+        # Fast path: already initialised.
+        with self._state_worktree_lock:
+            if self._state_root is not None:
+                return self._state_root
+
+            branch_name = self.state_branch_name
+            assert branch_name  # guarded by __init__
+
+            # Check that the state branch exists (locally or at origin).
+            local_ok = (
+                self._git(
+                    ["rev-parse", "--verify", branch_name], check=False
+                ).returncode == 0
+            )
+            remote_ok = (
+                self._git(
+                    ["rev-parse", "--verify", f"refs/remotes/origin/{branch_name}"],
+                    check=False,
+                ).returncode == 0
+            )
+            if not local_ok and not remote_ok:
+                raise TrackerError(
+                    f"State branch {branch_name!r} does not exist locally or at "
+                    f"origin/{branch_name!r}. "
+                    f"Run the bootstrap or migration flow to create it before "
+                    f"enabling state_branch_enabled=True for this project. "
+                    f"Normal tracker reads must not create remote branches."
+                )
+
+            wt_path = self._state_worktree_path()
+
+            # Check if a worktree is already registered at this path.
+            wt_list = self._git(["worktree", "list", "--porcelain"], check=False)
+            registered = set()
+            if wt_list.returncode == 0:
+                for line in wt_list.stdout.splitlines():
+                    if line.startswith("worktree "):
+                        registered.add(Path(line.split(" ", 1)[1].strip()).resolve())
+
+            if wt_path.resolve() in registered:
+                # Worktree already exists and is registered — use it.
+                pass
+            else:
+                if wt_path.exists():
+                    # Path exists but is NOT registered — prune stale metadata
+                    # then remove the orphaned directory so we can re-create it.
+                    self._git(["worktree", "prune"], check=False)
+                    # Check again after prune
+                    wt_list2 = self._git(
+                        ["worktree", "list", "--porcelain"], check=False
+                    )
+                    registered2: set[Path] = set()
+                    if wt_list2.returncode == 0:
+                        for line2 in wt_list2.stdout.splitlines():
+                            if line2.startswith("worktree "):
+                                registered2.add(
+                                    Path(line2.split(" ", 1)[1].strip()).resolve()
+                                )
+                    if wt_path.resolve() not in registered2:
+                        import shutil
+                        shutil.rmtree(str(wt_path), ignore_errors=True)
+                # Create the worktree.
+                wt_path.parent.mkdir(parents=True, exist_ok=True)
+                if local_ok:
+                    self._git(
+                        ["worktree", "add", str(wt_path), branch_name], check=True
+                    )
+                else:
+                    # Create a local tracking branch from the remote.
+                    self._git(
+                        [
+                            "worktree", "add", "--track",
+                            "-b", branch_name,
+                            str(wt_path),
+                            f"origin/{branch_name}",
+                        ],
+                        check=True,
+                    )
+
+            self._state_root = wt_path
+            return self._state_root
+
+    def _prepare_state_branch_for_write(self) -> None:
+        """Ensure the state-branch worktree is set up and synced from origin.
+
+        Called from :meth:`_prepare_default_branch_for_write` when
+        ``state_branch_enabled=True``.  Does NOT check or modify the shared
+        code checkout; the worktree isolation guarantees that the two branches
+        stay independent.
+        """
+        # Ensure the worktree is set up (raises TrackerError if branch missing).
+        state_root = self._get_state_root()
+        branch_name = self.state_branch_name
+
+        # Verify the worktree is on the expected branch.
+        current = self._git(
+            ["symbolic-ref", "--short", "HEAD"], check=False, cwd=state_root
+        )
+        if current.returncode == 0 and current.stdout.strip() != branch_name:
+            raise TrackerError(
+                f"State-branch worktree at {state_root} is not on branch "
+                f"{branch_name!r}; got {current.stdout.strip()!r}. "
+                f"Remove the worktree directory and let the tracker recreate it."
+            )
+
+        # Sync from origin if available.
+        if self._has_remote("origin"):
+            self._sync_state_branch_from_remote()
+
+    def _sync_state_branch_from_remote(self) -> None:
+        """Fetch and fast-forward the state branch worktree from origin.
+
+        Uses the same non-destructive recovery strategy as
+        :meth:`_sync_from_remote`: prefer ``--ff-only``; fall back to
+        ``rebase --autostash``; never use ``reset --hard``.
+
+        Raises :class:`TrackerError` with an actionable message when both
+        recovery paths fail.
+        """
+        branch_name = self.state_branch_name
+        assert branch_name
+        state_root = self._get_state_root()
+
+        fetch = self._git(["fetch", "origin", branch_name], check=False)
+        if fetch.returncode != 0:
+            fetch_err = fetch.stderr.strip() or fetch.stdout.strip()
+            raise TrackerError(
+                f"Cannot sync state branch {branch_name!r}: "
+                f"git fetch origin {branch_name!r} failed: {fetch_err}. "
+                f"Remediation: verify network access and remote URL "
+                f"(git remote get-url origin)."
+            )
+
+        ff = self._git(
+            ["merge", "--ff-only", f"origin/{branch_name}"],
+            check=False,
+            cwd=state_root,
+        )
+        if ff.returncode == 0:
+            return
+
+        # Fast-forward failed — try a non-destructive rebase.
+        ff_err = ff.stderr.strip() or ff.stdout.strip()
+        rebase = self._git(
+            ["rebase", "--autostash", f"origin/{branch_name}"],
+            check=False,
+            cwd=state_root,
+        )
+        if rebase.returncode == 0:
+            return
+
+        # Both paths failed — abort rebase, preserve worktree, raise.
+        self._git(["rebase", "--abort"], check=False, cwd=state_root)
+        rebase_err = rebase.stderr.strip() or rebase.stdout.strip()
+        raise TrackerError(
+            f"Cannot sync state branch {branch_name!r}: "
+            f"git merge --ff-only origin/{branch_name} failed: {ff_err}. "
+            f"Automatic rebase --autostash origin/{branch_name} also failed: "
+            f"{rebase_err}. "
+            f"The state-branch worktree was preserved at {state_root}. "
+            f"Remediation: resolve the conflict, then run: "
+            f"git fetch origin && git rebase --autostash origin/{branch_name}"
+        )
+
+    def _commit_and_push_state_branch(self, subject: str) -> None:
+        """Commit task mutations to the state-branch worktree and push.
+
+        Runs ``git add`` and ``git commit`` inside the state-branch worktree
+        so that commits land only on the state branch and never touch the
+        shared code checkout.  Push target is ``origin/<state_branch_name>``.
+
+        On a non-fast-forward push rejection, fetches the remote state branch,
+        rebases local commits on top of it (never using ``reset --hard``), and
+        retries the push once.
+        """
+        state_root = self._get_state_root()
+        branch_name = self.state_branch_name
+        assert branch_name
+
+        self._git(["add", TASKS_DIR], check=True, cwd=state_root)
+        diff = self._git(
+            ["diff", "--cached", "--quiet", "--", TASKS_DIR],
+            check=False,
+            cwd=state_root,
+        )
+        if diff.returncode == 0:
+            return  # Nothing to commit.
+
+        message = (
+            f"{subject}\n\n"
+            "🤖 Generated with https://github.com/lesserevil/oompah\n\n"
+            "Co-authored-by: oompah <lesserevil@users.noreply.github.com>\n"
+        )
+        self._git(["commit", "-m", message], check=True, cwd=state_root)
+
+        if not self._has_remote("origin"):
+            return
+
+        push = self._git(
+            ["push", "origin", f"HEAD:{branch_name}"],
+            check=False,
+            cwd=state_root,
+        )
+        if push.returncode == 0:
+            return
+
+        # Push rejected — sync and retry once.
+        self._sync_state_branch_from_remote()
+        self._git(
+            ["push", "origin", f"HEAD:{branch_name}"],
+            check=True,
+            cwd=state_root,
+        )
+
     def _prepare_default_branch_for_write(self) -> None:
         if not self._git_sync_requested() or not self._is_git_repo():
+            return
+        if self.state_branch_enabled:
+            self._prepare_state_branch_for_write()
             return
         branch = self.default_branch or self._infer_default_branch() or "main"
         current = self._git(["symbolic-ref", "--short", "HEAD"], check=True).stdout.strip()
@@ -1053,6 +1341,9 @@ class OompahMarkdownTracker:
     def _commit_and_push(self, subject: str) -> None:
         if not self._git_sync_requested() or not self._is_git_repo():
             return
+        if self.state_branch_enabled:
+            self._commit_and_push_state_branch(subject)
+            return
         self._git(["add", TASKS_DIR], check=True)
         if self._git(["diff", "--cached", "--quiet", "--", TASKS_DIR], check=False).returncode == 0:
             return
@@ -1101,10 +1392,27 @@ class OompahMarkdownTracker:
             return value.split("/", 1)[1]
         return value or None
 
-    def _git(self, args: list[str], *, check: bool) -> subprocess.CompletedProcess[str]:
+    def _git(
+        self,
+        args: list[str],
+        *,
+        check: bool,
+        cwd: Path | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        """Run a git command and return the completed process.
+
+        Args:
+            args: git sub-command and flags (without the ``git`` binary itself).
+            check: When ``True``, raise :class:`TrackerError` if the command
+                exits with a non-zero status.
+            cwd: Working directory for the git command.  Defaults to
+                ``self._root`` (the main project checkout).  Pass the state-
+                branch worktree path to run commands inside that worktree.
+        """
+        effective_cwd = str(cwd) if cwd is not None else str(self._root)
         result = subprocess.run(
             ["git", *args],
-            cwd=str(self._root),
+            cwd=effective_cwd,
             capture_output=True,
             text=True,
             timeout=60,
@@ -1150,6 +1458,8 @@ def _oompah_md_factory(
     terminal_states: list[str],
     cwd: str | None = None,
     default_branch: str | None = None,
+    state_branch_enabled: bool = False,
+    state_branch_name: str | None = None,
     **kwargs: Any,
 ) -> OompahMarkdownTracker:
     return OompahMarkdownTracker(
@@ -1157,4 +1467,6 @@ def _oompah_md_factory(
         terminal_states=terminal_states,
         cwd=cwd,
         default_branch=default_branch,
+        state_branch_enabled=state_branch_enabled,
+        state_branch_name=state_branch_name,
     )
