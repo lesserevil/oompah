@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T17:02:27.514309Z'
+updated_at: '2026-07-20T17:02:35.686595Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -177,5 +177,10 @@ author: oompah
 created: 2026-07-20 17:01
 ---
 Focus handoff required before leaving `duplicate_detector`. Add a comment headed `Focus handoff: duplicate_detector` with outcome, evidence, remaining work, and next focus.
+---
+author: oompah
+created: 2026-07-20 17:02
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
