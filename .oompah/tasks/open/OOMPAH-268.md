@@ -16,7 +16,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:52:04.570031Z'
-updated_at: '2026-07-20T16:55:47.727891Z'
+updated_at: '2026-07-20T16:55:54.660222Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,6 +45,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-20T16:52:15.589069+00:00'
+oompah.agent_run_id: db593bee-5fb3-4cbc-87ff-1379bbdba046
 ---
 ## Summary
 
