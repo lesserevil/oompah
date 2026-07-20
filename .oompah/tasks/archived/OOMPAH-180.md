@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-180
 type: task
-status: Merged
+status: Archived
 priority: 2
 title: Build task release-addendum selection and status UI
 parent: OOMPAH-172
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:12.732590Z'
-updated_at: '2026-07-13T07:24:43.269424Z'
+updated_at: '2026-07-20T08:27:44.027023Z'
 work_branch: null
 target_branch: null
 review_url: null
