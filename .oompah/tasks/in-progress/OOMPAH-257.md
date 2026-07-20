@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:39.587340Z'
-updated_at: '2026-07-20T20:07:01.720715Z'
+updated_at: '2026-07-20T20:08:43.963557Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -215,5 +215,20 @@ Understanding: Continuing as Test Engineer. Previous agent wrote checkpoint_queu
 2. CheckpointQueue uses threading.Lock() (non-reentrant). Tests with fire_immediately=True cause a deadlock: schedule() holds the lock, fires a timer synchronously, which calls flush() which tries to acquire the same lock → deadlock. Fix: use threading.RLock().
 
 Next: apply both fixes and verify all 59 tests pass.
+---
+author: oompah
+created: 2026-07-20 20:08
+---
+Implementation: Fixed two bugs in the checkpoint coalescing implementation.
+
+Bug 1 — _commit_and_push() in oompah_md_tracker.py:
+The git_sync guard returned early before calling _checkpoint_queue.schedule(). This meant that when tests use git_sync=False (test mode), pending_mutations was always 0 and flush_checkpoint() was a no-op. Fix: move the checkpoint schedule() call BEFORE the git_sync check — in state-branch+queue mode, we always buffer regardless of git_sync, and the flush happens via _do_checkpoint_flush() which does the actual git commit+push.
+
+Bug 2 — CheckpointQueue._lock was threading.Lock() (non-reentrant):
+Tests with fire_immediately=True caused a deadlock: schedule() holds the lock, starts a timer synchronously in the same thread, which calls _timer_flush() → flush() → tries to acquire the same lock → deadlock. Fix: use threading.RLock() which allows re-entrant acquisition from the same thread (synchronous timer testing), while preserving the mutual-exclusion semantics for different threads in production.
+
+Files changed:
+- oompah/checkpoint_queue.py: threading.Lock() → threading.RLock()
+- oompah/oompah_md_tracker.py: _commit_and_push() reordered to schedule before git_sync check
 ---
 <!-- COMMENTS:END -->
