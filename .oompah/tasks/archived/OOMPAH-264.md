@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-264
 type: task
-status: Backlog
+status: Archived
 priority: null
 title: Do not auto-file epic rebase tasks for tracker-only main divergence
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T16:48:27.260505Z'
-updated_at: '2026-07-20T16:48:27.260505Z'
+updated_at: '2026-07-20T16:53:43.261699Z'
 work_branch: null
 target_branch: null
 review_url: null
