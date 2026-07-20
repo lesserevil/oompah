@@ -16,7 +16,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:51:31.017958Z'
+updated_at: '2026-07-20T17:51:33.643115Z'
 work_branch: OOMPAH-267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/456
@@ -431,5 +431,10 @@ author: oompah
 created: 2026-07-20 17:51
 ---
 Completion: Merge conflict resolved. OOMPAH-267 branch rebased onto origin/main. The concurrent git commit race fix (module-level per-repo write lock in oompah_md_tracker.py) and associated docs/tests are cleanly on top of main. All tests pass. Force-pushed with --force-with-lease. MR #456 conflict is cleared.
+---
+author: oompah
+created: 2026-07-20 17:51
+---
+Fixed concurrent git commit race condition (module-level per-repo write lock in oompah_md_tracker.py). Added docs, design plan, and regression tests. Branch rebased onto main and force-pushed. All 9414 tests pass.
 ---
 <!-- COMMENTS:END -->
