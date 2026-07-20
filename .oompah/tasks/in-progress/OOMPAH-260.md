@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:30:27.106890Z'
-updated_at: '2026-07-20T21:06:31.079424Z'
+updated_at: '2026-07-20T21:09:36.596880Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -187,5 +187,22 @@ author: oompah
 created: 2026-07-20 21:06
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-20 21:09
+---
+Understanding + plan: Writing end-to-end integration tests for the state-branch workflow (OOMPAH-260).
+
+Key findings:
+- All blocker tasks (OOMPAH-257, OOMPAH-258, OOMPAH-259) are done; their individual tests pass (215 tests in 12s).
+- Existing test files cover unit-level: migration stages, tracker routing, checkpoint coalescing, bootstrap, project config.
+- OOMPAH-260 specifically requires:
+  (1) A top-level E2E test file (tests/test_state_branch_e2e.py) covering: new project with bare remote, code commits on main interleaved with task updates, release branch isolation, legacy migration, commit history regression assertions, failed push + recovery.
+  (2) Operator readiness guide (docs/state-branch-migration-readiness.md) with preflight checklist, validation commands, rollback criteria, staged rollout recommendation.
+
+Implementation plan:
+- tests/test_state_branch_e2e.py: § 1 New project E2E (bare remote), § 2 Legacy migration E2E (Stage A→B), § 3 Commit history regression assertions, § 4 Failed push simulation + recovery, § 5 Release branch isolation, § 6 Orchestration continuity (deps, comments, reads)
+- docs/state-branch-migration-readiness.md: Standalone operator readiness guide
+- make test pass
 ---
 <!-- COMMENTS:END -->
