@@ -7,10 +7,11 @@ title: Define state-branch format, configuration contract, and migration design
 parent: OOMPAH-253
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:10.225678Z'
-updated_at: '2026-07-20T16:33:51.784915Z'
+updated_at: '2026-07-20T16:33:59.706533Z'
 work_branch: null
 target_branch: null
 review_url: null
