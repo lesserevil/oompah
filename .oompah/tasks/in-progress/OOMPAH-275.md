@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T18:12:40.206996Z'
-updated_at: '2026-07-20T18:37:15.126066Z'
+updated_at: '2026-07-20T18:38:50.453769Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,5 +118,10 @@ author: oompah
 created: 2026-07-20 18:37
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 18:38
+---
+Understanding: OOMPAH-275 is NOT a duplicate. Searched .oompah/tasks/ for 'rebase', 'epic-OOMPAH-253', 'stale' — all prior rebase tasks for this epic (OOMPAH-261, OOMPAH-262, OOMPAH-269) are Done. A new rebase is genuinely needed.\n\nI am already on the epic-OOMPAH-253 branch. Plan: fetch origin, rebase epic-OOMPAH-253 onto origin/main, resolve any conflicts, force-push with --force-with-lease.
 ---
 <!-- COMMENTS:END -->
