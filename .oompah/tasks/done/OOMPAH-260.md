@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:30:27.106890Z'
-updated_at: '2026-07-20T21:21:49.538358Z'
+updated_at: '2026-07-20T21:21:51.910695Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -270,5 +270,10 @@ Completion: Delivered all acceptance criteria for OOMPAH-260.
 ✅ No live project migration occurs automatically (all tests use tmp_path fixtures).
 
 ✅ make test passes: 9771 passed, 36 skipped, 0 failed.
+---
+author: oompah
+created: 2026-07-20 21:21
+---
+E2E integration tests (44 tests in tests/test_state_branch_e2e.py) and operator readiness guide (docs/state-branch-migration-readiness.md) delivered. All 9771 tests pass. Covers: new project bootstrap, legacy migration, commit history regression, failed push recovery, release branch isolation, orchestration continuity, checkpoint coalescing.
 ---
 <!-- COMMENTS:END -->
