@@ -12,7 +12,7 @@ labels:
 - needs:devops
 assignee: null
 created_at: '2026-07-20T16:46:23.089029Z'
-updated_at: '2026-07-20T16:51:38.391006Z'
+updated_at: '2026-07-20T16:51:46.125586Z'
 work_branch: null
 target_branch: null
 review_url: null
