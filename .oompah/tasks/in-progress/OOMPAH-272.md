@@ -12,7 +12,7 @@ labels:
 - yolo-watchdog
 assignee: null
 created_at: '2026-07-20T17:42:07.889576Z'
-updated_at: '2026-07-20T17:44:41.648619Z'
+updated_at: '2026-07-20T17:55:04.012402Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -134,5 +134,30 @@ author: oompah
 created: 2026-07-20 17:44
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 17:55
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: OOMPAH-272 is NOT a duplicate of any existing task. Two candidate tasks were reviewed:
+
+   - **OOMPAH-207** (Merged): 'YOLO stuck on oompah/418: merge failing 5 ticks running' — same pattern (yolo-watchdog, HTTP 405 merge conflict) but for PR #418, not PR #456. Different PR, different branch, already Merged.
+   - **OOMPAH-267** (In Progress): The implementation task that owns PR #456 — a different issue (git concurrent write race condition bug) rather than a watchdog alert. Not a duplicate.
+
+2. **Evidence and key findings**:
+   - Only two yolo-watchdog tasks exist in the tracker: OOMPAH-207 (Merged, PR #418) and OOMPAH-272 (this task, PR #456).
+   - OOMPAH-267 owns PR #456 (review_number: '456', review_url: https://github.com/lesserevil/oompah/pull/456).
+   - On origin/main, OOMPAH-267 is marked **Done** but merged_at: null — the task was closed as Done without the PR ever merging.
+   - The OOMPAH-267 branch is 2 code commits ahead of main: 'd362fb4e OOMPAH-267: Fix concurrent git commit race via module-level per-repo write lock' and '49a49f8d OOMPAH-267: document concurrent git tracker write race condition'. These commits are NOT on main yet.
+   - main is 10+ commits ahead of OOMPAH-267 (all .oompah/tasks/ metadata commits), causing the merge conflict in PR #456.
+   - git diff main..OOMPAH-267 shows conflicting .oompah/tasks/ files: archived/OOMPAH-273.md, done/OOMPAH-267.md, in-progress/OOMPAH-256.md, open/OOMPAH-253.md, open/OOMPAH-268.md, open/OOMPAH-274.md.
+
+3. **Remaining work and risks**:
+   - The code fix from OOMPAH-267 has NOT landed on main. The PR needs to be rebased and the merge conflicts (all in .oompah/tasks/) resolved, then force-pushed, to unblock the YOLO loop.
+   - OOMPAH-267 being marked Done with merged_at: null is a state inconsistency — the task was closed by a merge conflict resolver agent that did NOT actually complete the merge. The code fix still needs to land.
+   - The merge conflict is in .oompah/tasks/ metadata files only (not in code files) — straightforward to resolve by taking main's versions of those task files and keeping OOMPAH-267's code changes.
+
+4. **Recommended next focus**: chore — rebase branch OOMPAH-267 onto main, resolve .oompah/tasks/ conflicts (take main's task metadata, preserve OOMPAH-267's code changes), run make test, force-push, and close OOMPAH-272 as Done.
 ---
 <!-- COMMENTS:END -->
