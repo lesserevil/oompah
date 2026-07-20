@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T20:38:31.216207Z'
-updated_at: '2026-07-20T20:59:58.603434Z'
+updated_at: '2026-07-20T21:00:18.930035Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-07-20 20:59
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 21:00
+---
+Understanding: This task asks to rebase the epic branch epic-OOMPAH-253 onto origin/main and force-push. As Duplicate Investigator, my first job is to determine whether this rebase task is a duplicate of a previously-handled issue before taking any action on the branch itself. I will search for similar tasks now.
 ---
 <!-- COMMENTS:END -->
