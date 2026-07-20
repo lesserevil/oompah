@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T23:55:47.452863Z'
+updated_at: '2026-07-20T23:55:49.692697Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
@@ -512,5 +512,10 @@ All implementation from prior DevOps and Test Engineer agents is pushed:
 Branch divergence (64 local / 61 origin) was resolved via merge (no file conflicts — identical content). Branch is now clean and up to date with origin.
 
 make test: 9835 passed, 36 skipped.
+---
+author: oompah
+created: 2026-07-20 23:55
+---
+Containerized self-hosted GitHub Actions runner delivered: scripts/runner.sh (Podman/Docker lifecycle), Makefile targets, .env.example vars, CI workflows updated to [self-hosted,linux,x64,oompah], docs/self-hosted-runner.md operator guide, 63 tests all passing (make test: 9835 passed, 36 skipped). Branch pushed and up to date.
 ---
 <!-- COMMENTS:END -->
