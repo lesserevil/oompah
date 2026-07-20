@@ -29,7 +29,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-20T16:29:00.780109Z'
-updated_at: '2026-07-20T21:23:11.715348Z'
+updated_at: '2026-07-20T21:23:14.017410Z'
 work_branch: epic-OOMPAH-253
 target_branch: main
 review_url: null
@@ -82,5 +82,10 @@ author: oompah
 created: 2026-07-20 21:23
 ---
 The epic branch `epic-OOMPAH-253` is stale: it has fallen behind `main`. Rebase the branch onto `origin/main`, resolve any conflicts, and force-push with `git push --force-with-lease`.
+---
+author: oompah
+created: 2026-07-20 21:23
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
