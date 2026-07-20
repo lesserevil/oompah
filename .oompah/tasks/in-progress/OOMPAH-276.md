@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T18:45:20.051297Z'
-updated_at: '2026-07-20T19:11:35.160381Z'
+updated_at: '2026-07-20T19:11:57.237109Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-07-20 19:11
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 19:11
+---
+Understanding: I am the Duplicate Investigator for OOMPAH-276 ('Rebase epic-OOMPAH-253 onto main'). This task was auto-filed because the epic branch epic-OOMPAH-253 was detected as stale. My job is to check whether a similar rebase task already exists before any implementation begins. I will search for tasks related to OOMPAH-253, stale-branch rebases, and any other rebase tasks targeting this epic.
 ---
 <!-- COMMENTS:END -->
