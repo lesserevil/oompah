@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T20:01:44.388757Z'
-updated_at: '2026-07-20T20:10:23.579087Z'
+updated_at: '2026-07-20T20:10:25.959007Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ This task was auto-filed because epic OOMPAH-253 was detected as stale. Do NOT c
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-20 20:10
+---
+Agent dispatched (profile: standard)
+---
+<!-- COMMENTS:END -->
