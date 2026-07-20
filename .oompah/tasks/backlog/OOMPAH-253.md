@@ -5,12 +5,13 @@ status: Backlog
 priority: null
 title: 'Epic: Git-backed Oompah state branches and coalesced metadata checkpoints'
 parent: null
-children: []
+children:
+- OOMPAH-254
 blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T16:29:00.780109Z'
-updated_at: '2026-07-20T16:29:00.780109Z'
+updated_at: '2026-07-20T16:29:10.299471Z'
 work_branch: null
 target_branch: null
 review_url: null
