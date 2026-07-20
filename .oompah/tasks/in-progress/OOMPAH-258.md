@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:29:48.958577Z'
-updated_at: '2026-07-20T20:14:30.036597Z'
+updated_at: '2026-07-20T20:16:22.028697Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -109,5 +109,31 @@ author: oompah
 created: 2026-07-20 20:14
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 20:16
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-258 is a unique, non-duplicated task.
+
+**Evidence reviewed:**
+- Searched .oompah/tasks/ (all states: open, in-progress, done, archived) for keywords: bootstrap, project-bootstrap, state branch, state_branch, idempotent, operator documentation
+- Reviewed the full OOMPAH-253 epic family: OOMPAH-254 (design doc), OOMPAH-255 (project model fields), OOMPAH-256 (tracker read/write routing), OOMPAH-257 (checkpoint coalescing), OOMPAH-259 (existing project migration), OOMPAH-260 (E2E validation)
+- Checked archived bootstrap tasks: OOMPAH-24 (release smoke tests), OOMPAH-31 (bootstrap flow validation) — both archived, neither covers state-branch initialization
+
+**Closest reviewed tasks (all confirmed distinct):**
+- OOMPAH-256 (Done): tracker read/write routing — distinct: only the tracker, not the bootstrap templates
+- OOMPAH-259 (Open): migration for EXISTING projects — distinct: migration path, not bootstrap for NEW projects
+- OOMPAH-254 (Done): design document — distinct: plans/ design doc, not implementation
+- OOMPAH-260 (Open, blocked by 258): E2E validation — depends on this task being completed first
+
+**Remaining work:** Implementation of:
+1. Extend project-bootstrap templates/scripts to create/initialize the state branch with canonical task-tree layout and set state-branch configuration
+2. Idempotency guard (rerun recognizes valid existing state branch, never overwrites task data)
+3. docs/ operator guide: permissions, branch protection, verification, checkpoint tuning (.env), troubleshooting failed state pushes, code branch vs state branch distinction
+4. Tests: E2E bootstrap fixture (empty remote → state branch + config + task layout), idempotency test, template/config verification test
+
+**Recommended next focus:** feature (backend + docs implementation)
 ---
 <!-- COMMENTS:END -->
