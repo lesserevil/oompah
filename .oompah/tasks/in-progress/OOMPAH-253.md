@@ -25,11 +25,10 @@ children:
 - OOMPAH-280
 blocked_by: []
 labels:
-- merge-conflict
 - epic:rebasing
 assignee: null
 created_at: '2026-07-20T16:29:00.780109Z'
-updated_at: '2026-07-20T21:27:54.709327Z'
+updated_at: '2026-07-20T21:27:58.206436Z'
 work_branch: epic-OOMPAH-253
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/457
