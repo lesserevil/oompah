@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-253
 type: task
-status: In Review
+status: Merged
 priority: 0
 title: 'Epic: Git-backed Oompah state branches and coalesced metadata checkpoints'
 parent: null
@@ -28,7 +28,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-20T16:29:00.780109Z'
-updated_at: '2026-07-20T21:28:52.984241Z'
+updated_at: '2026-07-20T21:59:37.183461Z'
 work_branch: epic-OOMPAH-253
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/457
