@@ -6,11 +6,12 @@ priority: null
 title: Configure Git state branches in project-bootstrap and operator documentation
 parent: OOMPAH-253
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-256
 labels: []
 assignee: null
 created_at: '2026-07-20T16:29:48.958577Z'
-updated_at: '2026-07-20T16:29:48.958577Z'
+updated_at: '2026-07-20T16:30:42.049202Z'
 work_branch: null
 target_branch: null
 review_url: null
