@@ -10,9 +10,10 @@ blocked_by: []
 labels:
 - needs-human
 - yolo-watchdog
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T17:42:07.889576Z'
-updated_at: '2026-07-20T17:55:04.012402Z'
+updated_at: '2026-07-20T17:55:14.375566Z'
 work_branch: null
 target_branch: null
 review_url: null
