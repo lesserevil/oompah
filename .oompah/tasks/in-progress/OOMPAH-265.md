@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T17:04:36.152623Z'
+updated_at: '2026-07-20T17:04:52.360481Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -213,5 +213,10 @@ author: oompah
 created: 2026-07-20 17:03
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-265`. Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-20 17:04
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
