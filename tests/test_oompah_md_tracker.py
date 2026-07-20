@@ -686,6 +686,122 @@ class TestOompahMarkdownTrackerGitSync:
             f"Must not use 'git pull --rebase', got: {arg_strings}"
         )
 
+    def test_commit_and_push_second_race_succeeds_on_third_attempt(self, tmp_path):
+        """When the first two push attempts are rejected (two concurrent writers),
+        the third attempt succeeds without raising TrackerError (OOMPAH-265).
+
+        This is the scenario where OOMPAH-235's single-retry was insufficient:
+        the retry push was also rejected by a second racing writer, causing
+        error_watcher to auto-file the error as a new task.  The fix extends
+        _commit_and_push to retry up to _PUSH_MAX_RETRIES total times.
+        """
+        from oompah.oompah_md_tracker import _PUSH_MAX_RETRIES
+
+        tracker = _tracker(tmp_path, git_sync=True)
+        calls: list[tuple] = []
+        push_count = [0]
+
+        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+            calls.append(tuple(args))
+            cmd = args[0] if args else ""
+            if cmd == "rev-parse":
+                return _make_completed_process(0, "true")
+            if cmd == "symbolic-ref":
+                return _make_completed_process(0, "main")
+            if cmd == "remote":
+                return _make_completed_process(0, "git@example.com:org/repo.git")
+            if cmd == "add":
+                return _make_completed_process(0)
+            if cmd == "diff":
+                return _make_completed_process(1)  # staged changes present
+            if cmd == "commit":
+                return _make_completed_process(0)
+            if cmd == "push":
+                push_count[0] += 1
+                if push_count[0] < 3:
+                    # First two pushes rejected (two concurrent writers race)
+                    return _make_completed_process(
+                        1, "", "! [rejected] main -> main (fetch first)"
+                    )
+                # Third push succeeds
+                return _make_completed_process(0)
+            if cmd == "fetch":
+                return _make_completed_process(0)
+            if cmd == "merge" and "--ff-only" in args:
+                return _make_completed_process(0)
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+
+        # Must not raise — the second retry must recover.
+        tracker._commit_and_push("Test second race recovery")
+
+        assert push_count[0] == 3, (
+            f"Expected 3 push attempts (first+second rejected, third succeeds), "
+            f"got {push_count[0]}"
+        )
+        assert _PUSH_MAX_RETRIES >= 3, (
+            f"_PUSH_MAX_RETRIES must be >= 3 to handle two-race scenario, "
+            f"got {_PUSH_MAX_RETRIES}"
+        )
+
+    def test_commit_and_push_all_retries_exhausted_raises_tracker_error(self, tmp_path):
+        """When all _PUSH_MAX_RETRIES push attempts are rejected, TrackerError is
+        raised with the last push stderr message (OOMPAH-265 regression guard).
+
+        This ensures the error message is still informative (and will be caught
+        by error_watcher if it genuinely cannot recover), while the retry loop
+        makes reaching this code path extremely unlikely under normal conditions.
+        """
+        tracker = _tracker(tmp_path, git_sync=True)
+        push_count = [0]
+
+        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+            cmd = args[0] if args else ""
+            if cmd == "rev-parse":
+                return _make_completed_process(0, "true")
+            if cmd == "symbolic-ref":
+                return _make_completed_process(0, "main")
+            if cmd == "remote":
+                return _make_completed_process(0, "git@example.com:org/repo.git")
+            if cmd == "add":
+                return _make_completed_process(0)
+            if cmd == "diff":
+                return _make_completed_process(1)
+            if cmd == "commit":
+                return _make_completed_process(0)
+            if cmd == "push":
+                push_count[0] += 1
+                # Every push attempt is rejected (simulates persistent push race)
+                return _make_completed_process(
+                    1,
+                    "",
+                    "cannot lock ref 'refs/heads/main': is at abc but expected def",
+                )
+            if cmd == "fetch":
+                return _make_completed_process(0)
+            if cmd == "merge" and "--ff-only" in args:
+                return _make_completed_process(0)
+            return _make_completed_process(0)
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+
+        from oompah.oompah_md_tracker import _PUSH_MAX_RETRIES
+        from oompah.tracker import TrackerError
+
+        with pytest.raises(TrackerError) as exc_info:
+            tracker._commit_and_push("Test exhausted retries")
+
+        assert push_count[0] == _PUSH_MAX_RETRIES, (
+            f"Expected exactly {_PUSH_MAX_RETRIES} push attempts, got {push_count[0]}"
+        )
+        assert "git push origin HEAD:main failed" in str(exc_info.value), (
+            f"Expected informative error message, got: {exc_info.value}"
+        )
+        assert "cannot lock ref" in str(exc_info.value), (
+            f"Expected last push stderr in error message, got: {exc_info.value}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # OOMPAH-28: Comprehensive native tracker state transition audit
