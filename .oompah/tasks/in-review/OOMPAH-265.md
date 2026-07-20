@@ -13,8 +13,8 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T17:29:02.857499Z'
-work_branch: null
+updated_at: '2026-07-20T17:29:11.655531Z'
+work_branch: OOMPAH-265
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/455
 review_number: '455'
@@ -79,6 +79,7 @@ oompah.task_costs:
     recorded_at: '2026-07-20T17:18:54.392310+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/455
 oompah.review_number: '455'
+oompah.work_branch: OOMPAH-265
 ---
 ## Summary
 
