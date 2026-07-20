@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T16:46:23.089029Z'
-updated_at: '2026-07-20T16:47:32.907143Z'
+updated_at: '2026-07-20T16:47:35.842948Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,12 @@ This task was auto-filed because epic OOMPAH-253 was detected as stale. Do NOT c
 - [ ] Define acceptance criteria.
 
 ## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-20 16:47
+---
+Agent dispatched (profile: standard)
+---
+<!-- COMMENTS:END -->
