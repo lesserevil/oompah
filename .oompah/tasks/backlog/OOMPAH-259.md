@@ -6,11 +6,12 @@ priority: null
 title: Implement resumable migration of existing projects to Git state branches
 parent: OOMPAH-253
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-256
 labels: []
 assignee: null
 created_at: '2026-07-20T16:30:00.848090Z'
-updated_at: '2026-07-20T16:30:00.848090Z'
+updated_at: '2026-07-20T16:30:46.729672Z'
 work_branch: null
 target_branch: null
 review_url: null
