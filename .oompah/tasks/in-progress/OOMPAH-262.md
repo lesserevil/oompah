@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T16:46:23.089029Z'
-updated_at: '2026-07-20T16:49:07.304328Z'
+updated_at: '2026-07-20T16:49:29.739312Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,5 +76,10 @@ author: oompah
 created: 2026-07-20 16:49
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 16:49
+---
+This automatic rebase task was triggered by main advancing primarily through .oompah metadata commits while epic-OOMPAH-253 is active. It is not an instruction to merge the epic early. OOMPAH-266 has been filed to suppress tracker-only stale-branch rebase tasks.
 ---
 <!-- COMMENTS:END -->
