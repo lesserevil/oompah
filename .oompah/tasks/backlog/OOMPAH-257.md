@@ -6,11 +6,12 @@ priority: null
 title: Coalesce native-tracker mutations into durable state-branch checkpoints
 parent: OOMPAH-253
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-256
 labels: []
 assignee: null
 created_at: '2026-07-20T16:29:39.587340Z'
-updated_at: '2026-07-20T16:29:39.587340Z'
+updated_at: '2026-07-20T16:30:38.296532Z'
 work_branch: null
 target_branch: null
 review_url: null
