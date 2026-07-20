@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-269
 type: task
-status: In Progress
+status: Open
 priority: 0
 title: Rebase epic-OOMPAH-253 onto main
 parent: OOMPAH-253
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:57:37.275313Z'
-updated_at: '2026-07-20T17:03:39.231630Z'
+updated_at: '2026-07-20T17:03:43.969528Z'
 work_branch: null
 target_branch: null
 review_url: null
