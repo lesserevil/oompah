@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:30:00.848090Z'
-updated_at: '2026-07-20T20:59:33.490352Z'
+updated_at: '2026-07-20T20:59:35.901196Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -248,5 +248,10 @@ Completion: All acceptance criteria met.
 4. make test passes — 9727 passed, 36 skipped.
 
 Branch epic-OOMPAH-253 pushed with commit 4e962062.
+---
+author: oompah
+created: 2026-07-20 20:59
+---
+Implemented resumable state-branch migration with oompah admin CLI, API endpoints, shadow write, and 58 tests covering end-to-end, idempotency, interruption, rollback, and concurrent writes. All 9727 tests pass.
 ---
 <!-- COMMENTS:END -->
