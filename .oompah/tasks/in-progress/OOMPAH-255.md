@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:29:19.457116Z'
-updated_at: '2026-07-20T16:54:15.347976Z'
+updated_at: '2026-07-20T16:57:21.289509Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,31 @@ author: oompah
 created: 2026-07-20 16:54
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 16:57
+---
+Focus handoff: duplicate_detector
+
+Outcome: No duplicate found. OOMPAH-255 is a unique subtask within the OOMPAH-253 epic and is not covered by any existing or archived task.
+
+Evidence reviewed:
+- Searched .oompah/tasks/ (open, in-progress, done, archived) for: state-branch, state_branch, per-project branch, project model state, branch configuration, branch validation
+- All sibling tasks (OOMPAH-256 through OOMPAH-260) are distinct: OOMPAH-256 covers tracker read/write implementation (blocked by 255), OOMPAH-257 covers checkpointing, OOMPAH-258 covers bootstrap, OOMPAH-259 covers migration, OOMPAH-260 covers E2E validation
+- OOMPAH-254 (In Progress): is the design/spec task; OOMPAH-255 is the implementation of the project model/API/CLI/UI layer from that spec
+- Archived tasks OOMPAH-175, OOMPAH-180, OOMPAH-203, OOMPAH-235, OOMPAH-266 are unrelated (release branches, tracker write recovery, restart suppression)
+- plans/state-branch-design.md and docs/state-branch-migration.md were created by OOMPAH-254's agent and are the design inputs for OOMPAH-255
+- No prior archived task covers project model field addition, API/UI exposure, or branch-name validation for the state branch
+
+Remaining work (for next focus):
+- Add state_branch field to the Project model with validation (safe branch name regex, documented default oompah/state)
+- Expose field in project create/read/update APIs (REST + UI)
+- Add CLI flag/output for the setting
+- Maintain legacy behavior (None → read from default branch)
+- Invalidate tracker and repository caches on change
+- Tests: model/serialization, API, UI, backward-compat, cache-invalidation
+- make test must pass
+
+Recommended next focus: feature (backend implementation of project model field, API, validation, cache invalidation, and tests)
 ---
 <!-- COMMENTS:END -->
