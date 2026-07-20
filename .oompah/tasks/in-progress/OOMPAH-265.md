@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T17:09:39.936381Z'
+updated_at: '2026-07-20T17:09:49.108432Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -277,5 +277,10 @@ Focus handoff: duplicate_detector
 **Remaining work:** Implement multi-retry loop in _commit_and_push() (and write_and_commit_ledger_file()) with exponential backoff — 3 total attempts. Add tests. This is a backend Python fix.
 
 **Next focus:** feature (or chore — backend implementation of retry loop)
+---
+author: oompah
+created: 2026-07-20 17:09
+---
+Understanding (continuation run): Previous duplicate_detector agents correctly identified this is NOT a duplicate. The fix needed is a multi-retry loop in _commit_and_push() in oompah/oompah_md_tracker.py. OOMPAH-235 added a single retry which is insufficient when 3+ concurrent writers race — the second push also gets rejected. Implementing now: replace single retry with a loop (3 total attempts) with exponential backoff between retries. Also fixing write_and_commit_ledger_file() which has the same pattern. Adding tests that cover the second-push-race scenario.
 ---
 <!-- COMMENTS:END -->
