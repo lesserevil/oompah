@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T20:38:31.216207Z'
-updated_at: '2026-07-20T21:00:18.930035Z'
+updated_at: '2026-07-20T21:01:41.520994Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,29 @@ author: oompah
 created: 2026-07-20 21:00
 ---
 Understanding: This task asks to rebase the epic branch epic-OOMPAH-253 onto origin/main and force-push. As Duplicate Investigator, my first job is to determine whether this rebase task is a duplicate of a previously-handled issue before taking any action on the branch itself. I will search for similar tasks now.
+---
+author: oompah
+created: 2026-07-20 21:01
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: No duplicate found. OOMPAH-279 is NOT a duplicate.
+
+2. **Evidence reviewed**:
+   - Searched .oompah/tasks/ for 'rebase', 'epic-OOMPAH-253', 'stale', 'force-with-lease'
+   - Found many prior rebase tasks for this same epic: OOMPAH-261, OOMPAH-262, OOMPAH-269, OOMPAH-271, OOMPAH-275, OOMPAH-277, OOMPAH-278
+   - ALL of those prior tasks are Done — the most recent was OOMPAH-278 (force-pushed epic-OOMPAH-253 with 6 commits ahead of main, covering OOMPAH-254 through OOMPAH-258)
+   - OOMPAH-276 was archived as duplicate-of:OOMPAH-275 in a prior cycle (two tasks filed simultaneously for the same operation)
+   - There are NO open or in-progress tasks currently covering this rebase
+   - OOMPAH-279 was auto-filed because new commits landed on main after OOMPAH-278's rebase, causing the epic to fall behind again
+
+3. **Remaining work**:
+   - Fetch origin, check current divergence of epic-OOMPAH-253
+   - Run git rebase origin/main on epic-OOMPAH-253 (use git -C /home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-253 to operate on the epic worktree from any agent worktree)
+   - Resolve any conflicts
+   - Force-push: git push --force-with-lease origin epic-OOMPAH-253
+   - Key pattern from OOMPAH-278: most commits on the epic are .oompah metadata commits that get skipped; real code commits are OOMPAH-254 through OOMPAH-258 state-branch feature work
+
+4. **Recommended next focus**: devops (git rebase operation)
 ---
 <!-- COMMENTS:END -->
