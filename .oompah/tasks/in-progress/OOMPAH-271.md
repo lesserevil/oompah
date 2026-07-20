@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T17:39:04.653084Z'
-updated_at: '2026-07-20T18:05:18.092344Z'
+updated_at: '2026-07-20T18:05:22.915537Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -103,5 +103,10 @@ author: oompah
 created: 2026-07-20 17:42
 ---
 Focus handoff required before leaving `duplicate_detector`. Add a comment headed `Focus handoff: duplicate_detector` with outcome, evidence, remaining work, and next focus.
+---
+author: oompah
+created: 2026-07-20 18:05
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
