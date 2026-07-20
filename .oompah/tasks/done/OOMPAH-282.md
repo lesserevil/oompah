@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-282
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: '[backend:state_branch_migration] Stage A migration failed for project proj-edbc8b4c'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T22:43:02.333472Z'
-updated_at: '2026-07-20T23:14:17.400818Z'
+updated_at: '2026-07-20T23:23:21.091695Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,8 +25,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/459
   requestor_login: lesserevil
   imported_comment_ids: []
-  last_synced_status: Open
-  last_synced_at: '2026-07-20T23:13:03.968818+00:00'
+  last_synced_status: In Progress
+  last_synced_at: '2026-07-20T23:23:16.596448+00:00'
 oompah.intake:
   missing_fields: []
   scope: small
@@ -173,5 +173,18 @@ author: oompah
 created: 2026-07-20 23:14
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 23:23
+---
+**Understanding & Discovery (Duplicate Investigator)**
+
+Searched all .oompah/tasks (backlog, done, archived) for tasks matching keywords: latin-1, UnicodeEncodeError, state_branch_migration, initialize_state_branch. No duplicate task was found.
+
+**Root cause already fixed:** The bug (UnicodeEncodeError at project_bootstrap/__init__.py:380 when using latin-1 to encode git archive output containing em dash U+2014) was resolved in commit b99d22ba 'Fix Unicode state branch bootstrap', merged to main via PR #460 (branch fix-state-branch-unicode-bootstrap) today (2026-07-20).
+
+The fix replaces \_run\_git (which uses text=True causing the latin-1 re-encode) with subprocess.run (capture_output=True, no text mode), so stdout is bytes and no encoding conversion is needed. A regression test was added in tests/test_project_bootstrap_state_branch.py::TestSeedingFromMain::test_unicode_task_content_is_preserved_after_seeding. All 49 tests in that file pass.
+
+No code changes are needed; the fix is already in main. Closing as Done.
 ---
 <!-- COMMENTS:END -->
