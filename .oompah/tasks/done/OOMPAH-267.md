@@ -17,7 +17,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T23:22:42.824858Z'
+updated_at: '2026-07-20T23:22:45.028325Z'
 work_branch: OOMPAH-267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/456
@@ -583,5 +583,10 @@ Delivered:
 - docs/operator-runbook.md: §6.6 troubleshooting entry
 
 All 9775 tests pass. Branch pushed to origin/OOMPAH-267.
+---
+author: oompah
+created: 2026-07-20 23:22
+---
+Fixed concurrent git commit race condition: replaced per-instance threading.RLock with module-level per-repo lock dict in oompah_md_tracker.py. All 9775 tests pass. Branch pushed to origin/OOMPAH-267.
 ---
 <!-- COMMENTS:END -->
