@@ -6,11 +6,12 @@ priority: null
 title: Make the native Markdown tracker read and write the configured state branch
 parent: OOMPAH-253
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-255
 labels: []
 assignee: null
 created_at: '2026-07-20T16:29:29.498883Z'
-updated_at: '2026-07-20T16:29:29.498883Z'
+updated_at: '2026-07-20T16:30:35.263107Z'
 work_branch: null
 target_branch: null
 review_url: null
