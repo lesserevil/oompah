@@ -25,11 +25,10 @@ children:
 - OOMPAH-280
 blocked_by: []
 labels:
-- epic:stale
 - merge-conflict
 assignee: null
 created_at: '2026-07-20T16:29:00.780109Z'
-updated_at: '2026-07-20T21:23:04.492257Z'
+updated_at: '2026-07-20T21:23:06.776120Z'
 work_branch: epic-OOMPAH-253
 target_branch: main
 review_url: null
