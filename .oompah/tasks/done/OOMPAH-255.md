@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:19.457116Z'
-updated_at: '2026-07-20T17:33:26.952193Z'
+updated_at: '2026-07-20T17:33:30.070627Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ Implemented:
 6. Tests: 99 new in test_state_branch_project_config.py + UPDATABLE_FIELDS fixture updated
 
 Acceptance criteria met: operators can configure state branch per project; existing projects unchanged (default False); invalid values rejected with actionable messages; make test passes (9532 tests).
+---
+author: oompah
+created: 2026-07-20 17:33
+---
+Implemented per-project state-branch configuration: Project model fields (state_branch_enabled, state_branch_checkpoint_debounce_ms/max_delay_ms, state_branch_name property), serialization, ProjectStore validation, server API + cache invalidation, UI (projects.html), and 99 comprehensive tests. make test: 9532 passed.
 ---
 <!-- COMMENTS:END -->
