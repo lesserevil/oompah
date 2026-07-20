@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:19.457116Z'
-updated_at: '2026-07-20T17:05:12.938666Z'
+updated_at: '2026-07-20T17:06:02.663027Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -137,5 +137,10 @@ author: oompah
 created: 2026-07-20 17:05
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-20 17:06
+---
+Understanding: As Test Engineer, my role is to write comprehensive tests for the per-project state-branch configuration feature. I'll start by exploring what implementation exists on the branch, then write tests covering: (1) model/serialization tests for absent, valid, and invalid state-branch values; (2) API tests for create/read/update; (3) UI tests; (4) backward-compat test proving existing projects without the field read from main; (5) cache-invalidation regression tests. Starting with codebase exploration.
 ---
 <!-- COMMENTS:END -->
