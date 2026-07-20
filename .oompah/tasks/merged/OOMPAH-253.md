@@ -28,7 +28,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-20T16:29:00.780109Z'
-updated_at: '2026-07-20T22:00:15.995113Z'
+updated_at: '2026-07-20T22:54:29.207577Z'
 work_branch: epic-OOMPAH-253
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/457
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-07-20 21:59
 ---
 YOLO: merged PR #457.
+---
+author: oompah
+created: 2026-07-20 22:54
+---
+State-branch migration verification: Oompah is now at Stage B; routine tracker writes are stored on oompah/state/proj-14849f1b rather than main.
 ---
 <!-- COMMENTS:END -->
