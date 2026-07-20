@@ -29,7 +29,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-20T16:29:00.780109Z'
-updated_at: '2026-07-20T21:23:16.323027Z'
+updated_at: '2026-07-20T21:23:27.275914Z'
 work_branch: epic-OOMPAH-253
 target_branch: main
 review_url: null
@@ -92,5 +92,10 @@ author: oompah
 created: 2026-07-20 21:23
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-20 21:23
+---
+Understanding: My role is Merge Conflict Resolver. The branch epic-OOMPAH-253 has fallen behind main and needs to be rebased onto origin/main with all conflicts resolved. I will: (1) fetch origin, (2) rebase onto origin/main, (3) resolve all conflicts preserving intent from both sides, (4) run tests, (5) force-push with --force-with-lease.
 ---
 <!-- COMMENTS:END -->
