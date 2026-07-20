@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:04:40.684416Z'
+updated_at: '2026-07-20T17:04:48.447401Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -232,5 +232,10 @@ author: oompah
 created: 2026-07-20 17:04
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-20 17:04
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
