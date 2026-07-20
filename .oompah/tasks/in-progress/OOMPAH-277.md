@@ -12,7 +12,7 @@ labels:
 - needs:devops
 assignee: null
 created_at: '2026-07-20T20:01:44.388757Z'
-updated_at: '2026-07-20T20:13:30.728153Z'
+updated_at: '2026-07-20T20:13:38.750325Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -92,5 +92,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 45s
 - Log: OOMPAH-277__20260720T201033Z.jsonl
+---
+author: oompah
+created: 2026-07-20 20:13
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
