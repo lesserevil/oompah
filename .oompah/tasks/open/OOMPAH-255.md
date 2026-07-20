@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-255
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Add per-project state-branch configuration and validation
 parent: OOMPAH-253
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:19.457116Z'
-updated_at: '2026-07-20T16:58:05.702099Z'
+updated_at: '2026-07-20T16:58:09.256971Z'
 work_branch: null
 target_branch: null
 review_url: null
