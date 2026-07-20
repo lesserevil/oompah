@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:30:27.106890Z'
-updated_at: '2026-07-20T21:09:36.596880Z'
+updated_at: '2026-07-20T21:21:21.396257Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -204,5 +204,30 @@ Implementation plan:
 - tests/test_state_branch_e2e.py: § 1 New project E2E (bare remote), § 2 Legacy migration E2E (Stage A→B), § 3 Commit history regression assertions, § 4 Failed push simulation + recovery, § 5 Release branch isolation, § 6 Orchestration continuity (deps, comments, reads)
 - docs/state-branch-migration-readiness.md: Standalone operator readiness guide
 - make test pass
+---
+author: oompah
+created: 2026-07-20 21:21
+---
+Implementation: Added end-to-end tests and operator readiness guide.
+
+Files created:
+1. tests/test_state_branch_e2e.py (44 tests, 9 coverage sections)
+   - § 1 New project E2E: bare remote, bootstrap, task CRUD, code isolation
+   - § 2 Legacy migration E2E: Stage A→B with interleaved code commits
+   - § 3 Commit history regression: verifies zero task commits on main/release after cutover
+   - § 4 Failed push + recovery: task preserved locally when push fails
+   - § 5 Release branch isolation: no task commits on release branches post-cutover; Stage C cleanup
+   - § 6 Orchestration continuity: reads, updates, comments, deps, candidate discovery work after migration
+   - § 7 Rollback + retry: Stage B rollback, state branch preserved, idempotent re-migration
+   - § 8 Pre-migration validation: corrupt YAML, dirty tree, result format
+   - § 9 Checkpoint coalescing: 5 mutations → 1 commit, pending counter accuracy
+
+2. docs/state-branch-migration-readiness.md
+   - Preflight checklist (environment, repo health, task data, branch protection, timing)
+   - Validation commands for each stage
+   - Rollback criteria (mandatory, precautionary, expected non-errors)
+   - Staged production rollout (Phase 0→4 over 2 months)
+   - Quick reference card
+   - Test coverage table
 ---
 <!-- COMMENTS:END -->
