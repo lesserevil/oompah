@@ -4,12 +4,17 @@ This module owns the project-template bits that used to live in the separate
 ``lesserevil/bootstrap`` repository.  It provides drift detection, preview, and
 apply helpers for baseline AGENTS.md, docs/plans READMEs, githook scaffolding,
 and missing Makefile/.gitignore files.
+
+It also owns the **state-branch bootstrap** (OOMPAH-258): creating the initial
+``oompah/state/<project-id>`` orphan branch with the canonical task-tree layout
+so that newly bootstrapped projects are state-branch-enabled by default.
 """
 
 from __future__ import annotations
 
 import difflib
 import os
+import shutil
 import stat
 import subprocess
 from dataclasses import dataclass, field
@@ -22,6 +27,28 @@ from oompah.project_bootstrap.templates import (
     EXECUTABLE_PATHS,
     HTML_BEGIN_MARKER,
 )
+
+# ---------------------------------------------------------------------------
+# Canonical task-tree directory names (state-branch layout).
+# Mirrors the layout described in plans/state-branch-design.md § 2.2.
+# ---------------------------------------------------------------------------
+
+STATE_BRANCH_TASK_DIRS: tuple[str, ...] = (
+    "proposed",
+    "backlog",
+    "open",
+    "in-progress",
+    "needs-human",
+    "in-review",
+    "done",
+    "merged",
+    "archived",
+)
+
+
+# ---------------------------------------------------------------------------
+# Existing file-bootstrap types
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -57,6 +84,51 @@ class ProjectBootstrapApplyResult:
     commit_sha: str = ""
     pushed: bool = False
     error: str = ""
+
+
+# ---------------------------------------------------------------------------
+# State-branch bootstrap types
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class StateBranchBootstrapResult:
+    """Result of initialising the oompah state branch for a project.
+
+    Attributes
+    ----------
+    branch_name:
+        The canonical state-branch name (``oompah/state/<project-id>``).
+    already_existed:
+        ``True`` when the branch was found locally or at origin and no new
+        commits were created.  The caller can use this to distinguish a fresh
+        bootstrap from an idempotent re-run.
+    created:
+        ``True`` when the orphan branch was freshly created in this call.
+    commit_sha:
+        The SHA of the bootstrap commit, or ``""`` when the branch already
+        existed and no commit was created.
+    pushed:
+        ``True`` when the branch was pushed to ``origin`` in this call.
+    seeded_from_main:
+        ``True`` when ``.oompah/tasks/`` was seeded from the default branch.
+        ``False`` for a brand-new project where the seed is an empty layout.
+    error:
+        Non-empty string when the bootstrap failed; empty string on success.
+    """
+
+    branch_name: str = ""
+    already_existed: bool = False
+    created: bool = False
+    commit_sha: str = ""
+    pushed: bool = False
+    seeded_from_main: bool = False
+    error: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
 
 def _read_current(repo_path: str | Path, rel_path: str) -> str | None:
@@ -102,6 +174,306 @@ def _build_diff(rel_path: str, canonical: str, current: str | None) -> str:
             tofile=f"b/{rel_path}",
         )
     )
+
+
+def _run_git(
+    args: list[str],
+    *,
+    cwd: str,
+    env: dict[str, str] | None = None,
+    timeout: int = 30,
+) -> subprocess.CompletedProcess[str]:
+    """Run a git command; return the CompletedProcess regardless of exit code."""
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        env=env,
+    )
+
+
+def _git_branch_exists_local(repo_path: str, branch: str) -> bool:
+    r = _run_git(["rev-parse", "--verify", branch], cwd=repo_path)
+    return r.returncode == 0
+
+
+def _git_branch_exists_remote(repo_path: str, branch: str) -> bool:
+    r = _run_git(
+        ["rev-parse", "--verify", f"refs/remotes/origin/{branch}"],
+        cwd=repo_path,
+    )
+    return r.returncode == 0
+
+
+def _seed_task_dirs(target: Path, source: Path | None) -> bool:
+    """Populate *target* with the canonical task-tree layout.
+
+    When *source* is given and ``source/.oompah/tasks/`` exists, existing task
+    files are copied into *target*.  Otherwise, an empty tree is created.
+
+    Returns ``True`` when task files were seeded from *source*, ``False`` for
+    an empty seed.
+    """
+    tasks_dir = target / ".oompah" / "tasks"
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+
+    seeded = False
+    if source is not None:
+        src_tasks = source / ".oompah" / "tasks"
+        if src_tasks.is_dir():
+            shutil.copytree(str(src_tasks), str(tasks_dir), dirs_exist_ok=True)
+            seeded = True
+
+    # Ensure all canonical status subdirectories exist (even if seeded).
+    for d in STATE_BRANCH_TASK_DIRS:
+        (tasks_dir / d).mkdir(exist_ok=True)
+        # git does not track empty directories, so add a .gitkeep in each.
+        gitkeep = tasks_dir / d / ".gitkeep"
+        if not gitkeep.exists():
+            gitkeep.write_text("", encoding="utf-8")
+
+    return seeded
+
+
+# ---------------------------------------------------------------------------
+# State-branch bootstrap public API
+# ---------------------------------------------------------------------------
+
+
+def initialize_state_branch(
+    repo_path: str | Path,
+    project_id: str,
+    *,
+    default_branch: str = "main",
+    git_user_name: str | None = None,
+    git_user_email: str | None = None,
+    push: bool = False,
+) -> StateBranchBootstrapResult:
+    """Create and seed the state branch for *project_id* inside *repo_path*.
+
+    The state branch is named ``oompah/state/<project-id>``.  This function
+    implements the bootstrap algorithm from ``plans/state-branch-design.md``
+    § 2.3:
+
+    1. If the branch already exists locally or at ``origin``, return immediately
+       with ``already_existed=True`` (idempotent — no data is lost).
+    2. Create an orphan branch (no shared history with code branches).
+    3. Seed ``.oompah/tasks/`` from ``default_branch`` when it exists, or with
+       an empty canonical layout for brand-new projects.
+    4. Commit the initial state.
+    5. Optionally push to ``origin``.
+    6. Return to *default_branch*.
+
+    Parameters
+    ----------
+    repo_path:
+        Absolute path to the managed git checkout.
+    project_id:
+        Oompah project identifier (e.g. ``"proj-14849f1b"``).  Used to derive
+        the state branch name.
+    default_branch:
+        The code branch to return to after bootstrapping.  Defaults to
+        ``"main"``.
+    git_user_name / git_user_email:
+        Optional git identity to use for the bootstrap commit.
+    push:
+        When ``True``, push the new state branch to ``origin`` after the
+        bootstrap commit.  Defaults to ``False`` to keep the function safe in
+        unit tests that run without a remote.
+
+    Returns
+    -------
+    StateBranchBootstrapResult
+        On success, ``result.error`` is empty.  On failure, ``result.error``
+        describes what went wrong.
+    """
+    repo_path = Path(repo_path)
+    branch_name = f"oompah/state/{project_id}"
+    result = StateBranchBootstrapResult(branch_name=branch_name)
+
+    # Validate the repo path exists before running any git commands.
+    if not repo_path.is_dir():
+        result.error = (
+            f"Repository path does not exist or is not a directory: {repo_path}"
+        )
+        return result
+
+    repo_str = str(repo_path)
+
+    # Build git env with optional identity override.
+    env = os.environ.copy()
+    if git_user_name:
+        env["GIT_AUTHOR_NAME"] = git_user_name
+        env["GIT_COMMITTER_NAME"] = git_user_name
+    if git_user_email:
+        env["GIT_AUTHOR_EMAIL"] = git_user_email
+        env["GIT_COMMITTER_EMAIL"] = git_user_email
+
+    def _git(args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess[str]:
+        return _run_git(args, cwd=repo_str, env=env, timeout=timeout)
+
+    # ------------------------------------------------------------------
+    # Step 1: Idempotency — check whether the branch already exists.
+    # ------------------------------------------------------------------
+    local_exists = _git_branch_exists_local(repo_str, branch_name)
+    remote_exists = _git_branch_exists_remote(repo_str, branch_name)
+
+    if local_exists or remote_exists:
+        result.already_existed = True
+        return result
+
+    # ------------------------------------------------------------------
+    # Step 2: Remember current branch so we can return to it later.
+    # ------------------------------------------------------------------
+    current_branch_r = _git(["rev-parse", "--abbrev-ref", "HEAD"])
+    original_branch = (
+        current_branch_r.stdout.strip() if current_branch_r.returncode == 0 else default_branch
+    )
+
+    # ------------------------------------------------------------------
+    # Step 3: Create an orphan branch.
+    # ------------------------------------------------------------------
+    orphan_r = _git(["checkout", "--orphan", branch_name])
+    if orphan_r.returncode != 0:
+        result.error = (
+            f"git checkout --orphan {branch_name} failed: "
+            f"{orphan_r.stderr.strip()[:300]}"
+        )
+        return result
+
+    # Remove everything from the working tree and index so the orphan starts
+    # completely clean.  Ignore errors from rm — the working tree may be
+    # empty for a brand-new repo.
+    _git(["rm", "-rf", "--quiet", "."])
+
+    # ------------------------------------------------------------------
+    # Step 4: Seed .oompah/tasks/ from default_branch (if it exists) or
+    #          from an empty canonical layout.
+    # ------------------------------------------------------------------
+    # Check whether the default branch has .oompah/tasks/
+    source_branch_exists = _git_branch_exists_local(repo_str, default_branch)
+    source_dir: Path | None = None
+    if source_branch_exists:
+        # Temporarily check out just .oompah/ from the default branch into a
+        # temp directory, then copy it into the working tree.
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            # git archive into the temp dir
+            archive_r = _run_git(
+                [
+                    "archive",
+                    "--format=tar",
+                    default_branch,
+                    "--",
+                    ".oompah/",
+                ],
+                cwd=repo_str,
+                env=env,
+            )
+            if archive_r.returncode == 0 and archive_r.stdout:
+                # Unpack the archive
+                import tarfile
+                import io
+                tar_bytes = archive_r.stdout.encode("latin-1") if isinstance(archive_r.stdout, str) else archive_r.stdout
+                try:
+                    with tarfile.open(fileobj=io.BytesIO(tar_bytes)) as tf:
+                        tf.extractall(str(tmp_path), filter="data")
+                    source_dir = tmp_path
+                except Exception:
+                    source_dir = None
+            result.seeded_from_main = _seed_task_dirs(repo_path, source_dir)
+    else:
+        result.seeded_from_main = _seed_task_dirs(repo_path, None)
+
+    # ------------------------------------------------------------------
+    # Step 5: Stage and commit.
+    # ------------------------------------------------------------------
+    add_r = _git(["add", ".oompah/"])
+    if add_r.returncode != 0:
+        # Roll back to original branch before returning error.
+        _git(["checkout", original_branch])
+        result.error = f"git add .oompah/ failed: {add_r.stderr.strip()[:300]}"
+        return result
+
+    commit_r = _git(
+        [
+            "commit",
+            "-m",
+            f"chore: bootstrap oompah state branch for {project_id}",
+        ]
+    )
+    if commit_r.returncode != 0:
+        _git(["checkout", original_branch])
+        result.error = f"git commit failed: {commit_r.stderr.strip()[:300]}"
+        return result
+
+    sha_r = _git(["rev-parse", "HEAD"])
+    if sha_r.returncode == 0:
+        result.commit_sha = sha_r.stdout.strip()
+
+    result.created = True
+
+    # ------------------------------------------------------------------
+    # Step 6: Optionally push to origin.
+    # ------------------------------------------------------------------
+    if push:
+        push_r = _git(["push", "origin", branch_name], timeout=60)
+        if push_r.returncode != 0:
+            # Return to original branch before surfacing the error.
+            _git(["checkout", original_branch])
+            result.error = f"git push failed: {push_r.stderr.strip()[:300]}"
+            return result
+        result.pushed = True
+
+    # ------------------------------------------------------------------
+    # Step 7: Return to original branch.
+    # ------------------------------------------------------------------
+    checkout_r = _git(["checkout", original_branch])
+    if checkout_r.returncode != 0:
+        # Non-fatal: log but don't override the success result.
+        result.error = (
+            f"state branch created successfully but failed to return to "
+            f"{original_branch!r}: {checkout_r.stderr.strip()[:200]}"
+        )
+
+    return result
+
+
+def ensure_state_branch_initialized(
+    repo_path: str | Path,
+    project_id: str,
+    *,
+    default_branch: str = "main",
+    git_user_name: str | None = None,
+    git_user_email: str | None = None,
+    push: bool = False,
+) -> StateBranchBootstrapResult:
+    """Idempotently ensure the state branch is initialised.
+
+    Delegates to :func:`initialize_state_branch`.  Raises :exc:`RuntimeError`
+    on failure (unlike ``initialize_state_branch`` which returns errors in the
+    result object).  Suitable for callers that want to fail loudly on setup
+    errors.
+    """
+    result = initialize_state_branch(
+        repo_path,
+        project_id,
+        default_branch=default_branch,
+        git_user_name=git_user_name,
+        git_user_email=git_user_email,
+        push=push,
+    )
+    if result.error:
+        raise RuntimeError(result.error)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Existing file-bootstrap public API
+# ---------------------------------------------------------------------------
 
 
 def check_project_bootstrap_drift(repo_path: str | Path) -> ProjectBootstrapStatus:
@@ -316,9 +688,12 @@ __all__ = [
     "BootstrapDrift",
     "ProjectBootstrapApplyResult",
     "ProjectBootstrapStatus",
+    "STATE_BRANCH_TASK_DIRS",
+    "StateBranchBootstrapResult",
     "apply_project_bootstrap_updates",
     "check_project_bootstrap_drift",
     "ensure_project_bootstrap",
+    "ensure_state_branch_initialized",
+    "initialize_state_branch",
     "preview_project_bootstrap_updates",
 ]
-
