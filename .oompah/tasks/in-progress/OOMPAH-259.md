@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:30:00.848090Z'
-updated_at: '2026-07-20T20:36:16.062330Z'
+updated_at: '2026-07-20T20:36:38.433687Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -171,5 +171,20 @@ author: oompah
 created: 2026-07-20 20:36
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 20:36
+---
+Understanding: Taking over from duplicate_detector focus. OOMPAH-259 is confirmed NOT a duplicate. I will now implement the resumable migration command for existing projects to Git state branches.
+
+Plan:
+1. Read plans/state-branch-design.md and docs/state-branch-migration.md for the spec
+2. Explore existing code: oompah/admin.py, oompah/projects.py, oompah/native_tracker.py
+3. Implement POST /api/v1/projects/{id}/state-branch/migrate API endpoint + oompah admin migrate-state-branch CLI
+4. Implement migration stages A (preflight), B (git copy+push), C (cutover config)
+5. Implement rollback command
+6. Write tests covering end-to-end, interruption, rollback, and concurrent-write scenarios
+7. Run make test and fix any failures
+8. Commit, push, close task
 ---
 <!-- COMMENTS:END -->
