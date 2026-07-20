@@ -17,7 +17,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:52:04.570031Z'
-updated_at: '2026-07-20T17:08:53.127830Z'
+updated_at: '2026-07-20T17:13:25.258277Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -256,5 +256,14 @@ author: oompah
 created: 2026-07-20 17:08
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-20 17:13
+---
+Understanding (Epic Planner): This bug involves git index.lock contention in OompahMarkdownTracker._git() / _commit_and_push(). When a concurrent git process holds .git/index.lock, git add .oompah/tasks fails immediately with no retry. The same code path also fails with 'cannot lock ref HEAD' (see OOMPAH-267).
+
+Root cause: _git() uses subprocess.run with check=True but no retry logic for transient lock errors. The threading.RLock serializes within-process threads, but cannot prevent concurrent external git processes (e.g. agent worktrees) from holding index.lock.
+
+Decomposition: This is a focused bug fix scoped to oompah/oompah_md_tracker.py and tests/test_oompah_md_tracker.py. I will create one child task covering implementation + tests together, since they are tightly coupled per project policy.
 ---
 <!-- COMMENTS:END -->
