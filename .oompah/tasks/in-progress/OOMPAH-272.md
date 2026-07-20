@@ -12,7 +12,7 @@ labels:
 - yolo-watchdog
 assignee: null
 created_at: '2026-07-20T17:42:07.889576Z'
-updated_at: '2026-07-20T17:43:01.626061Z'
+updated_at: '2026-07-20T17:43:03.936251Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,5 +83,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 31s
 - Log: OOMPAH-272__20260720T174233Z.jsonl
+---
+author: oompah
+created: 2026-07-20 17:43
+---
+Agent completed without landing — no commits found on origin for branch `OOMPAH-272`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
