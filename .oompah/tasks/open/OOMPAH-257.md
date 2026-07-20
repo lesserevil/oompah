@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-257
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Coalesce native-tracker mutations into durable state-branch checkpoints
 parent: OOMPAH-253
@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-20T16:29:39.587340Z'
-updated_at: '2026-07-20T18:44:02.125749Z'
+updated_at: '2026-07-20T18:44:05.499966Z'
 work_branch: null
 target_branch: null
 review_url: null
