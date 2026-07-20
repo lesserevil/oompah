@@ -13,12 +13,22 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T16:48:39.964670Z'
+updated_at: '2026-07-20T16:48:42.359310Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.external.github:
+  id: lesserevil/oompah#451
+  owner: lesserevil
+  repo: oompah
+  number: '451'
+  url: https://github.com/lesserevil/oompah/issues/451
+  requestor_login: NVShawn
+  imported_comment_ids: []
+  last_synced_status: Proposed
+  last_synced_at: '2026-07-20T16:48:41.666111+00:00'
 ---
 ## Summary
 
