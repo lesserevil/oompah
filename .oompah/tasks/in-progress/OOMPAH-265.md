@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T17:09:49.108432Z'
+updated_at: '2026-07-20T17:18:12.336636Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -282,5 +282,14 @@ author: oompah
 created: 2026-07-20 17:09
 ---
 Understanding (continuation run): Previous duplicate_detector agents correctly identified this is NOT a duplicate. The fix needed is a multi-retry loop in _commit_and_push() in oompah/oompah_md_tracker.py. OOMPAH-235 added a single retry which is insufficient when 3+ concurrent writers race — the second push also gets rejected. Implementing now: replace single retry with a loop (3 total attempts) with exponential backoff between retries. Also fixing write_and_commit_ledger_file() which has the same pattern. Adding tests that cover the second-push-race scenario.
+---
+author: oompah
+created: 2026-07-20 17:18
+---
+Implementation: Extended _commit_and_push() and write_and_commit_ledger_file() in oompah/oompah_md_tracker.py to retry up to _PUSH_MAX_RETRIES=3 total push attempts instead of the previous single retry (OOMPAH-235).
+
+Each rejected push now triggers _sync_from_remote (fetch + ff-only or rebase fallback) before the next attempt. From the second retry onward, a short exponential backoff (0.1s × 2^(attempt-2)) is applied to reduce thundering-herd contention between concurrent writers.
+
+Under 3+ concurrent writes, the probability of all 3 push attempts failing simultaneously is vanishingly small compared to 2 attempts — this directly addresses the race condition that created OOMPAH-265.
 ---
 <!-- COMMENTS:END -->
