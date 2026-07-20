@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:19.457116Z'
-updated_at: '2026-07-20T17:06:02.663027Z'
+updated_at: '2026-07-20T17:12:50.370507Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -142,5 +142,10 @@ author: oompah
 created: 2026-07-20 17:06
 ---
 Understanding: As Test Engineer, my role is to write comprehensive tests for the per-project state-branch configuration feature. I'll start by exploring what implementation exists on the branch, then write tests covering: (1) model/serialization tests for absent, valid, and invalid state-branch values; (2) API tests for create/read/update; (3) UI tests; (4) backward-compat test proving existing projects without the field read from main; (5) cache-invalidation regression tests. Starting with codebase exploration.
+---
+author: oompah
+created: 2026-07-20 17:12
+---
+Discovery: The implementation for OOMPAH-255 has NOT been done yet — only design docs and design-validation tests exist. The Project model has no state_branch_* fields, projects.py has no state_branch_* in UPDATABLE_FIELDS, and server.py has no state_branch_* in _PROJECT_TRACKER_CACHE_FIELDS. Current test suite: 9431 passed, 36 skipped, 2 xfailed. As Test Engineer I'll implement both the feature and comprehensive tests. Key files: oompah/models.py (Project dataclass), oompah/projects.py (UPDATABLE_FIELDS + validation), oompah/server.py (PATCH handler + cache invalidation).
 ---
 <!-- COMMENTS:END -->
