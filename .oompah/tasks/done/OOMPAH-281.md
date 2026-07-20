@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-281
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Run Oompah CI on a containerized self-hosted GitHub Actions runner
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T23:50:59.183456Z'
+updated_at: '2026-07-20T23:55:47.452863Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
@@ -495,5 +495,22 @@ author: oompah
 created: 2026-07-20 23:50
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-20 23:55
+---
+Completion: OOMPAH-281 fully delivered and branch synchronized.
+
+All implementation from prior DevOps and Test Engineer agents is pushed:
+- scripts/runner.sh — Podman/Docker runner lifecycle manager (setup/start/stop/status), pinned ghcr.io/actions/actions-runner:2.323.0
+- Makefile — runner-setup/runner-start/runner-stop/runner-status targets
+- .env.example — OOMPAH_RUNNER_* section (6 vars, PAT permission note, OR-expression limitation)
+- .github/workflows/ci.yml + cli-release.yml — runs-on: [self-hosted, linux, x64, oompah]
+- docs/self-hosted-runner.md — operator guide with Mermaid diagram
+- tests/test_self_hosted_runner.py — 63 tests covering workflow labels, runner script integrity, operational properties, and doc completeness
+
+Branch divergence (64 local / 61 origin) was resolved via merge (no file conflicts — identical content). Branch is now clean and up to date with origin.
+
+make test: 9835 passed, 36 skipped.
 ---
 <!-- COMMENTS:END -->
