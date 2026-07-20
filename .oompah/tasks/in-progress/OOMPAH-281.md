@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-281
 type: task
-status: Done
+status: In Progress
 priority: null
 title: Run Oompah CI on a containerized self-hosted GitHub Actions runner
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T23:29:19.567921Z'
+updated_at: '2026-07-20T23:29:34.684739Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
@@ -19,13 +19,13 @@ review_number: '458'
 merged_at: null
 oompah.agent_run_id: 10ba4b7f-39cc-4d3d-a1aa-5e4bd6494b57
 oompah.task_costs:
-  total_input_tokens: 90
-  total_output_tokens: 5752
+  total_input_tokens: 113
+  total_output_tokens: 20614
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 90
-      output_tokens: 5752
+      input_tokens: 113
+      output_tokens: 20614
       cost_usd: 0.0
   runs:
   - profile: default
@@ -40,6 +40,12 @@ oompah.task_costs:
     output_tokens: 1370
     cost_usd: 0.0
     recorded_at: '2026-07-20T21:57:20.377303+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 23
+    output_tokens: 14862
+    cost_usd: 0.0
+    recorded_at: '2026-07-20T23:29:30.922262+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/458
 oompah.review_number: '458'
 oompah.work_branch: OOMPAH-281
@@ -339,5 +345,38 @@ author: oompah
 created: 2026-07-20 23:29
 ---
 Added 14 new tests to tests/test_self_hosted_runner.py (49→63): workflow-wide runner label regression guards, strengthened token-cleanup assertion, detached-mode/restart-policy/chmod-600/shebang coverage, and doc completeness checks. make test: 9835 passed.
+---
+author: oompah
+created: 2026-07-20 23:29
+---
+Agent completed successfully in 913s (14885 tokens)
+---
+author: oompah
+created: 2026-07-20 23:29
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 42, Tool calls: 24
+- Tokens: 23 in / 14.9K out [14.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 15m 13s
+- Log: OOMPAH-281__20260720T231420Z.jsonl
+---
+author: oompah
+created: 2026-07-20 23:29
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-281` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-281
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-281
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
