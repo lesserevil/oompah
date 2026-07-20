@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-265
 type: bug
-status: In Review
+status: Merged
 priority: 2
 title: "[backend:server] Create issue API error: git push origin HEAD:main failed:\
   \ remote: Bypassed rule violations for refs/heads/main:        \nremote: \nremote:\
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T17:33:38.601880Z'
+updated_at: '2026-07-20T20:36:45.574499Z'
 work_branch: OOMPAH-265
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/455
