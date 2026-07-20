@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T21:57:08.695559Z'
+updated_at: '2026-07-20T21:57:11.084868Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -226,5 +226,10 @@ To activate the runner on this host:
   make runner-start   # start the container
 
 Runner runs as rootless Podman with --restart unless-stopped.
+---
+author: oompah
+created: 2026-07-20 21:57
+---
+Added containerized self-hosted GitHub Actions runner: scripts/runner.sh (Podman/Docker lifecycle manager), Makefile targets (runner-setup/start/stop/status), .env.example runner vars, CI workflows updated to [self-hosted,linux,x64,oompah], docs/self-hosted-runner.md operator guide, 49 new tests all passing, full suite 9675 passed.
 ---
 <!-- COMMENTS:END -->
