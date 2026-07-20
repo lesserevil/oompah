@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-259
 type: task
-status: Done
+status: Merged
 priority: null
 title: Implement resumable migration of existing projects to Git state branches
 parent: OOMPAH-253
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:30:00.848090Z'
-updated_at: '2026-07-20T20:59:48.690065Z'
+updated_at: '2026-07-20T22:00:18.539766Z'
 work_branch: null
 target_branch: null
 review_url: null
