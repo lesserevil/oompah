@@ -52,6 +52,13 @@ def _get_runs_on(job: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+GITHUB_HOSTED_RUNNERS = frozenset({
+    "ubuntu-latest", "ubuntu-22.04", "ubuntu-24.04", "ubuntu-20.04",
+    "macos-latest", "macos-13", "macos-14", "macos-15",
+    "windows-latest", "windows-2022", "windows-2019",
+})
+
+
 class TestCiWorkflowRunsOnLabels:
     """CI workflow must target the self-hosted oompah runner."""
 
@@ -84,12 +91,47 @@ class TestCiWorkflowRunsOnLabels:
     def test_ci_test_job_does_not_use_github_hosted_runner(self):
         wf = _load_workflow(CI_WORKFLOW)
         labels = set(_get_runs_on(wf["jobs"]["test"]))
-        github_hosted = {"ubuntu-latest", "ubuntu-22.04", "ubuntu-24.04",
-                         "macos-latest", "windows-latest"}
-        overlap = labels & github_hosted
+        overlap = labels & GITHUB_HOSTED_RUNNERS
         assert not overlap, (
             f"ci.yml 'test' job must not target GitHub-hosted runners; found {overlap}. "
             "GitHub Actions does not support OR between GitHub-hosted and self-hosted labels."
+        )
+
+    def test_all_ci_jobs_target_required_labels(self):
+        """Every job in ci.yml must use the required self-hosted labels.
+
+        Catches regressions where a newly added job accidentally uses ubuntu-latest.
+        """
+        wf = _load_workflow(CI_WORKFLOW)
+        failures = []
+        for job_name, job in wf["jobs"].items():
+            labels = set(_get_runs_on(job))
+            missing = REQUIRED_LABELS - labels
+            if missing:
+                failures.append(
+                    f"Job '{job_name}' is missing labels {missing} (has {labels})"
+                )
+        assert not failures, (
+            "All ci.yml jobs must target the self-hosted oompah runner:\n"
+            + "\n".join(failures)
+        )
+
+    def test_no_ci_job_uses_github_hosted_runner(self):
+        """No job in ci.yml may use a GitHub-hosted runner name.
+
+        GitHub Actions has no OR between GitHub-hosted and self-hosted labels;
+        any job with ubuntu-latest/macos-latest/etc. would silently bypass the
+        self-hosted runner and fail when GitHub-hosted capacity is unavailable.
+        """
+        wf = _load_workflow(CI_WORKFLOW)
+        violations = []
+        for job_name, job in wf["jobs"].items():
+            labels = set(_get_runs_on(job))
+            overlap = labels & GITHUB_HOSTED_RUNNERS
+            if overlap:
+                violations.append(f"Job '{job_name}' uses GitHub-hosted label(s): {overlap}")
+        assert not violations, (
+            "ci.yml must not use GitHub-hosted runners:\n" + "\n".join(violations)
         )
 
 
@@ -128,12 +170,42 @@ class TestReleaseWorkflowRunsOnLabels:
     def test_release_build_job_does_not_use_github_hosted_runner(self):
         wf = _load_workflow(RELEASE_WORKFLOW)
         labels = set(_get_runs_on(wf["jobs"]["build-release"]))
-        github_hosted = {"ubuntu-latest", "ubuntu-22.04", "ubuntu-24.04",
-                         "macos-latest", "windows-latest"}
-        overlap = labels & github_hosted
+        overlap = labels & GITHUB_HOSTED_RUNNERS
         assert not overlap, (
             f"cli-release.yml 'build-release' job must not target GitHub-hosted runners; "
             f"found {overlap}."
+        )
+
+    def test_all_release_jobs_target_required_labels(self):
+        """Every job in cli-release.yml must use the required self-hosted labels.
+
+        Catches regressions where a newly added job accidentally uses ubuntu-latest.
+        """
+        wf = _load_workflow(RELEASE_WORKFLOW)
+        failures = []
+        for job_name, job in wf["jobs"].items():
+            labels = set(_get_runs_on(job))
+            missing = REQUIRED_LABELS - labels
+            if missing:
+                failures.append(
+                    f"Job '{job_name}' is missing labels {missing} (has {labels})"
+                )
+        assert not failures, (
+            "All cli-release.yml jobs must target the self-hosted oompah runner:\n"
+            + "\n".join(failures)
+        )
+
+    def test_no_release_job_uses_github_hosted_runner(self):
+        """No job in cli-release.yml may use a GitHub-hosted runner name."""
+        wf = _load_workflow(RELEASE_WORKFLOW)
+        violations = []
+        for job_name, job in wf["jobs"].items():
+            labels = set(_get_runs_on(job))
+            overlap = labels & GITHUB_HOSTED_RUNNERS
+            if overlap:
+                violations.append(f"Job '{job_name}' uses GitHub-hosted label(s): {overlap}")
+        assert not violations, (
+            "cli-release.yml must not use GitHub-hosted runners:\n" + "\n".join(violations)
         )
 
 
@@ -244,20 +316,87 @@ class TestRunnerScript:
 
     def test_runner_script_does_not_hardcode_token(self):
         text = self._script_text()
-        # The token should only appear as a variable reference, not a literal value
-        assert "ghp_" not in text, (
-            "scripts/runner.sh must not contain a hardcoded GitHub token"
-        )
-        assert "ghs_" not in text, (
-            "scripts/runner.sh must not contain a hardcoded GitHub token"
-        )
+        # The token should only appear as a variable reference, not a literal value.
+        # Check for common PAT prefix patterns that would indicate a hardcoded secret.
+        for forbidden in ("ghp_", "ghs_", "github_pat_"):
+            assert forbidden not in text, (
+                f"scripts/runner.sh must not contain a hardcoded GitHub token (found '{forbidden}')"
+            )
 
     def test_runner_script_deletes_registration_token_after_use(self):
+        """Token file must be deleted on the same statement that references its path.
+
+        This test is stricter than checking `rm -f` and `registration-token` appear
+        anywhere in the file — it verifies they co-occur on a single logical line so
+        that a partial edit cannot inadvertently drop the cleanup while leaving the
+        write intact.
+        """
+        import re
         text = self._script_text()
-        assert "registration-token" in text
-        # The script must clean up the token file
-        assert 'rm -f' in text and 'registration-token' in text, (
-            "Runner script should remove the registration token file after use"
+        assert re.search(r"rm -f[^\n]*registration-token", text), (
+            "scripts/runner.sh must delete the token file with 'rm -f .../registration-token' "
+            "on one line — both must appear together to avoid partial-edit regressions"
+        )
+
+    def test_runner_script_secures_token_file_with_chmod_600(self):
+        """The short-lived registration token file must be mode 600 (owner-read only)."""
+        text = self._script_text()
+        assert "chmod 600" in text, (
+            "scripts/runner.sh should chmod 600 the registration-token file so it is "
+            "not world-readable while the configure step runs"
+        )
+
+    def test_runner_script_starts_container_in_detached_mode(self):
+        """The start command must use -d so the container runs in the background.
+
+        Without -d the `make runner-start` command would block the terminal and
+        the runner would stop when the shell exits.
+        """
+        import re
+        text = self._script_text()
+        # Match `<cmd> run -d` or `<cmd> run ... -d` inside cmd_start block
+        assert re.search(r'"\$_CONTAINER_CMD"\s+run\s+-d', text), (
+            "cmd_start must launch the container with 'run -d' (detached mode). "
+            "Without -d the runner blocks the calling process."
+        )
+
+    def test_runner_script_uses_restart_unless_stopped(self):
+        """The container must use --restart unless-stopped for resilience across reboots."""
+        text = self._script_text()
+        assert "--restart unless-stopped" in text, (
+            "scripts/runner.sh must pass '--restart unless-stopped' so the container "
+            "auto-restarts after a host reboot (requires the Podman/Docker daemon to start)."
+        )
+
+    def test_runner_script_has_bash_shebang(self):
+        """The script must start with a valid bash shebang."""
+        text = self._script_text()
+        first_line = text.splitlines()[0]
+        assert first_line == "#!/usr/bin/env bash", (
+            f"scripts/runner.sh must begin with '#!/usr/bin/env bash'; got '{first_line}'"
+        )
+
+    def test_runner_script_default_labels_match_required_labels(self):
+        """The script's default OOMPAH_RUNNER_LABELS must contain all four required labels."""
+        # The default is hard-coded in the variable assignment inside the script.
+        # Verify the literal default value string is present so that a change to
+        # the default is immediately caught.
+        text = self._script_text()
+        assert "self-hosted,linux,x64,oompah" in text, (
+            "scripts/runner.sh default for OOMPAH_RUNNER_LABELS must be "
+            "'self-hosted,linux,x64,oompah' to match the CI workflow configuration"
+        )
+
+    def test_runner_script_has_usage_message_for_unknown_commands(self):
+        """An invalid sub-command must print usage rather than silently succeed."""
+        text = self._script_text()
+        # The script should have a catch-all (*) case with usage/help output
+        assert "Usage:" in text or "usage:" in text, (
+            "scripts/runner.sh should print a Usage message for unrecognised commands"
+        )
+        # And it should exit non-zero (exit 1)
+        assert "exit 1" in text, (
+            "scripts/runner.sh should exit 1 when an unrecognised command is given"
         )
 
     def test_runner_script_supports_podman_and_docker(self):
@@ -386,4 +525,41 @@ class TestRunnerDocumentation:
         text = self._doc_text()
         assert ".env" in text, (
             "Docs should reference .env for configuration"
+        )
+
+    def test_runner_doc_config_table_has_all_env_vars(self):
+        """Every OOMPAH_RUNNER_* variable must appear in the config reference table."""
+        text = self._doc_text()
+        runner_vars = [
+            "OOMPAH_RUNNER_REPO",
+            "OOMPAH_RUNNER_NAME",
+            "OOMPAH_RUNNER_LABELS",
+            "OOMPAH_RUNNER_IMAGE",
+            "OOMPAH_RUNNER_WORKDIR",
+            "OOMPAH_RUNNER_CONTAINER",
+        ]
+        missing = [v for v in runner_vars if v not in text]
+        assert not missing, (
+            f"docs/self-hosted-runner.md config table is missing entries for: {missing}"
+        )
+
+    def test_runner_doc_references_correct_github_repo(self):
+        """Docs must link to the correct repository (lesserevil/oompah)."""
+        text = self._doc_text()
+        assert "lesserevil/oompah" in text, (
+            "docs/self-hosted-runner.md must reference the target repo 'lesserevil/oompah'"
+        )
+
+    def test_runner_doc_covers_runner_stop_command(self):
+        """Docs must cover how to stop the runner (not just start/status)."""
+        text = self._doc_text()
+        assert "runner-stop" in text, (
+            "docs/self-hosted-runner.md must document the 'make runner-stop' command"
+        )
+
+    def test_runner_doc_documents_container_runtime_options(self):
+        """Docs must mention Podman (and preferably Docker) as supported runtimes."""
+        text = self._doc_text()
+        assert "Podman" in text or "podman" in text, (
+            "docs/self-hosted-runner.md must mention Podman as the container runtime"
         )
