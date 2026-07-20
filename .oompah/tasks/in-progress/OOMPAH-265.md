@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T17:18:12.336636Z'
+updated_at: '2026-07-20T17:18:25.121129Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -291,5 +291,16 @@ Implementation: Extended _commit_and_push() and write_and_commit_ledger_file() i
 Each rejected push now triggers _sync_from_remote (fetch + ff-only or rebase fallback) before the next attempt. From the second retry onward, a short exponential backoff (0.1s × 2^(attempt-2)) is applied to reduce thundering-herd contention between concurrent writers.
 
 Under 3+ concurrent writes, the probability of all 3 push attempts failing simultaneously is vanishingly small compared to 2 attempts — this directly addresses the race condition that created OOMPAH-265.
+---
+author: oompah
+created: 2026-07-20 17:18
+---
+Verification: All tests pass.
+- tests/test_oompah_md_tracker.py::TestOompahMarkdownTrackerGitSync — 10/10 pass (8 existing + 2 new)
+- New test test_commit_and_push_second_race_succeeds_on_third_attempt: verifies third attempt succeeds after 2 rejected pushes
+- New test test_commit_and_push_all_retries_exhausted_raises_tracker_error: verifies TrackerError still raised with informative message after all retries
+- Full suite: 9493 passed, 5 skipped, 0 failures
+
+Branch OOMPAH-265 pushed to origin (commit 26fbf86e).
 ---
 <!-- COMMENTS:END -->
