@@ -1,0 +1,82 @@
+---
+id: OOMPAH-282
+type: bug
+status: Proposed
+priority: 2
+title: '[backend:state_branch_migration] Stage A migration failed for project proj-edbc8b4c'
+parent: null
+children: []
+blocked_by: []
+labels:
+- external:github
+assignee: null
+created_at: '2026-07-20T22:43:02.333472Z'
+updated_at: '2026-07-20T22:43:02.333472Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+---
+## Summary
+
+### Problem
+Oompah detected a backend error from `backend:state_branch_migration`:
+
+> Stage A migration failed for project proj-edbc8b4c
+
+**Error detail:**
+
+```
+Stage A migration failed for project proj-edbc8b4c
+
+Traceback (most recent call last):
+  File "/home/shedwards/src/oompah/oompah/state_branch_migration.py", line 434, in migrate_stage_a
+    result = initialize_state_branch(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/shedwards/src/oompah/oompah/project_bootstrap/__init__.py", line 380, in initialize_state_branch
+    tar_bytes = archive_r.stdout.encode("latin-1") if isinstance(archive_r.stdout, str) else archive_r.stdout
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'latin-1' codec can't encode character '\u2014' in position 26154: ordinal not in range(256)
+
+```
+
+### Steps to Reproduce
+1. Run oompah with `backend:state_branch_migration` active.
+2. Let oompah execute the operation that involves `backend:state_branch_migration` (tracker: `github_issues:lesserevil/oompah`).
+3. Observe that the error is captured by `error_watcher` and auto-filed as this task.
+
+### Actual Behavior
+An error occurs in `backend:state_branch_migration` and is recorded by oompah's `error_watcher`:
+
+> Stage A migration failed for project proj-edbc8b4c
+
+### Expected Behavior
+The operation in `backend:state_branch_migration` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
+
+### Acceptance Criteria
+- The error from `backend:state_branch_migration` no longer occurs, or is handled gracefully so `error_watcher` is not triggered.
+- The root cause is identified and resolved, or documented as a known acceptable failure with explicit handling.
+- No regression: other error types continue to be reported correctly by `error_watcher`.
+
+---
+*Auto-filed by oompah error_watcher*
+- source_project: global
+- tracker: github_issues:lesserevil/oompah
+- tracker_kind: github_issues
+- fingerprint: 9eaadc366ca8cc18
+- dedup_fingerprint: 9eaadc366ca8cc18
+- tracker_owner: lesserevil
+- tracker_repo: oompah
+
+## External GitHub Issue
+- URL: https://github.com/lesserevil/oompah/issues/459
+- Requestor: @lesserevil
+- Reference: lesserevil/oompah#459
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
