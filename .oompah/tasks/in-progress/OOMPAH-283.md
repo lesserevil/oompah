@@ -10,13 +10,29 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T22:54:50.695408Z'
-updated_at: '2026-07-20T23:09:15.473809Z'
+updated_at: '2026-07-20T23:09:44.663712Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 1789a27b-7ced-4941-888a-2bba229f0e6a
+oompah.task_costs:
+  total_input_tokens: 85427
+  total_output_tokens: 683
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 85427
+      output_tokens: 683
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 85427
+    output_tokens: 683
+    cost_usd: 0.0
+    recorded_at: '2026-07-20T23:09:41.004707+00:00'
 ---
 ## Summary
 
@@ -39,5 +55,25 @@ author: oompah
 created: 2026-07-20 23:09
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 23:09
+---
+Agent completed successfully in 27s (86110 tokens)
+---
+author: oompah
+created: 2026-07-20 23:09
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 0
+- Tokens: 85.4K in / 683 out [86.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 27s
+- Log: OOMPAH-283__20260720T230915Z.jsonl
+---
+author: oompah
+created: 2026-07-20 23:09
+---
+Agent completed without landing — no commits found on origin for branch `OOMPAH-283`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
