@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:30:27.106890Z'
-updated_at: '2026-07-20T21:21:32.260716Z'
+updated_at: '2026-07-20T21:21:43.081240Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -248,5 +248,27 @@ Key regression assertions verified:
 - fetch_candidate_issues/fetch_all_issues/add_comment/add_dependency all work after migration ✓
 
 No live project migrations occur — all tests use disposable git fixtures (bare remote + working tree in tmp_path).
+---
+author: oompah
+created: 2026-07-20 21:21
+---
+Completion: Delivered all acceptance criteria for OOMPAH-260.
+
+✅ Automated E2E tests (tests/test_state_branch_e2e.py, 44 tests) demonstrate the complete workflow without external database or service — uses only bare git repos as fixtures.
+
+✅ Regression assertions confirm task checkpoint commits appear ONLY on oompah/state after cutover; main and release branches receive zero task metadata commits.
+
+✅ Simulated failed push + recovery tested: task data preserved locally when push fails, non-fast-forward recovery via rebase verified.
+
+✅ Operator readiness guide published (docs/state-branch-migration-readiness.md) with:
+  - Preflight checklist (12 items across 4 categories)
+  - Validation commands for each migration stage
+  - Rollback criteria with mandatory/precautionary/expected-behavior distinction
+  - 4-phase staged production rollout recommendation (canary → low-risk → active → cleanup)
+  - Quick reference card
+
+✅ No live project migration occurs automatically (all tests use tmp_path fixtures).
+
+✅ make test passes: 9771 passed, 36 skipped, 0 failed.
 ---
 <!-- COMMENTS:END -->
