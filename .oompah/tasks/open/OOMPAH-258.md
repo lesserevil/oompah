@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-258
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Configure Git state branches in project-bootstrap and operator documentation
 parent: OOMPAH-253
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:29:48.958577Z'
-updated_at: '2026-07-20T16:30:42.049202Z'
+updated_at: '2026-07-20T16:31:25.817215Z'
 work_branch: null
 target_branch: null
 review_url: null
