@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T16:58:31.148333Z'
+updated_at: '2026-07-20T17:01:57.761498Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -154,5 +154,30 @@ author: oompah
 created: 2026-07-20 16:57
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 17:01
+---
+Discovery: OOMPAH-267 is NOT a duplicate.
+
+Error in question: \`Add comment API error: git commit -m 'Comment on oompah task OOMPAH-266...' failed: fatal: cannot lock ref 'HEAD': is at df6135ea... but expected 46558c30...\`
+
+This is a LOCAL git commit race condition — two concurrent processes both staged changes and tried to commit; the second one failed because HEAD was updated by the first between when it read HEAD and when it tried to lock it for the commit.
+
+Candidates reviewed:
+- **OOMPAH-204** (Merged, PR #416): Fixed \`_sync_from_remote()\` in oompah_md_tracker.py to add rebase fallback when ff-only fails — a different phase (push/sync), not the commit phase.
+- **OOMPAH-233** (Merged): Added \`git reset --hard origin/<branch>\` as a third fallback in \`_sync_from_remote()\` — again the sync phase, not the commit phase.
+- **OOMPAH-265** (In Progress): \`git push\` rejected by remote ref lock — a remote ref locking error during push, not a local HEAD lock during commit.
+- **OOMPAH-268** (Open): \`git add\` failed because \`index.lock\` already exists — same root cause (concurrent git operations) but a different git operation. This is a sibling issue, not a duplicate.
+- **OOMPAH-189/191** (Archived): \`Add comment/Create issue API error: Cannot sync native tracker: git merge --ff-only failed\` — diverged-branch sync failure, not a commit-phase HEAD locking error.
+
+Key evidence OOMPAH-267 is unique:
+1. The error occurs during \`git commit\`, before the push/sync phase — no existing fix covers this.
+2. The \`_write_lock\` (threading.RLock) in oompah_md_tracker.py serializes within a single process, but this error suggests either multiple server processes hitting the same git repo, or asyncio.to_thread spawning threads that bypass the lock at the commit step.
+3. Distinct dedup_fingerprint (ec0c2cce6c7d7177) confirms oompah has not seen this exact error before.
+
+Relevant files for implementor:
+- \`oompah/oompah_md_tracker.py\` — \`_commit_and_push()\` (line ~1040), \`_write_lock\` (threading.RLock, line 207)
+- The fix likely needs to either: (a) add retry logic on \`cannot lock ref HEAD\` in \`_commit_and_push\`, or (b) identify why the per-process lock is insufficient (multiple server instances, or per-request tracker instantiation).
 ---
 <!-- COMMENTS:END -->
