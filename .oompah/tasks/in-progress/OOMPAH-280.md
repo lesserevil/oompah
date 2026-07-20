@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T21:05:44.410463Z'
-updated_at: '2026-07-20T21:08:19.075289Z'
+updated_at: '2026-07-20T21:08:29.245329Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,5 +57,28 @@ Closest candidate: OOMPAH-279 (identical title — 'Rebase epic-OOMPAH-253 onto 
 Current git state: epic-OOMPAH-253 is 30 commits behind origin/main (all .oompah metadata commits) and has 7 feature commits ahead (OOMPAH-254 through OOMPAH-259). This is a genuine new rebase requirement, not a re-detection of OOMPAH-279's work.
 
 Other historical rebase tasks for this epic (all Done): OOMPAH-261, OOMPAH-262, OOMPAH-269, OOMPAH-271, OOMPAH-275, OOMPAH-277, OOMPAH-278, OOMPAH-279. No open or in-progress task covers the current divergence.
+---
+author: oompah
+created: 2026-07-20 21:08
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: No duplicate confirmed. OOMPAH-280 is NOT a duplicate of any existing task.
+
+2. **Evidence**:
+   - Searched .oompah/tasks/ for 'epic-OOMPAH-253', 'rebase', 'stale' — found OOMPAH-279 as the closest task (identical title), but it is Done
+   - OOMPAH-279 was completed at 21:05, rebase force-pushed tip 2b65f889
+   - Since then, 30 new metadata commits landed on main, making the epic stale again
+   - Verified via: git log --oneline origin/epic-OOMPAH-253..origin/main (30 commits behind)
+   - epic-OOMPAH-253 has 7 feature commits ahead: OOMPAH-254 through OOMPAH-259
+   - This is a genuine new rebase gap, not a duplicate detection
+
+3. **Remaining work**:
+   - Fetch origin, rebase epic-OOMPAH-253 onto origin/main
+   - All 30 behind-commits are .oompah metadata — expect no conflicts
+   - Force-push: git push --force-with-lease origin epic-OOMPAH-253
+   - Use git worktree for epic-OOMPAH-253 or git -C on the epic worktree path
+
+4. **Recommended next focus**: devops
 ---
 <!-- COMMENTS:END -->
