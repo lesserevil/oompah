@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T21:48:50.060536Z'
+updated_at: '2026-07-20T21:55:47.116883Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -171,5 +171,21 @@ Understanding: DevOps agent taking over from duplicate_detector. Task requires:
 8. make test passes
 
 Approach: Use the official ghcr.io/actions/actions-runner image pinned to a specific version, register via GitHub Actions REST API (registration token), use Podman with --rm flag for clean restarts. Registration token fetched from GitHub API using GITHUB_TOKEN (requires Self-hosted runners: Read and write permission).
+---
+author: oompah
+created: 2026-07-20 21:55
+---
+Implementation: All changes committed.
+
+Files added/modified:
+- scripts/runner.sh — Podman/Docker runner lifecycle script (setup/start/stop/status). Uses ghcr.io/actions/actions-runner:2.323.0 (pinned). Auto-detects podman vs docker. Fetches registration token from GitHub API, configures runner, removes token immediately after. set -euo pipefail throughout.
+- .env.example — Added OOMPAH_RUNNER_* section documenting all 6 variables, PAT permission requirement, and the GitHub Actions OR-expression limitation.
+- Makefile — Added runner-setup/runner-start/runner-stop/runner-status targets, all in .PHONY, all delegating to scripts/runner.sh. Added to help output.
+- .github/workflows/ci.yml — Changed runs-on: ubuntu-latest → [self-hosted, linux, x64, oompah]
+- .github/workflows/cli-release.yml — Same change.
+- docs/self-hosted-runner.md — User-facing doc covering architecture (Mermaid diagram), label table, OR-expression limitation explanation, PAT permission, setup instructions, config reference, upgrade path, troubleshooting.
+- tests/test_self_hosted_runner.py — 49 tests covering workflow labels, .env.example vars, runner script integrity, Makefile targets, and documentation completeness.
+
+Test results: 9675 passed, 5 skipped (pre-existing). All 49 new tests pass.
 ---
 <!-- COMMENTS:END -->
