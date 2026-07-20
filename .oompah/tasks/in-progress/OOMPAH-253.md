@@ -19,10 +19,11 @@ children:
 - OOMPAH-271
 - OOMPAH-275
 blocked_by: []
-labels: []
+labels:
+- epic:stale
 assignee: null
 created_at: '2026-07-20T16:29:00.780109Z'
-updated_at: '2026-07-20T18:23:14.662067Z'
+updated_at: '2026-07-20T18:23:17.094349Z'
 work_branch: null
 target_branch: null
 review_url: null
