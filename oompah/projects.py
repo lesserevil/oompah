@@ -1028,10 +1028,12 @@ class ProjectStore:
             "github_project_node_id",
             # Supported release lines (section 5 of release-branch-addendums.md)
             "supported_release_branches",
-            # State-branch configuration (OOMPAH-255 / OOMPAH-253)
+            # State-branch configuration (OOMPAH-255 / OOMPAH-253 / OOMPAH-259)
             "state_branch_enabled",
             "state_branch_checkpoint_debounce_ms",
             "state_branch_checkpoint_max_delay_ms",
+            "state_branch_shadow_write",
+            "state_branch_migration_stage",
         }
     )
 
@@ -1256,13 +1258,27 @@ class ProjectStore:
                     )
                 )
 
-        # ---- State-branch configuration (OOMPAH-255) ----
+        # ---- State-branch configuration (OOMPAH-255 / OOMPAH-259) ----
 
         # state_branch_enabled: must be a boolean.
         if "state_branch_enabled" in fields:
             val = fields["state_branch_enabled"]
             if not isinstance(val, bool):
                 raise ProjectError("'state_branch_enabled' must be a boolean")
+
+        # state_branch_shadow_write: must be a boolean.
+        if "state_branch_shadow_write" in fields:
+            val = fields["state_branch_shadow_write"]
+            if not isinstance(val, bool):
+                raise ProjectError("'state_branch_shadow_write' must be a boolean")
+
+        # state_branch_migration_stage: must be one of "", "A", "B".
+        if "state_branch_migration_stage" in fields:
+            val = fields["state_branch_migration_stage"]
+            if val not in ("", "A", "B"):
+                raise ProjectError(
+                    "'state_branch_migration_stage' must be '', 'A', or 'B'"
+                )
 
         # state_branch_checkpoint_debounce_ms / state_branch_checkpoint_max_delay_ms:
         # optional positive integer or null.  When both are supplied in the same

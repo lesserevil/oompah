@@ -1963,6 +1963,8 @@ class Orchestrator:
             if getattr(project, "state_branch_enabled", False) is True:
                 extra["state_branch_enabled"] = True
                 extra["state_branch_name"] = project.state_branch_name
+                if getattr(project, "state_branch_shadow_write", False) is True:
+                    extra["state_branch_shadow_write"] = True
         return factory(
             active_states=self.config.tracker_active_states,
             terminal_states=self.config.tracker_terminal_states,

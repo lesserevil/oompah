@@ -10496,6 +10496,376 @@ async def api_list_worktrees(project_id: str):
         )
 
 
+# ---------------------------------------------------------------------------
+# State-branch migration endpoints (OOMPAH-259)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/v1/projects/{project_id}/state-branch/validate")
+async def api_state_branch_validate(project_id: str):
+    """Run pre-migration validation checks for a project.
+
+    Returns a JSON object with ``all_passed`` (bool) and a ``checks`` list,
+    each entry having ``name``, ``passed``, and ``message`` fields.
+
+    Design reference: plans/state-branch-design.md § 6.1
+    """
+    try:
+        from oompah.state_branch_migration import validate_state_branch
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if not project:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                status_code=404,
+            )
+        result = validate_state_branch(
+            project.repo_path,
+            project.id,
+            default_branch=project.default_branch or "main",
+        )
+        return JSONResponse(result.to_dict())
+    except Exception as exc:
+        logger.error("State-branch validate error for %s: %s", project_id, exc)
+        return JSONResponse(
+            {"error": {"code": "internal", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.post("/api/v1/projects/{project_id}/state-branch/migrate")
+async def api_state_branch_migrate(project_id: str, request: Request):
+    """Advance or reverse the migration stage for a project.
+
+    Request body (JSON):
+      ``action``: ``"A"``, ``"B"``, ``"C"``, or ``"rollback"``
+      ``dry_run``: bool (default ``false``)
+      ``confirm``: bool (default ``false``; when ``false`` and ``dry_run`` is
+                   also ``false``, the action is treated as a dry-run)
+
+    Design reference: plans/state-branch-design.md § 6.2, § 6.3
+    """
+    try:
+        from oompah.state_branch_migration import (
+            migrate_stage_a,
+            migrate_stage_b,
+            migrate_stage_c,
+            rollback_migration,
+        )
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if not project:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                status_code=404,
+            )
+
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": f"Invalid JSON: {exc}"}},
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            body = {}
+
+        action = str(body.get("action") or "").upper()
+        dry_run = bool(body.get("dry_run", False))
+        confirm = bool(body.get("confirm", False))
+
+        # If neither confirm nor dry_run, treat as dry_run for safety.
+        if not confirm and not dry_run:
+            dry_run = True
+
+        default_branch = project.default_branch or "main"
+        repo_path = project.repo_path
+
+        # Resolve action from current stage when not specified.
+        if not action:
+            current_stage = getattr(project, "state_branch_migration_stage", "") or ""
+            if current_stage == "":
+                action = "A"
+            elif current_stage == "A":
+                action = "B"
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                f"Project is already at stage {current_stage!r}. "
+                                "Specify --stage C to clean up, or --rollback to revert."
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
+
+        if action not in ("A", "B", "C", "ROLLBACK"):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "action must be 'A', 'B', 'C', or 'rollback'",
+                    }
+                },
+                status_code=400,
+            )
+
+        if dry_run:
+            # Dry run: return what would happen without modifying anything.
+            current_stage = getattr(project, "state_branch_migration_stage", "") or ""
+            return JSONResponse(
+                {
+                    "stage": action if action != "ROLLBACK" else "rollback",
+                    "ok": True,
+                    "dry_run": True,
+                    "already_done": False,
+                    "message": (
+                        f"Dry run: would execute Stage {action} migration "
+                        f"for project {project_id!r} "
+                        f"(current stage: {current_stage!r}). "
+                        "Pass confirm=true to apply."
+                    ),
+                    "error": "",
+                }
+            )
+
+        # Serialize migration against other concurrent tracker writes.
+        current_stage = getattr(project, "state_branch_migration_stage", "") or ""
+
+        if action == "A":
+            # Check idempotency.
+            if current_stage == "A":
+                return JSONResponse(
+                    {
+                        "stage": "A",
+                        "ok": True,
+                        "already_done": True,
+                        "message": "Project is already at Stage A (shadow writes active).",
+                        "error": "",
+                    }
+                )
+            result = migrate_stage_a(
+                repo_path,
+                project.id,
+                default_branch=default_branch,
+                push=True,
+            )
+            if result.ok:
+                # Invalidate tracker cache so new instances pick up config changes.
+                _invalidate_project_tracker_cache(orch, project_id)
+                orch.project_store.update(
+                    project_id,
+                    state_branch_enabled=True,
+                    state_branch_shadow_write=True,
+                    state_branch_migration_stage="A",
+                )
+
+        elif action == "B":
+            if current_stage not in ("A", "B"):
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                f"Stage B requires Stage A to be completed first. "
+                                f"Current stage: {current_stage!r}"
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
+            if current_stage == "B":
+                return JSONResponse(
+                    {
+                        "stage": "B",
+                        "ok": True,
+                        "already_done": True,
+                        "message": "Project is already at Stage B (state-branch only).",
+                        "error": "",
+                    }
+                )
+            result = migrate_stage_b(
+                repo_path,
+                project.id,
+                default_branch=default_branch,
+            )
+            if result.ok:
+                _invalidate_project_tracker_cache(orch, project_id)
+                orch.project_store.update(
+                    project_id,
+                    state_branch_shadow_write=False,
+                    state_branch_migration_stage="B",
+                )
+
+        elif action == "C":
+            result = migrate_stage_c(
+                repo_path,
+                project.id,
+                default_branch=default_branch,
+                push=True,
+            )
+            # Stage C does not change project config.
+
+        elif action == "ROLLBACK":
+            result = rollback_migration(
+                repo_path,
+                project.id,
+                default_branch=default_branch,
+                current_stage=current_stage,
+                push=True,
+            )
+            if result.ok:
+                _invalidate_project_tracker_cache(orch, project_id)
+                orch.project_store.update(
+                    project_id,
+                    state_branch_enabled=False,
+                    state_branch_shadow_write=False,
+                    state_branch_migration_stage="",
+                )
+
+        if result.ok:
+            return JSONResponse(result.to_dict())
+        return JSONResponse(result.to_dict(), status_code=500)
+
+    except ProjectError as exc:
+        return JSONResponse(
+            {"error": {"code": "not_found", "message": str(exc)}},
+            status_code=404,
+        )
+    except Exception as exc:
+        logger.error("State-branch migrate error for %s: %s", project_id, exc)
+        return JSONResponse(
+            {"error": {"code": "internal", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.get("/api/v1/projects/{project_id}/state-branch/status")
+async def api_state_branch_status(project_id: str):
+    """Return state-branch health and migration status for a project.
+
+    Design reference: plans/state-branch-design.md § 5.7, § 7.1
+    """
+    try:
+        from oompah.state_branch_migration import get_migration_status
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if not project:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                status_code=404,
+            )
+
+        # Tracker observability (only available when state_branch_enabled=True).
+        state_branch_obs = None
+        try:
+            tracker = orch._tracker_for_project(project.id)
+            if hasattr(tracker, "get_checkpoint_observability"):
+                state_branch_obs = tracker.get_checkpoint_observability()
+        except Exception:
+            pass  # Best-effort only.
+
+        migration_status = get_migration_status(
+            project.repo_path,
+            project.id,
+            default_branch=project.default_branch or "main",
+        )
+
+        return JSONResponse(
+            {
+                "project": {
+                    "id": project.id,
+                    "state_branch_enabled": project.state_branch_enabled,
+                    "state_branch_shadow_write": project.state_branch_shadow_write,
+                    "state_branch_migration_stage": project.state_branch_migration_stage,
+                    "state_branch_name": project.state_branch_name,
+                },
+                "state_branch": state_branch_obs,
+                "migration": migration_status,
+            }
+        )
+    except Exception as exc:
+        logger.error("State-branch status error for %s: %s", project_id, exc)
+        return JSONResponse(
+            {"error": {"code": "internal", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.get("/api/v1/projects/{project_id}/state-branch/sync-check")
+async def api_state_branch_sync_check(project_id: str):
+    """Check shadow-write sync divergence during Stage A migration.
+
+    Compares ``.oompah/tasks/`` on the state branch and the default branch.
+    Returns ``synced: true`` when they match, ``false`` with a ``diffs`` list
+    when they diverge, or ``null`` when shadow writes are not active.
+    """
+    try:
+        import subprocess
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if not project:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                status_code=404,
+            )
+
+        if not project.state_branch_shadow_write:
+            return JSONResponse({"synced": None, "diffs": []})
+
+        branch_name = project.state_branch_name
+        repo_path = project.repo_path
+
+        # Compare file trees using git ls-tree (doesn't require a worktree checkout).
+        default_branch = project.default_branch or "main"
+        tasks_prefix = ".oompah/tasks/"
+
+        def _git_ls(branch: str) -> dict[str, str]:
+            """Return {rel_path: blob_sha} for .oompah/tasks/ on branch."""
+            r = subprocess.run(
+                ["git", "ls-tree", "-r", branch, "--", ".oompah/tasks/"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            result: dict[str, str] = {}
+            if r.returncode != 0:
+                return result
+            for line in r.stdout.splitlines():
+                parts = line.split("\t", 1)
+                if len(parts) == 2:
+                    path = parts[1]
+                    sha = parts[0].split()[-1]
+                    result[path] = sha
+            return result
+
+        main_files = _git_ls(default_branch)
+        state_files = _git_ls(branch_name)
+
+        diffs: list[str] = []
+        all_keys = set(main_files) | set(state_files)
+        for path in sorted(all_keys):
+            if main_files.get(path) != state_files.get(path):
+                if path not in main_files:
+                    diffs.append(f"ONLY_IN_STATE_BRANCH: {path}")
+                elif path not in state_files:
+                    diffs.append(f"ONLY_IN_DEFAULT_BRANCH: {path}")
+                else:
+                    diffs.append(f"CONTENT_DIFFERS: {path}")
+
+        return JSONResponse({"synced": len(diffs) == 0, "diffs": diffs})
+    except Exception as exc:
+        logger.error("State-branch sync-check error for %s: %s", project_id, exc)
+        return JSONResponse(
+            {"error": {"code": "internal", "message": str(exc)}},
+            status_code=500,
+        )
+
+
 def _is_github_tracker_kind(kind: str | None) -> bool:
     return (kind or "").strip().lower() in {"github_issues", "github-issues"}
 

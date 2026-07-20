@@ -638,10 +638,12 @@ class TestProjectStoreUpdatableFields:
             "github_project_node_id",
             # Supported release lines (section 5 of release-branch-addendums.md)
             "supported_release_branches",
-            # State-branch configuration (OOMPAH-255)
+            # State-branch configuration (OOMPAH-255 / OOMPAH-259)
             "state_branch_enabled",
             "state_branch_checkpoint_debounce_ms",
             "state_branch_checkpoint_max_delay_ms",
+            "state_branch_shadow_write",
+            "state_branch_migration_stage",
         }
         assert ProjectStore.UPDATABLE_FIELDS == expected
 

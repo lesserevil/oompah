@@ -90,6 +90,7 @@ def _build_server_parser(
                 "       oompah [WORKFLOW.md] [server options]",
                 "       oompah task ...",
                 "       oompah project-bootstrap ...",
+                "       oompah admin ...",
             ]
         )
         epilog = """\
@@ -100,6 +101,7 @@ Common commands:
   oompah task --help             Manage native oompah tasks through a running server.
   oompah project-bootstrap --help
                                  Inspect or install project AGENTS.md integration.
+  oompah admin --help            Operator commands (state-branch migration, etc.).
 
 Examples:
   oompah server --port 8090
@@ -195,6 +197,11 @@ def main() -> None:
     if raw_args and raw_args[0] == "project-bootstrap":
         from oompah.project_bootstrap_cli import main as _project_bootstrap_main
         _project_bootstrap_main(raw_args[1:])
+        return
+
+    if raw_args and raw_args[0] == "admin":
+        from oompah.admin_cli import main as _admin_main
+        _admin_main(raw_args[1:])
         return
 
     if not raw_args:

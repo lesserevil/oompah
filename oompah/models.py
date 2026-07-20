@@ -453,6 +453,19 @@ class Project:
     # None = use the global .env default (30000 ms).
     state_branch_checkpoint_max_delay_ms: int | None = None
 
+    # Shadow-write flag used during Stage A migration (OOMPAH-259).
+    # When True AND state_branch_enabled=True, the tracker writes every
+    # task mutation to BOTH the state branch (primary) and the default branch
+    # (shadow).  This allows zero-data-loss rollback during the soak window.
+    # Default False; cleared automatically when advancing to Stage B.
+    state_branch_shadow_write: bool = False
+
+    # Migration stage marker stored in the repo for resumability (OOMPAH-259).
+    # Values: "" (not started), "A" (shadow-write active), "B" (state-branch only).
+    # Stage C is tracked by the absence of .oompah/tasks/ on the default branch.
+    # Stored here so the migration command can detect completed steps on restart.
+    state_branch_migration_stage: str = ""
+
     @property
     def state_branch_name(self) -> str:
         """Return the canonical state-branch name for this project.
@@ -571,6 +584,12 @@ class Project:
             d["state_branch_checkpoint_max_delay_ms"] = (
                 self.state_branch_checkpoint_max_delay_ms
             )
+        # Shadow-write and migration stage (OOMPAH-259).
+        # Only emit when non-default to keep legacy records compact.
+        if self.state_branch_shadow_write:
+            d["state_branch_shadow_write"] = True
+        if self.state_branch_migration_stage:
+            d["state_branch_migration_stage"] = self.state_branch_migration_stage
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -755,6 +774,8 @@ class Project:
             state_branch_enabled=state_branch_enabled,
             state_branch_checkpoint_debounce_ms=state_branch_checkpoint_debounce_ms,
             state_branch_checkpoint_max_delay_ms=state_branch_checkpoint_max_delay_ms,
+            state_branch_shadow_write=bool(d.get("state_branch_shadow_write", False)),
+            state_branch_migration_stage=str(d.get("state_branch_migration_stage", "")),
         )
 
 
