@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:30:27.106890Z'
-updated_at: '2026-07-20T21:21:21.396257Z'
+updated_at: '2026-07-20T21:21:32.260716Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -229,5 +229,24 @@ Files created:
    - Staged production rollout (Phase 0→4 over 2 months)
    - Quick reference card
    - Test coverage table
+---
+author: oompah
+created: 2026-07-20 21:21
+---
+Verification: make test passes with 9771 passed, 36 skipped, 0 failed (in 180s).
+
+New E2E test suite specifically:
+- 44 tests in tests/test_state_branch_e2e.py: all pass
+- 358 total state-branch tests (all modules): all pass
+
+Key regression assertions verified:
+- Main branch SHA does not change after state-branch task creation ✓
+- Release branch receives no new commits from task mutations ✓  
+- 5 coalesced mutations produce exactly 1 git commit on state branch ✓
+- Task files preserved locally even when remote push fails ✓
+- Stage B rollback restores tasks to main from state branch ✓
+- fetch_candidate_issues/fetch_all_issues/add_comment/add_dependency all work after migration ✓
+
+No live project migrations occur — all tests use disposable git fixtures (bare remote + working tree in tmp_path).
 ---
 <!-- COMMENTS:END -->
