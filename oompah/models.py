@@ -422,6 +422,47 @@ class Project:
     # Legacy project records that lack this field deserialize to an empty list.
     supported_release_branches: list[str] = field(default_factory=list)
 
+    # ---------------------------------------------------------------------------
+    # Per-project state-branch configuration (OOMPAH-255 / OOMPAH-253).
+    #
+    # When state_branch_enabled=True the tracker writes task state to the
+    # dedicated orphan branch ``oompah/state/<project-id>`` instead of to the
+    # default branch, keeping code history clean.
+    #
+    # Default False preserves backward-compatible behavior: all existing
+    # projects continue to read/write from the default branch until an operator
+    # explicitly opts in (via migration task OOMPAH-259).
+    #
+    # The per-project checkpoint fields override the global .env defaults
+    # OOMPAH_STATE_BRANCH_CHECKPOINT_DEBOUNCE_MS and
+    # OOMPAH_STATE_BRANCH_CHECKPOINT_MAX_DELAY_MS when set.  None means
+    # "fall through to the global default."
+    # ---------------------------------------------------------------------------
+
+    # Opt-in to the state-branch write path. Default False for backward compat.
+    state_branch_enabled: bool = False
+
+    # Milliseconds to wait for additional writes before flushing a checkpoint
+    # commit. Overrides OOMPAH_STATE_BRANCH_CHECKPOINT_DEBOUNCE_MS when set.
+    # Must be a positive integer. None = use the global .env default (5000 ms).
+    state_branch_checkpoint_debounce_ms: int | None = None
+
+    # Maximum milliseconds a pending write can be held before a forced flush.
+    # Overrides OOMPAH_STATE_BRANCH_CHECKPOINT_MAX_DELAY_MS when set.
+    # Must be a positive integer >= debounce_ms + 1000 when both are set.
+    # None = use the global .env default (30000 ms).
+    state_branch_checkpoint_max_delay_ms: int | None = None
+
+    @property
+    def state_branch_name(self) -> str:
+        """Return the canonical state-branch name for this project.
+
+        The name is deterministically derived from ``Project.id``.  It is not
+        configurable per-project; the operator enables/disables the feature via
+        ``state_branch_enabled`` only.  Convention: ``oompah/state/<id>``.
+        """
+        return f"oompah/state/{self.id}"
+
     def __post_init__(self):
         # Ensure branches is never empty and default_branch is set
         if not self.branches:
@@ -517,6 +558,19 @@ class Project:
         # responses and dashboards can render the field without back-compat
         # guessing.  Legacy records that lack this field default to [] on load.
         d["supported_release_branches"] = list(self.supported_release_branches)
+        # State-branch configuration (OOMPAH-255).
+        # Always emit state_branch_enabled so API consumers can check it
+        # without back-compat guessing.  Omit the per-project checkpoint
+        # overrides when they are None (project uses global .env defaults).
+        d["state_branch_enabled"] = self.state_branch_enabled
+        if self.state_branch_checkpoint_debounce_ms is not None:
+            d["state_branch_checkpoint_debounce_ms"] = (
+                self.state_branch_checkpoint_debounce_ms
+            )
+        if self.state_branch_checkpoint_max_delay_ms is not None:
+            d["state_branch_checkpoint_max_delay_ms"] = (
+                self.state_branch_checkpoint_max_delay_ms
+            )
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -629,6 +683,30 @@ class Project:
             ]
         else:
             supported_release_branches = []
+        # State-branch configuration (OOMPAH-255).
+        # Legacy records that lack state_branch_enabled default to False,
+        # preserving the existing behavior of reading/writing the default branch.
+        state_branch_enabled = bool(d.get("state_branch_enabled", False))
+        raw_debounce = d.get("state_branch_checkpoint_debounce_ms")
+        state_branch_checkpoint_debounce_ms: int | None
+        if raw_debounce is None:
+            state_branch_checkpoint_debounce_ms = None
+        else:
+            try:
+                v = int(raw_debounce)
+                state_branch_checkpoint_debounce_ms = v if v > 0 else None
+            except (TypeError, ValueError):
+                state_branch_checkpoint_debounce_ms = None
+        raw_max_delay = d.get("state_branch_checkpoint_max_delay_ms")
+        state_branch_checkpoint_max_delay_ms: int | None
+        if raw_max_delay is None:
+            state_branch_checkpoint_max_delay_ms = None
+        else:
+            try:
+                v = int(raw_max_delay)
+                state_branch_checkpoint_max_delay_ms = v if v > 0 else None
+            except (TypeError, ValueError):
+                state_branch_checkpoint_max_delay_ms = None
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -674,6 +752,9 @@ class Project:
             ),
             github_project_node_id=github_project_node_id,
             supported_release_branches=supported_release_branches,
+            state_branch_enabled=state_branch_enabled,
+            state_branch_checkpoint_debounce_ms=state_branch_checkpoint_debounce_ms,
+            state_branch_checkpoint_max_delay_ms=state_branch_checkpoint_max_delay_ms,
         )
 
 

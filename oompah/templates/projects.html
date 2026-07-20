@@ -265,6 +265,10 @@ async function loadProjects() {
         <span class="field-label">Release Lines:</span>
         <span class="field-value">${(p.supported_release_branches && p.supported_release_branches.length > 0) ? esc(p.supported_release_branches.join(', ')) : '<em style="color:var(--text-muted);font-style:italic;">none</em>'}</span>
       </div>
+      <div class="field-row" data-field="state-branch-enabled">
+        <span class="field-label">State Branch:</span>
+        <span class="field-value" style="color:${p.state_branch_enabled ? 'var(--green)' : 'var(--text-muted)'};">${p.state_branch_enabled ? 'Enabled — writes task state to oompah/state/' + esc(p.id) : 'Disabled (default — writes to default branch)'}</span>
+      </div>
       ${p.git_user_name ? `<div class="field-row">
         <span class="field-label">Git User:</span>
         <span class="field-value">${esc(p.git_user_name)} &lt;${esc(p.git_user_email || '')}&gt;</span>
@@ -448,6 +452,16 @@ async function loadProjects() {
         <div class="form-group">
           <label>Status Authorized Logins <span style="font-weight:400;color:var(--text-muted);">(comma-separated GitHub logins allowed to move issues through protected status transitions)</span></label>
           <input type="text" id="edit-status-label-authorized-logins-${esc(p.id)}" value="${esc((p.status_label_authorized_logins || []).join(', '))}" placeholder="e.g. project-owner, release-manager">
+        </div>
+        <div class="form-group" data-section="state-branch-settings">
+          <label style="font-weight:700;color:var(--text);font-size:0.85rem;">State Branch Settings</label>
+        </div>
+        <div class="form-group" data-field="state-branch-enabled-edit">
+          <label>State Branch <span style="font-weight:400;color:var(--text-muted);">(native oompah_md only — write task state to oompah/state/&lt;project-id&gt; instead of the default branch)</span></label>
+          <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;color:var(--text);cursor:pointer;margin-bottom:0;">
+            <input type="checkbox" id="edit-state-branch-enabled-${esc(p.id)}" ${p.state_branch_enabled ? 'checked' : ''}>
+            <span>Enable state branch (writes task state to oompah/state/${esc(p.id)})</span>
+          </label>
         </div>
         <div class="form-group" data-field="provider-whitelist-edit">
           <label id="edit-provider-whitelist-label-${esc(p.id)}">Provider Whitelist <span style="font-weight:400;color:var(--text-muted);">(leave all unchecked to allow all providers)</span></label>
@@ -642,13 +656,15 @@ async function saveProject(id) {
   const statusLabelAuthorizedLogins = statusLabelAuthorizedLoginsRaw
     ? statusLabelAuthorizedLoginsRaw.split(',').map(s => s.trim()).filter(s => s.length > 0)
     : [];
+  const stateBranchEnabled = document.getElementById('edit-state-branch-enabled-' + id).checked;
   const body = {name, branch, branches, default_branch: defaultBranch, max_in_flight_prs: maxInFlightPrs, provider_whitelist: providerWhitelist,
     tracker_kind: trackerKind, tracker_owner: trackerOwner, tracker_repo: trackerRepo,
     github_issue_intake_enabled: githubIssueIntakeEnabled,
     github_project_node_id: githubProjectNodeId,
     status_actor_login: statusActorLogin,
     status_label_authorized_logins: statusLabelAuthorizedLogins,
-    supported_release_branches: supportedReleaseBranches};
+    supported_release_branches: supportedReleaseBranches,
+    state_branch_enabled: stateBranchEnabled};
   if (repoUrl) body.repo_url = repoUrl;
   if (gitUserName) body.git_user_name = gitUserName;
   if (gitUserEmail) body.git_user_email = gitUserEmail;
