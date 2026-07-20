@@ -329,7 +329,7 @@ class TestStateBranchTrackerIntegration:
         child = tracker.create_issue("Child task")
         main_sha_before = _commit_sha(repo, "main")
 
-        tracker.set_parent(child.identifier, parent.identifier)
+        tracker.add_parent_child(child.identifier, parent.identifier)
 
         main_sha_after = _commit_sha(repo, "main")
         assert main_sha_after == main_sha_before, (
@@ -672,9 +672,11 @@ class TestStateBranchTrackerFailures:
             git_sync=True,
         )
 
-        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
             """Return success for all operations except push, which simulates auth failure."""
             cmd = args[0] if args else ""
+            cwd = kwargs.get("cwd", root)
+            effective_cwd = str(cwd) if cwd is not None else str(root)
             if cmd == "push":
                 return _make_completed_process(
                     1, "", "remote: Permission to org/repo.git denied."
@@ -682,7 +684,7 @@ class TestStateBranchTrackerFailures:
             # Run real git for everything else
             result = subprocess.run(
                 ["git", *args],
-                cwd=str(root),
+                cwd=effective_cwd,
                 capture_output=True,
                 text=True,
             )
@@ -699,10 +701,10 @@ class TestStateBranchTrackerFailures:
             # A TrackerError for push is acceptable; we just need the data intact
             pass
 
-        # The task file must exist locally (data not corrupted)
+        # The task file must exist locally (data not corrupted).
+        # The state branch tracker writes to a git worktree inside .git/; look there.
         task_files = list((root / ".oompah" / "tasks").rglob("*.md"))
-        # If state branch writes to a worktree, look there too
-        all_task_files = task_files + list((root / "..").rglob(".oompah/tasks/**/*.md"))
+        all_task_files = list(root.rglob(".oompah/tasks/**/*.md"))
         # At minimum, some task data must exist
         assert task_files or all_task_files, (
             "Task data must be preserved locally even when remote push fails"
@@ -737,11 +739,13 @@ class TestStateBranchTrackerFailures:
         push_attempt = 0
         git_calls: list[str] = []
 
-        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
             nonlocal push_attempt
             cmd = args[0] if args else ""
             arg_str = " ".join(args)
             git_calls.append(arg_str)
+            cwd = kwargs.get("cwd", root)
+            effective_cwd = str(cwd) if cwd is not None else str(root)
 
             if cmd == "push":
                 push_attempt += 1
@@ -759,10 +763,18 @@ class TestStateBranchTrackerFailures:
             if cmd == "rebase" and "--abort" not in args:
                 return _make_completed_process(0)
 
-            # Run real git for fetch, commit, symbolic-ref, rev-parse, etc.
+            # Fake "origin" existing so _has_remote() returns True and push is attempted.
+            if cmd == "remote" and "get-url" in args:
+                return _make_completed_process(0, "https://example.com/fake-remote.git")
+
+            # Fake fetch success (real fetch would fail without an actual remote).
+            if cmd == "fetch":
+                return _make_completed_process(0)
+
+            # Run real git for commit, symbolic-ref, rev-parse, merge, etc.
             result = subprocess.run(
                 ["git", *args],
-                cwd=str(root),
+                cwd=effective_cwd,
                 capture_output=True,
                 text=True,
             )
@@ -819,9 +831,11 @@ class TestStateBranchTrackerFailures:
 
         git_calls: list[str] = []
 
-        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
             cmd = args[0] if args else ""
             git_calls.append(" ".join(args))
+            cwd = kwargs.get("cwd", root)
+            effective_cwd = str(cwd) if cwd is not None else str(root)
 
             if cmd == "push":
                 return _make_completed_process(1, "", "[rejected] (non-fast-forward)")
@@ -832,9 +846,17 @@ class TestStateBranchTrackerFailures:
             if cmd == "rebase" and "--abort" in args:
                 return _make_completed_process(0)
 
+            # Fake "origin" existing so _has_remote() returns True and push is attempted.
+            if cmd == "remote" and "get-url" in args:
+                return _make_completed_process(0, "https://example.com/fake-remote.git")
+
+            # Fake fetch success (real fetch would fail without an actual remote).
+            if cmd == "fetch":
+                return _make_completed_process(0)
+
             result = subprocess.run(
                 ["git", *args],
-                cwd=str(root),
+                cwd=effective_cwd,
                 capture_output=True,
                 text=True,
             )
@@ -886,13 +908,18 @@ class TestStateBranchTrackerFailures:
             git_sync=True,
         )
 
-        def _fake_git(args: list[str], *, check: bool) -> MagicMock:
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
             cmd = args[0] if args else ""
+            cwd = kwargs.get("cwd", root)
+            effective_cwd = str(cwd) if cwd is not None else str(root)
             if cmd == "fetch":
                 return _make_completed_process(1, "", "fatal: unable to connect to github.com")
+            # Fake "origin" existing so _has_remote() returns True and sync is attempted.
+            if cmd == "remote" and "get-url" in args:
+                return _make_completed_process(0, "https://example.com/fake-remote.git")
             result = subprocess.run(
                 ["git", *args],
-                cwd=str(root),
+                cwd=effective_cwd,
                 capture_output=True,
                 text=True,
             )

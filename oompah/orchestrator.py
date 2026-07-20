@@ -1960,6 +1960,9 @@ class Orchestrator:
             default_branch = (getattr(project, "default_branch", None) or "").strip()
             if default_branch:
                 extra["default_branch"] = default_branch
+            if getattr(project, "state_branch_enabled", False) is True:
+                extra["state_branch_enabled"] = True
+                extra["state_branch_name"] = project.state_branch_name
         return factory(
             active_states=self.config.tracker_active_states,
             terminal_states=self.config.tracker_terminal_states,
