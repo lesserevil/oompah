@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T17:39:04.653084Z'
-updated_at: '2026-07-20T18:07:24.452413Z'
+updated_at: '2026-07-20T18:08:19.789281Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,21 @@ Current state:
 - Plus oompah task metadata commits
 
 Plan: Run \`git rebase origin/main\`, resolve any conflicts, force-push with --force-with-lease.
+---
+author: oompah
+created: 2026-07-20 18:08
+---
+**Completion:**
+
+Rebase of epic-OOMPAH-253 onto origin/main completed successfully.
+
+- Duplicate screening: confirmed not a duplicate (OOMPAH-269 was closed; epic had become stale again)
+- Rebase: 187 oompah task metadata commits were skipped (already on main); 3 substantive code commits cleanly rebased:
+  - OOMPAH-254: Define state-branch format, configuration contract, and migration design
+  - OOMPAH-255: Add per-project state-branch configuration and validation  
+  - OOMPAH-256: Add comprehensive test suite for state-branch tracker routing
+- Force-pushed: HEAD -> epic-OOMPAH-253 (adbb46fe...2848c1d7)
+
+Note: A small number of new oompah metadata commits landed on main during the operation — these will trigger another auto-rebase if the epic is detected as stale again.
 ---
 <!-- COMMENTS:END -->
