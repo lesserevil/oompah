@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:30:27.106890Z'
-updated_at: '2026-07-20T21:02:23.926002Z'
+updated_at: '2026-07-20T21:03:37.355889Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,5 +65,44 @@ author: oompah
 created: 2026-07-20 21:02
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 21:03
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-260 is NOT a duplicate of any existing task.
+
+**Evidence reviewed:**
+- Searched all .oompah/tasks/ directories (open, in-progress, done, merged, archived) for keywords: state-branch, state_branch, migration readiness, checkpoint workflow, git-backed state, readiness guide, end-to-end validation, oompah/state, validate.*end.to.end
+- Read OOMPAH-253 epic and all sibling tasks to compare scope
+- Checked OOMPAH-202 (Run end-to-end release delivery migration and regression coverage) — confirmed distinct feature area (release delivery, not state-branch workflow)
+- Checked OOMPAH-31 (archived, bootstrap validation) — confirmed distinct scope (1.0 CLI bootstrap smoke test, not state-branch E2E)
+
+**All sibling tasks in OOMPAH-253 confirmed distinct:**
+- OOMPAH-254 (Done): Design documents only — plans/state-branch-design.md + docs/state-branch-migration.md
+- OOMPAH-255 (Done): Project model config fields (state_branch_enabled, checkpoint_debounce_ms, etc.)
+- OOMPAH-256 (Done): State-branch-aware tracker read/write routing via git worktree
+- OOMPAH-257 (Done): Checkpoint coalescing queue with debounce/max-delay timers
+- OOMPAH-258 (Done): Project-bootstrap state-branch initialization + operator docs
+- OOMPAH-259 (In Progress): Resumable migration of EXISTING projects + rollback — distinct from E2E validation
+
+**Unique scope of OOMPAH-260 (not covered elsewhere):**
+1. End-to-end integration test with a bare remote, separate code/state branches, covering: bootstrap, task create+update, checkpoint coalescing, code commits on main, release-branch work, legacy project migration
+2. Regression assertion: task checkpoint commits appear ONLY on oompah/state after cutover (main/release branch histories unchanged)
+3. Simulated failed push + recovery test
+4. Operator readiness guide (docs/) with preflight checklist, validation commands, rollback criteria, staged production rollout recommendation
+
+**Blockers status:** OOMPAH-257 and OOMPAH-258 are Done; OOMPAH-259 is In Progress.
+
+**Key implementation inputs:**
+- plans/state-branch-design.md: §5 (checkpoint coalescing), §6 (migration), §7 (API/CLI spec)
+- docs/state-branch-migration.md: operator guide skeleton
+- oompah/checkpoint_queue.py: coalescing implementation (from OOMPAH-257)
+- oompah/project_bootstrap/__init__.py: initialize_state_branch() (from OOMPAH-258)
+- oompah/state_branch_migration.py: migration engine (from OOMPAH-259)
+- Tests should use bare git repos as fixtures (see tests/test_state_branch_migration.py pattern from OOMPAH-259)
+
+**Recommended next focus:** test (E2E integration tests + docs readiness guide)
 ---
 <!-- COMMENTS:END -->
