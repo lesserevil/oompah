@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-20T16:29:29.498883Z'
-updated_at: '2026-07-20T18:05:44.021251Z'
+updated_at: '2026-07-20T18:08:07.005012Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -240,5 +240,32 @@ author: oompah
 created: 2026-07-20 18:05
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-20 18:08
+---
+Understanding: I am the feature implementation agent for OOMPAH-256. Based on previous handoffs:
+
+**Scope:** Extend OompahMarkdownTracker to route reads/writes through a dedicated git worktree on the state branch (oompah/state/<project-id>) when state_branch_enabled=True.
+
+**Current state:**
+- OOMPAH-255 already added state_branch_enabled/state_branch_name fields to the Project model (oompah/models.py)
+- A test suite already exists (tests/test_oompah_md_tracker_state_branch.py) with 19 xfail tests waiting for the implementation
+- OompahMarkdownTracker.__init__ has NO state_branch_enabled parameter yet
+- orchestrator._new_tracker_for_project() doesn't pass state_branch fields
+
+**Plan:**
+1. Add state_branch_enabled/state_branch_name params to OompahMarkdownTracker.__init__
+2. Add _get_state_root() method that creates/reuses a git worktree on the state branch
+3. Override tasks_root property to use the state worktree path when enabled
+4. Override _prepare_default_branch_for_write() and _commit_and_push() to use the state branch
+5. Update _oompah_md_factory() to pass state_branch kwargs through
+6. Update orchestrator._new_tracker_for_project() to pass state_branch fields for oompah_md projects
+
+Key design constraints:
+- Never switch the shared code checkout between branches (use git worktree add)
+- Never auto-create the state branch during normal reads (bootstrap is explicit)
+- Never use reset --hard in conflict recovery
+- Raise actionable TrackerError when state branch is missing
 ---
 <!-- COMMENTS:END -->
