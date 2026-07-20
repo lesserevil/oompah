@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-281
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Run Oompah CI on a containerized self-hosted GitHub Actions runner
 parent: null
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T23:45:57.224862Z'
+updated_at: '2026-07-20T23:50:59.183456Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
 review_number: '458'
 merged_at: null
-oompah.agent_run_id: 44ff2a70-a637-4f2f-b0b9-92d62ff000df
+oompah.agent_run_id: 29211482-7255-4dca-8def-bb06f74ba56d
 oompah.task_costs:
   total_input_tokens: 98550
   total_output_tokens: 22296
@@ -485,5 +485,15 @@ Steps to resolve:
   git push origin OOMPAH-281
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-20 23:50
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-20 23:50
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
