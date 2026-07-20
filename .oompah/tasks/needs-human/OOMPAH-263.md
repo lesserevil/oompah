@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T16:47:15.264773Z'
-updated_at: '2026-07-20T16:51:22.140777Z'
+updated_at: '2026-07-20T16:51:25.611303Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,18 @@ author: oompah
 created: 2026-07-20 16:49
 ---
 Implemented in PR #452: responsive dashboard detail-pane width of min(800px, 40vw), with a template regression test. make test passed.
+---
+author: oompah
+created: 2026-07-20 16:51
+---
+Review reconciliation could not verify this task branch after its review artifact disappeared.
+
+Branch: `OOMPAH-263`
+Target branch: `main`
+Reason: git rev-list --count failed for main..origin/OOMPAH-263: fatal: ambiguous argument 'main..origin/OOMPAH-263': unknown revision or path not in the working tree.
+Use '--' to separate paths from revisions, like this:
+'git <command> [<revision>...] -- [<file>...]'
+
+Required: confirm whether the branch landed, restore the PR/MR, or archive the task.
 ---
 <!-- COMMENTS:END -->
