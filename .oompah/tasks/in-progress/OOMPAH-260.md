@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:30:27.106890Z'
-updated_at: '2026-07-20T21:02:18.445202Z'
+updated_at: '2026-07-20T21:02:21.526049Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,3 +54,11 @@ Acceptance criteria
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-20 21:02
+---
+Agent dispatched (profile: default)
+---
+<!-- COMMENTS:END -->
