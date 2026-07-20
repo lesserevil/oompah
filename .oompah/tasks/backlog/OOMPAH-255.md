@@ -6,11 +6,12 @@ priority: null
 title: Add per-project state-branch configuration and validation
 parent: OOMPAH-253
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-254
 labels: []
 assignee: null
 created_at: '2026-07-20T16:29:19.457116Z'
-updated_at: '2026-07-20T16:29:19.457116Z'
+updated_at: '2026-07-20T16:30:10.773516Z'
 work_branch: null
 target_branch: null
 review_url: null
