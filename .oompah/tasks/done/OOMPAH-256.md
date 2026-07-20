@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-20T16:29:29.498883Z'
-updated_at: '2026-07-20T18:36:50.704002Z'
+updated_at: '2026-07-20T18:37:00.837898Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 84afdca0-ece1-4f78-9bd6-7020267a1d3e
 oompah.task_costs:
-  total_input_tokens: 106
-  total_output_tokens: 7931
+  total_input_tokens: 207
+  total_output_tokens: 10658
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 106
-      output_tokens: 7931
+      input_tokens: 207
+      output_tokens: 10658
       cost_usd: 0.0
   runs:
   - profile: default
@@ -42,6 +42,12 @@ oompah.task_costs:
     output_tokens: 2783
     cost_usd: 0.0
     recorded_at: '2026-07-20T18:05:05.492431+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 101
+    output_tokens: 2727
+    cost_usd: 0.0
+    recorded_at: '2026-07-20T18:37:00.183106+00:00'
 ---
 ## Summary
 
