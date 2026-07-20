@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:48.958577Z'
-updated_at: '2026-07-20T20:17:26.595701Z'
+updated_at: '2026-07-20T20:20:02.601482Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -184,5 +184,24 @@ created: 2026-07-20 20:17
 4. Write template/config verification tests (generated config contains state-branch setting)
 
 Starting with codebase exploration now.
+---
+author: oompah
+created: 2026-07-20 20:20
+---
+**Discovery:** Explored the codebase. The blocker OOMPAH-256 is done (state-branch-aware tracker routing). The design doc (plans/state-branch-design.md §2.3, §3.4) clearly specifies bootstrap behavior. However, oompah/project_bootstrap/__init__.py has NO state branch initialization code yet.
+
+What exists:
+- Project model state_branch_enabled, state_branch_name fields (OOMPAH-255 ✓)
+- OompahMarkdownTracker state-branch routing (OOMPAH-256 ✓)
+- Checkpoint coalescing (OOMPAH-257 ✓)
+- docs/state-branch-migration.md (migration guide for EXISTING projects, mentions new projects get state branch by default)
+- Design §2.3 specifies the bootstrap sequence (orphan branch creation, seed from main, commit, push)
+
+What's missing (needs implementing in OOMPAH-258):
+1. initialize_state_branch() function in oompah/project_bootstrap/__init__.py
+2. Tests for E2E bootstrap, idempotency, and config verification
+3. Updated docs/project-bootstrap.md to mention state branch
+
+Plan: Implement the bootstrap function + tests now, update docs.
 ---
 <!-- COMMENTS:END -->
