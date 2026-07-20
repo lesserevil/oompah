@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:29.498883Z'
-updated_at: '2026-07-20T17:43:27.788621Z'
+updated_at: '2026-07-20T17:52:43.003358Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -146,5 +146,14 @@ author: oompah
 created: 2026-07-20 17:43
 ---
 Understanding: As Test Engineer for OOMPAH-256, I need to write tests for the state-branch-aware native Markdown tracker. Based on the previous handoff, the duplicate detector found the feature implementation is still pending. My role is to write the test suite specified in the task: integration fixture (distinct main vs oompah/state branches), legacy fixture (no state-branch config), concurrency test, and failure tests (missing branch, auth failure, non-fast-forward push). I will first explore the codebase to understand existing test patterns and the implementation that OOMPAH-255 delivered (project model fields for state branch config).
+---
+author: oompah
+created: 2026-07-20 17:52
+---
+Discovery: The implementation gap is confirmed. OOMPAH-255 added state_branch_enabled/state_branch_name/etc. to the Project model (oompah/models.py) and ProjectStore validation (oompah/projects.py). However, OompahMarkdownTracker.__init__ in oompah/oompah_md_tracker.py has NO state_branch_enabled parameter and no routing logic. The orchestrator's _new_tracker_for_project() also does not yet pass state_branch fields to the factory.
+
+I will now write tests/test_oompah_md_tracker_state_branch.py covering: (1) integration fixture - state branch receives commits while main stays byte-for-byte unchanged; (2) legacy fixture - no regression in default-branch behavior; (3) concurrency - simultaneous code fetch and tracker write; (4) failure tests - missing branch, auth failure, non-fast-forward push recovery.
+
+Tests that require the not-yet-implemented tracker routing API (state_branch_enabled param) will use @pytest.mark.xfail so they are: (a) informative today about what's needed, (b) auto-passing once the feature agent implements the param.
 ---
 <!-- COMMENTS:END -->
