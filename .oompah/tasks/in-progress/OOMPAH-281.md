@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T21:46:05.694058Z'
+updated_at: '2026-07-20T21:47:12.583205Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,5 +70,43 @@ author: oompah
 created: 2026-07-20 21:46
 ---
 Project owner direction: prioritize this task ahead of other pending work. Once its implementation PR is ready, merge it immediately without waiting for CI jobs; do not leave it queued behind the normal check gate.
+---
+author: oompah
+created: 2026-07-20 21:47
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-281 is a unique, first-of-its-kind task.
+
+**Evidence searched:**
+- All .oompah/tasks/ states (archived, done, merged, in-review, open, in-progress) — 200+ tasks scanned
+- rg patterns: self-hosted, runner, github.action, containeriz, podman, ci docker
+- docs/ and plans/ directories
+- .github/workflows/ci.yml and cli-release.yml
+
+**Closest candidates reviewed and ruled out:**
+- OOMPAH-39 (archived): footnote mentions 'GitHub Actions CLI Release workflow queued awaiting a runner' — this is an observation that GitHub-hosted runners were unavailable, NOT a task to set up a self-hosted runner.
+- OOMPAH-41 (archived): identical pattern — a workflow stuck in queue due to runner capacity, not a self-hosted runner task.
+- OOMPAH-210 (merged): about GitHub Actions workflow-runs/jobs API for CI status detection — different scope entirely.
+- All remaining tasks are about state-branches, git lock errors, YOLO watchdog, or unrelated product features.
+
+**Relevant files for implementation:**
+- .github/workflows/ci.yml — needs runs-on updated to oompah label
+- .github/workflows/cli-release.yml — needs runs-on updated to oompah label
+- .env.example — OOMPAH_RUNNER_* env vars to add
+- docs/ — user-facing runner lifecycle doc
+- tests/ — workflow label assertions, container config validation
+
+**Remaining work:** Full implementation as described in the task:
+1. Containerized runner definition (Podman/Docker Compose or podman run script)
+2. Host setup/start/stop/status Makefile targets
+3. .env configuration for GITHUB_TOKEN / runner registration token
+4. Register runner against lesserevil/oompah with labels: self-hosted, linux, x64, oompah
+5. Update CI workflows to use oompah label
+6. Document OR-expression limitation and required PAT permission
+7. Tests (workflow label assertions, container config validation)
+8. make test passes
+
+**Recommended next focus:** devops
 ---
 <!-- COMMENTS:END -->
