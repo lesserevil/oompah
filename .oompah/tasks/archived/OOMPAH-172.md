@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-172
 type: epic
-status: Merged
+status: Archived
 priority: 0
 title: Implement queued release-branch addendums
 parent: null
@@ -24,7 +24,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-13T02:35:12.892610Z'
-updated_at: '2026-07-13T07:26:01.765340Z'
+updated_at: '2026-07-20T08:27:41.750692Z'
 work_branch: epic-OOMPAH-172
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/407
