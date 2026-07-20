@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-268
 type: bug
-status: Open
+status: Merged
 priority: 2
 title: '[backend:server] Add comment API error: git add .oompah/tasks failed: fatal:
   Unable to create ''/home/shedwards/.oompah/repos/oompah/.git/index.lock'': File
@@ -18,7 +18,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:52:04.570031Z'
-updated_at: '2026-07-20T17:47:58.795319Z'
+updated_at: '2026-07-20T21:55:56.896051Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,8 +32,9 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/454
   requestor_login: NVShawn
   imported_comment_ids: []
-  last_synced_status: Open
-  last_synced_at: '2026-07-20T17:47:55.640130+00:00'
+  last_synced_status: Merged
+  last_synced_at: '2026-07-20T21:55:53.594500+00:00'
+  last_github_state: closed
 oompah.intake:
   missing_fields: []
   scope: small
