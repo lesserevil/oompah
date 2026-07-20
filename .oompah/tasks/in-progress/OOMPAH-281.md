@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T23:23:33.809464Z'
+updated_at: '2026-07-20T23:29:05.493851Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
@@ -291,5 +291,37 @@ author: oompah
 created: 2026-07-20 23:23
 ---
 Discovery: Existing 49 tests all pass and cover the happy path well. Identified gaps: (1) workflow tests only guard named jobs — new jobs with ubuntu-latest would slip through; (2) token-cleanup test is weak (checks rm -f and registration-token appear anywhere, not on same line); (3) no tests for operationally-critical properties: detached start (-d), --restart unless-stopped, chmod 600 on token; (4) no bash shebang test; (5) doc config table completeness not tested per-variable. Adding ~15 targeted tests to close these gaps.
+---
+author: oompah
+created: 2026-07-20 23:29
+---
+Verification: make test passes — 9835 passed, 36 skipped.
+
+Added 14 new tests to tests/test_self_hosted_runner.py (49 → 63 tests total):
+
+**Regression guards for workflow files:**
+- test_all_ci_jobs_target_required_labels — iterates ALL jobs in ci.yml, not just 'test'; catches new jobs with ubuntu-latest
+- test_no_ci_job_uses_github_hosted_runner — same, explicit set of GitHub-hosted runner names
+- test_all_release_jobs_target_required_labels — same guard for cli-release.yml
+- test_no_release_job_uses_github_hosted_runner — same
+
+**Strengthened token-cleanup assertion:**
+- Replaced weak 'rm -f' and 'registration-token' appear-anywhere check with regex rm -f[^\n]*registration-token so both must appear on the same logical line
+
+**Operational-property tests (previously uncovered):**
+- test_runner_script_secures_token_file_with_chmod_600
+- test_runner_script_starts_container_in_detached_mode (run -d; without -d the command blocks)
+- test_runner_script_uses_restart_unless_stopped (resilience across reboots)
+- test_runner_script_has_bash_shebang
+- test_runner_script_default_labels_match_required_labels
+- test_runner_script_has_usage_message_for_unknown_commands
+
+**Documentation completeness:**
+- test_runner_doc_config_table_has_all_env_vars (all 6 OOMPAH_RUNNER_* vars)
+- test_runner_doc_references_correct_github_repo
+- test_runner_doc_covers_runner_stop_command
+- test_runner_doc_documents_container_runtime_options
+
+Branch pushed: OOMPAH-281.
 ---
 <!-- COMMENTS:END -->
