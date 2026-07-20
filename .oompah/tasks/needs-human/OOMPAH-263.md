@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T16:47:15.264773Z'
-updated_at: '2026-07-20T16:51:25.611303Z'
+updated_at: '2026-07-20T17:12:40.112627Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,7 +31,6 @@ Acceptance criteria
 - The task detail pane is approximately twice as wide on large screens.
 - It never exceeds 40 percent of window width.
 - make test passes.
-
 ## Acceptance Criteria
 
 - [ ] Define acceptance criteria.
