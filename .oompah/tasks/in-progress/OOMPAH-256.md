@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:29.498883Z'
-updated_at: '2026-07-20T17:52:43.003358Z'
+updated_at: '2026-07-20T18:00:49.583907Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -155,5 +155,25 @@ Discovery: The implementation gap is confirmed. OOMPAH-255 added state_branch_en
 I will now write tests/test_oompah_md_tracker_state_branch.py covering: (1) integration fixture - state branch receives commits while main stays byte-for-byte unchanged; (2) legacy fixture - no regression in default-branch behavior; (3) concurrency - simultaneous code fetch and tracker write; (4) failure tests - missing branch, auth failure, non-fast-forward push recovery.
 
 Tests that require the not-yet-implemented tracker routing API (state_branch_enabled param) will use @pytest.mark.xfail so they are: (a) informative today about what's needed, (b) auto-passing once the feature agent implements the param.
+---
+author: oompah
+created: 2026-07-20 18:00
+---
+Implementation: Created tests/test_oompah_md_tracker_state_branch.py with 28 tests covering all acceptance criteria for OOMPAH-256.
+
+**Test summary (current results):**
+- 8 passed: Legacy tracker behavior verified (no regression possible)
+- 1 skipped: Explicit state_branch_enabled=False test (gracefully skips when feature absent)
+- 19 xfailed: Feature contracts marked as expected-fail until implementation
+
+**Coverage provided:**
+§1 Integration - task creation/status/comment/label/dependency writes only to state branch; main unchanged byte-for-byte; reads from state branch not main; shared checkout not switched
+§2 Legacy - default behavior unchanged; git_sync writes to default branch; legacy projects work without migration
+§3 Failures - missing branch raises actionable error; auth failure preserves task data; non-fast-forward triggers rebase+retry; rebase failure aborts cleanly; never uses reset --hard
+§4 Concurrency - concurrent tracker write and code fetch succeed; concurrent writes are serialized by _write_lock
+§5 Orchestrator wiring - factory call must pass state_branch_enabled=True and state_branch_name; tracker stores the params
+§6 Acceptance criteria - direct tests for AC1/AC2/AC3
+
+All 19 xfailed tests use dynamic xfail detection (inspect.signature) so they auto-convert to PASSED once the feature agent adds state_branch_enabled/state_branch_name params to OompahMarkdownTracker.__init__ and implements routing logic.
 ---
 <!-- COMMENTS:END -->
