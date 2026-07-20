@@ -16,7 +16,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:52:04.570031Z'
-updated_at: '2026-07-20T16:58:38.447037Z'
+updated_at: '2026-07-20T17:05:00.111833Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -138,5 +138,12 @@ author: oompah
 created: 2026-07-20 16:57
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 17:05
+---
+Understanding: Investigating OOMPAH-268 as Duplicate Investigator. The issue is an auto-filed error_watcher report for a git index.lock contention failure in oompah_md_tracker.add_comment() → _commit_and_push() → _git(['add', TASKS_DIR]). The fingerprint (bed1bd7effec3bb8) is unique to this specific error message.
+
+Plan: (1) search .oompah/tasks/ for prior tasks with same root cause; (2) check archived/done tasks for prior resolutions; (3) compare with OOMPAH-267 (a sibling error with same code path but different git command).
 ---
 <!-- COMMENTS:END -->
