@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-281
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Run Oompah CI on a containerized self-hosted GitHub Actions runner
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T21:39:55.510108Z'
+updated_at: '2026-07-20T21:45:15.119920Z'
 work_branch: null
 target_branch: null
 review_url: null
