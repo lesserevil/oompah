@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T16:58:23.277778Z'
+updated_at: '2026-07-20T17:00:52.379020Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,5 +120,26 @@ author: oompah
 created: 2026-07-20 16:56
 ---
 Understanding: This issue is an auto-filed error from oompah's error_watcher. The root error is that a 'git push origin HEAD:main' failed due to GitHub branch protection rules (3 of 3 required status checks not met, and the ref lock conflict). My role here is Duplicate Investigator — I need to determine if this is a duplicate of an existing issue before any implementation work begins. Searching now for similar tasks.
+---
+author: oompah
+created: 2026-07-20 17:00
+---
+Discovery: Duplicate screening complete — OOMPAH-265 is NOT a duplicate.
+
+**Error in OOMPAH-265:** git push origin HEAD:main failed with remote ref lock conflict: 'cannot lock ref refs/heads/main: is at 0a970ee6 but expected 5ff1a2f5'. This is a push-race where GitHub rejected the push because another concurrent push arrived between oompah's fetch and push. The 'Bypassed rule violations' text is an informational GitHub message about branch protection, not the actual failure cause.
+
+**Closest reviewed tasks:**
+
+1. OOMPAH-235 (Done, 2026-07-18, commit fdd61e4a): Implemented push-race recovery in _commit_and_push() — after a rejected push, fetch/rebase and retry once. This IS the fix that was intended to handle OOMPAH-265's scenario. But OOMPAH-265 occurred 2026-07-20, two days after OOMPAH-235's fix, meaning the retry-once logic ran but the retry push ALSO failed (a second concurrent push beat oompah between the sync and the retry).
+
+2. OOMPAH-204 (Merged): Added rebase fallback in _sync_from_remote() for diverged branch.
+
+3. OOMPAH-233 (Merged): Added reset --hard fallback when both ff-only and rebase fail (later superseded by OOMPAH-235 which removed reset --hard).
+
+**Root cause of OOMPAH-265:** In _commit_and_push() (oompah/oompah_md_tracker.py:1055-1060), the single retry is insufficient when three or more concurrent tracker writers race. After the first push fails (check=False) and _sync_from_remote runs, the retry push (check=True) also fails because a second concurrent push arrived. TrackerError propagates and error_watcher files this task.
+
+**Distinct fingerprint:** d5eadc888bec39d3 appears only in OOMPAH-265. No other tasks describe this exact failure path. Not a duplicate.
+
+**Recommended fix:** Add a retry loop (e.g. 3 attempts with exponential backoff or immediate re-sync) in _commit_and_push() rather than the current single retry, OR catch the TrackerError from the retry push, log a warning, and suppress it from error_watcher for known push-race failures.
 ---
 <!-- COMMENTS:END -->
