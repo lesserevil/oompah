@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-183
 type: task
-status: Merged
+status: Archived
 priority: 1
 title: Migrate release picks and retire child-backport workflow
 parent: OOMPAH-172
@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:36:21.418119Z'
-updated_at: '2026-07-13T07:21:06.411557Z'
+updated_at: '2026-07-20T07:22:56.019483Z'
 work_branch: null
 target_branch: null
 review_url: null
