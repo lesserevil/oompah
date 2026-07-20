@@ -29,7 +29,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-20T16:29:00.780109Z'
-updated_at: '2026-07-20T21:22:59.810218Z'
+updated_at: '2026-07-20T21:23:02.145470Z'
 work_branch: epic-OOMPAH-253
 target_branch: main
 review_url: null
@@ -75,3 +75,11 @@ Acceptance criteria
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-20 21:23
+---
+The epic branch `epic-OOMPAH-253` is stale: it has fallen behind `main`. Rebase the branch onto `origin/main`, resolve any conflicts, and force-push with `git push --force-with-lease`.
+---
+<!-- COMMENTS:END -->
