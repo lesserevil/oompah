@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-20T16:29:29.498883Z'
-updated_at: '2026-07-20T18:35:05.955750Z'
+updated_at: '2026-07-20T18:36:22.517944Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -314,5 +314,10 @@ author: oompah
 created: 2026-07-20 18:35
 ---
 Discovery & Implementation: The previous agent (attempt #2) had already written the full implementation before timing out. All key methods were present in uncommitted changes:\n\n- OompahMarkdownTracker.__init__: state_branch_enabled/state_branch_name params\n- _state_worktree_path(): deterministic path under .git/oompah-state-worktrees/\n- _get_state_root(): creates/reuses git worktree, raises TrackerError if branch missing\n- _prepare_state_branch_for_write(): syncs worktree from remote without touching shared checkout\n- _sync_state_branch_from_remote(): fetch+ff-only, fallback rebase --autostash, never reset --hard\n- _commit_and_push_state_branch(): commits+pushes inside state worktree\n- _git() extended with cwd parameter to route git calls to any worktree\n- tasks_root property routes to state worktree when enabled\n- orchestrator._new_tracker_for_project() passes state_branch_enabled/name for oompah_md projects\n\nThe one bug I fixed: orchestrator used 'if getattr(project, state_branch_enabled, False):' which is truthy for MagicMock projects in tests, causing 5 test failures in test_dispatch_loop_heartbeat.py and test_long_tick_regression.py. Fixed by using 'is True' strict boolean check.
+---
+author: oompah
+created: 2026-07-20 18:36
+---
+Verification: Full test suite passes — 9560 passed, 0 failed, 36 skipped.\n\nAll 28 state-branch-specific tests pass (previously 19 xfail, now 28 passing). The 5 regression tests in test_dispatch_loop_heartbeat and test_long_tick_regression that were broken by the uncommitted changes are now fixed.\n\nKey bug fixed: orchestrator._new_tracker_for_project() used a truthy check ('if getattr(project, state_branch_enabled, False):') which activated state-branch mode for MagicMock projects in tests. Fixed with strict 'is True' boolean check.
 ---
 <!-- COMMENTS:END -->
