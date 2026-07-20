@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T23:55:49.692697Z'
+updated_at: '2026-07-20T23:55:57.642494Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
@@ -19,13 +19,13 @@ review_number: '458'
 merged_at: null
 oompah.agent_run_id: 29211482-7255-4dca-8def-bb06f74ba56d
 oompah.task_costs:
-  total_input_tokens: 98550
-  total_output_tokens: 22296
+  total_input_tokens: 98589
+  total_output_tokens: 23205
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 98550
-      output_tokens: 22296
+      input_tokens: 98589
+      output_tokens: 23205
       cost_usd: 0.0
   runs:
   - profile: default
@@ -58,6 +58,12 @@ oompah.task_costs:
     output_tokens: 1121
     cost_usd: 0.0
     recorded_at: '2026-07-20T23:41:15.483513+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 39
+    output_tokens: 909
+    cost_usd: 0.0
+    recorded_at: '2026-07-20T23:55:55.493206+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/458
 oompah.review_number: '458'
 oompah.work_branch: OOMPAH-281
@@ -517,5 +523,15 @@ author: oompah
 created: 2026-07-20 23:55
 ---
 Containerized self-hosted GitHub Actions runner delivered: scripts/runner.sh (Podman/Docker lifecycle), Makefile targets, .env.example vars, CI workflows updated to [self-hosted,linux,x64,oompah], docs/self-hosted-runner.md operator guide, 63 tests all passing (make test: 9835 passed, 36 skipped). Branch pushed and up to date.
+---
+author: oompah
+created: 2026-07-20 23:55
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 21
+- Tokens: 39 in / 909 out [948 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 58s
+- Log: OOMPAH-281__20260720T235059Z.jsonl
 ---
 <!-- COMMENTS:END -->
