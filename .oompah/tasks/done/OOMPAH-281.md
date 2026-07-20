@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-281
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Run Oompah CI on a containerized self-hosted GitHub Actions runner
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T23:29:05.493851Z'
+updated_at: '2026-07-20T23:29:17.120343Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
@@ -323,5 +323,16 @@ Added 14 new tests to tests/test_self_hosted_runner.py (49 → 63 tests total):
 - test_runner_doc_documents_container_runtime_options
 
 Branch pushed: OOMPAH-281.
+---
+author: oompah
+created: 2026-07-20 23:29
+---
+Completion: OOMPAH-281 test engineering complete.
+
+Delivered:
+- tests/test_self_hosted_runner.py: grew from 49 → 63 tests
+- 14 new tests cover: workflow-wide runner label enforcement (regression guard for new jobs), strengthened token-cleanup assertion (regex, not substring), operational-critical container properties (detached mode, restart policy, chmod 600, shebang), and documentation completeness (all 6 OOMPAH_RUNNER_* vars in config table, repo URL, stop command).
+- make test: 9835 passed, 36 skipped — all clean, no new warnings.
+- Branch pushed and up to date with origin.
 ---
 <!-- COMMENTS:END -->
