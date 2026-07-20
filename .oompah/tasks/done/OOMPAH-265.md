@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T17:18:45.355299Z'
+updated_at: '2026-07-20T17:18:55.077917Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -322,5 +322,15 @@ author: oompah
 created: 2026-07-20 17:18
 ---
 Extended _commit_and_push() and write_and_commit_ledger_file() to retry up to _PUSH_MAX_RETRIES=3 total push attempts (was 2). Exponential backoff between retries reduces thundering-herd contention under concurrent writes. This prevents the push-race TrackerError from reaching error_watcher under normal conditions. 2 new regression tests added. Branch OOMPAH-265, commit 26fbf86e.
+---
+author: oompah
+created: 2026-07-20 17:18
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 39
+- Tokens: 71 in / 1.4K out [1.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 12m 17s
+- Log: OOMPAH-265__20260720T170644Z.jsonl
 ---
 <!-- COMMENTS:END -->
