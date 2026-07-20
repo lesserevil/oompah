@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T21:56:47.463420Z'
+updated_at: '2026-07-20T21:56:59.150556Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -202,5 +202,29 @@ All 49 new tests in tests/test_self_hosted_runner.py passed:
 - 9 tests: docs/self-hosted-runner.md covers Mermaid diagram, OR limitation, PAT permission, troubleshooting
 
 Branch OOMPAH-281 pushed to origin.
+---
+author: oompah
+created: 2026-07-20 21:56
+---
+Completion: OOMPAH-281 implementation delivered.
+
+Delivered:
+1. scripts/runner.sh — Podman/Docker runner lifecycle manager (setup/start/stop/status). Pinned to ghcr.io/actions/actions-runner:2.323.0. Registration token fetched from GitHub API and deleted after use. Supports rollback (stop/re-register).
+
+2. Makefile — runner-setup, runner-start, runner-stop, runner-status targets, all .PHONY, all in help output.
+
+3. .env.example — OOMPAH_RUNNER_* section (6 variables), PAT permission note ('Self-hosted runners: Read and write'), OR-expression limitation note.
+
+4. .github/workflows/ci.yml + cli-release.yml — runs-on updated to [self-hosted, linux, x64, oompah].
+
+5. docs/self-hosted-runner.md — Operator guide: architecture diagram (Mermaid), label table, OR-expression limitation, PAT permission, setup instructions, config reference, upgrade path, troubleshooting section.
+
+6. tests/test_self_hosted_runner.py — 49 tests, all pass. Full test suite: 9675 passed, 5 skipped.
+
+To activate the runner on this host:
+  make runner-setup   # one-time: register with GitHub (needs GITHUB_TOKEN)
+  make runner-start   # start the container
+
+Runner runs as rootless Podman with --restart unless-stopped.
 ---
 <!-- COMMENTS:END -->
