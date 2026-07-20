@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T17:39:04.653084Z'
-updated_at: '2026-07-20T18:08:30.287406Z'
+updated_at: '2026-07-20T18:08:32.776879Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ Rebase of epic-OOMPAH-253 onto origin/main completed successfully.
 - Force-pushed: HEAD -> epic-OOMPAH-253 (adbb46fe...2848c1d7)
 
 Note: A small number of new oompah metadata commits landed on main during the operation — these will trigger another auto-rebase if the epic is detected as stale again.
+---
+author: oompah
+created: 2026-07-20 18:08
+---
+Rebased epic-OOMPAH-253 onto origin/main; 3 code commits cleanly rebased, 187 metadata commits skipped; force-pushed successfully.
 ---
 <!-- COMMENTS:END -->
