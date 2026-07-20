@@ -16,7 +16,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:52:04.570031Z'
-updated_at: '2026-07-20T17:05:00.111833Z'
+updated_at: '2026-07-20T17:06:49.303328Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,33 @@ created: 2026-07-20 17:05
 Understanding: Investigating OOMPAH-268 as Duplicate Investigator. The issue is an auto-filed error_watcher report for a git index.lock contention failure in oompah_md_tracker.add_comment() → _commit_and_push() → _git(['add', TASKS_DIR]). The fingerprint (bed1bd7effec3bb8) is unique to this specific error message.
 
 Plan: (1) search .oompah/tasks/ for prior tasks with same root cause; (2) check archived/done tasks for prior resolutions; (3) compare with OOMPAH-267 (a sibling error with same code path but different git command).
+---
+author: oompah
+created: 2026-07-20 17:06
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No confirmed duplicate found. OOMPAH-268 is NOT a duplicate of any resolved/done/archived task.
+
+**Evidence reviewed:**
+- Searched .oompah/tasks/ (all statuses) for: index.lock, git lock, git add failed, concurrent git, Add comment API error, bed1bd7effec3bb8 fingerprint
+- Reviewed archived tasks with 'git add', 'lock', 'concurrent': OOMPAH-176, OOMPAH-222, OOMPAH-227, OOMPAH-229, OOMPAH-29 — none match this error
+- OOMPAH-189 (Archived): Similar 'Add comment API error' but about git merge divergence, not index.lock — different root cause, resolved as stale
+- OOMPAH-235 (Done): 'Recover native tracker writes after concurrent default-branch advancement' — fixed push-race rebase logic, but does NOT address index.lock from concurrent git processes
+- OOMPAH-203 (Done): Auto-update restart prevention — unrelated
+- OOMPAH-156 (Archived): error_watcher dedup fingerprint logic — implemented, not directly relevant
+
+**Closest related (but NOT duplicates):**
+- OOMPAH-267 (Open): Also 'Add comment API error' in same code path (oompah_md_tracker._commit_and_push), but fails at git commit with 'cannot lock ref HEAD' rather than git add with 'index.lock'. Same root cause (concurrent git ops), different failure mode, different fingerprint, filed ~1 min earlier. Will likely be fixed by the same implementation.
+- OOMPAH-253 epic / OOMPAH-257 (Open): Architecture redesign for coalesced state-branch checkpoints — addresses the long-term systemic fix but not an immediate duplicate.
+
+**Root cause:** oompah_md_tracker._commit_and_push() runs git add .oompah/tasks under threading.RLock(), but RLock only serializes within-process threads. Concurrent git processes (agent worktrees or parallel server tasks) can also hold the index.lock, causing this failure. The fix is retry logic with backoff for index.lock contention in _git() / _commit_and_push(). See oompah/oompah_md_tracker.py lines 1041-1060.
+
+**Remaining work:**
+- Add retry-with-backoff handling when git add / git commit fails with index.lock or similar transient lock errors
+- The fix likely resolves OOMPAH-267 as well (same code path, similar retry needed)
+- Tests: simulate concurrent index.lock scenario, verify retry succeeds
+
+**Recommended next focus:** backend (bug fix in oompah/oompah_md_tracker.py)
 ---
 <!-- COMMENTS:END -->
