@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-282
 type: bug
-status: Proposed
+status: Backlog
 priority: 2
 title: '[backend:state_branch_migration] Stage A migration failed for project proj-edbc8b4c'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T22:43:02.333472Z'
-updated_at: '2026-07-20T22:43:09.469120Z'
+updated_at: '2026-07-20T22:43:12.247547Z'
 work_branch: null
 target_branch: null
 review_url: null
