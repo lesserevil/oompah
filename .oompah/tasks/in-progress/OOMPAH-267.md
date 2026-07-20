@@ -17,7 +17,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T23:01:54.301568Z'
+updated_at: '2026-07-20T23:02:09.960661Z'
 work_branch: OOMPAH-267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/456
@@ -31,8 +31,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/453
   requestor_login: NVShawn
   imported_comment_ids: []
-  last_synced_status: Needs Rebase
-  last_synced_at: '2026-07-20T22:22:56.954434+00:00'
+  last_synced_status: In Progress
+  last_synced_at: '2026-07-20T23:02:09.277159+00:00'
 oompah.intake:
   missing_fields: []
   scope: small
