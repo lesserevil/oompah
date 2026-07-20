@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:28:43.679443Z'
+updated_at: '2026-07-20T17:28:46.143268Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -361,5 +361,10 @@ Root cause: per-instance threading.RLock did not protect across two OompahMarkdo
 Fix: _repo_write_locks dict keyed by resolved repo path ensures all instances for the same git repo share one RLock. Two commits can no longer race on 'git commit' or 'git add', eliminating both the 'cannot lock ref HEAD' error (OOMPAH-267) and the 'index.lock exists' error (OOMPAH-268).
 
 Delivered: 2 files changed (229 insertions), 3 new tests passing, full test suite green (9414 passed). Branch OOMPAH-267 pushed to origin.
+---
+author: oompah
+created: 2026-07-20 17:28
+---
+Fixed concurrent git commit race: replaced per-instance RLock with module-level per-repo lock dict in oompah_md_tracker.py. All tests pass (9414).
 ---
 <!-- COMMENTS:END -->
