@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:50:46.939756Z'
+updated_at: '2026-07-20T17:50:58.446024Z'
 work_branch: OOMPAH-267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/456
@@ -420,5 +420,10 @@ Implementation: Resolved merge conflict by rebasing OOMPAH-267 onto origin/main.
 The branch had 211 commits since the fork point: 209 oompah task-management commits (.oompah/tasks/ updates) and 2 substantive commits (be84ac14 docs, 6b31dc63 code fix). A full rebase would trigger hundreds of conflicts in .oompah/tasks/ files (both branches modify the same files for different task states).
 
 Resolution: cherry-picked the 2 substantive work commits (be84ac14, 6b31dc63) onto the current tip of origin/main. This is equivalent to rebasing with 'take theirs' for all task file conflicts — the result is the same: our code lands cleanly on main, task files are at main's current state. Force-pushed with --force-with-lease.
+---
+author: oompah
+created: 2026-07-20 17:50
+---
+Verification: All 9414 tests pass (36 skipped) after the rebase. Branch OOMPAH-267 is now on top of origin/main with commits d362fb4e (fix) and 49a49f8d (docs) at the tip. PR diff is clean: only docs/native-markdown-tracker.md, docs/operator-runbook.md, oompah/oompah_md_tracker.py, plans/concurrent-git-tracker-writes.md, and tests/test_oompah_md_tracker.py are changed (all expected).
 ---
 <!-- COMMENTS:END -->
