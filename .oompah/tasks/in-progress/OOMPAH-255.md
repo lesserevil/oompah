@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:19.457116Z'
-updated_at: '2026-07-20T17:32:01.279747Z'
+updated_at: '2026-07-20T17:33:08.344873Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -152,5 +152,10 @@ author: oompah
 created: 2026-07-20 17:32
 ---
 Implementation: Added state_branch_enabled, state_branch_checkpoint_debounce_ms, state_branch_checkpoint_max_delay_ms fields to Project model. Changes: (1) oompah/models.py — added 3 fields + state_branch_name property + serialization in to_dict/from_dict; (2) oompah/projects.py — added 3 fields to UPDATABLE_FIELDS, added strict validation with cross-field constraint (max_delay >= debounce + 1000); (3) oompah/server.py — added fields to _PROJECT_TRACKER_CACHE_FIELDS for cache invalidation + PATCH handler; (4) oompah/templates/projects.html — display row + edit checkbox + saveProject body; (5) tests/test_state_branch_project_config.py — 99 new tests; (6) tests/test_projects_crud.py — updated UPDATABLE_FIELDS fixture.
+---
+author: oompah
+created: 2026-07-20 17:33
+---
+Verification: make test passes with 9532 tests (9431 baseline + 99 new + 2 previously-xfail now passing). All 99 new tests in test_state_branch_project_config.py pass. The xfail markers in test_state_branch_design.py are no longer triggered because the implementation exists.
 ---
 <!-- COMMENTS:END -->
