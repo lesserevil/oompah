@@ -1502,3 +1502,194 @@ class TestImportIndex:
             tracker.record_external_import("org/repo#2", "REPO-2")  # fails silently
 
         assert index_path.read_text(encoding="utf-8") == original_content
+
+
+# ---------------------------------------------------------------------------
+# OOMPAH-267: Concurrent git tracker write — module-level per-repo lock
+# ---------------------------------------------------------------------------
+
+
+class TestRepoWriteLock:
+    """Regression tests for the module-level _repo_write_locks dict.
+
+    Root cause (OOMPAH-267): after a graceful reload, reload_config() clears
+    the _project_trackers cache.  An in-flight write still holds the OLD
+    tracker instance's per-instance RLock, while a new request creates a NEW
+    tracker instance with a DIFFERENT lock.  Both instances run git commit
+    concurrently, producing 'fatal: cannot lock ref HEAD'.
+
+    Fix: all tracker instances for the same git repo share ONE RLock via the
+    module-level _repo_write_locks dict keyed by resolved repo path.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_repo_write_locks(self):
+        """Prevent lock state leaking between tests."""
+        import oompah.oompah_md_tracker as mod
+        mod._repo_write_locks.clear()
+        yield
+        mod._repo_write_locks.clear()
+
+    def test_two_instances_same_path_share_write_lock(self, tmp_path):
+        """Two tracker instances for the same repo must share the same RLock object."""
+        root = tmp_path / "repo"
+        root.mkdir()
+
+        tracker_a = OompahMarkdownTracker(
+            active_states=[OPEN],
+            terminal_states=[DONE],
+            cwd=str(root),
+            default_branch="main",
+        )
+        tracker_b = OompahMarkdownTracker(
+            active_states=[OPEN],
+            terminal_states=[DONE],
+            cwd=str(root),
+            default_branch="main",
+        )
+
+        assert tracker_a._write_lock is tracker_b._write_lock, (
+            "Two OompahMarkdownTracker instances for the same repo must share "
+            "the same RLock object so they serialize concurrent git commits."
+        )
+
+    def test_two_instances_different_paths_have_different_write_locks(self, tmp_path):
+        """Tracker instances for different repos must NOT share a lock."""
+        root_a = tmp_path / "repo-a"
+        root_b = tmp_path / "repo-b"
+        root_a.mkdir()
+        root_b.mkdir()
+
+        tracker_a = OompahMarkdownTracker(
+            active_states=[OPEN],
+            terminal_states=[DONE],
+            cwd=str(root_a),
+            default_branch="main",
+        )
+        tracker_b = OompahMarkdownTracker(
+            active_states=[OPEN],
+            terminal_states=[DONE],
+            cwd=str(root_b),
+            default_branch="main",
+        )
+
+        assert tracker_a._write_lock is not tracker_b._write_lock, (
+            "Tracker instances for different repos must have independent locks."
+        )
+
+    def test_shared_lock_blocks_concurrent_commit_and_push(self, tmp_path):
+        """When two tracker instances share a lock, the second _commit_and_push
+        must block until the first releases the lock.
+
+        This is the OOMPAH-267 scenario: old tracker (in-flight write) and new
+        tracker (fresh request after graceful reload) both call _commit_and_push.
+        With a per-instance RLock, both would run git commit concurrently.
+        With the shared module-level lock, the second waits for the first.
+        """
+        import threading
+        import time
+
+        root = tmp_path / "repo"
+        root.mkdir()
+
+        tracker_a = OompahMarkdownTracker(
+            active_states=[OPEN],
+            terminal_states=[DONE],
+            cwd=str(root),
+            default_branch="main",
+        )
+        tracker_b = OompahMarkdownTracker(
+            active_states=[OPEN],
+            terminal_states=[DONE],
+            cwd=str(root),
+            default_branch="main",
+        )
+
+        # Confirm they share the same lock (precondition for the scenario).
+        assert tracker_a._write_lock is tracker_b._write_lock
+
+        execution_order: list[str] = []
+        lock_held = threading.Event()
+        lock_released = threading.Event()
+
+        def _fake_git_a(args: list[str], *, check: bool) -> MagicMock:
+            """Simulate a slow git commit by tracker_a."""
+            cmd = args[0] if args else ""
+            if cmd == "rev-parse":
+                return _make_completed_process(0, "true")
+            if cmd == "add":
+                # Signal that tracker_a is inside the lock and starting git work.
+                lock_held.set()
+                # Hold the lock long enough for tracker_b to attempt to acquire it.
+                time.sleep(0.1)
+                return _make_completed_process(0)
+            if cmd == "diff":
+                return _make_completed_process(1)  # staged changes present
+            if cmd == "commit":
+                execution_order.append("a:commit")
+                return _make_completed_process(0)
+            if cmd == "symbolic-ref":
+                return _make_completed_process(0, "main")
+            if cmd == "remote":
+                return _make_completed_process(1)  # no remote → skip push
+            return _make_completed_process(0)
+
+        def _fake_git_b(args: list[str], *, check: bool) -> MagicMock:
+            """Tracker_b's git operations must only run after tracker_a releases the lock."""
+            cmd = args[0] if args else ""
+            if cmd == "rev-parse":
+                return _make_completed_process(0, "true")
+            if cmd == "add":
+                execution_order.append("b:add")
+                return _make_completed_process(0)
+            if cmd == "diff":
+                return _make_completed_process(1)  # staged changes present
+            if cmd == "commit":
+                execution_order.append("b:commit")
+                lock_released.set()
+                return _make_completed_process(0)
+            if cmd == "symbolic-ref":
+                return _make_completed_process(0, "main")
+            if cmd == "remote":
+                return _make_completed_process(1)  # no remote → skip push
+            return _make_completed_process(0)
+
+        tracker_a._git = _fake_git_a  # type: ignore[method-assign]
+        tracker_b._git = _fake_git_b  # type: ignore[method-assign]
+
+        errors: list[Exception] = []
+
+        def run_a():
+            try:
+                with tracker_a._write_lock:
+                    tracker_a._commit_and_push("Commit from tracker_a")
+            except Exception as exc:
+                errors.append(exc)
+
+        def run_b():
+            # Wait until tracker_a has acquired the lock before attempting.
+            lock_held.wait(timeout=2.0)
+            try:
+                with tracker_b._write_lock:
+                    tracker_b._commit_and_push("Commit from tracker_b")
+            except Exception as exc:
+                errors.append(exc)
+
+        thread_a = threading.Thread(target=run_a)
+        thread_b = threading.Thread(target=run_b)
+        thread_a.start()
+        thread_b.start()
+        thread_a.join(timeout=5.0)
+        thread_b.join(timeout=5.0)
+
+        assert not errors, f"Unexpected errors during concurrent commits: {errors}"
+
+        # tracker_b's commit must appear AFTER tracker_a's commit.
+        assert "a:commit" in execution_order, "tracker_a commit did not run"
+        assert "b:commit" in execution_order, "tracker_b commit did not run"
+        a_pos = execution_order.index("a:commit")
+        b_pos = execution_order.index("b:commit")
+        assert a_pos < b_pos, (
+            f"tracker_b committed before tracker_a released the shared lock: "
+            f"order={execution_order}"
+        )

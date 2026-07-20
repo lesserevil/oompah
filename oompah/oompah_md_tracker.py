@@ -51,6 +51,39 @@ from oompah.tracker import (
 logger = logging.getLogger(__name__)
 
 TRACKER_KIND = "oompah_md"
+
+# ---------------------------------------------------------------------------
+# Module-level write-lock registry (OOMPAH-267 / OOMPAH-268)
+#
+# All OompahMarkdownTracker instances that point to the same git repository
+# share one RLock, keyed by the resolved repo path.  A per-instance RLock
+# only serializes threads within one instance; after a graceful reload
+# (reload_config clears _project_trackers) a new tracker instance is created
+# while an in-flight write still holds the old instance's lock.  Both
+# instances would then run git commit concurrently, producing:
+#
+#   fatal: cannot lock ref 'HEAD': is at <old> but expected <new>
+#
+# Using a module-level dict keyed by repo path ensures that the old and new
+# instances share the same RLock and therefore serialize through it.
+# ---------------------------------------------------------------------------
+
+_repo_write_locks: dict[str, threading.RLock] = {}
+_repo_write_locks_guard = threading.Lock()
+
+
+def _repo_write_lock(repo_path: str) -> threading.RLock:
+    """Return the shared write lock for the given resolved repo path.
+
+    All :class:`OompahMarkdownTracker` instances that point to the same git
+    repository share the same :class:`~threading.RLock`, regardless of when
+    each instance was created.  This prevents concurrent git commits across
+    tracker instances that are created during a graceful reload.
+    """
+    with _repo_write_locks_guard:
+        if repo_path not in _repo_write_locks:
+            _repo_write_locks[repo_path] = threading.RLock()
+        return _repo_write_locks[repo_path]
 TASKS_DIR = ".oompah/tasks"
 DEFAULT_TASK_PREFIX = "TASK"
 _IMPORT_INDEX_FILE = "external-imports.yml"
@@ -244,7 +277,11 @@ class OompahMarkdownTracker:
         # on first-time worktree creation.
         self._state_root: Path | None = None
         self._state_worktree_lock = threading.Lock()
-        self._write_lock = threading.RLock()
+        # Shared per-repo lock — all tracker instances for the same git repo
+        # serialize through this lock, even across graceful reloads where
+        # reload_config() clears the tracker cache and creates a new instance
+        # while an in-flight write still holds the old instance's lock.
+        self._write_lock = _repo_write_lock(str(self._root))
         self._read_cache: list[dict[str, Any]] | None = None
         self._corrupt_stubs: list[dict[str, Any]] | None = None
         self._read_cache_guard = threading.Lock()
