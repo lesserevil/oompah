@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:48.958577Z'
-updated_at: '2026-07-20T20:29:25.536331Z'
+updated_at: '2026-07-20T20:29:39.388605Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -217,5 +217,22 @@ Added state-branch bootstrap functionality to oompah/project_bootstrap/__init__.
 - **StateBranchBootstrapResult**: Dataclass with branch_name, already_existed, created, commit_sha, pushed, seeded_from_main, error fields.
 
 Updated docs/project-bootstrap.md with a comprehensive State Branch section covering: required permissions, branch protection, verification with GET /api/v1/state, checkpoint timing (.env variables), code branch vs state branch distinction, and re-run safety.
+---
+author: oompah
+created: 2026-07-20 20:29
+---
+**Verification:** All 48 new tests pass, and the full suite passes with 9667 passed, 36 skipped.
+
+Tests cover (tests/test_project_bootstrap_state_branch.py):
+- §1 Happy path: branch created, returned to main, correct result fields
+- §2 Canonical task-tree layout: all status dirs, only .oompah/ content
+- §3 Orphan branch: no common ancestor with main (merge-base fails, root != main root)
+- §4 Seeding from default branch: task files copied, content preserved
+- §5 Idempotency: already_existed=True on rerun, no data loss, exactly 1 commit
+- §6 Config verification: Project.state_branch_name, docs presence checks
+- §7 Naming: parametric for proj-abc/proj-14849f1b/proj-xyz-123/proj-00000000
+- §8 Push: local bare remote, pushed flag, visible at remote
+- §9 Error handling: bad path returns error result without raising
+- §10 ensure_state_branch_initialized raises RuntimeError on failure, idempotent
 ---
 <!-- COMMENTS:END -->
