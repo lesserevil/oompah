@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-253
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: 'Epic: Git-backed Oompah state branches and coalesced metadata checkpoints'
 parent: null
@@ -29,7 +29,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-20T16:29:00.780109Z'
-updated_at: '2026-07-20T21:23:02.145470Z'
+updated_at: '2026-07-20T21:23:04.492257Z'
 work_branch: epic-OOMPAH-253
 target_branch: main
 review_url: null
