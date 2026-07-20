@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-283
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Expose active state-branch identity and checkpoint health in project APIs
 parent: null
@@ -10,13 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T22:54:50.695408Z'
-updated_at: '2026-07-20T23:12:58.908269Z'
+updated_at: '2026-07-20T23:14:22.661253Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: d0513c20-190f-49fe-8f34-5b5436fe7c3f
+oompah.agent_run_id: ecd1a707-a567-4da8-865b-14fd53bb4e7e
 oompah.task_costs:
   total_input_tokens: 85427
   total_output_tokens: 683
@@ -83,6 +83,16 @@ Agent dispatched (profile: standard)
 ---
 author: oompah
 created: 2026-07-20 23:10
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 23:14
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-20 23:14
 ---
 Focus: Duplicate Investigator
 ---

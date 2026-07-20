@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-282
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:state_branch_migration] Stage A migration failed for project proj-edbc8b4c'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T22:43:02.333472Z'
-updated_at: '2026-07-20T23:13:07.911705Z'
+updated_at: '2026-07-20T23:14:17.400818Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,7 +40,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-20T22:43:06.643323+00:00'
-oompah.agent_run_id: 522c7abf-f63f-43e4-bb01-1d96847308a5
+oompah.agent_run_id: e000df70-3f34-4882-85ef-30ef3bb5a3f9
 oompah.task_costs:
   total_input_tokens: 88593
   total_output_tokens: 713
@@ -161,6 +161,16 @@ Agent dispatched (profile: deep)
 ---
 author: oompah
 created: 2026-07-20 23:10
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 23:14
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-20 23:14
 ---
 Focus: Duplicate Investigator
 ---
