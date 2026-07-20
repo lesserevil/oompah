@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-281
 type: task
-status: Done
+status: In Review
 priority: null
 title: Run Oompah CI on a containerized self-hosted GitHub Actions runner
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T21:57:23.443854Z'
+updated_at: '2026-07-20T22:04:51.230939Z'
 work_branch: null
 target_branch: null
 review_url: null
