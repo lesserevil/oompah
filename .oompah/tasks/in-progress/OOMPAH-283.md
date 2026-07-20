@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T22:54:50.695408Z'
-updated_at: '2026-07-20T23:23:59.560865Z'
+updated_at: '2026-07-20T23:31:10.180860Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -170,5 +170,20 @@ author: oompah
 created: 2026-07-20 23:23
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-20 23:31
+---
+Understanding: I am the Test Engineer for OOMPAH-283. The feature agent did not land commits. I will implement both the feature fix and the tests.
+
+Root cause confirmed:
+1. models.py to_dict() emits state_branch_shadow_write only when True and state_branch_migration_stage only when non-empty — so Stage B (shadow_write=False, enabled=True) returns null for both in GET /api/v1/projects
+2. state_branch_name property is never emitted by to_dict() at all
+3. CheckpointQueue._last_push_at is only set by flush() — bootstrap commits via subprocess are invisible, causing 'Last push: never'
+
+Plan:
+A. models.py: when state_branch_enabled=True, always emit state_branch_name, state_branch_shadow_write, state_branch_migration_stage
+B. oompah_md_tracker.py: get_checkpoint_observability() falls back to git log -1 --format=%aI when _last_push_at is None
+C. Tests: Stage B serialization assertions (to_dict + HTTP GET), observability bootstrap-fallback test
 ---
 <!-- COMMENTS:END -->
