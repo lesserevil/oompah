@@ -20,16 +20,19 @@ from typing import Any
 
 import yaml
 
+from oompah.checkpoint_queue import CheckpointQueue
 from oompah.models import BlockerRef, Issue
 from oompah.statuses import (
     ARCHIVED,
     BACKLOG,
     DONE,
     IN_PROGRESS,
+    IN_REVIEW,
     MERGED,
     OPEN,
     PROPOSED,
     canonicalize_status,
+    is_terminal_status,
     status_key,
 )
 from oompah.tracker import (
@@ -214,6 +217,11 @@ class OompahMarkdownTracker:
         git_sync: bool = True,
         state_branch_enabled: bool = False,
         state_branch_name: str | None = None,
+        state_branch_checkpoint_debounce_ms: int = 5000,
+        state_branch_checkpoint_max_delay_ms: int = 30000,
+        state_branch_push_retry_count: int = 3,
+        state_branch_push_retry_backoff_ms: int = 1000,
+        _checkpoint_timer_factory: Any = None,
     ) -> None:
         self.active_states = [canonicalize_status(s) for s in active_states]
         self.terminal_states = [canonicalize_status(s) for s in terminal_states]
@@ -223,6 +231,8 @@ class OompahMarkdownTracker:
         self.git_sync = bool(git_sync)
         self.state_branch_enabled = bool(state_branch_enabled)
         self.state_branch_name = (state_branch_name or "").strip() or None
+        self._push_retry_count = max(1, int(state_branch_push_retry_count))
+        self._push_retry_backoff_ms = max(0, int(state_branch_push_retry_backoff_ms))
         if self.state_branch_enabled and not self.state_branch_name:
             raise TrackerError(
                 "state_branch_enabled=True requires state_branch_name to be set"
@@ -236,6 +246,147 @@ class OompahMarkdownTracker:
         self._read_cache: list[dict[str, Any]] | None = None
         self._corrupt_stubs: list[dict[str, Any]] | None = None
         self._read_cache_guard = threading.Lock()
+
+        # Checkpoint coalescing queue (state_branch_enabled=True only).
+        # When enabled, mutations are buffered and flushed as one atomic commit
+        # after the debounce window, reducing Git commit volume (design § 5).
+        self._checkpoint_queue: CheckpointQueue | None = None
+        if self.state_branch_enabled:
+            kwargs: dict[str, Any] = {}
+            if _checkpoint_timer_factory is not None:
+                kwargs["_timer_factory"] = _checkpoint_timer_factory
+            self._checkpoint_queue = CheckpointQueue(
+                debounce_ms=int(state_branch_checkpoint_debounce_ms),
+                max_delay_ms=int(state_branch_checkpoint_max_delay_ms),
+                flush_fn=self._do_checkpoint_flush,
+                **kwargs,
+            )
+
+    # ------------------------------------------------------------------
+    # Checkpoint coalescing — public interface (design § 5.3, § 5.7)
+    # ------------------------------------------------------------------
+
+    def flush_checkpoint(self, *, reason: str) -> int:
+        """Flush all pending state-branch mutations immediately.
+
+        Called for mandatory-flush events (design § 5.3): terminal task status
+        transitions, human-initiated API mutations, service SIGTERM, agent
+        session exit, and ``release_addendum`` state changes.
+
+        When ``state_branch_enabled=False`` (legacy mode), this is a no-op.
+
+        Parameters
+        ----------
+        reason:
+            Short label identifying why the flush was triggered.  Used in log
+            output and the commit message subject.
+
+        Returns
+        -------
+        int
+            Number of mutations that were flushed.  Zero when there was nothing
+            pending or when state-branch mode is disabled.
+        """
+        if self._checkpoint_queue is None:
+            return 0
+        return self._checkpoint_queue.flush(reason=reason)
+
+    def shutdown_checkpoint(self) -> None:
+        """Flush any pending mutations and release timer threads (graceful shutdown).
+
+        Must be called on service ``SIGTERM`` / ``shutdown`` lifecycle events.
+        Safe to call even when ``state_branch_enabled=False``.
+        """
+        if self._checkpoint_queue is not None:
+            self._checkpoint_queue.shutdown()
+
+    @property
+    def checkpoint_pending_mutations(self) -> int:
+        """Number of mutations waiting in the checkpoint buffer.
+
+        Returns 0 when ``state_branch_enabled=False``.
+        """
+        if self._checkpoint_queue is None:
+            return 0
+        return self._checkpoint_queue.pending_mutations
+
+    @property
+    def checkpoint_last_push_at(self) -> str | None:
+        """ISO-8601 timestamp of the last successful checkpoint push, or None."""
+        if self._checkpoint_queue is None:
+            return None
+        return self._checkpoint_queue.last_push_at
+
+    @property
+    def checkpoint_push_failures(self) -> int:
+        """Count of checkpoint flush/push failures since startup."""
+        if self._checkpoint_queue is None:
+            return 0
+        return self._checkpoint_queue.push_failures
+
+    def get_checkpoint_observability(self) -> dict[str, Any] | None:
+        """Return the ``state_branch`` observability dict for GET /api/v1/state.
+
+        Returns ``None`` when ``state_branch_enabled=False`` (field should be
+        omitted from the state response for legacy projects).
+
+        Example output (design § 5.7)::
+
+            {
+                "branch": "oompah/state/proj-14849f1b",
+                "last_push_at": "2026-07-20T16:00:00Z",
+                "pending_mutations": 0,
+                "push_failures": 0,
+                "alert": null,
+            }
+        """
+        if self._checkpoint_queue is None or not self.state_branch_name:
+            return None
+        return self._checkpoint_queue.get_observability_dict(
+            branch=self.state_branch_name
+        )
+
+    # ------------------------------------------------------------------
+    # Internal checkpoint helpers
+    # ------------------------------------------------------------------
+
+    def _do_checkpoint_flush(self) -> None:
+        """Build and push a coalesced checkpoint commit.
+
+        Called by the ``CheckpointQueue`` flush function.  Uses the tracker's
+        ``_write_lock`` to prevent concurrent git operations.  The pending
+        in-memory task files have already been written to the state-branch
+        worktree directory by the individual mutation methods; this step just
+        does ``git add`` + ``git commit`` + ``git push``.
+        """
+        with self._write_lock:
+            self._commit_and_push_state_branch("Checkpoint oompah task state")
+
+    def _schedule_checkpoint(self) -> None:
+        """Notify the checkpoint queue that a new mutation is pending.
+
+        Called after every state-branch task mutation.  If there is no queue
+        (legacy mode or state-branch not yet enabled), this is a no-op.
+        """
+        if self._checkpoint_queue is not None:
+            self._checkpoint_queue.schedule()
+
+    def _maybe_mandatory_flush(self, new_status: str | None) -> None:
+        """Trigger an immediate checkpoint flush for mandatory events (§ 5.3).
+
+        Mandatory flush triggers:
+        - Terminal statuses (Done, Merged, Archived)
+        - In Review transition
+
+        Other mandatory-flush events (human API edits, SIGTERM, session exit)
+        are triggered by callers via :meth:`flush_checkpoint`.
+        """
+        if self._checkpoint_queue is None:
+            return
+        status = canonicalize_status(new_status)
+        if is_terminal_status(status) or status == IN_REVIEW:
+            reason = f"terminal_status:{status}" if is_terminal_status(status) else "in_review"
+            self._checkpoint_queue.flush(reason=reason)
 
     @property
     def root_path(self) -> Path:
@@ -411,6 +562,11 @@ class OompahMarkdownTracker:
                     raise TrackerError(f"Cannot remove moved native task {path}: {exc}") from exc
             self.invalidate_read_cache()
             self._commit_and_push(f"Update oompah task {meta['id']}")
+        # Mandatory flush for terminal/In Review transitions (design § 5.3).
+        # Called OUTSIDE _write_lock to avoid nested-lock deadlock with
+        # CheckpointQueue._lock, which is acquired inside flush().
+        if self._checkpoint_queue is not None and new_status != old_status:
+            self._maybe_mandatory_flush(new_status)
 
     def close_issue(self, identifier: str, *, reason: str | None = None) -> None:
         status = self._terminal_status()
@@ -1224,7 +1380,8 @@ class OompahMarkdownTracker:
 
         On a non-fast-forward push rejection, fetches the remote state branch,
         rebases local commits on top of it (never using ``reset --hard``), and
-        retries the push once.
+        retries the push up to ``_push_retry_count`` times with exponential
+        backoff (design § 5.5).
         """
         state_root = self._get_state_root()
         branch_name = self.state_branch_name
@@ -1249,15 +1406,35 @@ class OompahMarkdownTracker:
         if not self._has_remote("origin"):
             return
 
-        push = self._git(
-            ["push", "origin", f"HEAD:{branch_name}"],
-            check=False,
-            cwd=state_root,
-        )
-        if push.returncode == 0:
-            return
+        # Push with configurable retry + exponential backoff (design § 5.5).
+        last_push_err = ""
+        for attempt in range(self._push_retry_count):
+            push = self._git(
+                ["push", "origin", f"HEAD:{branch_name}"],
+                check=False,
+                cwd=state_root,
+            )
+            if push.returncode == 0:
+                return
 
-        # Push rejected — sync and retry once.
+            last_push_err = push.stderr.strip() or push.stdout.strip()
+            logger.warning(
+                "State-branch push rejected (attempt %d/%d): %s",
+                attempt + 1,
+                self._push_retry_count,
+                last_push_err,
+            )
+
+            if attempt < self._push_retry_count - 1:
+                # Sync from remote before retry (fetch → rebase --autostash).
+                self._sync_state_branch_from_remote()
+                # Exponential backoff: base * 2^attempt (ms → s).
+                backoff_s = (self._push_retry_backoff_ms * (2 ** attempt)) / 1000.0
+                if backoff_s > 0:
+                    time.sleep(backoff_s)
+
+        # All retries exhausted — sync one final time and make the last attempt
+        # raise TrackerError on failure.
         self._sync_state_branch_from_remote()
         self._git(
             ["push", "origin", f"HEAD:{branch_name}"],
@@ -1339,9 +1516,23 @@ class OompahMarkdownTracker:
         )
 
     def _commit_and_push(self, subject: str) -> None:
+        if self.state_branch_enabled and self._checkpoint_queue is not None:
+            # Checkpoint coalescing mode: buffer the mutation and let the queue
+            # decide when to flush (debounce timer, max-delay timer, or mandatory
+            # flush).  The file was already written to the state-branch worktree
+            # by the caller; we just register the pending count.
+            #
+            # IMPORTANT: schedule() is called BEFORE the git_sync guard so that
+            # pending_mutations is accurate even in test mode (git_sync=False).
+            # The actual git commit+push happens in _do_checkpoint_flush(), which
+            # is called by the queue at flush time and does not require git_sync.
+            self._checkpoint_queue.schedule()
+            return
         if not self._git_sync_requested() or not self._is_git_repo():
             return
         if self.state_branch_enabled:
+            # State branch enabled but no queue — direct commit (should not
+            # normally happen; defensive fallback).
             self._commit_and_push_state_branch(subject)
             return
         self._git(["add", TASKS_DIR], check=True)
@@ -1460,6 +1651,10 @@ def _oompah_md_factory(
     default_branch: str | None = None,
     state_branch_enabled: bool = False,
     state_branch_name: str | None = None,
+    state_branch_checkpoint_debounce_ms: int = 5000,
+    state_branch_checkpoint_max_delay_ms: int = 30000,
+    state_branch_push_retry_count: int = 3,
+    state_branch_push_retry_backoff_ms: int = 1000,
     **kwargs: Any,
 ) -> OompahMarkdownTracker:
     return OompahMarkdownTracker(
@@ -1469,4 +1664,8 @@ def _oompah_md_factory(
         default_branch=default_branch,
         state_branch_enabled=state_branch_enabled,
         state_branch_name=state_branch_name,
+        state_branch_checkpoint_debounce_ms=state_branch_checkpoint_debounce_ms,
+        state_branch_checkpoint_max_delay_ms=state_branch_checkpoint_max_delay_ms,
+        state_branch_push_retry_count=state_branch_push_retry_count,
+        state_branch_push_retry_backoff_ms=state_branch_push_retry_backoff_ms,
     )
