@@ -28,7 +28,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-20T16:29:00.780109Z'
-updated_at: '2026-07-20T21:28:07.975796Z'
+updated_at: '2026-07-20T21:28:18.056491Z'
 work_branch: epic-OOMPAH-253
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/457
@@ -113,5 +113,10 @@ author: oompah
 created: 2026-07-20 21:28
 ---
 Verification: make test passed — 9771 passed, 36 skipped, 13 warnings in 181s. No test failures introduced by the rebase.
+---
+author: oompah
+created: 2026-07-20 21:28
+---
+Completion: Merge conflict resolution complete. Branch epic-OOMPAH-253 successfully rebased onto origin/main and force-pushed. The branch now has 8 code commits cleanly on top of main (OOMPAH-254 through OOMPAH-260). All 9771 tests pass. No code changes beyond conflict resolution were made.
 ---
 <!-- COMMENTS:END -->
