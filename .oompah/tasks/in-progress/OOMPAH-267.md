@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:04:48.447401Z'
+updated_at: '2026-07-20T17:06:06.272859Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -237,5 +237,10 @@ author: oompah
 created: 2026-07-20 17:04
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-20 17:06
+---
+Understanding: As Technical Writer, I'm picking up from the duplicate_detector's handoff. The issue is a concurrent git commit race condition in oompah_md_tracker.py where two operations race to commit to the same git repo, causing 'cannot lock ref HEAD' errors. My job is to document the concurrency architecture and the fix approach (in plans/) so the implementation agent has a clear spec and future maintainers understand the design. I'll also check existing docs for anything that needs updating.
 ---
 <!-- COMMENTS:END -->
