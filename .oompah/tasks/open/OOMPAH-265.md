@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T17:01:43.634152Z'
+updated_at: '2026-07-20T17:01:47.841824Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 6m 15s
 - Log: OOMPAH-265__20260720T165531Z.jsonl
+---
+author: oompah
+created: 2026-07-20 17:01
+---
+Focus handoff required before leaving `duplicate_detector`. Add a comment headed `Focus handoff: duplicate_detector` with outcome, evidence, remaining work, and next focus.
 ---
 <!-- COMMENTS:END -->
