@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T16:32:44.029482Z'
-updated_at: '2026-07-20T16:35:06.541110Z'
+updated_at: '2026-07-20T16:35:09.569173Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,5 +72,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 25s
 - Log: OOMPAH-261__20260720T163442Z.jsonl
+---
+author: oompah
+created: 2026-07-20 16:35
+---
+Agent completed without landing — no commits found on origin for branch `epic-OOMPAH-253`. Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
