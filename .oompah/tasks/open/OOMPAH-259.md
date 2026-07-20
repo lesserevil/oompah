@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:30:00.848090Z'
-updated_at: '2026-07-20T20:34:11.287169Z'
+updated_at: '2026-07-20T20:34:13.636851Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,5 +120,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 54s
 - Log: OOMPAH-259__20260720T203114Z.jsonl
+---
+author: oompah
+created: 2026-07-20 20:34
+---
+Focus handoff required before leaving `duplicate_detector`. Add a comment headed `Focus handoff: duplicate_detector` with outcome, evidence, remaining work, and next focus.
 ---
 <!-- COMMENTS:END -->
