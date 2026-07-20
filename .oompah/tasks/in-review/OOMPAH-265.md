@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-265
 type: bug
-status: Done
+status: In Review
 priority: 2
 title: "[backend:server] Create issue API error: git push origin HEAD:main failed:\
   \ remote: Bypassed rule violations for refs/heads/main:        \nremote: \nremote:\
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T17:27:49.285645Z'
+updated_at: '2026-07-20T17:28:53.002986Z'
 work_branch: null
 target_branch: null
 review_url: null
