@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:10.225678Z'
-updated_at: '2026-07-20T16:36:15.313788Z'
+updated_at: '2026-07-20T16:36:33.524740Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -174,5 +174,22 @@ Understanding: This task requires writing two key documents: (1) plans/state-bra
 After reviewing the codebase, I understand the current state: task data lives on the project's default branch under .oompah/tasks/, written by OompahMarkdownTracker with synchronous commit+push on every write. The 'state branch' design would move this write path to a dedicated oompah/state/<project-id> branch to avoid contaminating main with task metadata commits, enabling cleaner merge queues and reducing write conflicts on busy projects.
 
 Beginning document authoring now.
+---
+author: oompah
+created: 2026-07-20 16:36
+---
+Discovery: Completed codebase review. Key findings:
+
+1. Task data today is written to .oompah/tasks/ on the project's default branch by OompahMarkdownTracker._commit_and_push() — one git commit per write operation (create, update, comment, metadata change). This contaminates the default branch with high-frequency service metadata commits.
+
+2. Every write goes through _prepare_default_branch_for_write() which rejects writes on any non-default branch, then pulls with ff-only + rebase fallback. This is a single-writer assumption baked into the current design.
+
+3. The submit-queue plan (plans/submit-queue.md, Step 2) explicitly notes that keeping task writes server-side and away from worker branches is needed for parallel PR safety.
+
+4. No existing design addresses a dedicated oompah/state/* branch — this is net-new design work.
+
+5. The design must be backward-compatible: the write path only changes when a project opts in via a new state_branch configuration field.
+
+Writing plans/state-branch-design.md and docs/state-branch-migration.md now.
 ---
 <!-- COMMENTS:END -->
