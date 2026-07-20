@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-260
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Validate state-branch workflow end to end and publish migration readiness guide
 parent: OOMPAH-253
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:30:27.106890Z'
-updated_at: '2026-07-20T21:04:05.160982Z'
+updated_at: '2026-07-20T21:05:25.657563Z'
 work_branch: null
 target_branch: null
 review_url: null
