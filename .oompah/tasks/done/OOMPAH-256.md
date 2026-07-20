@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-20T16:29:29.498883Z'
-updated_at: '2026-07-20T18:36:48.261909Z'
+updated_at: '2026-07-20T18:36:50.704002Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -324,5 +324,10 @@ author: oompah
 created: 2026-07-20 18:36
 ---
 Completion: OOMPAH-256 implementation is complete and pushed.\n\n**Delivered:**\n- OompahMarkdownTracker now accepts state_branch_enabled/state_branch_name constructor params\n- When enabled, all task reads/writes go through a dedicated git worktree on the state branch\n- The shared code checkout (main/default branch) is NEVER switched — worktree isolation guarantees this\n- _get_state_root() raises TrackerError with actionable message if branch doesn't exist (no auto-create)\n- Conflict recovery: fetch → merge --ff-only → rebase --autostash → TrackerError (never reset --hard)\n- Non-fast-forward push: syncs then retries once, raises TrackerError if still rejected\n- Legacy projects (state_branch_enabled=False) unchanged\n- orchestrator._new_tracker_for_project() passes state_branch fields for oompah_md projects\n- Strict 'is True' check prevents MagicMock projects from activating state-branch mode in tests\n\n**Files changed:**\n- oompah/oompah_md_tracker.py: +318 lines (all new state-branch methods)\n- oompah/orchestrator.py: +3 lines (factory wiring)\n- tests/test_oompah_md_tracker_state_branch.py: test helpers updated for cwd kwarg\n\n**Test results:** 9560 passed, 0 failed (make test)
+---
+author: oompah
+created: 2026-07-20 18:36
+---
+Implemented state-branch-aware reads/writes in OompahMarkdownTracker. All task mutations for state-branch-enabled projects commit only to the configured state branch via a dedicated git worktree. Code branch heads are unchanged. Legacy projects work without migration. 9560 tests pass.
 ---
 <!-- COMMENTS:END -->
