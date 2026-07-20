@@ -18,7 +18,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-07-20T16:52:04.570031Z'
-updated_at: '2026-07-20T17:07:22.105933Z'
+updated_at: '2026-07-20T17:07:24.776007Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,6 +48,22 @@ oompah.intake:
   last_validator_result: pass
   last_validated_at: '2026-07-20T16:52:15.589069+00:00'
 oompah.agent_run_id: 8650ccfb-84b5-48aa-9ecc-45eb177cee6a
+oompah.task_costs:
+  total_input_tokens: 48
+  total_output_tokens: 15306
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 48
+      output_tokens: 15306
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: unknown
+    input_tokens: 48
+    output_tokens: 15306
+    cost_usd: 0.0
+    recorded_at: '2026-07-20T17:07:21.374805+00:00'
 ---
 ## Summary
 
