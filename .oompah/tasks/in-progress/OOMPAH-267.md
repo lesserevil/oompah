@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:13:47.376271Z'
+updated_at: '2026-07-20T17:19:11.160164Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -261,5 +261,18 @@ Fix options (for implementor):
 - (Simpler) Catch 'cannot lock ref HEAD' in _commit_and_push, sync from remote, and retry the commit once.
 
 Writing plans/concurrent-git-tracker-writes.md with full design spec and updating operator docs now.
+---
+author: oompah
+created: 2026-07-20 17:19
+---
+Implementation: Added three documentation artifacts:
+
+1. plans/concurrent-git-tracker-writes.md — Design document covering root cause (two OompahMdTracker instances after graceful reload/cache clear each have their own _write_lock, allowing concurrent git commits), fix options (A: module-level lock dict keyed by repo path; B: catch-and-retry), and implementation plan with test requirements and files to change.
+
+2. docs/native-markdown-tracker.md — New 'Concurrency and Single-Instance Requirement' section explaining the serialization model, what errors occur when violated, and how to diagnose/recover.
+
+3. docs/operator-runbook.md — New §6.6 troubleshooting entry for concurrent git write errors with symptom, cause, immediate workaround (re-issue the failed request; kill any stale processes), and pointer to the permanent fix in plans/.
+
+No code changed — this is documentation-only. The code fix is tracked separately and described in the plans document.
 ---
 <!-- COMMENTS:END -->
