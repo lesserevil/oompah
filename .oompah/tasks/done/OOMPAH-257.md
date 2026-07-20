@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:39.587340Z'
-updated_at: '2026-07-20T20:10:00.722245Z'
+updated_at: '2026-07-20T20:10:03.114567Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -247,5 +247,10 @@ OOMPAH-257 delivered a checkpoint coalescing queue (oompah/checkpoint_queue.py) 
 Two bugs fixed in this session:
 1. CheckpointQueue: threading.Lock → threading.RLock (prevents deadlock in synchronous timer tests)
 2. OompahMarkdownTracker._commit_and_push(): move checkpoint schedule() before git_sync guard so pending_mutations is accurate in test mode
+---
+author: oompah
+created: 2026-07-20 20:10
+---
+Implemented checkpoint coalescing queue (checkpoint_queue.py + tracker integration) with 59 passing tests covering all acceptance criteria. Fixed two bugs: CheckpointQueue RLock (prevents deadlock in timer tests) and _commit_and_push() git_sync guard ordering (so pending_mutations tracks correctly in test mode).
 ---
 <!-- COMMENTS:END -->
