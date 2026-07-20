@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:10.225678Z'
-updated_at: '2026-07-20T16:36:33.524740Z'
+updated_at: '2026-07-20T16:46:06.527997Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -191,5 +191,48 @@ Discovery: Completed codebase review. Key findings:
 5. The design must be backward-compatible: the write path only changes when a project opts in via a new state_branch configuration field.
 
 Writing plans/state-branch-design.md and docs/state-branch-migration.md now.
+---
+author: oompah
+created: 2026-07-20 16:46
+---
+Implementation: Created three new files:
+
+1. plans/state-branch-design.md (35KB) — full internal design covering:
+   - State branch naming convention (oompah/state/<project-id>) and orphan branch rationale
+   - Complete directory layout (.oompah/tasks/ only, no source code)
+   - Bootstrap, remote tracking, and branch protection setup
+   - Relationship to code main and release branches (Mermaid diagram)
+   - New Project model fields (state_branch_enabled, checkpoint tunables)
+   - All .env variables with defaults (OOMPAH_STATE_BRANCH_CHECKPOINT_DEBOUNCE_MS=5000, etc.)
+   - Durable vs ephemeral data classification (all fields explicitly listed)
+   - Checkpoint coalescing policy: debounce (5s), max delay (30s), mandatory flush events
+   - Single-writer ordering and push/retry behavior
+   - Crash recovery protocol
+   - Observability (structured logs, GET /api/v1/state state_branch block)
+   - 3-stage migration (A: shadow write, B: exclusive state-branch, C: optional cleanup)
+   - Rollback protocol for each stage
+   - Affected APIs, CLI, tracker implementation guide, test layers
+   - All open design questions resolved (9 decisions recorded)
+
+2. docs/state-branch-migration.md (12KB) — operator-facing migration guide covering:
+   - Why to migrate (benefit explanation without implementation jargon)
+   - Prerequisites
+   - Step-by-step migration (validate, branch protection, Stage A, Stage B, monitor, Stage C)
+   - Troubleshooting table (push_failures, alerts, corrupt files, duplicates)
+   - Rollback from each stage
+   - New-project setup
+   - Checkpoint interval tuning
+
+3. tests/test_state_branch_design.py (22KB) — design-validation tests:
+   - Env variable naming convention (all OOMPAH_STATE_BRANCH_ prefixed)
+   - Default value constraints (enabled=false, debounce < max_delay)
+   - Project model backward compatibility (xfail until fields added)
+   - Checkpoint interval correction formula
+   - Historical task data fixture (git repo with main + release/1.0 + task files)
+   - Orphan branch property validation
+   - State branch contains only .oompah/ content (no source code)
+   - State branch naming parametrized tests
+
+make test: 9430 passed, 36 skipped, 2 xfailed (new xfails document not-yet-implemented Project fields)
 ---
 <!-- COMMENTS:END -->
