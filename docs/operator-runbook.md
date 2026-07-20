@@ -487,7 +487,60 @@ progressing, oompah emits a `stuck_epic` alert visible in
 - **PR never opened:** Check that the SCM integration is working (`gh auth
   status`); an agent may be running on the epic to create the PR.
 
-### 6.6 Managed repo checkout in a bad state
+### 6.6 Concurrent git write errors after graceful reload
+
+**Symptoms in logs:**
+
+```
+Add comment API error: git commit -m ... failed: fatal: cannot lock ref 'HEAD': is at <sha> but expected <sha>
+```
+
+or
+
+```
+git add .oompah/tasks failed: fatal: Unable to create '.git/index.lock': File exists.
+```
+
+**Cause:**
+
+During a graceful reload (`make graceful` or `POST /api/v1/orchestrator/restart`),
+the orchestrator clears its tracker instance cache
+(`_project_trackers.clear()`). Any write that was already in flight holds a
+reference to the old tracker instance; the next write creates a new tracker
+instance. For a brief window, two tracker instances for the same git repository
+can both try to commit simultaneously. Each has its own in-process lock, so
+they don't block each other, and the two `git commit` subprocesses race.
+
+**Immediate fix (if the service is otherwise healthy):**
+
+This error is transient. The losing write raises an error that is logged and
+reported back to the caller; the winning write succeeds. No data is lost —
+re-issuing the failed operation (e.g., re-posting the comment via the API)
+will succeed once the graceful reload completes.
+
+**If errors persist after reload is complete:**
+
+Check whether two oompah processes are running against the same repository:
+
+```bash
+ps -ef | grep "oompah server" | grep -v grep
+cat .oompah.pid
+```
+
+If a stale process is found, stop it and do a hard restart:
+
+```bash
+kill <stale-pid>
+make restart
+```
+
+**Permanent fix:**
+
+See `plans/concurrent-git-tracker-writes.md` for the root cause analysis and
+the recommended implementation (module-level per-repo lock in
+`oompah/oompah_md_tracker.py`). This is tracked as OOMPAH-267.
+
+### 6.7 Managed repo checkout in a bad state
 
 **Symptoms in logs:**
 
@@ -524,7 +577,7 @@ After recovery, trigger a new maintenance pass by restarting:
 make restart
 ```
 
-### 6.7 Service exits unexpectedly
+### 6.8 Service exits unexpectedly
 
 Check the tail of the log:
 

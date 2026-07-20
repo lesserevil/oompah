@@ -78,6 +78,45 @@ With sync disabled, oompah writes files without committing or pushing them.
 
 Native tracker projects use `.oompah/tasks` as the task source of truth.
 
+## Concurrency and Single-Instance Requirement
+
+Oompah serializes all git writes through a per–git-repository lock. Every
+write operation (create, update, comment, set-status, …) acquires this lock
+before touching the filesystem or running `git add` / `git commit` /
+`git push`. This prevents two concurrent API requests from interleaving git
+subprocesses against the same repository.
+
+**Do not run multiple oompah server instances pointing at the same managed
+repository.** The lock is in-process only. Two separate oompah processes (or
+two uvicorn workers, if the `workers` parameter were ever passed through) would
+each have their own lock object and could race on git commits, producing errors
+like:
+
+```
+fatal: cannot lock ref 'HEAD': is at <sha> but expected <sha>
+fatal: Unable to create '.git/index.lock': File exists.
+```
+
+The default configuration (`OOMPAH_SERVER_WORKERS` unset, uvicorn backend) runs
+a single process with a single in-process lock, so this constraint is satisfied
+automatically.
+
+If you see either of these errors in `oompah.log`, check whether two server
+processes are running against the same repository at the same time (for example,
+after an incomplete restart where the old process did not exit before the new
+one started):
+
+```bash
+ps -ef | grep "oompah server" | grep -v grep
+cat .oompah.pid
+```
+
+If a stale process is found, stop it with `kill <pid>` and then run
+`make restart` to start a clean instance.
+
+For implementation details and the fix for cross-instance races that can occur
+during graceful reloads, see `plans/concurrent-git-tracker-writes.md`.
+
 ## Optional GitHub Issue Intake
 
 Native projects can also accept customer-facing intake from GitHub Issues
