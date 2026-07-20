@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-270
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Add retry-with-backoff for transient git lock errors in _git() / _commit_and_push()
 parent: OOMPAH-268
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T17:13:50.286632Z'
-updated_at: '2026-07-20T17:13:50.286632Z'
+updated_at: '2026-07-20T17:42:10.215884Z'
 work_branch: null
 target_branch: null
 review_url: null
