@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-281
 type: task
-status: In Review
+status: Needs CI Fix
 priority: null
 title: Run Oompah CI on a containerized self-hosted GitHub Actions runner
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T22:05:00.815741Z'
+updated_at: '2026-07-20T22:12:52.130339Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
