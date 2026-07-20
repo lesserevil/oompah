@@ -362,8 +362,13 @@ def initialize_state_branch(
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             # git archive into the temp dir
-            archive_r = _run_git(
+            # ``git archive`` returns a binary tar stream.  Do not route it
+            # through ``_run_git`` (which uses ``text=True``): task content
+            # can contain arbitrary UTF-8, and re-encoding decoded text as
+            # Latin-1 corrupts or rejects valid Unicode such as an em dash.
+            archive_r = subprocess.run(
                 [
+                    "git",
                     "archive",
                     "--format=tar",
                     default_branch,
@@ -371,15 +376,16 @@ def initialize_state_branch(
                     ".oompah/",
                 ],
                 cwd=repo_str,
+                capture_output=True,
+                timeout=30,
                 env=env,
             )
             if archive_r.returncode == 0 and archive_r.stdout:
                 # Unpack the archive
                 import tarfile
                 import io
-                tar_bytes = archive_r.stdout.encode("latin-1") if isinstance(archive_r.stdout, str) else archive_r.stdout
                 try:
-                    with tarfile.open(fileobj=io.BytesIO(tar_bytes)) as tf:
+                    with tarfile.open(fileobj=io.BytesIO(archive_r.stdout)) as tf:
                         tf.extractall(str(tmp_path), filter="data")
                     source_dir = tmp_path
                 except Exception:
