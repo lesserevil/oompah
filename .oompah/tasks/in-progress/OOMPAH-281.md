@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T21:48:13.840823Z'
+updated_at: '2026-07-20T21:48:50.060536Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -155,5 +155,21 @@ author: oompah
 created: 2026-07-20 21:48
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-20 21:48
+---
+Understanding: DevOps agent taking over from duplicate_detector. Task requires:
+
+1. Containerized GitHub Actions runner using Podman (already installed, v5.7.0)
+2. Runner lifecycle scripts: runner-setup, runner-start, runner-stop, runner-status
+3. Makefile targets: runner-setup, runner-start, runner-stop, runner-status
+4. .env.example updates: OOMPAH_RUNNER_* env vars
+5. Update .github/workflows/ci.yml and cli-release.yml to use 'oompah' label
+6. User-facing docs: docs/self-hosted-runner.md
+7. Tests: test_self_hosted_runner.py covering workflow label assertions and config validation
+8. make test passes
+
+Approach: Use the official ghcr.io/actions/actions-runner image pinned to a specific version, register via GitHub Actions REST API (registration token), use Podman with --rm flag for clean restarts. Registration token fetched from GitHub API using GITHUB_TOKEN (requires Self-hosted runners: Read and write permission).
 ---
 <!-- COMMENTS:END -->
