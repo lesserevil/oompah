@@ -12,7 +12,7 @@ labels:
 - yolo-watchdog
 assignee: null
 created_at: '2026-07-20T17:47:35.195354Z'
-updated_at: '2026-07-20T18:08:00.718453Z'
+updated_at: '2026-07-20T18:08:03.120734Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,5 +76,10 @@ Candidate tasks reviewed:
 OOMPAH-274 has the exact same title and description as OOMPAH-273, which was already archived as a duplicate. Both describe the same YOLO watchdog alert for PR #456.
 
 Archiving OOMPAH-274 as duplicate-of:OOMPAH-272.
+---
+author: oompah
+created: 2026-07-20 18:08
+---
+duplicate-of:OOMPAH-272
 ---
 <!-- COMMENTS:END -->
