@@ -17,7 +17,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T23:22:22.926586Z'
+updated_at: '2026-07-20T23:22:35.589315Z'
 work_branch: OOMPAH-267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/456
@@ -565,5 +565,23 @@ Verification: All 9775 tests pass (36 skipped, up from 9414 due to new tests add
 - TestRepoWriteLock::test_shared_lock_blocks_concurrent_commit_and_push — PASSED
 
 Branch OOMPAH-267 matches origin/OOMPAH-267 (commit 5be98bac). No changes needed.
+---
+author: oompah
+created: 2026-07-20 23:22
+---
+Completion: OOMPAH-267 is fully resolved.
+
+Root cause: OompahMarkdownTracker used a per-instance threading.RLock. After graceful reload, reload_config() cleared _project_trackers, creating a new tracker instance while an in-flight write held the old instance's lock. Both ran git commit concurrently, producing 'fatal: cannot lock ref HEAD'.
+
+Fix (commit 5be98bac): Added module-level _repo_write_locks dict keyed by resolved repo path in oompah/oompah_md_tracker.py. All tracker instances for the same git repo now share one RLock, regardless of when created. This also fixes the sibling OOMPAH-268 (index.lock exists on git add).
+
+Delivered:
+- oompah/oompah_md_tracker.py: _repo_write_locks + _repo_write_locks_guard + _repo_write_lock() factory
+- tests/test_oompah_md_tracker.py: TestRepoWriteLock (3 regression tests, all passing)
+- plans/concurrent-git-tracker-writes.md: design doc
+- docs/native-markdown-tracker.md: concurrency section
+- docs/operator-runbook.md: §6.6 troubleshooting entry
+
+All 9775 tests pass. Branch pushed to origin/OOMPAH-267.
 ---
 <!-- COMMENTS:END -->
