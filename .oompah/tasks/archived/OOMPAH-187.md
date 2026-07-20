@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-187
 type: task
-status: Merged
+status: Archived
 priority: 2
 title: Keep Needs Human tasks visible in the in-flight dashboard filter
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T14:08:30.012087Z'
-updated_at: '2026-07-13T16:50:02.574629Z'
+updated_at: '2026-07-20T16:57:54.640903Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/408
