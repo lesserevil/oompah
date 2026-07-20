@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:48.958577Z'
-updated_at: '2026-07-20T20:20:02.601482Z'
+updated_at: '2026-07-20T20:29:25.536331Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -203,5 +203,19 @@ What's missing (needs implementing in OOMPAH-258):
 3. Updated docs/project-bootstrap.md to mention state branch
 
 Plan: Implement the bootstrap function + tests now, update docs.
+---
+author: oompah
+created: 2026-07-20 20:29
+---
+**Implementation:**
+
+Added state-branch bootstrap functionality to oompah/project_bootstrap/__init__.py:
+
+- **initialize_state_branch(repo_path, project_id, ...)**: Creates oompah/state/<project-id> as an orphan branch (no shared history with code branches, per design §2.3). Seeds .oompah/tasks/ from the default branch when tasks exist, or with the canonical empty layout for new projects. Validates the repo path, catches errors in the result object (no exceptions raised).
+- **ensure_state_branch_initialized()**: Wrapper that raises RuntimeError on failure (for fail-loud callers).
+- **STATE_BRANCH_TASK_DIRS**: Constant with all canonical task status directories.
+- **StateBranchBootstrapResult**: Dataclass with branch_name, already_existed, created, commit_sha, pushed, seeded_from_main, error fields.
+
+Updated docs/project-bootstrap.md with a comprehensive State Branch section covering: required permissions, branch protection, verification with GET /api/v1/state, checkpoint timing (.env variables), code branch vs state branch distinction, and re-run safety.
 ---
 <!-- COMMENTS:END -->
