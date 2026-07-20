@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-169
 type: task
-status: Merged
+status: Archived
 priority: 2
 title: Remove epic-strategy controls and stale dashboard copy
 parent: OOMPAH-166
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T02:23:10.333133Z'
-updated_at: '2026-07-13T05:07:03.257156Z'
+updated_at: '2026-07-20T05:12:44.321784Z'
 work_branch: null
 target_branch: null
 review_url: null
