@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:20:24.310041Z'
+updated_at: '2026-07-20T17:21:14.875717Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -324,5 +324,10 @@ author: oompah
 created: 2026-07-20 17:20
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-20 17:21
+---
+Understanding: Picking up from the docs handoff. The root cause is that OompahMarkdownTracker uses a per-instance threading.RLock (_write_lock at line 207). After a graceful reload, reload_config() clears _project_trackers, and a new tracker instance is created while an in-flight write still uses the old instance. Both instances have their own lock objects, so both can run git commit concurrently, triggering 'cannot lock ref HEAD'. Fix: implement Option A from plans/concurrent-git-tracker-writes.md — add a module-level _repo_write_locks dict keyed by resolved repo path, and replace the per-instance RLock with a shared lock for each git repo. This also fixes sibling OOMPAH-268 (index.lock conflict on git add). Will add a regression test proving two instances for the same repo block each other.
 ---
 <!-- COMMENTS:END -->
