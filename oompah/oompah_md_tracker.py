@@ -221,6 +221,7 @@ class OompahMarkdownTracker:
         state_branch_checkpoint_max_delay_ms: int = 30000,
         state_branch_push_retry_count: int = 3,
         state_branch_push_retry_backoff_ms: int = 1000,
+        state_branch_shadow_write: bool = False,
         _checkpoint_timer_factory: Any = None,
     ) -> None:
         self.active_states = [canonicalize_status(s) for s in active_states]
@@ -231,6 +232,7 @@ class OompahMarkdownTracker:
         self.git_sync = bool(git_sync)
         self.state_branch_enabled = bool(state_branch_enabled)
         self.state_branch_name = (state_branch_name or "").strip() or None
+        self.state_branch_shadow_write = bool(state_branch_shadow_write)
         self._push_retry_count = max(1, int(state_branch_push_retry_count))
         self._push_retry_backoff_ms = max(0, int(state_branch_push_retry_backoff_ms))
         if self.state_branch_enabled and not self.state_branch_name:
@@ -358,9 +360,17 @@ class OompahMarkdownTracker:
         in-memory task files have already been written to the state-branch
         worktree directory by the individual mutation methods; this step just
         does ``git add`` + ``git commit`` + ``git push``.
+
+        When ``state_branch_shadow_write=True`` (Stage A migration), also
+        shadow-commits the same task files to the default branch for zero-
+        data-loss rollback capability (design § 6.2 Stage A).
         """
         with self._write_lock:
             self._commit_and_push_state_branch("Checkpoint oompah task state")
+            if self.state_branch_shadow_write:
+                self._shadow_write_to_default_branch(
+                    "Shadow checkpoint (Stage A migration)"
+                )
 
     def _schedule_checkpoint(self) -> None:
         """Notify the checkpoint queue that a new mutation is pending.
@@ -1442,6 +1452,79 @@ class OompahMarkdownTracker:
             cwd=state_root,
         )
 
+    def _shadow_write_to_default_branch(self, subject: str) -> None:
+        """Copy task files from the state-branch worktree to the default branch.
+
+        Used during Stage A migration (``state_branch_shadow_write=True``) to
+        maintain a live copy of task state on the default branch so that the
+        migration can be rolled back without data loss.
+
+        The copy is a direct file-level copy from the state-branch worktree
+        into the main checkout directory.  The main checkout must be on the
+        default branch; we sync from origin before committing.
+
+        This method does NOT hold ``_write_lock`` — callers must hold it.
+        """
+        if not self._git_sync_requested() or not self._is_git_repo():
+            return
+        # Ensure main checkout is on the default branch and up-to-date.
+        branch = self.default_branch or self._infer_default_branch() or "main"
+        current = self._git(["symbolic-ref", "--short", "HEAD"], check=False)
+        if current.returncode != 0 or current.stdout.strip() != branch:
+            logger.warning(
+                "Shadow write skipped: main checkout is not on %r (got %r)",
+                branch,
+                current.stdout.strip() if current.returncode == 0 else "<detached>",
+            )
+            return
+
+        if self._has_remote("origin"):
+            try:
+                self._sync_from_remote(branch)
+            except TrackerError as exc:
+                logger.warning(
+                    "Shadow write: sync from remote failed, skipping: %s", exc
+                )
+                return
+
+        # Copy .oompah/tasks/ from state-branch worktree into main checkout.
+        import shutil
+        state_root = self._get_state_root()
+        src_tasks = state_root / TASKS_DIR
+        dst_tasks = self._root / TASKS_DIR
+        if src_tasks.is_dir():
+            dst_tasks.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(str(src_tasks), str(dst_tasks), dirs_exist_ok=True)
+
+        # Stage and commit in the main checkout.
+        self._git(["add", TASKS_DIR], check=True)
+        diff = self._git(
+            ["diff", "--cached", "--quiet", "--", TASKS_DIR], check=False
+        )
+        if diff.returncode == 0:
+            return  # Nothing changed — no shadow commit needed.
+
+        message = (
+            f"{subject}\n\n"
+            "🤖 Generated with https://github.com/lesserevil/oompah\n\n"
+            "Co-authored-by: oompah <lesserevil@users.noreply.github.com>\n"
+        )
+        self._git(["commit", "-m", message], check=True)
+
+        if not self._has_remote("origin"):
+            return
+
+        push = self._git(
+            ["push", "origin", f"HEAD:{branch}"], check=False
+        )
+        if push.returncode != 0:
+            push_err = push.stderr.strip() or push.stdout.strip()
+            logger.warning(
+                "Shadow write: push to %r failed (non-fatal): %s", branch, push_err
+            )
+            # Non-fatal: the primary state-branch write succeeded; the shadow
+            # write failure means rollback would need to pull from state branch.
+
     def _prepare_default_branch_for_write(self) -> None:
         if not self._git_sync_requested() or not self._is_git_repo():
             return
@@ -1655,6 +1738,7 @@ def _oompah_md_factory(
     state_branch_checkpoint_max_delay_ms: int = 30000,
     state_branch_push_retry_count: int = 3,
     state_branch_push_retry_backoff_ms: int = 1000,
+    state_branch_shadow_write: bool = False,
     **kwargs: Any,
 ) -> OompahMarkdownTracker:
     return OompahMarkdownTracker(
@@ -1668,4 +1752,5 @@ def _oompah_md_factory(
         state_branch_checkpoint_max_delay_ms=state_branch_checkpoint_max_delay_ms,
         state_branch_push_retry_count=state_branch_push_retry_count,
         state_branch_push_retry_backoff_ms=state_branch_push_retry_backoff_ms,
+        state_branch_shadow_write=state_branch_shadow_write,
     )
