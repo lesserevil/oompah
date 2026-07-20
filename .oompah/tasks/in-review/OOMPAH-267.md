@@ -15,10 +15,10 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:38:45.449098Z'
+updated_at: '2026-07-20T17:38:57.520936Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/456
 review_number: null
 merged_at: null
 oompah.external.github:
@@ -79,6 +79,7 @@ oompah.task_costs:
     output_tokens: 756
     cost_usd: 0.0
     recorded_at: '2026-07-20T17:28:57.749609+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/456
 ---
 ## Summary
 
