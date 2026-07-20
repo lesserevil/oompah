@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T23:41:04.663130Z'
+updated_at: '2026-07-20T23:41:06.881252Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
@@ -429,5 +429,10 @@ author: oompah
 created: 2026-07-20 23:40
 ---
 Verification: Branch OOMPAH-281 is clean and pushed. make test passes: 9835 passed, 36 skipped. All 63 tests in tests/test_self_hosted_runner.py pass. Ready to close.
+---
+author: oompah
+created: 2026-07-20 23:41
+---
+Containerized self-hosted GitHub Actions runner delivered: scripts/runner.sh (Podman/Docker lifecycle manager), Makefile targets (runner-setup/start/stop/status), .env.example OOMPAH_RUNNER_* vars, CI workflows updated to [self-hosted,linux,x64,oompah], docs/self-hosted-runner.md operator guide, 63 tests all passing (make test: 9835 passed, 36 skipped).
 ---
 <!-- COMMENTS:END -->
