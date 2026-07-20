@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-256
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make the native Markdown tracker read and write the configured state branch
 parent: OOMPAH-253
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:29:29.498883Z'
-updated_at: '2026-07-20T16:30:35.263107Z'
+updated_at: '2026-07-20T16:31:19.440831Z'
 work_branch: null
 target_branch: null
 review_url: null
