@@ -9,9 +9,10 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- needs:devops
 assignee: null
 created_at: '2026-07-20T17:39:04.653084Z'
-updated_at: '2026-07-20T17:41:42.654007Z'
+updated_at: '2026-07-20T17:41:51.611788Z'
 work_branch: null
 target_branch: null
 review_url: null
