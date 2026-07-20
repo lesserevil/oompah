@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:50:58.446024Z'
+updated_at: '2026-07-20T17:51:09.538850Z'
 work_branch: OOMPAH-267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/456
@@ -425,5 +425,10 @@ author: oompah
 created: 2026-07-20 17:50
 ---
 Verification: All 9414 tests pass (36 skipped) after the rebase. Branch OOMPAH-267 is now on top of origin/main with commits d362fb4e (fix) and 49a49f8d (docs) at the tip. PR diff is clean: only docs/native-markdown-tracker.md, docs/operator-runbook.md, oompah/oompah_md_tracker.py, plans/concurrent-git-tracker-writes.md, and tests/test_oompah_md_tracker.py are changed (all expected).
+---
+author: oompah
+created: 2026-07-20 17:51
+---
+Completion: Merge conflict resolved. OOMPAH-267 branch rebased onto origin/main. The concurrent git commit race fix (module-level per-repo write lock in oompah_md_tracker.py) and associated docs/tests are cleanly on top of main. All tests pass. Force-pushed with --force-with-lease. MR #456 conflict is cleared.
 ---
 <!-- COMMENTS:END -->
