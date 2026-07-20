@@ -53,7 +53,7 @@ define port_in_use
 	[ $$? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | grep -q .)
 endef
 
-.PHONY: help setup start stop restart graceful status logs test clean install-hooks check-secrets install-gh-extensions run-granian
+.PHONY: help setup start stop restart graceful status logs test clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
 
 help:
 	@echo "oompah — make targets:"
@@ -70,6 +70,10 @@ help:
 	@echo "  check-secrets  Run the paranoid secret scan over the whole tree (use before pushing)"
 	@echo "  install-gh-extensions  Install gh CLI extensions oompah needs (cli/gh-webhook). Idempotent."
 	@echo "  clean          Stop, then remove $(VENV), logs, pid file, and __pycache__ dirs"
+	@echo "  runner-setup   Register the self-hosted Actions runner (requires GITHUB_TOKEN)"
+	@echo "  runner-start   Start the containerized Actions runner"
+	@echo "  runner-stop    Stop the containerized Actions runner"
+	@echo "  runner-status  Show runner container status and GitHub registration state"
 
 setup: $(VENV)/.uv-setup
 
@@ -196,3 +200,20 @@ install-gh-extensions:
 		gh extension install cli/gh-webhook; \
 		echo "Done. Verify with: gh webhook --help"; \
 	fi
+
+# ---------------------------------------------------------------------------
+# Self-hosted GitHub Actions runner (containerized via Podman/Docker)
+# See docs/self-hosted-runner.md for setup and troubleshooting.
+# ---------------------------------------------------------------------------
+
+runner-setup:
+	@bash scripts/runner.sh setup
+
+runner-start:
+	@bash scripts/runner.sh start
+
+runner-stop:
+	@bash scripts/runner.sh stop
+
+runner-status:
+	@bash scripts/runner.sh status
