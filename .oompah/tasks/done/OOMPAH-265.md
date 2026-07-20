@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T16:48:39.964670Z'
-updated_at: '2026-07-20T17:18:42.797408Z'
+updated_at: '2026-07-20T17:18:45.355299Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -317,5 +317,10 @@ Files changed:
 - tests/test_oompah_md_tracker.py: 2 new tests covering the second-race and exhausted-retries paths
 
 No regressions: 9493 tests pass.
+---
+author: oompah
+created: 2026-07-20 17:18
+---
+Extended _commit_and_push() and write_and_commit_ledger_file() to retry up to _PUSH_MAX_RETRIES=3 total push attempts (was 2). Exponential backoff between retries reduces thundering-herd contention under concurrent writes. This prevents the push-race TrackerError from reaching error_watcher under normal conditions. 2 new regression tests added. Branch OOMPAH-265, commit 26fbf86e.
 ---
 <!-- COMMENTS:END -->
