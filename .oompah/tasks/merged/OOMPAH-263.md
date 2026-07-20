@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-263
 type: task
-status: Needs Human
+status: Merged
 priority: null
 title: Widen the dashboard task detail pane
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T16:47:15.264773Z'
-updated_at: '2026-07-20T17:12:40.112627Z'
+updated_at: '2026-07-20T18:22:33.065621Z'
 work_branch: null
 target_branch: null
 review_url: null
