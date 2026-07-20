@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T22:43:02.333472Z'
-updated_at: '2026-07-20T23:23:21.091695Z'
+updated_at: '2026-07-20T23:23:23.402045Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -186,5 +186,10 @@ Searched all .oompah/tasks (backlog, done, archived) for tasks matching keywords
 The fix replaces \_run\_git (which uses text=True causing the latin-1 re-encode) with subprocess.run (capture_output=True, no text mode), so stdout is bytes and no encoding conversion is needed. A regression test was added in tests/test_project_bootstrap_state_branch.py::TestSeedingFromMain::test_unicode_task_content_is_preserved_after_seeding. All 49 tests in that file pass.
 
 No code changes are needed; the fix is already in main. Closing as Done.
+---
+author: oompah
+created: 2026-07-20 23:23
+---
+Bug already fixed in main via commit b99d22ba (PR #460, branch fix-state-branch-unicode-bootstrap). The latin-1 UnicodeEncodeError was resolved by switching git archive from text mode (_run_git) to binary mode (subprocess.run with capture_output=True). Regression test added. All 49 bootstrap tests pass. No duplicate found.
 ---
 <!-- COMMENTS:END -->
