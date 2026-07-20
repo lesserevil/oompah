@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T21:57:21.134056Z'
+updated_at: '2026-07-20T21:57:23.443854Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -237,5 +237,15 @@ author: oompah
 created: 2026-07-20 21:57
 ---
 Added containerized self-hosted GitHub Actions runner: scripts/runner.sh (Podman/Docker lifecycle manager), Makefile targets (runner-setup/start/stop/status), .env.example runner vars, CI workflows updated to [self-hosted,linux,x64,oompah], docs/self-hosted-runner.md operator guide, 49 new tests all passing, full suite 9675 passed.
+---
+author: oompah
+created: 2026-07-20 21:57
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 0, Tool calls: 44
+- Tokens: 72 in / 1.4K out [1.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 12s
+- Log: OOMPAH-281__20260720T214816Z.jsonl
 ---
 <!-- COMMENTS:END -->
