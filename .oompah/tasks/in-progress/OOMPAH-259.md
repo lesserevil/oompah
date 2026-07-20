@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:30:00.848090Z'
-updated_at: '2026-07-20T20:58:50.377630Z'
+updated_at: '2026-07-20T20:59:26.186386Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -233,5 +233,20 @@ Both fields serialize/deserialize with backward-compatible defaults.
 - ProjectStore field validation
 - Shadow write tracker behavior
 - get_migration_status helper
+---
+author: oompah
+created: 2026-07-20 20:59
+---
+Completion: All acceptance criteria met.
+
+1. An operator can migrate an existing project without manually editing task files — via oompah admin migrate-state-branch <project-id> --stage A --confirm then --stage B --confirm.
+
+2. After migration, routine task updates no longer modify main — state_branch_enabled=True routes all writes to oompah/state/<project-id>.
+
+3. Migration is recoverable, auditable, and documented — all operations are idempotent, git history serves as the audit log, rollback command available from any stage, operator docs in docs/state-branch-migration.md.
+
+4. make test passes — 9727 passed, 36 skipped.
+
+Branch epic-OOMPAH-253 pushed with commit 4e962062.
 ---
 <!-- COMMENTS:END -->
