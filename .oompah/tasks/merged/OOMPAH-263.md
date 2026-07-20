@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T16:47:15.264773Z'
-updated_at: '2026-07-20T19:11:09.795254Z'
+updated_at: '2026-07-20T19:11:12.527294Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-07-20 18:22
 ---
 Resolved Needs Human: PR #452 used branch fix-detail-pane-width, not OOMPAH-263. GitHub reports it merged to main at 2026-07-20T17:27:50Z with merge commit 4cd0512bb1224f9563d3d95b8bfcf116776be623 after all required CI checks succeeded.
+---
+author: oompah
+created: 2026-07-20 19:11
+---
+Confirmed merged via PR #452 (merge commit 4cd0512) after required CI passed.
 ---
 <!-- COMMENTS:END -->
