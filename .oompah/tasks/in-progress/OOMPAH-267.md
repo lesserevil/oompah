@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-20T17:21:14.875717Z'
+updated_at: '2026-07-20T17:27:54.531615Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -329,5 +329,21 @@ author: oompah
 created: 2026-07-20 17:21
 ---
 Understanding: Picking up from the docs handoff. The root cause is that OompahMarkdownTracker uses a per-instance threading.RLock (_write_lock at line 207). After a graceful reload, reload_config() clears _project_trackers, and a new tracker instance is created while an in-flight write still uses the old instance. Both instances have their own lock objects, so both can run git commit concurrently, triggering 'cannot lock ref HEAD'. Fix: implement Option A from plans/concurrent-git-tracker-writes.md — add a module-level _repo_write_locks dict keyed by resolved repo path, and replace the per-instance RLock with a shared lock for each git repo. This also fixes sibling OOMPAH-268 (index.lock conflict on git add). Will add a regression test proving two instances for the same repo block each other.
+---
+author: oompah
+created: 2026-07-20 17:27
+---
+Implementation: Applied Option A from plans/concurrent-git-tracker-writes.md.
+
+Changes in oompah/oompah_md_tracker.py:
+1. Added module-level _repo_write_locks dict (keyed by resolved repo path) + _repo_write_locks_guard threading.Lock() + _repo_write_lock() factory function.
+2. In OompahMarkdownTracker.__init__, replaced 'self._write_lock = threading.RLock()' with 'self._write_lock = _repo_write_lock(str(self._root))'.
+
+All tracker instances for the same git repo now share one RLock, regardless of when each instance was created. This eliminates the cross-instance race that produced 'cannot lock ref HEAD' after graceful reload (OOMPAH-267) and also fixes the sibling 'index.lock exists' error on git add (OOMPAH-268).
+
+Tests added in tests/test_oompah_md_tracker.py (class TestRepoWriteLock, 3 tests):
+- test_two_instances_same_path_share_write_lock: confirms shared identity of lock objects
+- test_two_instances_different_paths_have_different_write_locks: confirms isolation across repos
+- test_shared_lock_blocks_concurrent_commit_and_push: threading regression test verifying second instance waits for first to release before running git operations
 ---
 <!-- COMMENTS:END -->
