@@ -231,6 +231,10 @@ class TestStateBranchTrackerIntegration:
 
         tracker = _make_tracker(repo, state_branch_enabled=True, state_branch_name=state_branch, git_sync=True)
         issue = tracker.create_issue("Test task for state branch isolation")
+        # OOMPAH-257: mutations are coalesced; force an immediate checkpoint flush
+        # so that the uncommitted file is committed to the state branch before we
+        # inspect git state below.
+        tracker.flush_checkpoint(reason="test")
 
         # Main must be unchanged
         main_sha_after = _commit_sha(repo, "main")
@@ -787,6 +791,9 @@ class TestStateBranchTrackerFailures:
         # Should succeed (push succeeds on retry after rebase)
         issue = tracker.create_issue("Non-fast-forward recovery test")
         assert issue is not None
+        # OOMPAH-257: mutations are coalesced; force an immediate checkpoint flush
+        # so that the push + retry logic is exercised right here in the test.
+        tracker.flush_checkpoint(reason="test")
 
         # Must have attempted push more than once (initial + retry)
         push_calls = [c for c in git_calls if c.startswith("push")]
@@ -1301,16 +1308,21 @@ class TestAcceptanceCriteria:
             task = tracker.create_issue("AC1 task")
             tracker.update_issue(task.identifier, status=IN_PROGRESS)
             tracker.add_comment(task.identifier, "AC1 comment", author="oompah")
+            # OOMPAH-257: status=DONE triggers mandatory flush (terminal status).
             tracker.update_issue(task.identifier, status=DONE)
+            # Force any remaining pending mutations (e.g., the comment) to commit.
+            tracker.flush_checkpoint(reason="test")
 
         # AC1: No commit on main
         main_sha_after = _commit_sha(repo, "main")
         assert main_sha_after == main_sha_before, "AC1 violated: main SHA changed"
 
-        # AC1: Commits exist on state branch
+        # AC1: Commits exist on state branch.
+        # OOMPAH-257: commit messages use "Checkpoint oompah task state" not the
+        # per-mutation subject; verify that new commits appeared on the state branch.
         state_sha_after = _commit_sha(repo, state_branch)
         state_log = _git(repo, "log", "--oneline", state_branch).stdout
-        assert task.identifier in state_log or "AC1" in state_log, (
+        assert "Checkpoint" in state_log or task.identifier in state_log or "AC1" in state_log, (
             f"AC1 violated: no task commit found on state branch log: {state_log}"
         )
 
