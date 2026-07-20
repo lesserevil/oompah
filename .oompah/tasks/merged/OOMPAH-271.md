@@ -1,0 +1,169 @@
+---
+id: OOMPAH-271
+type: task
+status: Merged
+priority: 0
+title: Rebase epic-OOMPAH-253 onto main
+parent: OOMPAH-253
+children: []
+blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-07-20T17:39:04.653084Z'
+updated_at: '2026-07-20T21:24:19.653340Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+oompah.agent_run_id: c7d16469-f6f2-42ff-ac3c-252145f7c942
+oompah.task_costs:
+  total_input_tokens: 54
+  total_output_tokens: 8476
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 54
+      output_tokens: 8476
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: unknown
+    input_tokens: 17
+    output_tokens: 7846
+    cost_usd: 0.0
+    recorded_at: '2026-07-20T17:42:34.542112+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 37
+    output_tokens: 630
+    cost_usd: 0.0
+    recorded_at: '2026-07-20T18:08:41.790682+00:00'
+---
+## Summary
+
+The epic branch `epic-OOMPAH-253` is stale: it has fallen behind `main`. Rebase the branch onto `origin/main`, resolve any conflicts, and force-push with `git push --force-with-lease`.
+
+This task was auto-filed because epic OOMPAH-253 was detected as stale. Do NOT create a new branch or PR — work directly on `epic-OOMPAH-253`.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-20 17:39
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-20 17:39
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 17:41
+---
+**Duplicate screening: no duplicate confirmed.**
+
+OOMPAH-271 is NOT a duplicate of any existing open task.
+
+**Closest candidate reviewed:**
+- OOMPAH-269 (Done, closed 17:36): Identical title 'Rebase epic-OOMPAH-253 onto main' — the rebase was completed successfully 3 minutes before this task was filed (17:39). However, OOMPAH-269 is closed, and the epic has become stale again.
+
+**Current git state (verified):**
+- epic-OOMPAH-253 is **46 commits behind** origin/main (new .oompah task-metadata commits landed on main after OOMPAH-269's rebase at 17:36)
+- epic-OOMPAH-253 is 2 commits ahead of main (OOMPAH-254 design doc, OOMPAH-255 state-branch config)
+
+**Evidence searched:**
+- .oompah/tasks/ for 'rebase', 'epic-OOMPAH-253', 'stale' — only prior rebase tasks (OOMPAH-261, OOMPAH-262, OOMPAH-269) are Done; none are open
+- OOMPAH-266 (Archived): proposed suppressing these auto-rebase tasks; archived — they should continue firing until OOMPAH-253 state-branch migration is complete
+
+**Remaining work:**
+- Rebase epic-OOMPAH-253 onto origin/main (currently 46 commits behind)
+- Force-push with --force-with-lease
+- Can use: git -C /home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-253 rebase origin/main && git -C /home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-253 push --force-with-lease
+- OOMPAH-269's agent confirmed the metadata commits are automatically skipped during rebase (already on main), so this should be clean
+
+**Recommended next focus:** devops
+---
+author: oompah
+created: 2026-07-20 17:42
+---
+Agent completed successfully in 186s (7863 tokens)
+---
+author: oompah
+created: 2026-07-20 17:42
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 41, Tool calls: 24
+- Tokens: 17 in / 7.8K out [7.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 6s
+- Log: OOMPAH-271__20260720T173932Z.jsonl
+---
+author: oompah
+created: 2026-07-20 17:42
+---
+Focus handoff required before leaving `duplicate_detector`. Add a comment headed `Focus handoff: duplicate_detector` with outcome, evidence, remaining work, and next focus.
+---
+author: oompah
+created: 2026-07-20 18:05
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-20 18:05
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 18:07
+---
+**Understanding & Plan:**
+
+Duplicate screening confirmed (prior run): OOMPAH-271 is NOT a duplicate — OOMPAH-269 was Done and the epic became stale again.
+
+Current state:
+- I am already on branch epic-OOMPAH-253 in this worktree
+- epic-OOMPAH-253 is 187 commits behind origin/main
+- 3 substantive code commits on epic ahead of main: OOMPAH-254 (design doc), OOMPAH-255 (state-branch config), OOMPAH-256 (test suite)
+- Plus oompah task metadata commits
+
+Plan: Run \`git rebase origin/main\`, resolve any conflicts, force-push with --force-with-lease.
+---
+author: oompah
+created: 2026-07-20 18:08
+---
+**Completion:**
+
+Rebase of epic-OOMPAH-253 onto origin/main completed successfully.
+
+- Duplicate screening: confirmed not a duplicate (OOMPAH-269 was closed; epic had become stale again)
+- Rebase: 187 oompah task metadata commits were skipped (already on main); 3 substantive code commits cleanly rebased:
+  - OOMPAH-254: Define state-branch format, configuration contract, and migration design
+  - OOMPAH-255: Add per-project state-branch configuration and validation  
+  - OOMPAH-256: Add comprehensive test suite for state-branch tracker routing
+- Force-pushed: HEAD -> epic-OOMPAH-253 (adbb46fe...2848c1d7)
+
+Note: A small number of new oompah metadata commits landed on main during the operation — these will trigger another auto-rebase if the epic is detected as stale again.
+---
+author: oompah
+created: 2026-07-20 18:08
+---
+Rebased epic-OOMPAH-253 onto origin/main; 3 code commits cleanly rebased, 187 metadata commits skipped; force-pushed successfully.
+---
+author: oompah
+created: 2026-07-20 18:08
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 13
+- Tokens: 37 in / 630 out [667 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 22s
+- Log: OOMPAH-271__20260720T180527Z.jsonl
+---
+<!-- COMMENTS:END -->

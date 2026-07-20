@@ -1,0 +1,137 @@
+---
+id: OOMPAH-36
+type: task
+status: Archived
+priority: 1
+title: Remove stale Backlog.md and beads instructions from docs and templates
+parent: OOMPAH-32
+children: []
+blocked_by:
+- OOMPAH-35
+labels: []
+assignee: null
+created_at: '2026-06-22T01:17:28.394571Z'
+updated_at: '2026-06-29T16:52:38.587937Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+oompah.agent_run_id: 330f729d-0c89-4727-befa-f8129883d335
+oompah.task_costs:
+  total_input_tokens: 146
+  total_output_tokens: 10802
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 146
+      output_tokens: 10802
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 123
+    output_tokens: 4541
+    cost_usd: 0.0
+    recorded_at: '2026-06-22T14:47:22.871315+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 23
+    output_tokens: 6261
+    cost_usd: 0.0
+    recorded_at: '2026-06-22T14:52:38.538524+00:00'
+---
+## Summary
+
+Plan: plans/oompah-1.0-release.md#operator-and-project-documentation
+
+WHAT TO DO
+Remove or correct any remaining user-facing Backlog.md and beads instructions from current docs and bootstrap templates.
+
+HOW TO VERIFY
+Searches for Backlog.md, backlog, beads, and bd either find historical/internal migration notes only or current text explicitly saying they are unsupported.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 14:25
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-06-22 14:25
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 14:32
+---
+Understanding: OOMPAH-36 is NOT a duplicate — no other task covers removing stale beads/Backlog.md instructions from docs and templates. OOMPAH-35 (Done) covered writing the onboarding checklist; this task is about cleaning up stale instructions. Investigation found: (1) bootstrap templates (oompah/project_bootstrap/templates/__init__.py) are already clean; (2) agent_instructions.py templates are clean; (3) user-facing docs in docs/ are clean; (4) plans/oompah-1.0-release.md references them correctly as historical/deprecated; (5) .gitignore/.gitattributes have infrastructure entries for .beads/ backward compat, with comments that reference 'bd init'/'bd bootstrap' but in explanatory context. The .gitattributes comment is outdated: it says oompah/projects.py calls _install_beads_merge_driver() but that function no longer exists. Plan: update .gitignore and .gitattributes comments to be clearly historical migration notes so all searches satisfy the HOW TO VERIFY criteria.
+---
+author: oompah
+created: 2026-06-22 14:37
+---
+Discovery: Confirmed this is NOT a duplicate. Investigation summary: (1) bootstrap templates (oompah/project_bootstrap/templates/__init__.py) were already clean — no beads/Backlog.md references; (2) agent_instructions.py templates were already clean; (3) all docs in docs/ were clean; (4) plans/oompah-1.0-release.md correctly labels them as historical/deprecated; (5) .gitignore had operational beads comments referencing 'bd init' and 'bd bootstrap' that appeared instructional; (6) .gitattributes had incorrect docs claiming _install_beads_merge_driver() was auto-called (that function no longer exists). Changes needed: update .gitignore and .gitattributes comments to be clearly historical migration notes.
+---
+author: oompah
+created: 2026-06-22 14:37
+---
+Implementation: Updated .gitignore and .gitattributes. In .gitignore: replaced 'Dolt database files (added by bd init)' and 'beads-jsonl-ignore (managed by oompah)' sections (which included 'emergency recovery via bd bootstrap') with a single 'Historical: Dolt/beads files from the old task tracker (pre-.oompah/tasks)' block explicitly saying 'beads and bd are no longer used'; did the same for .beads-credential-key. In .gitattributes: replaced the setup instructions (which incorrectly claimed _install_beads_merge_driver() auto-installs the driver) with a 'Historical: merge driver for the old beads issue store' note explicitly stating beads is no longer used and the driver is NOT installed automatically. All patterns retained for backward compat. No code changes needed — docs and templates were already clean.
+---
+author: oompah
+created: 2026-06-22 14:47
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 81
+- Tokens: 123 in / 4.5K out [4.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 21m 34s
+- Log: OOMPAH-36__20260622T142553Z.jsonl
+---
+author: oompah
+created: 2026-06-22 14:47
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-06-22 14:47
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 14:51
+---
+Verification: All HOW TO VERIFY criteria are met. Searches for Backlog.md, backlog, beads, and bd now find only: (1) historical/migration notes in .gitignore and .gitattributes with explicit 'no longer used' language; (2) design doc references in plans/oompah-1.0-release.md calling them 'historical'; (3) test fixtures in tests/test_agent_instructions.py that test the migration function (verifying that old text is replaced, not instructing users to use them); (4) unrelated occurrences like oompah:status:n labels in test fixtures. No user-facing docs, bootstrap templates, or agent instruction templates contain any remaining Backlog.md or beads instructions. Commit 45e07c5c on epic-OOMPAH-32 (already pushed) covers the changes.
+---
+author: oompah
+created: 2026-06-22 14:52
+---
+Completion: OOMPAH-36 is complete. Changes made: (1) .gitignore - replaced 'Dolt database files (added by bd init)' and 'beads-jsonl-ignore (managed by oompah)' sections (including 'emergency recovery via bd bootstrap') with a single 'Historical: Dolt/beads files from the old task tracker' block explicitly stating 'beads and bd are no longer used'; (2) .gitattributes - replaced incorrect setup instructions (claiming _install_beads_merge_driver() auto-installs the driver — function no longer exists) with a 'Historical: merge driver for the old beads issue store' note. Docs and bootstrap templates were already clean. All searches for Backlog.md, backlog, beads, and bd now satisfy the HOW TO VERIFY criteria.
+---
+author: oompah
+created: 2026-06-22 14:52
+---
+Removed stale beads/bd references from .gitignore and .gitattributes by replacing instructional comments with explicit 'Historical: no longer used' notes. Docs and bootstrap templates were already clean. All searches for Backlog.md, backlog, beads, bd now find historical/internal migration notes only.
+---
+author: oompah
+created: 2026-06-22 14:52
+---
+Agent completed successfully in 294s (6284 tokens)
+---
+author: oompah
+created: 2026-06-22 14:52
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
+- Turns: 42, Tool calls: 25
+- Tokens: 23 in / 6.3K out [6.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 54s
+- Log: OOMPAH-36__20260622T144751Z.jsonl
+---
+<!-- COMMENTS:END -->

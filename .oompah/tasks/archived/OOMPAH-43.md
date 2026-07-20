@@ -1,0 +1,99 @@
+---
+id: OOMPAH-43
+type: task
+status: Archived
+priority: 3
+title: Update workflow dispatch description from v0.1.0 to v1.0.0 example
+parent: null
+children: []
+blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-06-22T01:52:58.922363Z'
+updated_at: '2026-06-29T02:32:40.551152Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+oompah.agent_run_id: d75e5e06-6779-4d5b-b39e-7dced94024b6
+oompah.task_costs:
+  total_input_tokens: 93
+  total_output_tokens: 2485
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 93
+      output_tokens: 2485
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 93
+    output_tokens: 2485
+    cost_usd: 0.0
+    recorded_at: '2026-06-22T02:11:57.341148+00:00'
+---
+## Summary
+
+The cli-release.yml workflow_dispatch input description still says 'e.g. v0.1.0'. A maintainer with workflow scope needs to update it to 'e.g. v1.0.0-draft or v1.0.0'. Blocked in OOMPAH-18 due to PAT lacking workflow scope.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-22 02:01
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-06-22 02:01
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-22 02:03
+---
+UNDERSTANDING: This is NOT a duplicate. OOMPAH-18 was a broader 1.0 update task that explicitly deferred the workflow dispatch description change (v0.1.0 → v1.0.0-draft or v1.0.0) because it lacked PAT workflow scope. OOMPAH-43 is the follow-up filed to complete that specific change. The task is straightforward: update the 'description' field in the workflow_dispatch input in .github/workflows/cli-release.yml. Proceeding to implement.
+---
+author: oompah
+created: 2026-06-22 02:07
+---
+DISCOVERY: This is not a duplicate. OOMPAH-43 is a deliberate follow-up from OOMPAH-18 (Done). OOMPAH-18 reverted the workflow file change because the PAT lacked workflow scope, and filed this task for a maintainer to complete it. Target: .github/workflows/cli-release.yml line — description: 'Existing release tag to package, e.g. v0.1.0' → 'e.g. v1.0.0-draft or v1.0.0'. Current test file (on main, pre-OOMPAH-18 merge) has no assertion on the dispatch description string. Will add a test to lock in the new description.
+---
+author: oompah
+created: 2026-06-22 02:08
+---
+IMPLEMENTATION: Updated .github/workflows/cli-release.yml workflow_dispatch input description from 'e.g. v0.1.0' to 'e.g. v1.0.0-draft or v1.0.0'. Added new test test_release_workflow_dispatch_description_shows_v1_examples in tests/test_cli_release_packaging.py to assert the description contains both 'v1.0.0-draft' and 'v1.0.0' strings, locking in the correct example going forward.
+---
+author: oompah
+created: 2026-06-22 02:08
+---
+VERIFICATION: All 7 tests in tests/test_cli_release_packaging.py pass (7 passed, 0 failed), including the new test_release_workflow_dispatch_description_shows_v1_examples.
+---
+author: oompah
+created: 2026-06-22 02:11
+---
+COMPLETION: Investigated and confirmed this is NOT a duplicate — it was intentionally filed by OOMPAH-18 because the workflow dispatch description change requires pushing to .github/workflows/cli-release.yml, which needs 'workflow' PAT scope. Confirmed the blocker still exists: the lesserevil token lacks workflow scope, and NVShawn (which has workflow scope) lacks push access to the repo. The exact one-line change is documented: description from 'e.g. v0.1.0' to 'e.g. v1.0.0-draft or v1.0.0'. Filed OOMPAH-46 as a Needs Human task with the exact diff and a companion test to add. Branch OOMPAH-43 pushed (clean, no workflow file changes). Closing this task.
+---
+author: oompah
+created: 2026-06-22 02:11
+---
+Confirmed not a duplicate of any existing task. Blocker confirmed: no available token has both workflow scope and push access to the repo. Exact change documented and OOMPAH-46 filed as Needs Human with the precise one-line diff and test to apply.
+---
+author: oompah
+created: 2026-06-22 02:11
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 48
+- Tokens: 93 in / 2.5K out [2.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 22s
+- Log: OOMPAH-43__20260622T020141Z.jsonl
+---
+<!-- COMMENTS:END -->

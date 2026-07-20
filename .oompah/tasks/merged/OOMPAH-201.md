@@ -1,0 +1,116 @@
+---
+id: OOMPAH-201
+type: task
+status: Merged
+priority: 2
+title: Document and deprecate the old release-branch inspector
+parent: OOMPAH-192
+children: []
+blocked_by:
+- OOMPAH-196
+- OOMPAH-200
+labels: []
+assignee: null
+created_at: '2026-07-13T19:32:59.843679Z'
+updated_at: '2026-07-13T23:39:13.137439Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+oompah.agent_run_id: eca5f4cb-68fd-495f-9400-5624c927a6bb
+oompah.task_costs:
+  total_input_tokens: 160
+  total_output_tokens: 4634
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 160
+      output_tokens: 4634
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 160
+    output_tokens: 4634
+    cost_usd: 0.0
+    recorded_at: '2026-07-13T23:07:07.912207+00:00'
+---
+## Summary
+
+Plan reference: plans/release-delivery-commit-inventory.md sections 4.2, 8, and 9.
+
+Update operator-facing documentation for the Release delivery commit inventory: configuration, how to select commits/branches, status evidence, cherry-pick SHA behavior, direct-to-main commits, protected-branch PR behavior, and stale/force-push remediation. Document task/epic detail as a shortcut. Deprecate the old branch-inspection endpoint and UI terminology according to the compatibility plan.
+
+Acceptance criteria
+- docs/release-addendums.md, docs/managed-project-onboarding.md, docs/operator-runbook.md, and docs/task-epic-workflow.md accurately describe the new screen and workflows.
+- Documentation explicitly states that arbitrary release-branch commits are not treated as proof of delivery without ledger or ancestry evidence.
+- The legacy branch-inspection endpoint returns a documented compatibility/deprecation response, then 410 at the specified removal point.
+- No stale user-facing references remain to the removed Release branches page.
+
+Tests
+- Add endpoint tests for the compatibility response and 410 behavior.
+- Run git diff --check and the relevant documentation/link checks available in the repository.
+
+Dependencies
+- OOMPAH-196 and OOMPAH-200.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-13 22:52
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-13 22:52
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-13 22:54
+---
+Understanding: OOMPAH-201 is NOT a duplicate. Searched all related tasks (OOMPAH-182 added the old branch-inspection API that this task will deprecate; OOMPAH-184 documented the old addendum workflow; OOMPAH-185 archived as duplicate of OOMPAH-184; OOMPAH-200 replaces the UI overlay). No other task covers: (1) documenting the new Release delivery commit inventory workflow in the four target doc files, or (2) making GET /release-branches/{branch}/addendums return a deprecation/410 response. Dependencies OOMPAH-196 (task/epic compat) and OOMPAH-200 (UI overlay replacement) are Done and In-Progress respectively. Proceeding with implementation of: docs updates (docs/release-addendums.md, managed-project-onboarding.md, operator-runbook.md, task-epic-workflow.md), legacy endpoint deprecation (initially compatibility response, then 410), and endpoint tests.
+---
+author: oompah
+created: 2026-07-13 22:56
+---
+Discovery: Found all relevant code and docs. Key findings:\n1. dashboard.html already updated by OOMPAH-200 — 'Release delivery' button replaces old 'Release branches' button. No stale UI references remain in the template.\n2. docs/release-addendums.md: 'Inspect a release line' section still refers to old 'Release branches' view and GET /release-branches/{branch}/addendums.\n3. docs/task-epic-workflow.md L53: still says 'branch inspection' — needs update.\n4. docs/operator-runbook.md L83: says 'inspection' referring to old endpoint — needs update.\n5. docs/managed-project-onboarding.md: cross-ref to release-addendums.md is fine but the linked section needs updating.\n6. oompah/server.py L4554: GET /api/v1/projects/{project_id}/release-branches/{branch}/addendums returns full addendums — needs to return deprecation/compatibility response now, 410 at removal.\n7. No GET /release-delivery/branches/{branch} endpoint exists yet (plan says 'optional drill-down'). \nPlan: (a) Rewrite docs/release-addendums.md to document the new Release delivery commit inventory screen and deprecate old endpoint. (b) Update 3 other docs. (c) Make old endpoint return deprecation response with replacement path + add _LEGACY_BRANCH_INSPECTION_REMOVED flag for 410. (d) Add tests.
+---
+author: oompah
+created: 2026-07-13 23:05
+---
+Implementation: Made all required changes for OOMPAH-201.\n\n1. docs/release-addendums.md: Rewrote to document the new Release delivery commit inventory workflow. Added: commit inventory screen/status cells/evidence types (delivered by cherry-pick vs ancestry), direct-to-main commits, queue API, task/epic shortcut, cherry-pick SHA behavior, protected-branch PR behavior, stale/force-push remediation, Mermaid delivery sequence diagram. Explicit statement that proof of delivery requires ledger or ancestry evidence — not merely presence on the branch. Deprecated GET /release-branches/{branch}/addendums with replacement path. Updated migration table.\n\n2. docs/task-epic-workflow.md: Updated 'Release Delivery' section to reference the new inventory screen and 'Add release branches' shortcut instead of 'branch inspection'.\n\n3. docs/operator-runbook.md: Updated cross-reference to Release Delivery docs; removed 'inspection' from the link text list.\n\n4. docs/managed-project-onboarding.md: Updated section 4 to reference 'Release delivery' inventory as the target of configured release lines; updated cross-reference text.\n\n5. oompah/server.py: Added _LEGACY_BRANCH_INSPECTION_REMOVED flag. During transition window: GET /release-branches/{branch}/addendums returns 200 with deprecated:true, message, replacement path, Deprecation/Sunset/Link headers, and the original groups data. When _LEGACY_BRANCH_INSPECTION_REMOVED=True: returns 410 Gone with replacement path before any tracker access.\n\n6. tests/test_server_release_branch_inspection.py: Added 18 new tests across TestDeprecationCompatibilityResponse (11 tests) and TestLegacyEndpointRemoved410 (7 tests) covering all acceptance criteria scenarios.
+---
+author: oompah
+created: 2026-07-13 23:06
+---
+Verification: All 8801 tests pass (8801 passed, 28 skipped). git diff --check clean. No stale 'Release branches' references remain in docs/. New test count in test_server_release_branch_inspection.py: 57 (39 original + 18 new deprecation/410 tests). Branch pushed to origin/epic-OOMPAH-192.
+---
+author: oompah
+created: 2026-07-13 23:06
+---
+Completion: OOMPAH-201 delivered.\n\nAcceptance criteria satisfied:\n1. docs/release-addendums.md, managed-project-onboarding.md, operator-runbook.md, and task-epic-workflow.md all describe the new Release delivery commit inventory screen and workflows.\n2. docs/release-addendums.md explicitly states: 'A commit that appears on a release branch through a direct push, rebase, or an untracked cherry-pick is not automatically recognized as delivered unless it is reachable from the default branch and matched by ancestry. Never assume a raw commit on a release branch proves that tracked work was released.'\n3. The legacy GET /release-branches/{branch}/addendums endpoint returns a documented compatibility/deprecation response (200 with deprecated:true, message, replacement path, Deprecation/Sunset/Link headers) and returns 410 Gone when _LEGACY_BRANCH_INSPECTION_REMOVED=True (the specified removal point).\n4. No stale 'Release branches' user-facing references remain in any doc or template file.\n5. 18 new endpoint tests cover both the compatibility response and 410 behavior. All 8801 tests pass.
+---
+author: oompah
+created: 2026-07-13 23:06
+---
+Updated docs/release-addendums.md (full rewrite for Release delivery inventory), managed-project-onboarding.md, operator-runbook.md, task-epic-workflow.md. Deprecated GET /release-branches/{branch}/addendums with compatibility response + 410 flag. Added 18 endpoint tests. All 8801 tests pass.
+---
+author: oompah
+created: 2026-07-13 23:07
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 106
+- Tokens: 160 in / 4.6K out [4.8K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 14m 53s
+- Log: OOMPAH-201__20260713T225221Z.jsonl
+---
+<!-- COMMENTS:END -->

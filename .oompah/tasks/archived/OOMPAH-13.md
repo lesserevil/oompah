@@ -1,0 +1,128 @@
+---
+id: OOMPAH-13
+type: bug
+status: Archived
+priority: 1
+title: Use project status actor by default for dashboard intake actions
+parent: null
+children: []
+blocked_by: []
+labels:
+- bug
+- native-tracker
+- intake
+- ui
+- auth
+assignee: null
+created_at: '2026-06-20T03:02:36.629755Z'
+updated_at: '2026-06-27T04:53:02.246447Z'
+work_branch: OOMPAH-13
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/338
+review_number: '338'
+merged_at: null
+oompah.agent_run_id: 415c4b44-baa2-4bbf-92bf-71761f2d9a3d
+oompah.task_costs:
+  total_input_tokens: 111
+  total_output_tokens: 3395
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 111
+      output_tokens: 3395
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 111
+    output_tokens: 3395
+    cost_usd: 0.0
+    recorded_at: '2026-06-20T03:45:44.091293+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/338
+oompah.review_number: '338'
+oompah.work_branch: OOMPAH-13
+oompah.target_branch: main
+---
+## Summary
+
+The dashboard Proposed-intake action flow still relies on a manually entered `oompah_intake_actor` value in localStorage. If the operator has not set that value, `openDetailPanel()` fetches detail without an actor, `action_permissions()` returns no owner actions, and owner-only buttons such as Request Changes, Override Readiness, and Promote to Backlog can disappear or require a prompt even though the project already has `status_actor_login` configured.
+
+This is the same class of bug as the Backlog -> Open drag/drop failure: protected owner actions should use the project-configured status actor by default instead of behaving as anonymous/non-owner.
+
+Expected behavior:
+- For protected tracker workflows (`github_issues` and `oompah_md`), the dashboard should default owner actions to the project status actor (`status_actor_login`, then allowlist/tracker owner fallback) when no explicit local override is set.
+- The detail endpoint should receive that actor so owner buttons render correctly.
+- Intake action POSTs should send the same actor by default.
+- Users may still override the actor explicitly when needed.
+
+Acceptance criteria:
+- Reuse or share the existing `projectStatusActorLogin(project)` logic for detail panel intake actions.
+- `openDetailPanel()` can resolve the project config and include the default actor in detail requests for native and GitHub-backed projects.
+- `performIntakeAction()` sends the default project actor without prompting during normal owner workflows.
+- Add dashboard tests for `oompah_md` Proposed tasks showing owner actions with configured `status_actor_login`.
+- Do not hard-code any user names in tests.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-20 03:36
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-06-20 03:36
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-20 03:39
+---
+Understanding: OOMPAH-13 is NOT a duplicate. Prior commits (b56adf0, 1cb1bff, 82c9846) fixed the drag/drop status-change paths to use projectStatusActorLogin(project), but the *intake action button path* in openDetailPanel() and performIntakeAction() still only reads from localStorage('oompah_intake_actor'). When the operator has not set that localStorage key, the detail request omits the actor, action_permissions() returns no owner actions, and buttons like 'Request Changes', 'Override Readiness', 'Promote to Backlog' disappear. Plan: (1) Modify openDetailPanel() to fall back to projectStatusActorLogin(project) when no localStorage actor, (2) Modify performIntakeAction() to use project status actor instead of prompting, (3) Add tests for oompah_md Proposed tasks showing owner actions with status_actor_login configured, (4) Verify no hardcoded user names in tests.
+---
+author: oompah
+created: 2026-06-20 03:44
+---
+Discovery: Confirmed NOT a duplicate. Prior commits fixed drag/drop status-change paths but the intake action button path was still broken. In openDetailPanel(), intakeActor only used localStorage('oompah_intake_actor'); in performIntakeAction(), missing actor went straight to prompt(). The fix: (1) openDetailPanel now resolves project from currentProjects and uses effectiveIntakeActor = intakeActor || projectStatusActorLogin(project), (2) performIntakeAction moves projectId extraction to the top and inserts a projectStatusActorLogin(project) fallback before the prompt() call.
+---
+author: oompah
+created: 2026-06-20 03:44
+---
+Implementation: Changed oompah/templates/dashboard.html in two places. (1) openDetailPanel(): added 'const project = currentProjects.find(p => p.id === projectId) || null' and 'const effectiveIntakeActor = intakeActor || projectStatusActorLogin(project)', using effectiveIntakeActor instead of intakeActor for detailParams.actor. (2) performIntakeAction(): moved projectId extraction to the top of the function, added 'const project = currentProjects.find(p => p.id === projectId) || null; actor = projectStatusActorLogin(project)' as fallback before the prompt(). Updated existing test and added 4 new tests covering: fall-back to project status actor in openDetailPanel, project actor used without prompting in performIntakeAction, ordering (projectStatusActorLogin before prompt), oompah_md no-prompt path.
+---
+author: oompah
+created: 2026-06-20 03:45
+---
+Verification: All 6911 tests pass (28 skipped). All 17 dashboard intake action tests pass, including 4 new tests: test_open_detail_panel_falls_back_to_project_status_actor, test_perform_intake_action_uses_project_status_actor_without_prompting, test_perform_intake_action_only_prompts_if_no_project_actor, test_perform_intake_action_oompah_md_owner_does_not_prompt_for_actor. No hardcoded usernames in tests.
+---
+author: oompah
+created: 2026-06-20 03:45
+---
+Completion: OOMPAH-13 is NOT a duplicate — no prior task addressed the intake action button path. Fixed in oompah/templates/dashboard.html: openDetailPanel() now uses effectiveIntakeActor = intakeActor || projectStatusActorLogin(project) for detail requests; performIntakeAction() resolves project status actor before prompting. 4 new regression tests added. All 6911 tests pass. Branch OOMPAH-13 pushed to origin.
+---
+author: oompah
+created: 2026-06-20 03:45
+---
+Not a duplicate. Fixed openDetailPanel() and performIntakeAction() to use projectStatusActorLogin(project) as default actor fallback. 4 new tests added. All 6911 tests pass.
+---
+author: oompah
+created: 2026-06-20 03:45
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 73
+- Tokens: 111 in / 3.4K out [3.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 25s
+- Log: OOMPAH-13__20260620T033623Z.jsonl
+---
+author: oompah
+created: 2026-06-20 04:10
+---
+YOLO: merged PR #338.
+---
+<!-- COMMENTS:END -->
