@@ -7,10 +7,12 @@ title: Expose active state-branch identity and checkpoint health in project APIs
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-20T22:54:50.695408Z'
-updated_at: '2026-07-20T23:14:22.661253Z'
+updated_at: '2026-07-20T23:23:42.449830Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -95,5 +97,43 @@ author: oompah
 created: 2026-07-20 23:14
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-20 23:23
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-283 is NOT a duplicate of any existing task.
+
+**Evidence reviewed:**
+- Searched all .oompah/tasks/ directories (all statuses) for: state_branch, ln_name, state_branch_name, shadow_write, last push, API contract, expose state, branch identity
+- Read OOMPAH-253 epic (parent), OOMPAH-255 (model fields), OOMPAH-257 (checkpoint health in /api/v1/state), OOMPAH-259 (migration engine + shadow_write/migration_stage fields), OOMPAH-260 (E2E validation)
+- Confirmed current server.py behavior: GET /api/v1/projects and GET /api/v1/projects/{id} both call project.to_safe_dict() → to_dict()
+
+**Root cause confirmed (not covered by any existing task):**
+1. state_branch_name is a @property on Project but is NOT emitted by to_dict() — it is absent from GET /api/v1/projects and GET /api/v1/projects/{id} responses
+2. state_branch_shadow_write is conditionally serialized (only when True) so at Stage B (shadow_write=False) it's absent from the response, not False
+3. state_branch_migration_stage is conditionally serialized (only when non-empty) so at Stage A/B it may not appear
+4. Last push 'never' bug: checkpoint observability (get_checkpoint_observability()) apparently doesn't read the bootstrap commit timestamp from git log for the initial state branch push
+
+**Closest reviewed tasks (all distinct):**
+- OOMPAH-255 (Merged): Added state_branch model fields — does not expose computed state_branch_name in to_dict()
+- OOMPAH-257 (Merged): Checkpoint health in GET /api/v1/state (service-level) — NOT the per-project GET /api/v1/projects endpoint
+- OOMPAH-259 (Merged): Migration engine, adds shadow_write/migration_stage fields — serializes shadow_write conditionally only when True
+
+**Key files for implementing agent:**
+- oompah/models.py lines 470-592 (state_branch_name property + to_dict())
+- oompah/server.py lines 9900-9904 (GET /api/v1/projects) and 10056-10072 (GET /api/v1/projects/{id})
+- oompah/checkpoint_queue.py (get_checkpoint_observability / last_push_at tracking)
+- tests/test_ln_project_config.py, tests/test_state_branch_migration.py (existing test patterns)
+
+**Remaining work:**
+1. Emit state_branch_name in to_dict() always when state_branch_enabled=True (or always with null for disabled)
+2. Always emit state_branch_shadow_write (even when False) and state_branch_migration_stage (even when empty)
+3. Fix checkpoint last_push_at to reflect the bootstrap commit timestamp on first push
+4. Add API tests asserting Stage B project returns non-null branch name and false shadow_write
+5. Add health/status test asserting bootstrap commit is reflected as last push
+
+**Recommended next focus:** feature
 ---
 <!-- COMMENTS:END -->

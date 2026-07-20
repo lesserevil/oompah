@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T23:14:39.769449Z'
+updated_at: '2026-07-20T23:23:33.809464Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
@@ -286,5 +286,10 @@ author: oompah
 created: 2026-07-20 23:14
 ---
 Understanding: Test Engineer agent reviewing OOMPAH-281. Prior DevOps agent delivered the implementation and reports 49 new tests in tests/test_self_hosted_runner.py all passing (full suite 9675 passed). My job is to verify those tests are thorough, reliable, and actually fail when the behavior they guard is broken — not just pass green. I will: (1) run the current test suite, (2) audit test_self_hosted_runner.py for gaps, (3) add any missing coverage, (4) verify make test passes, then close the task.
+---
+author: oompah
+created: 2026-07-20 23:23
+---
+Discovery: Existing 49 tests all pass and cover the happy path well. Identified gaps: (1) workflow tests only guard named jobs — new jobs with ubuntu-latest would slip through; (2) token-cleanup test is weak (checks rm -f and registration-token appear anywhere, not on same line); (3) no tests for operationally-critical properties: detached start (-d), --restart unless-stopped, chmod 600 on token; (4) no bash shebang test; (5) doc config table completeness not tested per-variable. Adding ~15 targeted tests to close these gaps.
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T22:43:02.333472Z'
-updated_at: '2026-07-20T23:23:23.402045Z'
+updated_at: '2026-07-20T23:23:31.215698Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,13 +42,13 @@ oompah.intake:
   last_validated_at: '2026-07-20T22:43:06.643323+00:00'
 oompah.agent_run_id: e000df70-3f34-4882-85ef-30ef3bb5a3f9
 oompah.task_costs:
-  total_input_tokens: 88593
-  total_output_tokens: 713
+  total_input_tokens: 88641
+  total_output_tokens: 1888
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 88593
-      output_tokens: 713
+      input_tokens: 88641
+      output_tokens: 1888
       cost_usd: 0.0
   runs:
   - profile: default
@@ -57,6 +57,12 @@ oompah.task_costs:
     output_tokens: 713
     cost_usd: 0.0
     recorded_at: '2026-07-20T23:09:35.637561+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 48
+    output_tokens: 1175
+    cost_usd: 0.0
+    recorded_at: '2026-07-20T23:23:29.340220+00:00'
 ---
 ## Summary
 
@@ -191,5 +197,15 @@ author: oompah
 created: 2026-07-20 23:23
 ---
 Bug already fixed in main via commit b99d22ba (PR #460, branch fix-state-branch-unicode-bootstrap). The latin-1 UnicodeEncodeError was resolved by switching git archive from text mode (_run_git) to binary mode (subprocess.run with capture_output=True). Regression test added. All 49 bootstrap tests pass. No duplicate found.
+---
+author: oompah
+created: 2026-07-20 23:23
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 27
+- Tokens: 48 in / 1.2K out [1.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 14s
+- Log: OOMPAH-282__20260720T231417Z.jsonl
 ---
 <!-- COMMENTS:END -->
