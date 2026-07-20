@@ -12,7 +12,7 @@ labels:
 - yolo-watchdog
 assignee: null
 created_at: '2026-07-20T17:44:15.310384Z'
-updated_at: '2026-07-20T17:52:34.596962Z'
+updated_at: '2026-07-20T17:52:37.315962Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,5 +72,10 @@ Both tasks were filed automatically by the YOLO watchdog for the same underlying
 OOMPAH-272 was filed at 5 consecutive failures; OOMPAH-273 at 11. They describe the same stuck PR. OOMPAH-272 is In Progress and has agents working on it. Archiving OOMPAH-273 as duplicate-of:OOMPAH-272.
 
 Note: The underlying PR (#456) is OOMPAH-267's branch, which already has a Merge Conflict Resolver agent dispatched (as of 17:39 today).
+---
+author: oompah
+created: 2026-07-20 17:52
+---
+duplicate-of:OOMPAH-272
 ---
 <!-- COMMENTS:END -->
