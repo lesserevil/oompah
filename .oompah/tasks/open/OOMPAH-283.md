@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-283
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Expose active state-branch identity and checkpoint health in project APIs
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-20T22:54:50.695408Z'
-updated_at: '2026-07-20T23:10:04.959401Z'
+updated_at: '2026-07-20T23:12:58.908269Z'
 work_branch: null
 target_branch: null
 review_url: null
