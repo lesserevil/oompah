@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:19.457116Z'
-updated_at: '2026-07-20T17:33:08.344873Z'
+updated_at: '2026-07-20T17:33:20.471873Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -157,5 +157,20 @@ author: oompah
 created: 2026-07-20 17:33
 ---
 Verification: make test passes with 9532 tests (9431 baseline + 99 new + 2 previously-xfail now passing). All 99 new tests in test_state_branch_project_config.py pass. The xfail markers in test_state_branch_design.py are no longer triggered because the implementation exists.
+---
+author: oompah
+created: 2026-07-20 17:33
+---
+Completion: Delivered per-project state-branch configuration and validation for OOMPAH-255.
+
+Implemented:
+1. Project model: state_branch_enabled (bool, default False), state_branch_checkpoint_debounce_ms/max_delay_ms (int|None), state_branch_name property (derived, read-only, oompah/state/<id>)
+2. Serialization: to_dict() always emits state_branch_enabled; from_dict() defaults absent fields to False/None for backward compat
+3. ProjectStore: 3 new UPDATABLE_FIELDS with strict validation (bool check, positive-int check, cross-field max_delay >= debounce + 1000)
+4. Server API: PATCH handler + cache invalidation via _PROJECT_TRACKER_CACHE_FIELDS
+5. UI (projects.html): display row + edit checkbox + saveProject body
+6. Tests: 99 new in test_state_branch_project_config.py + UPDATABLE_FIELDS fixture updated
+
+Acceptance criteria met: operators can configure state branch per project; existing projects unchanged (default False); invalid values rejected with actionable messages; make test passes (9532 tests).
 ---
 <!-- COMMENTS:END -->
