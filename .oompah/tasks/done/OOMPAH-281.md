@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T23:29:17.120343Z'
+updated_at: '2026-07-20T23:29:19.567921Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
@@ -334,5 +334,10 @@ Delivered:
 - 14 new tests cover: workflow-wide runner label enforcement (regression guard for new jobs), strengthened token-cleanup assertion (regex, not substring), operational-critical container properties (detached mode, restart policy, chmod 600, shebang), and documentation completeness (all 6 OOMPAH_RUNNER_* vars in config table, repo URL, stop command).
 - make test: 9835 passed, 36 skipped — all clean, no new warnings.
 - Branch pushed and up to date with origin.
+---
+author: oompah
+created: 2026-07-20 23:29
+---
+Added 14 new tests to tests/test_self_hosted_runner.py (49→63): workflow-wide runner label regression guards, strengthened token-cleanup assertion, detached-mode/restart-policy/chmod-600/shebang coverage, and doc completeness checks. make test: 9835 passed.
 ---
 <!-- COMMENTS:END -->
