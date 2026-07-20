@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:48.958577Z'
-updated_at: '2026-07-20T20:29:39.388605Z'
+updated_at: '2026-07-20T20:29:50.229822Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -234,5 +234,32 @@ Tests cover (tests/test_project_bootstrap_state_branch.py):
 - §8 Push: local bare remote, pushed flag, visible at remote
 - §9 Error handling: bad path returns error result without raising
 - §10 ensure_state_branch_initialized raises RuntimeError on failure, idempotent
+---
+author: oompah
+created: 2026-07-20 20:29
+---
+**Completion:** OOMPAH-258 delivered:
+
+1. **Feature** (oompah/project_bootstrap/__init__.py):
+   - initialize_state_branch() creates orphan oompah/state/<project-id> branch, seeds .oompah/tasks/ from main or empty layout, idempotent on rerun
+   - ensure_state_branch_initialized() raises on error (fail-loud variant)
+   - STATE_BRANCH_TASK_DIRS constant, StateBranchBootstrapResult dataclass
+
+2. **Tests** (tests/test_project_bootstrap_state_branch.py, 48 tests):
+   - E2E bootstrap fixture (empty repo → state branch + task layout created)
+   - Idempotency tests (rerun → exactly 1 commit, no data loss or duplication)
+   - Orphan-branch contract (no common ancestor with main)
+   - Seeding from main when .oompah/tasks/ exists
+   - Config verification (Project.state_branch_name matches, docs present)
+   - Push behavior with local bare remote
+   - Error handling (bad path returns error, no exception raised)
+
+3. **Documentation** (docs/project-bootstrap.md):
+   - New 'State Branch' section covering: required permissions, branch protection, verification, checkpoint timing, code vs state branch distinction, re-run safety
+
+Acceptance criteria met:
+- Bootstrap is safe to rerun (idempotency tests pass)
+- docs/ contains complete operator setup and recovery instructions
+- make test passes (9667 passed, 36 skipped)
 ---
 <!-- COMMENTS:END -->
