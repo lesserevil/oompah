@@ -10,14 +10,15 @@ title: '[backend:server] Add comment API error: git add .oompah/tasks failed: fa
 
   Another git process seems to be r...'
 parent: null
-children: []
+children:
+- OOMPAH-270
 blocked_by: []
 labels:
 - external:github
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:52:04.570031Z'
-updated_at: '2026-07-20T17:13:25.258277Z'
+updated_at: '2026-07-20T17:13:50.355938Z'
 work_branch: null
 target_branch: null
 review_url: null
