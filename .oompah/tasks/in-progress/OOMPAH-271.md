@@ -12,13 +12,29 @@ labels:
 - needs:devops
 assignee: null
 created_at: '2026-07-20T17:39:04.653084Z'
-updated_at: '2026-07-20T17:42:35.219068Z'
+updated_at: '2026-07-20T17:42:37.716398Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 6090c0ca-05d7-4e45-86fc-2a30b9a73f32
+oompah.task_costs:
+  total_input_tokens: 17
+  total_output_tokens: 7846
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 17
+      output_tokens: 7846
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: unknown
+    input_tokens: 17
+    output_tokens: 7846
+    cost_usd: 0.0
+    recorded_at: '2026-07-20T17:42:34.542112+00:00'
 ---
 ## Summary
 
