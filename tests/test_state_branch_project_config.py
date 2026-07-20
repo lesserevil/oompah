@@ -1048,3 +1048,239 @@ class TestXfailDesignContractNowPasses:
         assert hasattr(p, "state_branch_checkpoint_max_delay_ms")
         assert p.state_branch_checkpoint_debounce_ms is None
         assert p.state_branch_checkpoint_max_delay_ms is None
+
+
+# ---------------------------------------------------------------------------
+# § 15 — Stage B API contract (OOMPAH-283)
+#
+# Verifies that to_dict() / to_safe_dict() and the GET /api/v1/projects
+# endpoint correctly expose state_branch_name, state_branch_shadow_write,
+# and state_branch_migration_stage for projects at Stage B of the migration
+# (state_branch_enabled=True, shadow_write=False, migration_stage="B").
+# ---------------------------------------------------------------------------
+
+
+class TestStageBApiContract:
+    """Acceptance tests for the Stage B API contract (OOMPAH-283).
+
+    A Stage B project has state_branch_enabled=True, shadow_write=False, and
+    migration_stage="B".  Before OOMPAH-283, GET /api/v1/projects would omit
+    state_branch_name entirely and omit state_branch_shadow_write because it
+    was False.  These tests verify the correct (post-fix) behavior.
+    """
+
+    # ---- helpers ----
+
+    def _make_stage_b_project(self, **overrides) -> "Project":
+        defaults = dict(
+            id="proj-stageb",
+            name="my-repo",
+            repo_url="https://github.com/org/my-repo.git",
+            repo_path="/tmp/my-repo",
+            default_branch="main",
+            state_branch_enabled=True,
+            state_branch_shadow_write=False,
+            state_branch_migration_stage="B",
+        )
+        defaults.update(overrides)
+        return Project(**defaults)
+
+    def _make_stage_a_project(self, **overrides) -> "Project":
+        defaults = dict(
+            id="proj-stagea",
+            name="my-repo-a",
+            repo_url="https://github.com/org/my-repo-a.git",
+            repo_path="/tmp/my-repo-a",
+            default_branch="main",
+            state_branch_enabled=True,
+            state_branch_shadow_write=True,
+            state_branch_migration_stage="A",
+        )
+        defaults.update(overrides)
+        return Project(**defaults)
+
+    def _make_legacy_project(self, **overrides) -> "Project":
+        defaults = dict(
+            id="proj-legacy",
+            name="legacy-repo",
+            repo_url="https://github.com/org/legacy.git",
+            repo_path="/tmp/legacy",
+            default_branch="main",
+        )
+        defaults.update(overrides)
+        return Project(**defaults)
+
+    # ---- to_dict() model tests ----
+
+    def test_stage_b_to_dict_includes_state_branch_name(self):
+        """Stage B to_dict() must include state_branch_name (non-null)."""
+        p = self._make_stage_b_project()
+        d = p.to_dict()
+        assert "state_branch_name" in d, (
+            "state_branch_name must be present in to_dict() for state-branch-enabled projects"
+        )
+        assert d["state_branch_name"] == "oompah/state/proj-stageb"
+
+    def test_stage_b_to_dict_shadow_write_is_false_not_absent(self):
+        """Stage B to_dict() must emit state_branch_shadow_write=False, not omit it.
+
+        Before OOMPAH-283, shadow_write was only emitted when True, so a Stage B
+        project returned null/absent — indistinguishable from a legacy project.
+        """
+        p = self._make_stage_b_project()
+        d = p.to_dict()
+        assert "state_branch_shadow_write" in d, (
+            "state_branch_shadow_write must be present in to_dict() for state-branch-enabled projects"
+        )
+        assert d["state_branch_shadow_write"] is False
+
+    def test_stage_b_to_dict_migration_stage_is_b(self):
+        """Stage B to_dict() must emit migration_stage='B'."""
+        p = self._make_stage_b_project()
+        d = p.to_dict()
+        assert "state_branch_migration_stage" in d, (
+            "state_branch_migration_stage must be present in to_dict() for state-branch-enabled projects"
+        )
+        assert d["state_branch_migration_stage"] == "B"
+
+    def test_stage_a_to_dict_shadow_write_is_true(self):
+        """Stage A to_dict() must emit state_branch_shadow_write=True."""
+        p = self._make_stage_a_project()
+        d = p.to_dict()
+        assert d.get("state_branch_shadow_write") is True
+
+    def test_stage_a_to_dict_migration_stage_is_a(self):
+        """Stage A to_dict() must emit migration_stage='A'."""
+        p = self._make_stage_a_project()
+        d = p.to_dict()
+        assert d.get("state_branch_migration_stage") == "A"
+
+    def test_stage_a_to_dict_includes_state_branch_name(self):
+        """Stage A to_dict() must include state_branch_name."""
+        p = self._make_stage_a_project()
+        d = p.to_dict()
+        assert "state_branch_name" in d
+        assert d["state_branch_name"] == "oompah/state/proj-stagea"
+
+    def test_legacy_project_to_dict_excludes_state_branch_name(self):
+        """Legacy (disabled) to_dict() must NOT include state_branch_name."""
+        p = self._make_legacy_project()
+        d = p.to_dict()
+        assert "state_branch_name" not in d, (
+            "state_branch_name must NOT appear in to_dict() for legacy projects "
+            "(backward-compatible behavior)"
+        )
+
+    def test_legacy_project_to_dict_excludes_shadow_write(self):
+        """Legacy project to_dict() must NOT include state_branch_shadow_write."""
+        p = self._make_legacy_project()
+        d = p.to_dict()
+        assert "state_branch_shadow_write" not in d
+
+    def test_legacy_project_to_dict_excludes_migration_stage(self):
+        """Legacy project to_dict() must NOT include state_branch_migration_stage."""
+        p = self._make_legacy_project()
+        d = p.to_dict()
+        assert "state_branch_migration_stage" not in d
+
+    def test_stage_b_to_safe_dict_includes_state_branch_name(self):
+        """Stage B to_safe_dict() must include state_branch_name (for API responses)."""
+        p = self._make_stage_b_project()
+        d = p.to_safe_dict()
+        assert d.get("state_branch_name") == "oompah/state/proj-stageb"
+
+    def test_stage_b_to_safe_dict_shadow_write_is_false(self):
+        """Stage B to_safe_dict() must emit shadow_write=False explicitly."""
+        p = self._make_stage_b_project()
+        d = p.to_safe_dict()
+        assert "state_branch_shadow_write" in d
+        assert d["state_branch_shadow_write"] is False
+
+    def test_stage_b_state_branch_name_matches_id(self):
+        """state_branch_name in to_dict() must be 'oompah/state/<project_id>'."""
+        for proj_id in ("proj-abc", "proj-xyz-123", "proj-14849f1b"):
+            p = _make_project(id=proj_id, state_branch_enabled=True)
+            d = p.to_dict()
+            assert d.get("state_branch_name") == f"oompah/state/{proj_id}"
+
+    # ---- HTTP GET /api/v1/projects/{id} tests ----
+
+    @pytest.fixture(autouse=True)
+    def setup_client(self, tmp_path):
+        """Set up a FastAPI TestClient with a Stage B project in the store."""
+        from fastapi.testclient import TestClient
+        from oompah.server import app
+
+        from oompah.projects import ProjectStore
+
+        store = ProjectStore(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        stage_b = self._make_stage_b_project()
+        store._projects[stage_b.id] = stage_b
+        store._save()
+
+        orch = MagicMock()
+        orch.project_store = store
+        orch._observers = []
+        orch._state_only_observers = []
+        orch._activity_observers = []
+        orch.get_snapshot.return_value = {"counts": {}, "running": {}}
+
+        import oompah.server as srv
+
+        old_orch = srv._orchestrator
+        old_watcher = srv._log_watcher_manager
+        srv._orchestrator = orch
+        srv._log_watcher_manager = None
+
+        self.client = TestClient(app)
+        self.store = store
+        yield
+
+        srv._orchestrator = old_orch
+        srv._log_watcher_manager = old_watcher
+
+    def test_http_get_project_stage_b_returns_state_branch_name(self):
+        """GET /api/v1/projects/{id} must return non-null state_branch_name for Stage B."""
+        res = self.client.get("/api/v1/projects/proj-stageb")
+        assert res.status_code == 200
+        body = res.json()
+        assert body.get("state_branch_name") == "oompah/state/proj-stageb", (
+            f"Expected non-null state_branch_name, got: {body.get('state_branch_name')!r}"
+        )
+
+    def test_http_get_project_stage_b_returns_shadow_write_false(self):
+        """GET /api/v1/projects/{id} must return shadow_write=false (not null/absent) for Stage B."""
+        res = self.client.get("/api/v1/projects/proj-stageb")
+        assert res.status_code == 200
+        body = res.json()
+        assert "state_branch_shadow_write" in body, (
+            "state_branch_shadow_write must be present in the response"
+        )
+        assert body["state_branch_shadow_write"] is False, (
+            f"Expected state_branch_shadow_write=false, got {body.get('state_branch_shadow_write')!r}"
+        )
+
+    def test_http_get_project_stage_b_returns_migration_stage_b(self):
+        """GET /api/v1/projects/{id} must return migration_stage='B' for Stage B."""
+        res = self.client.get("/api/v1/projects/proj-stageb")
+        assert res.status_code == 200
+        body = res.json()
+        assert body.get("state_branch_migration_stage") == "B"
+
+    def test_http_list_projects_includes_state_branch_name_for_stage_b(self):
+        """GET /api/v1/projects must include state_branch_name for Stage B projects."""
+        res = self.client.get("/api/v1/projects")
+        assert res.status_code == 200
+        projects = res.json()
+        stage_b_projects = [p for p in projects if p.get("id") == "proj-stageb"]
+        assert stage_b_projects, "Stage B project must appear in the list response"
+        p = stage_b_projects[0]
+        assert p.get("state_branch_name") == "oompah/state/proj-stageb", (
+            f"Expected state_branch_name in list response, got {p.get('state_branch_name')!r}"
+        )
+        assert "state_branch_shadow_write" in p
+        assert p["state_branch_shadow_write"] is False

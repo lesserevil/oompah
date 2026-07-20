@@ -341,12 +341,43 @@ class OompahMarkdownTracker:
                 "push_failures": 0,
                 "alert": null,
             }
+
+        When ``last_push_at`` is ``None`` (i.e. the checkpoint queue has not
+        flushed since startup — common immediately after bootstrap), the method
+        falls back to querying ``git log`` for the latest commit timestamp on
+        the state branch so the API reports an accurate last-checkpoint time
+        rather than ``null`` (OOMPAH-283).
         """
         if self._checkpoint_queue is None or not self.state_branch_name:
             return None
-        return self._checkpoint_queue.get_observability_dict(
+        obs = self._checkpoint_queue.get_observability_dict(
             branch=self.state_branch_name
         )
+        # Fallback: when no flush has occurred yet (e.g. right after bootstrap),
+        # read the timestamp of the latest git commit on the state branch so the
+        # API does not report "Last push: never" for a branch that was pushed.
+        if obs.get("last_push_at") is None:
+            obs = dict(obs)  # shallow copy — avoid mutating the queue's data
+            obs["last_push_at"] = self._get_state_branch_last_commit_at()
+        return obs
+
+    def _get_state_branch_last_commit_at(self) -> str | None:
+        """Return the ISO-8601 author timestamp of the latest state-branch commit.
+
+        Queries ``git log`` on the local clone (``self._root``).  Returns
+        ``None`` when the branch has no commits or the git command fails.
+        """
+        branch = self.state_branch_name
+        if not branch:
+            return None
+        try:
+            result = self._git(["log", "-1", "--format=%aI", branch], check=False)
+            if result.returncode == 0:
+                ts = result.stdout.strip()
+                return ts if ts else None
+        except Exception:
+            pass
+        return None
 
     # ------------------------------------------------------------------
     # Internal checkpoint helpers

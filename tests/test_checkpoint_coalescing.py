@@ -1199,7 +1199,12 @@ class TestCheckpointObservability:
     def test_get_checkpoint_observability_returns_dict_for_state_branch_tracker(
         self, state_repo: tuple[Path, str]
     ) -> None:
-        """get_checkpoint_observability() returns a dict with all required fields."""
+        """get_checkpoint_observability() returns a dict with all required fields.
+
+        The state_repo fixture has a bootstrap commit on the state branch.
+        Before any CheckpointQueue.flush() call, last_push_at falls back to
+        the git commit timestamp of that bootstrap commit (OOMPAH-283).
+        """
         repo, state_branch = state_repo
         tracker = _make_tracker(repo, state_branch_name=state_branch)
 
@@ -1208,8 +1213,89 @@ class TestCheckpointObservability:
         assert obs["branch"] == state_branch
         assert obs["pending_mutations"] == 0
         assert obs["push_failures"] == 0
-        assert obs["last_push_at"] is None
+        # After bootstrap a git commit exists — last_push_at must be a
+        # valid ISO-8601 timestamp, not None (OOMPAH-283 fix).
+        assert obs["last_push_at"] is not None, (
+            "last_push_at must reflect the bootstrap commit, not None"
+        )
+        from datetime import datetime
+        try:
+            datetime.fromisoformat(obs["last_push_at"].replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            pytest.fail(
+                f"last_push_at is not a valid ISO-8601 timestamp: {obs['last_push_at']!r}"
+            )
         assert obs["alert"] is None
+
+    def test_get_checkpoint_observability_last_push_at_is_none_when_no_git_commits(
+        self, tmp_path: Path
+    ) -> None:
+        """last_push_at is None when the state branch has no commits yet.
+
+        This covers the edge case where a tracker is created with a state
+        branch that exists locally but has no commits (the queue has not
+        flushed and git log returns nothing).
+        """
+        # Create a bare repo with main + an empty orphan state branch (no commits).
+        repo = tmp_path / "repo"
+        _init_git_repo(repo)
+        sb = "oompah/state/proj-nocommit"
+        _git(repo, "checkout", "--orphan", sb)
+        _git(repo, "reset", "--hard")
+        # Do NOT commit — the branch ref does not exist yet in git.
+        # Switch back to main so the tracker can start cleanly.
+        _git(repo, "checkout", "main")
+
+        # We can't create a tracker against a non-existent branch (TrackerError).
+        # Instead, verify _get_state_branch_last_commit_at() returns None when
+        # the branch does not exist.
+        tracker = OompahMarkdownTracker(
+            active_states=[OPEN],
+            terminal_states=[DONE],
+            cwd=str(repo),
+            default_branch="main",
+            git_sync=False,
+            state_branch_enabled=True,
+            state_branch_name="oompah/state/proj-nocommit",
+            state_branch_checkpoint_debounce_ms=5000,
+            state_branch_checkpoint_max_delay_ms=30000,
+        )
+        # _get_state_branch_last_commit_at must return None for a branch that
+        # has no commits (git log returns non-zero / empty output).
+        ts = tracker._get_state_branch_last_commit_at()
+        assert ts is None, (
+            f"Expected None when branch has no commits, got {ts!r}"
+        )
+
+    def test_get_checkpoint_observability_last_push_at_reflects_bootstrap_commit(
+        self, state_repo: tuple[Path, str]
+    ) -> None:
+        """last_push_at reflects the bootstrap commit immediately after startup.
+
+        Reproduces the 'Last push: never' bug (OOMPAH-283): right after
+        state-branch bootstrap the CheckpointQueue has never flushed, so
+        _last_push_at is None.  The fix makes get_checkpoint_observability()
+        fall back to the latest git commit on the state branch.
+        """
+        repo, state_branch = state_repo
+        # Record the bootstrap commit timestamp directly from git.
+        result = _git(repo, "log", "-1", "--format=%aI", state_branch)
+        bootstrap_ts = result.stdout.strip()
+        assert bootstrap_ts, "state_repo fixture must have a bootstrap commit"
+
+        # Tracker starts fresh — queue has never flushed.
+        tracker = _make_tracker(repo, state_branch_name=state_branch)
+        assert tracker.checkpoint_last_push_at is None, (
+            "In-memory last_push_at must still be None (queue has not flushed)"
+        )
+
+        obs = tracker.get_checkpoint_observability()
+        assert obs is not None
+        # Must report the bootstrap commit time, not None.
+        assert obs["last_push_at"] == bootstrap_ts, (
+            f"Expected bootstrap timestamp {bootstrap_ts!r}, "
+            f"got {obs['last_push_at']!r}"
+        )
 
     def test_observability_alert_set_after_push_failure(self) -> None:
         """get_checkpoint_observability() alert field is set after push failure."""

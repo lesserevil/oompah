@@ -584,12 +584,24 @@ class Project:
             d["state_branch_checkpoint_max_delay_ms"] = (
                 self.state_branch_checkpoint_max_delay_ms
             )
-        # Shadow-write and migration stage (OOMPAH-259).
-        # Only emit when non-default to keep legacy records compact.
-        if self.state_branch_shadow_write:
-            d["state_branch_shadow_write"] = True
-        if self.state_branch_migration_stage:
+        # Shadow-write, migration stage, and computed branch name (OOMPAH-283).
+        # When state_branch_enabled=True, always emit these fields so API
+        # consumers (dashboard, CLI) can identify the active branch and its
+        # current migration stage without deriving names themselves.  At
+        # Stage B shadow_write=False must appear explicitly so consumers
+        # can distinguish "disabled" from "absent/unknown" (OOMPAH-253).
+        # When state_branch_enabled=False, keep legacy records compact by
+        # omitting the fields (backward-compatible behavior).
+        if self.state_branch_enabled:
+            d["state_branch_name"] = self.state_branch_name
+            d["state_branch_shadow_write"] = self.state_branch_shadow_write
             d["state_branch_migration_stage"] = self.state_branch_migration_stage
+        else:
+            # Legacy / disabled: only emit when non-default to stay compact.
+            if self.state_branch_shadow_write:
+                d["state_branch_shadow_write"] = True
+            if self.state_branch_migration_stage:
+                d["state_branch_migration_stage"] = self.state_branch_migration_stage
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
