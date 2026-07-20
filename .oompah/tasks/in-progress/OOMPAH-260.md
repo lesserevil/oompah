@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-260
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Validate state-branch workflow end to end and publish migration readiness guide
 parent: OOMPAH-253
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:30:27.106890Z'
-updated_at: '2026-07-20T16:31:31.593967Z'
+updated_at: '2026-07-20T21:02:16.203442Z'
 work_branch: null
 target_branch: null
 review_url: null
