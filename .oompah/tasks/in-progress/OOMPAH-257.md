@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:39.587340Z'
-updated_at: '2026-07-20T19:11:45.045804Z'
+updated_at: '2026-07-20T20:07:01.720715Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -204,5 +204,16 @@ author: oompah
 created: 2026-07-20 19:11
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-20 20:07
+---
+Understanding: Continuing as Test Engineer. Previous agent wrote checkpoint_queue.py and test_checkpoint_coalescing.py but the session terminated before fixing the tests. I found two bugs:
+
+1. _commit_and_push() in oompah_md_tracker.py returns early when git_sync=False (before calling _checkpoint_queue.schedule()), so pending_mutations is always 0 in tests — causing ~25 test failures.
+
+2. CheckpointQueue uses threading.Lock() (non-reentrant). Tests with fire_immediately=True cause a deadlock: schedule() holds the lock, fires a timer synchronously, which calls flush() which tries to acquire the same lock → deadlock. Fix: use threading.RLock().
+
+Next: apply both fixes and verify all 59 tests pass.
 ---
 <!-- COMMENTS:END -->
