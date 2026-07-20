@@ -317,6 +317,30 @@ class TestSeedingFromMain:
         assert "PROJ-1" in r.stdout
         assert "Sample Task" in r.stdout
 
+    def test_unicode_task_content_is_preserved_after_seeding(
+        self, repo_with_tasks: Path
+    ):
+        """Bootstrap must treat git-archive output as bytes, not Latin-1 text."""
+        task_file = repo_with_tasks / ".oompah" / "tasks" / "open" / "PROJ-1.md"
+        task_file.write_text(
+            task_file.read_text(encoding="utf-8") + "\nUnicode punctuation — preserved.\n",
+            encoding="utf-8",
+        )
+        _git("add", ".oompah/tasks/open/PROJ-1.md", cwd=str(repo_with_tasks))
+        _git("commit", "-m", "add unicode task content", cwd=str(repo_with_tasks))
+
+        project_id = "proj-unicode-seed"
+        branch = f"oompah/state/{project_id}"
+        result = initialize_state_branch(repo_with_tasks, project_id, push=False)
+
+        assert result.error == ""
+        r = _git(
+            "show",
+            f"{branch}:.oompah/tasks/open/PROJ-1.md",
+            cwd=str(repo_with_tasks),
+        )
+        assert "Unicode punctuation — preserved." in r.stdout
+
 
 # ---------------------------------------------------------------------------
 # § 5 — Idempotency: rerunning bootstrap leaves existing data intact
