@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-255
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Add per-project state-branch configuration and validation
 parent: OOMPAH-253
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-20T16:29:19.457116Z'
-updated_at: '2026-07-20T16:51:58.051510Z'
+updated_at: '2026-07-20T16:52:59.734315Z'
 work_branch: null
 target_branch: null
 review_url: null
