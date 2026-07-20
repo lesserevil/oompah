@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:29.498883Z'
-updated_at: '2026-07-20T18:00:49.583907Z'
+updated_at: '2026-07-20T18:04:37.563572Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -175,5 +175,43 @@ Implementation: Created tests/test_oompah_md_tracker_state_branch.py with 28 tes
 §6 Acceptance criteria - direct tests for AC1/AC2/AC3
 
 All 19 xfailed tests use dynamic xfail detection (inspect.signature) so they auto-convert to PASSED once the feature agent adds state_branch_enabled/state_branch_name params to OompahMarkdownTracker.__init__ and implements routing logic.
+---
+author: oompah
+created: 2026-07-20 18:04
+---
+Focus handoff: test
+
+**Outcome:** Test suite complete. Created tests/test_oompah_md_tracker_state_branch.py (1358 lines, 28 tests) covering all OOMPAH-256 acceptance criteria contracts.
+
+**Test results:** 8 passed | 1 skipped | 19 xfailed | 0 failures. Full suite: make test passes (9540 passed).
+
+**Files and commands:**
+- New file: tests/test_oompah_md_tracker_state_branch.py
+- Run with: python -m pytest tests/test_oompah_md_tracker_state_branch.py -v
+- The 19 xfailed tests auto-convert to PASSED once the feature agent adds state_branch_enabled/state_branch_name params to OompahMarkdownTracker.__init__
+
+**What was written:**
+- §2 Integration: 8 tests verifying task writes go only to state branch, main unchanged byte-for-byte, reads from state branch only, shared checkout not switched to state branch
+- §3 Legacy: 5 tests (all passing now) verifying no regression in default-branch behavior
+- §4 Failure handling: 5 tests for missing branch, auth failure, non-fast-forward push recovery (rebase+retry), catastrophic failure (raises TrackerError, aborts rebase, no reset --hard), fetch failure
+- §5 Concurrency: 2 tests for simultaneous tracker write + code fetch, and multiple concurrent writes
+- §6 Orchestrator wiring: 5 tests (3 passing now for model layer, 2 xfail for factory call contract)
+- §7 Acceptance criteria: 3 direct AC tests mapping to AC1/AC2/AC3
+
+**Detection mechanism:** Uses inspect.signature to dynamically detect if OompahMarkdownTracker accepts state_branch_enabled. xfail markers are strict=False so they don't block CI.
+
+**Remaining work (for feature agent):**
+1. Add state_branch_enabled: bool = False and state_branch_name: str | None = None params to OompahMarkdownTracker.__init__ in oompah/oompah_md_tracker.py
+2. Implement routing: when enabled, all reads/writes use a dedicated git worktree or git-branch-scoped access on oompah/state/<project-id>
+3. Override _prepare_default_branch_for_write and _commit_and_push to target the state branch
+4. Update orchestrator._new_tracker_for_project() to pass state_branch_enabled=project.state_branch_enabled and state_branch_name=project.state_branch_name for oompah_md projects
+5. Implement missing-branch detection (no auto-create, raise actionable error)
+6. Implement non-fast-forward push recovery (fetch + rebase + retry, never reset --hard)
+
+**Risks:**
+- Worktree isolation: the implementation must use a dedicated git worktree (not checkout) so the shared code worktree stays on main. Tests verify this via test_state_branch_worktree_does_not_switch_main_checkout.
+- Concurrency: _write_lock is already an RLock; the state-branch worktree operations need to be covered by the same lock.
+
+**Recommended next focus:** feature
 ---
 <!-- COMMENTS:END -->
