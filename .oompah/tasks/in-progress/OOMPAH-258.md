@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-258
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Configure Git state branches in project-bootstrap and operator documentation
 parent: OOMPAH-253
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:48.958577Z'
-updated_at: '2026-07-20T20:16:54.113462Z'
+updated_at: '2026-07-20T20:17:04.973827Z'
 work_branch: null
 target_branch: null
 review_url: null
