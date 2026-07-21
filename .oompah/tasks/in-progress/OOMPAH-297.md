@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:07.528667Z'
-updated_at: '2026-07-21T22:38:53.564067Z'
+updated_at: '2026-07-21T22:48:54.902818Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -237,5 +237,10 @@ author: oompah
 created: 2026-07-21 22:38
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 22:48
+---
+Understanding: Three of five tests in test_repo_map_generator.py fail due to two bugs: (1) the _map_for helper uses the stale RepoMap schema — SymbolTag now requires file_path, RepoMap has symbol_tags/relationship_edges not symbols/edges, RenderingMetadata requires total_files/total_symbols/total_edges; (2) the generator commits maps locally but never pushes to origin, while the integration tests verify the remote. Fix plan: patch _map_for to match current schema, update _generate_task to (a) prune before committing so removals land in the same commit, (b) push to origin after each commit.
 ---
 <!-- COMMENTS:END -->
