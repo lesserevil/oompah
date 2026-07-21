@@ -5,13 +5,14 @@ status: In Progress
 priority: 1
 title: Keep shared-epic child work and merge state on the epic branch
 parent: null
-children: []
+children:
+- OOMPAH-308
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:57.025790Z'
-updated_at: '2026-07-21T16:52:41.530150Z'
+updated_at: '2026-07-21T16:52:58.220072Z'
 work_branch: null
 target_branch: null
 review_url: null
