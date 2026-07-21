@@ -11,7 +11,7 @@ labels:
 - release-ci-failure
 assignee: null
 created_at: '2026-07-21T22:22:50.075291Z'
-updated_at: '2026-07-21T22:26:49.833664Z'
+updated_at: '2026-07-21T22:27:36.632484Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-07-21 22:26
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-21 22:27
+---
+Understanding: This task requires that release-delivery CI failures create actionable native tasks in the affected project (with ci-fix routing and acceptance criteria), and that stale remediation records pointing to unrelated external issues are replaced by project-local tasks. PR #485 'Route release CI remediation to project tasks' was just merged to main. I need to verify CI is green after the merge, and fix any failures if they exist.
 ---
 <!-- COMMENTS:END -->
