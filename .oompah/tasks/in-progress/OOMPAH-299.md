@@ -8,10 +8,11 @@ parent: OOMPAH-293
 children: []
 blocked_by:
 - OOMPAH-297
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:09.575764Z'
-updated_at: '2026-07-21T23:02:43.088308Z'
+updated_at: '2026-07-21T23:03:07.236208Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,5 +61,40 @@ Closest reviewed tasks (all confirmed distinct):
 No existing task covers: OOMPAH_REPO_MAP_* environment variable definitions, env.example repo-map section, bootstrap defaults for repo-map capability, or operator documentation for activation, freshness, diagnostics, privacy/trust boundaries, and rebuild procedures.
 
 OOMPAH-299 is net-new work.
+---
+author: oompah
+created: 2026-07-21 23:03
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: No duplicate confirmed. OOMPAH-299 is net-new work — the configuration, bootstrap-defaults, and operator-documentation layer for the repository-map feature (OOMPAH-293 epic).
+
+2. **Relevant files, commands, and evidence**:
+   - `oompah/repo_map.py` — artifact schema, write/read helpers, freshness check, pruning. Implemented by OOMPAH-294.
+   - `oompah/repo_indexer.py` — Tree-sitter extraction. Implemented by OOMPAH-295.
+   - `oompah/repo_map_ranker.py` — rank_symbols(), render_repo_map(), token budget enforced at render time. Implemented by OOMPAH-296.
+   - `oompah/repo_map_generator.py` — generation/maintenance orchestrator, bounded background thread pool, coalescing, state-branch commit+push, pruning. Implemented by OOMPAH-297.
+   - `oompah/project_bootstrap/__init__.py` — has initialize_state_branch() from OOMPAH-258; does NOT yet have repo-map bootstrap defaults.
+   - `.env.example` — check whether OOMPAH_REPO_MAP_* variables exist yet (expected: they do not).
+   - `plans/repo-map-artifact.md` — schema and lifecycle design doc; does not define env-var configuration.
+   - `plans/state-branch-design.md` — state-branch namespace; useful for repo-map state-branch paths.
+   - `docs/project-bootstrap.md` — updated by OOMPAH-258 with state-branch section; no repo-map section yet.
+   - `make test` — runs uv run pytest tests/
+
+3. **Remaining work**:
+   - Add `OOMPAH_REPO_MAP_ENABLED`, `OOMPAH_REPO_MAP_TOKEN_BUDGET`, `OOMPAH_REPO_MAP_LANGUAGES`, `OOMPAH_REPO_MAP_MAX_FILE_SIZE`, `OOMPAH_REPO_MAP_GENERATION_TIMEOUT`, `OOMPAH_REPO_MAP_RETAINED_ARTIFACTS` environment variables and safe defaults in oompah config module.
+   - Document all settings with examples and valid ranges in `.env.example`.
+   - Update project-bootstrap so new managed projects have repo-map capability configured (state-branch already exists from OOMPAH-258; add repo-map enable flag and defaults to bootstrap output).
+   - Write user/operator documentation in `docs/` covering: activation, freshness behavior, diagnostics, privacy/trust boundaries (untrusted data constraint), and how to disable or rebuild a map.
+   - Tests: config parsing (defaults, valid overrides, invalid values, disabled mode), bootstrap tests (verify generated project config enables the feature only under documented conditions), documentation fixture test (every env var in code appears in .env.example).
+   - All tests pass via `make test`.
+
+4. **Risks**:
+   - The token budget is currently enforced inside `render_repo_map()` in `oompah/repo_map_ranker.py` — the new config system should feed into this function's `max_tokens` parameter.
+   - Language policy should map cleanly to the `supported_extensions` / Tree-sitter language detection in `oompah/repo_indexer.py`.
+   - Bootstrap changes must be idempotent (consistent with OOMPAH-258 pattern).
+   - The description explicitly says: do NOT add config values to WORKFLOW.md — use `.env` / `.env.example` only.
+
+5. **Recommended next focus**: feature
 ---
 <!-- COMMENTS:END -->
