@@ -7,11 +7,13 @@ title: 'Regression tests: OOMPAH-285/286 routing fixture and native shared-epic 
   lifecycle'
 parent: OOMPAH-307
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-308
+- OOMPAH-309
 labels: []
 assignee: null
 created_at: '2026-07-21T16:54:41.720887Z'
-updated_at: '2026-07-21T16:54:41.720887Z'
+updated_at: '2026-07-21T16:55:01.236847Z'
 work_branch: null
 target_branch: null
 review_url: null

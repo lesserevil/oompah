@@ -7,11 +7,12 @@ title: 'UI/dashboard: show child completion status in epic branch context (Done 
   branch vs Merged to target)'
 parent: OOMPAH-307
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-310
 labels: []
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-21T16:54:16.661153Z'
+updated_at: '2026-07-21T16:54:57.442507Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -13,7 +13,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T16:51:14.468680Z'
+updated_at: '2026-07-21T16:55:00.511888Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -255,5 +255,10 @@ author: oompah
 created: 2026-07-21 16:51
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 16:55
+---
+Understanding (Test Engineer): The test file tests/test_repo_map_ranker.py already exists with comprehensive tests for rank_symbols() and render_repo_map(). The implementation file oompah/repo_map_ranker.py is missing — causing a ModuleNotFoundError. My job is to create the implementation to make all tests pass. Tests cover: (1) referenced symbols outranking isolated ones, (2) task-mention and seed-file boosts, (3) deterministic tie-breaking by path+line, (4) token-budget enforcement, (5) ValueError on non-positive budget, (6) readable output without edges, (7) HTML-escaping of untrusted paths/names with UNTRUSTED label. Implementing now.
 ---
 <!-- COMMENTS:END -->

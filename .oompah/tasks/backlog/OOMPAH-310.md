@@ -6,11 +6,13 @@ priority: null
 title: Verify and harden epic-merge-triggered Merged promotion for shared-epic children
 parent: OOMPAH-307
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-308
+- OOMPAH-309
 labels: []
 assignee: null
 created_at: '2026-07-21T16:53:34.544944Z'
-updated_at: '2026-07-21T16:53:34.544944Z'
+updated_at: '2026-07-21T16:54:54.028349Z'
 work_branch: null
 target_branch: null
 review_url: null
