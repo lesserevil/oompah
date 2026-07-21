@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T18:14:54.754636Z'
+updated_at: '2026-07-21T18:14:57.120407Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -318,5 +318,10 @@ author: oompah
 created: 2026-07-21 18:14
 ---
 Verification: All 9980 tests pass (36 skipped, 11 pre-existing async warnings). The commit 8c9547c is already on origin/OOMPAH-305. Work is complete and ready for review/merge.
+---
+author: oompah
+created: 2026-07-21 18:14
+---
+Fixed dashboard/API displaying Merged for canonical-Backlog tasks. Added null-evidence guard (_effective_display_status + _issue_dashboard_state): any task showing Merged without merged_at/work_branch/review_url is reverted to Backlog in all display paths. Added last_checkpoint_at on OompahMarkdownTracker + _any_tracker_checkpoint_newer_than() in server.py to force snapshot refresh when a state-branch checkpoint advances, eliminating the 60-second stale window. Added merged_at field on Issue model extracted from tracker frontmatter, exposed in board and detail API responses. Added #tracker-stale-banner in dashboard shown when X-Oompah-Issues-Stale: true, cleared on WS push. 29 new regression tests in tests/test_dashboard_tracker_state_reconciliation.py. Full suite: 9980 passed.
 ---
 <!-- COMMENTS:END -->
