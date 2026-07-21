@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-291
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Add prompt-injection regression suite, observability, and operator guidance
 parent: OOMPAH-285
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:57.738049Z'
-updated_at: '2026-07-21T23:39:12.759725Z'
+updated_at: '2026-07-21T23:58:57.417428Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -174,5 +174,32 @@ Understanding: As Security Auditor, implementing the three remaining deliverable
 3. **Operator guidance docs** — docs/prompt-injection-security.md: security model summary, safe intake configuration, monitoring (audit log filters), and incident response playbook.
 
 Blocking tasks OOMPAH-288/289/290 are already merged into this branch. All 10858 tests pass.
+---
+author: oompah
+created: 2026-07-21 23:58
+---
+Implementation complete. Three deliverables shipped on branch epic-OOMPAH-285:
+
+**1. Structured audit events (oompah/provenance.py)**
+Added UNTRUSTED_RENDER: INFO log events to wrap_untrusted() — emits component, source, trust level, issue identifier, and content byte length. Content itself is never logged (no secret exposure). Mirrors AUTHORITY_DENY: pattern from authority_boundary.py.
+
+**2. E2E adversarial regression suite (tests/test_prompt_injection_e2e.py)**
+186 tests across 7 test classes, parametrized over 12 adversarial payload categories:
+- TestIntakeBridgeAdversarialFixtures: intake bridge handles malicious GitHub issue bodies/comments
+- TestPromptRendererAdversarialFixtures: render_prompt() wraps all adversarial content in delimiters with SAFETY_INSTRUCTION
+- TestFocusTriageAdversarialFixtures: _build_triage_prompt() wraps issue data, closing-delimiter escape is blocked
+- TestCommentDeliveryAdversarialFixtures: _deliver_github_comment_to_agent() wraps mid-turn comments
+- TestAuthorityBoundaryAdversarialFixtures: external tasks denied all 7 ProtectedActions regardless of context
+- TestAuditEventEmission: UNTRUSTED_RENDER: and AUTHORITY_DENY: events verified; content not in logs
+- TestFullPipelineIntegration: complete adversarial flow from intake through all pipeline stages
+
+**3. Operator guidance docs (docs/prompt-injection-security.md)**
+- Trust model summary with Mermaid pipeline diagram
+- Safe intake configuration (opt-in, auto-promote=false, budget cap, protected-action grants)
+- Monitoring guide: UNTRUSTED_RENDER: and AUTHORITY_DENY: log filters, alert thresholds
+- Incident response playbook: pause → identify → review → assess blast radius → remediate
+- Operator security checklist
+
+**Verification**: All 11,044 tests pass (make test).
 ---
 <!-- COMMENTS:END -->
