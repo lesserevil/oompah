@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:13:18.050447Z'
+updated_at: '2026-07-21T17:13:27.901894Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -18,13 +18,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 17d210e7-cdd1-4588-a409-133f9c79ebae
 oompah.task_costs:
-  total_input_tokens: 108
-  total_output_tokens: 49805
+  total_input_tokens: 123
+  total_output_tokens: 50121
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 108
-      output_tokens: 49805
+      input_tokens: 123
+      output_tokens: 50121
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -33,6 +33,12 @@ oompah.task_costs:
     output_tokens: 49805
     cost_usd: 0.0
     recorded_at: '2026-07-21T17:10:55.078183+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 15
+    output_tokens: 316
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T17:13:26.502102+00:00'
 ---
 ## Summary
 
@@ -144,5 +150,20 @@ author: oompah
 created: 2026-07-21 17:13
 ---
 Landing verified: branch OOMPAH-304 is clean, commit 2a696ded2 ('Make Release Delivery show live delivery status consistently') is pushed to origin. All implementation work from the previous agent run is committed and in sync. Closing task.
+---
+author: oompah
+created: 2026-07-21 17:13
+---
+Fixed Release Delivery live status: backend cache invalidation after executor/PR-poll runs + frontend PR links, 30s auto-refresh poll, and stale-cache pending hint. 9989 tests pass. Branch committed and pushed to origin.
+---
+author: oompah
+created: 2026-07-21 17:13
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 6
+- Tokens: 15 in / 316 out [331 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 52s
+- Log: OOMPAH-304__20260721T171235Z.jsonl
 ---
 <!-- COMMENTS:END -->
