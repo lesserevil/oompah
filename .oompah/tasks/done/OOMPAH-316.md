@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-316
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: '[backend:server] Fetch issues failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -15,7 +15,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T20:49:33.368119Z'
+updated_at: '2026-07-21T20:49:44.831787Z'
 work_branch: OOMPAH-316
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/478
@@ -545,5 +545,10 @@ author: oompah
 created: 2026-07-21 20:49
 ---
 Understanding: The fix was already implemented and merged by previous agents (PR #478, commit 291dddacd on main). The worktree is clean with no uncommitted changes. I need to close the task to complete the lifecycle.
+---
+author: oompah
+created: 2026-07-21 20:49
+---
+Completion: StateBranchMissingError graceful degradation fix is merged to main (PR #478, commit 291dddacd). Changes delivered: (1) StateBranchMissingError added to oompah/tracker.py as TrackerError subclass; (2) oompah/oompah_md_tracker.py raises StateBranchMissingError for missing bootstrap branch instead of generic TrackerError; (3) oompah/server.py _fetch_all_issues catches StateBranchMissingError at WARNING level (not ERROR) so error_watcher is not triggered; (4) 2 regression tests added. All 47 tests pass. The error_watcher will no longer auto-file tasks when a project has state_branch_enabled=True but the branch has never been bootstrapped.
 ---
 <!-- COMMENTS:END -->
