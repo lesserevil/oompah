@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs:frontend
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T16:20:03.352434Z'
+updated_at: '2026-07-21T16:22:48.841061Z'
 work_branch: null
 target_branch: null
 review_url: null
