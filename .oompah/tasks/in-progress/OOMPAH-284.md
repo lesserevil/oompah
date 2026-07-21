@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-284
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fix Release Delivery task associations and metadata-only filtering
 parent: null
@@ -10,12 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T03:38:39.097123Z'
-updated_at: '2026-07-21T03:41:33.096937Z'
+updated_at: '2026-07-21T03:41:52.335937Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: c4697c39-b6e1-4671-85b2-9474f3630ff4
 ---
 ## Summary
 
@@ -27,3 +28,16 @@ Bug: Trickle release/0.11 Release Delivery shows no needs-delivery task rows des
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 03:41
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 03:41
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
