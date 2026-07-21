@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T18:00:10.906459Z'
+updated_at: '2026-07-21T18:06:06.172512Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -312,5 +312,15 @@ author: oompah
 created: 2026-07-21 18:00
 ---
 Discovery: Root cause confirmed. git -C /home/shedwards/.oompah/repos/oompah status --porcelain returns ' M AGENTS.md', so the unpushed gate detects has_uncommitted=True. The OOMPAH-306 worktree itself is clean (git status in OOMPAH-306 worktree shows nothing to commit). The bug is in unpushed_gate._check_unpushed: it uses repo_path for the git status check, but repo_path is the main clone which can have unrelated dirty state. Fix: use the branch worktree path for the status check when it exists.
+---
+author: oompah
+created: 2026-07-21 18:06
+---
+Implementation: Fixed unpushed_gate.py to check git status --porcelain in the branch's dedicated worktree, not the main clone.\n\nRoot cause: _check_unpushed ran git status --porcelain with cwd=repo_path (the main clone at /home/shedwards/.oompah/repos/oompah). That clone had AGENTS.md modified (unrelated work), so has_uncommitted was True for every task, blocking completion.\n\nFix:\n- Added worktree_path: str = '' parameter to _check_unpushed and check_unpushed_gate\n- When worktree_path exists as a directory, git status runs there; otherwise falls back to repo_path\n- Orchestrator._run_unpushed_gate now resolves the worktree via project_store.worktree_path_for(project_id, entry.identifier) and passes it through\n\nFiles changed:\n- oompah/unpushed_gate.py: added os import, worktree_path parameter, status_cwd logic\n- oompah/orchestrator.py: worktree_path resolution and forwarding\n- tests/test_unpushed_gate.py: 5 new regression tests (TestWorktreePathStatusCheck), updated test_work_branch_preferred assertion
+---
+author: oompah
+created: 2026-07-21 18:06
+---
+Verification: make test passed — 10003 passed, 36 skipped, 0 failed (5 more than before due to new regression tests). All 28 tests in test_unpushed_gate.py pass including the 5 new TestWorktreePathStatusCheck tests. Branch pushed to origin/OOMPAH-306 (commit 832302193). Worktree is clean.
 ---
 <!-- COMMENTS:END -->
