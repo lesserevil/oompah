@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-205
 type: bug
-status: Merged
+status: Archived
 priority: 2
 title: Avoid full dashboard board rebuilds for unchanged issue snapshots
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-13T20:05:14.303298Z'
-updated_at: '2026-07-14T00:24:21.026968Z'
+updated_at: '2026-07-21T01:20:57.308141Z'
 work_branch: OOMPAH-205
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/417
