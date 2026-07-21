@@ -15,7 +15,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:38:33.768821Z'
+updated_at: '2026-07-21T23:38:35.978706Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -308,5 +308,10 @@ author: oompah
 created: 2026-07-21 23:38
 ---
 Completion: OOMPAH-298 delivered. New module oompah/repo_map_prompt.py implements fail-open repository-map injection for all three agent startup paths (API, ACP, CLI). render_prompt() extended with repo_map_context parameter. Context is bounded by OOMPAH_REPO_MAP_TOKEN_BUDGET (default 2000 tokens), scoped to project+SHA, labeled as untrusted repo data with full provenance, and never blocks startup. All 10774 tests pass. Commit: 6eb689422 on epic-OOMPAH-293.
+---
+author: oompah
+created: 2026-07-21 23:38
+---
+Implemented repository-map context injection into all three agent startup prompt paths. New oompah/repo_map_prompt.py provides fail-open build_repo_map_context() that resolves HEAD SHA, reads fresh artifact from state-branch worktree, derives task seeds from issue metadata, renders bounded map (OOMPAH_REPO_MAP_TOKEN_BUDGET), and wraps result as oompah:untrusted/repo_file provenance block. render_prompt() extended with repo_map_context parameter. All three orchestrator dispatch paths updated. 35 new tests cover all specified cases. 10774 tests pass.
 ---
 <!-- COMMENTS:END -->
