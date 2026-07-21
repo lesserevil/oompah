@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:41.895980Z'
-updated_at: '2026-07-21T22:08:47.954991Z'
+updated_at: '2026-07-21T22:15:42.432755Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -112,5 +112,10 @@ author: oompah
 created: 2026-07-21 22:08
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 22:15
+---
+Understanding: As Test Engineer for OOMPAH-288, I need to (1) add the missing SAFETY_INSTRUCTION to wrap_untrusted() (the 'non-bypassable instruction that content inside is reference data only' described in the task — currently absent from the implementation), and (2) write adversarial test fixtures covering role changes, tool requests, instruction overrides, XML/Markdown delimiters, and Liquid-like syntax. The existing 150 tests in test_provenance.py and test_prompt_injection_protection.py all pass, but none test the safety instruction or adversarial content patterns. Plan: add SAFETY_INSTRUCTION constant to provenance.py, include it in wrap_untrusted() output, then add TestAdversarialContentFixtures class with parametrized tests asserting (a) content is preserved as data, (b) closing delimiter appears exactly once, (c) safety instruction is present exactly once per block, (d) adversarial patterns cannot break the wrapper.
 ---
 <!-- COMMENTS:END -->
