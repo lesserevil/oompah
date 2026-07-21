@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-316
 type: bug
-status: In Review
+status: Merged
 priority: 2
 title: '[backend:server] Fetch issues failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -15,7 +15,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T20:44:31.476806Z'
+updated_at: '2026-07-21T20:44:51.628080Z'
 work_branch: OOMPAH-316
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/478
@@ -420,5 +420,15 @@ author: oompah
 created: 2026-07-21 20:43
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-21 20:44
+---
+Understanding: Previous agents completed the implementation and pushed the fix to OOMPAH-316 branch (commit 291dddacd). The branch was up to date with origin but lacked a GitHub PR — which caused the review handoff to fail. My task is to create the PR and close this task.
+---
+author: oompah
+created: 2026-07-21 20:44
+---
+Completion: The fix was already implemented by previous agents. Created GitHub PR #478 (https://github.com/lesserevil/oompah/pull/478) for branch OOMPAH-316. Changes: (1) StateBranchMissingError added to tracker.py as TrackerError subclass; (2) oompah_md_tracker.py raises StateBranchMissingError for missing bootstrap branch; (3) server.py _fetch_all_issues catches StateBranchMissingError at WARNING level (not ERROR) so error_watcher is not triggered; (4) 2 regression tests added. 47 tests passing.
 ---
 <!-- COMMENTS:END -->
