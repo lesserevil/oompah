@@ -15,7 +15,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T19:23:54.059715Z'
+updated_at: '2026-07-21T19:26:21.231320Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -336,5 +336,15 @@ author: oompah
 created: 2026-07-21 19:23
 ---
 Understanding: Previous agent implemented the fix but couldn't commit due to a git permissions issue in their sandbox. Starting fresh. Plan: (1) Add StateBranchMissingError to tracker.py as a TrackerError subclass, (2) raise it in oompah_md_tracker.py instead of generic TrackerError for missing bootstrap branch, (3) handle it in server.py at WARNING level instead of ERROR, (4) add regression tests, (5) commit and push.
+---
+author: oompah
+created: 2026-07-21 19:26
+---
+Implementation: Added StateBranchMissingError (subclass of TrackerError) to oompah/tracker.py. Updated oompah/oompah_md_tracker.py to raise StateBranchMissingError instead of generic TrackerError when the state branch does not exist. Updated oompah/server.py _fetch_all_issues to catch StateBranchMissingError first and log at WARNING level (not ERROR), so error_watcher is not triggered. All other TrackerError/ProjectError subtypes continue to log at ERROR. Added 2 regression tests to tests/test_server_issue_snapshot.py: one verifying WARNING-only for StateBranchMissingError, one verifying ERROR retained for generic TrackerError.
+---
+author: oompah
+created: 2026-07-21 19:26
+---
+Verification: All 19 tests in test_server_issue_snapshot.py pass (17 existing + 2 new regression). All 28 tests in test_oompah_md_tracker_state_branch.py pass. Total: 47 passed.
 ---
 <!-- COMMENTS:END -->
