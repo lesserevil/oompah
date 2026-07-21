@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-317
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Restore git write access for OOMPAH-316 landing
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T19:04:51.954483Z'
-updated_at: '2026-07-21T19:04:51.954483Z'
+updated_at: '2026-07-21T19:07:07.102522Z'
 work_branch: null
 target_branch: null
 review_url: null
