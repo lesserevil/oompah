@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-317
 type: task
-status: Needs CI Fix
+status: Merged
 priority: 0
 title: Restore git write access for OOMPAH-316 landing
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T19:04:51.954483Z'
-updated_at: '2026-07-21T21:13:41.625956Z'
+updated_at: '2026-07-21T21:20:39.583903Z'
 work_branch: OOMPAH-317
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/477
