@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T20:59:27.535782Z'
-updated_at: '2026-07-21T21:02:19.716254Z'
+updated_at: '2026-07-21T21:03:37.671631Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -92,5 +92,10 @@ author: oompah
 created: 2026-07-21 21:02
 ---
 Understanding: OOMPAH-330 asks to rebase epic-OOMPAH-293 onto origin/main and force-push. Duplicate screening found no existing task covering this same rebase. Closest task is OOMPAH-267 (bug fix, Needs Rebase status) but that is a different PR and different work. OOMPAH-330 is not a duplicate. Proceeding to perform the rebase directly since this is a straightforward git operation and I am on the epic-OOMPAH-293 branch already.
+---
+author: oompah
+created: 2026-07-21 21:03
+---
+Discovery: Epic branch has 5 commits ahead of merge base: OOMPAH-294 (repo-map artifact, all new files), OOMPAH-286 (prompt-injection doc, all new files - same commit exists on main so will be skipped in rebase), OOMPAH-295 (tree-sitter indexer, adds pyproject.toml/uv.lock deps + new files), OOMPAH-296 (repo-map ranker, all new files). Main has OOMPAH-314 and OOMPAH-316 that touch orchestrator.py, server.py, tracker.py, oompah_md_tracker.py - no overlap with epic's changes. Rebase should be clean or have minor conflicts only in pyproject.toml/uv.lock. Proceeding with rebase.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-332
 type: task
-status: Open
+status: In Progress
 priority: 0
 title: 'YOLO task-PR coherence break on oompah/468: merge-conflict recovery task missing
   or stale'
@@ -12,16 +12,15 @@ labels:
 - needs-human
 - yolo-watchdog
 - focus-complete:duplicate_detector
-- needs:merge_conflict
 assignee: null
 created_at: '2026-07-21T21:01:56.725203Z'
-updated_at: '2026-07-21T21:03:13.407847Z'
+updated_at: '2026-07-21T21:03:42.793039Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 95522545-bcd1-4c15-81a8-dbdcc6a2bded
+oompah.agent_run_id: c15a9c56-f588-439a-9e9d-fe289b1a6458
 oompah.task_costs:
   total_input_tokens: 243636
   total_output_tokens: 1579
@@ -179,5 +178,15 @@ author: oompah
 created: 2026-07-21 21:03
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-21 21:03
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-21 21:03
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
