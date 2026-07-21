@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-20T22:43:02.333472Z'
-updated_at: '2026-07-21T04:09:44.834587Z'
+updated_at: '2026-07-21T04:16:52.118459Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,8 +25,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/459
   requestor_login: lesserevil
   imported_comment_ids: []
-  last_synced_status: Done
-  last_synced_at: '2026-07-20T23:28:29.025453+00:00'
+  last_synced_status: Merged
+  last_synced_at: '2026-07-21T04:16:51.428699+00:00'
   last_github_state: closed
 oompah.intake:
   missing_fields: []
