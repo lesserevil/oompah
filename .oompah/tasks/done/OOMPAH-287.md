@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-287
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Add provenance metadata for external content entering Oompah
 parent: OOMPAH-285
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T16:39:25.263965Z'
+updated_at: '2026-07-21T16:39:40.948153Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -162,5 +162,24 @@ author: oompah
 created: 2026-07-21 16:39
 ---
 Verification: make test passed with 10072 tests (9951 existing + 121 new). All existing tests continue to pass — backward compatibility is preserved. New tests cover: 16 test categories including enums, trust assignments, renderability, default-deny, make_provenance factory, escape_content security defense, wrap_untrusted (with ValueError on deny), serialization round-trips, native legacy compat, and integration tests for render_prompt / build_continuation_prompt / _build_triage_prompt / _deliver_github_comment_to_agent. Branch epic-OOMPAH-285 pushed to origin.
+---
+author: oompah
+created: 2026-07-21 16:39
+---
+Completion: Delivered full provenance metadata implementation for OOMPAH-287.
+
+Files changed:
+- oompah/provenance.py (new): ContentProvenance dataclass + TrustLevel/ContentSource/ProvenanceComponent enums + make_provenance/default_deny/escape_content/wrap_untrusted helpers
+- oompah/prompt.py: render_prompt() wraps description + comments; build_continuation_prompt() wraps title
+- oompah/focus.py: _build_triage_prompt() wraps description block
+- oompah/github_intake_bridge.py: _deliver_github_comment_to_agent() wraps comment body before mid-run injection
+- tests/test_provenance.py (new): 121 unit tests across 16 test categories
+
+Acceptance criteria met:
+- Prompt code distinguishes trusted (OPERATOR_TEMPLATE/SERVER_CONSTANT) from untrusted (all GitHub/human sources) without parsing prose or source-specific fields — via ContentProvenance.trust and .model_renderable fields
+- Every source type covered (GitHub issue body/comment/PR, webhook, attachment, human_comment, repo_file, operator_template, server_constant, unknown)
+- Legacy native tasks: oompah_md issues use HUMAN_COMMENT source, content remains renderable, wrapping preserves inner text
+- Serialization: to_dict/to_json/from_dict/from_json round-trip tested
+- Default-deny: UNKNOWN source → model_renderable=False → ValueError in wrap_untrusted()
 ---
 <!-- COMMENTS:END -->
