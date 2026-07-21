@@ -8,10 +8,11 @@ parent: OOMPAH-285
 children: []
 blocked_by:
 - OOMPAH-288
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:55.684579Z'
-updated_at: '2026-07-21T22:30:21.996050Z'
+updated_at: '2026-07-21T22:32:14.396505Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -92,5 +93,34 @@ author: oompah
 created: 2026-07-21 22:30
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 22:32
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate confirmed. OOMPAH-289 is a unique child task of OOMPAH-285 (epic: Defend Oompah agents against prompt injection from external content). It covers hardening focus triage and all model-only decision paths against injection attacks — a scope not covered by any existing task.
+
+2. Evidence reviewed:
+   - Searched .oompah/tasks/ across all states (archived 223 files, merged 55 files, done, backlog, needs-ci-fix, needs-rebase) for keywords: focus triage, model-only, injection, safe renderer, structured output validation, harden, arbitrary foci, alter priority, bypass approval, threat model, untrusted. Zero hits matched OOMPAH-289's scope.
+   - Reviewed OOMPAH-285 (epic, In Progress): parent with children OOMPAH-286, 287, 335, 288, 289, 290, 291 — OOMPAH-289 is listed as a distinct child with its own scope.
+   - OOMPAH-286 (Merged): defines the threat model in plans/prompt-injection-protection.md — planning artifact, not an implementation of triage hardening.
+   - OOMPAH-287 (Merged): adds provenance dataclass/enums and initial XML wrapping — dependency, not duplicate.
+   - OOMPAH-288 (Done): adds SAFETY_INSTRUCTION to wrap_untrusted() and adversarial tests — covers rendering layer only; OOMPAH-289 covers the focus triage/model decision layer.
+   - OOMPAH-290 (Open): covers server-side authority boundaries — distinct scope (server-side action authorization, not model decision hardening).
+   - OOMPAH-291 (Open): end-to-end regression suite — distinct scope (integration/observability).
+   - No archived or merged task covers OOMPAH-289's scope.
+   - Key design doc: plans/agentic-focus-triage.md describes the LLM-based focus triage path (focus.py: _build_triage_prompt, _select_focus_llm, select_focus). This is the primary path that OOMPAH-289 must harden.
+
+3. Remaining work / risks:
+   - Audit all model-only decision paths per threat model (plans/prompt-injection-protection.md §4, §6): focus triage (_build_triage_prompt in focus.py), any other LLM calls where untrusted content influences output decisions.
+   - Ensure untrusted title/body/comment text is passed through wrap_untrusted() (OOMPAH-288's SAFETY_INSTRUCTION and XML delimiters) in _build_triage_prompt and any other model-only prompt builders.
+   - Add structured output validation: parse and validate model responses for focus triage against the configured foci set — reject any output not naming a known focus; fallback to deterministic score_focus.
+   - Verify injections cannot: select arbitrary foci (LLM output must be validated against active foci list), alter priority (server-side only), bypass approval (server-side gating), create follow-up work (server-side only).
+   - Write tests: mock model calls with injected content and malicious model output; assert invalid outputs are rejected, deterministic fallback is used, no unauthorized side effect occurs.
+   - Key file: oompah/focus.py (select_focus, _build_triage_prompt, _select_focus_llm); tests/test_focus_triage.py (may need to be created).
+   - Risk: OOMPAH-288's wrap_untrusted() may already be in some triage prompt paths — auditor should check what is already wrapped vs. what needs to be added.
+
+4. Recommended next focus: security (harden focus.py model decision paths, add structured output validation, write adversarial tests as specified in OOMPAH-289 description).
 ---
 <!-- COMMENTS:END -->
