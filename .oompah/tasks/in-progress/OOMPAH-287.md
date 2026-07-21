@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-287
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Add provenance metadata for external content entering Oompah
 parent: OOMPAH-285
@@ -11,12 +11,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T15:45:04.639170Z'
+updated_at: '2026-07-21T16:11:37.536772Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: d73e53ba-3137-42f1-b155-c653670df54c
 ---
 ## Summary
 
@@ -34,3 +35,16 @@ Acceptance criteria: prompt code distinguishes trusted operator/task instruction
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 16:11
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 16:11
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

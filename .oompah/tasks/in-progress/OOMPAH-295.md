@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-295
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Add Tree-sitter repository symbol and reference extraction
 parent: OOMPAH-293
@@ -11,12 +11,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T15:13:48.374539Z'
-updated_at: '2026-07-21T15:45:15.909197Z'
+updated_at: '2026-07-21T16:11:40.785179Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 6fad2faf-322d-47b2-b85c-f890ae6f1b75
 ---
 ## Summary
 
@@ -28,3 +29,16 @@ Implement a standalone repository indexer that walks a checked-out repository, r
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 16:11
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 16:11
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
