@@ -1,16 +1,18 @@
 ---
 id: OOMPAH-304
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Make Release Delivery show live delivery status consistently
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:chore
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:52:22.896672Z'
+updated_at: '2026-07-21T17:53:11.546337Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
@@ -18,13 +20,13 @@ review_number: '469'
 merged_at: null
 oompah.agent_run_id: 461ac35a-fbb2-4a60-bad0-d677f28d4553
 oompah.task_costs:
-  total_input_tokens: 373423
-  total_output_tokens: 54951
+  total_input_tokens: 523344
+  total_output_tokens: 56127
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 373423
-      output_tokens: 54951
+      input_tokens: 523344
+      output_tokens: 56127
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -63,6 +65,12 @@ oompah.task_costs:
     output_tokens: 982
     cost_usd: 0.0
     recorded_at: '2026-07-21T17:51:49.690795+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 149921
+    output_tokens: 1176
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T17:53:08.020860+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/469
 oompah.review_number: '469'
 oompah.work_branch: OOMPAH-304
@@ -383,5 +391,30 @@ author: oompah
 created: 2026-07-21 17:52
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 17:53
+---
+Focus handoff: duplicate_detector\n\n1. Outcome: duplicate screening found no duplicate. OOMPAH-304 is a distinct follow-up to OOMPAH-216: OOMPAH-216 reconciled merged PRs and added retry/detail UX, whereas OOMPAH-304 fixes the stale BacklogRefreshManager result that could disagree with fresh commit-inventory ledger status.\n\n2. Evidence: reviewed OOMPAH-216 and OOMPAH-237 plus task search for release-delivery/status/not_selected. The committed branch tip 2a696ded2 is clean and matches origin/OOMPAH-304; prior task comments record the cache-invalidation, UI polling/PR-link, and regression coverage.\n\n3. Remaining work/risks: no implementation work identified. The outstanding workflow concern is review/terminal-state handling for the existing PR #469, not a duplicate issue.\n\n4. Recommended next focus: chore (verify the existing review artifact and transition the already-landed branch through the tracker workflow).
+---
+author: oompah
+created: 2026-07-21 17:53
+---
+Agent completed successfully in 47s (151097 tokens)
+---
+author: oompah
+created: 2026-07-21 17:53
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Codex/default]
+- Turns: 1, Tool calls: 3
+- Tokens: 149.9K in / 1.2K out [151.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 47s
+- Log: OOMPAH-304__20260721T175233Z.jsonl
+---
+author: oompah
+created: 2026-07-21 17:53
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
