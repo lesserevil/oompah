@@ -15,6 +15,7 @@ correct runtime behavior of that polling logic (functional).
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import socket
 import subprocess
@@ -28,6 +29,13 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 MAKEFILE = ROOT / "Makefile"
+
+# Tool availability — checked once at import time so skip markers can use them.
+# Uses shutil.which (respects Python's PATH) for consistency with subprocess.run.
+_SS_AVAILABLE: bool = shutil.which("ss") is not None
+_LSOF_AVAILABLE: bool = shutil.which("lsof") is not None
+# At least one shell-based port-detection tool is present
+_SHELL_PORT_DETECTION: bool = _SS_AVAILABLE or _LSOF_AVAILABLE
 
 
 # ---------------------------------------------------------------------------
@@ -51,23 +59,45 @@ def find_free_port() -> int:
 def port_listening(port: int) -> bool:
     """Return True if *something* is in LISTEN state on *port*.
 
-    Uses the same ss / lsof fallback logic as the Makefile's port_in_use macro.
+    Mirrors the ss / lsof fallback logic used by the Makefile's port_in_use
+    macro, with an additional pure-Python fallback so tests remain runnable on
+    hosts where neither tool is installed (e.g. the self-hosted Actions runner
+    container which does not bundle iproute2 or lsof by default).
     """
     # Try ss first
-    r = subprocess.run(
-        ["ss", "-ltn", f"sport = :{port}"],
-        capture_output=True,
-        text=True,
-    )
-    if r.returncode == 0 and "LISTEN" in r.stdout:
-        return True
+    try:
+        r = subprocess.run(
+            ["ss", "-ltn", f"sport = :{port}"],
+            capture_output=True,
+            text=True,
+        )
+        if r.returncode == 0 and "LISTEN" in r.stdout:
+            return True
+    except FileNotFoundError:
+        pass  # ss not installed; try next method
+
     # Fallback: lsof
-    r2 = subprocess.run(
-        ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
-        capture_output=True,
-        text=True,
-    )
-    return r2.returncode == 0 and bool(r2.stdout.strip())
+    try:
+        r2 = subprocess.run(
+            ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
+            capture_output=True,
+            text=True,
+        )
+        if r2.returncode == 0 and bool(r2.stdout.strip()):
+            return True
+    except FileNotFoundError:
+        pass  # lsof not installed; fall through to Python socket probe
+
+    # Last-resort pure-Python probe: attempt a non-blocking TCP connection.
+    # The kernel completes the 3-way handshake (queuing the connection in the
+    # accept backlog) even when the listener never calls accept(), so
+    # connect_ex() == 0 reliably indicates that something is in LISTEN state.
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.2)
+            return s.connect_ex(("127.0.0.1", port)) == 0
+    except OSError:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +254,10 @@ class TestPortInUseDetection:
         finally:
             sock.close()
 
+    @pytest.mark.skipif(
+        not _SS_AVAILABLE,
+        reason="ss (iproute2) not installed on this host",
+    )
     def test_ss_detects_listening_port(self, listening_socket):
         """ss -ltn reports LISTEN when a socket is bound."""
         _, port = listening_socket
@@ -237,6 +271,10 @@ class TestPortInUseDetection:
             f"ss should report LISTEN for port {port}; got: {r.stdout!r}"
         )
 
+    @pytest.mark.skipif(
+        not _SS_AVAILABLE,
+        reason="ss (iproute2) not installed on this host",
+    )
     def test_ss_does_not_report_free_port(self):
         """ss does not report LISTEN for an unoccupied port."""
         port = find_free_port()
@@ -251,6 +289,10 @@ class TestPortInUseDetection:
             f"ss should not report LISTEN for unoccupied port {port}; got: {r.stdout!r}"
         )
 
+    @pytest.mark.skipif(
+        not _SHELL_PORT_DETECTION,
+        reason="neither ss (iproute2) nor lsof is installed — shell port_in_use logic untestable",
+    )
     def test_port_in_use_shell_returns_true_when_bound(self, listening_socket):
         """The port_in_use shell fragment exits 0 (true) when port is occupied."""
         _, port = listening_socket
@@ -264,6 +306,10 @@ class TestPortInUseDetection:
             f"port_in_use fragment should exit 0 for occupied port {port}"
         )
 
+    @pytest.mark.skipif(
+        not _SHELL_PORT_DETECTION,
+        reason="neither ss (iproute2) nor lsof is installed — shell port_in_use logic untestable",
+    )
     def test_port_in_use_shell_returns_false_when_free(self):
         """The port_in_use shell fragment exits non-zero (false) when port is free."""
         port = find_free_port()
@@ -294,11 +340,21 @@ class TestWaitForStopBehavior:
     _WAIT_SCRIPT = textwrap.dedent("""\
         #!/bin/sh
         # Inline the port_in_use and wait_for_stop logic from the Makefile.
+        # Adds a pure-Python socket probe as a third fallback so the port-wait
+        # loop is exercised even on hosts without ss (iproute2) or lsof.
         port_in_use() {
             PORT="$1"
             command -v ss >/dev/null 2>&1 && ss -ltn "sport = :${PORT}" 2>/dev/null | grep -q LISTEN
             [ $? -eq 0 ] && return 0
             command -v lsof >/dev/null 2>&1 && lsof -ti:"${PORT}" -sTCP:LISTEN 2>/dev/null | grep -q .
+            [ $? -eq 0 ] && return 0
+            # Pure-Python fallback: exit 0 if something accepts connections on PORT
+            python3 -c "
+import socket, sys
+s = socket.socket()
+s.settimeout(0.2)
+sys.exit(0 if s.connect_ex(('127.0.0.1', int(sys.argv[1]))) == 0 else 1)
+" "${PORT}" 2>/dev/null
             return $?
         }
         wait_for_stop() {

@@ -17,7 +17,7 @@ permissions:
 jobs:
   build-release:
     name: Build and publish CLI artifacts
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, oompah]
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
