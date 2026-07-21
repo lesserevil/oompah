@@ -7,10 +7,12 @@ title: Reconcile dashboard task state with canonical state-branch records
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T16:45:49.741415Z'
+updated_at: '2026-07-21T16:48:42.113040Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,5 +87,34 @@ author: oompah
 created: 2026-07-21 16:45
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 16:48
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: No duplicate found. OOMPAH-305 is NOT a duplicate.
+
+2. **Evidence reviewed**:
+   - Searched all .oompah/tasks/ directories (backlog, done, merged, archived, needs-ci-fix, needs-rebase) for: dashboard, state_branch, canonical, reconcile, stale, task status display, cache invalidation, task list read path, OOMPAH-286
+   - Closest candidates examined in full:
+     - OOMPAH-256 (Merged): Implemented tracker read/write routing to state branch — covers the _tracker's_ internal routing, NOT what dashboard/API serves to users
+     - OOMPAH-257 (Merged): Checkpoint coalescing for state-branch writes — covers write batching, not read-path correctness
+     - OOMPAH-165 (Archived): Incorrect Merged status from epic rollup logic — different root cause (orchestrator state machine, not dashboard/API cache)
+     - OOMPAH-205 (Archived): Dashboard board DOM reconciliation — different issue (performance/DOM rebuild)
+     - OOMPAH-255 (Merged): Per-project state-branch config model only
+   - None of the above cover: (a) dashboard/API serving stale non-state-branch data to clients, (b) cache keying around project-ID + state-branch + checkpoint SHA, (c) reconciling list/board/detail/CLI display to match canonical state-branch content, or (d) surfacing stale/unavailable indicator when state-branch reads degrade
+
+3. **Remaining work**:
+   - Trace all dashboard/API task-list and detail read paths in oompah/server.py and oompah/oompah_md_tracker.py
+   - Ensure state_branch_enabled projects read from the state branch worktree (not stale source/main files or old snapshots)
+   - Define cache keys: (project_id, state_branch_name, checkpoint_sha, task_identifier)
+   - Invalidate/replace caches when a state-branch checkpoint advances
+   - Reconcile list, board, task-detail drawer, and CLI to emit same status/parent/branch/review_url/merged_at
+   - Add stale/unavailable indicator for degraded state-branch reads
+   - Tests per task description (OOMPAH-286-like fixture, checkpoint invalidation, per-project isolation, null merged_at → not Merged)
+   - Run make test
+
+4. **Recommended next focus**: feature (backend read-path and cache fix)
 ---
 <!-- COMMENTS:END -->
