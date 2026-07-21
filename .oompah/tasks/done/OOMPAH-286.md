@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-286
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Define the external-content trust model and prompt-injection threat model
 parent: OOMPAH-285
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:39.881239Z'
-updated_at: '2026-07-21T16:06:32.343787Z'
+updated_at: '2026-07-21T16:06:45.344905Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,5 +172,18 @@ author: oompah
 created: 2026-07-21 16:06
 ---
 Verification: All 29 contract tests pass (python -m pytest tests/test_prompt_injection_protection.py -v → 29 passed in 0.11s). Branch OOMPAH-286 pushed to origin.
+---
+author: oompah
+created: 2026-07-21 16:06
+---
+Completion: Delivered plans/prompt-injection-protection.md and tests/test_prompt_injection_protection.py on branch OOMPAH-286.
+
+Acceptance criteria met:
+- A developer can determine if a new input is untrusted (§2 trust level tables)
+- Labeling and delimiters are specified (§5: oompah:untrusted XML tags with source attribute)
+- Server-side controls are listed as authoritative (§7 table + §3 rule 4)
+- Machine-readable provenance contract defined (§8 JSON schema)
+- All 5 required inventory components named: intake_bridge, focus_triage, prompt_renderer, continuation_prompts, agent_system_prompt (§6)
+- 29 tests enforce these as hard gates
 ---
 <!-- COMMENTS:END -->
