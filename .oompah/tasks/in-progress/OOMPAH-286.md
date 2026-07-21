@@ -7,10 +7,11 @@ title: Define the external-content trust model and prompt-injection threat model
 parent: OOMPAH-285
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:39.881239Z'
-updated_at: '2026-07-21T15:45:25.415354Z'
+updated_at: '2026-07-21T15:45:53.172555Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,5 +49,10 @@ author: oompah
 created: 2026-07-21 15:45
 ---
 Understanding: I will first perform the required duplicate screening for this prompt-injection trust-model task by searching internal tasks and design docs, then reading any candidate task records before deciding whether it is a duplicate.
+---
+author: oompah
+created: 2026-07-21 15:45
+---
+Focus handoff: duplicate_detector\n\n1. Outcome: no duplicate confirmed. OOMPAH-286 is the first child of OOMPAH-285 and uniquely defines the trust/threat model plus provenance contract; its deliverable is not implemented by an existing task.\n2. Evidence: searched , , , , and  for prompt injection, trust, provenance, external content, and threat-model terms. Closest reviewed task: OOMPAH-211 (merged), which injects new task/GitHub comments into live ACP sessions; it defines delivery behavior only, not external-content trust, delimiters, provenance, authority boundaries, or the required inventory. Relevant related design references are , , , and .\n3. Remaining work/risks: create , accurately inventory every current prompt path, define machine-readable provenance, and add the specified documentation-contract test. The delivery path from OOMPAH-211 must be included in the inventory.\n4. Recommended next focus: security (threat-model/design documentation with source-path audit and contract test).
 ---
 <!-- COMMENTS:END -->
