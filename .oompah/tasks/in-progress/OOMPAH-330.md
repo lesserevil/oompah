@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-330
 type: task
-status: Done
+status: In Progress
 priority: 0
 title: Rebase epic-OOMPAH-293 onto main
 parent: OOMPAH-293
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T20:59:27.535782Z'
-updated_at: '2026-07-21T21:04:42.562597Z'
+updated_at: '2026-07-21T21:04:53.489128Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -18,13 +18,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: c25ec943-e3c2-4197-9553-ea896b421b98
 oompah.task_costs:
-  total_input_tokens: 124143
-  total_output_tokens: 1076
+  total_input_tokens: 124165
+  total_output_tokens: 9342
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 124143
-      output_tokens: 1076
+      input_tokens: 124165
+      output_tokens: 9342
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -33,6 +33,12 @@ oompah.task_costs:
     output_tokens: 1076
     cost_usd: 0.0
     recorded_at: '2026-07-21T21:00:18.190114+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 22
+    output_tokens: 8266
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T21:04:49.759937+00:00'
 ---
 ## Summary
 
@@ -107,5 +113,38 @@ author: oompah
 created: 2026-07-21 21:04
 ---
 Rebased epic-OOMPAH-293 onto origin/main. No conflicts: OOMPAH-286 was auto-skipped (already on main), 4 epic commits applied cleanly. Force-pushed with --force-with-lease.
+---
+author: oompah
+created: 2026-07-21 21:04
+---
+Agent completed successfully in 249s (8288 tokens)
+---
+author: oompah
+created: 2026-07-21 21:04
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
+- Turns: 51, Tool calls: 31
+- Tokens: 22 in / 8.3K out [8.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 9s
+- Log: OOMPAH-330__20260721T210042Z.jsonl
+---
+author: oompah
+created: 2026-07-21 21:04
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-330` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-330
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-330
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
