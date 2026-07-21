@@ -36,6 +36,7 @@ from oompah.statuses import (
     status_key,
 )
 from oompah.tracker import (
+    StateBranchMissingError,
     TrackerError,
     _parse_timestamp,
     _sanitize_identifier,
@@ -1306,7 +1307,7 @@ class OompahMarkdownTracker:
                 ).returncode == 0
             )
             if not local_ok and not remote_ok:
-                raise TrackerError(
+                raise StateBranchMissingError(
                     f"State branch {branch_name!r} does not exist locally or at "
                     f"origin/{branch_name!r}. "
                     f"Run the bootstrap or migration flow to create it before "
