@@ -128,6 +128,7 @@ def _make_orchestrator(
     ci_status: str = "failed",
     repo_url: str = "https://github.com/org/trickle",
     raise_on_create: bool = False,
+    existing_remediation_task_ids: set[str] | None = None,
 ) -> tuple[Any, list[dict], _FakeStore]:
     """Build a minimal fake orchestrator for CI monitor tests.
 
@@ -137,7 +138,19 @@ def _make_orchestrator(
     created_issues: list[dict] = []
     store = _FakeStore(deliveries)
 
+    if existing_remediation_task_ids is None:
+        existing_remediation_task_ids = {
+            d.ci_remediation_task_id
+            for d in deliveries
+            if d.ci_remediation_task_id
+        }
+
     class _FakeTracker:
+        def fetch_issue_detail(self, identifier: str):
+            if identifier in existing_remediation_task_ids:
+                return SimpleNamespace(identifier=identifier)
+            return None
+
         def create_issue(self, **kwargs):
             if raise_on_create:
                 raise RuntimeError("simulated issue creation failure")
@@ -145,7 +158,11 @@ def _make_orchestrator(
             created_issues.append(kwargs)
             return iss
 
-    fake_tracker = _FakeTracker()
+    project_tracker = _FakeTracker()
+    global_tracker = MagicMock()
+    global_tracker.create_issue.side_effect = AssertionError(
+        "release CI remediation must use the affected project's tracker"
+    )
     project = SimpleNamespace(
         id=PROJECT_ID,
         name="trickle",
@@ -163,11 +180,12 @@ def _make_orchestrator(
     from oompah.orchestrator import Orchestrator
 
     class _FakeOrchestrator:
-        tracker = fake_tracker
+        tracker = global_tracker
         project_store = SimpleNamespace(list_all=lambda: [project])
 
         def _tracker_for_project(self, pid):
-            return self.tracker
+            assert pid == PROJECT_ID
+            return project_tracker
 
         def _job_deadline_exceeded(self, _label):
             return False
@@ -175,6 +193,9 @@ def _make_orchestrator(
         _check_and_remediate_delivery_ci = Orchestrator._check_and_remediate_delivery_ci
         _dispatch_release_ci_fix_task = Orchestrator._dispatch_release_ci_fix_task
         _monitor_merged_delivery_ci = Orchestrator._monitor_merged_delivery_ci
+        _has_live_release_ci_remediation = staticmethod(
+            Orchestrator._has_live_release_ci_remediation
+        )
 
     orch = _FakeOrchestrator()
 
@@ -214,6 +235,8 @@ class TestMonitorMergedDeliveryCi:
         task_kwargs = created[0]
         assert "release" in task_kwargs["title"].lower() or "ci" in task_kwargs["title"].lower()
         assert "release/0.11" in task_kwargs["description"]
+        assert "Acceptance Criteria" in task_kwargs["description"]
+        assert task_kwargs["labels"] == ["release-ci-failure", "ci-fix"]
         # Verify idempotency stamp was set
         assert store._deliveries[0].ci_remediation_task_id == "OOMPAH-1"
 
@@ -242,6 +265,18 @@ class TestMonitorMergedDeliveryCi:
         assert len(created) == 0, (
             "Already-remediated delivery should be skipped (idempotency)"
         )
+
+    def test_stale_global_remediation_reference_is_replaced(self):
+        """A legacy global issue ID must not block a project-local task."""
+        d = _delivery(ci_remediation_task_id="OOMPAH-481", result_commits=[_RESULT_SHA])
+        _orch, created, store = _make_orchestrator(
+            [d],
+            ci_status="failed",
+            existing_remediation_task_ids=set(),
+        )
+
+        assert len(created) == 1
+        assert store._deliveries[0].ci_remediation_task_id == "OOMPAH-1"
 
     def test_non_merged_delivery_skipped(self):
         """open/in_review/blocked deliveries are not monitored."""
