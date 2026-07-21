@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from oompah.models import Issue, Project
+from oompah.provenance import ContentSource, ProvenanceComponent, make_provenance, wrap_untrusted
 from oompah.statuses import NEEDS_CI_FIX, NEEDS_REBASE, canonicalize_status
 
 logger = logging.getLogger(__name__)
@@ -837,10 +838,37 @@ def _build_triage_prompt(issue: Issue, foci: list[Focus]) -> str:
     Output format the LLM is asked to follow:
         ``<focus_name>: <one-line reasoning>``
     Alternatively, ``default`` alone if no listed focus is a good fit.
+
+    The issue description is untrusted external content (GitHub or human) and
+    is wrapped in provenance delimiters before interpolation (§6.2 of the
+    threat model) so the model can distinguish it from the trusted prompt
+    structure.
     """
-    description = (issue.description or "").strip()
-    if len(description) > 1500:
-        description = description[:1500] + " ..."
+    raw_description = (issue.description or "").strip()
+    # Truncate before wrapping so the provenance header is not lost inside a
+    # very large block.  The ellipsis is added to the raw string, not to the
+    # escaped/wrapped form, so delimiter escape still applies to the full text.
+    if len(raw_description) > 1500:
+        raw_description = raw_description[:1500] + " ..."
+
+    # Determine description source from tracker kind (GitHub vs. native/human).
+    kind = str(issue.tracker_kind or "").strip().lower()
+    desc_source = (
+        ContentSource.GITHUB_ISSUE_BODY
+        if kind == "github_issues"
+        else ContentSource.HUMAN_COMMENT
+    )
+    desc_provenance = make_provenance(
+        ProvenanceComponent.FOCUS_TRIAGE,
+        desc_source,
+        issue_identifier=issue.identifier,
+    )
+    wrapped_description = (
+        wrap_untrusted(raw_description, desc_provenance)
+        if raw_description
+        else "(none)"
+    )
+
     labels = ", ".join(issue.labels or []) or "(none)"
 
     spec_lines: list[str] = []
@@ -865,7 +893,7 @@ def _build_triage_prompt(issue: Issue, foci: list[Focus]) -> str:
         f"  priority: {issue.priority}\n"
         f"  labels: {labels}\n"
         "  description:\n"
-        f"    {description}\n\n"
+        f"{wrapped_description}\n\n"
         "SPECIALISTS\n  "
         + "\n  ".join(spec_lines) + "\n\n"
         "TASK\n"

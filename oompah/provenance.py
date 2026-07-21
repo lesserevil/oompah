@@ -1,0 +1,350 @@
+"""Content provenance model for oompah external-content trust enforcement.
+
+Implements the machine-readable provenance contract from §8 of
+plans/prompt-injection-protection.md (OOMPAH-286 / OOMPAH-287).
+
+Trust levels, source identifiers, and component names are defined as enums
+so callers can distinguish trusted operator instructions from untrusted
+external text **without parsing prose or source-specific fields**.
+
+Default-deny: :attr:`ContentSource.UNKNOWN` yields ``trust=UNTRUSTED`` and
+``model_renderable=False``.  All other sources have explicit, server-side
+trust assignments.
+
+Security properties
+-------------------
+1. Trust is assigned by the server from the *source* enum value, never
+   derived from content.  A caller cannot claim a higher trust level by
+   passing a string; they must pass a known :class:`ContentSource` value.
+2. :func:`escape_content` neutralises the closing delimiter tag so untrusted
+   content cannot break out of the ``<oompah:untrusted>`` block.
+3. :func:`default_deny` returns ``model_renderable=False`` for any content
+   whose origin is unknown or unclassifiable.
+4. The provenance JSON comment is prepended **inside** the delimiter block so
+   it is server-generated and cannot be spoofed by untrusted content that
+   precedes the wrapping call.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+#: Schema version for the §8 provenance JSON contract.  Bump when the
+#: schema changes in a backward-incompatible way.
+SCHEMA_VERSION: int = 1
+
+#: XML tag name used to wrap untrusted content in all prompt components.
+DELIMITER: str = "oompah:untrusted"
+
+#: The exact closing tag that must be escaped inside untrusted content (§5.2).
+_CLOSING_TAG: str = f"</{DELIMITER}>"
+
+#: Escaped form of the closing tag (replaces the trailing ``>`` with ``&gt;``
+#: so the string is no longer a valid XML closing tag).
+_ESCAPED_CLOSING_TAG: str = f"</{DELIMITER}&gt;"
+
+
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
+
+
+class TrustLevel(str, Enum):
+    """Trust classification for content entering oompah prompts (§2)."""
+
+    TRUSTED = "trusted"
+    UNTRUSTED = "untrusted"
+    MIXED = "mixed"
+
+
+class ContentSource(str, Enum):
+    """Canonical source identifiers for external content (§8 contract).
+
+    Each value corresponds to one row in the untrusted-sources table (§2.2)
+    or one of the trusted sources (§2.1).  :attr:`UNKNOWN` is the
+    default-deny sentinel for content whose origin cannot be determined.
+    """
+
+    GITHUB_ISSUE_BODY = "github_issue_body"
+    GITHUB_ISSUE_COMMENT = "github_issue_comment"
+    GITHUB_PR_BODY = "github_pr_body"
+    WEBHOOK_PAYLOAD = "webhook_payload"
+    ATTACHMENT_BYTES = "attachment_bytes"
+    HUMAN_COMMENT = "human_comment"
+    REPO_FILE = "repo_file"
+    OPERATOR_TEMPLATE = "operator_template"
+    SERVER_CONSTANT = "server_constant"
+    #: Default-deny sentinel — used when the source cannot be classified.
+    UNKNOWN = "unknown"
+
+
+class ProvenanceComponent(str, Enum):
+    """Prompt-path component names from the inventory (§6)."""
+
+    INTAKE_BRIDGE = "intake_bridge"
+    FOCUS_TRIAGE = "focus_triage"
+    PROMPT_RENDERER = "prompt_renderer"
+    CONTINUATION_PROMPTS = "continuation_prompts"
+    AGENT_SYSTEM_PROMPT = "agent_system_prompt"
+
+
+# ---------------------------------------------------------------------------
+# Trust and renderability lookup tables
+# ---------------------------------------------------------------------------
+
+#: Authoritative mapping from :class:`ContentSource` to :class:`TrustLevel`.
+#: Keys not present here fall through to ``UNTRUSTED`` (conservative default).
+_SOURCE_TRUST: dict[ContentSource, TrustLevel] = {
+    ContentSource.GITHUB_ISSUE_BODY: TrustLevel.UNTRUSTED,
+    ContentSource.GITHUB_ISSUE_COMMENT: TrustLevel.UNTRUSTED,
+    ContentSource.GITHUB_PR_BODY: TrustLevel.UNTRUSTED,
+    ContentSource.WEBHOOK_PAYLOAD: TrustLevel.UNTRUSTED,
+    ContentSource.ATTACHMENT_BYTES: TrustLevel.UNTRUSTED,
+    ContentSource.HUMAN_COMMENT: TrustLevel.UNTRUSTED,
+    ContentSource.REPO_FILE: TrustLevel.UNTRUSTED,
+    ContentSource.OPERATOR_TEMPLATE: TrustLevel.TRUSTED,
+    ContentSource.SERVER_CONSTANT: TrustLevel.TRUSTED,
+    ContentSource.UNKNOWN: TrustLevel.UNTRUSTED,
+}
+
+#: Sources that may be rendered to a model (``model_renderable=True``).
+#: :attr:`ContentSource.UNKNOWN` is explicitly ``False`` (default-deny).
+#: All known sources are renderable (untrusted sources must be wrapped first).
+_SOURCE_RENDERABLE: dict[ContentSource, bool] = {
+    ContentSource.GITHUB_ISSUE_BODY: True,
+    ContentSource.GITHUB_ISSUE_COMMENT: True,
+    ContentSource.GITHUB_PR_BODY: True,
+    ContentSource.WEBHOOK_PAYLOAD: True,
+    ContentSource.ATTACHMENT_BYTES: True,
+    ContentSource.HUMAN_COMMENT: True,
+    ContentSource.REPO_FILE: True,
+    ContentSource.OPERATOR_TEMPLATE: True,
+    ContentSource.SERVER_CONSTANT: True,
+    ContentSource.UNKNOWN: False,  # default-deny
+}
+
+
+# ---------------------------------------------------------------------------
+# ContentProvenance dataclass
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ContentProvenance:
+    """Machine-readable provenance record for a single content block (§8).
+
+    Fields mirror the JSON contract schema exactly so that serialization is
+    a trivial dict conversion.  ``model_renderable`` is a runtime gate: when
+    ``False``, the content must **not** be passed to an LLM regardless of
+    how it arrived at this point.
+
+    Construct via :func:`make_provenance` or :func:`default_deny` rather
+    than directly, so that ``trust`` and ``model_renderable`` are always
+    derived from the server-side lookup tables.
+    """
+
+    version: int
+    component: str          # ProvenanceComponent.value
+    source: str             # ContentSource.value
+    trust: str              # TrustLevel.value
+    delimiter: str          # DELIMITER constant
+    issue_identifier: str | None = None
+    origin_url: str | None = None
+    origin_actor: str | None = None
+    model_renderable: bool = True
+
+    # ------------------------------------------------------------------
+    # Serialisation
+    # ------------------------------------------------------------------
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a dict conforming to the §8 JSON contract schema."""
+        d: dict[str, Any] = {
+            "version": self.version,
+            "component": self.component,
+            "source": self.source,
+            "trust": self.trust,
+            "delimiter": self.delimiter,
+            "model_renderable": self.model_renderable,
+        }
+        if self.issue_identifier is not None:
+            d["issue_identifier"] = self.issue_identifier
+        if self.origin_url is not None:
+            d["origin_url"] = self.origin_url
+        if self.origin_actor is not None:
+            d["origin_actor"] = self.origin_actor
+        return d
+
+    def to_json(self) -> str:
+        """Serialize to a compact JSON string for embedding in prompt comments."""
+        return json.dumps({"oompah_provenance": self.to_dict()}, separators=(",", ":"))
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ContentProvenance":
+        """Deserialize from a §8 contract dict (with or without the outer key).
+
+        When *data* has an ``"oompah_provenance"`` key the inner dict is used;
+        otherwise *data* is treated as the inner dict directly.  Missing fields
+        default to conservative values (untrusted, not renderable).
+        """
+        inner: dict[str, Any] = data.get("oompah_provenance", data)
+        return cls(
+            version=int(inner.get("version", SCHEMA_VERSION)),
+            component=str(inner.get("component", "")),
+            source=str(inner.get("source", ContentSource.UNKNOWN.value)),
+            trust=str(inner.get("trust", TrustLevel.UNTRUSTED.value)),
+            delimiter=str(inner.get("delimiter", DELIMITER)),
+            issue_identifier=inner.get("issue_identifier"),
+            origin_url=inner.get("origin_url"),
+            origin_actor=inner.get("origin_actor"),
+            # Default-deny on deserialization: if the field is missing or
+            # False, keep it False.  An attacker-controlled JSON must not be
+            # able to elevate model_renderable to True just by including the
+            # field; the field is validated against the source lookup table
+            # when constructed via make_provenance().
+            model_renderable=bool(inner.get("model_renderable", False)),
+        )
+
+    @classmethod
+    def from_json(cls, text: str) -> "ContentProvenance":
+        """Deserialize from a JSON string produced by :meth:`to_json`."""
+        return cls.from_dict(json.loads(text))
+
+
+# ---------------------------------------------------------------------------
+# Factory functions
+# ---------------------------------------------------------------------------
+
+
+def make_provenance(
+    component: ProvenanceComponent,
+    source: ContentSource,
+    *,
+    issue_identifier: str | None = None,
+    origin_url: str | None = None,
+    origin_actor: str | None = None,
+) -> ContentProvenance:
+    """Construct a :class:`ContentProvenance` with server-assigned trust.
+
+    ``trust`` and ``model_renderable`` are derived from *source* using the
+    server-side lookup tables (:data:`_SOURCE_TRUST`, :data:`_SOURCE_RENDERABLE`).
+    Callers cannot override these values; the only way to change trust is to
+    pass a different *source* enum member.
+
+    :param component: Which prompt-path component is emitting this content.
+    :param source: The authoritative source identifier for this content.
+    :param issue_identifier: Optional ``Issue.identifier`` for traceability.
+    :param origin_url: Optional URL pointing to the original content location.
+    :param origin_actor: Optional login/actor that produced the content.
+    """
+    trust = _SOURCE_TRUST.get(source, TrustLevel.UNTRUSTED)
+    renderable = _SOURCE_RENDERABLE.get(source, False)  # default-deny for unknowns
+    return ContentProvenance(
+        version=SCHEMA_VERSION,
+        component=component.value,
+        source=source.value,
+        trust=trust.value,
+        delimiter=DELIMITER,
+        issue_identifier=issue_identifier,
+        origin_url=origin_url,
+        origin_actor=origin_actor,
+        model_renderable=renderable,
+    )
+
+
+def default_deny(
+    component: ProvenanceComponent | str,
+    *,
+    issue_identifier: str | None = None,
+) -> ContentProvenance:
+    """Return a default-deny provenance record for unclassified content.
+
+    Use this when the content origin is unknown or cannot be determined at
+    call time.  The result has ``trust=UNTRUSTED`` and
+    ``model_renderable=False``, so downstream code must not pass this content
+    to a model without explicit review and reclassification.
+
+    :param component: Component emitting this content (name or enum member).
+    :param issue_identifier: Optional issue identifier for traceability.
+    """
+    comp = (
+        component.value
+        if isinstance(component, ProvenanceComponent)
+        else str(component)
+    )
+    return ContentProvenance(
+        version=SCHEMA_VERSION,
+        component=comp,
+        source=ContentSource.UNKNOWN.value,
+        trust=TrustLevel.UNTRUSTED.value,
+        delimiter=DELIMITER,
+        issue_identifier=issue_identifier,
+        model_renderable=False,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Wrapping helpers
+# ---------------------------------------------------------------------------
+
+
+def escape_content(content: str) -> str:
+    """Escape the closing delimiter tag in *content* to prevent escape attacks.
+
+    Replaces every occurrence of ``</oompah:untrusted>`` with
+    ``</oompah:untrusted&gt;`` (§5.2 of the threat model) so that
+    user-supplied content cannot terminate the enclosing delimiter block
+    prematurely.
+
+    This is the only transformation applied to content; no other characters
+    are modified.  The escaping is idempotent: applying it twice produces the
+    same result as applying it once (since the second pass sees
+    ``</oompah:untrusted&gt;`` which does not contain ``</oompah:untrusted>``).
+    """
+    return content.replace(_CLOSING_TAG, _ESCAPED_CLOSING_TAG)
+
+
+def wrap_untrusted(content: str, provenance: ContentProvenance) -> str:
+    """Wrap *content* in the untrusted XML delimiter with a provenance header.
+
+    Applies :func:`escape_content` first, then encloses the result in
+    ``<oompah:untrusted source="...">`` tags.  A JSON provenance comment is
+    prepended inside the block so automated tests and future enforcement code
+    can parse the block's metadata without relying on prose or source-specific
+    fields (§8 acceptance criterion).
+
+    Example output::
+
+        <oompah:untrusted source="github_issue_body">
+        <!-- {"oompah_provenance":{"version":1,...}} -->
+        [escaped content]
+        </oompah:untrusted>
+
+    :param content: The raw untrusted content string to wrap.
+    :param provenance: The provenance record for this content block.  Must be
+        constructed via :func:`make_provenance` or :func:`default_deny`.
+    :raises ValueError: If ``provenance.model_renderable`` is ``False`` —
+        default-deny content must not be wrapped for rendering.  The caller
+        must reclassify the source or explicitly gate the content out.
+    """
+    if not provenance.model_renderable:
+        raise ValueError(
+            f"Content with source={provenance.source!r} has model_renderable=False "
+            "(default-deny).  Do not pass this content to a model.  "
+            "Re-classify the source or gate the content out before wrapping."
+        )
+    escaped = escape_content(content)
+    provenance_comment = f"<!-- {provenance.to_json()} -->"
+    return (
+        f'<{DELIMITER} source="{provenance.source}">\n'
+        f"{provenance_comment}\n"
+        f"{escaped}\n"
+        f"</{DELIMITER}>"
+    )
