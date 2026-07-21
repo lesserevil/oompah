@@ -5,14 +5,17 @@ status: Backlog
 priority: 1
 title: Build Git-backed repository maps for faster agent startup
 parent: null
-children: []
+children:
+- OOMPAH-294
+- OOMPAH-295
+- OOMPAH-296
 blocked_by: []
 labels:
 - needs:backend
 - needs:agents
 assignee: null
 created_at: '2026-07-21T15:13:33.130186Z'
-updated_at: '2026-07-21T15:13:33.130186Z'
+updated_at: '2026-07-21T15:13:49.410194Z'
 work_branch: null
 target_branch: null
 review_url: null
