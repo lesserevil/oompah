@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-305
 type: bug
-status: In Progress
+status: Merged
 priority: 0
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T21:16:30.255595Z'
+updated_at: '2026-07-21T21:21:02.514570Z'
 work_branch: null
 target_branch: null
 review_url: null
