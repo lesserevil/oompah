@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:09.575764Z'
-updated_at: '2026-07-21T23:58:40.910616Z'
+updated_at: '2026-07-21T23:59:08.398595Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -188,5 +188,25 @@ author: oompah
 created: 2026-07-21 23:58
 ---
 Implementation: Added repo_map config to ServiceConfig in oompah/config.py (6 new fields: repo_map_enabled, repo_map_token_budget, repo_map_languages, repo_map_max_file_size, repo_map_generation_timeout, repo_map_retained_artifacts), all environment-only, with safe defaults and fallback validation. Added .env.example section with all 6 vars documented. Created docs/repository-map.md (operator doc covering activation, freshness, diagnostics, privacy/trust, disable/rebuild). Updated docs/project-bootstrap.md with repo-map bootstrap section. Created tests/test_repo_map_bootstrap.py with 28 tests covering: defaults disable feature, state-branch prerequisite contract, env-var-only activation, bootstrap creates required infra, and documentation fixtures.
+---
+author: oompah
+created: 2026-07-21 23:59
+---
+Verification: All 10597 tests pass (make test). New tests in tests/test_repo_map_bootstrap.py (28 tests) and the pre-existing tests in tests/test_config.py::TestRepoMapEnvironmentConfiguration (7 tests written by previous agent) all pass. The test_every_repository_map_setting_is_documented_in_env_example test confirms .env.example documents all 6 OOMPAH_REPO_MAP_* variables.
+---
+author: oompah
+created: 2026-07-21 23:59
+---
+Completion: Delivered all acceptance criteria.
+
+Files changed:
+- oompah/config.py: Added _REPO_MAP_SUPPORTED_LANGUAGES, _parse_repo_map_languages(), _parse_repo_map_positive_int(), and 6 repo_map_* fields to ServiceConfig with safe defaults and env-var parsing in from_workflow().
+- .env.example: Added 'Repository map' section documenting all 6 OOMPAH_REPO_MAP_* variables with valid ranges and examples.
+- docs/repository-map.md (new): Operator documentation covering activation, freshness, diagnostics, privacy/trust boundaries, disabling, and map rebuild procedures.
+- docs/project-bootstrap.md: Added 'Repository Map' section explaining prerequisites (state_branch_enabled=True) and activation.
+- tests/test_config.py: 7 pre-existing tests from previous agent now pass (defaults, valid overrides, invalid fallbacks, disabled mode, .env.example fixture).
+- tests/test_repo_map_bootstrap.py (new): 28 tests covering config defaults, state-branch prerequisite contract, env-var-only activation, bootstrap infrastructure, and documentation fixtures.
+
+All tests pass: 10597 passed via make test.
 ---
 <!-- COMMENTS:END -->

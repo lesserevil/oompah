@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:57.738049Z'
-updated_at: '2026-07-21T23:58:57.417428Z'
+updated_at: '2026-07-21T23:58:59.870992Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -201,5 +201,10 @@ Added UNTRUSTED_RENDER: INFO log events to wrap_untrusted() — emits component,
 - Operator security checklist
 
 **Verification**: All 11,044 tests pass (make test).
+---
+author: oompah
+created: 2026-07-21 23:58
+---
+Delivered: E2E adversarial regression suite (186 tests in tests/test_prompt_injection_e2e.py covering all 5 pipeline stages + audit event emission), structured UNTRUSTED_RENDER: audit log events in oompah/provenance.py, and operator security guide in docs/prompt-injection-security.md. All 11,044 tests pass.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-321
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Complete GitLab Merge Request provider parity
 parent: OOMPAH-318
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:51.110283Z'
-updated_at: '2026-07-21T23:58:56.653099Z'
+updated_at: '2026-07-21T23:59:09.122753Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -164,5 +164,10 @@ author: oompah
 created: 2026-07-21 23:58
 ---
 Verification: make test passes — 10627 passed, 36 skipped (was 10525+36 before this work; added 102 new tests). All new GitLab contract tests pass. The two implementation bugs that were caught by the tests are fixed. Branch pushed and up to date with origin.
+---
+author: oompah
+created: 2026-07-21 23:59
+---
+Completion: Delivered comprehensive GitLabProvider MR parity test coverage and fixed 2 spec violations.\n\nDelivered:\n- 102 new fixture-based tests in tests/test_scm.py covering every SCM contract operation for GitLabProvider\n- Tests cover: all 15 contract methods, GitLab.com + self-managed URL construction, nested namespace URL encoding, CI status from head_pipeline, draft/WIP detection, conflicts/divergence/mergeability, label preservation (including oompah:status:* labels), token-not-leaked-in-errors, pagination params, and auth/network failure degradation\n- Fixed merge_review: removed squash=True (history preservation requirement per plan)\n- Fixed enable_auto_merge: replaced direct-merge fallback with merge_when_pipeline_succeeds per spec; added actionable error for policy/approval rejection\n- make test: 10627 passed (was 10525 — 102 net new), 0 failures
 ---
 <!-- COMMENTS:END -->
