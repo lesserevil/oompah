@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-298
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Inject task-relevant repository maps into agent focus startup prompts
 parent: OOMPAH-293
@@ -12,9 +12,10 @@ blocked_by:
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:test
+- focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:06:20.062373Z'
+updated_at: '2026-07-21T23:06:39.137552Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -220,5 +221,31 @@ Discovery: After thorough codebase exploration, confirmed this task requires ent
 4. New tests needed in tests/test_prompt.py and a new tests/test_repo_map_prompt.py
 
 There is NO frontend/UI component to this task — no JavaScript, CSS, HTML, or browser code exists in this codebase. This is a Python server-side prompt assembly feature.
+---
+author: oompah
+created: 2026-07-21 23:06
+---
+Focus handoff: frontend
+
+1. Outcome: No frontend work exists in this codebase for OOMPAH-298. This is entirely Python backend work — startup prompt assembly, fail-open repo map context injection, and unit tests. I did a thorough codebase exploration but there is nothing UI/CSS/JS-related to implement.
+
+2. Relevant files/evidence:
+   - oompah/prompt.py:render_prompt — the common prompt assembly boundary (needs repo_map_context param)
+   - oompah/orchestrator.py lines ~15340, ~15688, ~16235 — the three render_prompt call sites
+   - oompah/repo_map.py:read_repo_map — SHA-scoped artifact reader (returns None on miss/staleness)
+   - oompah/repo_map_ranker.py:render_repo_map — token-budgeted bounded renderer
+   - oompah/provenance.py:wrap_untrusted + ContentSource.REPO_FILE — for labeling map output as untrusted data
+   - plans/repo-map-artifact.md — artifact design and freshness rules
+   - tests/test_repo_map_ranker.py — existing ranker unit tests
+   - tests/test_prompt.py — existing prompt unit tests
+
+3. Remaining work:
+   - Add build_repo_map_context(issue, workspace_path, token_budget) function: resolve HEAD SHA from workspace, call read_repo_map, derive seeds from issue title+description+comments, call render_repo_map, wrap in provenance block, return None on any failure
+   - Add repo_map_context parameter to render_prompt; inject as labeled untrusted block in rendered text
+   - Update the three orchestrator call sites to compute and pass repo_map_context
+   - Expose commit_sha and provenance in agent diagnostics (running_entry or dispatch comment)
+   - Write tests: fresh map included, stale SHA omits, wrong project omits, missing artifact omits, render failure omits, token ceiling respected, seeds affect selection, untrusted labeling, provenance in diagnostics
+
+4. Recommended next focus: feature
 ---
 <!-- COMMENTS:END -->

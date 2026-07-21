@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-21T23:04:48.280740Z'
+updated_at: '2026-07-21T23:06:44.473167Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -100,5 +100,29 @@ author: oompah
 created: 2026-07-21 23:04
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 23:06
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-323 is a unique task.
+
+**Search evidence:**
+- Searched .oompah/tasks/ (backlog, archived, merged, done, needs-ci-fix, needs-rebase) for 'gitlab', 'GitLab', 'forge-parity', 'TrackerProtocol' — no matching tasks found.
+- The only GitLab-related file is plans/gitlab-forge-parity.md, which is the design plan referenced in this task description. No other task implements GitLabIssueTracker.
+- OOMPAH-282 (backlog) is about a state_branch_migration UnicodeEncodeError — unrelated.
+- OOMPAH-319 is already implemented (commit 84985658b 'Add explicit forge configuration and backward-compatible project migration') and is the blocking dependency for this task. It provides the forge_kind field and project model changes that OOMPAH-323 builds on.
+
+**Relevant files for implementation:**
+- oompah/tracker.py — TrackerProtocol definition and shared utilities
+- oompah/github_tracker.py — Reference implementation to model GitLabIssueTracker after
+- oompah/oompah_md_tracker.py — Alternative tracker reference
+- plans/gitlab-forge-parity.md — Full design specification (GitLab implementation section)
+- tests/test_github_tracker.py — Contract test suite to replicate for GitLab
+
+**Remaining work:** Implement GitLabIssueTracker (oompah/gitlab_tracker.py) with full TrackerProtocol coverage, oompah:status:* label governance, authorized actor enforcement, audit/revert, parent/dependency links via issue links, comments, pagination, and comprehensive tests.
+
+**Recommended next focus:** feature
 ---
 <!-- COMMENTS:END -->
