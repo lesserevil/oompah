@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-316
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:server] Fetch issues failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -15,7 +15,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T20:40:35.535285Z'
+updated_at: '2026-07-21T20:43:57.522536Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-21T18:20:35.323844+00:00'
-oompah.agent_run_id: fc223746-7f9f-408f-9d44-31e78cc8b8bb
+oompah.agent_run_id: b1e7005a-b009-4d64-9d59-644666ae7f92
 oompah.task_costs:
   total_input_tokens: 1140012
   total_output_tokens: 19982
@@ -406,5 +406,15 @@ Unmerged commits: 1 commit
 Reason: forge provider returned no review
 
 Required: create or restore the PR/MR for this branch, then move the task to In Review only after the review exists.
+---
+author: oompah
+created: 2026-07-21 20:43
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 20:43
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
