@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:09:28.751927Z'
+updated_at: '2026-07-21T15:22:27.306680Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -174,5 +174,18 @@ author: oompah
 created: 2026-07-21 15:09
 ---
 Discovery: Found all relevant files. Key locations: (1) oompah/release_delivery_backlog.py - ItemRow dataclass and get_backlog(), need to add summary field; (2) oompah/server.py line ~4050, backlog JSON serialization, need to add summary; (3) oompah/templates/release_delivery.html - CSS drawer width at line 367 (420px → min(800px,40vw)), row rendering at line 1110, drawer logic at line 1455+; (4) tests/test_release_delivery_backlog.py, tests/test_release_delivery_page.py, tests/test_server_release_delivery_backlog.py for new tests. Dashboard uses GET /api/v1/issues/{identifier}/detail with project_id and renders title/type/state/priority/description/labels/parent/children/comments/links. Starting implementation.
+---
+author: oompah
+created: 2026-07-21 15:22
+---
+Implementation complete. Changes made:
+
+1. **oompah/release_delivery_backlog.py**: Added ITEM_SUMMARY_MAX_LENGTH=280 constant, _extract_item_summary() helper (strips HTML, normalises whitespace, truncates, returns None for no description), summary: str | None = None field to ItemRow, summary_map populated in get_backlog() alongside title_map.
+
+2. **oompah/server.py**: Added 'summary': item.summary to backlog JSON serialization.
+
+3. **oompah/templates/release_delivery.html**: (a) Drawer width changed from 420px to min(800px, 40vw) with max-width: 90vw fallback; (b) Added .rdi-item-summary CSS class and summary rendered beneath title in each item row via textContent (HTML-safe, aria-label added); (c) Complete drawer overhaul: _rdiOpenItemDrawer shows loading state, calls _rdiFetchTaskDetail, renders full task detail (title/type/state/priority/labels/parent/description/children/comments/links/metadata) via _rdiRenderTaskDetail, and keeps delivery evidence always visible via _rdiBuildDeliverySection; _rdiEsc helper added for safe error rendering.
+
+4. **tests/**: Added TestExtractItemSummary (12 tests), TestItemRowSummaryField (4 tests), TestSummaryInApiResponse (3 tests), TestItemSummaryInRow (5 tests), TestDrawerWidth (3 tests), TestFullTaskDetailInDrawer (17 tests); updated 2 existing tests in test_dashboard_release_delivery_ui.py to reflect new delivery-section architecture.
 ---
 <!-- COMMENTS:END -->
