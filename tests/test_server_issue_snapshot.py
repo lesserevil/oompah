@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -9,6 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from oompah.models import Issue
+from oompah.tracker import StateBranchMissingError, TrackerError
 from oompah import server as server_module
 
 
@@ -352,3 +354,74 @@ def test_fetch_and_serialize_issues_omits_stale_intake_summary_after_intake():
 
     assert payload["In Review"][0]["identifier"] == "example-org/oompah#309"
     assert "intake_summary" not in payload["In Review"][0]
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for OOMPAH-316: StateBranchMissingError graceful degradation
+# ---------------------------------------------------------------------------
+
+
+def _orch_with_tracker_error(error: Exception):
+    """Build a minimal orchestrator whose tracker raises *error* on fetch."""
+    project = SimpleNamespace(id="proj-missing", name="exocomp")
+    tracker = MagicMock()
+    tracker.fetch_all_issues.side_effect = error
+    orch = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch._tracker_for_project.return_value = tracker
+    orch._project_epic_strategy.return_value = "flat"
+    return orch
+
+
+def test_fetch_all_issues_state_branch_missing_logs_warning_not_error(caplog):
+    """StateBranchMissingError must log at WARNING so error_watcher is not triggered.
+
+    Regression for OOMPAH-316: previously all TrackerErrors were logged at
+    ERROR level, causing error_watcher to auto-file a task on every issue
+    fetch for a project whose state branch had never been bootstrapped.
+    """
+    exc = StateBranchMissingError(
+        "State branch 'oompah/state/proj-c260b117' does not exist locally or at "
+        "origin/'oompah/state/proj-c260b117'. Run the bootstrap or migration flow."
+    )
+    orch = _orch_with_tracker_error(exc)
+
+    with caplog.at_level(logging.DEBUG, logger="oompah.server"):
+        issues = server_module._fetch_all_issues(orch)
+
+    assert issues == [], "Must return empty list on missing state branch"
+
+    warning_records = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "exocomp" in r.getMessage()
+    ]
+    error_records = [
+        r for r in caplog.records
+        if r.levelno == logging.ERROR and "exocomp" in r.getMessage()
+    ]
+    assert warning_records, "Expected a WARNING log mentioning the project name"
+    assert not error_records, (
+        "StateBranchMissingError must NOT be logged at ERROR level "
+        "(that would trigger error_watcher)"
+    )
+
+
+def test_fetch_all_issues_generic_tracker_error_still_logs_error(caplog):
+    """Other TrackerError subtypes must still be logged at ERROR level.
+
+    Regression guard: the StateBranchMissingError special-case must not
+    silence unrelated tracker failures.
+    """
+    exc = TrackerError("some unexpected tracker failure")
+    orch = _orch_with_tracker_error(exc)
+
+    with caplog.at_level(logging.DEBUG, logger="oompah.server"):
+        issues = server_module._fetch_all_issues(orch)
+
+    assert issues == [], "Must return empty list on tracker error"
+
+    error_records = [
+        r for r in caplog.records
+        if r.levelno == logging.ERROR and "exocomp" in r.getMessage()
+    ]
+    assert error_records, "Generic TrackerError must still be logged at ERROR level"
