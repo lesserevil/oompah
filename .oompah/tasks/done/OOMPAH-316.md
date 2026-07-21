@@ -15,7 +15,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T19:26:55.284881Z'
+updated_at: '2026-07-21T19:27:08.606640Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,13 +46,13 @@ oompah.intake:
   last_validated_at: '2026-07-21T18:20:35.323844+00:00'
 oompah.agent_run_id: fc223746-7f9f-408f-9d44-31e78cc8b8bb
 oompah.task_costs:
-  total_input_tokens: 1139971
-  total_output_tokens: 11082
+  total_input_tokens: 1140012
+  total_output_tokens: 19982
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1139971
-      output_tokens: 11082
+      input_tokens: 1140012
+      output_tokens: 19982
       cost_usd: 0.0
   runs:
   - profile: default
@@ -79,6 +79,12 @@ oompah.task_costs:
     output_tokens: 3221
     cost_usd: 0.0
     recorded_at: '2026-07-21T19:11:48.035088+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 41
+    output_tokens: 8900
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T19:27:05.006333+00:00'
 ---
 ## Summary
 
@@ -356,5 +362,35 @@ author: oompah
 created: 2026-07-21 19:26
 ---
 Added StateBranchMissingError subclass; server.py now logs WARNING (not ERROR) for unbootstrapped state-branch projects, preventing error_watcher auto-filing. 2 regression tests added. All 47 tests pass.
+---
+author: oompah
+created: 2026-07-21 19:27
+---
+Agent completed successfully in 891s (8941 tokens)
+---
+author: oompah
+created: 2026-07-21 19:27
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
+- Turns: 71, Tool calls: 47
+- Tokens: 41 in / 8.9K out [8.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 14m 51s
+- Log: OOMPAH-316__20260721T191215Z.jsonl
+---
+author: oompah
+created: 2026-07-21 19:27
+---
+Review handoff deferred: the task branch has unmerged work, but this project is at its open review limit.
+
+Branch: `OOMPAH-316`
+Target branch: `main`
+Unmerged commits: 1 commit
+Open reviews: 8/1
+
+oompah will create the review automatically when review capacity is available.
+
+Recent commits:
+  291dddacd OOMPAH-316: Degrade gracefully when state branch is missing
 ---
 <!-- COMMENTS:END -->
