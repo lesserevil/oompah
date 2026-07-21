@@ -6,11 +6,12 @@ priority: null
 title: Enforce GitLab status-label authorization and audit/revert safety
 parent: OOMPAH-323
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-337
 labels: []
 assignee: null
 created_at: '2026-07-21T23:24:47.554460Z'
-updated_at: '2026-07-21T23:24:47.554460Z'
+updated_at: '2026-07-21T23:24:55.220749Z'
 work_branch: null
 target_branch: null
 review_url: null
