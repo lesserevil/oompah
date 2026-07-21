@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: Open
+status: In Progress
 priority: 0
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -12,13 +12,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T21:13:53.634358Z'
+updated_at: '2026-07-21T21:14:13.479723Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
 review_number: '469'
 merged_at: null
-oompah.agent_run_id: 386c98d0-2b9d-4bd8-bc3b-3d3ea1e0e637
+oompah.agent_run_id: 74e782f1-04ad-4ee7-889f-95a0e121c7b4
 oompah.task_costs:
   total_input_tokens: 1453763
   total_output_tokens: 73655
@@ -606,5 +606,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 21s
 - Log: OOMPAH-304__20260721T211131Z.jsonl
+---
+author: oompah
+created: 2026-07-21 21:14
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 21:14
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

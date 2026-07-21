@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-305
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -12,13 +12,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T21:13:48.943950Z'
+updated_at: '2026-07-21T21:14:15.640232Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 93d0b871-b6ee-4693-9c10-2ada722a0267
+oompah.agent_run_id: 80fc55bb-dad7-42c3-abdd-285206570596
 oompah.task_costs:
   total_input_tokens: 1910916
   total_output_tokens: 79063
@@ -409,5 +409,15 @@ author: oompah
 created: 2026-07-21 21:13
 ---
 YOLO: CI tests failed on MR #473. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-21 21:14
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 21:14
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

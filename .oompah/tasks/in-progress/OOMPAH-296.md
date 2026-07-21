@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-296
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Implement Aider-style repository-map ranking and bounded rendering
 parent: OOMPAH-293
@@ -14,13 +14,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T21:13:46.222149Z'
+updated_at: '2026-07-21T21:14:10.640502Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 84cc5374-2cde-4f72-ab1e-aa2fc892e905
+oompah.agent_run_id: 4b923747-3819-4910-a4f8-9e33178c7878
 oompah.task_costs:
   total_input_tokens: 1078500
   total_output_tokens: 37243
@@ -356,5 +356,15 @@ author: oompah
 created: 2026-07-21 21:13
 ---
 YOLO: CI tests failed on MR #474. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-21 21:14
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-21 21:14
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

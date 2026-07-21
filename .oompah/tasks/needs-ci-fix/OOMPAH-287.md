@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-287
 type: task
-status: Done
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Add provenance metadata for external content entering Oompah
 parent: OOMPAH-285
 children: []
@@ -10,9 +10,10 @@ blocked_by:
 - OOMPAH-286
 labels:
 - focus-complete:duplicate_detector
+- ci-fix
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T17:13:42.973413Z'
+updated_at: '2026-07-21T21:14:19.951359Z'
 work_branch: OOMPAH-287
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/467
@@ -336,5 +337,10 @@ author: oompah
 created: 2026-07-21 16:47
 ---
 Agent completed without closing this issue (45s (164238 tokens)). Escalating from 'default' to 'standard'. Retrying in 20s (2/3).
+---
+author: oompah
+created: 2026-07-21 21:14
+---
+YOLO: CI tests failed on MR #467. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
