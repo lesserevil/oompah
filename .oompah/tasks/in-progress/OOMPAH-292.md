@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:07:13.044173Z'
+updated_at: '2026-07-21T15:07:21.899397Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -164,5 +164,10 @@ author: oompah
 created: 2026-07-21 15:07
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-21 15:07
+---
+Understanding: I'm the frontend developer agent for OOMPAH-292. My task is to implement: (1) summary field in Release Delivery backlog rows (backend + frontend), (2) widen the Release Delivery drawer to min(800px, 40vw), (3) load full task details via GET /api/v1/issues/{identifier}/detail in the drawer, and (4) tests for all of the above. Starting by exploring the codebase to find relevant files.
 ---
 <!-- COMMENTS:END -->
