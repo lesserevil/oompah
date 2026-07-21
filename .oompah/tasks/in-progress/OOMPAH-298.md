@@ -12,24 +12,23 @@ blocked_by:
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:test
-- needs:feature
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:04:37.875630Z'
+updated_at: '2026-07-21T23:04:59.185455Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 7cc83938-9259-4df0-b2cc-3611c683fd4b
+oompah.agent_run_id: 4d9a398b-7ee3-415f-b56d-67baa703f2b0
 oompah.task_costs:
-  total_input_tokens: 348934
-  total_output_tokens: 2747
+  total_input_tokens: 827486
+  total_output_tokens: 5422
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 348934
-      output_tokens: 2747
+      input_tokens: 827486
+      output_tokens: 5422
       cost_usd: 0.0
   runs:
   - profile: default
@@ -44,6 +43,12 @@ oompah.task_costs:
     output_tokens: 1342
     cost_usd: 0.0
     recorded_at: '2026-07-21T23:01:29.940331+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 478552
+    output_tokens: 2675
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T23:04:49.221706+00:00'
 ---
 ## Summary
 
@@ -163,5 +168,40 @@ author: oompah
 created: 2026-07-21 23:04
 ---
 Focus handoff: test\n\n1. Outcome: Test architecture and coverage requirements are identified; implementation is still required.\n2. Relevant files/evidence: oompah/orchestrator.py has three focus startup render sites (~15340, ~15688, ~16235); oompah/prompt.py:render_prompt is the appropriate common boundary; oompah/repo_map.py:read_repo_map enforces SHA freshness; oompah/repo_map_ranker.py:render_repo_map provides bounded rendering; existing tests/test_repo_map_ranker.py covers renderer unit contracts.\n3. Remaining work/risks: implement a single fail-open repository-context builder usable from all startup paths. Its tests should assert fresh matching inclusion for provider/ACP/CLI and all foci, omission for stale SHA/wrong project/missing artifact/render error, task-derived title/description/files/review/commit/handoff seeds, token ceiling, untrusted-data provenance, and SHA/provenance diagnostics. The full suite is presently environment-blocked before collection by uv/DBus transient-scope failure.\n4. Recommended next focus: feature.
+---
+author: oompah
+created: 2026-07-21 23:04
+---
+Verification clarification: make test invoked uv run pytest tests/ -v but pytest did not begin. uv failed before collection with a transient-scope DBus error (org.freedesktop.DBus.Error.UnixProcessIdUnknown), exit 46. This is an environment/tooling failure, not an asserted test result.
+---
+author: oompah
+created: 2026-07-21 23:04
+---
+Agent completed successfully in 86s (481227 tokens)
+---
+author: oompah
+created: 2026-07-21 23:04
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 9
+- Tokens: 478.6K in / 2.7K out [481.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 26s
+- Log: OOMPAH-298__20260721T230325Z.jsonl
+---
+author: oompah
+created: 2026-07-21 23:04
+---
+Focus handoff from `test` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-21 23:04
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-21 23:04
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
