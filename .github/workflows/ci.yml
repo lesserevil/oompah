@@ -10,11 +10,7 @@ on:
 
 jobs:
   test:
-    # GitHub-hosted runners are the primary CI capacity.  The equivalent
-    # dedicated-runner workflow remains available for operator-dispatched
-    # verification without making public-runner availability a hard requirement
-    # for local validation.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, oompah]
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
