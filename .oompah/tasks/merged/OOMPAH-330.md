@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-330
 type: task
-status: In Progress
+status: Merged
 priority: 0
 title: Rebase epic-OOMPAH-293 onto main
 parent: OOMPAH-293
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T20:59:27.535782Z'
-updated_at: '2026-07-21T22:08:53.203787Z'
+updated_at: '2026-07-21T22:12:32.100866Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -313,5 +313,10 @@ author: oompah
 created: 2026-07-21 22:08
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 22:12
+---
+Completion: All work was done in prior runs. The actual rebase of epic-OOMPAH-293 onto origin/main completed successfully (4 commits applied, OOMPAH-286 auto-skipped). This run created the required PR #484 (https://github.com/lesserevil/oompah/pull/484) from OOMPAH-330 to main, which the orchestrator requires before closing. Closing task now.
 ---
 <!-- COMMENTS:END -->
