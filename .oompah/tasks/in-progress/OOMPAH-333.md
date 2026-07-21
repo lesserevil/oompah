@@ -11,7 +11,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T21:02:27.066884Z'
-updated_at: '2026-07-21T21:03:44.963270Z'
+updated_at: '2026-07-21T21:04:28.636160Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-07-21 21:03
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-21 21:04
+---
+Understanding: This task requires rebasing the fix-release-selected-commits branch onto its target branch to resolve merge conflicts. I will: 1) Identify the current branch and target, 2) Fetch origin and rebase, 3) Resolve any conflicts by understanding both sides' intent, 4) Run tests to verify, 5) Force-push the resolved branch.
 ---
 <!-- COMMENTS:END -->
