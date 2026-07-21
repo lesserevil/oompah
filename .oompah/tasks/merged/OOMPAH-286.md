@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:39.881239Z'
-updated_at: '2026-07-21T16:11:19.478216Z'
+updated_at: '2026-07-21T16:11:21.978830Z'
 work_branch: OOMPAH-286
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/466
@@ -263,5 +263,10 @@ author: oompah
 created: 2026-07-21 16:11
 ---
 YOLO: merged PR #466.
+---
+author: oompah
+created: 2026-07-21 16:11
+---
+Created plans/prompt-injection-protection.md (trust/threat model, 5-component prompt-path inventory, provenance contract) and tests/test_prompt_injection_protection.py (29 contract tests, all passing). PR #466 open at https://github.com/lesserevil/oompah/pull/466.
 ---
 <!-- COMMENTS:END -->
