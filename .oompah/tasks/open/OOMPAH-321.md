@@ -1,17 +1,19 @@
 ---
 id: OOMPAH-321
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Complete GitLab Merge Request provider parity
 parent: OOMPAH-318
 children: []
 blocked_by:
 - OOMPAH-320
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-21T20:33:51.110283Z'
-updated_at: '2026-07-21T23:23:55.142142Z'
+updated_at: '2026-07-21T23:24:38.643761Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 104a0df8-ffe4-4374-9593-8d73a7d75081
 oompah.task_costs:
-  total_input_tokens: 390372
-  total_output_tokens: 2376
+  total_input_tokens: 563971
+  total_output_tokens: 3508
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 390372
-      output_tokens: 2376
+      input_tokens: 563971
+      output_tokens: 3508
       cost_usd: 0.0
   runs:
   - profile: default
@@ -34,6 +36,12 @@ oompah.task_costs:
     output_tokens: 2376
     cost_usd: 0.0
     recorded_at: '2026-07-21T23:23:35.814488+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 173599
+    output_tokens: 1132
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T23:24:34.903902+00:00'
 ---
 ## Summary
 
@@ -97,5 +105,35 @@ author: oompah
 created: 2026-07-21 23:23
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 23:24
+---
+Understanding: I am screening this GitLabProvider parity task for overlap before implementation. The requested scope is the full forge-neutral Merge Request provider contract, including requests, error handling, and HTTP fixtures.
+---
+author: oompah
+created: 2026-07-21 23:24
+---
+Focus handoff: duplicate_detector\n\nOutcome: no confirmed duplicate.\n\nEvidence: reviewed OOMPAH-319 (explicit forge configuration and project migration) and OOMPAH-320 (test mock rename for get_review_commits); both are prerequisite/adjacent work, not GitLabProvider MR parity. Repository search found plans/gitlab-forge-parity.md as the specification and no existing task record covering this implementation surface.\n\nRemaining work/risks: implement and contract-test GitLabProvider against the plan, preserving token redaction and GitLab auto-merge constraints.\n\nRecommended next focus: feature.
+---
+author: oompah
+created: 2026-07-21 23:24
+---
+Agent completed successfully in 41s (174731 tokens)
+---
+author: oompah
+created: 2026-07-21 23:24
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/default]
+- Turns: 1, Tool calls: 5
+- Tokens: 173.6K in / 1.1K out [174.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 41s
+- Log: OOMPAH-321__20260721T232355Z.jsonl
+---
+author: oompah
+created: 2026-07-21 23:24
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->

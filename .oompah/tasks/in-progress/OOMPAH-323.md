@@ -5,14 +5,16 @@ status: In Progress
 priority: 1
 title: Implement GitLab Issues tracker with Oompah status governance
 parent: OOMPAH-318
-children: []
+children:
+- OOMPAH-337
+- OOMPAH-338
 blocked_by:
 - OOMPAH-319
 labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-21T23:24:13.535142Z'
+updated_at: '2026-07-21T23:24:39.780899Z'
 work_branch: null
 target_branch: null
 review_url: null
