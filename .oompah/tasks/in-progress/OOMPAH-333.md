@@ -11,7 +11,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T21:02:27.066884Z'
-updated_at: '2026-07-21T21:04:28.636160Z'
+updated_at: '2026-07-21T21:11:59.862956Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,5 +45,10 @@ author: oompah
 created: 2026-07-21 21:04
 ---
 Understanding: This task requires rebasing the fix-release-selected-commits branch onto its target branch to resolve merge conflicts. I will: 1) Identify the current branch and target, 2) Fetch origin and rebase, 3) Resolve any conflicts by understanding both sides' intent, 4) Run tests to verify, 5) Force-push the resolved branch.
+---
+author: oompah
+created: 2026-07-21 21:11
+---
+Discovery: The rebase of fix-release-selected-commits onto main was already in progress in worktree OOMPAH-332. The conflict was in oompah/orchestrator.py at the cherry_pick_delivery() call — both the branch and OOMPAH-314 changed 'sync_source_branch=True'. OOMPAH-314 fixed it more explicitly (sync_source_branch=False), while the branch simply removed the parameter. The rebase resolved by keeping main's explicit False (correct), and the branch's test addition (test_cherry_pick_delivery_does_not_merge_unselected_source_history) was applied on top of OOMPAH-314's existing tests. Rebased branch is clean at 4f7e04a8f. Running tests now.
 ---
 <!-- COMMENTS:END -->
