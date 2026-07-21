@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:23:16.556289Z'
+updated_at: '2026-07-21T15:23:18.966794Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -216,5 +216,10 @@ Completion: Delivered all items specified in OOMPAH-292:
 5. Frontend — full task detail in drawer: _rdiFetchTaskDetail() calls GET /api/v1/issues/{identifier}/detail?project_id=... and _rdiRenderTaskDetail() renders title, type, state, priority, labels, parent, description (pre-wrapped), children, source/repository links, tracker metadata, created/updated timestamps, and comments. Loading state shown while fetching; errors rendered safely via _rdiEsc(); delivery evidence (_rdiBuildDeliverySection) always appended synchronously so it is never lost. Unassociated commits do not trigger a detail fetch.
 
 6. Tests: 44 new tests added across backlog unit tests, server API tests, and template tests. 2 existing tests updated. All 9918 tests pass.
+---
+author: oompah
+created: 2026-07-21 15:23
+---
+Implemented all OOMPAH-292 features: (1) ItemRow.summary field extracted from tracker descriptions (HTML-stripped, whitespace-normalised, truncated to 280 chars, None fallback); (2) summary in backlog JSON API; (3) summary rendered in Release Delivery rows beneath title via textContent; (4) drawer width widened to min(800px, 40vw) with 90vw fallback; (5) full task detail loaded via GET /api/v1/issues/{identifier}/detail in drawer (title/type/state/priority/labels/parent/description/children/comments/links/metadata); (6) delivery evidence always visible (synchronous, before async fetch); (7) 44 new tests, 2 updated tests, all 9918 tests pass.
 ---
 <!-- COMMENTS:END -->
