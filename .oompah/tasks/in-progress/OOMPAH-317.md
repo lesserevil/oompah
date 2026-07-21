@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-317
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Restore git write access for OOMPAH-316 landing
 parent: null
@@ -9,16 +9,15 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
-- needs:devops
 assignee: null
 created_at: '2026-07-21T19:04:51.954483Z'
-updated_at: '2026-07-21T19:11:27.291590Z'
+updated_at: '2026-07-21T19:11:53.896619Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: afa11c3e-bcbb-476c-810c-c9412f6a294c
+oompah.agent_run_id: 6af262cb-7058-4fe7-ac18-ac00089f1610
 oompah.task_costs:
   total_input_tokens: 338506
   total_output_tokens: 1615
@@ -89,5 +88,15 @@ author: oompah
 created: 2026-07-21 19:11
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-21 19:11
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-21 19:11
+---
+Focus: DevOps Engineer
 ---
 <!-- COMMENTS:END -->
