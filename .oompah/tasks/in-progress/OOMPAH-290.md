@@ -14,7 +14,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-21T14:51:56.727670Z'
-updated_at: '2026-07-21T22:59:30.597694Z'
+updated_at: '2026-07-21T23:01:22.906018Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +185,17 @@ author: oompah
 created: 2026-07-21 22:59
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 23:01
+---
+Understanding: Previous security audit (focus-complete:security) confirmed that oompah/acp_tools.py executes protected actions (task create/set-status/label/update_project, shell run_command) with NO server-side authority check — untrusted external task content can influence these operations once an agent acts on them. No authority_boundary module exists yet.
+
+My plan as Test Engineer:
+1. Implement oompah/authority_boundary.py: ProtectedAction enum, AgentActionPolicy frozen dataclass (server-issued, immutable), check_action() enforcer, classify_shell_command() for git push/credential/release patterns, and factory functions for default-allow (operator) vs. restrictive (external-task) policies.
+2. Integrate policy check into acp_tools.py: gate set-status, create, child-create, update_project, and shell commands through check_action().
+3. Write tests/test_authority_boundary.py: unit tests for all boundary logic + integration tests using externally-sourced task context that requests each protected action — asserting denial without trusted approval and success through approved path.
+
+This addresses the acceptance criterion: external prompt injection cannot grant capabilities or bypass transition or authorization gates.
 ---
 <!-- COMMENTS:END -->
