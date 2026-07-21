@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T18:53:41.236949Z'
+updated_at: '2026-07-21T18:55:07.086490Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -209,5 +209,17 @@ Fix plan (option b from prior investigation):
 4. Add tests in test_oompah_md_tracker_state_branch.py and test_error_watcher_orchestrator.py
 
 Rationale: treating the missing-state-branch condition like TrackerNotConfiguredError (configuration issue requiring operator action, not a transient error) keeps the diagnostic message visible in logs while preventing repetitive auto-filing of tasks.
+---
+author: oompah
+created: 2026-07-21 18:55
+---
+Discovery: Code changes complete.
+
+Changes made:
+1. oompah/tracker.py: Added TrackerStateBranchMissingError(TrackerError) subclass with docstring explaining it's a config/setup issue that doesn't trigger error_watcher
+2. oompah/oompah_md_tracker.py: Imported TrackerStateBranchMissingError and raised it (instead of generic TrackerError) when the state branch is missing in _get_state_root()
+3. oompah/orchestrator.py: (a) Imported TrackerStateBranchMissingError, (b) Added it to _error_class_for_tracker_exc returning 'tracker_state_branch_missing', (c) Added explicit catch for TrackerStateBranchMissingError in all 4 fetch sites — logs WARNING (no error_class), so error_watcher is NOT triggered
+
+Key insight: The existing test test_missing_state_branch_raises_actionable_error checks for TrackerError which TrackerStateBranchMissingError still is (subclass), so it passes unchanged. The orchestrator now treats missing-state-branch like a configuration issue (warning) rather than a transient error (error + error_class), preventing auto-filing.
 ---
 <!-- COMMENTS:END -->
