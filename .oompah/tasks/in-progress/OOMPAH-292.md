@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:22:27.306680Z'
+updated_at: '2026-07-21T15:22:59.134647Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -187,5 +187,17 @@ Implementation complete. Changes made:
 3. **oompah/templates/release_delivery.html**: (a) Drawer width changed from 420px to min(800px, 40vw) with max-width: 90vw fallback; (b) Added .rdi-item-summary CSS class and summary rendered beneath title in each item row via textContent (HTML-safe, aria-label added); (c) Complete drawer overhaul: _rdiOpenItemDrawer shows loading state, calls _rdiFetchTaskDetail, renders full task detail (title/type/state/priority/labels/parent/description/children/comments/links/metadata) via _rdiRenderTaskDetail, and keeps delivery evidence always visible via _rdiBuildDeliverySection; _rdiEsc helper added for safe error rendering.
 
 4. **tests/**: Added TestExtractItemSummary (12 tests), TestItemRowSummaryField (4 tests), TestSummaryInApiResponse (3 tests), TestItemSummaryInRow (5 tests), TestDrawerWidth (3 tests), TestFullTaskDetailInDrawer (17 tests); updated 2 existing tests in test_dashboard_release_delivery_ui.py to reflect new delivery-section architecture.
+---
+author: oompah
+created: 2026-07-21 15:22
+---
+Verification: All 9918 tests pass (36 skipped, 0 failed). New tests added:
+- TestExtractItemSummary (12 tests): HTML stripping, whitespace normalisation, truncation at ITEM_SUMMARY_MAX_LENGTH, None fallbacks, custom max_length, XSS safety
+- TestItemRowSummaryField (4 tests): summary populated from tracker, None when no description, None without tracker, HTML stripped
+- TestSummaryInApiResponse (3 tests): summary field present/null/always-keyed in JSON
+- TestItemSummaryInRow (5 tests): CSS class defined, textContent usage, aria-label, conditional rendering
+- TestDrawerWidth (3 tests): min(800px,40vw), max-width fallback, 420px removed
+- TestFullTaskDetailInDrawer (17 tests): detail endpoint called, project_id passed, all core fields rendered, loading state, error display, delivery evidence preserved
+Branch pushed to origin/OOMPAH-292.
 ---
 <!-- COMMENTS:END -->
