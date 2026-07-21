@@ -2509,7 +2509,7 @@ def _get_tracker_for_managed_repo(orch, managed_repo: str):
 def _fetch_all_issues(orch, filter_project: str | None = None):
     """Fetch issues from all projects or a specific one (parallel)."""
     from concurrent.futures import ThreadPoolExecutor
-    from oompah.tracker import TrackerError
+    from oompah.tracker import StateBranchMissingError, TrackerError
 
     projects = orch.project_store.list_all()
     if not projects:
@@ -2565,6 +2565,16 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
                     if rolled:
                         issue.state = rolled
             return issues
+        except StateBranchMissingError as exc:
+            # State branch not yet bootstrapped — expected configuration
+            # condition, not a runtime fault.  Degrade gracefully so
+            # error_watcher is not triggered.
+            logger.warning(
+                "Fetch issues skipped for project %s: %s",
+                project.name,
+                exc,
+            )
+            return []
         except (TrackerError, ProjectError) as exc:
             logger.error("Fetch issues failed for project %s: %s", project.name, exc)
             return []
