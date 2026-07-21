@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:55.684579Z'
-updated_at: '2026-07-21T22:57:31.382199Z'
+updated_at: '2026-07-21T22:57:33.622542Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -237,5 +237,10 @@ Implementation and tests complete. Changes committed and pushed to epic-OOMPAH-2
 
 ## Verification
 make test: 10723 passed, 36 skipped, 0 failures
+---
+author: oompah
+created: 2026-07-21 22:57
+---
+Hardened focus triage and model-only decision paths against prompt injection. Wrapped title, labels, and description each in separate oompah:untrusted provenance blocks; tightened _parse_triage_response to a strict single-line identifier schema; removed LLM 'default' escape path; added 11 new adversarial tests covering wrapping, SAFETY_INSTRUCTION, delimiter escape, space-in-name rejection, and end-to-end injection isolation. All 10723 tests pass.
 ---
 <!-- COMMENTS:END -->
