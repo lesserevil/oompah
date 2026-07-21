@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-286
 type: task
-status: Done
+status: In Progress
 priority: 1
 title: Define the external-content trust model and prompt-injection threat model
 parent: OOMPAH-285
@@ -11,21 +11,21 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:39.881239Z'
-updated_at: '2026-07-21T16:06:47.685704Z'
+updated_at: '2026-07-21T16:07:07.484906Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 68f49953-b64c-4657-8d28-4bda9e795f25
+oompah.agent_run_id: 862aa3ed-662e-41ed-8030-95bf851ebe0c
 oompah.task_costs:
-  total_input_tokens: 205635
-  total_output_tokens: 3331
+  total_input_tokens: 205660
+  total_output_tokens: 7712
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 205635
-      output_tokens: 3331
+      input_tokens: 205660
+      output_tokens: 7712
       cost_usd: 0.0
   runs:
   - profile: default
@@ -40,6 +40,12 @@ oompah.task_costs:
     output_tokens: 1657
     cost_usd: 0.0
     recorded_at: '2026-07-21T16:04:43.701419+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 25
+    output_tokens: 4381
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T16:06:57.336265+00:00'
 ---
 ## Summary
 
@@ -190,5 +196,46 @@ author: oompah
 created: 2026-07-21 16:06
 ---
 Created plans/prompt-injection-protection.md (trust model, threat scenarios, 5-component inventory, provenance contract, non-goals) and tests/test_prompt_injection_protection.py (29 contract tests, all passing). Branch OOMPAH-286 pushed.
+---
+author: oompah
+created: 2026-07-21 16:06
+---
+Agent completed successfully in 119s (4406 tokens)
+---
+author: oompah
+created: 2026-07-21 16:06
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
+- Turns: 39, Tool calls: 24
+- Tokens: 25 in / 4.4K out [4.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 59s
+- Log: OOMPAH-286__20260721T160500Z.jsonl
+---
+author: oompah
+created: 2026-07-21 16:07
+---
+Close refused by orchestrator: branch `OOMPAH-286` has 1 commit not on `main` and no open PR targets `main` from this branch.
+
+Diagnostic:
+  Unmerged commits: 1
+    37bfca985 OOMPAH-286: Add prompt-injection trust model doc and contract tests
+  Open PRs from this branch: 0
+  Merged PRs from this branch: 0
+
+Required: open a PR before closing.
+  gh pr create --base main --head OOMPAH-286 --title "OOMPAH-286: Define the external-content trust model and prompt-injection threat model" --body "..."
+
+Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
+---
+author: oompah
+created: 2026-07-21 16:07
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 16:07
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
