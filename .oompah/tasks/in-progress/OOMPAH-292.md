@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:06:57.485737Z'
+updated_at: '2026-07-21T15:07:13.044173Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: fde8c075-4068-4afd-8771-486fd586beab
+oompah.agent_run_id: d2128a10-68e4-44cc-a888-fdbe84156888
 oompah.task_costs:
   total_input_tokens: 110189
   total_output_tokens: 6167
@@ -154,5 +154,15 @@ author: oompah
 created: 2026-07-21 15:06
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-292`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-21 15:07
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-21 15:07
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
