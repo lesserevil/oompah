@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-306
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T16:48:07.849440Z'
+updated_at: '2026-07-21T16:48:17.497572Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 79425b21-926b-4d17-aedd-9dc96127e6e6
+oompah.agent_run_id: 8aab720d-556d-4d1d-9737-59eb1d9583d8
 oompah.task_costs:
   total_input_tokens: 1609925
   total_output_tokens: 7808
@@ -153,5 +153,15 @@ author: oompah
 created: 2026-07-21 16:48
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-21 16:48
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 16:48
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
