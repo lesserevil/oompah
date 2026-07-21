@@ -3202,3 +3202,1137 @@ class TestGitHubCreateReviewIdempotent:
         # Only POST + GET should be called — no find_pr_for_branch call
         post_calls = [c for c in calls if c[0] == "POST"]
         assert len(post_calls) == 1
+
+
+# ============================================================================
+# GitLabProvider — comprehensive contract and fixture tests (OOMPAH-321)
+# ============================================================================
+
+
+class _GL:
+    """Shared fixture helpers for GitLabProvider tests."""
+
+    class _Resp:
+        """Lightweight HTTP response stub."""
+
+        def __init__(self, payload=None, status_code=200, text=None):
+            self._payload = payload if payload is not None else {}
+            self.status_code = status_code
+            if text is not None:
+                self.text = text
+            elif isinstance(payload, (dict, list)):
+                import json as _json
+                self.text = _json.dumps(payload)
+            else:
+                self.text = str(payload or "")
+
+        def json(self):
+            return self._payload
+
+    @staticmethod
+    def provider(token="glpat-secret"):
+        return GitLabProvider(access_token=token)
+
+    @classmethod
+    def r(cls, payload=None, code=200, text=None):
+        return cls._Resp(payload=payload, status_code=code, text=text)
+
+
+class TestGitLabProviderIsAvailable:
+    """is_available() probes /user and returns bool without raising."""
+
+    def test_returns_true_when_authenticated(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r({"id": 1, "username": "alice"})
+        assert p.is_available() is True
+
+    def test_returns_false_on_401(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(code=401)
+        assert p.is_available() is False
+
+    def test_returns_false_on_403(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(code=403)
+        assert p.is_available() is False
+
+    def test_returns_false_on_network_error(self):
+        import httpx
+        p = _GL.provider()
+        p._api = mock.MagicMock(side_effect=httpx.HTTPError("connection refused"))
+        assert p.is_available() is False
+
+    def test_probes_slash_user_endpoint(self):
+        p = _GL.provider()
+        calls = []
+
+        def fake(m, path, **kw):
+            calls.append((m, path))
+            return _GL.r({"id": 1})
+
+        p._api = fake
+        p.is_available()
+        assert calls == [("GET", "/user")]
+
+
+class TestGitLabSelfManagedUrl:
+    """Provider respects configurable hostname for self-managed installations."""
+
+    def test_dotcom_default(self):
+        p = GitLabProvider(access_token="t")
+        assert p._api_url() == "https://gitlab.com/api/v4"
+
+    def test_custom_hostname(self):
+        p = GitLabProvider(hostname="gitlab.company.com", access_token="t")
+        assert p._api_url() == "https://gitlab.company.com/api/v4"
+
+    def test_detect_provider_from_self_managed_url_uses_correct_hostname(self):
+        provider = detect_provider(
+            "https://gitlab.acme.internal/group/project", access_token="t"
+        )
+        assert isinstance(provider, GitLabProvider)
+        assert provider._api_url() == "https://gitlab.acme.internal/api/v4"
+
+    def test_provider_name_is_gitlab(self):
+        p = GitLabProvider(hostname="gitlab.company.com", access_token="t")
+        assert p.provider_name() == "gitlab"
+
+
+class TestGitLabNestedNamespaceEncoding:
+    """Nested group paths must be percent-encoded in every API call."""
+
+    def test_simple_group_project_encoded(self):
+        p = _GL.provider()
+        assert p._project_path("group/project") == "group%2Fproject"
+
+    def test_deeply_nested_path_fully_encoded(self):
+        p = _GL.provider()
+        assert p._project_path("group/sub/deep/project") == "group%2Fsub%2Fdeep%2Fproject"
+
+    def test_list_open_reviews_uses_encoded_path(self):
+        p = _GL.provider()
+        calls = []
+
+        def fake(m, path, **kw):
+            calls.append(path)
+            return _GL.r([])
+
+        p._api = fake
+        p.list_open_reviews("group/sub/project")
+        assert calls[0].startswith("/projects/group%2Fsub%2Fproject")
+
+    def test_get_review_uses_encoded_path(self):
+        p = _GL.provider()
+        calls = []
+
+        def fake(m, path, **kw):
+            calls.append(path)
+            return _GL.r({
+                "iid": 1, "title": "t", "web_url": "", "author": {"username": "x"},
+                "state": "opened", "source_branch": "b", "target_branch": "main",
+                "created_at": "", "updated_at": "", "description": "",
+                "labels": [], "draft": False, "work_in_progress": False,
+            })
+
+        p._api = fake
+        p.get_review("group/sub/project", "42")
+        assert "/projects/group%2Fsub%2Fproject/merge_requests/42" in calls[0]
+
+    def test_commits_endpoint_uses_encoded_nested_path(self):
+        p = _GL.provider()
+        calls = []
+
+        def fake(m, path, **kw):
+            calls.append(path)
+            return _GL.r([])
+
+        p._api = fake
+        p.get_pr_commits("group/sub/project", "42")
+        assert "group%2Fsub%2Fproject" in calls[0]
+
+
+class TestGitLabListOpenReviews:
+    """list_open_reviews maps all MR fields to ReviewRequest correctly."""
+
+    def _mr(self, **overrides):
+        base = {
+            "iid": 1,
+            "title": "My MR",
+            "web_url": "https://gitlab.com/g/p/-/merge_requests/1",
+            "author": {"username": "alice", "name": "Alice"},
+            "state": "opened",
+            "source_branch": "feature/OOMPAH-321",
+            "target_branch": "main",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-02T00:00:00Z",
+            "description": "Fix something",
+            "labels": ["backend", "needs-review"],
+            "draft": False,
+            "work_in_progress": False,
+            "reviewers": [{"username": "bob", "name": "Bob"}],
+            "has_conflicts": False,
+            "diverged_commits_count": 0,
+            "head_pipeline": None,
+            "changes_count": 5,
+        }
+        base.update(overrides)
+        return base
+
+    def test_happy_path_maps_all_fields(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([self._mr()])
+        reviews = p.list_open_reviews("group/project")
+        assert len(reviews) == 1
+        r = reviews[0]
+        assert r.id == "1"
+        assert r.title == "My MR"
+        assert r.author == "alice"
+        assert r.state == "open"
+        assert r.source_branch == "feature/OOMPAH-321"
+        assert r.target_branch == "main"
+        assert r.labels == ["backend", "needs-review"]
+        assert r.reviewers == ["bob"]
+        assert r.draft is False
+        assert r.has_conflicts is False
+        assert r.needs_rebase is False
+
+    def test_returns_empty_on_401(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(code=401)
+        assert p.list_open_reviews("group/project") == []
+
+    def test_returns_empty_on_network_error(self):
+        import httpx
+        p = _GL.provider()
+        p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
+        assert p.list_open_reviews("group/project") == []
+
+    def test_ci_status_passed_from_successful_pipeline(self):
+        mr = self._mr(head_pipeline={"status": "success"})
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        reviews = p.list_open_reviews("g/p")
+        assert reviews[0].ci_status == "passed"
+
+    def test_ci_status_failed_from_failed_pipeline(self):
+        mr = self._mr(head_pipeline={"status": "failed"})
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        reviews = p.list_open_reviews("g/p")
+        assert reviews[0].ci_status == "failed"
+
+    def test_ci_status_failed_from_canceled_pipeline(self):
+        mr = self._mr(head_pipeline={"status": "canceled"})
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        reviews = p.list_open_reviews("g/p")
+        assert reviews[0].ci_status == "failed"
+
+    def test_ci_status_pending_from_running_pipeline(self):
+        mr = self._mr(head_pipeline={"status": "running"})
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        reviews = p.list_open_reviews("g/p")
+        assert reviews[0].ci_status == "pending"
+
+    def test_ci_status_pending_from_pending_pipeline(self):
+        mr = self._mr(head_pipeline={"status": "pending"})
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        reviews = p.list_open_reviews("g/p")
+        assert reviews[0].ci_status == "pending"
+
+    def test_ci_status_pending_from_created_pipeline(self):
+        mr = self._mr(head_pipeline={"status": "created"})
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        reviews = p.list_open_reviews("g/p")
+        assert reviews[0].ci_status == "pending"
+
+    def test_ci_status_unknown_when_no_pipeline(self):
+        mr = self._mr(head_pipeline=None)
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        reviews = p.list_open_reviews("g/p")
+        assert reviews[0].ci_status is CIStatus.UNKNOWN
+
+    def test_draft_mr_detected_from_draft_field(self):
+        mr = self._mr(draft=True, work_in_progress=False)
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        reviews = p.list_open_reviews("g/p")
+        assert reviews[0].draft is True
+
+    def test_wip_mr_detected_from_work_in_progress_field(self):
+        mr = self._mr(draft=False, work_in_progress=True)
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        reviews = p.list_open_reviews("g/p")
+        assert reviews[0].draft is True
+
+    def test_has_conflicts_sets_both_flags(self):
+        mr = self._mr(has_conflicts=True, diverged_commits_count=0)
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        reviews = p.list_open_reviews("g/p")
+        assert reviews[0].has_conflicts is True
+        assert reviews[0].needs_rebase is True
+
+    def test_diverged_commits_sets_needs_rebase(self):
+        mr = self._mr(has_conflicts=False, diverged_commits_count=3)
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        reviews = p.list_open_reviews("g/p")
+        assert reviews[0].needs_rebase is True
+
+    def test_labels_preserved_in_full(self):
+        mr = self._mr(labels=["oompah:status:in-progress", "feature", "priority:high"])
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        reviews = p.list_open_reviews("g/p")
+        assert reviews[0].labels == ["oompah:status:in-progress", "feature", "priority:high"]
+
+    def test_requests_opened_state(self):
+        p = _GL.provider()
+        params_seen = {}
+
+        def fake(m, path, **kw):
+            params_seen.update(kw.get("params", {}))
+            return _GL.r([])
+
+        p._api = fake
+        p.list_open_reviews("g/p")
+        assert params_seen.get("state") == "opened"
+
+    def test_empty_list_when_no_open_mrs(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([])
+        assert p.list_open_reviews("g/p") == []
+
+    def test_multiple_mrs_returned(self):
+        mrs = [self._mr(iid=i, title=f"MR {i}") for i in range(1, 4)]
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(mrs)
+        reviews = p.list_open_reviews("g/p")
+        assert len(reviews) == 3
+        assert reviews[0].id == "1"
+        assert reviews[2].id == "3"
+
+    def test_iid_used_as_id_not_global_id(self):
+        """GitLab MR iid (project-scoped) must be used, not the global id."""
+        mr = self._mr(iid=7)
+        mr["id"] = 99999  # global id should be ignored
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        reviews = p.list_open_reviews("g/p")
+        assert reviews[0].id == "7"
+
+
+class TestGitLabListMergedReviews:
+    """list_merged_reviews fetches merged MRs and maps fields."""
+
+    def _mr(self, **overrides):
+        base = {
+            "iid": 10,
+            "title": "Merged MR",
+            "web_url": "https://gitlab.com/g/p/-/merge_requests/10",
+            "author": {"username": "carol"},
+            "state": "merged",
+            "source_branch": "feat/done",
+            "target_branch": "main",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-10T00:00:00Z",
+            "description": "",
+            "labels": ["backend"],
+            "draft": False,
+            "work_in_progress": False,
+        }
+        base.update(overrides)
+        return base
+
+    def test_happy_path_maps_fields(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([self._mr()])
+        reviews = p.list_merged_reviews("g/p")
+        assert len(reviews) == 1
+        r = reviews[0]
+        assert r.id == "10"
+        assert r.state == "merged"
+        assert r.source_branch == "feat/done"
+        assert r.labels == ["backend"]
+
+    def test_returns_empty_on_403(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(code=403)
+        assert p.list_merged_reviews("g/p") == []
+
+    def test_returns_empty_on_network_error(self):
+        import httpx
+        p = _GL.provider()
+        p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
+        assert p.list_merged_reviews("g/p") == []
+
+    def test_skips_mr_without_source_branch(self):
+        mr = self._mr(source_branch="")
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([mr])
+        assert p.list_merged_reviews("g/p") == []
+
+    def test_requests_merged_state_sorted_newest_first(self):
+        p = _GL.provider()
+        params_seen = {}
+
+        def fake(m, path, **kw):
+            params_seen.update(kw.get("params", {}))
+            return _GL.r([])
+
+        p._api = fake
+        p.list_merged_reviews("g/p")
+        assert params_seen.get("state") == "merged"
+        assert params_seen.get("order_by") == "updated_at"
+        assert params_seen.get("sort") == "desc"
+
+
+class TestGitLabListMergedBranches:
+    """list_merged_branches returns source branch names of merged MRs."""
+
+    def _mr(self, iid, source_branch):
+        return {
+            "iid": iid, "title": "t", "web_url": "",
+            "author": {"username": "x"}, "state": "merged",
+            "source_branch": source_branch, "target_branch": "main",
+            "created_at": "", "updated_at": "", "description": "",
+            "labels": [], "draft": False, "work_in_progress": False,
+        }
+
+    def test_returns_source_branch_set(self):
+        p = _GL.provider()
+        mrs = [self._mr(1, "feat/one"), self._mr(2, "feat/two")]
+        p._api = lambda m, path, **kw: _GL.r(mrs)
+        branches = p.list_merged_branches("g/p")
+        assert branches == {"feat/one", "feat/two"}
+
+    def test_returns_empty_set_on_api_error(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(code=500)
+        assert p.list_merged_branches("g/p") == set()
+
+
+class TestGitLabFindPrForBranch:
+    """find_pr_for_branch finds MR by source branch for all states."""
+
+    def _mr(self, state="opened", iid=7, **overrides):
+        base = {
+            "iid": iid,
+            "title": "Branch MR",
+            "web_url": "https://gitlab.com/g/p/-/merge_requests/7",
+            "author": {"username": "dave"},
+            "state": state,
+            "source_branch": "OOMPAH-7",
+            "target_branch": "main",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-02T00:00:00Z",
+            "description": "",
+            "labels": [],
+            "draft": False,
+            "work_in_progress": False,
+        }
+        base.update(overrides)
+        return base
+
+    def test_finds_open_mr(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([self._mr(state="opened")])
+        result = p.find_pr_for_branch("g/p", "OOMPAH-7")
+        assert result is not None
+        assert result.id == "7"
+        assert result.state == "open"
+
+    def test_finds_merged_mr(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([self._mr(state="merged")])
+        result = p.find_pr_for_branch("g/p", "OOMPAH-7")
+        assert result is not None
+        assert result.state == "merged"
+
+    def test_finds_closed_mr(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([self._mr(state="closed")])
+        result = p.find_pr_for_branch("g/p", "OOMPAH-7")
+        assert result is not None
+        assert result.state == "closed"
+
+    def test_returns_none_when_not_found(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([])
+        assert p.find_pr_for_branch("g/p", "OOMPAH-99") is None
+
+    def test_returns_none_on_empty_branch(self):
+        p = _GL.provider()
+        assert p.find_pr_for_branch("g/p", "") is None
+
+    def test_returns_none_on_network_error(self):
+        import httpx
+        p = _GL.provider()
+        p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
+        assert p.find_pr_for_branch("g/p", "OOMPAH-7") is None
+
+    def test_requests_state_all_with_source_branch_filter(self):
+        p = _GL.provider()
+        params_seen = {}
+
+        def fake(m, path, **kw):
+            params_seen.update(kw.get("params", {}))
+            return _GL.r([])
+
+        p._api = fake
+        p.find_pr_for_branch("g/p", "my-branch")
+        assert params_seen.get("source_branch") == "my-branch"
+        assert params_seen.get("state") == "all"
+
+    def test_returns_most_recent_mr_when_multiple_exist(self):
+        """API returns newest-first; find_pr_for_branch picks the first entry."""
+        newest = self._mr(state="opened", iid=20)
+        older = self._mr(state="merged", iid=5)
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r([newest, older])
+        result = p.find_pr_for_branch("g/p", "OOMPAH-7")
+        assert result is not None
+        assert result.id == "20"
+
+
+class TestGitLabGetReview:
+    """get_review fetches a single MR by IID."""
+
+    def _mr(self, **overrides):
+        base = {
+            "iid": 42,
+            "title": "Detailed MR",
+            "web_url": "https://gitlab.com/g/p/-/merge_requests/42",
+            "author": {"username": "eve"},
+            "state": "opened",
+            "source_branch": "fix/something",
+            "target_branch": "main",
+            "created_at": "2026-02-01T00:00:00Z",
+            "updated_at": "2026-02-10T00:00:00Z",
+            "description": "Long description",
+            "labels": ["bug", "wontfix"],
+            "draft": False,
+            "work_in_progress": False,
+        }
+        base.update(overrides)
+        return base
+
+    def test_happy_path_maps_all_fields(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(self._mr())
+        result = p.get_review("g/p", "42")
+        assert result is not None
+        assert result.id == "42"
+        assert result.title == "Detailed MR"
+        assert result.author == "eve"
+        assert result.source_branch == "fix/something"
+        assert result.labels == ["bug", "wontfix"]
+
+    def test_returns_none_on_404(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(code=404)
+        assert p.get_review("g/p", "999") is None
+
+    def test_returns_none_on_401(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(code=401)
+        assert p.get_review("g/p", "42") is None
+
+    def test_returns_none_on_network_error(self):
+        import httpx
+        p = _GL.provider()
+        p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
+        assert p.get_review("g/p", "42") is None
+
+    def test_draft_flag_preserved(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(self._mr(draft=True))
+        result = p.get_review("g/p", "42")
+        assert result is not None
+        assert result.draft is True
+
+    def test_calls_correct_api_path(self):
+        p = _GL.provider()
+        calls = []
+
+        def fake(m, path, **kw):
+            calls.append((m, path))
+            return _GL.r(self._mr())
+
+        p._api = fake
+        p.get_review("group/project", "42")
+        assert calls == [("GET", "/projects/group%2Fproject/merge_requests/42")]
+
+
+class TestGitLabCreateReview:
+    """create_review opens a new MR and returns the created ReviewRequest."""
+
+    def _mr(self, iid=55, **overrides):
+        base = {
+            "iid": iid,
+            "title": "New MR",
+            "web_url": "https://gitlab.com/g/p/-/merge_requests/55",
+            "author": {"username": "alice"},
+            "state": "opened",
+            "source_branch": "OOMPAH-55",
+            "target_branch": "main",
+            "created_at": "2026-03-01T00:00:00Z",
+            "updated_at": "2026-03-01T00:00:00Z",
+            "description": "New MR description",
+            "labels": [],
+            "draft": False,
+            "work_in_progress": False,
+        }
+        base.update(overrides)
+        return base
+
+    def test_creates_mr_and_returns_review(self):
+        p = _GL.provider()
+        created = self._mr()
+
+        def fake(m, path, **kw):
+            if m == "POST":
+                return _GL.r({"iid": 55}, code=201)
+            return _GL.r(created)
+
+        p._api = fake
+        result = p.create_review("g/p", "New MR", "OOMPAH-55", target_branch="main")
+        assert result is not None
+        assert result.id == "55"
+
+    def test_sends_correct_fields_in_post(self):
+        p = _GL.provider()
+        post_json = {}
+
+        def fake(m, path, **kw):
+            if m == "POST":
+                post_json.update(kw.get("json", {}))
+                return _GL.r({"iid": 55}, code=201)
+            return _GL.r(self._mr())
+
+        p._api = fake
+        p.create_review("g/p", "Test MR", "feat-branch", target_branch="develop", description="desc")
+        assert post_json["title"] == "Test MR"
+        assert post_json["source_branch"] == "feat-branch"
+        assert post_json["target_branch"] == "develop"
+        assert post_json["description"] == "desc"
+
+    def test_returns_none_on_rejection(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r({"message": "Conflict"}, code=409)
+        result = p.create_review("g/p", "MR", "branch")
+        assert result is None
+
+    def test_returns_none_on_network_error(self):
+        import httpx
+        p = _GL.provider()
+        p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
+        result = p.create_review("g/p", "MR", "branch")
+        assert result is None
+
+    def test_uses_url_encoded_path_in_post(self):
+        p = _GL.provider()
+        calls = []
+
+        def fake(m, path, **kw):
+            calls.append((m, path))
+            if m == "POST":
+                return _GL.r({"iid": 1}, code=201)
+            return _GL.r(self._mr(iid=1))
+
+        p._api = fake
+        p.create_review("group/sub/project", "MR", "branch")
+        post_calls = [(m, path) for m, path in calls if m == "POST"]
+        assert len(post_calls) == 1
+        assert "group%2Fsub%2Fproject" in post_calls[0][1]
+
+
+class TestGitLabRebaseReview:
+    """rebase_review triggers a GitLab MR rebase."""
+
+    def test_success_on_200(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(code=200)
+        ok, msg = p.rebase_review("g/p", "7")
+        assert ok is True
+        assert "success" in msg.lower() or "rebase" in msg.lower()
+
+    def test_success_on_202(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(code=202)
+        ok, msg = p.rebase_review("g/p", "7")
+        assert ok is True
+
+    def test_conflict_response_returns_actionable_message(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(
+            {"message": "merge conflict"}, code=409,
+            text='{"message": "merge conflict"}'
+        )
+        ok, msg = p.rebase_review("g/p", "7")
+        assert ok is False
+        assert "conflict" in msg.lower()
+
+    def test_non_success_http_returns_false(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(code=400)
+        ok, _msg = p.rebase_review("g/p", "7")
+        assert ok is False
+
+    def test_network_error_returns_false(self):
+        import httpx
+        p = _GL.provider()
+        p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
+        ok, _msg = p.rebase_review("g/p", "7")
+        assert ok is False
+
+    def test_calls_put_rebase_endpoint(self):
+        p = _GL.provider()
+        calls = []
+
+        def fake(m, path, **kw):
+            calls.append((m, path))
+            return _GL.r(code=200)
+
+        p._api = fake
+        p.rebase_review("group/sub/project", "7")
+        assert len(calls) == 1
+        assert calls[0][0] == "PUT"
+        assert "/projects/group%2Fsub%2Fproject/merge_requests/7/rebase" == calls[0][1]
+
+
+class TestGitLabNeedsRebase:
+    """needs_rebase detects MR conflicts and divergence."""
+
+    def test_true_when_has_conflicts(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(
+            {"has_conflicts": True, "diverged_commits_count": 0}
+        )
+        assert p.needs_rebase("g/p", "7") is True
+
+    def test_true_when_diverged(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(
+            {"has_conflicts": False, "diverged_commits_count": 5}
+        )
+        assert p.needs_rebase("g/p", "7") is True
+
+    def test_true_when_both_conflict_and_diverged(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(
+            {"has_conflicts": True, "diverged_commits_count": 3}
+        )
+        assert p.needs_rebase("g/p", "7") is True
+
+    def test_false_when_clean(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(
+            {"has_conflicts": False, "diverged_commits_count": 0}
+        )
+        assert p.needs_rebase("g/p", "7") is False
+
+    def test_false_on_404(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(code=404)
+        assert p.needs_rebase("g/p", "999") is False
+
+    def test_false_on_network_error(self):
+        import httpx
+        p = _GL.provider()
+        p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
+        assert p.needs_rebase("g/p", "7") is False
+
+
+class TestGitLabMergeReviewHistoryPreserving:
+    """merge_review must NOT force squash — history preservation is required."""
+
+    def test_does_not_set_squash_true(self):
+        """The merge API call must not include squash=True."""
+        p = _GL.provider()
+        merge_json = {}
+
+        def fake(m, path, **kw):
+            if m == "GET":
+                return _GL.r({"source_branch": "feat/OOMPAH-1"})
+            if path.endswith("/merge"):
+                merge_json.update(kw.get("json", {}))
+                return _GL.r({"state": "merged"}, code=200)
+            return _GL.r(code=200)
+
+        p._api = fake
+        ok, _ = p.merge_review("g/p", "1")
+        assert ok is True
+        assert merge_json.get("squash") is not True, (
+            "merge_review must not force squash — plan requires history preservation"
+        )
+
+    def test_success_returns_true_with_message(self):
+        p = _GL.provider()
+
+        def fake(m, path, **kw):
+            if m == "GET":
+                return _GL.r({"source_branch": "feat/branch"})
+            return _GL.r(code=200)
+
+        p._api = fake
+        ok, msg = p.merge_review("g/p", "1")
+        assert ok is True
+        assert "merged" in msg.lower()
+
+    def test_failure_returns_false_with_status_code(self):
+        p = _GL.provider()
+
+        def fake(m, path, **kw):
+            if m == "GET":
+                return _GL.r({"source_branch": "feat/branch"})
+            return _GL.r({"message": "Not mergeable"}, code=405, text="Not mergeable")
+
+        p._api = fake
+        ok, msg = p.merge_review("g/p", "1")
+        assert ok is False
+        assert "405" in msg
+
+    def test_network_error_returns_false(self):
+        import httpx
+        p = _GL.provider()
+        p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
+        ok, _msg = p.merge_review("g/p", "1")
+        assert ok is False
+
+
+class TestGitLabEnableAutoMerge:
+    """enable_auto_merge uses merge_when_pipeline_succeeds per the spec."""
+
+    def test_sends_merge_when_pipeline_succeeds_flag(self):
+        """Must use merge_when_pipeline_succeeds — not a direct immediate merge."""
+        p = _GL.provider()
+        merge_json = {}
+
+        def fake(m, path, **kw):
+            if path.endswith("/merge"):
+                merge_json.update(kw.get("json", {}))
+                return _GL.r(code=200)
+            return _GL.r(code=200)
+
+        p._api = fake
+        ok, msg = p.enable_auto_merge("g/p", "1")
+        assert ok is True, f"enable_auto_merge failed unexpectedly: {msg}"
+        assert merge_json.get("merge_when_pipeline_succeeds") is True, (
+            "enable_auto_merge must use merge_when_pipeline_succeeds per the plan"
+        )
+
+    def test_does_not_force_squash(self):
+        """Auto-merge must not request squash — history preservation required."""
+        p = _GL.provider()
+        merge_json = {}
+
+        def fake(m, path, **kw):
+            if path.endswith("/merge"):
+                merge_json.update(kw.get("json", {}))
+                return _GL.r(code=200)
+            return _GL.r(code=200)
+
+        p._api = fake
+        p.enable_auto_merge("g/p", "1")
+        assert merge_json.get("squash") is not True, (
+            "enable_auto_merge must not force squash"
+        )
+
+    def test_returns_actionable_error_on_approval_policy_rejection(self):
+        """401/403 from GitLab must produce an actionable message."""
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(
+            {"message": "Requires 2 approvals"}, code=403,
+            text="Requires 2 approvals"
+        )
+        ok, msg = p.enable_auto_merge("g/p", "1")
+        assert ok is False
+        assert len(msg) > 0, "Must return non-empty actionable error"
+
+    def test_returns_false_on_405_not_allowed(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(
+            {"message": "Method Not Allowed"}, code=405, text="Method Not Allowed"
+        )
+        ok, msg = p.enable_auto_merge("g/p", "1")
+        assert ok is False
+
+    def test_returns_false_on_network_error(self):
+        import httpx
+        p = _GL.provider()
+        p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
+        ok, _msg = p.enable_auto_merge("g/p", "1")
+        assert ok is False
+
+    def test_calls_put_merge_endpoint(self):
+        p = _GL.provider()
+        calls = []
+
+        def fake(m, path, **kw):
+            calls.append((m, path))
+            return _GL.r(code=200)
+
+        p._api = fake
+        p.enable_auto_merge("group/sub/project", "42")
+        assert any(
+            m == "PUT" and "/merge_requests/42/merge" in path
+            for m, path in calls
+        ), f"Expected PUT to /merge but got: {calls}"
+
+
+class TestGitLabGetPrCommits:
+    """get_pr_commits returns commit SHAs in chronological order (oldest first)."""
+
+    def test_reverses_gitlab_newest_first_ordering(self):
+        """GitLab returns newest-first; provider must reverse to oldest-first."""
+        p = _GL.provider()
+        # GitLab API returns newest first
+        gl_order = [
+            {"id": "c" * 40},
+            {"id": "b" * 40},
+            {"id": "a" * 40},
+        ]
+        p._api = lambda m, path, **kw: _GL.r(gl_order)
+        commits = p.get_pr_commits("g/p", "7")
+        assert commits == ["a" * 40, "b" * 40, "c" * 40]
+
+    def test_single_commit_returned(self):
+        p = _GL.provider()
+        sha = "d" * 40
+        p._api = lambda m, path, **kw: _GL.r([{"id": sha}])
+        commits = p.get_pr_commits("g/p", "7")
+        assert commits == [sha]
+
+    def test_returns_empty_on_404(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(code=404)
+        assert p.get_pr_commits("g/p", "999") == []
+
+    def test_returns_empty_on_401(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(code=401)
+        assert p.get_pr_commits("g/p", "7") == []
+
+    def test_returns_empty_on_network_error(self):
+        import httpx
+        p = _GL.provider()
+        p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
+        assert p.get_pr_commits("g/p", "7") == []
+
+    def test_get_review_commits_delegates_to_get_pr_commits(self):
+        """get_review_commits is the forge-neutral alias for get_pr_commits."""
+        p = _GL.provider()
+        sha = "abc" + "0" * 37
+        p._api = lambda m, path, **kw: _GL.r([{"id": sha}])
+        commits = p.get_review_commits("g/p", "7")
+        assert commits == [sha]
+
+    def test_calls_commits_endpoint_with_encoded_path(self):
+        p = _GL.provider()
+        calls = []
+
+        def fake(m, path, **kw):
+            calls.append((m, path))
+            return _GL.r([])
+
+        p._api = fake
+        p.get_pr_commits("group/sub/project", "42")
+        assert len(calls) == 1
+        assert calls[0][0] == "GET"
+        assert "/projects/group%2Fsub%2Fproject/merge_requests/42/commits" == calls[0][1]
+
+    def test_skips_commit_entries_without_id(self):
+        p = _GL.provider()
+        sha = "e" * 40
+        p._api = lambda m, path, **kw: _GL.r([{"id": sha}, {"no_id": "x"}])
+        commits = p.get_pr_commits("g/p", "7")
+        assert commits == [sha]
+
+
+class TestGitLabTokenNotLeakedInErrors:
+    """Provider error messages must never expose the access token."""
+
+    _TOKEN = "glpat-super-secret-token"
+
+    def test_merge_error_does_not_include_token(self):
+        p = GitLabProvider(access_token=self._TOKEN)
+
+        def fake(m, path, **kw):
+            if m == "GET":
+                return _GL.r({"source_branch": "feat/x"})
+            return _GL.r({"message": "Error"}, code=500, text="Internal Server Error")
+
+        p._api = fake
+        ok, msg = p.merge_review("g/p", "1")
+        assert ok is False
+        assert self._TOKEN not in msg
+
+    def test_rebase_error_does_not_include_token(self):
+        p = GitLabProvider(access_token=self._TOKEN)
+        p._api = lambda m, path, **kw: _GL.r(code=500, text="server error")
+        ok, msg = p.rebase_review("g/p", "1")
+        assert ok is False
+        assert self._TOKEN not in msg
+
+    def test_close_error_does_not_include_token(self):
+        p = GitLabProvider(access_token=self._TOKEN)
+        p._api = lambda m, path, **kw: _GL.r(code=500, text="server error")
+        ok, msg = p.close_review("g/p", "1")
+        assert ok is False
+        assert self._TOKEN not in msg
+
+    def test_enable_auto_merge_error_does_not_include_token(self):
+        p = GitLabProvider(access_token=self._TOKEN)
+        p._api = lambda m, path, **kw: _GL.r(code=401, text="Unauthorized")
+        ok, msg = p.enable_auto_merge("g/p", "1")
+        assert ok is False
+        assert self._TOKEN not in msg
+
+
+class TestGitLabCloseReview:
+    """close_review posts an optional note then closes the MR."""
+
+    def test_posts_note_then_closes_with_comment(self):
+        p = _GL.provider()
+        calls = []
+
+        def fake(m, path, **kw):
+            calls.append((m, path, kw.get("json")))
+            if path.endswith("/notes"):
+                return _GL.r(code=201)
+            return _GL.r(code=200)
+
+        p._api = fake
+        ok, msg = p.close_review("g/p", "5", comment="closing for staleness")
+        assert ok is True
+        assert msg == "MR closed successfully"
+        assert calls[0][0] == "POST"
+        assert "/notes" in calls[0][1]
+        assert calls[0][2] == {"body": "closing for staleness"}
+        assert calls[1][0] == "PUT"
+        assert calls[1][2] == {"state_event": "close"}
+
+    def test_closes_without_comment_when_empty(self):
+        p = _GL.provider()
+        calls = []
+
+        def fake(m, path, **kw):
+            calls.append((m, path))
+            return _GL.r(code=200)
+
+        p._api = fake
+        ok, msg = p.close_review("g/p", "5", comment="")
+        assert ok is True
+        # Only PUT should be called, no POST for notes
+        methods = [m for m, _ in calls]
+        assert "POST" not in methods
+
+    def test_note_failure_does_not_prevent_closure(self):
+        p = _GL.provider()
+        calls = []
+
+        def fake(m, path, **kw):
+            calls.append(m)
+            if path.endswith("/notes"):
+                return _GL.r(code=500)
+            return _GL.r(code=200)
+
+        p._api = fake
+        ok, msg = p.close_review("g/p", "5", comment="audit")
+        assert ok is True
+
+    def test_returns_false_on_close_failure(self):
+        p = _GL.provider()
+
+        def fake(m, path, **kw):
+            if path.endswith("/notes"):
+                return _GL.r(code=201)
+            return _GL.r({"message": "Cannot close"}, code=400, text="Cannot close")
+
+        p._api = fake
+        ok, msg = p.close_review("g/p", "5", comment="audit")
+        assert ok is False
+        assert "400" in msg
+
+    def test_network_error_returns_false(self):
+        import httpx
+        p = _GL.provider()
+        p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
+        ok, _msg = p.close_review("g/p", "5")
+        assert ok is False
+
+
+class TestGitLabLabelPreservation:
+    """Label operations round-trip correctly through get-then-modify-then-put."""
+
+    def test_add_label_appends_to_existing_set(self):
+        p = _GL.provider()
+        responses = [
+            _GL.r({"labels": ["feature", "backend"]}),
+            _GL.r({}),
+        ]
+
+        def fake(m, path, **kw):
+            return responses.pop(0)
+
+        p._api = mock.MagicMock(side_effect=fake)
+        p.add_review_label("g/p", "42", "needs-review")
+        put_call = p._api.call_args_list[1]
+        assert "needs-review" in put_call[1]["json"]["labels"]
+        assert "feature" in put_call[1]["json"]["labels"]
+        assert "backend" in put_call[1]["json"]["labels"]
+
+    def test_remove_label_keeps_rest_intact(self):
+        p = _GL.provider()
+        responses = [
+            _GL.r({"labels": ["feature", "churn-magnet", "backend"]}),
+            _GL.r({}),
+        ]
+
+        def fake(m, path, **kw):
+            return responses.pop(0)
+
+        p._api = mock.MagicMock(side_effect=fake)
+        p.remove_review_label("g/p", "42", "churn-magnet")
+        put_call = p._api.call_args_list[1]
+        labels = put_call[1]["json"]["labels"].split(",")
+        assert "churn-magnet" not in labels
+        assert "feature" in labels
+        assert "backend" in labels
+
+    def test_oompah_status_labels_preserved_when_adding_other_label(self):
+        """Critical: oompah:status:* labels must survive add_review_label calls."""
+        p = _GL.provider()
+        existing = ["oompah:status:in-progress", "feature", "backend"]
+        responses = [_GL.r({"labels": existing}), _GL.r({})]
+
+        def fake(m, path, **kw):
+            return responses.pop(0)
+
+        p._api = mock.MagicMock(side_effect=fake)
+        p.add_review_label("g/p", "7", "churn-magnet")
+        put_call = p._api.call_args_list[1]
+        label_str = put_call[1]["json"]["labels"]
+        assert "oompah:status:in-progress" in label_str
+
+    def test_oompah_status_labels_preserved_when_removing_other_label(self):
+        """Critical: oompah:status:* labels must survive remove_review_label calls."""
+        p = _GL.provider()
+        existing = ["oompah:status:in-review", "churn-magnet", "backend"]
+        responses = [_GL.r({"labels": existing}), _GL.r({})]
+
+        def fake(m, path, **kw):
+            return responses.pop(0)
+
+        p._api = mock.MagicMock(side_effect=fake)
+        p.remove_review_label("g/p", "7", "churn-magnet")
+        put_call = p._api.call_args_list[1]
+        label_str = put_call[1]["json"]["labels"]
+        assert "oompah:status:in-review" in label_str

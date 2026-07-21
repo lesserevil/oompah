@@ -2176,7 +2176,6 @@ class GitLabProvider(SCMProvider):
                     )
             r = self._api("PUT", f"/projects/{encoded}/merge_requests/{review_id}/merge",
                           json={
-                              "squash": True,
                               "should_remove_source_branch": remove_source,
                           })
             if r.status_code == 200:
@@ -2234,17 +2233,32 @@ class GitLabProvider(SCMProvider):
             return False
 
     def enable_auto_merge(self, repo: str, review_id: str) -> tuple[bool, str]:
-        """Enable auto-merge for a GitLab MR.
+        """Enable auto-merge for a GitLab MR via merge_when_pipeline_succeeds.
 
         GitLab merge trains differ from GitHub's merge queue and are not
-        adopted in this rollout.  Falls back to a direct merge so that
-        queue-mode projects on GitLab still make progress.
+        adopted in v1.  Uses ``merge_when_pipeline_succeeds`` so the MR
+        is merged automatically once the pipeline passes.  If GitLab
+        rejects the request due to unmet approvals or policy, the MR is
+        retained and an actionable reason is returned.
         """
-        logger.debug(
-            "GitLab enable_auto_merge: falling back to direct merge for %s MR #%s",
-            repo, review_id,
-        )
-        return self.merge_review(repo, review_id)
+        encoded = self._project_path(repo)
+        try:
+            r = self._api(
+                "PUT",
+                f"/projects/{encoded}/merge_requests/{review_id}/merge",
+                json={"merge_when_pipeline_succeeds": True},
+            )
+            if r.status_code == 200:
+                return True, "Auto-merge enabled: will merge when pipeline succeeds"
+            if r.status_code in (401, 403):
+                body = r.text[:300]
+                return False, f"Auto-merge rejected: approvals or policy not satisfied — {body}"
+            if r.status_code == 405:
+                body = r.text[:300]
+                return False, f"Auto-merge not allowed: {body}"
+            return False, f"Auto-merge failed: HTTP {r.status_code} {r.text[:300]}"
+        except httpx.HTTPError as exc:
+            return False, f"Auto-merge failed: {exc}"
 
     def get_review_files(self, repo: str, review_id: str) -> list[str]:
         """Return file paths changed by a GitLab MR via
