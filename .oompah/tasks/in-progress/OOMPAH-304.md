@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T16:46:06.425141Z'
+updated_at: '2026-07-21T17:10:00.405858Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,24 @@ created: 2026-07-21 16:46
 **Understanding**: Root cause identified — the Release Delivery backlog endpoint uses BacklogRefreshManager which caches computed BacklogResult objects for 5 minutes (DEFAULT_RESULT_TTL_S=300). When a delivery executor updates status to IN_REVIEW (with PR), the commit-inventory reads the ledger fresh and shows the correct state, but the backlog serves the cached (pre-delivery) result showing not_selected. Two orthogonal fixes are needed: (1) Backend: delivery executor/poller must trigger backlog cache invalidation on status change; (2) Frontend: show PR links inline in the table, add delivery-status-aware auto-refresh when active deliveries exist, and treat stale delivery status explicitly rather than silently.
 
 Plan: (1) Add PR link to table status cells when cell.pr_url is present; (2) Add _rdiStartDeliveryPoll/_rdiStopDeliveryPoll that auto-refresh every 30s when in_progress/in_review/blocked/open deliveries exist; (3) Track recently-queued items and show 'status updating' indicator when they still show not_selected; (4) After queuing, call _rdiForceRefresh() to trigger immediate backlog refresh; (5) Stop delivery poll on pagehide; (6) Add CSS for .rdi-pr-link and .rdi-delivery-pending; (7) Add frontend tests; (8) Add backend cache-invalidation fix in executor/poller + regression tests.
+---
+author: oompah
+created: 2026-07-21 17:10
+---
+Implementation complete. Changes across 5 files:
+
+**Backend (release_delivery_refresh.py):** Added `invalidate(project_id, branch)` method to BacklogRefreshManager. Sets result_completed_at=0.0 (not None) so the TTL check always fires, forcing a fresh result on the next request.
+
+**Backend (orchestrator.py):** Called invalidate() after cherry_pick_delivery() in _process_release_delivery_queue and after poll_delivery_pr() in _reconcile_delivery_pr_outcomes_sweep. Root cause fix: delivery executor never cleared the 5-minute BacklogRefreshManager cache, so backlog kept showing not_selected while commit-inventory showed in_review.
+
+**Frontend (release_delivery.html):** (1) Modified _rdiRenderStatusCell to wrap badge+PR link in rdi-status-wrap, rendering an inline 'PR' anchor with aria-label and stopPropagation when cell.pr_url is set. (2) Added _rdiHasActiveDeliveries, _rdiStartDeliveryPoll, _rdiStopDeliveryPoll wired to a 30-second setInterval on open/in_progress/in_review/blocked states. (3) Added _rdiRecentlyQueuedIds Set tracking queued items; shows 'Queued — status updating…' hint when backlog cache still shows not_selected. (4) After queuing, calls _rdiForceRefresh() instead of _rdiLoadBacklog() to bypass cache immediately.
+
+**Tests (test_release_delivery_page.py):** 35 new tests in TestLiveDeliveryStatusUI covering PR link rendering, poll lifecycle, pending hint, and wrap CSS.
+
+**Tests (test_release_delivery_refresh.py):** 5 new tests in TestBacklogRefreshManagerInvalidate covering invalidation scenarios including regression for rd_293edb9b53f44a22851c25e203d7651a/PR #303.
+
+**Tests (test_server_release_delivery_backlog.py):** 4 new tests in TestDeliveryStatusConsistency verifying state/delivery_id/pr_url consistency across all states and branch isolation.
+
+Full test suite: 9989 passed, 36 skipped, 0 failed.
 ---
 <!-- COMMENTS:END -->

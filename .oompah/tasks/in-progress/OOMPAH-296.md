@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-296
 type: task
-status: Done
+status: In Progress
 priority: 2
 title: Implement Aider-style repository-map ranking and bounded rendering
 parent: OOMPAH-293
@@ -13,7 +13,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T17:06:35.447266Z'
+updated_at: '2026-07-21T17:10:04.062112Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 30ceb0ca-c179-4a85-9d7b-20c6b16f6421
 oompah.task_costs:
-  total_input_tokens: 630953
-  total_output_tokens: 14201
+  total_input_tokens: 630972
+  total_output_tokens: 31780
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 630953
-      output_tokens: 14201
+      input_tokens: 630972
+      output_tokens: 31780
       cost_usd: 0.0
   runs:
   - profile: default
@@ -54,6 +54,12 @@ oompah.task_costs:
     output_tokens: 2744
     cost_usd: 0.0
     recorded_at: '2026-07-21T16:51:01.594874+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 19
+    output_tokens: 17579
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T17:10:00.419434+00:00'
 ---
 ## Summary
 
@@ -270,5 +276,38 @@ author: oompah
 created: 2026-07-21 17:06
 ---
 Implemented oompah/repo_map_ranker.py (rank_symbols + render_repo_map) and committed tests/test_repo_map_ranker.py. All 9 ranker tests pass; full suite 10232 passed.
+---
+author: oompah
+created: 2026-07-21 17:10
+---
+Agent completed successfully in 1128s (17598 tokens)
+---
+author: oompah
+created: 2026-07-21 17:10
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 33, Tool calls: 17
+- Tokens: 19 in / 17.6K out [17.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 18m 48s
+- Log: OOMPAH-296__20260721T165114Z.jsonl
+---
+author: oompah
+created: 2026-07-21 17:10
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-296` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-296
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-296
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
