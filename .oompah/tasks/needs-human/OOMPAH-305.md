@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-305
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T18:18:28.570861Z'
+updated_at: '2026-07-21T18:19:07.038766Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 93d0b871-b6ee-4693-9c10-2ada722a0267
 oompah.task_costs:
-  total_input_tokens: 1760686
-  total_output_tokens: 77938
+  total_input_tokens: 1910916
+  total_output_tokens: 79063
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1760686
-      output_tokens: 77938
+      input_tokens: 1910916
+      output_tokens: 79063
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -64,6 +64,12 @@ oompah.task_costs:
     output_tokens: 1531
     cost_usd: 0.0
     recorded_at: '2026-07-21T18:15:04.804178+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 150230
+    output_tokens: 1125
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T18:19:03.454508+00:00'
 ---
 ## Summary
 
@@ -372,5 +378,25 @@ author: oompah
 created: 2026-07-21 18:18
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-21 18:19
+---
+Agent completed successfully in 37s (151355 tokens)
+---
+author: oompah
+created: 2026-07-21 18:19
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 3
+- Tokens: 150.2K in / 1.1K out [151.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 37s
+- Log: OOMPAH-305__20260721T181828Z.jsonl
+---
+author: oompah
+created: 2026-07-21 18:19
+---
+Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
