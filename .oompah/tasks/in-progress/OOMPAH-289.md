@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-289
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Harden focus triage and other model-only decisions against external instructions
 parent: OOMPAH-285
@@ -11,13 +11,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:55.684579Z'
-updated_at: '2026-07-21T22:26:50.578249Z'
+updated_at: '2026-07-21T22:30:21.996050Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 0c742f4b-6f09-4bdd-88b6-34be7c8b7ecc
+oompah.agent_run_id: eb80d94c-65cb-4381-ad9a-438e3dba1b3e
 oompah.task_costs:
   total_input_tokens: 479334
   total_output_tokens: 2697
@@ -82,5 +82,15 @@ author: oompah
 created: 2026-07-21 22:26
 ---
 Agent completed without closing this issue (77s (482031 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-21 22:30
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 22:30
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
