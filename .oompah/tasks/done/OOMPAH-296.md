@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-296
 type: task
-status: In Review
+status: Done
 priority: 2
 title: Implement Aider-style repository-map ranking and bounded rendering
 parent: OOMPAH-293
@@ -13,7 +13,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T18:51:00.500059Z'
+updated_at: '2026-07-21T18:53:14.870696Z'
 work_branch: null
 target_branch: null
 review_url: null
