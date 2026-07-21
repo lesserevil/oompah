@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-314
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Deliver only selected commits to release branches and monitor release CI
 parent: null
@@ -10,13 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T18:00:29.471417Z'
+updated_at: '2026-07-21T18:05:20.107738Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 42a5cb3f-cc02-48d8-8d15-585109da3db5
+oompah.agent_run_id: b3245c1d-34a8-49fe-801d-9b0bb2195188
 oompah.task_costs:
   total_input_tokens: 102
   total_output_tokens: 42917
@@ -123,5 +123,15 @@ Steps to resolve:
   git push origin OOMPAH-314
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-21 18:05
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 18:05
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
