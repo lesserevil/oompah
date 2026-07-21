@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-315
 type: bug
-status: In Progress
+status: Done
 priority: 0
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -12,10 +12,9 @@ blocked_by: []
 labels:
 - external:github
 - focus-complete:duplicate_detector
-- merge-conflict
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T20:52:41.873172Z'
+updated_at: '2026-07-21T20:57:42.999926Z'
 work_branch: OOMPAH-315
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/476
@@ -29,8 +28,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/470
   requestor_login: lesserevil
   imported_comment_ids: []
-  last_synced_status: Needs Rebase
-  last_synced_at: '2026-07-21T20:47:07.098801+00:00'
+  last_synced_status: In Progress
+  last_synced_at: '2026-07-21T20:57:39.925341+00:00'
 oompah.intake:
   missing_fields: []
   scope: small
@@ -379,5 +378,19 @@ author: oompah
 created: 2026-07-21 20:52
 ---
 Understanding: Resolving merge conflict with main (OOMPAH-316 merged first). Both branches add a TrackerError subclass for missing state branch — main added StateBranchMissingError (handled in server.py), our branch added TrackerStateBranchMissingError (handled in orchestrator.py). Both fixes are needed. Resolution: keep StateBranchMissingError as canonical, add TrackerStateBranchMissingError = StateBranchMissingError as alias so orchestrator.py and tests require no changes. Conflict is only in oompah/oompah_md_tracker.py (both raise the same error, different names).
+---
+author: oompah
+created: 2026-07-21 20:57
+---
+Completion: Merge conflict resolved and force-pushed.
+
+Conflict: oompah_md_tracker.py — main (OOMPAH-316) raised StateBranchMissingError; our branch raised TrackerStateBranchMissingError. Both are the same exception for the same condition.
+
+Resolution:
+- StateBranchMissingError kept as the canonical class (already merged via OOMPAH-316)
+- TrackerStateBranchMissingError = StateBranchMissingError alias added to tracker.py (backward compat for orchestrator.py and tests)
+- Import of TrackerStateBranchMissingError removed from oompah_md_tracker.py (not needed there since the raise now uses the canonical name)
+
+Result: OOMPAH-315 adds orchestrator-level handling of the missing-state-branch condition on top of OOMPAH-316's server-level handling. Both layers now degrade gracefully without triggering error_watcher. 9959 tests pass, 36 skipped.
 ---
 <!-- COMMENTS:END -->
