@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 from dataclasses import dataclass, field
 from typing import Any
@@ -73,6 +74,7 @@ def _check_unpushed(
     repo_path: str,
     branch: str,
     base_branch: str,
+    worktree_path: str = "",
 ) -> tuple[bool, int, list[str], str]:
     """Check for unpushed commits and uncommitted work.
 
@@ -80,6 +82,13 @@ def _check_unpushed(
 
     ``commit_lines`` is a list of "<sha> <subject>" strings (max 20).
     ``error`` is non-empty when commands failed but we fail-open.
+
+    ``worktree_path``, when non-empty and pointing to an existing directory,
+    is used as the cwd for ``git status --porcelain``.  This ensures the
+    check reflects the branch's own working tree rather than the main clone,
+    which may have unrelated uncommitted changes on a different branch.
+    When ``worktree_path`` is absent or the directory does not exist,
+    ``repo_path`` is used as a fallback.
     """
     has_uncommitted = False
     commits_ahead = 0
@@ -90,10 +99,18 @@ def _check_unpushed(
         return False, 0, [], "no_branch"
 
     # --- 1. Check for uncommitted changes in the worktree ---
+    # Prefer the branch-specific worktree directory so that unrelated dirty
+    # state in the main clone (on a different branch) is not mistaken for
+    # uncommitted work on *this* branch.
+    status_cwd = (
+        worktree_path
+        if worktree_path and os.path.isdir(worktree_path)
+        else repo_path
+    )
     try:
         status_result = subprocess.run(
             ["git", "status", "--porcelain"],
-            cwd=repo_path,
+            cwd=status_cwd,
             capture_output=True,
             text=True,
             timeout=10,
@@ -178,6 +195,7 @@ def check_unpushed_gate(
     *,
     repo_path: str,
     base_branch: str,
+    worktree_path: str = "",
     entry_profile: str = "",
     entry_focus: str = "",
     entry_attempt: int = 0,
@@ -188,6 +206,11 @@ def check_unpushed_gate(
         issue: The Issue being checked.
         repo_path: Filesystem path to the project's git clone.
         base_branch: The base branch name (e.g. "main").
+        worktree_path: Optional path to the branch's dedicated git worktree.
+            When provided and the directory exists, it is used for the
+            ``git status --porcelain`` check instead of ``repo_path``.
+            This prevents unrelated dirty state in the main clone from
+            triggering a false refusal.
         entry_profile: Agent profile name (for telemetry).
         entry_focus: Focus name (for telemetry).
         entry_attempt: Retry attempt count (for telemetry).
@@ -223,7 +246,7 @@ def check_unpushed_gate(
     # Git check
     # ------------------------------------------------------------------
     has_uncommitted, commits_ahead, commit_lines, git_error = _check_unpushed(
-        repo_path, branch, base_branch,
+        repo_path, branch, base_branch, worktree_path=worktree_path,
     )
 
     if git_error:

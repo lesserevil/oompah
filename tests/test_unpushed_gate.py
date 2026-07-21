@@ -161,6 +161,7 @@ class TestCheckUnpushedGate:
             "/tmp/repo",
             "oompah/repo/gh-42",
             "main",
+            worktree_path="",
         )
 
     def test_unpushed_commits_refused(self):
@@ -448,3 +449,148 @@ class TestCheckUnpushedHelper:
             _, commits_ahead, _, err = _check_unpushed("/tmp/repo", "my-branch", "main")
         assert commits_ahead == 0
         assert "unexpected output" in err
+
+
+class TestWorktreePathStatusCheck:
+    """Regression tests for OOMPAH-306: worktree_path used for status check.
+
+    The orchestrator passes project.repo_path (the main clone) to the gate.
+    The main clone may have unrelated dirty state on a different branch.
+    _check_unpushed must use the branch's own worktree directory for
+    git status --porcelain so it does not misread the main clone's dirt.
+    """
+
+    def test_worktree_path_used_for_status_when_exists(self, tmp_path):
+        """When worktree_path exists, git status runs there (not repo_path)."""
+        worktree_dir = tmp_path / "wt"
+        worktree_dir.mkdir()
+
+        seen_cwds: list[str] = []
+
+        def run_side_effect(cmd, cwd=None, **kwargs):
+            if "status" in cmd:
+                seen_cwds.append(str(cwd) if cwd else "")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("subprocess.run", side_effect=run_side_effect):
+            _check_unpushed(
+                "/tmp/main-repo",
+                "my-branch",
+                "main",
+                worktree_path=str(worktree_dir),
+            )
+
+        # The status cwd must be the worktree, not the main repo
+        status_cwds = [c for c in seen_cwds if c]
+        assert status_cwds, "git status --porcelain was not called"
+        assert all(c == str(worktree_dir) for c in status_cwds), (
+            f"Expected all status calls to use worktree {worktree_dir}, got {status_cwds}"
+        )
+
+    def test_worktree_path_absent_falls_back_to_repo_path(self):
+        """When worktree_path is empty, repo_path is used for status."""
+        seen_cwds: list[str] = []
+
+        def run_side_effect(cmd, cwd=None, **kwargs):
+            if "status" in cmd:
+                seen_cwds.append(str(cwd) if cwd else "")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("subprocess.run", side_effect=run_side_effect):
+            _check_unpushed(
+                "/tmp/main-repo",
+                "my-branch",
+                "main",
+                worktree_path="",
+            )
+
+        status_cwds = [c for c in seen_cwds if c]
+        assert status_cwds, "git status --porcelain was not called"
+        assert all(c == "/tmp/main-repo" for c in status_cwds)
+
+    def test_worktree_path_nonexistent_falls_back_to_repo_path(self, tmp_path):
+        """When worktree_path points to a missing directory, repo_path is used."""
+        nonexistent = str(tmp_path / "does-not-exist")
+        seen_cwds: list[str] = []
+
+        def run_side_effect(cmd, cwd=None, **kwargs):
+            if "status" in cmd:
+                seen_cwds.append(str(cwd) if cwd else "")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("subprocess.run", side_effect=run_side_effect):
+            _check_unpushed(
+                "/tmp/main-repo",
+                "my-branch",
+                "main",
+                worktree_path=nonexistent,
+            )
+
+        status_cwds = [c for c in seen_cwds if c]
+        assert status_cwds, "git status --porcelain was not called"
+        assert all(c == "/tmp/main-repo" for c in status_cwds)
+
+    def test_regression_oompah_306_main_dirty_worktree_clean(self, tmp_path):
+        """Regression: main repo dirty, branch worktree clean → gate allows.
+
+        Previously the gate ran git status --porcelain in project.repo_path
+        (the main clone).  If the main clone had unrelated dirty files (e.g.
+        AGENTS.md modified while on branch 'main'), the gate would incorrectly
+        detect has_uncommitted=True for the feature branch and refuse closure.
+
+        With the fix, the status check runs in worktree_path when it exists,
+        so the feature branch's own clean state is correctly detected.
+        """
+        worktree_dir = tmp_path / "feature-worktree"
+        worktree_dir.mkdir()
+
+        def run_side_effect(cmd, cwd=None, **kwargs):
+            cmd_list = list(cmd)
+            if "status" in cmd_list:
+                # The worktree is clean; the main repo would return dirty output.
+                if str(cwd) == str(worktree_dir):
+                    return MagicMock(returncode=0, stdout="", stderr="")
+                # Simulate main-repo dirty state (OOMPAH-306 root cause)
+                return MagicMock(returncode=0, stdout=" M AGENTS.md\n", stderr="")
+            if "--count" in cmd_list:
+                # Branch is already fully pushed: 0 commits ahead
+                return MagicMock(returncode=0, stdout="0\n", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        issue = FakeIssue(identifier="OOMPAH-306", branch_name="OOMPAH-306")
+
+        with patch("subprocess.run", side_effect=run_side_effect):
+            result = check_unpushed_gate(
+                issue,
+                repo_path="/tmp/main-repo",
+                base_branch="main",
+                worktree_path=str(worktree_dir),
+            )
+
+        assert result.allowed is True, (
+            f"Gate should allow when worktree is clean (even if main repo is dirty). "
+            f"allowed={result.allowed}, has_uncommitted={result.has_uncommitted}, "
+            f"skip_reason={result.skip_reason!r}"
+        )
+
+    def test_worktree_path_forwarded_from_check_unpushed_gate(self, tmp_path):
+        """check_unpushed_gate passes worktree_path through to _check_unpushed."""
+        worktree_dir = tmp_path / "wt"
+        worktree_dir.mkdir()
+        issue = FakeIssue(branch_name="my-branch")
+
+        with patch("oompah.unpushed_gate._check_unpushed") as mock_check:
+            mock_check.return_value = (False, 0, [], "")
+            check_unpushed_gate(
+                issue,
+                repo_path="/tmp/repo",
+                base_branch="main",
+                worktree_path=str(worktree_dir),
+            )
+
+        mock_check.assert_called_once_with(
+            "/tmp/repo",
+            "my-branch",
+            "main",
+            worktree_path=str(worktree_dir),
+        )
