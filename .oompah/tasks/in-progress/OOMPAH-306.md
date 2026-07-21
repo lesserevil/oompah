@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T16:42:00.255997Z'
+updated_at: '2026-07-21T16:42:22.489418Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-07-21 16:42
 ---
 Implementation (frontend): added an accessible task-state freshness banner in dashboard.html. fetchIssues() now consumes X-Oompah-Issues-Stale, warns on stale or failed reads, and clears only on a fresh response. Added tests/test_dashboard_state_read_warning.py covering the banner and stale/unavailable behavior.
+---
+author: oompah
+created: 2026-07-21 16:42
+---
+Verification: git diff --check passed. make test could not start because the environment's astral-uv launcher failed creating a transient DBus scope (Makefile .venv/.uv-setup, exit 46), before pytest collection. Frontend regression test is included but has not run in this environment.
 ---
 <!-- COMMENTS:END -->
