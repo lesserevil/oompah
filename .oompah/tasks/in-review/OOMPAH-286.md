@@ -11,11 +11,11 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:39.881239Z'
-updated_at: '2026-07-21T16:11:05.546020Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-21T16:11:12.306094Z'
+work_branch: OOMPAH-286
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/466
+review_number: '466'
 merged_at: null
 oompah.agent_run_id: 862aa3ed-662e-41ed-8030-95bf851ebe0c
 oompah.task_costs:
@@ -46,6 +46,10 @@ oompah.task_costs:
     output_tokens: 4381
     cost_usd: 0.0
     recorded_at: '2026-07-21T16:06:57.336265+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/466
+oompah.review_number: '466'
+oompah.work_branch: OOMPAH-286
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -237,5 +241,22 @@ author: oompah
 created: 2026-07-21 16:07
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 16:11
+---
+Completion: All work delivered on branch OOMPAH-286, PR #466 opened (https://github.com/lesserevil/oompah/pull/466).
+
+Deliverables:
+- plans/prompt-injection-protection.md (396 lines): full trust/threat model with trusted vs untrusted sources, trust propagation rules, 5 attack scenarios, delimiter spec, inventory of all 5 prompt paths, 8 server-side authority controls, machine-readable provenance contract JSON schema, and non-goals
+- tests/test_prompt_injection_protection.py (371 lines): 29 contract tests, all passing (0.14s)
+
+Acceptance criteria met:
+- Developer can determine if a new input is untrusted (§2 trust level tables)
+- Labeling and delimiters specified (§5: oompah:untrusted XML tags with source attribute)
+- Server-side controls listed as authoritative (§7 + §3 rule 4)
+- Machine-readable provenance contract defined (§8 JSON schema)
+- All 5 required inventory components named (intake_bridge, focus_triage, prompt_renderer, continuation_prompts, agent_system_prompt) in §6
+- 29 tests enforce requirements as hard gates
 ---
 <!-- COMMENTS:END -->

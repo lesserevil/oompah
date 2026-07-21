@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-294
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Define repository-map artifact and state-branch lifecycle
 parent: OOMPAH-293
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:47.496504Z'
-updated_at: '2026-07-21T16:10:45.133224Z'
+updated_at: '2026-07-21T16:11:14.341180Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -194,5 +194,10 @@ author: oompah
 created: 2026-07-21 16:10
 ---
 Verification: make test passed — 10028 passed, 36 skipped, 11 warnings. All 106 new tests in tests/test_repo_map.py pass. Coverage: schema serialization/deserialization, schema-version rejection (wrong version, None, future, string, missing key), deterministic output, SHA-based invalidation, path construction (all within .oompah/ namespace), atomic write, freshness/staleness, pruning, and unsupported/unavailable repository behavior.
+---
+author: oompah
+created: 2026-07-21 16:11
+---
+Completion: Delivered all acceptance criteria. (1) plans/repo-map-artifact.md documents the schema and lifecycle. (2) oompah/repo_map.py exposes a typed artifact contract (RepoMap and nested dataclasses, SchemaVersionError, path helpers, atomic write/read, freshness check, pruning). (3) tests/test_repo_map.py has 106 unit tests — all pass via make test (10028 total tests pass). Artifacts keyed by repo identity and commit SHA; stale maps return None by default; all writes stay within .oompah/ namespace; artifact is data-only.
 ---
 <!-- COMMENTS:END -->
