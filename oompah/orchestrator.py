@@ -100,6 +100,7 @@ from oompah.tracker import (
     TrackerError,
     TrackerNotConfiguredError,
     TrackerProtocol,
+    TrackerStateBranchMissingError,
     TrackerTimeoutError,
 )
 from oompah.workspace import WorkspaceError, WorkspaceManager
@@ -169,6 +170,8 @@ def _error_class_for_tracker_exc(exc: BaseException) -> str:
         return "tracker_not_configured"
     if isinstance(exc, TrackerAuthError):
         return "tracker_auth_failed"
+    if isinstance(exc, TrackerStateBranchMissingError):
+        return "tracker_state_branch_missing"
     if isinstance(exc, TrackerError):
         return "tracker_failed"
     return "project_error"
@@ -3652,6 +3655,13 @@ class Orchestrator:
                         return issues
                     except TrackerNotConfiguredError:
                         return []
+                    except TrackerStateBranchMissingError as exc:
+                        logger.warning(
+                            "Fetch skipped for project %s: %s",
+                            project.name,
+                            exc,
+                        )
+                        return []
                     except TrackerTimeoutError as exc:
                         logger.warning(
                             "Fetch timed out for project %s: %s",
@@ -3688,6 +3698,9 @@ class Orchestrator:
             return self.tracker.fetch_candidate_issues()
         except TrackerNotConfiguredError:
             return []
+        except TrackerStateBranchMissingError as exc:
+            logger.warning("Tracker fetch skipped: %s", exc)
+            return []
         except TrackerTimeoutError as exc:
             logger.warning("Tracker fetch timed out: %s", exc)
             return []
@@ -3720,6 +3733,13 @@ class Orchestrator:
                             issue.project_id = project_id
                         return issues
                     except TrackerNotConfiguredError:
+                        return []
+                    except TrackerStateBranchMissingError as exc:
+                        logger.warning(
+                            "In Progress fetch skipped for project %s: %s",
+                            project.name,
+                            exc,
+                        )
                         return []
                     except TrackerTimeoutError as exc:
                         logger.warning(
@@ -3755,6 +3775,9 @@ class Orchestrator:
         try:
             return self.tracker.fetch_issues_by_states([IN_PROGRESS])
         except TrackerNotConfiguredError:
+            return []
+        except TrackerStateBranchMissingError as exc:
+            logger.warning("Tracker In Progress fetch skipped: %s", exc)
             return []
         except TrackerTimeoutError as exc:
             logger.warning("Tracker In Progress fetch timed out: %s", exc)

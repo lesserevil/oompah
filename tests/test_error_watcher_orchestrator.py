@@ -240,3 +240,26 @@ class TestErrorClassForTrackerExc:
         """TrackerAuthError must remain a TrackerError subclass for backward compat."""
         from oompah.tracker import TrackerAuthError, TrackerError
         assert issubclass(TrackerAuthError, TrackerError)
+
+    def test_tracker_state_branch_missing_error_returns_distinct_class(self):
+        """TrackerStateBranchMissingError gets its own class, not tracker_failed.
+
+        This distinct class prevents error_watcher from lumping missing-state-branch
+        events into the generic tracker_failed bucket (OOMPAH-315).
+        """
+        from oompah.tracker import TrackerStateBranchMissingError
+        exc = TrackerStateBranchMissingError(
+            "State branch 'oompah/state/proj-c260b117' does not exist"
+        )
+        assert self._classify(exc) == "tracker_state_branch_missing"
+
+    def test_tracker_state_branch_missing_error_not_classified_as_tracker_failed(self):
+        """TrackerStateBranchMissingError must NOT collapse into tracker_failed."""
+        from oompah.tracker import TrackerStateBranchMissingError
+        exc = TrackerStateBranchMissingError("missing state branch")
+        assert self._classify(exc) != "tracker_failed"
+
+    def test_tracker_state_branch_missing_error_is_tracker_error_subclass(self):
+        """TrackerStateBranchMissingError is-a TrackerError for backward compat."""
+        from oompah.tracker import TrackerError, TrackerStateBranchMissingError
+        assert issubclass(TrackerStateBranchMissingError, TrackerError)

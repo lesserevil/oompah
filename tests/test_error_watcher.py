@@ -700,6 +700,14 @@ class TestErrorClassForTrackerExc:
         from oompah.projects import ProjectError
         assert _error_class_for_tracker_exc(ProjectError("x")) == "project_error"
 
+    def test_tracker_state_branch_missing_error(self):
+        from oompah.orchestrator import _error_class_for_tracker_exc
+        from oompah.tracker import TrackerStateBranchMissingError
+        assert (
+            _error_class_for_tracker_exc(TrackerStateBranchMissingError("missing"))
+            == "tracker_state_branch_missing"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Tests for LogFileWatcher
