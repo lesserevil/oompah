@@ -13,7 +13,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T17:06:33.125959Z'
+updated_at: '2026-07-21T17:06:35.447266Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -265,5 +265,10 @@ author: oompah
 created: 2026-07-21 17:06
 ---
 Completion: Implemented oompah/repo_map_ranker.py with rank_symbols() and render_repo_map() per Aider RepoMap principles. Committed tests/test_repo_map_ranker.py (9 tests). All acceptance criteria met: in-degree graph scoring, task-mention boost (1000), seed-file boost (100), deterministic tie-breaking by (path, line), token-budget enforcement with ValueError on non-positive budget, HTML-escaping of < > & in untrusted paths/names, newline→literal-\n escaping, [UNTRUSTED] header label. Full suite: 10232 passed, 36 skipped via make test.
+---
+author: oompah
+created: 2026-07-21 17:06
+---
+Implemented oompah/repo_map_ranker.py (rank_symbols + render_repo_map) and committed tests/test_repo_map_ranker.py. All 9 ranker tests pass; full suite 10232 passed.
 ---
 <!-- COMMENTS:END -->
