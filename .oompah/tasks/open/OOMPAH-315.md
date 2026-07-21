@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-315
 type: bug
-status: In Progress
+status: Open
 priority: 2
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T18:49:46.905095Z'
+updated_at: '2026-07-21T18:50:02.465378Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,6 +44,22 @@ oompah.intake:
   last_validator_result: pass
   last_validated_at: '2026-07-21T18:20:20.176791+00:00'
 oompah.agent_run_id: 04eb409e-6918-42da-876d-f4b5bb31895a
+oompah.task_costs:
+  total_input_tokens: 40
+  total_output_tokens: 11789
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 40
+      output_tokens: 11789
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 40
+    output_tokens: 11789
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T18:49:58.872531+00:00'
 ---
 ## Summary
 
@@ -148,5 +164,25 @@ Focus handoff: duplicate_detector
 3. **Remaining work**: Determine the correct fix: (a) run bootstrap/migration for exocomp to create its state branch, (b) add a distinct error subclass (e.g., TrackerStateBranchMissingError) so error_watcher can deduplicate or suppress it separately, or (c) detect and handle the missing-state-branch condition in the orchestrator before it triggers error_watcher. Note: OOMPAH-282 has a related migration failure (UnicodeEncodeError on Stage A for proj-edbc8b4c) which may need to be resolved before exocomp's migration can proceed if exocomp uses the same migration path.
 
 4. **Recommended next focus**: backend (to evaluate which fix option applies and implement the code change needed)
+---
+author: oompah
+created: 2026-07-21 18:49
+---
+Agent completed successfully in 301s (11829 tokens)
+---
+author: oompah
+created: 2026-07-21 18:50
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 82, Tool calls: 57
+- Tokens: 40 in / 11.8K out [11.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 1s
+- Log: OOMPAH-315__20260721T184459Z.jsonl
+---
+author: oompah
+created: 2026-07-21 18:50
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
