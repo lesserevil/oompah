@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T16:40:25.807382Z'
+updated_at: '2026-07-21T16:40:43.181188Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-21 16:40
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-21 16:40
+---
+Understanding: I will trace dashboard task list/detail rendering and its API payloads, then ensure the UI does not present a terminal state when the state-branch read is stale or unavailable. I will add focused regression coverage and hand off any canonical tracker/cache routing work outside frontend scope.
 ---
 <!-- COMMENTS:END -->
