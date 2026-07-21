@@ -15,7 +15,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T18:55:21.400685Z'
+updated_at: '2026-07-21T18:55:48.936262Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,8 +29,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/471
   requestor_login: lesserevil
   imported_comment_ids: []
-  last_synced_status: In Progress
-  last_synced_at: '2026-07-21T18:50:34.864937+00:00'
+  last_synced_status: Open
+  last_synced_at: '2026-07-21T18:55:48.181484+00:00'
 oompah.intake:
   missing_fields: []
   scope: small
