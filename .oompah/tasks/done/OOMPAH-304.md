@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:12:35.567625Z'
+updated_at: '2026-07-21T17:13:18.050447Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -139,5 +139,10 @@ author: oompah
 created: 2026-07-21 17:12
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 17:13
+---
+Landing verified: branch OOMPAH-304 is clean, commit 2a696ded2 ('Make Release Delivery show live delivery status consistently') is pushed to origin. All implementation work from the previous agent run is committed and in sync. Closing task.
 ---
 <!-- COMMENTS:END -->
