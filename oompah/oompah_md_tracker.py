@@ -256,6 +256,7 @@ class OompahMarkdownTracker:
         state_branch_push_retry_backoff_ms: int = 1000,
         state_branch_shadow_write: bool = False,
         _checkpoint_timer_factory: Any = None,
+        _on_checkpoint_flushed: Any = None,
     ) -> None:
         self.active_states = [canonicalize_status(s) for s in active_states]
         self.terminal_states = [canonicalize_status(s) for s in terminal_states]
@@ -266,6 +267,10 @@ class OompahMarkdownTracker:
         self.state_branch_enabled = bool(state_branch_enabled)
         self.state_branch_name = (state_branch_name or "").strip() or None
         self.state_branch_shadow_write = bool(state_branch_shadow_write)
+        # Optional callback invoked after each successful state-branch checkpoint
+        # flush. Used by server.py to invalidate the issues snapshot cache so
+        # clients receive fresh data without waiting for the 60-second TTL.
+        self._on_checkpoint_flushed = _on_checkpoint_flushed
         self._push_retry_count = max(1, int(state_branch_push_retry_count))
         self._push_retry_backoff_ms = max(0, int(state_branch_push_retry_backoff_ms))
         if self.state_branch_enabled and not self.state_branch_name:
@@ -285,6 +290,11 @@ class OompahMarkdownTracker:
         self._read_cache: list[dict[str, Any]] | None = None
         self._corrupt_stubs: list[dict[str, Any]] | None = None
         self._read_cache_guard = threading.Lock()
+        # Monotonic timestamp of the last successful state-branch checkpoint
+        # flush.  Updated by _do_checkpoint_flush so callers (e.g. server.py
+        # issues-snapshot logic) can detect when a checkpoint has advanced past
+        # the last snapshot refresh and force-refresh their own caches.
+        self.last_checkpoint_at: float = 0.0
 
         # Checkpoint coalescing queue (state_branch_enabled=True only).
         # When enabled, mutations are buffered and flushed as one atomic commit
@@ -432,6 +442,11 @@ class OompahMarkdownTracker:
         When ``state_branch_shadow_write=True`` (Stage A migration), also
         shadow-commits the same task files to the default branch for zero-
         data-loss rollback capability (design § 6.2 Stage A).
+
+        After a successful commit, invokes ``_on_checkpoint_flushed`` if set so
+        callers (e.g. server.py) can invalidate their read-layer caches and push
+        fresh data to connected clients without waiting for the normal TTL to
+        expire.
         """
         with self._write_lock:
             self._commit_and_push_state_branch("Checkpoint oompah task state")
@@ -439,6 +454,16 @@ class OompahMarkdownTracker:
                 self._shadow_write_to_default_branch(
                     "Shadow checkpoint (Stage A migration)"
                 )
+        # Record the checkpoint time so server.py can detect when its issues
+        # snapshot is older than the latest state-branch commit.
+        self.last_checkpoint_at = time.monotonic()
+        # Invoke the post-checkpoint callback outside the write lock to avoid
+        # deadlocks when the callback tries to read tracker state.
+        if callable(self._on_checkpoint_flushed):
+            try:
+                self._on_checkpoint_flushed()
+            except Exception:  # noqa: BLE001 — callback failures must not abort the flush
+                logger.exception("Error in _on_checkpoint_flushed callback")
 
     def _schedule_checkpoint(self) -> None:
         """Notify the checkpoint queue that a new mutation is pending.
@@ -1094,6 +1119,9 @@ class OompahMarkdownTracker:
             ),
             review_number=_optional_str(
                 meta.get("review_number") or meta.get("oompah.review_number")
+            ),
+            merged_at=_optional_str(
+                meta.get("merged_at") or meta.get("oompah.merged_at")
             ),
             tracker_kind=TRACKER_KIND,
             tracker_owner=_optional_str(external_github.get("owner")),

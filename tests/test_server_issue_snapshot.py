@@ -51,7 +51,16 @@ def _clear_issue_snapshot_sync() -> None:
     server_module._api_cache.clear()
 
 
-def _issue(identifier: str, state: str, *, issue_type: str = "task", parent_id=None):
+def _issue(
+    identifier: str,
+    state: str,
+    *,
+    issue_type: str = "task",
+    parent_id=None,
+    merged_at: str | None = None,
+    work_branch: str | None = None,
+    review_url: str | None = None,
+):
     return Issue(
         id=identifier,
         identifier=identifier,
@@ -60,6 +69,9 @@ def _issue(identifier: str, state: str, *, issue_type: str = "task", parent_id=N
         state=state,
         issue_type=issue_type,
         parent_id=parent_id,
+        merged_at=merged_at,
+        work_branch=work_branch,
+        review_url=review_url,
     )
 
 
@@ -88,9 +100,16 @@ def test_fetch_and_serialize_issues_includes_proposed_snapshot_key():
 
 
 def test_fetch_all_issues_keeps_merged_epic_terminal_status():
+    # A properly-merged epic must have merge evidence (merged_at) so the
+    # null-evidence guard does not revert it to Backlog (OOMPAH-305).
     orch = _orch_with_issues(
         [
-            _issue("TASK-1", "Merged", issue_type="epic"),
+            _issue(
+                "TASK-1",
+                "Merged",
+                issue_type="epic",
+                merged_at="2026-07-01T00:00:00Z",
+            ),
             _issue("TASK-1.1", "Done", parent_id="TASK-1"),
         ]
     )

@@ -45,8 +45,15 @@ def test_done_on_epic_branch_does_not_override_tracker_state():
 
 
 def test_merged_on_main_with_stale_branch_keeps_merged():
-    # e.g. 706.6: Merged in the tracker, stale state on the epic branch.
-    issue = _issue(identifier="TASK-706.6", parent_id="TASK-706", state="Merged")
+    # e.g. 706.6: Merged in the tracker (canonical), stale state on the epic
+    # branch.  A properly-merged task records merged_at so the null-evidence
+    # guard (OOMPAH-305) does not incorrectly revert it to Backlog.
+    issue = _issue(
+        identifier="TASK-706.6",
+        parent_id="TASK-706",
+        state="Merged",
+        merged_at="2026-07-01T00:00:00Z",
+    )
     orch = _orch(epic_status="Backlog")
     assert _effective_display_status(orch, issue) == "Merged"
     orch.project_store.read_task_status_in_epic_worktree.assert_not_called()
