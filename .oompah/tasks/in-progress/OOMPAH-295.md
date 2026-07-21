@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:48.374539Z'
-updated_at: '2026-07-21T16:14:56.528365Z'
+updated_at: '2026-07-21T16:17:18.793699Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -184,5 +184,10 @@ author: oompah
 created: 2026-07-21 16:14
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 16:17
+---
+Understanding + Discovery: No indexer implementation exists yet. The artifact contract (OOMPAH-294) is in oompah/repo_map.py. tree-sitter and grammar packages (tree-sitter-python, tree-sitter-rust, tree-sitter-javascript, tree-sitter-typescript, tree-sitter-yaml) are available on PyPI and resolvable by uv. Plan: (1) add tree-sitter dependencies to pyproject.toml, (2) implement oompah/repo_indexer.py with file-walker, language detector, binary/size filters, gitignore respect, and Tree-sitter-based symbol/reference extractor for Python/Rust/TypeScript/JavaScript/YAML/Markdown, (3) write comprehensive tests covering happy paths per language, skipped files (binary/oversized/ignored/unsupported), malformed source, and no-crash invariants. Tests will use pytest.importorskip for tree-sitter, and inline fixture repos created in tmp_path.
 ---
 <!-- COMMENTS:END -->
