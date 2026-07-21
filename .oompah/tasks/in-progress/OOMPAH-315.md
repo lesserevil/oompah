@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-315
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T18:40:53.334490Z'
+updated_at: '2026-07-21T18:44:59.746917Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,6 +42,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-21T18:20:20.176791+00:00'
+oompah.agent_run_id: 04eb409e-6918-42da-876d-f4b5bb31895a
 ---
 ## Summary
 
@@ -92,4 +93,16 @@ An error occurs in `backend:orchestrator` and is recorded by oompah's `error_wat
 
 ## Notes
 
-
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 18:44
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 18:44
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
