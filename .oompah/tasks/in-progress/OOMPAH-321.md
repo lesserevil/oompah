@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:51.110283Z'
-updated_at: '2026-07-21T23:43:18.314936Z'
+updated_at: '2026-07-21T23:58:28.595313Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-07-21 23:43
 ---
 Discovery: Reviewed oompah/scm.py (2512 lines) and tests/test_scm.py (3204 lines). GitLabProvider is fully implemented but has two spec violations: (1) merge_review hardcodes 'squash: True' — plan says 'do not force squash'; (2) enable_auto_merge falls back to a direct merge instead of using merge_when_pipeline_succeeds as required by the plan. Test coverage for GitLab is sparse — only label add/remove, get_review_files, close_review, and branch-protection tests exist. Missing: list_open_reviews, list_merged_reviews, find_pr_for_branch, get_review, create_review, rebase_review, needs_rebase, is_available, get_pr_commits, nested namespace URL encoding, self-managed base URL, CI status from head_pipeline, draft/WIP detection, token-leakage prevention, and auto-merge via merge_when_pipeline_succeeds. Will write comprehensive fixture-based tests and fix the two impl bugs.
+---
+author: oompah
+created: 2026-07-21 23:58
+---
+Implementation: Fixed 2 bugs in GitLabProvider and added 102 new tests.\n\nBugs fixed:\n1. merge_review sent 'squash: True' — removed; plan requires history-preserving merges.\n2. enable_auto_merge delegated to merge_review (direct merge) — replaced with proper PUT /merge + merge_when_pipeline_succeeds=True per spec; policy/approval rejections return actionable messages.\n\nTests added (test_scm.py, +665 lines):\n- TestGitLabProviderIsAvailable (5 tests) — probes /user, returns bool on auth failure/network error\n- TestGitLabSelfManagedUrl (4 tests) — _api_url() uses configured hostname; detect_provider propagates it\n- TestGitLabNestedNamespaceEncoding (5 tests) — group/sub/project → group%2Fsub%2Fproject in every API call\n- TestGitLabListOpenReviews (14 tests) — all fields, CI status from head_pipeline, draft/WIP, conflicts/divergence, label preservation, state param\n- TestGitLabListMergedReviews (5 tests) — field mapping, auth failure, skips missing source branch, request params\n- TestGitLabListMergedBranches (2 tests) — delegates to merged reviews\n- TestGitLabFindPrForBranch (8 tests) — open/merged/closed, not found, empty branch, API params, newest-first selection\n- TestGitLabGetReview (6 tests) — field mapping, 404/401/network, draft, URL path encoding\n- TestGitLabCreateReview (5 tests) — 201 success, field validation, rejection, network error, nested path encoding\n- TestGitLabRebaseReview (6 tests) — 200/202 success, conflict actionable msg, 400, network error, endpoint path\n- TestGitLabNeedsRebase (6 tests) — conflicts, diverged, both, clean, 404, network error\n- TestGitLabMergeReviewHistoryPreserving (4 tests) — no squash, success, 405 failure, network error\n- TestGitLabEnableAutoMerge (6 tests) — merge_when_pipeline_succeeds flag, no squash, policy rejection actionable, 405, network error, endpoint path\n- TestGitLabGetPrCommits (8 tests) — oldest-first ordering, single commit, 404/401/network error, get_review_commits bridge, nested path encoding, skips entries without id\n- TestGitLabTokenNotLeakedInErrors (4 tests) — merge/rebase/close/auto-merge error messages do not expose token\n- TestGitLabCloseReview (5 tests) — note+close, no-comment, note failure degrades gracefully, close failure, network error\n- TestGitLabLabelPreservation (4 tests) — add appends, remove keeps rest, oompah:status:* labels survive add/remove operations
 ---
 <!-- COMMENTS:END -->
