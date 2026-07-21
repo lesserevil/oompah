@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:41:44.580815Z'
+updated_at: '2026-07-21T15:41:46.788547Z'
 work_branch: OOMPAH-292
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/463
@@ -426,5 +426,10 @@ Completion: All OOMPAH-292 implementation was delivered and merged via PR #463. 
 4. Frontend — drawer width: min(800px, 40vw) with max-width: 90vw fallback.
 5. Frontend — full task detail in drawer: _rdiFetchTaskDetail() calls GET /api/v1/issues/{identifier}/detail?project_id=... with loading/error states; delivery evidence always appended synchronously.
 6. Tests: 44 new tests, 2 updated tests, all 9918 pass. PR merged.
+---
+author: oompah
+created: 2026-07-21 15:41
+---
+Implemented mergeable-item summaries and full task details in Release Delivery. Backend: ITEM_SUMMARY_MAX_LENGTH=280, _extract_item_summary() with HTML stripping/normalisation/truncation, summary field on ItemRow, included in backlog JSON. Frontend: .rdi-item-summary in rows (textContent, aria-label), drawer widened to min(800px,40vw) with 90vw fallback, full task detail via GET /api/v1/issues/{identifier}/detail with loading/error states and synchronous delivery evidence. 44 new tests, 2 updated, all pass. Merged via PR #463.
 ---
 <!-- COMMENTS:END -->
