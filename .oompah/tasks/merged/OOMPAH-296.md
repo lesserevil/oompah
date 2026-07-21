@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T21:35:24.879932Z'
+updated_at: '2026-07-21T21:35:37.598287Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,13 +22,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 6f69b516-434c-47af-8471-850c59763385
 oompah.task_costs:
-  total_input_tokens: 1676306
-  total_output_tokens: 41414
+  total_input_tokens: 1676372
+  total_output_tokens: 43433
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1676306
-      output_tokens: 41414
+      input_tokens: 1676372
+      output_tokens: 43433
       cost_usd: 0.0
   runs:
   - profile: default
@@ -73,6 +73,12 @@ oompah.task_costs:
     output_tokens: 4171
     cost_usd: 0.0
     recorded_at: '2026-07-21T21:16:26.569160+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 66
+    output_tokens: 2019
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T21:35:36.156148+00:00'
 ---
 ## Summary
 
@@ -412,5 +418,25 @@ author: oompah
 created: 2026-07-21 21:33
 ---
 Discovery: Root cause found. Commit 0c53f6eb3 incorrectly reverted ci.yml from 'ubuntu-latest' back to '[self-hosted, linux, x64, oompah]'. The test test_ci_test_job_targets_github_hosted_runner requires ci.yml to use 'ubuntu-latest' (public GitHub-hosted runner), while ci-dedicated.yml should keep the self-hosted labels. Fix: restore ubuntu-latest in ci.yml.
+---
+author: oompah
+created: 2026-07-21 21:35
+---
+YOLO: merged PR #474.
+---
+author: oompah
+created: 2026-07-21 21:35
+---
+Implementation: Fixed ci.yml to use 'ubuntu-latest' instead of '[self-hosted, linux, x64, oompah]'. Root cause: commit 0c53f6eb3 (previous agent run) incorrectly reverted the public runner configuration that was correctly set in 23558b4dd. The fix is: ci.yml uses ubuntu-latest (primary CI via GitHub-hosted runners); ci-dedicated.yml keeps the self-hosted labels (operator-dispatched only). Commit: 0dfe956b4. All 62 test_self_hosted_runner tests pass locally. CI re-running on PR #474.
+---
+author: oompah
+created: 2026-07-21 21:35
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 38
+- Tokens: 66 in / 2.0K out [2.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 45s
+- Log: OOMPAH-296__20260721T211653Z.jsonl
 ---
 <!-- COMMENTS:END -->
