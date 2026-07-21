@@ -11,9 +11,10 @@ blocked_by:
 - OOMPAH-287
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:security
 assignee: null
 created_at: '2026-07-21T14:51:56.727670Z'
-updated_at: '2026-07-21T22:58:05.604472Z'
+updated_at: '2026-07-21T22:59:08.737308Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -138,5 +139,15 @@ author: oompah
 created: 2026-07-21 22:58
 ---
 Understanding: I will audit agent-reachable mutation and delivery paths for trust/provenance-based authorization, add centralized server-side denials with audit reasons where gaps exist, and verify protected actions remain available through approved paths.
+---
+author: oompah
+created: 2026-07-21 22:59
+---
+Discovery: Existing status intake gates (oompah/transition_gate.py and server PATCH/webhook paths) protect only selected promotions. Agent-facing paths in oompah/acp_tools.py directly execute task create/child-create/status/label/comment commands and ProjectStore updates; run_command delegates to unrestricted shell execution in oompah/api_agent.py. ACP/Codex/OpenCode catalog construction passes workspace/project/tracker but no server-issued action authority, so untrusted task content can influence protected operations once an agent chooses to act.
+---
+author: oompah
+created: 2026-07-21 22:59
+---
+Focus handoff: security\n\n1. Outcome: No duplicate or existing centralized authority boundary was found. The required protection needs a backend implementation, not additional prompt-only hardening.\n\n2. Evidence: oompah/transition_gate.py and server.py cover limited intake status transitions. oompah/acp_tools.py:_exec_oompah_task_command directly mutates tasks (set-status, create, child-create, labels, comments), _exec_update_project mutates config, and run_command forwards to oompah/api_agent.py:_exec_run_command. Catalog builders receive no trusted per-session authorization object (orchestrator.py:_run_acp_worker; acp_backends/codex.py and opencode.py rebuild catalogs likewise).\n\n3. Remaining work / risks: Add an immutable, server-issued per-session authority policy with default-deny protected actions and structured audit logging. Thread it through all catalog builders/backends and direct task/shell/project helpers. Classify/deny command intent for git push, GitHub comments/labels, release delivery, credentials, provider/project config, task creation/decomposition/source changes, and gated status transitions; do not trust task description/prompt fields. Preserve normal workflows by explicit server grant at dispatch. Add integration/unit tests for denied external-task attempts and approved authority paths. Raw shell aliases, interpreters, and compound commands are an evasion risk; fail closed for ambiguous protected commands.\n\n4. Recommended next focus: feature (backend implementation), then test for adversarial integration coverage.
 ---
 <!-- COMMENTS:END -->
