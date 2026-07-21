@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-316
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:server] Fetch issues failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -13,10 +13,9 @@ labels:
 - external:github
 - focus-complete:duplicate_detector
 - focus-complete:general
-- needs:devops
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T19:05:29.283849Z'
+updated_at: '2026-07-21T19:10:18.588102Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +44,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-21T18:20:35.323844+00:00'
-oompah.agent_run_id: 99a9a5c3-50df-4ee7-9c33-e916e4550a69
+oompah.agent_run_id: 19f66655-c529-406f-bef8-458149b77c7e
 oompah.task_costs:
   total_input_tokens: 619069
   total_output_tokens: 7861
@@ -286,5 +285,15 @@ Run #1 [attempt=1, profile=deep, role=deep -> Codex/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 43s
 - Log: OOMPAH-316__20260721T190147Z.jsonl
+---
+author: oompah
+created: 2026-07-21 19:10
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 19:10
+---
+Focus: DevOps Engineer
 ---
 <!-- COMMENTS:END -->
