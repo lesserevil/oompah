@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T16:48:26.921739Z'
+updated_at: '2026-07-21T16:53:24.612435Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -168,5 +168,10 @@ author: oompah
 created: 2026-07-21 16:48
 ---
 Understanding (test): I will audit existing tests related to state-branch cache reads, stale-header handling, and dashboard state reconciliation, then add/complete regression tests per the issue requirements: (1) fixture where stale cache says Merged but state branch says Backlog; (2) checkpoint invalidation test; (3) per-project isolation and null merged_at safety; (4) degraded-read terminal-status safety. I will also validate the test added by the frontend agent and ensure it exercises the correct behavior.
+---
+author: oompah
+created: 2026-07-21 16:53
+---
+Discovery (test): Found that the previous frontend agent's changes (stale-header consumption in fetchIssues + stale banner) were NOT committed — git worktree index.lock was read-only. The backend already emits X-Oompah-Issues-Stale header and has a 60-second TTL cache (issues:all) that is not keyed by state-branch revision. _issue_dashboard_state() uses canonical issue.state (not merged_at). Tests needed: (1) null merged_at cannot produce Merged display state, (2) stale snapshot replaced by canonical backlog on refresh, (3) stale header = true when snapshot is old/error, (4) TTLCache prefix isolation, (5) frontend stale banner and fetchIssues header consumption. Plan: write backend + frontend tests, also add the minimal frontend stale-banner + fetchIssues header change (since those are required by the tests and were already designed).
 ---
 <!-- COMMENTS:END -->
