@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-317
 type: task
-status: Done
+status: In Review
 priority: null
 title: Restore git write access for OOMPAH-316 landing
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T19:04:51.954483Z'
-updated_at: '2026-07-21T19:35:41.756273Z'
+updated_at: '2026-07-21T20:40:11.339642Z'
 work_branch: null
 target_branch: null
 review_url: null

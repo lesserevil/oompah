@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-316
 type: bug
-status: Done
+status: Open
 priority: 2
 title: '[backend:server] Fetch issues failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -15,7 +15,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T19:33:59.056446Z'
+updated_at: '2026-07-21T20:40:08.461217Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -392,5 +392,19 @@ oompah will create the review automatically when review capacity is available.
 
 Recent commits:
   291dddacd OOMPAH-316: Degrade gracefully when state branch is missing
+---
+author: oompah
+created: 2026-07-21 20:40
+---
+Review handoff failed: the task branch has unmerged work but no review artifact was created.
+
+Branch: `OOMPAH-316`
+Target branch: `main`
+Unmerged commits: 1 commit
+  291dddacd OOMPAH-316: Degrade gracefully when state branch is missing
+
+Reason: forge provider returned no review
+
+Required: create or restore the PR/MR for this branch, then move the task to In Review only after the review exists.
 ---
 <!-- COMMENTS:END -->
