@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:48.374539Z'
-updated_at: '2026-07-21T16:17:18.793699Z'
+updated_at: '2026-07-21T16:35:21.343885Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -189,5 +189,10 @@ author: oompah
 created: 2026-07-21 16:17
 ---
 Understanding + Discovery: No indexer implementation exists yet. The artifact contract (OOMPAH-294) is in oompah/repo_map.py. tree-sitter and grammar packages (tree-sitter-python, tree-sitter-rust, tree-sitter-javascript, tree-sitter-typescript, tree-sitter-yaml) are available on PyPI and resolvable by uv. Plan: (1) add tree-sitter dependencies to pyproject.toml, (2) implement oompah/repo_indexer.py with file-walker, language detector, binary/size filters, gitignore respect, and Tree-sitter-based symbol/reference extractor for Python/Rust/TypeScript/JavaScript/YAML/Markdown, (3) write comprehensive tests covering happy paths per language, skipped files (binary/oversized/ignored/unsupported), malformed source, and no-crash invariants. Tests will use pytest.importorskip for tree-sitter, and inline fixture repos created in tmp_path.
+---
+author: oompah
+created: 2026-07-21 16:35
+---
+Implementation + Verification: Implemented oompah/repo_indexer.py (standalone Tree-sitter indexer) and tests/test_repo_indexer.py (166 tests). make test passes: 10,194 total tests, 0 failures. Key coverage: detect_language (all 6 supported languages + unsupported), is_binary_content (null-byte heuristic), _GitignoreSpec (patterns, anchored, negation, node_modules, negation order), extract_symbols_and_edges per language (Python/Rust/JS/TS/YAML/Markdown), index_repository (file walking, .gitignore, binary/oversized/unsupported skipping, always-skip dirs, lexicographic sorting, content hash, schema conformance, error cases), mixed-fixture integration test.
 ---
 <!-- COMMENTS:END -->
