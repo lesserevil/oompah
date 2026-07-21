@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-316
 type: bug
-status: Done
+status: In Progress
 priority: 2
 title: '[backend:server] Fetch issues failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -15,7 +15,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T20:44:57.297822Z'
+updated_at: '2026-07-21T20:45:08.125155Z'
 work_branch: OOMPAH-316
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/478
@@ -46,13 +46,13 @@ oompah.intake:
   last_validated_at: '2026-07-21T18:20:35.323844+00:00'
 oompah.agent_run_id: b1e7005a-b009-4d64-9d59-644666ae7f92
 oompah.task_costs:
-  total_input_tokens: 1140012
-  total_output_tokens: 19982
+  total_input_tokens: 1140022
+  total_output_tokens: 21954
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1140012
-      output_tokens: 19982
+      input_tokens: 1140022
+      output_tokens: 21954
       cost_usd: 0.0
   runs:
   - profile: default
@@ -85,6 +85,12 @@ oompah.task_costs:
     output_tokens: 8900
     cost_usd: 0.0
     recorded_at: '2026-07-21T19:27:05.006333+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 10
+    output_tokens: 1972
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T20:45:02.355695+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/478
 oompah.review_number: '478'
 oompah.work_branch: OOMPAH-316
@@ -440,5 +446,38 @@ author: oompah
 created: 2026-07-21 20:44
 ---
 StateBranchMissingError graceful degradation: server.py now logs WARNING instead of ERROR for unbootstrapped state-branch projects, preventing error_watcher auto-filing. 2 regression tests added. PR #478 created.
+---
+author: oompah
+created: 2026-07-21 20:45
+---
+Agent completed successfully in 66s (1982 tokens)
+---
+author: oompah
+created: 2026-07-21 20:45
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 14, Tool calls: 8
+- Tokens: 10 in / 2.0K out [2.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 6s
+- Log: OOMPAH-316__20260721T204357Z.jsonl
+---
+author: oompah
+created: 2026-07-21 20:45
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-316` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-316
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-316
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
