@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:03:25.081692Z'
+updated_at: '2026-07-21T23:03:41.773488Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -139,5 +139,10 @@ author: oompah
 created: 2026-07-21 23:03
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 23:03
+---
+Understanding: I am covering OOMPAH-298 from the test-engineering focus. I will identify the startup-prompt assembly and repository-map interfaces, add isolated unit tests for matching inclusion, failure/isolation fallbacks, relevance/budget, and diagnostics, then run the Makefile test target and hand off implementation findings.
 ---
 <!-- COMMENTS:END -->
