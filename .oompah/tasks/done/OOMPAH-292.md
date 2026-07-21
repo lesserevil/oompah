@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:24:21.582146Z'
+updated_at: '2026-07-21T15:24:24.454849Z'
 work_branch: OOMPAH-292
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/463
@@ -279,5 +279,10 @@ created: 2026-07-21 15:24
 PR opened: https://github.com/lesserevil/oompah/pull/463
 
 All implementation work was completed in the previous agent run. This run created the required PR to unblock task closure. All 9918 tests pass.
+---
+author: oompah
+created: 2026-07-21 15:24
+---
+Implemented mergeable-item summaries and full task details in Release Delivery. Backend: ITEM_SUMMARY_MAX_LENGTH=280, _extract_item_summary() with HTML stripping/whitespace normalisation/truncation, summary field on ItemRow, included in backlog JSON. Frontend: .rdi-item-summary in rows (textContent, aria-label), drawer widened to min(800px,40vw) with 90vw fallback, full task detail via GET /api/v1/issues/{identifier}/detail with loading/error states and synchronous delivery evidence. 44 new tests, 2 updated, all 9918 pass. PR: https://github.com/lesserevil/oompah/pull/463
 ---
 <!-- COMMENTS:END -->
