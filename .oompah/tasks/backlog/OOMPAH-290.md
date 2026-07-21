@@ -7,11 +7,12 @@ title: Enforce server-side authority boundaries for agent actions influenced by 
   intake
 parent: OOMPAH-285
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-287
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:56.727670Z'
-updated_at: '2026-07-21T14:51:56.727670Z'
+updated_at: '2026-07-21T14:52:03.125692Z'
 work_branch: null
 target_branch: null
 review_url: null
