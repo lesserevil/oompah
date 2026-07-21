@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T16:38:44.364422Z'
+updated_at: '2026-07-21T16:39:25.263965Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -157,5 +157,10 @@ author: oompah
 created: 2026-07-21 16:38
 ---
 Implementation: Created oompah/provenance.py with ContentProvenance dataclass, TrustLevel/ContentSource/ProvenanceComponent enums, make_provenance() factory (server-side trust assignment), default_deny() for unknown sources, escape_content() (delimiter escape defense), and wrap_untrusted() (raises on model_renderable=False). Patched oompah/prompt.py to wrap issue.description and comment text with XML delimiters before Liquid template rendering. Patched oompah/focus.py _build_triage_prompt() to wrap the issue description block. Patched oompah/github_intake_bridge.py _deliver_github_comment_to_agent() to wrap comment bodies with continuation_prompts component + github_issue_comment source + origin_actor. Added tests/test_provenance.py with 121 tests covering all source types, trust assignments, delimiter escape, serialization, default-deny behavior, native legacy compat, and integration with prompt/focus/bridge.
+---
+author: oompah
+created: 2026-07-21 16:39
+---
+Verification: make test passed with 10072 tests (9951 existing + 121 new). All existing tests continue to pass — backward compatibility is preserved. New tests cover: 16 test categories including enums, trust assignments, renderability, default-deny, make_provenance factory, escape_content security defense, wrap_untrusted (with ValueError on deny), serialization round-trips, native legacy compat, and integration tests for render_prompt / build_continuation_prompt / _build_triage_prompt / _deliver_github_comment_to_agent. Branch epic-OOMPAH-285 pushed to origin.
 ---
 <!-- COMMENTS:END -->
