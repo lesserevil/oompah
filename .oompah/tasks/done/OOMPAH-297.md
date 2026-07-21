@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-297
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Generate and maintain repository maps on Git-backed state branches
 parent: OOMPAH-293
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:07.528667Z'
-updated_at: '2026-07-21T22:48:54.902818Z'
+updated_at: '2026-07-21T22:59:33.281928Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -242,5 +242,25 @@ author: oompah
 created: 2026-07-21 22:48
 ---
 Understanding: Three of five tests in test_repo_map_generator.py fail due to two bugs: (1) the _map_for helper uses the stale RepoMap schema — SymbolTag now requires file_path, RepoMap has symbol_tags/relationship_edges not symbols/edges, RenderingMetadata requires total_files/total_symbols/total_edges; (2) the generator commits maps locally but never pushes to origin, while the integration tests verify the remote. Fix plan: patch _map_for to match current schema, update _generate_task to (a) prune before committing so removals land in the same commit, (b) push to origin after each commit.
+---
+author: oompah
+created: 2026-07-21 22:59
+---
+Implementation complete. Two files committed and pushed to epic-OOMPAH-293:
+
+oompah/repo_map_generator.py — orchestration layer:
+- RepoMapGenerator.get_or_generate(): fast-path cache hit (STATUS_FRESH), in-flight coalescing, bounded thread pool, timeout (STATUS_TIMEOUT) and exception (STATUS_FAILED) handlers that never raise
+- _generate_task(): index → atomic write → prune (filesystem) → commit (add new + rm pruned in one commit) → push to origin
+- _commit_map_to_state_branch(): stages only the specific map file plus pruned removals; never uses git add -A
+- _push_state_branch(): pushes HEAD to origin after each successful commit
+
+tests/test_repo_map_generator.py — 5 integration tests using local bare Git remotes:
+- test_generation_pushes_complete_map_only_to_state_branch: artifact visible on remote state branch; absent from main
+- test_exact_sha_is_reused_but_new_sha_is_regenerated: STATUS_FRESH on repeat, STATUS_GENERATED on new SHA
+- test_concurrent_same_sha_requests_share_one_background_index: coalescing verified (call_count == 1)
+- test_retention_prunes_old_complete_artifacts_on_remote_state_branch: only newest SHA survives on remote
+- test_failure_and_timeout_return_diagnostics_without_raising: no exception propagates to caller
+
+All 286 repo-map layer tests pass (make test passes; 6 pre-existing test_self_hosted_runner failures are unrelated).
 ---
 <!-- COMMENTS:END -->
