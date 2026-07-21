@@ -14,7 +14,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-21T14:51:56.727670Z'
-updated_at: '2026-07-21T23:21:34.874712Z'
+updated_at: '2026-07-21T23:21:37.176287Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -239,5 +239,10 @@ Acceptance criteria met:
 3. Auditable denial reason emitted on every denial (AUTHORITY_DENY: log prefix)
 4. Normal operator-sourced workflows preserved (None policy and operator_policy() are permissive)
 5. Full test suite: 10858 passed / 36 skipped — zero regressions
+---
+author: oompah
+created: 2026-07-21 23:21
+---
+Implemented oompah/authority_boundary.py (AgentActionPolicy frozen dataclass + ProtectedAction checks for 7 action categories) and integrated authority boundary into all three ACP catalog builders in acp_tools.py. 135 tests in tests/test_authority_boundary.py cover all acceptance criteria: external prompt injection cannot grant capabilities, denials are auditable, approved operator workflows are preserved.
 ---
 <!-- COMMENTS:END -->
