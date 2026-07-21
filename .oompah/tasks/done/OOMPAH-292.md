@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-292
 type: task
-status: In Progress
+status: Done
 priority: 3
 title: Show mergeable-item summaries and full task details in Release Delivery
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:41:36.022088Z'
+updated_at: '2026-07-21T15:41:44.580815Z'
 work_branch: OOMPAH-292
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/463
