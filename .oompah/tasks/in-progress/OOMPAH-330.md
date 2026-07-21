@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T20:59:27.535782Z'
-updated_at: '2026-07-21T21:00:42.228941Z'
+updated_at: '2026-07-21T21:02:19.716254Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -87,5 +87,10 @@ author: oompah
 created: 2026-07-21 21:00
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 21:02
+---
+Understanding: OOMPAH-330 asks to rebase epic-OOMPAH-293 onto origin/main and force-push. Duplicate screening found no existing task covering this same rebase. Closest task is OOMPAH-267 (bug fix, Needs Rebase status) but that is a different PR and different work. OOMPAH-330 is not a duplicate. Proceeding to perform the rebase directly since this is a straightforward git operation and I am on the epic-OOMPAH-293 branch already.
 ---
 <!-- COMMENTS:END -->

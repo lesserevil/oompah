@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-332
 type: task
-status: Open
+status: In Progress
 priority: 0
 title: 'YOLO task-PR coherence break on oompah/468: merge-conflict recovery task missing
   or stale'
@@ -13,12 +13,13 @@ labels:
 - yolo-watchdog
 assignee: null
 created_at: '2026-07-21T21:01:56.725203Z'
-updated_at: '2026-07-21T21:01:56.725203Z'
+updated_at: '2026-07-21T21:02:23.732369Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 95522545-bcd1-4c15-81a8-dbdcc6a2bded
 ---
 ## Summary
 
@@ -34,3 +35,16 @@ PR #468 on oompah (branch `fix-release-selected-commits`) is in a state requirin
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 21:02
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 21:02
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
