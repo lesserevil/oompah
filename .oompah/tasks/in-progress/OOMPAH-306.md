@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-306
 type: bug
-status: Done
+status: In Progress
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T17:11:20.541016Z'
+updated_at: '2026-07-21T17:11:38.512369Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 8aab720d-556d-4d1d-9737-59eb1d9583d8
 oompah.task_costs:
-  total_input_tokens: 1609925
-  total_output_tokens: 7808
+  total_input_tokens: 1609995
+  total_output_tokens: 38499
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1609925
-      output_tokens: 7808
+      input_tokens: 1609995
+      output_tokens: 38499
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -42,6 +42,12 @@ oompah.task_costs:
     output_tokens: 1910
     cost_usd: 0.0
     recorded_at: '2026-07-21T16:48:04.116874+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 70
+    output_tokens: 30691
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T17:11:34.712773+00:00'
 ---
 ## Summary
 
@@ -194,5 +200,38 @@ author: oompah
 created: 2026-07-21 17:11
 ---
 Added 47 regression tests (test_state_branch_cache_reconciliation.py + test_dashboard_state_read_warning.py) covering all required OOMPAH-306 scenarios: stale-Merged/canonical-Backlog reconciliation, cache invalidation patterns, per-project isolation, null merged_at safety, degraded-read stale indicators, and accessible frontend stale banner. Also implemented the frontend stale-state banner in dashboard.html (role=alert, aria-live, X-Oompah-Issues-Stale header consumption). All 9998 tests pass.
+---
+author: oompah
+created: 2026-07-21 17:11
+---
+Agent completed successfully in 1399s (30761 tokens)
+---
+author: oompah
+created: 2026-07-21 17:11
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 130, Tool calls: 99
+- Tokens: 70 in / 30.7K out [30.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 23m 19s
+- Log: OOMPAH-306__20260721T164817Z.jsonl
+---
+author: oompah
+created: 2026-07-21 17:11
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-306` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-306
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-306
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
