@@ -228,6 +228,79 @@ _TRACKER_KIND_ALIASES = {
 _STRICT_PROFILE_SOURCE_VALUES = ("warn", "strict")
 DEFAULT_TRACKER_KIND = "oompah_md"
 
+# ---------------------------------------------------------------------------
+# Repository-map configuration constants and parsers (OOMPAH-293 epic)
+# ---------------------------------------------------------------------------
+
+#: Languages supported by the Tree-sitter indexer (oompah.repo_indexer).
+#: This is the validation domain for OOMPAH_REPO_MAP_LANGUAGES.
+_REPO_MAP_SUPPORTED_LANGUAGES: tuple[str, ...] = (
+    "javascript",
+    "markdown",
+    "python",
+    "rust",
+    "typescript",
+    "yaml",
+)
+
+
+def _parse_repo_map_languages(
+    raw: str | None,
+    default: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Parse and validate a comma-separated language list for repo maps.
+
+    Returns a tuple of the requested languages when every entry is in the
+    supported set. If any entry is unsupported (e.g. "fortran"), the entire
+    value is rejected and *default* is returned so operators get a safe,
+    well-known baseline rather than a silently broken configuration.
+    """
+    if not raw:
+        return default
+    parsed = tuple(s.strip() for s in raw.split(",") if s.strip())
+    if not parsed:
+        return default
+    unsupported = set(parsed) - set(default)
+    if unsupported:
+        logger.warning(
+            "OOMPAH_REPO_MAP_LANGUAGES contains unsupported language(s): %s; "
+            "falling back to default set %s",
+            sorted(unsupported),
+            list(default),
+        )
+        return default
+    return parsed
+
+
+def _parse_repo_map_positive_int(env_key: str, default: int) -> int:
+    """Read *env_key* as a positive integer (≥ 1).
+
+    Falls back to *default* for a missing, non-numeric, or non-positive value
+    so an operator typo cannot silently set a resource guard to zero.
+    """
+    raw = os.environ.get(env_key)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except (ValueError, TypeError):
+        logger.warning(
+            "%s=%r is not a valid integer; using default %d",
+            env_key,
+            raw,
+            default,
+        )
+        return default
+    if value < 1:
+        logger.warning(
+            "%s=%d is not a positive integer (must be ≥ 1); using default %d",
+            env_key,
+            value,
+            default,
+        )
+        return default
+    return value
+
 
 def _parse_strict_profile_source(value: Any) -> str:
     """Normalize the strict_profile_source flag to one of {warn, strict}.
@@ -484,6 +557,48 @@ class ServiceConfig:
     # Set to 0 to disable stale-loop detection entirely.
     # Configurable via OOMPAH_DISPATCH_LOOP_STALE_FACTOR.
     dispatch_loop_stale_factor: float = 3.0
+
+    # -----------------------------------------------------------------------
+    # Repository-map feature (OOMPAH-293 epic / OOMPAH-299).
+    # All settings are environment-only — do NOT add these to WORKFLOW.md.
+    # See docs/repository-map.md for full operator documentation.
+    # -----------------------------------------------------------------------
+
+    # Master enable switch. When False (default) no map is generated and no
+    # state-branch writes occur. Flip to True only after the project's
+    # state branch is initialised (see docs/project-bootstrap.md).
+    # Configurable via OOMPAH_REPO_MAP_ENABLED.
+    repo_map_enabled: bool = False
+
+    # Token budget passed to render_repo_map() when injecting a map into an
+    # agent prompt. Must be a positive integer; values ≤ 0 fall back to the
+    # default. Configurable via OOMPAH_REPO_MAP_TOKEN_BUDGET.
+    repo_map_token_budget: int = 2000
+
+    # Ordered tuple of Tree-sitter-supported language names to index.
+    # Any entry not in _REPO_MAP_SUPPORTED_LANGUAGES causes the whole value
+    # to be rejected and the default (all supported languages) to be used.
+    # Set via OOMPAH_REPO_MAP_LANGUAGES as a comma-separated list, e.g.
+    # "python,typescript,javascript".
+    repo_map_languages: tuple[str, ...] = field(
+        default_factory=lambda: _REPO_MAP_SUPPORTED_LANGUAGES
+    )
+
+    # Maximum size in bytes of a single source file that the indexer will
+    # read. Files larger than this limit are skipped. Must be ≥ 1; values
+    # ≤ 0 fall back to the default. Configurable via
+    # OOMPAH_REPO_MAP_MAX_FILE_SIZE.
+    repo_map_max_file_size: int = 1_000_000
+
+    # Wall-clock seconds a single map-generation run may take before it is
+    # cancelled and a STATUS_TIMEOUT result is returned. Must be ≥ 1.
+    # Configurable via OOMPAH_REPO_MAP_GENERATION_TIMEOUT.
+    repo_map_generation_timeout: int = 120
+
+    # Maximum number of per-repository map artifacts kept on the state branch.
+    # Older artifacts are pruned after a new one is written. Must be ≥ 1.
+    # Configurable via OOMPAH_REPO_MAP_RETAINED_ARTIFACTS.
+    repo_map_retained_artifacts: int = 5
 
     def __post_init__(self):
         self.tracker_kind = _parse_tracker_kind(self.tracker_kind)
@@ -814,6 +929,25 @@ class ServiceConfig:
                 "OOMPAH_DISPATCH_LOOP_STALE_FACTOR",
                 agent.get("dispatch_loop_stale_factor"),
                 3.0,
+            ),
+            # Repository-map feature (OOMPAH-293 / OOMPAH-299).
+            # All settings are environment-only; do not expose them in WORKFLOW.md.
+            repo_map_enabled=_env_bool("OOMPAH_REPO_MAP_ENABLED", None, False),
+            repo_map_token_budget=_parse_repo_map_positive_int(
+                "OOMPAH_REPO_MAP_TOKEN_BUDGET", 2000
+            ),
+            repo_map_languages=_parse_repo_map_languages(
+                os.environ.get("OOMPAH_REPO_MAP_LANGUAGES"),
+                _REPO_MAP_SUPPORTED_LANGUAGES,
+            ),
+            repo_map_max_file_size=_parse_repo_map_positive_int(
+                "OOMPAH_REPO_MAP_MAX_FILE_SIZE", 1_000_000
+            ),
+            repo_map_generation_timeout=_parse_repo_map_positive_int(
+                "OOMPAH_REPO_MAP_GENERATION_TIMEOUT", 120
+            ),
+            repo_map_retained_artifacts=_parse_repo_map_positive_int(
+                "OOMPAH_REPO_MAP_RETAINED_ARTIFACTS", 5
             ),
         )
 

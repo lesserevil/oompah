@@ -166,6 +166,39 @@ code workflows:
 - **Pull requests** between code branches never include state-branch files
   because the state branch is an orphan with no shared ancestor.
 
+## Repository Map
+
+Newly bootstrapped projects that have a state branch (`state_branch_enabled=True`)
+are eligible for the repository-map feature. The feature is **disabled by default**
+for operator safety — no map is generated and no state-branch writes occur until
+explicitly activated.
+
+To enable, add the following to your `.env` after bootstrap:
+
+```ini
+OOMPAH_REPO_MAP_ENABLED=true
+```
+
+The repository map is stored on the project's state branch
+(`oompah/state/<project-id>`) under `.oompah/repo-maps/`. No extra daemon,
+database, or externally hosted service is required.
+
+See [docs/repository-map.md](repository-map.md) for full configuration,
+freshness, diagnostics, privacy/trust boundaries, and rebuild procedures.
+
+### Conditions for automatic activation
+
+The feature is enabled **only** when all of the following are true at dispatch
+time:
+
+1. `OOMPAH_REPO_MAP_ENABLED=true` is set in `.env`.
+2. The project has a Git-backed state branch
+   (`project.state_branch_enabled=True`).
+
+Projects that were bootstrapped before state branches were introduced must be
+migrated first. Run `oompah project-bootstrap apply` to create the state branch,
+then enable the feature via the environment variable.
+
 ## Dirty Worktree Safety
 
 Oompah refuses to overwrite bootstrap-managed paths with uncommitted changes.
