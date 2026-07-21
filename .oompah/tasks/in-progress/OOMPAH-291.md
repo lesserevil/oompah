@@ -14,13 +14,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:57.738049Z'
-updated_at: '2026-07-21T23:26:06.667468Z'
+updated_at: '2026-07-21T23:26:11.338574Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: baaadca6-49d2-4d60-a6bd-201b6b0c41c1
+oompah.agent_run_id: f6823415-1206-4425-8f45-08bf1104c28d
 oompah.task_costs:
   total_input_tokens: 413079
   total_output_tokens: 9416
@@ -151,5 +151,15 @@ author: oompah
 created: 2026-07-21 23:25
 ---
 Agent completed without closing this issue (79s (416110 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-21 23:26
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-21 23:26
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
