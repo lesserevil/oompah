@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:50.132513Z'
-updated_at: '2026-07-21T23:07:34.158639Z'
+updated_at: '2026-07-21T23:12:46.630420Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -202,5 +202,25 @@ author: oompah
 created: 2026-07-21 23:07
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 23:12
+---
+Understanding: As Test Engineer for OOMPAH-320, reviewing the current state:
+
+The refactoring agent (previous runs) successfully:
+1. Added CIStatus enum, CIState alias, CapabilityWarning TypedDict, normalize_ci_status() to oompah/scm.py
+2. Added contract tests to tests/test_scm.py (all 173 tests pass)
+3. Updated oompah/release_delivery_inventory.py and oompah/release_pick_commit_resolver.py to call get_review_commits() instead of get_pr_commits()
+4. Updated tests/test_release_delivery_inventory.py and tests/test_release_pick_commit_resolver.py mocks
+
+However, 16 tests in 5 other test files still mock scm.get_pr_commits but the production code now calls scm.get_review_commits. The fix is to update those test mocks to use get_review_commits.
+
+Affected files:
+- tests/test_release_delivery_backlog.py (many mocks)
+- tests/test_release_delivery_refresh.py
+- tests/test_server_release_addendums.py
+- tests/test_server_release_delivery_backlog_factory.py
+- tests/test_server_release_delivery_backlog_tracker.py
 ---
 <!-- COMMENTS:END -->
