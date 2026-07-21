@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-306
 type: bug
-status: Done
+status: In Progress
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T18:06:21.587024Z'
+updated_at: '2026-07-21T18:06:33.166410Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 68ce6990-a378-4933-adbc-9e1e3910ce89
 oompah.task_costs:
-  total_input_tokens: 1610004
-  total_output_tokens: 39833
+  total_input_tokens: 1610055
+  total_output_tokens: 62989
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1610004
-      output_tokens: 39833
+      input_tokens: 1610055
+      output_tokens: 62989
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -54,6 +54,12 @@ oompah.task_costs:
     output_tokens: 1334
     cost_usd: 0.0
     recorded_at: '2026-07-21T17:17:33.497718+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 51
+    output_tokens: 23156
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T18:06:29.421839+00:00'
 ---
 ## Summary
 
@@ -332,5 +338,38 @@ author: oompah
 created: 2026-07-21 18:06
 ---
 Fixed unpushed_gate false refusal: _check_unpushed now runs git status --porcelain in the branch worktree (not main clone). Added 47 regression tests + dashboard stale-state banner for OOMPAH-306 reconciliation bug. 10003 tests pass.
+---
+author: oompah
+created: 2026-07-21 18:06
+---
+Agent completed successfully in 865s (23207 tokens)
+---
+author: oompah
+created: 2026-07-21 18:06
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 99, Tool calls: 60
+- Tokens: 51 in / 23.2K out [23.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 14m 25s
+- Log: OOMPAH-306__20260721T175206Z.jsonl
+---
+author: oompah
+created: 2026-07-21 18:06
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-306` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-306
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-306
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
