@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-306
 type: bug
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -15,13 +15,13 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T21:32:24.410142Z'
+updated_at: '2026-07-21T21:32:39.908063Z'
 work_branch: OOMPAH-306
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/472
 review_number: '472'
 merged_at: null
-oompah.agent_run_id: bc6d7876-c558-4f96-b6a1-306bfb486ace
+oompah.agent_run_id: 91dc9845-6d24-44f9-bcb8-fd340f515510
 oompah.task_costs:
   total_input_tokens: 1610088
   total_output_tokens: 74162
