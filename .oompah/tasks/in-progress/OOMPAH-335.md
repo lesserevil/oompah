@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T21:33:05.631930Z'
-updated_at: '2026-07-21T22:08:41.465951Z'
+updated_at: '2026-07-21T22:09:07.884169Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 76288b14-05aa-4d87-b0a8-50b55c1d7fdc
+oompah.agent_run_id: d87568e2-c9ec-4436-9995-67686c6db6a6
 oompah.task_costs:
   total_input_tokens: 660144
   total_output_tokens: 13162
@@ -223,5 +223,15 @@ author: oompah
 created: 2026-07-21 22:08
 ---
 Agent completed without closing this issue (40s (163400 tokens)). Escalating from 'default' to 'standard'. Retrying in 20s (2/3).
+---
+author: oompah
+created: 2026-07-21 22:09
+---
+Retrying (attempt #2, agent: standard)
+---
+author: oompah
+created: 2026-07-21 22:09
+---
+Focus: Epic Planner
 ---
 <!-- COMMENTS:END -->
