@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T18:49:35.587496Z'
+updated_at: '2026-07-21T18:49:46.905095Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -130,5 +130,23 @@ Relevant files:
 - oompah/server.py:10662 (state_branch_enabled=True set during migration Stage A)
 
 The fix options are: (a) run the bootstrap/migration for exocomp to create its state branch, OR (b) add a distinct error class for 'missing state branch' to prevent error_watcher from auto-filing it, OR (c) suppress the error in the orchestrator when it's a known configuration state. A devops or backend agent should assess which is appropriate.
+---
+author: oompah
+created: 2026-07-21 18:49
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: No duplicate confirmed. OOMPAH-315 is a unique issue distinct from OOMPAH-6 (auth failure, archived), OOMPAH-282 (UnicodeEncodeError in migration, different project), and the OOMPAH-253 state-branch epic (which implemented the feature but didn't handle the error_watcher auto-filing scenario).
+
+2. **Relevant files and evidence**:
+   - oompah/oompah_md_tracker.py:1280-1315 — TrackerError raised when state branch is missing (intentional by design from OOMPAH-256)
+   - oompah/orchestrator.py:151-173 — _error_class_for_tracker_exc classifies all TrackerError as 'tracker_failed'
+   - oompah/error_watcher.py:508-540 — all tracker_failed errors share fingerprint 4dba66ecb4abddff (sha256 of 'class=tracker_failed')
+   - Project exocomp (proj-c260b117) is live in the server but its state branch oompah/state/proj-c260b117 does not exist
+   - oompah/server.py:10662 — state_branch_enabled=True is set atomically during successful Stage A migration
+
+3. **Remaining work**: Determine the correct fix: (a) run bootstrap/migration for exocomp to create its state branch, (b) add a distinct error subclass (e.g., TrackerStateBranchMissingError) so error_watcher can deduplicate or suppress it separately, or (c) detect and handle the missing-state-branch condition in the orchestrator before it triggers error_watcher. Note: OOMPAH-282 has a related migration failure (UnicodeEncodeError on Stage A for proj-edbc8b4c) which may need to be resolved before exocomp's migration can proceed if exocomp uses the same migration path.
+
+4. **Recommended next focus**: backend (to evaluate which fix option applies and implement the code change needed)
 ---
 <!-- COMMENTS:END -->
