@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-334
 type: task
-status: In Progress
+status: Done
 priority: 0
 title: 'fix CI on PR #482 (ci-public-runner-primary)'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T21:10:46.951200Z'
-updated_at: '2026-07-21T21:33:14.212804Z'
+updated_at: '2026-07-21T21:33:31.371340Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,5 +111,10 @@ author: oompah
 created: 2026-07-21 21:33
 ---
 Understanding: This task was to fix CI failures on PR #482 (branch ci-public-runner-primary). Investigating current state before proceeding.
+---
+author: oompah
+created: 2026-07-21 21:33
+---
+Discovery: PR #482 (ci-public-runner-primary) was already MERGED with all CI checks passing (SUCCESS on Python 3.11, 3.12, 3.13). The previous agent run (attempt #1) successfully fixed the CI by aligning test expectations with the public runner workflow. The branch introduced a ci-dedicated.yml for self-hosted runners and updated ci.yml to use ubuntu-latest, then fixed tests/test_self_hosted_runner.py to match the new workflow structure. All 62 tests in test_self_hosted_runner.py pass locally and all 9952 tests pass in the full suite. No further action is needed.
 ---
 <!-- COMMENTS:END -->
