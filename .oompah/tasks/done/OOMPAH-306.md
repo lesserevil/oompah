@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T18:17:56.227559Z'
+updated_at: '2026-07-21T18:18:13.384002Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: f7ed9f88-1465-4c32-ad42-5e1023e1d83e
 oompah.task_costs:
-  total_input_tokens: 1610055
-  total_output_tokens: 62989
+  total_input_tokens: 1610076
+  total_output_tokens: 74081
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1610055
-      output_tokens: 62989
+      input_tokens: 1610076
+      output_tokens: 74081
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -60,6 +60,12 @@ oompah.task_costs:
     output_tokens: 23156
     cost_usd: 0.0
     recorded_at: '2026-07-21T18:06:29.421839+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 21
+    output_tokens: 11092
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T18:18:09.732614+00:00'
 ---
 ## Summary
 
@@ -396,5 +402,36 @@ author: oompah
 created: 2026-07-21 18:17
 ---
 Fixed dashboard/API task-state stale display. Delivered: (1) 47 regression tests in test_state_branch_cache_reconciliation.py + test_dashboard_state_read_warning.py covering all OOMPAH-306 scenarios; (2) accessible stale-state banner in dashboard.html; (3) unpushed_gate.py fix using branch worktree for git status checks; (4) maintenance fix stashing unrelated AGENTS.md changes in main clone that were causing false completion refusals. All 10003 tests pass.
+---
+author: oompah
+created: 2026-07-21 18:18
+---
+Agent completed successfully in 427s (11113 tokens)
+---
+author: oompah
+created: 2026-07-21 18:18
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 46, Tool calls: 26
+- Tokens: 21 in / 11.1K out [11.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 7s
+- Log: OOMPAH-306__20260721T181108Z.jsonl
+---
+author: oompah
+created: 2026-07-21 18:18
+---
+Review handoff deferred: the task branch has unmerged work, but this project is at its open review limit.
+
+Branch: `OOMPAH-306`
+Target branch: `main`
+Unmerged commits: 2 commits
+Open reviews: 3/1
+
+oompah will create the review automatically when review capacity is available.
+
+Recent commits:
+  832302193 OOMPAH-306: Fix unpushed_gate to check branch worktree status, not main clone
+  7301a377c OOMPAH-306: Add regression tests and stale-state banner for state-branch cache reconciliation
 ---
 <!-- COMMENTS:END -->
