@@ -15,11 +15,11 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T20:44:26.860728Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-21T20:44:31.476806Z'
+work_branch: OOMPAH-316
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/478
+review_number: '478'
 merged_at: null
 oompah.external.github:
   id: lesserevil/oompah#471
@@ -85,6 +85,10 @@ oompah.task_costs:
     output_tokens: 8900
     cost_usd: 0.0
     recorded_at: '2026-07-21T19:27:05.006333+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/478
+oompah.review_number: '478'
+oompah.work_branch: OOMPAH-316
+oompah.target_branch: main
 ---
 ## Summary
 
