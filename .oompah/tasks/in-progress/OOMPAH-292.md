@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:41:03.279169Z'
+updated_at: '2026-07-21T15:41:36.022088Z'
 work_branch: OOMPAH-292
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/463
@@ -414,5 +414,17 @@ author: oompah
 created: 2026-07-21 15:41
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-21 15:41
+---
+Completion: All OOMPAH-292 implementation was delivered and merged via PR #463. Summary of what was delivered:
+
+1. Backend (release_delivery_backlog.py): ITEM_SUMMARY_MAX_LENGTH=280, _extract_item_summary() with HTML stripping/whitespace normalisation/truncation/None-fallback, summary field on ItemRow.
+2. API (server.py): summary included in every item row in backlog JSON response.
+3. Frontend — summary in rows (release_delivery.html): .rdi-item-summary span rendered below title via textContent (never innerHTML), with aria-label for accessibility.
+4. Frontend — drawer width: min(800px, 40vw) with max-width: 90vw fallback.
+5. Frontend — full task detail in drawer: _rdiFetchTaskDetail() calls GET /api/v1/issues/{identifier}/detail?project_id=... with loading/error states; delivery evidence always appended synchronously.
+6. Tests: 44 new tests, 2 updated tests, all 9918 pass. PR merged.
 ---
 <!-- COMMENTS:END -->
