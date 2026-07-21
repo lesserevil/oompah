@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T17:31:59.294477Z'
+updated_at: '2026-07-21T17:36:08.194201Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-21 17:31
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-21 17:36
+---
+Implemented the selected-commit delivery guard in PR #468: the orchestrator no longer requests a source-branch merge before applying selected delivery commits; focused executor tests pass. Corrective Trickle PR #304 is open against release/0.11 to reverse the unintended full-main merge in release-delivery PR #303 (including TRICKLE-29, TRICKLE-30, and TRICKLE-31); cargo test --workspace passes. Trickle remains paused until the correction has merged.
 ---
 <!-- COMMENTS:END -->
