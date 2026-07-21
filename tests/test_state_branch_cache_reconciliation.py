@@ -128,8 +128,14 @@ class TestCanonicalStateControlsDisplay:
         assert result == "Backlog"
 
     def test_merged_issue_requires_canonical_merged_state(self):
-        """A task displays Merged only when canonical state IS Merged."""
-        issue = _issue("OOMPAH-1", "Merged")
+        """A task displays Merged only when canonical state IS Merged.
+
+        The null-evidence guard (OOMPAH-305) requires at least one of
+        merged_at / work_branch / review_url to be set so that a stale
+        source-branch Merged cannot surface as authoritative.  A properly
+        recorded Merged task always has at least one evidence field set.
+        """
+        issue = _issue("OOMPAH-1", "Merged", work_branch="OOMPAH-1")
         result = server_module._issue_dashboard_state(issue)
         assert result == "Merged"
 
@@ -407,7 +413,9 @@ class TestPerProjectCacheIsolation:
     def test_fetch_and_serialize_issues_isolates_projects(self):
         """Each project's issues are grouped by their project_id in the board."""
         issue_a = _issue("A-1", "Backlog", project_id="proj-a")
-        issue_b = _issue("B-1", "Merged", project_id="proj-b")
+        # Provide work_branch evidence so the null-evidence guard (OOMPAH-305)
+        # does not revert the Merged state to Backlog.
+        issue_b = _issue("B-1", "Merged", project_id="proj-b", work_branch="B-1")
 
         orch = MagicMock()
         orch.project_store.list_all.return_value = [
@@ -562,14 +570,19 @@ class TestNullMergedAtCannotProduceMerged:
         )
 
     def test_merged_task_with_null_merged_at_shows_merged(self):
-        """state=Merged, merged_at=None → display state = Merged.
+        """state=Merged, merged_at=None, work_branch set → display state = Merged.
 
-        The canonical state controls: Merged is shown when state=Merged regardless
-        of whether merged_at is populated.
+        merged_at alone is not required for Merged display; any evidence field
+        (merged_at, work_branch, or review_url) is sufficient.  The null-evidence
+        guard (OOMPAH-305) only fires when ALL three evidence fields are null —
+        guarding against stale source-branch data that has state=Merged without
+        any canonical merge evidence.  A task that was merged via a work_branch
+        must display as Merged even when merged_at was not recorded.
         """
-        issue = _issue("OOMPAH-1", "Merged", merged_at=None)
+        issue = _issue("OOMPAH-1", "Merged", merged_at=None, work_branch="OOMPAH-1")
         assert server_module._issue_dashboard_state(issue) == "Merged", (
-            "Canonical state=Merged must display as Merged even if merged_at is None"
+            "Canonical state=Merged must display as Merged when work_branch is set, "
+            "even if merged_at is None"
         )
 
     def test_board_with_null_merged_at_backlog_task_places_in_backlog_column(self):
