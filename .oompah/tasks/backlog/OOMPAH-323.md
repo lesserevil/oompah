@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-323
 type: task
-status: In Progress
+status: Backlog
 priority: 1
 title: Implement GitLab Issues tracker with Oompah status governance
 parent: OOMPAH-318
@@ -14,9 +14,10 @@ blocked_by:
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:epic_planner
+- needs:feature
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-21T23:25:15.104222Z'
+updated_at: '2026-07-21T23:25:18.526684Z'
 work_branch: null
 target_branch: null
 review_url: null
