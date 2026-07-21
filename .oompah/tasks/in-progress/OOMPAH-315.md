@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T21:20:38.196881Z'
+updated_at: '2026-07-21T21:28:54.419954Z'
 work_branch: OOMPAH-315
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/476
@@ -29,8 +29,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/470
   requestor_login: lesserevil
   imported_comment_ids: []
-  last_synced_status: Open
-  last_synced_at: '2026-07-21T21:20:22.912796+00:00'
+  last_synced_status: In Progress
+  last_synced_at: '2026-07-21T21:28:53.692482+00:00'
 oompah.intake:
   missing_fields: []
   scope: small
