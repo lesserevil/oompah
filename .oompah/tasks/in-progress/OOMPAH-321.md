@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:51.110283Z'
-updated_at: '2026-07-21T23:26:09.697308Z'
+updated_at: '2026-07-21T23:43:18.314936Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,5 +149,10 @@ author: oompah
 created: 2026-07-21 23:26
 ---
 Understanding: As Test Engineer, I'm tasked with writing comprehensive tests for the GitLabProvider MR parity implementation. Plan reference is plans/gitlab-forge-parity.md. I'll explore the codebase to understand the SCM contract, existing GitHub provider tests, and the GitLab implementation, then write fixture-based HTTP tests covering all SCM contract operations, pagination, auth failures, conflicts, label preservation, history-preserving merge, and auto-merge rejection. No external network calls — all tests will use HTTP fixtures.
+---
+author: oompah
+created: 2026-07-21 23:43
+---
+Discovery: Reviewed oompah/scm.py (2512 lines) and tests/test_scm.py (3204 lines). GitLabProvider is fully implemented but has two spec violations: (1) merge_review hardcodes 'squash: True' — plan says 'do not force squash'; (2) enable_auto_merge falls back to a direct merge instead of using merge_when_pipeline_succeeds as required by the plan. Test coverage for GitLab is sparse — only label add/remove, get_review_files, close_review, and branch-protection tests exist. Missing: list_open_reviews, list_merged_reviews, find_pr_for_branch, get_review, create_review, rebase_review, needs_rebase, is_available, get_pr_commits, nested namespace URL encoding, self-managed base URL, CI status from head_pipeline, draft/WIP detection, token-leakage prevention, and auto-merge via merge_when_pipeline_succeeds. Will write comprehensive fixture-based tests and fix the two impl bugs.
 ---
 <!-- COMMENTS:END -->
