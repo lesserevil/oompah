@@ -15,7 +15,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:06:58.381506Z'
+updated_at: '2026-07-21T23:07:18.504304Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -283,5 +283,10 @@ author: oompah
 created: 2026-07-21 23:06
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-21 23:07
+---
+Understanding: I am the Software Engineer focus for OOMPAH-298. Based on the prior handoff comments, I need to implement repository map injection into agent startup prompts. The plan is: (1) add build_repo_map_context() in a new oompah/repo_map_prompt.py module that resolves workspace HEAD SHA, loads matching artifact via read_repo_map, derives seeds from task title/description/comments, calls render_repo_map with token budget, wraps result as untrusted provenance block, and returns None on any failure; (2) extend render_prompt() in oompah/prompt.py with an optional repo_map_context parameter that inserts a labeled untrusted block; (3) update the three orchestrator.py render_prompt call sites; (4) expose commit_sha/provenance in dispatch diagnostics; (5) write tests for all inclusion/exclusion/failure/budget/provenance cases.
 ---
 <!-- COMMENTS:END -->
