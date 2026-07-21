@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T18:05:29.484395Z'
+updated_at: '2026-07-21T18:05:33.436538Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
@@ -489,5 +489,10 @@ author: oompah
 created: 2026-07-21 18:05
 ---
 Understanding (Frontend Developer): Implementation is already complete and committed (2a696ded2). Branch OOMPAH-304 is clean and up to date with origin. All changes from the original implementation run are in place: backend cache invalidation, frontend PR links, 30s auto-refresh poll, stale-cache pending hint, and full test coverage (9989 pass). Closing task now.
+---
+author: oompah
+created: 2026-07-21 18:05
+---
+Fixed Release Delivery live status: backend cache invalidation (BacklogRefreshManager.invalidate()) after executor/PR-poll runs, frontend PR links inline, 30s auto-refresh poll while active deliveries exist, stale-cache pending hint. 9989 tests pass. Branch committed and pushed (2a696ded2), PR #469 open for review.
 ---
 <!-- COMMENTS:END -->
