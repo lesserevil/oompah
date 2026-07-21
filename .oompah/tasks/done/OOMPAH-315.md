@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T19:01:09.227008Z'
+updated_at: '2026-07-21T19:01:11.598058Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -277,5 +277,10 @@ Fix delivered:
 - 6 new tests (all passing): TrackerStateBranchMissingError class hierarchy + orchestrator classification
 
 Note: the underlying configuration issue (project exocomp needs bootstrap/migration to create its state branch) is separate. This fix prevents repeated noise; the operator warning log message tells them what action to take.
+---
+author: oompah
+created: 2026-07-21 19:01
+---
+Added TrackerStateBranchMissingError subclass; orchestrator now catches it as a WARNING (no error_class) so error_watcher is not triggered. 9957 tests pass.
 ---
 <!-- COMMENTS:END -->
