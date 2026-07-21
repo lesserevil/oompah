@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-202
 type: task
-status: Merged
+status: Archived
 priority: 1
 title: Run end-to-end release delivery migration and regression coverage
 parent: OOMPAH-192
@@ -17,7 +17,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:33:31.162292Z'
-updated_at: '2026-07-13T23:39:08.720590Z'
+updated_at: '2026-07-21T15:41:05.924915Z'
 work_branch: null
 target_branch: null
 review_url: null
