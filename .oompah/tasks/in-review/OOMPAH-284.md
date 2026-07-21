@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-284
 type: task
-status: Done
+status: In Review
 priority: null
 title: Fix Release Delivery task associations and metadata-only filtering
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T03:38:39.097123Z'
-updated_at: '2026-07-21T04:27:54.515102Z'
+updated_at: '2026-07-21T04:28:13.717991Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 7c8f6e66-a3ab-4d0b-961d-0b72f4f794cf
 oompah.task_costs:
-  total_input_tokens: 90954
-  total_output_tokens: 19517
+  total_input_tokens: 91055
+  total_output_tokens: 22425
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 90954
-      output_tokens: 19517
+      input_tokens: 91055
+      output_tokens: 22425
       cost_usd: 0.0
   runs:
   - profile: default
@@ -46,6 +46,12 @@ oompah.task_costs:
     output_tokens: 2093
     cost_usd: 0.0
     recorded_at: '2026-07-21T03:59:42.251518+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 101
+    output_tokens: 2908
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T04:28:06.043283+00:00'
 ---
 ## Summary
 
@@ -251,5 +257,15 @@ author: oompah
 created: 2026-07-21 04:27
 ---
 Fixed Release Delivery task associations and metadata-only filtering. (1) _find_branch_commits_in_main now uses git merge-base fork-point to enumerate only introduced commits, not inherited base-branch history — prevents falsely-delivered aggregate status for tasks branched from release branches. (2) Tracker-only (.oompah/-only) commits are filtered from tracker-sourced branch_shas, excluded from unassociated_commits output, and excluded from needs_delivery when all item commits are tracker-only. Mixed code+.oompah commits remain eligible. 17 new tests added across test_release_delivery_backlog.py and test_release_delivery_inventory.py. All 9874 tests pass.
+---
+author: oompah
+created: 2026-07-21 04:28
+---
+Run #3 [attempt=3, profile=standard, role=standard -> Claude/default]
+- Turns: 0, Tool calls: 65
+- Tokens: 101 in / 2.9K out [3.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 27m 58s
+- Log: OOMPAH-284__20260721T040009Z.jsonl
 ---
 <!-- COMMENTS:END -->
