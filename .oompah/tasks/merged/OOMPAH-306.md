@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T22:06:44.653409Z'
+updated_at: '2026-07-21T22:06:48.405786Z'
 work_branch: OOMPAH-306
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/472
@@ -489,5 +489,24 @@ author: oompah
 created: 2026-07-21 21:34
 ---
 Understanding (merge_conflict): OOMPAH-306 branch needs to be rebased onto origin/main. The branch has 4 commits: 7301a377c (regression tests + stale banner in dashboard.html) and 832302193 (unpushed_gate.py worktree_path fix) plus 2 CI merge commits. Main has grown since the branch diverged, including OOMPAH-305 (8c9547cff) which also modified dashboard.html and orchestrator.py with related but different stale-banner code. Conflicts are expected in dashboard.html (two different stale banner implementations) and orchestrator.py (both branches add new code at nearby lines). Starting rebase now.
+---
+author: oompah
+created: 2026-07-21 22:06
+---
+YOLO: merged PR #472.
+---
+author: oompah
+created: 2026-07-21 22:06
+---
+Merge conflict resolved and verified.
+
+Discovery: OOMPAH-306 branch had conflicts in oompah/templates/dashboard.html. OOMPAH-305 (merged to main) also added a stale banner with a different approach (_setTrackerStaleBanner / #tracker-stale-banner via aria-hidden), while OOMPAH-306 added _updateTaskStateStaleBanner / #task-state-stale-banner via hidden attribute.
+
+Resolution:
+1. dashboard.html: kept BOTH banner implementations — both elements, both JS functions, both called in fetchIssues() and the WS handler so both visual components update together.
+2. test_state_branch_cache_reconciliation.py: 3 failing tests needed fixture updates because OOMPAH-305's null-evidence guard (_issue_dashboard_state reverts Merged→Backlog when all evidence fields are null) was not present when these tests were written. Added work_branch='...' to test fixtures that expect Merged display.
+
+Verification: 10,469 passed, 36 skipped, 0 failed after rebase.
+Branch force-pushed to origin/OOMPAH-306 (815dfe329 → fbc5456c5 → 1d8446bc2 on top of main).
 ---
 <!-- COMMENTS:END -->
