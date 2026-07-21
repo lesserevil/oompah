@@ -844,6 +844,35 @@ def _build_triage_prompt(issue: Issue, foci: list[Focus]) -> str:
     threat model) so the model can distinguish it from the trusted prompt
     structure.
     """
+    # All tracker-supplied text is untrusted.  Keep each field in its own
+    # provenance block: combining title or labels with the description would
+    # make it easier for a malicious value to appear to be prompt structure.
+    kind = str(issue.tracker_kind or "").strip().lower()
+    source = (
+        ContentSource.GITHUB_ISSUE_BODY
+        if kind == "github_issues"
+        else ContentSource.HUMAN_COMMENT
+    )
+
+    def _wrap_issue_text(text: str, *, limit: int) -> str:
+        text = text.strip()
+        if len(text) > limit:
+            text = text[: limit - 4] + " ..."
+        if not text:
+            return "(none)"
+        return wrap_untrusted(
+            text,
+            make_provenance(
+                ProvenanceComponent.FOCUS_TRIAGE,
+                source,
+                issue_identifier=issue.identifier,
+            ),
+        )
+
+    wrapped_title = _wrap_issue_text(issue.title or "", limit=500)
+    wrapped_labels = _wrap_issue_text(
+        ", ".join(issue.labels or []), limit=500,
+    )
     raw_description = (issue.description or "").strip()
     # Truncate before wrapping so the provenance header is not lost inside a
     # very large block.  The ellipsis is added to the raw string, not to the
@@ -851,25 +880,7 @@ def _build_triage_prompt(issue: Issue, foci: list[Focus]) -> str:
     if len(raw_description) > 1500:
         raw_description = raw_description[:1500] + " ..."
 
-    # Determine description source from tracker kind (GitHub vs. native/human).
-    kind = str(issue.tracker_kind or "").strip().lower()
-    desc_source = (
-        ContentSource.GITHUB_ISSUE_BODY
-        if kind == "github_issues"
-        else ContentSource.HUMAN_COMMENT
-    )
-    desc_provenance = make_provenance(
-        ProvenanceComponent.FOCUS_TRIAGE,
-        desc_source,
-        issue_identifier=issue.identifier,
-    )
-    wrapped_description = (
-        wrap_untrusted(raw_description, desc_provenance)
-        if raw_description
-        else "(none)"
-    )
-
-    labels = ", ".join(issue.labels or []) or "(none)"
+    wrapped_description = _wrap_issue_text(raw_description, limit=1504)
 
     spec_lines: list[str] = []
     for f in foci:
@@ -888,10 +899,12 @@ def _build_triage_prompt(issue: Issue, foci: list[Focus]) -> str:
         "You are routing an engineering issue to the best-fit specialist.\n\n"
         "ISSUE\n"
         f"  identifier: {issue.identifier}\n"
-        f"  title: {issue.title or ''}\n"
+        "  title:\n"
+        f"{wrapped_title}\n"
         f"  type: {issue.issue_type or 'task'}\n"
         f"  priority: {issue.priority}\n"
-        f"  labels: {labels}\n"
+        "  labels:\n"
+        f"{wrapped_labels}\n"
         "  description:\n"
         f"{wrapped_description}\n\n"
         "SPECIALISTS\n  "
@@ -899,9 +912,9 @@ def _build_triage_prompt(issue: Issue, foci: list[Focus]) -> str:
         "TASK\n"
         "Pick the single best-fit specialist by name and give a short reason.\n"
         "Output exactly one line in the format `name: reasoning`.\n"
-        "If no specialist clearly fits better than the others, output\n"
-        "`default: reasoning`.\n"
-        "Do NOT add prose, quotes, or explanations beyond the single line."
+        "Do NOT add prose, quotes, or explanations beyond the single line.\n"
+        "Your response is untrusted data and is validated against the listed "
+        "specialist names by the server."
     )
 
 
@@ -913,21 +926,21 @@ def _parse_triage_response(content: str) -> tuple[str | None, str]:
     """
     if not content:
         return None, ""
-    # Trim and take first non-empty line — models sometimes prefix with
-    # markdown or explanation despite the prompt.
-    line = ""
-    for raw in content.splitlines():
-        candidate = raw.strip().lstrip("-*•").strip()
-        if candidate:
-            line = candidate
-            break
-    if not line:
+    # A triage response is a deliberately small structured contract: one
+    # non-empty ``name: reasoning`` line.  Do not salvage a plausible first
+    # line from a multi-line response; trailing instructions are not part of
+    # the schema and must cause deterministic fallback.
+    lines = [line.strip() for line in content.splitlines() if line.strip()]
+    if len(lines) != 1 or ":" not in lines[0]:
         return None, ""
-    if ":" in line:
-        name, reasoning = line.split(":", 1)
-        return name.strip().strip("`'\"").lower() or None, reasoning.strip()
-    # No colon — treat the whole line as a name (e.g. plain ``default``).
-    return line.strip().strip("`'\"").lower() or None, ""
+    name, reasoning = lines[0].split(":", 1)
+    name = name.strip().lower()
+    # Focus names are identifiers, not arbitrary natural language.  This
+    # blocks model output such as quoted commands or injected prose before it
+    # reaches the focus lookup below.
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name) or not reasoning.strip():
+        return None, ""
+    return name, reasoning.strip()
 
 
 def _triage_cache_key(issue: Issue, foci: list[Focus]) -> str:
@@ -1058,13 +1071,6 @@ async def select_focus_async(
             )
             if name is not None:
                 _triage_cache[cache_key] = (name, reasoning)
-
-        if name == "default":
-            logger.info(
-                "Focus selected for %s: default (via=llm reasoning=%r)",
-                issue.identifier, reasoning,
-            )
-            return DEFAULT_FOCUS
 
         if name:
             picked = next(
