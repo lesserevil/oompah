@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-21T03:42:31.512670Z'
+updated_at: '2026-07-21T03:54:05.324747Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
@@ -585,5 +585,25 @@ author: oompah
 created: 2026-07-21 03:42
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-21 03:54
+---
+Understanding: CI Failure Fixer agent on OOMPAH-281.
+
+CI failures are in tests/test_makefile_restart_wait.py (pre-existing file, NOT created by OOMPAH-281). The 3 failures and 3 errors all trace to 'ss' (iproute2) not being installed on the self-hosted runner container (ghcr.io/actions/actions-runner:2.323.0):
+
+1. test_ss_detects_listening_port — FileNotFoundError: 'ss' not found (Python subprocess.run)
+2. test_ss_does_not_report_free_port — same
+3. test_port_in_use_shell_returns_true_when_bound — shell script exits 127 (likely neither ss nor lsof available in shell PATH on runner)
+4-6. TestWaitForStopBehavior tests — FileNotFoundError from port_listening() helper calling ss
+
+Root cause: OOMPAH-281 changed runs-on from ubuntu-latest (which has iproute2) to the self-hosted runner container (which does not have ss/lsof).
+
+Fix plan:
+1. Fix port_listening() helper — add FileNotFoundError handling + Python socket fallback
+2. Skip test_ss_detects_listening_port and test_ss_does_not_report_free_port when ss is not on PATH
+3. Skip the shell-script port detection tests when neither ss nor lsof is available
+4. Also add a Dockerfile.runner that installs iproute2+lsof so the runner has proper tools for production use
 ---
 <!-- COMMENTS:END -->
