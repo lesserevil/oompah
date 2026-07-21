@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-334
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: 'fix CI on PR #482 (ci-public-runner-primary)'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T21:10:46.951200Z'
-updated_at: '2026-07-21T21:24:20.143225Z'
+updated_at: '2026-07-21T21:24:40.188846Z'
 work_branch: null
 target_branch: null
 review_url: null
