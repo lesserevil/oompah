@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-336
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Route release CI remediation to native project tasks
 parent: null
@@ -11,7 +11,7 @@ labels:
 - release-ci-failure
 assignee: null
 created_at: '2026-07-21T22:22:50.075291Z'
-updated_at: '2026-07-21T22:43:07.920743Z'
+updated_at: '2026-07-21T22:46:51.858514Z'
 work_branch: null
 target_branch: null
 review_url: null
