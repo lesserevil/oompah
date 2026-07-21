@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-332
 type: task
-status: Done
+status: In Review
 priority: 0
 title: 'YOLO task-PR coherence break on oompah/468: merge-conflict recovery task missing
   or stale'
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T21:01:56.725203Z'
-updated_at: '2026-07-21T21:35:34.674378Z'
+updated_at: '2026-07-21T21:50:00.668510Z'
 work_branch: null
 target_branch: null
 review_url: null
