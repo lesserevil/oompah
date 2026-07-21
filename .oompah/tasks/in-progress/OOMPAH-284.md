@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T03:38:39.097123Z'
-updated_at: '2026-07-21T03:41:52.335937Z'
+updated_at: '2026-07-21T03:42:04.294601Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-21 03:41
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 03:42
+---
+Understanding: Investigating OOMPAH-284 as Duplicate Investigator. This issue reports a bug in Release Delivery where: (1) merged tasks receive too many commits due to broad branch history rather than PR-introduced commits, (2) metadata-only .oompah/ commits pollute delivery candidate lists, (3) these issues combine to falsely mark all tasks as delivered. My role is to determine if this is a duplicate of an existing issue before any implementation begins. Searching for related tasks now.
 ---
 <!-- COMMENTS:END -->
