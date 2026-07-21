@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:57.025790Z'
-updated_at: '2026-07-21T16:48:03.848195Z'
+updated_at: '2026-07-21T16:52:41.530150Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,5 +149,34 @@ author: oompah
 created: 2026-07-21 16:48
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-21 16:52
+---
+Epic Planner: Understanding and decomposition plan
+
+OOMPAH-307 addresses a real regression path for native (oompah_md) shared-epic children. Code investigation confirms:
+
+Key files:
+- oompah/orchestrator.py: _create_workspace_for_issue, _resolve_parent_epic, _epic_rollup_child_strategy, _ensure_review_exists, Done→Merged promotion paths (~lines 4651-4810, 8280-8330, 8595-8625)
+- oompah/statuses.py: epic_rollup_state, status lifecycle
+- oompah/projects.py: create_worktree, create_epic_worktree (lines 1464-1615, 1740+)
+- tests/test_epic_strategy.py: existing shared-epic routing tests
+
+Current state of fixes: Some protections exist (_create_workspace_for_issue routes to epic worktree, _ensure_review_exists skips per-child PR when parent_epic is not None, YOLO closes stale child PRs). But these fail under the following conditions:
+
+Gap A: When a native child has stale work_branch/branch_name in its frontmatter metadata (e.g., work_branch=OOMPAH-286), _branch_for_issue returns the stale per-task branch even after routing to the epic worktree. This stale branch is used in Done→Merged promotion and can trigger false Merged status.
+
+Gap B: When _resolve_parent_epic fails (tracker error, parent not found), the shared protection is entirely bypassed. The child falls through to per-task worktree, gets its own branch, and may receive a per-child PR to main.
+
+Gap C: No code path updates the native child's work_branch metadata to the epic branch name after routing. The child's frontmatter still says work_branch=OOMPAH-286 even when dispatched correctly on the epic branch.
+
+Gap D: Child completion status is non-trivially Done, but the epic-merge-triggered Merged promotion path needs verification. The _epic_rollup_child_strategy check at line 8282 guards one path but there's another at line 8607 that also depends on rollup_strategy being 'shared'.
+
+Gap E: No diagnostic or remediation path for existing affected children (OOMPAH-286/PR #466 already independently merged).
+
+Gap F: No regression fixture for the specific OOMPAH-285/286 scenario.
+
+Decomposing into 5 focused child tasks.
 ---
 <!-- COMMENTS:END -->
