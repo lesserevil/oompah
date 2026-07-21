@@ -701,3 +701,226 @@ class TestFullTaskDetailInDrawer:
         """_rdiEsc() string-escape helper is defined for safe error display."""
         script = _page_script()
         assert "function _rdiEsc(" in script
+
+
+# ===========================================================================
+# OOMPAH-304: Live delivery status consistency tests
+# ===========================================================================
+
+
+class TestLiveDeliveryStatusUI:
+    """OOMPAH-304: Release Delivery page shows live delivery status consistently.
+
+    Tests verify that:
+    - PR links are rendered inline in table status cells when pr_url is present.
+    - delivery_id is exposed as a tooltip on the status badge.
+    - Active-delivery auto-refresh poll is started/stopped around active states.
+    - Recently-queued items show a pending indicator when still not_selected.
+    - Delivery poll stops on pagehide and branch/project change.
+    - After queuing, _rdiForceRefresh is called (not just _rdiLoadBacklog).
+    - Stale delivery status is not silently displayed as not_selected.
+    """
+
+    # -----------------------------------------------------------------------
+    # PR link in table
+    # -----------------------------------------------------------------------
+
+    def test_render_status_cell_shows_pr_link_when_pr_url_set(self):
+        """_rdiRenderStatusCell adds a PR link element when cell.pr_url is set."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderStatusCell")
+        assert "pr_url" in body
+        assert "rdi-pr-link" in body
+
+    def test_pr_link_class_css_defined(self):
+        """CSS class .rdi-pr-link is defined in the page styles."""
+        styles = _page_styles()
+        assert ".rdi-pr-link" in styles
+
+    def test_pr_link_opens_in_new_tab(self):
+        """Inline PR link has target=_blank so it doesn't displace the delivery page."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderStatusCell")
+        assert "_blank" in body
+
+    def test_pr_link_has_rel_noopener(self):
+        """Inline PR link has rel=noopener noreferrer for security."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderStatusCell")
+        assert "noopener" in body
+
+    def test_pr_link_has_aria_label(self):
+        """Inline PR link has an accessible aria-label."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderStatusCell")
+        idx = body.find("rdi-pr-link")
+        assert idx >= 0
+        context = body[idx: idx + 400]
+        assert "aria-label" in context
+
+    def test_pr_link_stops_propagation(self):
+        """PR link click stops propagation so it doesn't open the detail drawer."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderStatusCell")
+        assert "stopPropagation" in body
+
+    def test_status_cell_uses_wrapper_span(self):
+        """Status cell returns a wrapper element (rdi-status-wrap) holding badge + link."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderStatusCell")
+        assert "rdi-status-wrap" in body
+
+    # -----------------------------------------------------------------------
+    # delivery_id tooltip on status badge
+    # -----------------------------------------------------------------------
+
+    def test_delivery_id_exposed_as_tooltip_on_badge(self):
+        """Status badge gets delivery_id as title attribute for tooltip."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderStatusCell")
+        assert "delivery_id" in body
+        # The delivery_id must be assigned to .title
+        assert ".title" in body or "title = " in body or "span.title" in body
+
+    # -----------------------------------------------------------------------
+    # Delivery-status auto-refresh functions
+    # -----------------------------------------------------------------------
+
+    def test_has_active_deliveries_function_defined(self):
+        """_rdiHasActiveDeliveries() is defined to detect in-flight delivery states."""
+        script = _page_script()
+        assert "_rdiHasActiveDeliveries" in script
+
+    def test_has_active_deliveries_checks_items(self):
+        """_rdiHasActiveDeliveries inspects items in the passed data object."""
+        script = _page_script()
+        body = _function_body(script, "_rdiHasActiveDeliveries")
+        assert "items" in body
+
+    def test_active_delivery_states_constant_defined(self):
+        """_RDI_ACTIVE_DELIVERY_STATES constant covers in-flight states."""
+        script = _page_script()
+        assert "_RDI_ACTIVE_DELIVERY_STATES" in script
+        # Must include the key active states
+        assert "in_review" in script
+        assert "in_progress" in script
+
+    def test_start_delivery_poll_function_defined(self):
+        """_rdiStartDeliveryPoll() is defined to start the auto-refresh timer."""
+        script = _page_script()
+        assert "_rdiStartDeliveryPoll" in script
+
+    def test_stop_delivery_poll_function_defined(self):
+        """_rdiStopDeliveryPoll() is defined to stop the auto-refresh timer."""
+        script = _page_script()
+        assert "_rdiStopDeliveryPoll" in script
+
+    def test_delivery_poll_timer_state_variable_defined(self):
+        """_rdiDeliveryPollTimer state variable is defined."""
+        script = _page_script()
+        assert "_rdiDeliveryPollTimer" in script
+
+    def test_render_backlog_starts_delivery_poll_when_active(self):
+        """_rdiRenderBacklog calls _rdiStartDeliveryPoll when active deliveries exist."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderBacklog")
+        assert "_rdiStartDeliveryPoll" in body or "_rdiHasActiveDeliveries" in body
+
+    def test_render_backlog_stops_delivery_poll_when_no_active(self):
+        """_rdiRenderBacklog calls _rdiStopDeliveryPoll when no active deliveries."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderBacklog")
+        assert "_rdiStopDeliveryPoll" in body
+
+    # -----------------------------------------------------------------------
+    # Delivery poll stops on navigation and branch change
+    # -----------------------------------------------------------------------
+
+    def test_pagehide_stops_delivery_poll(self):
+        """Navigating away (pagehide) stops the delivery-status auto-refresh timer."""
+        script = _page_script()
+        idx = script.find("pagehide")
+        assert idx >= 0
+        context = script[idx: idx + 300]
+        assert "_rdiStopDeliveryPoll" in context
+
+    def test_show_no_branch_stops_delivery_poll(self):
+        """_rdiShowNoBranch stops the delivery poll (branch deselected)."""
+        script = _page_script()
+        body = _function_body(script, "_rdiShowNoBranch")
+        assert "_rdiStopDeliveryPoll" in body
+
+    def test_on_branch_change_stops_delivery_poll(self):
+        """_rdiOnBranchChange stops the delivery poll before reloading."""
+        script = _page_script()
+        body = _function_body(script, "_rdiOnBranchChange")
+        assert "_rdiStopDeliveryPoll" in body
+
+    def test_on_project_change_stops_delivery_poll(self):
+        """_rdiOnProjectChange stops the delivery poll when the project changes."""
+        script = _page_script()
+        body = _function_body(script, "_rdiOnProjectChange")
+        assert "_rdiStopDeliveryPoll" in body
+
+    # -----------------------------------------------------------------------
+    # Queue → force refresh + pending indicator
+    # -----------------------------------------------------------------------
+
+    def test_recently_queued_ids_state_variable_defined(self):
+        """_rdiRecentlyQueuedIds Set is defined to track recently queued items."""
+        script = _page_script()
+        assert "_rdiRecentlyQueuedIds" in script
+
+    def test_queue_selected_adds_to_recently_queued(self):
+        """_rdiQueueSelected adds submitted identifiers to _rdiRecentlyQueuedIds."""
+        script = _page_script()
+        body = _function_body(script, "_rdiQueueSelected")
+        assert "_rdiRecentlyQueuedIds" in body
+
+    def test_queue_selected_starts_delivery_poll(self):
+        """_rdiQueueSelected starts the delivery poll after queuing."""
+        script = _page_script()
+        body = _function_body(script, "_rdiQueueSelected")
+        assert "_rdiStartDeliveryPoll" in body
+
+    def test_queue_selected_calls_force_refresh(self):
+        """_rdiQueueSelected calls _rdiForceRefresh (not just _rdiLoadBacklog) after queuing."""
+        script = _page_script()
+        body = _function_body(script, "_rdiQueueSelected")
+        assert "_rdiForceRefresh" in body
+
+    def test_recently_queued_pending_hint_css_defined(self):
+        """CSS class .rdi-delivery-pending is defined for the stale status hint."""
+        styles = _page_styles()
+        assert ".rdi-delivery-pending" in styles
+
+    def test_item_row_shows_pending_hint_for_recently_queued(self):
+        """_rdiRenderItemRow shows rdi-delivery-pending hint when item is recently queued but not_selected."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderItemRow")
+        assert "_rdiRecentlyQueuedIds" in body
+        assert "rdi-delivery-pending" in body
+
+    def test_pending_hint_clears_once_status_known(self):
+        """Recently-queued marker is deleted once a non-not_selected status is seen."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderItemRow")
+        assert "_rdiRecentlyQueuedIds.delete" in body or ".delete(item.identifier)" in body
+
+    def test_pending_hint_has_aria_label(self):
+        """Pending hint span has an aria-label for screen readers."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderItemRow")
+        idx = body.find("rdi-delivery-pending")
+        assert idx >= 0
+        context = body[idx: idx + 300]
+        assert "aria-label" in context
+
+    # -----------------------------------------------------------------------
+    # Status-wrap CSS class present
+    # -----------------------------------------------------------------------
+
+    def test_rdi_status_wrap_css_defined(self):
+        """CSS class .rdi-status-wrap is defined for the badge + PR link wrapper."""
+        styles = _page_styles()
+        assert ".rdi-status-wrap" in styles

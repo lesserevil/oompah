@@ -1369,3 +1369,217 @@ class TestSummaryInApiResponse:
         data = resp.json()
         for item in data["items"]:
             assert "summary" in item, "Every item row must have a 'summary' key"
+
+
+# ===========================================================================
+# OOMPAH-304: Live delivery status consistency and PR link in response
+# ===========================================================================
+
+
+class TestDeliveryStatusConsistency:
+    """Regression tests for OOMPAH-304 — backlog and inventory must agree.
+
+    Reproduces the rd_293edb9b53f44a22851c25e203d7651a/PR #303-style scenario:
+    a delivery has transitioned to in_review with a PR URL, but the backlog
+    had previously been cached as not_selected.  After cache invalidation,
+    the backlog must reflect the live in_review state with delivery_id and pr_url.
+    """
+
+    _DELIVERY_ID = "rd_293edb9b53f44a22851c25e203d7651a"
+    _PR_URL = "https://github.com/example/repo/pull/303"
+    _BRANCH = "release/0.11"
+
+    def _make_in_review_item(self) -> ItemRow:
+        return ItemRow(
+            identifier="TRICKLE-495",
+            title="Some in-review task",
+            kind="task",
+            source_commits=[
+                SourceCommitInfo(
+                    sha="495d34a" + "a" * 33,
+                    short_sha="495d34a",
+                    subject="feat: cherry-pick candidate",
+                    author_name="Dev",
+                    authored_at="2026-07-01T00:00:00Z",
+                )
+            ],
+            delivery_status=ReleaseStatusCell(
+                state="in_review",
+                delivery_id=self._DELIVERY_ID,
+                pr_url=self._PR_URL,
+            ),
+            delivery_id=self._DELIVERY_ID,
+            commit_count=1,
+            most_recent_commit_at="2026-07-01T00:00:00Z",
+        )
+
+    def test_in_review_item_delivery_id_in_response(self, tmp_path):
+        """An in_review item exposes delivery_id in the backlog JSON response."""
+        item = self._make_in_review_item()
+        backlog = _make_backlog_result(items=[item])
+        manager = _make_refresh_manager_mock(backlog)
+        orch = _make_orchestrator(
+            tmp_path,
+            _make_project(tmp_path, supported_release_branches=[self._BRANCH]),
+        )
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "_get_item_backlog_service"),
+            patch.object(server_module, "_get_backlog_refresh_manager", return_value=manager),
+        ):
+            client = TestClient(app)
+            resp = client.get(f"/api/v1/projects/{_PROJECT_ID}/release-delivery/backlog"
+                              f"?branch={self._BRANCH}&filter=all")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        items = data["items"]
+        assert len(items) == 1
+        ds = items[0]["delivery_status"]
+        assert ds["state"] == "in_review"
+        assert ds["delivery_id"] == self._DELIVERY_ID
+
+    def test_in_review_item_pr_url_in_response(self, tmp_path):
+        """An in_review item exposes pr_url in the backlog JSON response."""
+        item = self._make_in_review_item()
+        backlog = _make_backlog_result(items=[item])
+        manager = _make_refresh_manager_mock(backlog)
+        orch = _make_orchestrator(
+            tmp_path,
+            _make_project(tmp_path, supported_release_branches=[self._BRANCH]),
+        )
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "_get_item_backlog_service"),
+            patch.object(server_module, "_get_backlog_refresh_manager", return_value=manager),
+        ):
+            client = TestClient(app)
+            resp = client.get(f"/api/v1/projects/{_PROJECT_ID}/release-delivery/backlog"
+                              f"?branch={self._BRANCH}&filter=all")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        ds = data["items"][0]["delivery_status"]
+        assert ds["pr_url"] == self._PR_URL
+
+    def test_delivery_status_shape_all_states(self, tmp_path):
+        """All delivery states (not_selected, open, in_progress, in_review, blocked,
+        delivered, archived) serialise with consistent ``state`` field; optional fields
+        (delivery_id, pr_url, error) are included only when non-None."""
+        states_and_cells = [
+            # (state_name, cell, expected_extra_keys)
+            ("not_selected", ReleaseStatusCell(state="not_selected"), {}),
+            ("open", ReleaseStatusCell(state="open", delivery_id="rd_open"), {"delivery_id": "rd_open"}),
+            ("in_progress", ReleaseStatusCell(state="in_progress", delivery_id="rd_inprog"), {"delivery_id": "rd_inprog"}),
+            ("in_review", ReleaseStatusCell(
+                state="in_review", delivery_id=self._DELIVERY_ID, pr_url=self._PR_URL
+            ), {"delivery_id": self._DELIVERY_ID, "pr_url": self._PR_URL}),
+            ("blocked", ReleaseStatusCell(state="blocked", delivery_id="rd_blk", error="conflict"), {"delivery_id": "rd_blk", "error": "conflict"}),
+            ("delivered", ReleaseStatusCell(state="delivered", evidence="delivery", delivery_id="rd_done"), {"delivery_id": "rd_done", "evidence": "delivery"}),
+            ("archived", ReleaseStatusCell(state="archived", delivery_id="rd_arch"), {"delivery_id": "rd_arch"}),
+        ]
+
+        for state_name, cell, expected_extras in states_and_cells:
+            item = ItemRow(
+                identifier=f"TASK-{state_name.upper()}",
+                title=state_name,
+                kind="task",
+                source_commits=[],
+                delivery_status=cell,
+                delivery_id=cell.delivery_id,
+                commit_count=0,
+                most_recent_commit_at=None,
+            )
+            backlog = _make_backlog_result(items=[item])
+            manager = _make_refresh_manager_mock(backlog)
+            orch = _make_orchestrator(
+                tmp_path,
+                _make_project(tmp_path, supported_release_branches=[self._BRANCH]),
+            )
+
+            with (
+                patch.object(server_module, "_get_orchestrator", return_value=orch),
+                patch.object(server_module, "_get_item_backlog_service"),
+                patch.object(server_module, "_get_backlog_refresh_manager", return_value=manager),
+            ):
+                client = TestClient(app)
+                resp = client.get(f"/api/v1/projects/{_PROJECT_ID}/release-delivery/backlog"
+                                  f"?branch={self._BRANCH}&filter=all")
+
+            assert resp.status_code == 200, f"Expected 200 for state={state_name}"
+            data = resp.json()
+            assert len(data["items"]) == 1, f"Expected 1 item for state={state_name}"
+            ds = data["items"][0]["delivery_status"]
+            assert ds["state"] == state_name, (
+                f"Expected state={state_name!r} in response, got {ds['state']!r}"
+            )
+            # Verify that expected optional fields are present when the cell has them
+            for key, value in expected_extras.items():
+                assert key in ds, (
+                    f"Expected key {key!r} in delivery_status for state={state_name!r}"
+                )
+                assert ds[key] == value, (
+                    f"Expected {key}={value!r} for state={state_name!r}, got {ds[key]!r}"
+                )
+
+    def test_branch_isolation_different_branch_not_leaked(self, tmp_path):
+        """Delivery status for release/0.11 must not appear in a release/0.12 response."""
+        # Item with in_review for release/0.11
+        item_011 = self._make_in_review_item()
+        backlog_011 = _make_backlog_result(items=[item_011])
+
+        # Separate item not_selected for release/0.12
+        item_012 = ItemRow(
+            identifier="TRICKLE-495",
+            title="Same task, different branch",
+            kind="task",
+            source_commits=[],
+            delivery_status=ReleaseStatusCell(state="not_selected"),
+            delivery_id=None,
+            commit_count=0,
+            most_recent_commit_at=None,
+        )
+        backlog_012 = _make_backlog_result(items=[item_012])
+
+        manager_011 = _make_refresh_manager_mock(backlog_011)
+        manager_012 = _make_refresh_manager_mock(backlog_012)
+
+        project = _make_project(
+            tmp_path,
+            supported_release_branches=["release/0.11", "release/0.12"],
+        )
+        orch = _make_orchestrator(tmp_path, project)
+
+        # Query release/0.11 — must show in_review
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "_get_item_backlog_service"),
+            patch.object(server_module, "_get_backlog_refresh_manager", return_value=manager_011),
+        ):
+            client = TestClient(app)
+            resp_011 = client.get(
+                f"/api/v1/projects/{_PROJECT_ID}/release-delivery/backlog"
+                "?branch=release/0.11&filter=all"
+            )
+
+        assert resp_011.status_code == 200
+        assert resp_011.json()["items"][0]["delivery_status"]["state"] == "in_review"
+
+        # Query release/0.12 — must show not_selected (no leak)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "_get_item_backlog_service"),
+            patch.object(server_module, "_get_backlog_refresh_manager", return_value=manager_012),
+        ):
+            client = TestClient(app)
+            resp_012 = client.get(
+                f"/api/v1/projects/{_PROJECT_ID}/release-delivery/backlog"
+                "?branch=release/0.12&filter=all"
+            )
+
+        assert resp_012.status_code == 200
+        assert resp_012.json()["items"][0]["delivery_status"]["state"] == "not_selected", (
+            "in_review status for release/0.11 must not leak into release/0.12 response"
+        )

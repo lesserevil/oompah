@@ -225,6 +225,42 @@ class BacklogRefreshManager:
                 return False
             return job.is_running()
 
+    def invalidate(self, project_id: str, branch: str) -> None:
+        """Mark a cached result as expired so the next GET triggers a refresh.
+
+        Call this when the delivery ledger changes for a project+branch (e.g.
+        the executor transitions a delivery to ``in_review`` or ``merged``) so
+        the next backlog GET immediately starts a fresh refresh rather than
+        serving up-to-5-minute stale data.
+
+        If no cached result exists for the key, this is a no-op.  If a refresh
+        is already running, the in-flight job is left intact (it will produce a
+        fresh result on completion).
+
+        This method is synchronous and safe to call from any thread.
+
+        Args:
+            project_id: Project identifier (cache key component).
+            branch: Release branch name (cache key component).
+        """
+        key = (project_id, branch)
+        with self._lock:
+            job = self._jobs.get(key)
+            if job is None:
+                return
+            # Reset the completion timestamp to 0.0 so the TTL check in
+            # get_or_start() always evaluates as expired, triggering a new
+            # refresh on the next call.  Setting to None would accidentally
+            # suppress the TTL branch (the condition short-circuits on None),
+            # so we use 0.0 which is guaranteed to exceed any positive TTL.
+            if not job.is_running():
+                job.result_completed_at = 0.0
+        logger.debug(
+            "BacklogRefreshManager: invalidated cached result for %s/%s",
+            project_id,
+            branch,
+        )
+
     async def get_or_start(
         self,
         project_id: str,
