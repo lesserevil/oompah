@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-336
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Route release CI remediation to native project tasks
 parent: null
@@ -11,13 +11,13 @@ labels:
 - release-ci-failure
 assignee: null
 created_at: '2026-07-21T22:22:50.075291Z'
-updated_at: '2026-07-21T22:30:25.132046Z'
+updated_at: '2026-07-21T22:32:41.088218Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 88284ac8-2787-49db-ba3a-5acbe2f13461
+oompah.agent_run_id: 38a546ae-5b30-440f-af8c-f0142f4673cb
 ---
 ## Summary
 
@@ -45,5 +45,15 @@ author: oompah
 created: 2026-07-21 22:27
 ---
 Understanding: This task requires that release-delivery CI failures create actionable native tasks in the affected project (with ci-fix routing and acceptance criteria), and that stale remediation records pointing to unrelated external issues are replaced by project-local tasks. PR #485 'Route release CI remediation to project tasks' was just merged to main. I need to verify CI is green after the merge, and fix any failures if they exist.
+---
+author: oompah
+created: 2026-07-21 22:32
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 22:32
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
