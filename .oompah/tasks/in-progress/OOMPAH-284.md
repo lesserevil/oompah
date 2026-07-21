@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T03:38:39.097123Z'
-updated_at: '2026-07-21T03:48:39.201232Z'
+updated_at: '2026-07-21T03:49:05.261008Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -168,5 +168,20 @@ author: oompah
 created: 2026-07-21 03:48
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 03:49
+---
+Understanding (Test Engineer, attempt 2): I am the Test Engineer agent picking up where the previous Test Engineer left off (no commits landed). My plan:
+
+1. Explore existing test files for release_delivery_backlog and release_delivery_inventory to understand patterns
+2. Write regression tests that expose Bug 1 (over-assignment from inherited branch history) and Bug 2 (metadata-only .oompah/ commits appearing as delivery candidates)
+3. Implement the production code fixes alongside the tests (the duplicate_detector's analysis fully identified the root cause)
+4. Verify tests pass end-to-end
+
+Key targets from duplicate_detector analysis:
+- oompah/release_delivery_inventory.py: _find_branch_commits_in_main() — fix to use fork-point, not full branch history
+- oompah/release_delivery_backlog.py: association loop, ancestry check, unassociated rows — add .oompah/ exclusion
+- tests/test_release_delivery_backlog.py — regression tests for both bugs
 ---
 <!-- COMMENTS:END -->
