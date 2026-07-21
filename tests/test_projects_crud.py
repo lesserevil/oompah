@@ -317,6 +317,36 @@ class TestProjectAPI:
         assert data["repo_url"] == "https://github.com/org/testproject.git"
         assert data["branch"] == "main"
 
+    def test_project_api_preserves_legacy_fields_and_emits_forge_defaults(self):
+        response = self.client.get("/api/v1/projects/proj-test1")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["forge_kind"] == "github"
+        assert data["forge_base_url"] == "https://github.com"
+        assert "github_issue_intake_enabled" in data
+        assert "external_issue_intake_enabled" in data
+
+    def test_project_api_updates_gitlab_forge_through_new_fields(self):
+        response = self.client.patch(
+            "/api/v1/projects/proj-test1",
+            json={
+                "forge_kind": "gitlab",
+                "forge_base_url": "https://gitlab.example.test/gitlab/",
+                "repo_url": "https://gitlab.example.test/group/repo.git",
+                "tracker_kind": "gitlab_issues",
+                "external_issue_intake_enabled": True,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["forge_kind"] == "gitlab"
+        assert data["forge_base_url"] == "https://gitlab.example.test/gitlab"
+        assert data["tracker_kind"] == "gitlab_issues"
+        assert data["github_issue_intake_enabled"] is True
+        assert data["external_issue_intake_enabled"] is True
+
     def test_get_project_not_found(self):
         res = self.client.get("/api/v1/projects/proj-nonexistent")
         assert res.status_code == 404
@@ -630,11 +660,14 @@ class TestProjectStoreUpdatableFields:
             "provider_whitelist",
             "status_actor_login",
             "status_label_authorized_logins",
+            "forge_kind",
+            "forge_base_url",
             # Per-project tracker configuration
             "tracker_kind",
             "tracker_owner",
             "tracker_repo",
             "github_issue_intake_enabled",
+            "external_issue_intake_enabled",
             "github_project_node_id",
             # Supported release lines (section 5 of release-branch-addendums.md)
             "supported_release_branches",
