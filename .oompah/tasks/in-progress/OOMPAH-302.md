@@ -11,9 +11,10 @@ children: []
 blocked_by: []
 labels:
 - external:github
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:27:26.037712Z'
-updated_at: '2026-07-21T15:49:01.200257Z'
+updated_at: '2026-07-21T15:49:19.096520Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,5 +109,26 @@ author: oompah
 created: 2026-07-21 15:49
 ---
 Understanding: Investigating OOMPAH-302 as Duplicate Investigator. The error is 'Fetch issues failed for project exocomp: State branch oompah/state/proj-c260b117 does not exist locally or at origin/...' which originates from oompah/oompah_md_tracker.py:1310 (TrackerError raised in _get_state_root() when state_branch_enabled=True but the branch doesn't exist) and is logged at error level in oompah/server.py:2569, triggering error_watcher. Plan: search all tasks for state_branch, Fetch issues failed, proj-c260b117, exocomp, and bootstrap/migration patterns to identify any prior task covering this.
+---
+author: oompah
+created: 2026-07-21 15:49
+---
+Discovery: Duplicate screening complete. No duplicate found.
+
+**Evidence searched:**
+- All .oompah/tasks/ states (archived/223, backlog/1, done/1, merged, needs-ci-fix, needs-rebase) — 230+ tasks scanned
+- rg patterns: state.branch, state_branch, Fetch issues failed, proj-c260b117, exocomp, bootstrap.*migration, does not exist locally or at origin, Normal tracker reads must not create remote branches
+
+**Closest candidates reviewed and ruled out:**
+
+1. **OOMPAH-282** (Backlog) — State branch migration error for proj-edbc8b4c. Different project, different error (UnicodeEncodeError in initialize_state_branch() during Stage A migration). NOT the same issue.
+
+2. **OOMPAH-256** (Merged) — Implemented the OompahMarkdownTracker state-branch feature including _get_state_root() raising TrackerError when branch is missing. This is the code that triggers the error in OOMPAH-302, but OOMPAH-256 is a feature task, not a bug report about the error surfacing via error_watcher.
+
+**Root cause identified:** Project exocomp (proj-c260b117) exists as a managed project with tracker_kind=oompah_md. When fetch_issues is called, if state_branch_enabled=True for this project but the branch oompah/state/proj-c260b117 was never bootstrapped, _get_state_root() raises TrackerError which is logged at error level in server.py:2569, triggering error_watcher.
+
+**No existing task covers:** graceful handling of this TrackerError so it does not trigger error_watcher, OR running bootstrap for exocomp's state branch.
+
+Recommended next focus: bug fix — either (a) lower the log level for this specific TrackerError case (warning not error) in server.py, or (b) auto-bootstrap the state branch when missing, or (c) run the bootstrap/migration for proj-c260b117 directly. Option (a) is the safest without data loss risk.
 ---
 <!-- COMMENTS:END -->

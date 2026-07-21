@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:47.496504Z'
-updated_at: '2026-07-21T15:48:28.274044Z'
+updated_at: '2026-07-21T15:49:14.603861Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 452ab623-dad1-4820-bd40-3174fd877c27
 oompah.task_costs:
-  total_input_tokens: 275573
-  total_output_tokens: 5646
+  total_input_tokens: 468330
+  total_output_tokens: 7258
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 275573
-      output_tokens: 5646
+      input_tokens: 468330
+      output_tokens: 7258
       cost_usd: 0.0
   runs:
   - profile: default
@@ -40,6 +40,12 @@ oompah.task_costs:
     output_tokens: 4062
     cost_usd: 0.0
     recorded_at: '2026-07-21T15:48:16.321858+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 192757
+    output_tokens: 1612
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T15:49:11.558166+00:00'
 ---
 ## Summary
 
@@ -138,5 +144,25 @@ author: oompah
 created: 2026-07-21 15:48
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 15:49
+---
+Agent completed successfully in 45s (194369 tokens)
+---
+author: oompah
+created: 2026-07-21 15:49
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 1, Tool calls: 4
+- Tokens: 192.8K in / 1.6K out [194.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 45s
+- Log: OOMPAH-294__20260721T154828Z.jsonl
+---
+author: oompah
+created: 2026-07-21 15:49
+---
+Agent completed without landing — no commits found on origin for branch `epic-OOMPAH-293`. Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
