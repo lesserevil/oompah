@@ -10,13 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:37:39.393260Z'
+updated_at: '2026-07-21T17:37:54.746525Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
 review_number: '469'
 merged_at: null
-oompah.agent_run_id: 92cef943-e489-4d33-83c7-3e88332597a4
+oompah.agent_run_id: c706c8c3-9ff3-4ad4-a7f3-1f058900469a
 oompah.task_costs:
   total_input_tokens: 275042
   total_output_tokens: 51702
@@ -219,5 +219,15 @@ author: oompah
 created: 2026-07-21 17:37
 ---
 Agent completed without closing this issue (44s (276500 tokens)). Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-21 17:37
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 17:37
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
