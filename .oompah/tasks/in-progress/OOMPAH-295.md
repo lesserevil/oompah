@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-295
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Add Tree-sitter repository symbol and reference extraction
 parent: OOMPAH-293
@@ -11,13 +11,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T15:13:48.374539Z'
-updated_at: '2026-07-21T16:13:26.430400Z'
+updated_at: '2026-07-21T16:13:36.947222Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 6fad2faf-322d-47b2-b85c-f890ae6f1b75
+oompah.agent_run_id: 1c95c3bc-a69d-47e0-b141-7b921955d054
 oompah.task_costs:
   total_input_tokens: 22
   total_output_tokens: 4535
@@ -91,5 +91,15 @@ author: oompah
 created: 2026-07-21 16:13
 ---
 Focus handoff required before leaving `duplicate_detector`. Add a comment headed `Focus handoff: duplicate_detector` with outcome, evidence, remaining work, and next focus.
+---
+author: oompah
+created: 2026-07-21 16:13
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 16:13
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
