@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:39:44.932069Z'
+updated_at: '2026-07-21T15:40:05.458571Z'
 work_branch: OOMPAH-292
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/463
@@ -93,7 +93,6 @@ Tests
 Acceptance criteria
 
 A user can understand the purpose of every mergeable task/epic from the Release Delivery list, and clicking it shows substantially the same task information as the dashboard without leaving the page. The drawer is no wider than 40% of the viewport and no narrower than the dashboard detail-panel behavior at normal desktop widths.
-
 ## Acceptance Criteria
 
 - [ ] Define acceptance criteria.
