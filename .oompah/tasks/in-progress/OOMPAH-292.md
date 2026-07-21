@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:07:21.899397Z'
+updated_at: '2026-07-21T15:09:28.751927Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-07-21 15:07
 ---
 Understanding: I'm the frontend developer agent for OOMPAH-292. My task is to implement: (1) summary field in Release Delivery backlog rows (backend + frontend), (2) widen the Release Delivery drawer to min(800px, 40vw), (3) load full task details via GET /api/v1/issues/{identifier}/detail in the drawer, and (4) tests for all of the above. Starting by exploring the codebase to find relevant files.
+---
+author: oompah
+created: 2026-07-21 15:09
+---
+Discovery: Found all relevant files. Key locations: (1) oompah/release_delivery_backlog.py - ItemRow dataclass and get_backlog(), need to add summary field; (2) oompah/server.py line ~4050, backlog JSON serialization, need to add summary; (3) oompah/templates/release_delivery.html - CSS drawer width at line 367 (420px → min(800px,40vw)), row rendering at line 1110, drawer logic at line 1455+; (4) tests/test_release_delivery_backlog.py, tests/test_release_delivery_page.py, tests/test_server_release_delivery_backlog.py for new tests. Dashboard uses GET /api/v1/issues/{identifier}/detail with project_id and renders title/type/state/priority/description/labels/parent/children/comments/links. Starting implementation.
 ---
 <!-- COMMENTS:END -->
