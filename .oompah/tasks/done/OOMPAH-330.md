@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-330
 type: task
-status: In Progress
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-293 onto main
 parent: OOMPAH-293
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T20:59:27.535782Z'
-updated_at: '2026-07-21T21:03:37.671631Z'
+updated_at: '2026-07-21T21:04:40.340548Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,5 +97,10 @@ author: oompah
 created: 2026-07-21 21:03
 ---
 Discovery: Epic branch has 5 commits ahead of merge base: OOMPAH-294 (repo-map artifact, all new files), OOMPAH-286 (prompt-injection doc, all new files - same commit exists on main so will be skipped in rebase), OOMPAH-295 (tree-sitter indexer, adds pyproject.toml/uv.lock deps + new files), OOMPAH-296 (repo-map ranker, all new files). Main has OOMPAH-314 and OOMPAH-316 that touch orchestrator.py, server.py, tracker.py, oompah_md_tracker.py - no overlap with epic's changes. Rebase should be clean or have minor conflicts only in pyproject.toml/uv.lock. Proceeding with rebase.
+---
+author: oompah
+created: 2026-07-21 21:04
+---
+Completion: Rebased epic-OOMPAH-293 onto origin/main successfully. Duplicate screening confirmed OOMPAH-330 is not a duplicate of any existing task. Rebase result: git detected OOMPAH-286 was already on main (identical commit) and skipped it; the 4 remaining epic commits (OOMPAH-294, OOMPAH-295, OOMPAH-296 x2) applied cleanly with no conflicts. Force-pushed with --force-with-lease. Branch is now 4 commits ahead of main, all up to date with origin.
 ---
 <!-- COMMENTS:END -->
