@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:31.453522Z'
-updated_at: '2026-07-21T22:18:56.899994Z'
+updated_at: '2026-07-21T22:24:37.911662Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-07-21 22:18
 ---
 Understanding: As Test Engineer, I need to write tests for the explicit forge configuration and backward-compatible project migration feature. My plan: (1) explore existing codebase structure and any existing project model code, (2) check the plan document for spec details, (3) determine if feature code already exists or needs to be written first, (4) write comprehensive tests covering: legacy GitHub deserialization, GitLab.com/self-managed validation, invalid combinations, and API serialization backward compat. I will handoff to 'feature' focus if implementation doesn't exist yet.
+---
+author: oompah
+created: 2026-07-21 22:24
+---
+Discovery: Feature implementation does not exist yet on this branch. The Project model in oompah/models.py has tracker_kind/tracker_owner/tracker_repo and github_issue_intake_enabled but no forge_kind, forge_base_url, external_issue_intake_enabled, or gitlab_issues tracker kind. The server API in server.py has no forge_kind/forge_base_url handling either. I will implement the feature (model changes + validation) AND write comprehensive tests, since both are backend Python and tightly coupled - this is the right approach to get make test passing per the acceptance criteria.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-288
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Render untrusted content in explicit prompt data boundaries
 parent: OOMPAH-285
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:41.895980Z'
-updated_at: '2026-07-21T22:24:28.974496Z'
+updated_at: '2026-07-21T22:24:41.750580Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -140,5 +140,19 @@ author: oompah
 created: 2026-07-21 22:24
 ---
 Verification: make test completed — 10707 passed, 0 failed, 36 skipped. New tests: 321 total in test_provenance.py (was 121), 200 new tests added. All 200 new tests pass: TestSafetyInstruction (20) + TestAdversarialContentFixtures (180). Existing tests (121 in test_provenance.py + 29 in test_prompt_injection_protection.py + test_prompt.py) unchanged and passing. Commit pushed to epic-OOMPAH-285 at 1cd79507d.
+---
+author: oompah
+created: 2026-07-21 22:24
+---
+Completion: OOMPAH-288 delivered — prompt data boundaries with non-bypassable safety instructions and adversarial test coverage.
+
+Delivered:
+- SAFETY_INSTRUCTION constant in provenance.py (non-bypassable, server-generated instruction text)
+- wrap_untrusted() updated to emit the instruction exactly once per block before user content
+- 200 new tests in tests/test_provenance.py:
+  - TestSafetyInstruction: verifies instruction presence, position, content, and integration with all 4 prompt builders
+  - TestAdversarialContentFixtures: 25 adversarial payload types × 6 parametrized assertions + 6 specific attacks + 21 integration tests covering all prompt paths (render_prompt, build_continuation_prompt, _build_triage_prompt, _deliver_github_comment_to_agent)
+
+Acceptance criteria: no external content interpolated into instruction-bearing prompt position — tests assert content appears AFTER the opening delimiter and BEFORE the closing delimiter (data position only). Safety instruction emitted exactly once per wrapped block regardless of adversarial payload content.
 ---
 <!-- COMMENTS:END -->
