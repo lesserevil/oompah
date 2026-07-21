@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:47.496504Z'
-updated_at: '2026-07-21T15:49:32.959039Z'
+updated_at: '2026-07-21T15:50:31.348258Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -174,5 +174,10 @@ author: oompah
 created: 2026-07-21 15:49
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 15:50
+---
+Understanding: As Test Engineer, I will write unit tests for the repository-map artifact module (oompah/repo_map.py) and plan doc (plans/repo-map-artifact.md). Previous agents attempted but landed no commits. I will implement all three: (1) the plan doc, (2) the typed Python artifact contract, and (3) comprehensive unit tests covering schema serialization/deserialization, schema-version rejection, deterministic output, SHA-based invalidation, and path/namespace constraints. Tests will use the make test target.
 ---
 <!-- COMMENTS:END -->

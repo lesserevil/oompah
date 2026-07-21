@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:39.881239Z'
-updated_at: '2026-07-21T15:48:01.306710Z'
+updated_at: '2026-07-21T15:50:34.170009Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,6 @@ Create plans/prompt-injection-protection.md defining trusted versus untrusted so
 Tests: add a documentation/contract test asserting the inventory names the intake bridge, focus triage, prompt renderer, continuation prompts, and agent system prompt construction.
 
 Acceptance criteria: a developer can determine whether a new input is untrusted, how it is labeled and delimited, and which server-side controls remain authoritative.
-
 ## Acceptance Criteria
 
 - [ ] Define acceptance criteria.
