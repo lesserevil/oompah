@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-21T15:27:18.547293Z'
-updated_at: '2026-07-21T15:49:35.249365Z'
+updated_at: '2026-07-21T15:49:46.217127Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,13 +46,13 @@ oompah.intake:
   last_validated_at: '2026-07-21T15:27:23.206742+00:00'
 oompah.agent_run_id: 880ffd84-7d40-4381-973f-2a9c0c1694de
 oompah.task_costs:
-  total_input_tokens: 368894
-  total_output_tokens: 1792
+  total_input_tokens: 368967
+  total_output_tokens: 4359
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 368894
-      output_tokens: 1792
+      input_tokens: 368967
+      output_tokens: 4359
       cost_usd: 0.0
   runs:
   - profile: default
@@ -61,6 +61,12 @@ oompah.task_costs:
     output_tokens: 1792
     cost_usd: 0.0
     recorded_at: '2026-07-21T15:46:27.512542+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 73
+    output_tokens: 2567
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T15:49:44.756142+00:00'
 ---
 ## Summary
 
@@ -152,5 +158,15 @@ author: oompah
 created: 2026-07-21 15:46
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 15:49
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 52
+- Tokens: 73 in / 2.6K out [2.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 59s
+- Log: OOMPAH-301__20260721T154647Z.jsonl
 ---
 <!-- COMMENTS:END -->
