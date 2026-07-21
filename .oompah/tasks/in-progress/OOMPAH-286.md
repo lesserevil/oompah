@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:39.881239Z'
-updated_at: '2026-07-21T16:05:10.598826Z'
+updated_at: '2026-07-21T16:06:24.649959Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -150,5 +150,22 @@ author: oompah
 created: 2026-07-21 16:05
 ---
 Understanding (Test Engineer, attempt #2): The previous test engineer agent was terminated after 18 minutes. I will now: (1) explore the codebase to understand the 5 key prompt paths already discovered, (2) create plans/prompt-injection-protection.md with the full trust/threat model and machine-readable provenance contract, and (3) write the documentation/contract test in tests/ that asserts the inventory names all required components. Then commit, push, and close.
+---
+author: oompah
+created: 2026-07-21 16:06
+---
+Implementation: Created plans/prompt-injection-protection.md (644 lines) and tests/test_prompt_injection_protection.py (260 lines).
+
+The plan document covers:
+- §2: Trust levels (trusted sources, untrusted sources, mixed)
+- §3: Trust propagation rules (4 rules)
+- §4: 5 attack scenarios (issue-body, comment-delivery, attachment, triage, repo-file injection)
+- §5: Delimiter structure and escaping rules
+- §6: Inventory of all 5 prompt paths with component names, modules, functions, data flows, trust levels
+- §7: Server-side authoritative controls table (8 controls)
+- §8: Machine-readable provenance contract JSON schema with 6 fields (version, component, source, trust, delimiter, issue_identifier)
+- §9: Non-goals
+
+The test file has 29 contract tests across 7 test classes, verifying all structural requirements as a hard gate.
 ---
 <!-- COMMENTS:END -->
