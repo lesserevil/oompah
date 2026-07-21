@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:39.881239Z'
-updated_at: '2026-07-21T16:06:45.344905Z'
+updated_at: '2026-07-21T16:06:47.685704Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +185,10 @@ Acceptance criteria met:
 - Machine-readable provenance contract defined (§8 JSON schema)
 - All 5 required inventory components named: intake_bridge, focus_triage, prompt_renderer, continuation_prompts, agent_system_prompt (§6)
 - 29 tests enforce these as hard gates
+---
+author: oompah
+created: 2026-07-21 16:06
+---
+Created plans/prompt-injection-protection.md (trust model, threat scenarios, 5-component inventory, provenance contract, non-goals) and tests/test_prompt_injection_protection.py (29 contract tests, all passing). Branch OOMPAH-286 pushed.
 ---
 <!-- COMMENTS:END -->
