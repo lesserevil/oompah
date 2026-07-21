@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-301
 type: bug
-status: In Progress
+status: Archived
 priority: 2
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-21T15:27:18.547293Z'
-updated_at: '2026-07-21T15:46:47.176645Z'
+updated_at: '2026-07-21T15:49:32.257605Z'
 work_branch: null
 target_branch: null
 review_url: null

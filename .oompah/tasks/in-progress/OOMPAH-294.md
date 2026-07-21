@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:47.496504Z'
-updated_at: '2026-07-21T15:49:26.346477Z'
+updated_at: '2026-07-21T15:49:32.959039Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 452ab623-dad1-4820-bd40-3174fd877c27
+oompah.agent_run_id: 05d53f75-0d26-4b05-8325-cf56da480d7c
 oompah.task_costs:
   total_input_tokens: 468330
   total_output_tokens: 7258
@@ -164,5 +164,15 @@ author: oompah
 created: 2026-07-21 15:49
 ---
 Agent completed without landing — no commits found on origin for branch `epic-OOMPAH-293`. Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-21 15:49
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 15:49
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
