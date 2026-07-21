@@ -11,7 +11,7 @@ labels:
 - release-ci-failure
 assignee: null
 created_at: '2026-07-21T22:22:50.075291Z'
-updated_at: '2026-07-21T22:38:58.196008Z'
+updated_at: '2026-07-21T22:39:18.775387Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,5 +60,20 @@ author: oompah
 created: 2026-07-21 22:38
 ---
 Understanding: CI Failure Fixer agent dispatched (third pass). Previous agents identified that PR #485 'Route release CI remediation to project tasks' was merged to main. My job is to verify CI is green after the merge and fix any remaining failures. Checking local and remote test results now.
+---
+author: oompah
+created: 2026-07-21 22:39
+---
+Discovery: PR #485 (commit c384cf949) implemented the required changes in oompah/orchestrator.py and tests/test_release_delivery_ci_monitor.py. The changes: (1) Added _has_live_release_ci_remediation() to check if a recorded ci_remediation_task_id still exists in the project tracker — stale/missing IDs return False so a new project-local task is created. (2) Changed _check_and_remediate_delivery_ci() to use _tracker_for_project() instead of the global tracker. (3) Added acceptance criteria and 'ci-fix' label to remediation tasks. The GitHub Actions CI run 29873724858 for the PR#485 merge shows 'completed success' (10734 passed, 5 skipped). Local tests also pass: 10508 passed, 36 skipped. All 23 tests in test_release_delivery_ci_monitor.py pass including the new test_stale_global_remediation_reference_is_replaced.
+---
+author: oompah
+created: 2026-07-21 22:39
+---
+Verification: No CI failures found. CI is green both on GitHub (run 29873724858: 10734 passed, 5 skipped) and locally (10508 passed, 36 skipped). All 23 tests in tests/test_release_delivery_ci_monitor.py pass. The implementation from PR #485 is complete and correct. No additional fixes are needed.
+---
+author: oompah
+created: 2026-07-21 22:39
+---
+Completion: PR #485 'Route release CI remediation to project tasks' (commit c384cf949) was successfully merged to main. Implementation delivers: (1) Release-delivery CI failures now create project-local tasks via _tracker_for_project() instead of the global tracker. (2) Stale/external remediation task IDs are detected by _has_live_release_ci_remediation() — missing tasks trigger a new project-local task creation. (3) Remediation tasks include explicit acceptance criteria and 'ci-fix' label for routing. (4) 3 new tests cover: acceptance criteria content, ci-fix label, and stale global reference replacement. CI is green (10734 passed on GitHub, 10508 passed locally).
 ---
 <!-- COMMENTS:END -->
