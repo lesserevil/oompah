@@ -9,10 +9,11 @@ children: []
 blocked_by:
 - OOMPAH-294
 - OOMPAH-296
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:07.528667Z'
-updated_at: '2026-07-21T22:08:35.016413Z'
+updated_at: '2026-07-21T22:13:23.776188Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +42,22 @@ author: oompah
 created: 2026-07-21 22:08
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 22:13
+---
+Duplicate screening complete: no duplicate found.
+
+Searched all .oompah/tasks/ directories (archived ~200+ tasks, done, merged ~50+ tasks, backlog, needs-ci-fix, needs-rebase) and plans/ for: repository-map, repo-map, repomap, repo_map, state-branch, coalesce, bounded background, background generation, SHA reuse, project synchronization, atomic write + map, tree-sitter. Zero matches for any of these terms in an overlapping scope.
+
+Closest reviewed tasks and evidence:
+- OOMPAH-294 (Done): Defines the artifact schema and state-branch lifecycle — this is the upstream foundation that OOMPAH-297 builds on, not a duplicate.
+- OOMPAH-295 (Done): Adds Tree-sitter extraction (input layer) — out of scope for generation/maintenance orchestration.
+- OOMPAH-296 (Merged): Implements ranking and bounded rendering (output layer) — out of scope for the integration/orchestration tier.
+- OOMPAH-298/299/300 (Open): Downstream consumers (prompt injection, config/docs, observability) — distinct from generation/maintenance.
+- plans/repo-map-artifact.md: Design doc (OOMPAH-294 output) covers schema/lifecycle only, not the generation orchestrator.
+- No archived or merged task covers: project-sync integration, duplicate-request coalescing, background-bounded generation, per-SHA cache reuse, state-branch integration tests, or concurrent-write atomicity.
+
+OOMPAH-297 is net-new implementation work: the orchestration/integration layer that connects Tree-sitter extraction + ranking to the state-branch persistence lifecycle.
 ---
 <!-- COMMENTS:END -->
