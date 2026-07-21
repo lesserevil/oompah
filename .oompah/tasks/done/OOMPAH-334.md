@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T21:10:46.951200Z'
-updated_at: '2026-07-21T21:33:31.371340Z'
+updated_at: '2026-07-21T21:33:44.527276Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: e99b39c6-4e2b-451c-ae4e-7ef19ce525f5
 oompah.task_costs:
-  total_input_tokens: 187451
-  total_output_tokens: 1653
+  total_input_tokens: 187475
+  total_output_tokens: 4237
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 187451
-      output_tokens: 1653
+      input_tokens: 187475
+      output_tokens: 4237
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -34,6 +34,12 @@ oompah.task_costs:
     output_tokens: 1653
     cost_usd: 0.0
     recorded_at: '2026-07-21T21:24:16.491276+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 24
+    output_tokens: 2584
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T21:33:42.314372+00:00'
 ---
 ## Summary
 
@@ -116,5 +122,25 @@ author: oompah
 created: 2026-07-21 21:33
 ---
 Discovery: PR #482 (ci-public-runner-primary) was already MERGED with all CI checks passing (SUCCESS on Python 3.11, 3.12, 3.13). The previous agent run (attempt #1) successfully fixed the CI by aligning test expectations with the public runner workflow. The branch introduced a ci-dedicated.yml for self-hosted runners and updated ci.yml to use ubuntu-latest, then fixed tests/test_self_hosted_runner.py to match the new workflow structure. All 62 tests in test_self_hosted_runner.py pass locally and all 9952 tests pass in the full suite. No further action is needed.
+---
+author: oompah
+created: 2026-07-21 21:33
+---
+PR #482 (ci-public-runner-primary) was already merged with all CI checks passing. The previous agent successfully aligned tests/test_self_hosted_runner.py with the new public-runner-primary CI workflow (ubuntu-latest primary + ci-dedicated.yml for self-hosted). All 9952 tests pass locally and all three Python matrix jobs (3.11, 3.12, 3.13) completed successfully on GitHub Actions.
+---
+author: oompah
+created: 2026-07-21 21:33
+---
+Agent completed successfully in 325s (2608 tokens)
+---
+author: oompah
+created: 2026-07-21 21:33
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/default]
+- Turns: 30, Tool calls: 22
+- Tokens: 24 in / 2.6K out [2.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 25s
+- Log: OOMPAH-334__20260721T212820Z.jsonl
 ---
 <!-- COMMENTS:END -->

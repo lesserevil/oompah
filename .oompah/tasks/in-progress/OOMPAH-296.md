@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T21:20:57.083833Z'
+updated_at: '2026-07-21T21:33:35.264865Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -407,5 +407,10 @@ author: oompah
 created: 2026-07-21 21:20
 ---
 Understanding (CI Failure Fixer): I'm now on branch OOMPAH-296 (PR #474). CI checks are running/queued. I'll run tests locally to reproduce any failures before waiting for CI to complete.
+---
+author: oompah
+created: 2026-07-21 21:33
+---
+Discovery: Root cause found. Commit 0c53f6eb3 incorrectly reverted ci.yml from 'ubuntu-latest' back to '[self-hosted, linux, x64, oompah]'. The test test_ci_test_job_targets_github_hosted_runner requires ci.yml to use 'ubuntu-latest' (public GitHub-hosted runner), while ci-dedicated.yml should keep the self-hosted labels. Fix: restore ubuntu-latest in ci.yml.
 ---
 <!-- COMMENTS:END -->
