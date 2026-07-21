@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-296
 type: task
-status: Done
-priority: 2
+status: Needs CI Fix
+priority: 0
 title: Implement Aider-style repository-map ranking and bounded rendering
 parent: OOMPAH-293
 children: []
@@ -11,9 +11,10 @@ blocked_by:
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:frontend
+- ci-fix
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T18:53:14.870696Z'
+updated_at: '2026-07-21T21:13:46.222149Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -350,5 +351,10 @@ author: oompah
 created: 2026-07-21 18:51
 ---
 Re-evaluated: no human decision is needed. The completed implementation is committed and pushed on OOMPAH-296. Its prerequisite artifact/indexer commits (OOMPAH-294/295) were never independently merged and are part of the same dependency-chain review PR #474. Moved from Needs Human to In Review.
+---
+author: oompah
+created: 2026-07-21 21:13
+---
+YOLO: CI tests failed on MR #474. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->

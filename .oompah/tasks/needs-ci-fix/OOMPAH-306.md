@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-306
 type: bug
-status: In Review
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
 children: []
@@ -11,9 +11,10 @@ labels:
 - focus-complete:frontend
 - focus-complete:duplicate_detector
 - focus-complete:test
+- ci-fix
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T18:50:22.586451Z'
+updated_at: '2026-07-21T21:13:50.716933Z'
 work_branch: OOMPAH-306
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/472
@@ -437,5 +438,10 @@ oompah will create the review automatically when review capacity is available.
 Recent commits:
   832302193 OOMPAH-306: Fix unpushed_gate to check branch worktree status, not main clone
   7301a377c OOMPAH-306: Add regression tests and stale-state banner for state-branch cache reconciliation
+---
+author: oompah
+created: 2026-07-21 21:13
+---
+YOLO: CI tests failed on MR #472. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: In Progress
+status: Open
 priority: 0
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T21:11:31.415361Z'
+updated_at: '2026-07-21T21:13:53.634358Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
@@ -20,13 +20,13 @@ review_number: '469'
 merged_at: null
 oompah.agent_run_id: 386c98d0-2b9d-4bd8-bc3b-3d3ea1e0e637
 oompah.task_costs:
-  total_input_tokens: 712024
-  total_output_tokens: 67569
+  total_input_tokens: 1453763
+  total_output_tokens: 73655
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 712024
-      output_tokens: 67569
+      input_tokens: 1453763
+      output_tokens: 73655
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -89,6 +89,12 @@ oompah.task_costs:
     output_tokens: 1332
     cost_usd: 0.0
     recorded_at: '2026-07-21T18:10:56.697106+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 741739
+    output_tokens: 6086
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T21:13:50.538938+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/469
 oompah.review_number: '469'
 oompah.work_branch: OOMPAH-304
@@ -585,5 +591,20 @@ author: oompah
 created: 2026-07-21 21:11
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-21 21:13
+---
+Agent completed successfully in 141s (747825 tokens)
+---
+author: oompah
+created: 2026-07-21 21:13
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/default]
+- Turns: 1, Tool calls: 12
+- Tokens: 741.7K in / 6.1K out [747.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 21s
+- Log: OOMPAH-304__20260721T211131Z.jsonl
 ---
 <!-- COMMENTS:END -->

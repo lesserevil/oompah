@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-317
 type: task
-status: In Review
-priority: null
+status: Needs CI Fix
+priority: 0
 title: Restore git write access for OOMPAH-316 landing
 parent: null
 children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- ci-fix
 assignee: null
 created_at: '2026-07-21T19:04:51.954483Z'
-updated_at: '2026-07-21T20:40:14.818943Z'
+updated_at: '2026-07-21T21:13:41.625956Z'
 work_branch: OOMPAH-317
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/477
@@ -199,5 +200,10 @@ oompah will create the review automatically when review capacity is available.
 
 Recent commits:
   88de770e9 OOMPAH-317: Grant Codex sandbox write access to git worktree metadata dir
+---
+author: oompah
+created: 2026-07-21 21:13
+---
+YOLO: CI tests failed on MR #477. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->

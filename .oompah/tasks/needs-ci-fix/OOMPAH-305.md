@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-305
 type: bug
-status: In Review
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
 children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- ci-fix
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T18:50:39.401629Z'
+updated_at: '2026-07-21T21:13:48.943950Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -403,5 +404,10 @@ author: oompah
 created: 2026-07-21 18:50
 ---
 Re-evaluated: no human decision is needed. The tested implementation is committed and pushed as 8c9547c; review PR #473 is open. Moved from Needs Human to In Review.
+---
+author: oompah
+created: 2026-07-21 21:13
+---
+YOLO: CI tests failed on MR #473. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->

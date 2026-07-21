@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-315
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T21:11:35.053697Z'
+updated_at: '2026-07-21T21:13:40.199216Z'
 work_branch: OOMPAH-315
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/476
@@ -44,7 +44,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-21T18:20:20.176791+00:00'
-oompah.agent_run_id: d239f90e-3099-4e43-a061-34479e74bfa0
+oompah.agent_run_id: bf1e867a-5189-4a35-a997-81d710eae556
 oompah.task_costs:
   total_input_tokens: 99078
   total_output_tokens: 29648
@@ -419,5 +419,15 @@ author: oompah
 created: 2026-07-21 21:11
 ---
 YOLO: CI tests failed on MR #476. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-21 21:13
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 21:13
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
