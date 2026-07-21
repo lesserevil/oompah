@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-296
 type: task
-status: In Progress
+status: Open
 priority: 2
 title: Implement Aider-style repository-map ranking and bounded rendering
 parent: OOMPAH-293
@@ -10,9 +10,11 @@ blocked_by:
 - OOMPAH-295
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:frontend
+- needs:feature
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T16:46:07.172530Z'
+updated_at: '2026-07-21T16:46:34.562646Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,5 +122,36 @@ created: 2026-07-21 16:46
 Understanding (as Frontend Developer): OOMPAH-296 requires implementing Aider-style ranking and bounded rendering over Tree-sitter extraction artifacts (OOMPAH-295). This involves: (1) building a directed relationship graph from RepoMap.symbol_tags and RepoMap.relationship_edges, (2) PageRank-style symbol/file scoring with task-mention and seed-file boosts, (3) token-budget-bounded text map rendering with deterministic tie-breaking, (4) path/excerpt escaping as untrusted data, and (5) comprehensive tests per acceptance criteria.
 
 This is a purely Python backend feature (graph algorithms, text rendering) with no UI, accessibility, or frontend component. My 'Frontend Developer' focus is not applicable here. Handing off to 'feature' specialist.
+---
+author: oompah
+created: 2026-07-21 16:46
+---
+Focus handoff: frontend
+
+1. Outcome: This task has no frontend/UI component. It is a pure Python backend feature implementing Aider-style ranking and rendering over the Tree-sitter extraction artifacts from OOMPAH-295. The Frontend Developer focus is inapplicable — no handoff work was done; no code was changed.
+
+2. Relevant files and evidence:
+   - oompah/repo_map.py — defines RepoMap, SymbolTag, RelationshipEdge, IndexedFile, RenderingMetadata dataclasses (schema/serialization, DONE per OOMPAH-294/295). No ranking or rendering code exists here.
+   - oompah/repo_indexer.py — Tree-sitter extraction of symbols and edges (DONE per OOMPAH-295). No ranking.
+   - tests/test_repo_map.py — comprehensive schema/lifecycle tests.
+   - tests/test_repo_indexer.py — extraction tests.
+   - NO oompah/repo_map_ranker.py or similar ranking/rendering module exists yet.
+   - make test → uv run pytest tests/ -v
+
+3. Remaining work (ALL of it, none started):
+   - Create oompah/repo_map_ranker.py (or similar) with:
+     a) build_relationship_graph(repo_map: RepoMap) → directed symbol/file graph from relationship_edges and symbol_tags
+     b) rank_symbols(graph, task_mentions=None, seed_files=None) → scores with PageRank-style algorithm; boost task-mentioned names and seed files
+     c) render_repo_map(repo_map, token_budget, task_mentions=None, seed_files=None) → str: token-budget-bounded text, deterministic tie-breaking, paths/excerpts escaped as untrusted data, no network calls, no filesystem access outside repo
+   - Create tests/test_repo_map_ranker.py with:
+     a) Synthetic graph fixtures: referenced symbols outrank isolated symbols
+     b) Boost verification: task-mentioned names and seed files get documented score boost
+     c) Budget enforcement: output never exceeds token_budget
+     d) Determinism: same inputs → identical output
+     e) No-edge readability: graceful output when graph has no edges
+     f) Path/excerpt escaping: paths and source excerpts marked/escaped as untrusted
+   - Verify make test passes
+
+4. Recommended next focus: feature
 ---
 <!-- COMMENTS:END -->

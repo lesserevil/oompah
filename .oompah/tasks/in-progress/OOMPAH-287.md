@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T16:46:19.356104Z'
+updated_at: '2026-07-21T16:46:23.203316Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: c454df5f-2c79-4de2-90ba-44851b28bdf4
+oompah.agent_run_id: 98ff2929-da34-4d2a-9ff2-04fb63d0054e
 oompah.task_costs:
   total_input_tokens: 247162
   total_output_tokens: 50651
@@ -296,5 +296,15 @@ Required: open a PR before closing.
   gh pr create --base main --head OOMPAH-287 --title "OOMPAH-287: Add provenance metadata for external content entering Oompah" --body "..."
 
 Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
+---
+author: oompah
+created: 2026-07-21 16:46
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 16:46
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
