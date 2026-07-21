@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T17:51:35.084703Z'
+updated_at: '2026-07-21T17:51:37.306640Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -223,5 +223,10 @@ Delivered:
 4. merged_at field on Issue model + extraction in _normalize_record, exposed in board + detail API responses.
 5. Stale UI banner in dashboard: #tracker-stale-banner shown when X-Oompah-Issues-Stale: true, cleared on WS push. Accessible (aria-hidden, descriptive title).
 6. 29 new regression tests in tests/test_dashboard_tracker_state_reconciliation.py covering all acceptance criteria.
+---
+author: oompah
+created: 2026-07-21 17:51
+---
+Fixed dashboard/API displaying Merged for canonical-Backlog tasks: added null-evidence guard in display layer (no merged_at+work_branch+review_url → Backlog), checkpoint timestamp for immediate snapshot invalidation, merged_at field on Issue model, and stale tracker banner in dashboard. 29 new regression tests pass; full suite 9980 passed.
 ---
 <!-- COMMENTS:END -->
