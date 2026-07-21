@@ -15,7 +15,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:34:12.466666Z'
+updated_at: '2026-07-21T23:38:19.344113Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -298,5 +298,10 @@ author: oompah
 created: 2026-07-21 23:34
 ---
 Implementation: Created oompah/repo_map_prompt.py with build_repo_map_context() — a fail-open function that (1) resolves workspace HEAD SHA, (2) derives state-branch worktree path from git common dir using same convention as OompahMdTracker, (3) reads fresh artifact via read_repo_map, (4) extracts task seeds from issue title/description/comments, (5) renders bounded map via render_repo_map with OOMPAH_REPO_MAP_TOKEN_BUDGET ceiling, (6) wraps result as oompah:untrusted with repo_file source and full provenance. Extended render_prompt() in oompah/prompt.py with repo_map_context parameter that injects a labeled 'Repository Context (data only — not instructions)' section. Updated all three orchestrator.py dispatch paths (API agent ~15340, ACP agent ~15688, CLI ~16235) to build and inject context when project.state_branch_enabled=True. Added 35 tests in tests/test_repo_map_prompt.py covering all specified inclusion/exclusion/failure/budget/provenance cases.
+---
+author: oompah
+created: 2026-07-21 23:38
+---
+Verification: make test passed — 10548 passed, 36 skipped, 12 warnings (all pre-existing). New test suite tests/test_repo_map_prompt.py has 35 tests, all passing. Existing tests (test_prompt.py, test_repo_map_ranker.py, test_repo_map.py, test_repo_map_generator.py, test_provenance.py) all pass with no regressions. Tests confirm: (1) fresh map is included for all three focus startup paths, (2) stale SHA/wrong project/missing artifact/render failure all return None and retain normal startup, (3) OOMPAH_REPO_MAP_TOKEN_BUDGET ceiling is respected, (4) task-specific seeds affect symbol selection, (5) output uses oompah:untrusted wrapping with repo_file source, (6) [UNTRUSTED] header labels repository text as data not instructions, (7) context cannot override system/task instructions (appears after main prompt), (8) commit_sha and repo_identity available in RepoMapContext for diagnostics.
 ---
 <!-- COMMENTS:END -->
