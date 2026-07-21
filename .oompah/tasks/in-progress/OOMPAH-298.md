@@ -14,7 +14,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:05:23.404706Z'
+updated_at: '2026-07-21T23:06:20.062373Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -208,5 +208,17 @@ author: oompah
 created: 2026-07-21 23:05
 ---
 Understanding: I am the Frontend Developer focus for OOMPAH-298. After reading the task description and prior handoff comments, I can see this is a backend Python task involving repository map injection into agent startup prompts. I will explore the codebase to determine whether any frontend work is needed or if I should hand off to the feature focus.
+---
+author: oompah
+created: 2026-07-21 23:06
+---
+Discovery: After thorough codebase exploration, confirmed this task requires entirely Python backend implementation:
+
+1. oompah/prompt.py:render_prompt — needs a new repo_map_context parameter
+2. oompah/orchestrator.py — three render_prompt call sites (~15340, ~15688, ~16235) need to pass repo map context
+3. New context builder needed to: resolve checkout SHA, load matching artifact via read_repo_map, derive seeds from task title/description/focus handoff, call render_repo_map with token budget, wrap result as untrusted content block
+4. New tests needed in tests/test_prompt.py and a new tests/test_repo_map_prompt.py
+
+There is NO frontend/UI component to this task — no JavaScript, CSS, HTML, or browser code exists in this codebase. This is a Python server-side prompt assembly feature.
 ---
 <!-- COMMENTS:END -->
