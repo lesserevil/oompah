@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-292
 type: task
-status: Done
+status: In Progress
 priority: null
 title: Show mergeable-item summaries and full task details in Release Delivery
 parent: null
@@ -11,21 +11,21 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:23:18.966794Z'
+updated_at: '2026-07-21T15:23:38.002699Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: d2128a10-68e4-44cc-a888-fdbe84156888
+oompah.agent_run_id: 43eb4210-c0e7-4038-b850-ae6b8881983d
 oompah.task_costs:
-  total_input_tokens: 110189
-  total_output_tokens: 6167
+  total_input_tokens: 110271
+  total_output_tokens: 36527
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 110189
-      output_tokens: 6167
+      input_tokens: 110271
+      output_tokens: 36527
       cost_usd: 0.0
   runs:
   - profile: default
@@ -40,6 +40,12 @@ oompah.task_costs:
     output_tokens: 661
     cost_usd: 0.0
     recorded_at: '2026-07-21T15:06:54.688761+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 82
+    output_tokens: 30360
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T15:23:28.865851+00:00'
 ---
 ## Summary
 
@@ -221,5 +227,46 @@ author: oompah
 created: 2026-07-21 15:23
 ---
 Implemented all OOMPAH-292 features: (1) ItemRow.summary field extracted from tracker descriptions (HTML-stripped, whitespace-normalised, truncated to 280 chars, None fallback); (2) summary in backlog JSON API; (3) summary rendered in Release Delivery rows beneath title via textContent; (4) drawer width widened to min(800px, 40vw) with 90vw fallback; (5) full task detail loaded via GET /api/v1/issues/{identifier}/detail in drawer (title/type/state/priority/labels/parent/description/children/comments/links/metadata); (6) delivery evidence always visible (synchronous, before async fetch); (7) 44 new tests, 2 updated tests, all 9918 tests pass.
+---
+author: oompah
+created: 2026-07-21 15:23
+---
+Agent completed successfully in 977s (30442 tokens)
+---
+author: oompah
+created: 2026-07-21 15:23
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
+- Turns: 138, Tool calls: 95
+- Tokens: 82 in / 30.4K out [30.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 16m 17s
+- Log: OOMPAH-292__20260721T150713Z.jsonl
+---
+author: oompah
+created: 2026-07-21 15:23
+---
+Close refused by orchestrator: branch `OOMPAH-292` has 1 commit not on `main` and no open PR targets `main` from this branch.
+
+Diagnostic:
+  Unmerged commits: 1
+    b6588f1a3 OOMPAH-292: Show mergeable-item summaries and full task details in Release Delivery
+  Open PRs from this branch: 0
+  Merged PRs from this branch: 0
+
+Required: open a PR before closing.
+  gh pr create --base main --head OOMPAH-292 --title "OOMPAH-292: Show mergeable-item summaries and full task details in Release Delivery" --body "..."
+
+Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
+---
+author: oompah
+created: 2026-07-21 15:23
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 15:23
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
