@@ -9,10 +9,12 @@ parent: OOMPAH-285
 children: []
 blocked_by:
 - OOMPAH-287
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:security
 assignee: null
 created_at: '2026-07-21T14:51:56.727670Z'
-updated_at: '2026-07-21T22:38:57.532989Z'
+updated_at: '2026-07-21T22:48:38.911481Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,5 +59,34 @@ author: oompah
 created: 2026-07-21 22:38
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 22:48
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome:** No duplicate confirmed. OOMPAH-290 is a unique child task in the OOMPAH-285 epic (Defend Oompah agents against prompt injection from external content). No existing task in the tracker covers its scope.
+
+2. **Evidence reviewed:**
+   - Searched all .oompah/tasks/ states (archived ~223 files, merged ~55 files, done, backlog, needs-ci-fix, needs-rebase) for keywords: authority boundaries, server-side, authorization gate, status transition, credential access, git push, agent action, external intake, prompt injection, decomposition, release delivery. Zero matches to OOMPAH-290's scope.
+   - OOMPAH-285 (epic, In Progress): Parent epic explicitly lists OOMPAH-290 as a required child with its own distinct scope (server-side authority boundaries). Children cover separate layers: OOMPAH-286 (threat model), OOMPAH-287 (provenance metadata), OOMPAH-288 (prompt rendering boundaries), OOMPAH-289 (triage hardening), OOMPAH-290 (server-side enforcement), OOMPAH-291 (regression suite).
+   - OOMPAH-286 (Merged): Defines threat model in plans/prompt-injection-protection.md, specifically §7 'Server-Side Authoritative Controls' — the planning artifact for OOMPAH-290, not a duplicate.
+   - OOMPAH-287 (Merged): Provenance dataclass/enums — data model layer, not server-side enforcement.
+   - OOMPAH-288 (Done): SAFETY_INSTRUCTION in prompt rendering — rendering layer only.
+   - OOMPAH-289 (In Progress): Focus triage/model-only decision hardening — model decision layer only.
+   - plans/prompt-injection-protection.md §7 maps the server-side controls OOMPAH-290 must verify/extend: task state transitions (statuses.py/server.py), label mutation (server.py), git push targets (workspace.py/scm.py), worktree path guard (api_agent.py/acp_tools.py), shell-as-tool-name intercept (api_agent.py), attachment path validation (server.py), MIME allowlist (attachments.py), budget enforcement (orchestrator.py/api_agent.py).
+   - No archived or merged task covers centralized server-side authority checks for the full set of protected actions described in OOMPAH-290.
+
+3. **Remaining work / risks:**
+   - Audit all tool and API paths reachable by agents working on externally sourced tasks (start from acp_tools.py, api_agent.py, server.py, orchestrator.py).
+   - Add centralized checks requiring trusted server-side state for: status transitions, task creation/decomposition, source changes, provider/project config, credential access, git pushes, GitHub comments/labels, release delivery actions.
+   - Implement auditable denial reason emission when unauthorized action is attempted (log + structured error response).
+   - Preserve normal approved workflows through the same checks.
+   - Write integration tests using externally sourced task context that requests each protected action; assert denial without trusted approval and success through approved paths.
+   - Dependency OOMPAH-287 is now Merged — the provenance infrastructure is in place. OOMPAH-288 is Done. OOMPAH-289 is still In Progress but OOMPAH-290 can proceed as it operates on a different layer (server API, not model prompts).
+   - Key risk: some server-side controls already exist (per §7 of the threat model) — implementation agent should audit what guards are already in place vs. what gaps need filling, to avoid duplication.
+   - Key files: oompah/server.py, oompah/statuses.py, oompah/acp_tools.py, oompah/api_agent.py, oompah/workspace.py, oompah/scm.py, oompah/orchestrator.py, oompah/attachments.py; tests/ (new integration test module).
+
+4. **Recommended next focus:** security (implement centralized server-side authority boundary checks across the action surfaces listed above and write integration tests as specified in the acceptance criteria).
 ---
 <!-- COMMENTS:END -->
