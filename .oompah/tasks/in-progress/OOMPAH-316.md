@@ -15,7 +15,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T19:12:15.886395Z'
+updated_at: '2026-07-21T19:23:54.059715Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -331,5 +331,10 @@ author: oompah
 created: 2026-07-21 19:12
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-21 19:23
+---
+Understanding: Previous agent implemented the fix but couldn't commit due to a git permissions issue in their sandbox. Starting fresh. Plan: (1) Add StateBranchMissingError to tracker.py as a TrackerError subclass, (2) raise it in oompah_md_tracker.py instead of generic TrackerError for missing bootstrap branch, (3) handle it in server.py at WARNING level instead of ERROR, (4) add regression tests, (5) commit and push.
 ---
 <!-- COMMENTS:END -->
