@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T18:00:03.534132Z'
+updated_at: '2026-07-21T18:00:10.906459Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -307,5 +307,10 @@ author: oompah
 created: 2026-07-21 18:00
 ---
 Understanding: The orchestrator's unpushed_gate.py runs git status --porcelain against project.repo_path (the main clone at /home/shedwards/.oompah/repos/oompah) to detect uncommitted changes. However, OOMPAH-306's working tree lives in a dedicated worktree at /home/shedwards/.oompah/worktrees/oompah/OOMPAH-306. The main clone happens to have AGENTS.md modified (unrelated changes), which causes has_uncommitted=True and falsely blocks task completion. Fix: add worktree_path parameter to _check_unpushed and check_unpushed_gate so status checks run against the branch's own worktree when available.
+---
+author: oompah
+created: 2026-07-21 18:00
+---
+Discovery: Root cause confirmed. git -C /home/shedwards/.oompah/repos/oompah status --porcelain returns ' M AGENTS.md', so the unpushed gate detects has_uncommitted=True. The OOMPAH-306 worktree itself is clean (git status in OOMPAH-306 worktree shows nothing to commit). The bug is in unpushed_gate._check_unpushed: it uses repo_path for the git status check, but repo_path is the main clone which can have unrelated dirty state. Fix: use the branch worktree path for the status check when it exists.
 ---
 <!-- COMMENTS:END -->

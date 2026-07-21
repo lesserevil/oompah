@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-314
 type: bug
-status: Done
+status: In Progress
 priority: 1
 title: Deliver only selected commits to release branches and monitor release CI
 parent: null
@@ -10,13 +10,29 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T18:00:00.912298Z'
+updated_at: '2026-07-21T18:00:15.396506Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 42a5cb3f-cc02-48d8-8d15-585109da3db5
+oompah.task_costs:
+  total_input_tokens: 102
+  total_output_tokens: 42917
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 102
+      output_tokens: 42917
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: unknown
+    input_tokens: 102
+    output_tokens: 42917
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T18:00:11.453550+00:00'
 ---
 ## Summary
 
@@ -74,5 +90,38 @@ author: oompah
 created: 2026-07-21 18:00
 ---
 Fixed sync_source_branch=True→False bug (PR #303 regression) and added post-merge release CI monitoring with actionable remediation tasks. 26 new tests covering all acceptance criteria.
+---
+author: oompah
+created: 2026-07-21 18:00
+---
+Agent completed successfully in 1695s (43019 tokens)
+---
+author: oompah
+created: 2026-07-21 18:00
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
+- Turns: 197, Tool calls: 124
+- Tokens: 102 in / 42.9K out [43.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 28m 15s
+- Log: OOMPAH-314__20260721T173159Z.jsonl
+---
+author: oompah
+created: 2026-07-21 18:00
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-314` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-314
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-314
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
