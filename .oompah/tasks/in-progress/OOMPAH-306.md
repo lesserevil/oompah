@@ -1,23 +1,22 @@
 ---
 id: OOMPAH-306
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:backend
-- needs:frontend
+labels: []
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T16:38:35.978714Z'
+updated_at: '2026-07-21T16:40:25.807382Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 1a5b4d70-8711-4a4d-ba70-e5528bd0c3db
 ---
 ## Summary
 
@@ -29,3 +28,16 @@ Fix the dashboard/API task-state display when it disagrees with Oompah’s canon
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 16:40
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 16:40
+---
+Focus: Frontend Developer
+---
+<!-- COMMENTS:END -->

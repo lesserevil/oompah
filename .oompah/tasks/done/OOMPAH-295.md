@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:48.374539Z'
-updated_at: '2026-07-21T16:39:53.322869Z'
+updated_at: '2026-07-21T16:40:06.509111Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: d0324b95-f4b3-41d6-97c6-a3f55761abc5
 oompah.task_costs:
-  total_input_tokens: 209174
-  total_output_tokens: 5998
+  total_input_tokens: 209274
+  total_output_tokens: 9039
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 209174
-      output_tokens: 5998
+      input_tokens: 209274
+      output_tokens: 9039
       cost_usd: 0.0
   runs:
   - profile: default
@@ -47,6 +47,12 @@ oompah.task_costs:
     output_tokens: 666
     cost_usd: 0.0
     recorded_at: '2026-07-21T16:14:45.998564+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 100
+    output_tokens: 3041
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T16:40:05.120662+00:00'
 ---
 ## Summary
 
@@ -199,5 +205,20 @@ author: oompah
 created: 2026-07-21 16:39
 ---
 Completion: Delivered oompah/repo_indexer.py (standalone Tree-sitter indexer) and tests/test_repo_indexer.py (166 tests). All 10,194 tests pass via 'make test'. The indexer walks a checked-out repository, respects .gitignore rules, skips binary/oversized/unsupported files with diagnostics, and uses Tree-sitter grammars to extract symbols and references for Python, Rust, TypeScript, JavaScript, YAML, and Markdown. Returns a RepoMap conforming to the OOMPAH-294 artifact contract. tree-sitter grammar packages added to pyproject.toml [server] and [dev] extras. Committed to branch epic-OOMPAH-293 (the parent epic's feature branch, consistent with OOMPAH-294) and pushed.
+---
+author: oompah
+created: 2026-07-21 16:39
+---
+Implemented Tree-sitter repository indexer (oompah/repo_indexer.py) with symbol and reference extraction for Python, Rust, TypeScript, JavaScript, YAML, and Markdown. Added 166 comprehensive tests in tests/test_repo_indexer.py. All 10,194 tests pass via make test. tree-sitter grammar packages added to pyproject.toml.
+---
+author: oompah
+created: 2026-07-21 16:40
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 65
+- Tokens: 100 in / 3.0K out [3.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 25m 10s
+- Log: OOMPAH-295__20260721T161456Z.jsonl
 ---
 <!-- COMMENTS:END -->

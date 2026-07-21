@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-287
 type: task
-status: Done
+status: Open
 priority: 1
 title: Add provenance metadata for external content entering Oompah
 parent: OOMPAH-285
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T16:39:48.491402Z'
+updated_at: '2026-07-21T16:40:20.157439Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 8d4c62fa-9fc1-4fb2-8884-ef5e11170ca4
 oompah.task_costs:
-  total_input_tokens: 247091
-  total_output_tokens: 6399
+  total_input_tokens: 247148
+  total_output_tokens: 47284
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 247091
-      output_tokens: 6399
+      input_tokens: 247148
+      output_tokens: 47284
       cost_usd: 0.0
   runs:
   - profile: default
@@ -41,6 +41,12 @@ oompah.task_costs:
     output_tokens: 2143
     cost_usd: 0.0
     recorded_at: '2026-07-21T16:14:26.218465+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 57
+    output_tokens: 40885
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T16:39:59.006844+00:00'
 ---
 ## Summary
 
@@ -186,5 +192,38 @@ author: oompah
 created: 2026-07-21 16:39
 ---
 Implemented provenance metadata model: new oompah/provenance.py with ContentProvenance dataclass, TrustLevel/ContentSource/ProvenanceComponent enums, make_provenance/default_deny/escape_content/wrap_untrusted helpers. Patched prompt.py (description+comments wrapped), focus.py (triage description wrapped), github_intake_bridge.py (comment delivery wrapped). 121 new tests passing. All 10072 tests green.
+---
+author: oompah
+created: 2026-07-21 16:39
+---
+Agent completed successfully in 1514s (40942 tokens)
+---
+author: oompah
+created: 2026-07-21 16:40
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
+- Turns: 91, Tool calls: 60
+- Tokens: 57 in / 40.9K out [40.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 25m 14s
+- Log: OOMPAH-287__20260721T161450Z.jsonl
+---
+author: oompah
+created: 2026-07-21 16:40
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-287` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-287
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-287
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->

@@ -1,22 +1,22 @@
 ---
 id: OOMPAH-307
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep shared-epic child work and merge state on the epic branch
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:backend
+labels: []
 assignee: null
 created_at: '2026-07-21T16:27:57.025790Z'
-updated_at: '2026-07-21T16:38:37.057417Z'
+updated_at: '2026-07-21T16:40:17.425795Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: eee0bdf1-3a4a-4988-9db0-34d7964978ef
 ---
 ## Summary
 
@@ -28,3 +28,16 @@ Fix native Markdown task dispatch so child tasks in a shared epic execute on the
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 16:40
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 16:40
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
