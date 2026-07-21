@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T16:48:17.497572Z'
+updated_at: '2026-07-21T16:48:26.921739Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -163,5 +163,10 @@ author: oompah
 created: 2026-07-21 16:48
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 16:48
+---
+Understanding (test): I will audit existing tests related to state-branch cache reads, stale-header handling, and dashboard state reconciliation, then add/complete regression tests per the issue requirements: (1) fixture where stale cache says Merged but state branch says Backlog; (2) checkpoint invalidation test; (3) per-project isolation and null merged_at safety; (4) degraded-read terminal-status safety. I will also validate the test added by the frontend agent and ensure it exercises the correct behavior.
 ---
 <!-- COMMENTS:END -->
