@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-293
 type: epic
-status: Open
+status: In Progress
 priority: 1
 title: Build Git-backed repository maps for faster agent startup
 parent: null
@@ -19,7 +19,7 @@ labels:
 - needs:agents
 assignee: null
 created_at: '2026-07-21T15:13:33.130186Z'
-updated_at: '2026-07-21T15:45:14.485944Z'
+updated_at: '2026-07-21T15:46:19.841534Z'
 work_branch: null
 target_branch: null
 review_url: null
