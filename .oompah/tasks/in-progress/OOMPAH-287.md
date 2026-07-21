@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T16:14:29.355214Z'
+updated_at: '2026-07-21T16:14:46.536314Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 20e9f264-29bb-4be7-8529-b166e4998697
+oompah.agent_run_id: 8d4c62fa-9fc1-4fb2-8884-ef5e11170ca4
 oompah.task_costs:
   total_input_tokens: 247091
   total_output_tokens: 6399
@@ -132,5 +132,15 @@ author: oompah
 created: 2026-07-21 16:14
 ---
 Agent completed without landing — no commits found on origin for branch `epic-OOMPAH-285`. Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-21 16:14
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 16:14
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
