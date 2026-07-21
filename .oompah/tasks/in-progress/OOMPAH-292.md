@@ -7,10 +7,11 @@ title: Show mergeable-item summaries and full task details in Release Delivery
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:04:09.707079Z'
+updated_at: '2026-07-21T15:06:06.441893Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,5 +61,26 @@ author: oompah
 created: 2026-07-21 15:04
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 15:06
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate confirmed. OOMPAH-292 is a fresh feature task with no existing equivalent.
+
+2. Evidence reviewed:
+   - Searched .oompah/tasks/ (merged, archived, backlog, done) for: 'Release Delivery', 'summary', 'truncat', 'drawer', 'drawer width', '420px', '800px', '40vw', 'task detail', 'full detail', 'item description', 'mergeable'.
+   - Reviewed full content of all candidate tasks.
+
+   Closest related tasks (not duplicates):
+   - OOMPAH-263 (Merged): 'Widen the dashboard task detail pane' — widened the dashboard right-side detail pane to min(800px, 40vw). OOMPAH-292 applies the same width to the Release Delivery drawer (a separate component on release_delivery.html) and additionally adds task summaries in rows and full task-detail loading. Different scope, different component.
+   - OOMPAH-252 (Merged): 'Move Release Delivery from dashboard dialog to a dedicated page' — created the dedicated Release Delivery page with an evidence drawer. Does not include summaries in rows, full task details, or drawer width changes.
+   - OOMPAH-236 (Merged): 'Replace Release Delivery commit pagination with item-centric release backlog' — made rows item-centric (one row per task/epic). Does not include summaries or drawer width changes.
+   - OOMPAH-200 (Merged): Added the evidence drawer to Release Delivery. Does not include full task details or summary fields.
+
+3. Remaining work: Full implementation — backend (backlog payload summary field, normalization, truncation, HTML safety) + frontend (summary in rows, drawer width, full task details via GET /api/v1/issues/{identifier}/detail, loading/error states) + tests per spec.
+
+4. Recommended next focus: feature (backend + frontend implementation).
 ---
 <!-- COMMENTS:END -->
