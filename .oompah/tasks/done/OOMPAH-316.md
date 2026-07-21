@@ -15,7 +15,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T20:49:44.831787Z'
+updated_at: '2026-07-21T20:49:47.076026Z'
 work_branch: OOMPAH-316
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/478
@@ -550,5 +550,10 @@ author: oompah
 created: 2026-07-21 20:49
 ---
 Completion: StateBranchMissingError graceful degradation fix is merged to main (PR #478, commit 291dddacd). Changes delivered: (1) StateBranchMissingError added to oompah/tracker.py as TrackerError subclass; (2) oompah/oompah_md_tracker.py raises StateBranchMissingError for missing bootstrap branch instead of generic TrackerError; (3) oompah/server.py _fetch_all_issues catches StateBranchMissingError at WARNING level (not ERROR) so error_watcher is not triggered; (4) 2 regression tests added. All 47 tests pass. The error_watcher will no longer auto-file tasks when a project has state_branch_enabled=True but the branch has never been bootstrapped.
+---
+author: oompah
+created: 2026-07-21 20:49
+---
+StateBranchMissingError graceful degradation fix merged to main (PR #478). server.py now logs WARNING instead of ERROR for unbootstrapped state-branch projects, preventing error_watcher auto-filing. 2 regression tests added.
 ---
 <!-- COMMENTS:END -->
