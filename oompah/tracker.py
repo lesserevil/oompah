@@ -78,6 +78,11 @@ class TrackerTimeoutError(TrackerError):
     """Raised when a tracker operation exceeds its timeout."""
 
 
+# Backward-compatible alias — orchestrator.py and tests still reference this
+# name; the canonical class is StateBranchMissingError (added by OOMPAH-316).
+TrackerStateBranchMissingError = StateBranchMissingError
+
+
 def _write_attachments_manifest(
     project_root: str,
     identifier: str,

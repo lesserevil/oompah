@@ -45,7 +45,7 @@ import yaml
 
 from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.statuses import DONE, IN_PROGRESS, IN_REVIEW, OPEN
-from oompah.tracker import TrackerError
+from oompah.tracker import TrackerError, TrackerStateBranchMissingError
 
 
 # ---------------------------------------------------------------------------
@@ -654,6 +654,40 @@ class TestStateBranchTrackerFailures:
         assert any(word in error_msg.lower() for word in ("bootstrap", "migrate", "branch", "create")), (
             f"Error must be actionable (mention bootstrap/migrate/create); got: {error_msg!r}"
         )
+
+    @state_branch_not_implemented
+    def test_missing_state_branch_raises_tracker_state_branch_missing_error(
+        self, tmp_path: Path
+    ) -> None:
+        """Missing state branch must raise TrackerStateBranchMissingError specifically.
+
+        This distinct subclass of TrackerError lets the orchestrator catch it
+        separately and log a warning instead of triggering error_watcher
+        auto-filing (OOMPAH-315).
+        """
+        root = tmp_path / "repo"
+        _init_git_repo(root)
+
+        tracker = _make_tracker(
+            root,
+            state_branch_enabled=True,
+            state_branch_name="oompah/state/proj-missing",
+            git_sync=False,
+        )
+
+        with pytest.raises(TrackerStateBranchMissingError):
+            tracker.fetch_all_issues()
+
+    @state_branch_not_implemented
+    def test_tracker_state_branch_missing_error_is_tracker_error_subclass(
+        self,
+    ) -> None:
+        """TrackerStateBranchMissingError must be a TrackerError subclass.
+
+        Existing callers that catch TrackerError generically must still
+        handle it correctly (backward compatibility).
+        """
+        assert issubclass(TrackerStateBranchMissingError, TrackerError)
 
     @state_branch_not_implemented
     def test_task_data_not_corrupted_when_push_fails_with_auth_error(
