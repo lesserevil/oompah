@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-306
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -11,13 +11,13 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T16:45:40.370927Z'
+updated_at: '2026-07-21T16:46:53.722326Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 1a5b4d70-8711-4a4d-ba70-e5528bd0c3db
+oompah.agent_run_id: 79425b21-926b-4d17-aedd-9dc96127e6e6
 oompah.task_costs:
   total_input_tokens: 1130693
   total_output_tokens: 5898
@@ -101,5 +101,15 @@ author: oompah
 created: 2026-07-21 16:45
 ---
 Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-21 16:46
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 16:46
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
