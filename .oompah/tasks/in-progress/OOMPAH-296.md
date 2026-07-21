@@ -8,10 +8,11 @@ parent: OOMPAH-293
 children: []
 blocked_by:
 - OOMPAH-295
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T16:40:19.274200Z'
+updated_at: '2026-07-21T16:41:34.216390Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +41,21 @@ author: oompah
 created: 2026-07-21 16:40
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 16:41
+---
+Duplicate screening complete: no duplicate found.
+
+Searched all .oompah/tasks/ directories (archived, done, merged, backlog, needs-ci-fix, needs-rebase) for: repo-map, repomap, aider, ranking, tree-sitter, pagerank, token budget, bounded render, directed graph, symbol rank, seed file, task-mentioned. Zero matches across all task files for these terms in the context of ranking or rendering.
+
+Closest reviewed tasks/evidence:
+- OOMPAH-293 (In Progress): Parent epic 'Build Git-backed repository maps'. Contains 'Aider-style definition/reference ranking algorithm' in description but is the parent epic, not a duplicate of this child task.
+- OOMPAH-295 (Done): 'Add Tree-sitter repository symbol and reference extraction'. This is the upstream dependency (produces extraction artifacts). It explicitly excludes ranking — 'Do not rank results' is in its description. OOMPAH-296 builds the ranking/rendering layer over those artifacts.
+- OOMPAH-294 (Done): Defines the artifact schema/lifecycle. Out of scope for ranking.
+- OOMPAH-297–300 (Open): Sibling tasks covering persistence/state-branch maintenance (297), prompt injection (298), docs/config (299), and observability (300). All distinct from ranking and bounded rendering.
+- plans/ and docs/: No plans or docs covering Aider-style ranking or token-bounded map rendering found.
+
+No prior task covers directed relationship graph formation, PageRank-style symbol scoring, task-relevance boosting, or token-budget-bounded rendering. OOMPAH-296 is net-new implementation work.
 ---
 <!-- COMMENTS:END -->
