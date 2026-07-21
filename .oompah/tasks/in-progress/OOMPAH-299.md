@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T15:14:09.575764Z'
-updated_at: '2026-07-21T23:00:42.916160Z'
+updated_at: '2026-07-21T23:02:43.088308Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,25 @@ author: oompah
 created: 2026-07-21 23:00
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 23:02
+---
+Duplicate screening complete: no duplicate found.
+
+Searched all .oompah/tasks/ directories (archived ~223 tasks, merged ~50 tasks, done/backlog) and plans/ for: repository-map, repo-map, repomap, repo_map, token-budget, max-file-size, generation-timeout, retained-artifact, language-policy, OOMPAH_REPO_MAP, env.example + repo-map, operator + repo-map, bootstrap + repo-map.
+
+Closest reviewed tasks (all confirmed distinct):
+- OOMPAH-258 (Merged): 'Configure Git state branches in project-bootstrap and operator documentation' — superficially similar (bootstrap + operator docs) but covers the state-branch feature, not repository maps. Distinct scope.
+- OOMPAH-297 (Done): 'Generate and maintain repository maps on Git-backed state branches' — implements the generation/maintenance orchestrator. Does not add env-backed config, bootstrap defaults, or operator documentation.
+- OOMPAH-294 (Done): Defines artifact schema and lifecycle. Covers storage paths and freshness, not operator configuration or bootstrap.
+- OOMPAH-295 (Done): Tree-sitter extraction (indexing layer only).
+- OOMPAH-296 (Merged): Ranking and bounded rendering (output layer only).
+- OOMPAH-298 (Open): Prompt injection (downstream consumer, distinct from config/docs).
+- OOMPAH-300 (Open): End-to-end observability (distinct observability layer).
+
+No existing task covers: OOMPAH_REPO_MAP_* environment variable definitions, env.example repo-map section, bootstrap defaults for repo-map capability, or operator documentation for activation, freshness, diagnostics, privacy/trust boundaries, and rebuild procedures.
+
+OOMPAH-299 is net-new work.
 ---
 <!-- COMMENTS:END -->
