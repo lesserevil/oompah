@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T21:33:05.631930Z'
-updated_at: '2026-07-21T21:34:00.298629Z'
+updated_at: '2026-07-21T21:34:10.490380Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-07-21 21:34
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 21:34
+---
+Understanding: This task requests rebasing epic-OOMPAH-285 onto main and force-pushing with --force-with-lease. As Duplicate Investigator, I will first search for any similar/duplicate rebase tasks before proceeding.
 ---
 <!-- COMMENTS:END -->
