@@ -7,10 +7,12 @@ title: Add explicit forge configuration and backward-compatible project migratio
 parent: OOMPAH-318
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-21T20:33:31.453522Z'
-updated_at: '2026-07-21T22:17:36.097350Z'
+updated_at: '2026-07-21T22:18:22.049160Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +61,15 @@ author: oompah
 created: 2026-07-21 22:17
 ---
 Understanding: I am performing the required duplicate screening only. I will compare this explicit forge configuration/migration scope against existing forge and GitLab tasks, read any candidate task details and comments, then either archive this task as a confirmed duplicate or leave a duplicate-detector handoff for implementation.
+---
+author: oompah
+created: 2026-07-21 22:18
+---
+Discovery: Duplicate screening found no confirmed duplicate. OOMPAH-318 is the parent epic; OOMPAH-327 covers later UI/API/ACP exposure and health controls, OOMPAH-329 covers final cross-forge acceptance, and OOMPAH-320 covers provider contracts. None implements this task's model/persistence validation and compatibility migration scope. Git history contains only the parity plan, not an implementation of forge_kind/forge_base_url.
+---
+author: oompah
+created: 2026-07-21 22:18
+---
+Focus handoff: duplicate_detector\n\n1. Outcome: no duplicate confirmed; OOMPAH-319 remains the distinct foundation child for explicit forge configuration and persisted-project migration.\n2. Evidence: searched , docs, plans, README.md, and WORKFLOW.md for forge/GitLab terms; reviewed OOMPAH-318, OOMPAH-320, OOMPAH-327, and OOMPAH-329 with ; inspected all git history messages matching forge/GitLab.\n3. Remaining work/risks: implement and test ProjectStore/model/API compatibility, including validation and canonical normalization; coordinate the serialization boundary so OOMPAH-327 can layer UI controls without duplicating model work.\n4. Recommended next focus: feature (backend configuration/model implementation).
 ---
 <!-- COMMENTS:END -->
