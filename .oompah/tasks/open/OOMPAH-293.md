@@ -13,13 +13,15 @@ children:
 - OOMPAH-298
 - OOMPAH-299
 - OOMPAH-300
+- OOMPAH-330
 blocked_by: []
 labels:
 - needs:backend
 - needs:agents
+- epic:rebasing
 assignee: null
 created_at: '2026-07-21T15:13:33.130186Z'
-updated_at: '2026-07-21T18:55:11.225076Z'
+updated_at: '2026-07-21T20:59:29.086386Z'
 work_branch: null
 target_branch: null
 review_url: null
