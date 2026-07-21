@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-306
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -9,9 +9,10 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:frontend
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T16:47:02.644214Z'
+updated_at: '2026-07-21T16:48:07.849440Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 79425b21-926b-4d17-aedd-9dc96127e6e6
 oompah.task_costs:
-  total_input_tokens: 1130693
-  total_output_tokens: 5898
+  total_input_tokens: 1609925
+  total_output_tokens: 7808
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1130693
-      output_tokens: 5898
+      input_tokens: 1609925
+      output_tokens: 7808
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -34,6 +35,12 @@ oompah.task_costs:
     output_tokens: 5898
     cost_usd: 0.0
     recorded_at: '2026-07-21T16:45:36.238592+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 479232
+    output_tokens: 1910
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T16:48:04.116874+00:00'
 ---
 ## Summary
 
@@ -116,5 +123,35 @@ author: oompah
 created: 2026-07-21 16:47
 ---
 Understanding (duplicate screening): I will search existing native task records for prior work on state-branch canonical task reads, cache invalidation, and stale dashboard/API state, then read any candidates fully before deciding whether OOMPAH-306 is a duplicate.
+---
+author: oompah
+created: 2026-07-21 16:47
+---
+Discovery (duplicate screening): No confirmed duplicate. Reviewed the state-branch epic OOMPAH-253 and its implementation tasks OOMPAH-255, OOMPAH-257, OOMPAH-258, and OOMPAH-260, plus current state-branch-error task OOMPAH-282. OOMPAH-256 is the closest related completed work (state-branch tracker read/write routing); OOMPAH-257 covers checkpoint coalescing. Neither addresses stale server issue/detail cache keys by state-branch tracker revision, nor requires board/drawer/API/CLI agreement and degraded-read terminal-state safety. OOMPAH-306 is distinct.
+---
+author: oompah
+created: 2026-07-21 16:47
+---
+Focus handoff: duplicate_detector\n\n1. Outcome: no duplicate confirmed; OOMPAH-306 remains the canonical task for stale state-branch task displays.\n\n2. Evidence: searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for canonical-state, state-branch reads, stale snapshots, cache invalidation, and tracker revisions; read OOMPAH-253, OOMPAH-255, OOMPAH-257, OOMPAH-258, OOMPAH-260, and OOMPAH-282. The prior frontend handoff identifies dashboard.html freshness handling already added, while server.py cache revision routing remains outstanding.\n\n3. Remaining work/risks: implement canonical state-branch revision reads and revision-aware cache keys/invalidation for list/detail/API/CLI; ensure degraded reads cannot emit false terminal status; add the required cross-view regression coverage.\n\n4. Recommended next focus: feature (backend tracker/cache implementation).
+---
+author: oompah
+created: 2026-07-21 16:48
+---
+Agent completed successfully in 73s (481142 tokens)
+---
+author: oompah
+created: 2026-07-21 16:48
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 22
+- Tokens: 479.2K in / 1.9K out [481.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 13s
+- Log: OOMPAH-306__20260721T164654Z.jsonl
+---
+author: oompah
+created: 2026-07-21 16:48
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
