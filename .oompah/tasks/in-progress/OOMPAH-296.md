@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-296
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Implement Aider-style repository-map ranking and bounded rendering
 parent: OOMPAH-293
@@ -13,13 +13,13 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T16:51:04.422740Z'
+updated_at: '2026-07-21T16:51:14.468680Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: e602bdc5-0929-42dd-bfa2-840ef1b99f69
+oompah.agent_run_id: 30ceb0ca-c179-4a85-9d7b-20c6b16f6421
 oompah.task_costs:
   total_input_tokens: 630953
   total_output_tokens: 14201
@@ -245,5 +245,15 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 39s
 - Log: OOMPAH-296__20260721T164924Z.jsonl
+---
+author: oompah
+created: 2026-07-21 16:51
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 16:51
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
