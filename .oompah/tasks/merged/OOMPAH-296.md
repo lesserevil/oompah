@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-296
 type: task
-status: In Progress
+status: Merged
 priority: 0
 title: Implement Aider-style repository-map ranking and bounded rendering
 parent: OOMPAH-293
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T21:33:35.264865Z'
+updated_at: '2026-07-21T21:35:24.879932Z'
 work_branch: null
 target_branch: null
 review_url: null
