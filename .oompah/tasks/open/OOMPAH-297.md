@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-297
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Generate and maintain repository maps on Git-backed state branches
 parent: OOMPAH-293
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:07.528667Z'
-updated_at: '2026-07-21T22:16:12.751813Z'
+updated_at: '2026-07-21T22:26:51.504084Z'
 work_branch: null
 target_branch: null
 review_url: null
