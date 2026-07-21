@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-333
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: 'merge conflict on PR #468 (fix-release-selected-commits)'
 parent: null
@@ -11,13 +11,13 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T21:02:27.066884Z'
-updated_at: '2026-07-21T21:13:56.997491Z'
+updated_at: '2026-07-21T21:33:56.446309Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 0c5d20eb-c7f5-47f2-a8ca-cc76ad46b29f
+oompah.agent_run_id: 035aa414-351a-4f8c-975f-7b6a25da6f08
 oompah.task_costs:
   total_input_tokens: 52
   total_output_tokens: 12839
@@ -114,5 +114,15 @@ Steps to resolve:
   git push origin OOMPAH-333
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-21 21:33
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-21 21:33
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
