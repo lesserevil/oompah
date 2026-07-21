@@ -10,6 +10,10 @@ children:
 - OOMPAH-320
 - OOMPAH-321
 - OOMPAH-322
+- OOMPAH-323
+- OOMPAH-324
+- OOMPAH-325
+- OOMPAH-326
 blocked_by: []
 labels:
 - needs:backend
@@ -17,7 +21,7 @@ labels:
 - needs:docs
 assignee: null
 created_at: '2026-07-21T20:33:00.759935Z'
-updated_at: '2026-07-21T20:33:52.359398Z'
+updated_at: '2026-07-21T20:34:28.310162Z'
 work_branch: null
 target_branch: null
 review_url: null
