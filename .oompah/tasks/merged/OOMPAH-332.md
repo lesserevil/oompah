@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-332
 type: task
-status: In Review
+status: Merged
 priority: 0
 title: 'YOLO task-PR coherence break on oompah/468: merge-conflict recovery task missing
   or stale'
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T21:01:56.725203Z'
-updated_at: '2026-07-21T21:50:05.157914Z'
+updated_at: '2026-07-21T21:55:54.190290Z'
 work_branch: OOMPAH-332
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/483
