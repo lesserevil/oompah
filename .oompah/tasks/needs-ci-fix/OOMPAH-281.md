@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-281
 type: task
-status: Done
-priority: null
+status: Needs CI Fix
+priority: 0
 title: Run Oompah CI on a containerized self-hosted GitHub Actions runner
 parent: null
 children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- ci-fix
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-20T23:55:57.642494Z'
+updated_at: '2026-07-21T03:40:56.470751Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
@@ -533,5 +534,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 58s
 - Log: OOMPAH-281__20260720T235059Z.jsonl
+---
+author: oompah
+created: 2026-07-21 03:40
+---
+YOLO: CI tests failed on MR #458. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
