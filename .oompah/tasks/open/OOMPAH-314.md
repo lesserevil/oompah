@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-314
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Deliver only selected commits to release branches and monitor release CI
 parent: null
@@ -11,7 +11,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T17:26:00.639454Z'
+updated_at: '2026-07-21T17:30:24.208321Z'
 work_branch: null
 target_branch: null
 review_url: null
