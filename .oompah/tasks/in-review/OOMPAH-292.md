@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-292
 type: task
-status: In Progress
+status: In Review
 priority: null
 title: Show mergeable-item summaries and full task details in Release Delivery
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:23:38.002699Z'
+updated_at: '2026-07-21T15:24:10.118902Z'
 work_branch: null
 target_branch: null
 review_url: null
