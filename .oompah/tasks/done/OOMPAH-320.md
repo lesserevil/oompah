@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:50.132513Z'
-updated_at: '2026-07-21T23:22:17.143888Z'
+updated_at: '2026-07-21T23:22:19.360592Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -274,5 +274,10 @@ Acceptance criteria met:
 ✅ No workflow consumer uses GitHub-specific provider methods for supported behavior
 ✅ Contract documents error and unavailable-capability semantics in code
 ✅ make test passes
+---
+author: oompah
+created: 2026-07-21 23:22
+---
+Forge-neutral SCM/CI provider contract defined and tested. CIStatus enum, CapabilityWarning TypedDict, normalize_ci_status(), get_review_commits() contract method, and SCMProvider docstrings added to oompah/scm.py. 9 new contract tests in test_scm.py. 5 test files updated to mock get_review_commits instead of get_pr_commits. All 10525 tests pass.
 ---
 <!-- COMMENTS:END -->
