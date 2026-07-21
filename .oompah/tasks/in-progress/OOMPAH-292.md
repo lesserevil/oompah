@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:22:59.134647Z'
+updated_at: '2026-07-21T15:23:09.252560Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -199,5 +199,22 @@ Verification: All 9918 tests pass (36 skipped, 0 failed). New tests added:
 - TestDrawerWidth (3 tests): min(800px,40vw), max-width fallback, 420px removed
 - TestFullTaskDetailInDrawer (17 tests): detail endpoint called, project_id passed, all core fields rendered, loading state, error display, delivery evidence preserved
 Branch pushed to origin/OOMPAH-292.
+---
+author: oompah
+created: 2026-07-21 15:23
+---
+Completion: Delivered all items specified in OOMPAH-292:
+
+1. Backend (release_delivery_backlog.py): ITEM_SUMMARY_MAX_LENGTH=280, _extract_item_summary() with HTML stripping/whitespace normalisation/truncation/None-fallback, summary field on ItemRow.
+
+2. API (server.py): summary included in every item row in backlog JSON response.
+
+3. Frontend — summary in rows (release_delivery.html): .rdi-item-summary span rendered below title via textContent (never innerHTML), with aria-label for accessibility.
+
+4. Frontend — drawer width: min(800px, 40vw) with max-width: 90vw fallback — matches dashboard detail panel exactly (OOMPAH-263 parity).
+
+5. Frontend — full task detail in drawer: _rdiFetchTaskDetail() calls GET /api/v1/issues/{identifier}/detail?project_id=... and _rdiRenderTaskDetail() renders title, type, state, priority, labels, parent, description (pre-wrapped), children, source/repository links, tracker metadata, created/updated timestamps, and comments. Loading state shown while fetching; errors rendered safely via _rdiEsc(); delivery evidence (_rdiBuildDeliverySection) always appended synchronously so it is never lost. Unassociated commits do not trigger a detail fetch.
+
+6. Tests: 44 new tests added across backlog unit tests, server API tests, and template tests. 2 existing tests updated. All 9918 tests pass.
 ---
 <!-- COMMENTS:END -->
