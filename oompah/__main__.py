@@ -239,6 +239,13 @@ def main() -> None:
         # Use basic print here — logging not yet configured
         print(f"Loaded {n} variable(s) from {env_path}", file=sys.stderr)
 
+    try:
+        from oompah.temp_root import TempRootError, configure_temp_root
+
+        configure_temp_root(os.environ.get("OOMPAH_TEMP_ROOT"))
+    except TempRootError as exc:
+        sys.exit(f"ERROR: {exc}")
+
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,

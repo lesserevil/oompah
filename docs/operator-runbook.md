@@ -636,6 +636,16 @@ make start
 | `.oompah.pid` | PID of the background oompah process |
 | `oompah.log` | Service log (append-only; survives restarts) |
 | `$OOMPAH_WORKSPACE_ROOT` | Root for agent workspaces and git worktrees |
+| `$OOMPAH_TEMP_ROOT` | Private temporary root inherited by Oompah, Git, and agent tools; defaults to `~/.oompah/tmp` |
+
+### Temporary files
+
+Oompah deliberately does not use the shared system `/tmp` by default. On
+startup it creates `OOMPAH_TEMP_ROOT` with owner-only permissions and exports
+it as `TMPDIR`, `TMP`, and `TEMP` to the service and every child process. This
+prevents a shared tmpfs quota from stopping an agent during a Git commit or
+finalization step. Set `OOMPAH_TEMP_ROOT` in `.env` to move it; it must be an
+absolute path (or begin with `~`) and must be writable by the service user.
 
 ---
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import os
 import re
-import tempfile
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -20,6 +19,7 @@ from oompah.statuses import (
     NEEDS_REBASE,
     OPEN,
 )
+from oompah.temp_root import default_temp_root, default_workspace_root, resolve_temp_root
 
 logger = logging.getLogger(__name__)
 
@@ -336,6 +336,7 @@ class ServiceConfig:
     poll_interval_ms: int = 120000
     full_sync_interval_ms: int = 300000  # 5 minutes — safety-net full sync
     workspace_root: str = ""
+    temp_root: str = ""
     hooks_after_create: str | None = None
     hooks_before_run: str | None = None
     hooks_after_run: str | None = None
@@ -507,10 +508,9 @@ class ServiceConfig:
         self.merged_labels_max_runtime_seconds = max(
             int(self.merged_labels_max_runtime_seconds), 0
         )
+        self.temp_root = str(resolve_temp_root(self.temp_root or default_temp_root()))
         if not self.workspace_root:
-            self.workspace_root = os.path.join(
-                tempfile.gettempdir(), "oompah_workspaces"
-            )
+            self.workspace_root = default_workspace_root()
 
     @classmethod
     def from_workflow(
@@ -555,7 +555,7 @@ class ServiceConfig:
         if ws_root:
             ws_root = _expand_path(str(ws_root))
         else:
-            ws_root = os.path.join(tempfile.gettempdir(), "oompah_workspaces")
+            ws_root = default_workspace_root()
 
        # Parse agent profiles from WORKFLOW.md YAML.
         # These are the *YAML-authored* profiles. Source precedence:
@@ -693,10 +693,11 @@ class ServiceConfig:
         )
         server_port = _coerce_int(raw_port, None) if raw_port is not None else None
 
-        # Workspace root: env > yaml > tempdir
+        # Workspace root: env > yaml > Oompah home default.
         env_ws = os.environ.get("OOMPAH_WORKSPACE_ROOT")
         if env_ws:
             ws_root = _expand_path(env_ws)
+        temp_root = os.environ.get("OOMPAH_TEMP_ROOT") or default_temp_root()
 
         return cls(
             tracker_kind=tracker_kind,
@@ -709,6 +710,7 @@ class ServiceConfig:
             poll_interval_ms=_env_int("OOMPAH_POLL_INTERVAL_MS", polling.get("interval_ms"), 120000),
             full_sync_interval_ms=_env_int("OOMPAH_FULL_SYNC_INTERVAL_MS", polling.get("full_sync_interval_ms"), 300000),
             workspace_root=ws_root,
+            temp_root=temp_root,
             hooks_after_create=hooks.get("after_create"),
             hooks_before_run=hooks.get("before_run"),
             hooks_after_run=hooks.get("after_run"),
