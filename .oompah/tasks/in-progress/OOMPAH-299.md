@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-299
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Add repository-map configuration, bootstrap defaults, and operator documentation
 parent: OOMPAH-293
@@ -11,12 +11,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T15:14:09.575764Z'
-updated_at: '2026-07-21T15:45:21.138812Z'
+updated_at: '2026-07-21T23:00:42.916160Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 02f9bb7f-9a10-4200-8027-c995cdfc72ba
 ---
 ## Summary
 
@@ -28,3 +29,16 @@ Add environment-backed configuration for repository maps: enable flag, token bud
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 23:00
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 23:00
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
