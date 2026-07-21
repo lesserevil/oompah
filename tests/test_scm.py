@@ -5,7 +5,10 @@ import time
 from unittest import mock
 
 from oompah.scm import (
+    CIStatus,
+    CIState,
     ReviewRequest,
+    SCMProvider,
     _is_protected_branch,
     _read_pr_detail_cache_ttl,
     _truncate,
@@ -13,7 +16,88 @@ from oompah.scm import (
     extract_repo_slug,
     GitHubProvider,
     GitLabProvider,
+    normalize_ci_status,
+    unavailable_capability_warning,
 )
+
+
+class _ContractFakeProvider(SCMProvider):
+    """Minimal implementation used to exercise SCMProvider defaults."""
+
+    def list_open_reviews(self, repo): return []
+    def list_merged_branches(self, repo): return set()
+    def list_merged_reviews(self, repo): return []
+    def find_pr_for_branch(self, repo, branch_name): return None
+    def get_review(self, repo, review_id): return None
+    def create_review(self, repo, title, source_branch, target_branch="main", description=""): return None
+    def rebase_review(self, repo, review_id): return False, "unavailable"
+    def needs_rebase(self, repo, review_id): return False
+    def merge_review(self, repo, review_id): return False, "unavailable"
+    def close_review(self, repo, review_id, comment=""): return False, "unavailable"
+    def enable_auto_merge(self, repo, review_id): return False, "unavailable"
+    def is_available(self): return True
+    def provider_name(self): return "fake"
+    def get_review_files(self, repo, review_id): return []
+    def add_review_label(self, repo, review_id, label): pass
+    def remove_review_label(self, repo, review_id, label): pass
+    def get_pr_commits(self, repo, review_id): return ["a" * 40]
+
+
+class TestSCMProviderContract:
+    """Contract fixtures that every real provider inherits or implements."""
+
+    def test_fake_provider_optional_capabilities_degrade_with_warning(self):
+        provider = _ContractFakeProvider()
+
+        assert provider.get_review_comments("org/repo", "7") == []
+        assert provider.get_capability_warnings({"review_comments"}) == [
+            unavailable_capability_warning("review_comments"),
+        ]
+        assert provider.get_branch_ci_status("org/repo", "main") is CIStatus.UNKNOWN
+
+    def test_legacy_commit_implementation_is_available_through_contract_name(self):
+        assert _ContractFakeProvider().get_review_commits("org/repo", "7") == ["a" * 40]
+
+    def test_review_request_normalizes_legacy_and_unknown_ci_values(self):
+        base = dict(id="1", title="t", url="u", author="a", state="open", source_branch="b", target_branch="main", created_at="", updated_at="")
+        assert ReviewRequest(**base, ci_status="passed").ci_status is CIStatus.PASSED
+        assert ReviewRequest(**base, ci_status="unexpected").ci_status is CIStatus.UNKNOWN
+
+    def test_existing_github_provider_inherits_optional_contract_defaults(self):
+        provider = GitHubProvider(access_token="test")
+
+        assert provider.get_review_comments("org/repo", "7") == []
+        assert provider.get_capability_warnings({"review_comments"}) == [
+            unavailable_capability_warning("review_comments"),
+        ]
+
+    def test_ci_normalizer_covers_all_contract_states(self):
+        assert CIState is CIStatus
+        assert normalize_ci_status("passed") is CIStatus.PASSED
+        assert normalize_ci_status("failed") is CIStatus.FAILED
+        assert normalize_ci_status("pending") is CIStatus.PENDING
+        assert normalize_ci_status("") is CIStatus.UNKNOWN
+        assert normalize_ci_status(None) is CIStatus.UNKNOWN
+        assert normalize_ci_status("vendor-specific-state") is CIStatus.UNKNOWN
+
+    def test_branch_ci_status_normalizes_legacy_provider_values(self):
+        class _ProviderWithLegacyCI(_ContractFakeProvider):
+            def get_branch_head_sha(self, repo, branch):
+                return "a" * 40
+
+            def get_ci_status_for_sha(self, repo, sha):
+                return "vendor-specific-state"
+
+        assert (
+            _ProviderWithLegacyCI().get_branch_ci_status("org/repo", "main")
+            is CIStatus.UNKNOWN
+        )
+
+    def test_github_ci_status_uses_unknown_for_unsupported_legacy_value(self):
+        provider = GitHubProvider(access_token="test")
+        provider._fetch_ci_status = lambda repo, sha: "vendor-specific-state"
+
+        assert provider.get_ci_status_for_sha("org/repo", "a" * 40) is CIStatus.UNKNOWN
 
 
 class TestIsProtectedBranch:

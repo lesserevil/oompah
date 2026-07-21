@@ -478,7 +478,7 @@ class TestRouteDeletedBranchPRFallback:
         )
 
         scm = MagicMock()
-        scm.get_pr_commits.return_value = [_PR_SHA]
+        scm.get_review_commits.return_value = [_PR_SHA]
 
         project = _make_project(tmp_path, repo_url=_REPO_URL)
         orch = _make_orchestrator(project)
@@ -532,7 +532,7 @@ class TestRouteDeletedBranchPRFallback:
         )
 
         scm = MagicMock()
-        scm.get_pr_commits.return_value = [_PR_SHA]
+        scm.get_review_commits.return_value = [_PR_SHA]
 
         project = _make_project(tmp_path, repo_url=_REPO_URL)
         orch = _make_orchestrator(project)
@@ -557,8 +557,8 @@ class TestRouteDeletedBranchPRFallback:
         assert resp.status_code == 200
 
         # The SCM provider must have been called exactly once with the correct args
-        scm.get_pr_commits.assert_called_once_with(_MANAGED_REPO, _REVIEW_NUMBER), (
-            f"SCM.get_pr_commits must receive ({_MANAGED_REPO!r}, {_REVIEW_NUMBER!r}). "
+        scm.get_review_commits.assert_called_once_with(_MANAGED_REPO, _REVIEW_NUMBER), (
+            f"SCM.get_review_commits must receive ({_MANAGED_REPO!r}, {_REVIEW_NUMBER!r}). "
             "This confirms the factory correctly passed owner/repo to the service."
         )
 
@@ -578,7 +578,7 @@ class TestRouteDeletedBranchPRFallback:
 
         scm = MagicMock()
         # SCM returns a SHA that is NOT in the enumerated main commits
-        scm.get_pr_commits.return_value = [_FOREIGN_SHA]
+        scm.get_review_commits.return_value = [_FOREIGN_SHA]
 
         project = _make_project(tmp_path, repo_url=_REPO_URL)
         orch = _make_orchestrator(project)
@@ -655,7 +655,7 @@ class TestRouteDeletedBranchPRFallback:
             "must be excluded from the backlog."
         )
         # SCM must not have been consulted (no review_number to look up)
-        scm.get_pr_commits.assert_not_called()
+        scm.get_review_commits.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -684,7 +684,7 @@ class TestFactoryCacheInitialization:
         orch = _make_orchestrator(project)
 
         fake_scm = MagicMock()
-        fake_scm.get_pr_commits.return_value = []
+        fake_scm.get_review_commits.return_value = []
 
         empty_backlog = BacklogResult(
             project_id=_PROJECT_ID,

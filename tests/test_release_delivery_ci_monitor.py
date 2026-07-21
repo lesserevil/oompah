@@ -614,7 +614,8 @@ class TestGetCiStatusForSha:
         gh = self._make_github()
         with patch.object(gh, "_fetch_ci_status", side_effect=RuntimeError("network")):
             status = GitHubProvider.get_ci_status_for_sha(gh, "org/repo", "a" * 40)
-        assert status == ""
+        from oompah.scm import CIStatus
+        assert status is CIStatus.UNKNOWN
 
 
 class TestGetBranchCiStatus:
@@ -679,4 +680,5 @@ class TestGetBranchCiStatus:
 
         scm = _FakeSCM()
         result = scm.get_branch_ci_status("org/repo", "release/0.11")
-        assert result == ""
+        from oompah.scm import CIStatus
+        assert result is CIStatus.UNKNOWN
