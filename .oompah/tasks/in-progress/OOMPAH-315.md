@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-315
 type: bug
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -15,7 +15,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T20:47:07.856707Z'
+updated_at: '2026-07-21T20:48:04.175210Z'
 work_branch: OOMPAH-315
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/476
@@ -44,7 +44,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-21T18:20:20.176791+00:00'
-oompah.agent_run_id: ed592296-d191-440b-92c2-c9ace493d0af
+oompah.agent_run_id: b502048a-c074-443d-968f-5fe25ae3a04f
 oompah.task_costs:
   total_input_tokens: 90
   total_output_tokens: 26917
@@ -328,5 +328,15 @@ author: oompah
 created: 2026-07-21 20:46
 ---
 YOLO: Merge conflict detected on MR #476. Rebase onto main and resolve conflicts.
+---
+author: oompah
+created: 2026-07-21 20:48
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 20:48
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
