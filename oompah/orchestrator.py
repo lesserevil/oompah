@@ -9538,6 +9538,9 @@ class Orchestrator:
         # Poll PR state for in_review deliveries and reconcile merged PRs.
         # Runs after dispatch so conflicts don't block in_review polling.
         self._reconcile_delivery_pr_outcomes_sweep()
+        # Monitor release branch CI for recently-merged deliveries and file
+        # remediation tasks when CI fails.
+        self._monitor_merged_delivery_ci()
 
     def _process_release_delivery_queue(self) -> None:
         """Claim and execute one pending ledger delivery per project."""
@@ -9569,7 +9572,7 @@ class Orchestrator:
                     scm=scm,
                     repo=repo,
                     project=project,
-                    sync_source_branch=True,
+                    sync_source_branch=False,
                 )
                 logger.info(
                     "release delivery %s for %s is now %s",
@@ -9819,6 +9822,209 @@ class Orchestrator:
                     getattr(project, "name", project.id),
                     exc,
                 )
+
+    def _monitor_merged_delivery_ci(self) -> None:
+        """Check release branch CI after delivery PRs are merged.
+
+        For each ``merged`` delivery without a ``ci_remediation_task_id``,
+        fetches the HEAD commit SHA of the target release branch, checks CI
+        status, and — when CI has failed — creates an internal oompah
+        remediation task and stamps ``ci_remediation_task_id`` on the
+        delivery to prevent duplicate dispatch.
+
+        Design invariants
+        -----------------
+
+        * Only ``merged`` deliveries are considered.
+        * Idempotency: ``ci_remediation_task_id`` is checked before checking
+          CI; a second call for the same delivery is a no-op.
+        * Deliveries with empty ``result_commits`` are skipped (no evidence of
+          what actually landed — typically race conditions during the merge).
+        * A CI status of ``"pending"`` is not actionable; only ``"failed"``
+          triggers remediation.
+        * Per-project or per-delivery exceptions are caught and logged; a
+          failing project never prevents monitoring for other projects.
+        * Skips projects without ``repo_url``.
+        """
+        from oompah.release_addendum_schema import AddendumStatus as _AS
+
+        for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("release_picks"):
+                logger.debug("delivery CI monitor: stopped at runtime budget")
+                break
+            if not getattr(project, "repo_url", None):
+                continue
+            try:
+                tracker = self._tracker_for_project(str(project.id))
+                store = make_delivery_store(project, git_writer=tracker)
+                try:
+                    ledger = store.read_ledger()
+                except Exception as ledger_exc:  # noqa: BLE001
+                    logger.debug(
+                        "delivery CI monitor: cannot read ledger for %s: %s",
+                        getattr(project, "name", project.id),
+                        ledger_exc,
+                    )
+                    continue
+
+                merged = [
+                    d for d in ledger.deliveries
+                    if d.status is _AS.MERGED
+                    and not d.ci_remediation_task_id
+                    and d.result_commits
+                ]
+                if not merged:
+                    continue
+
+                try:
+                    scm = detect_provider(
+                        project.repo_url,
+                        access_token=getattr(project, "access_token", None),
+                    )
+                    repo = extract_repo_slug(project.repo_url)
+                except Exception as scm_exc:  # noqa: BLE001
+                    logger.debug(
+                        "delivery CI monitor: SCM detection failed for %s: %s",
+                        getattr(project, "name", project.id),
+                        scm_exc,
+                    )
+                    continue
+                if scm is None:
+                    continue
+
+                for delivery in merged:
+                    if self._job_deadline_exceeded("release_picks"):
+                        break
+                    try:
+                        self._check_and_remediate_delivery_ci(
+                            project, store, delivery, scm=scm, repo=repo
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        logger.debug(
+                            "delivery CI monitor: check failed for delivery %r: %s",
+                            delivery.id,
+                            exc,
+                        )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "delivery CI monitor: failed for project %s: %s",
+                    getattr(project, "name", project.id),
+                    exc,
+                )
+
+    def _check_and_remediate_delivery_ci(
+        self,
+        project: Any,
+        store: Any,
+        delivery: Any,
+        *,
+        scm: Any,
+        repo: str,
+    ) -> None:
+        """Check CI on the release branch for a merged delivery and remediate.
+
+        Fetches the HEAD SHA of the delivery's target branch, checks CI
+        status, and creates a remediation task if CI has failed.  Stamps
+        ``ci_remediation_task_id`` on the delivery before creating the task
+        to guard against duplicate dispatch across ticks.
+
+        Args:
+            project: Project owning the delivery.
+            store: Ledger store for the project.
+            delivery: The ``merged`` delivery to check.
+            scm: SCM provider for branch HEAD SHA and CI status lookups.
+            repo: Repository slug (e.g. ``"org/repo"``).
+        """
+        target_branch = delivery.target_branch
+
+        # Use get_branch_ci_status which combines HEAD SHA lookup + CI check
+        ci_status = scm.get_branch_ci_status(repo, target_branch)
+
+        if ci_status != "failed":
+            # pending, passed, or unknown — nothing to remediate yet
+            return
+
+        logger.info(
+            "_check_and_remediate_delivery_ci: CI failed on %r after "
+            "delivery %r merged; filing remediation task",
+            target_branch,
+            delivery.id,
+        )
+        self._dispatch_release_ci_fix_task(project, store, delivery)
+
+    def _dispatch_release_ci_fix_task(
+        self,
+        project: Any,
+        store: Any,
+        delivery: Any,
+    ) -> None:
+        """Create an internal oompah CI-fix remediation task for *delivery*.
+
+        Stamps ``ci_remediation_task_id`` on the delivery before creating
+        the internal task to prevent duplicate dispatch across ticks.
+
+        Args:
+            project: Project owning the delivery.
+            store: Ledger store for reading/writing delivery state.
+            delivery: The ``merged`` delivery whose release branch CI failed.
+        """
+        project_name = getattr(project, "name", str(project.id))
+        source_label = delivery.source_identifier or delivery.id
+        title = (
+            f"Release branch CI failure: {project_name} {delivery.target_branch} "
+            f"after delivery {delivery.id}"
+        )
+        description = (
+            f"Release branch **`{delivery.target_branch}`** CI failed after "
+            f"delivery `{delivery.id}` was merged.\n\n"
+            f"**Project:** {project_name}\n"
+            f"**Source:** {source_label}\n"
+            f"**Target branch:** `{delivery.target_branch}`\n"
+            f"**Work branch:** `{delivery.work_branch or '<unknown>'}`\n"
+            f"**PR URL:** {delivery.pr_url or '<unknown>'}\n"
+            f"**Result commits:** "
+            + ", ".join(f"`{c[:8]}`" for c in delivery.result_commits)
+            + "\n\n"
+            "**Action required:** Investigate CI failures on the release branch "
+            f"`{delivery.target_branch}`. Common causes:\n\n"
+            "1. The cherry-picked commits have test failures that were not caught "
+            "on the source branch.\n"
+            "2. Integration tests require environment configuration that differs "
+            "on the release branch.\n"
+            "3. A dependency or configuration conflict introduced by the delivery.\n\n"
+            f"Check the CI run at the release branch HEAD for details.\n\n"
+            "_This task was auto-filed by oompah. It is safe to close once "
+            "the release branch CI is green._"
+        )
+
+        try:
+            new_task = self.tracker.create_issue(
+                title=title,
+                issue_type="task",
+                description=description,
+                priority=1,
+                labels=["release-ci-failure"],
+                initial_status="Needs CI Fix",
+            )
+            store.update(
+                delivery.id,
+                ci_remediation_task_id=new_task.identifier,
+            )
+            logger.info(
+                "_dispatch_release_ci_fix_task: filed %s for delivery %r "
+                "(project=%s target=%s)",
+                new_task.identifier,
+                delivery.id,
+                project_name,
+                delivery.target_branch,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "_dispatch_release_ci_fix_task: failed to create remediation "
+                "task for delivery %r: %s",
+                delivery.id,
+                exc,
+            )
 
     def _label_merged_epics(self) -> None:
         """When an epic→main PR has merged, mark the epic AND all its

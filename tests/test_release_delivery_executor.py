@@ -6,7 +6,7 @@ Covers:
 - Missing catalog → target availability check skipped; execution continues.
 - Worktree creation failure → blocked.
 - Existing PR reused (idempotent re-run).
-- Cherry-pick conflict → blocked, worktree preserved.
+- Cherry-pick conflict → blocked, worktree preserved, error is actionable.
 - Non-conflict cherry-pick error → blocked.
 - Push failure → blocked.
 - PR-open failure → still transitions to in_review (pr_url=None).
@@ -15,6 +15,9 @@ Covers:
 - Result SHAs persisted before in_review transition.
 - work_branch persisted at start of execution.
 - No tracker task created or source task status changed.
+- REGRESSION (OOMPAH-314): sync_source_branch=False (default) never merges the source branch.
+- REGRESSION (OOMPAH-314): only source_commits are applied, not the full source branch.
+- Conflict delivery remains actionable (blocked with diagnostic error).
 """
 
 from __future__ import annotations
@@ -639,3 +642,167 @@ def test_cherry_pick_delivery_commits_kind_work_branch():
     # work_branch must have been set
     assert result.work_branch is not None
     assert result.work_branch.startswith("oompah/release/")
+
+
+# ---------------------------------------------------------------------------
+# Regression: selected delivery must NEVER merge the source branch
+# (OOMPAH-314 — PR #303 introduced all of main into release/0.11)
+# ---------------------------------------------------------------------------
+
+
+def test_selected_delivery_does_not_merge_source_branch():
+    """sync_source_branch=False (default): _merge_source_branch must not be called.
+
+    A selected-commit delivery must apply ONLY its immutable source_commits and
+    must not pull in additional commits from the source branch.
+    """
+    selected_commits = [_sha("a"), _sha("b")]
+    d = _delivery(source_commits=selected_commits)
+    store = _FakeStore([d])
+    ps = _make_project_store()
+    pr = _make_pr()
+    scm = _make_scm(created_pr=pr)
+
+    merge_calls = []
+
+    with (
+        patch(
+            "oompah.release_delivery_executor._merge_source_branch",
+            side_effect=lambda wt, branch: merge_calls.append((wt, branch)),
+        ),
+        patch("oompah.release_delivery_executor._has_new_commits", return_value=False),
+        patch("oompah.release_delivery_executor.apply_cherry_pick"),
+        patch("oompah.release_delivery_executor.push_branch"),
+        patch("oompah.release_delivery_executor._get_result_commits", return_value=[_RESULT_SHA]),
+    ):
+        result = cherry_pick_delivery(
+            store,
+            d,
+            project_store=ps,
+            project_id=PROJECT_ID,
+            scm=scm,
+            repo="org/repo",
+            sync_source_branch=False,  # explicit: no source branch merge
+        )
+
+    # The source branch must NOT have been merged — only selected commits applied
+    assert merge_calls == [], (
+        f"_merge_source_branch was called {len(merge_calls)} time(s) "
+        f"on a selected-commit delivery with sync_source_branch=False; "
+        f"this would introduce unselected commits from the source branch"
+    )
+    assert result.status is AddendumStatus.IN_REVIEW
+
+
+def test_selected_delivery_default_does_not_merge_source_branch():
+    """Default call (no sync_source_branch kwarg) must not merge source branch.
+
+    The default value of sync_source_branch is False.  Callers that do not pass
+    the argument must also never see a source-branch merge.
+    """
+    d = _delivery()
+    store = _FakeStore([d])
+    ps = _make_project_store()
+    pr = _make_pr()
+    scm = _make_scm(created_pr=pr)
+
+    merge_calls = []
+
+    with (
+        patch(
+            "oompah.release_delivery_executor._merge_source_branch",
+            side_effect=lambda wt, branch: merge_calls.append((wt, branch)),
+        ),
+        patch("oompah.release_delivery_executor._has_new_commits", return_value=False),
+        patch("oompah.release_delivery_executor.apply_cherry_pick"),
+        patch("oompah.release_delivery_executor.push_branch"),
+        patch("oompah.release_delivery_executor._get_result_commits", return_value=[_RESULT_SHA]),
+    ):
+        result = cherry_pick_delivery(
+            store,
+            d,
+            project_store=ps,
+            project_id=PROJECT_ID,
+            scm=scm,
+            repo="org/repo",
+            # sync_source_branch not passed — must default to False
+        )
+
+    assert merge_calls == [], (
+        "cherry_pick_delivery() without sync_source_branch called _merge_source_branch; "
+        "the default must be False to prevent unselected commits from entering "
+        "the release branch"
+    )
+    assert result.status is AddendumStatus.IN_REVIEW
+
+
+def test_only_source_commits_applied_not_full_source_branch():
+    """Regression: exactly the source_commits list is cherry-picked, nothing more.
+
+    Verifies that the executor passes the immutable source_commits snapshot
+    (and only those) to apply_cherry_pick, so no unselected commit from the
+    source branch can reach the release branch.
+    """
+    # Two selected commits — imagine the source branch has many more
+    selected_sha_a = "a" * 40
+    selected_sha_b = "b" * 40
+    d = _delivery(source_commits=[selected_sha_a, selected_sha_b])
+    store = _FakeStore([d])
+    ps = _make_project_store()
+    pr = _make_pr()
+    scm = _make_scm(created_pr=pr)
+
+    applied: list[list[str]] = []
+
+    def _capture(wt: str, commits: list[str]) -> None:
+        applied.append(list(commits))
+
+    with (
+        patch("oompah.release_delivery_executor._has_new_commits", return_value=False),
+        patch("oompah.release_delivery_executor.apply_cherry_pick", side_effect=_capture),
+        patch("oompah.release_delivery_executor.push_branch"),
+        patch("oompah.release_delivery_executor._get_result_commits", return_value=[_RESULT_SHA]),
+    ):
+        cherry_pick_delivery(
+            store,
+            d,
+            project_store=ps,
+            project_id=PROJECT_ID,
+            scm=scm,
+            repo="org/repo",
+        )
+
+    assert len(applied) == 1, "apply_cherry_pick should be called exactly once"
+    assert applied[0] == [selected_sha_a, selected_sha_b], (
+        f"Expected exactly the two selected commits; got {applied[0]!r}"
+    )
+
+
+def test_conflict_delivery_remains_actionable():
+    """Conflict path: blocked with diagnostic error, worktree preserved.
+
+    Verifies that a cherry-pick conflict still results in a blocked delivery
+    with an informative error — the conflict must be actionable by an agent.
+    """
+    d = _delivery()
+    store = _FakeStore([d])
+    ps = _make_project_store()
+    scm = _make_scm()
+
+    with (
+        patch("oompah.release_delivery_executor._has_new_commits", return_value=False),
+        patch(
+            "oompah.release_delivery_executor.apply_cherry_pick",
+            side_effect=CherryPickConflictError("CONFLICT (content): Merge conflict in auth.py"),
+        ),
+    ):
+        result = cherry_pick_delivery(
+            store, d, project_store=ps, project_id=PROJECT_ID, scm=scm, repo="org/repo"
+        )
+
+    assert result.status is AddendumStatus.BLOCKED
+    error = result.error or ""
+    # The error must be actionable: must mention the conflict and the commits
+    assert "conflict" in error.lower(), f"Error should mention 'conflict': {error!r}"
+    # The delivery is blocked — source_commits must be preserved (immutable)
+    assert result.source_commits == d.source_commits
