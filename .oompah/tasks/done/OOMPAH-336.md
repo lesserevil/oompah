@@ -11,13 +11,29 @@ labels:
 - release-ci-failure
 assignee: null
 created_at: '2026-07-21T22:22:50.075291Z'
-updated_at: '2026-07-21T22:42:51.712690Z'
+updated_at: '2026-07-21T22:43:07.920743Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 38a546ae-5b30-440f-af8c-f0142f4673cb
+oompah.task_costs:
+  total_input_tokens: 24
+  total_output_tokens: 7048
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 24
+      output_tokens: 7048
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: unknown
+    input_tokens: 24
+    output_tokens: 7048
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T22:42:59.695257+00:00'
 ---
 ## Summary
 
@@ -80,5 +96,20 @@ author: oompah
 created: 2026-07-21 22:42
 ---
 PR #485 merged: release-delivery CI failures now create actionable project-local tasks via project tracker, stale global remediation references auto-replaced, ci-fix routing label and acceptance criteria added. CI green (10734 passed on GitHub, 10508 locally).
+---
+author: oompah
+created: 2026-07-21 22:43
+---
+Agent completed successfully in 620s (7072 tokens)
+---
+author: oompah
+created: 2026-07-21 22:43
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
+- Turns: 48, Tool calls: 34
+- Tokens: 24 in / 7.0K out [7.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 20s
+- Log: OOMPAH-336__20260721T223241Z.jsonl
 ---
 <!-- COMMENTS:END -->
