@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T19:04:51.954483Z'
-updated_at: '2026-07-21T19:34:37.979722Z'
+updated_at: '2026-07-21T19:34:45.282673Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -139,5 +139,10 @@ author: oompah
 created: 2026-07-21 19:34
 ---
 Discovery: Root cause confirmed. The Codex CLI ACP backend (oompah/acp_backends/codex.py) passes sandbox_mode='workspace-write' to ThreadOptions. This sandbox restricts writes to the workspace directory path only. Git worktree metadata (index, HEAD, ORIG_HEAD etc.) lives at the path stored in <workspace>/.git — typically ~/.oompah/repos/oompah/.git/worktrees/<TASK>/ which is outside the sandbox boundary. ThreadOptions already accepts additional_directories (Sequence[str] | None) for exactly this purpose. Fix: detect the git worktree pattern and pass the metadata dir as additional_directories, granting targeted write access without opening the entire shared repo for writes.
+---
+author: oompah
+created: 2026-07-21 19:34
+---
+Implementation: Added _get_worktree_git_meta_dir() to oompah/acp_backends/codex.py. This helper reads <workspace>/.git if it is a file, parses the 'gitdir: ' prefix, resolves the metadata directory path (handles both absolute and relative gitdir paths), and returns it if it exists on disk. Modified _run_turn_via_cli() to call this helper and pass the result as additional_directories to ThreadOptions — so git add/commit/pull --rebase/push all work inside the workspace-write sandbox. The acp_session_start event payload now also includes additional_directories for audit/observability.
 ---
 <!-- COMMENTS:END -->
