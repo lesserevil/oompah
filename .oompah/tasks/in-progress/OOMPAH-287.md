@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T16:14:46.536314Z'
+updated_at: '2026-07-21T16:16:20.048709Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -142,5 +142,10 @@ author: oompah
 created: 2026-07-21 16:14
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-21 16:16
+---
+Understanding: This task requires implementing the provenance metadata model from plans/prompt-injection-protection.md (§8). The dependency (OOMPAH-286) is now merged and the plan is available. As Security Auditor, I need to (1) implement ContentProvenance dataclass with TrustLevel/ContentSource enums in a new oompah/provenance.py module, (2) add XML-delimiter wrapping of untrusted content in prompt.py, focus.py, and github_intake_bridge.py, (3) ensure default-deny for unknown sources, (4) escape delimiter injection attacks (closing tag in content), and (5) write comprehensive unit tests. Key security properties: server-side trust assignment only, default-deny for unknowns, and proper delimiter escape.
 ---
 <!-- COMMENTS:END -->
