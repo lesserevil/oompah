@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:10:00.405858Z'
+updated_at: '2026-07-21T17:10:37.400547Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,5 +65,15 @@ Implementation complete. Changes across 5 files:
 **Tests (test_server_release_delivery_backlog.py):** 4 new tests in TestDeliveryStatusConsistency verifying state/delivery_id/pr_url consistency across all states and branch isolation.
 
 Full test suite: 9989 passed, 36 skipped, 0 failed.
+---
+author: oompah
+created: 2026-07-21 17:10
+---
+Verification: make test ran 9989 tests, 36 skipped, 0 failed. Branch OOMPAH-304 pushed to origin. All acceptance criteria met:
+- No item with an active delivery is shown as not_selected (cache invalidated after executor/PR-poll runs)
+- PR link appears inline in the status cell when a delivery has a PR URL
+- 30-second auto-refresh active while open/in_progress/in_review/blocked deliveries exist
+- 'Queued — status updating...' hint shown when cache has not caught up yet
+- Branch isolation confirmed by TestDeliveryStatusConsistency.test_branch_isolation_different_branch_not_leaked
 ---
 <!-- COMMENTS:END -->
