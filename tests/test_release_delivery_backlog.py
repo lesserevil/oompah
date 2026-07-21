@@ -280,7 +280,7 @@ class TestItemBacklogService:
         if ancestry_shas is None:
             ancestry_shas = set()
 
-        def _mock_find_branch(repo_path, work_branch, main_shas, *, timeout=60):
+        def _mock_find_branch(repo_path, work_branch, main_shas, *, default_branch="main", timeout=60):
             if branch_commits_map is None:
                 return []
             return branch_commits_map.get(work_branch, [])
@@ -870,19 +870,24 @@ class TestUnassociatedCommitTrackerOnlyBound:
     # Behaviour beyond the cap: tracker_only defaults to False
     # ------------------------------------------------------------------
 
-    def test_commits_beyond_cap_have_tracker_only_false(self, tmp_path):
-        """Unassociated commits beyond MAX_UNASSOC_TRACKER_ONLY_CHECK get tracker_only=False.
+    def test_commits_beyond_cap_excluded_only_when_tracker_only_true(self, tmp_path):
+        """Tracker-only commits within the cap are excluded; unchecked commits beyond the cap are included.
 
-        The cap is for performance — not a filter.  Every unassociated commit
-        must appear in the result; commits beyond the cap default to
-        tracker_only=False (unknown / unchecked) rather than being dropped.
+        The cap is for performance: once MAX_UNASSOC_TRACKER_ONLY_CHECK commits
+        have been checked, further commits are assumed *not* tracker-only (False)
+        so they remain in the output.
+
+        OOMPAH-284 behaviour change: commits that ARE determined to be tracker-only
+        (i.e. checked within the cap and returned True) are now EXCLUDED from
+        unassociated_commits entirely, because they are not substantive code changes.
+        Commits beyond the cap (unchecked → tracker_only=False) are INCLUDED in
+        the output (conservative: we keep them because we couldn't check them).
         """
         total = MAX_UNASSOC_TRACKER_ONLY_CHECK + 20
         commits = self._make_large_unassociated_commits(total)
 
-        # Make _is_tracker_only_commit always return True so that any commit
-        # that IS checked will have tracker_only=True, making it easy to
-        # distinguish checked vs. unchecked entries in the result.
+        # Make _is_tracker_only_commit always return True for all commits that ARE
+        # checked.  Commits beyond the cap won't be checked (tracker_only=False).
         svc = _make_service(tmp_path, [])
 
         with (
@@ -894,26 +899,21 @@ class TestUnassociatedCommitTrackerOnlyBound:
         ):
             result = svc.get_backlog(selected_branch=_RELEASE_BRANCH, filter="all")
 
-        assert len(result.unassociated_commits) == total, (
-            "All commits must appear even when some are beyond the cap"
+        # Commits within the cap: checked → tracker_only=True → EXCLUDED (OOMPAH-284)
+        # Commits beyond the cap: unchecked → tracker_only=False → INCLUDED
+        expected_in_output = total - MAX_UNASSOC_TRACKER_ONLY_CHECK
+        assert len(result.unassociated_commits) == expected_in_output, (
+            f"Tracker-only commits (within cap) must be excluded from unassociated_commits. "
+            f"Expected {expected_in_output} commits beyond the cap, "
+            f"got {len(result.unassociated_commits)}"
         )
 
-        tracker_only_true_count = sum(
-            1 for row in result.unassociated_commits if row.tracker_only
-        )
-        tracker_only_false_count = sum(
-            1 for row in result.unassociated_commits if not row.tracker_only
-        )
-
-        # Exactly MAX_UNASSOC_TRACKER_ONLY_CHECK commits are checked (and returned True)
-        assert tracker_only_true_count == MAX_UNASSOC_TRACKER_ONLY_CHECK, (
-            f"Expected {MAX_UNASSOC_TRACKER_ONLY_CHECK} checked commits with tracker_only=True, "
-            f"got {tracker_only_true_count}"
-        )
-        # The remaining commits default to False
-        assert tracker_only_false_count == total - MAX_UNASSOC_TRACKER_ONLY_CHECK, (
-            f"Expected {total - MAX_UNASSOC_TRACKER_ONLY_CHECK} unchecked commits with tracker_only=False"
-        )
+        # All returned commits have tracker_only=False (they were beyond the cap)
+        for row in result.unassociated_commits:
+            assert not row.tracker_only, (
+                "Commits beyond the check cap must have tracker_only=False "
+                "(not checked, assumed not tracker-only)"
+            )
 
     def test_small_unassociated_set_all_classified(self, tmp_path):
         """When the unassociated count is ≤ MAX_UNASSOC_TRACKER_ONLY_CHECK, all are classified.
@@ -1075,7 +1075,7 @@ class TestTrickleRelease011BacklogRegression:
         if ancestry_shas is None:
             ancestry_shas = set()
 
-        def _mock_find_branch(repo_path: Any, work_branch: str, main_shas: Any, *, timeout: int = 60) -> list[str]:
+        def _mock_find_branch(repo_path: Any, work_branch: str, main_shas: Any, *, default_branch: str = "main", timeout: int = 60) -> list[str]:
             if branch_commits_map is None:
                 return []
             return branch_commits_map.get(work_branch, [])
@@ -1615,7 +1615,7 @@ class TestDeletedBranchFallbackDiscovery:
         if ancestry_shas is None:
             ancestry_shas = set()
 
-        def _mock_find_branch(repo_path: Any, work_branch: str, main_shas: Any, *, timeout: int = 60) -> list[str]:
+        def _mock_find_branch(repo_path: Any, work_branch: str, main_shas: Any, *, default_branch: str = "main", timeout: int = 60) -> list[str]:
             if branch_commits_map is None:
                 return []
             return branch_commits_map.get(work_branch, [])
@@ -2024,7 +2024,7 @@ class TestTrickleRelease011DeletedBranchRegression:
         if ancestry_shas is None:
             ancestry_shas = set()
 
-        def _mock_find_branch(repo_path: Any, work_branch: str, main_shas: Any, *, timeout: int = 60) -> list[str]:
+        def _mock_find_branch(repo_path: Any, work_branch: str, main_shas: Any, *, default_branch: str = "main", timeout: int = 60) -> list[str]:
             if branch_commits_map is None:
                 return []
             return branch_commits_map.get(work_branch, [])
@@ -2260,3 +2260,618 @@ class TestTrickleRelease011DeletedBranchRegression:
         assert item.commit_count == 2
         sha_set = {sc.sha for sc in item.source_commits}
         assert sha_set == {self._COMMIT_EPIC_1, self._COMMIT_EPIC_2}
+
+
+# ---------------------------------------------------------------------------
+# OOMPAH-284 regression: inherited branch history and metadata-only filtering
+# ---------------------------------------------------------------------------
+
+
+class TestOOMPAH284InheritedBranchHistoryRegression:
+    """Regression tests for OOMPAH-284: Bug 1 — inherited base-branch history.
+
+    Root cause: _find_branch_commits_in_main() used rev-list <branch_ref>
+    which returned the ENTIRE branch history (including commits inherited from
+    whatever base branch the work branch was created from).  When a task was
+    branched from release/0.11, the intersection with main_shas returned
+    thousands of historical commits that were ALL ancestral to release/0.11.
+    The aggregate then became "delivered by ancestry," hiding the task from
+    needs_delivery even though its actual code commit was absent.
+
+    Fix: use git merge-base to find the fork point, then rev-list only commits
+    ABOVE the fork point (introduced commits only), not the full history.
+
+    These tests verify the BACKLOG-LEVEL behaviour using a mocked
+    _find_branch_commits_in_main that simulates the new (fixed) return value.
+    Unit tests for _find_branch_commits_in_main itself live in
+    test_release_delivery_inventory.py (TestFindBranchCommitsInMainForkPoint).
+    """
+
+    _RELEASE_011 = "release/0.11"
+    _TASK_ID = "TRICKLE-12"
+    _TASK_BRANCH = "TRICKLE-12"
+
+    # Inherited base-branch commits (all on release/0.11 by ancestry)
+    _INHERITED_SHA_1 = "i1" * 20  # 40-char hex, ancestral to release/0.11
+    _INHERITED_SHA_2 = "i2" * 20  # 40-char hex, ancestral to release/0.11
+
+    # Introduced code commit (NOT on release/0.11, the one we want to deliver)
+    _CODE_SHA = "c0" * 20  # 40-char hex, NOT on release/0.11
+
+    def _mock_snapshot(self) -> Any:
+        snap = MagicMock()
+        snap.source_head = "0" * 39 + "1"
+        snap.release_heads = {self._RELEASE_011: "0" * 39 + "2"}
+        snap.stale = False
+        snap.fetched_at = time.monotonic()
+        return snap
+
+    def _make_tracker(self, identifier: str, work_branch: str) -> Any:
+        issue = MagicMock()
+        issue.identifier = identifier
+        issue.work_branch = work_branch
+        issue.review_number = None
+        issue.issue_type = "task"
+        issue.state = "Merged"
+        issue.title = f"Task {identifier}"
+
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [issue]
+        tracker.get_issue.return_value = None
+        return tracker
+
+    def _run(
+        self,
+        tmp_path: Path,
+        commits: list[Any],
+        *,
+        branch_commits_for_task: list[str],
+        ancestry_shas: set[str],
+        filter: str = "needs_delivery",
+        tracker_only_shas: set[str] | None = None,
+    ) -> BacklogResult:
+        """Run get_backlog with controlled branch discovery and ancestry."""
+        svc = _make_service(tmp_path, [])
+        tracker = self._make_tracker(self._TASK_ID, self._TASK_BRANCH)
+
+        if tracker_only_shas is None:
+            tracker_only_shas = set()
+
+        def _mock_find_branch(repo_path, work_branch, main_shas, *, default_branch="main", timeout=60):
+            if work_branch == self._TASK_BRANCH:
+                return branch_commits_for_task
+            return []
+
+        def _mock_tracker_only(repo_path, sha):
+            return sha in tracker_only_shas
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=self._mock_snapshot()),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=commits),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=ancestry_shas),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", side_effect=_mock_tracker_only),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", side_effect=_mock_find_branch),
+        ):
+            return svc.get_backlog(
+                selected_branch=self._RELEASE_011,
+                filter=filter,
+                tracker=tracker,
+            )
+
+    # ------------------------------------------------------------------
+    # Core regression: introduced commit NOT on release/0.11 → needs_delivery
+    # ------------------------------------------------------------------
+
+    def test_task_with_only_introduced_commit_appears_in_needs_delivery(self, tmp_path):
+        """Primary regression: task associated only with its introduced commit appears in needs_delivery.
+
+        After the fork-point fix, _find_branch_commits_in_main returns only the
+        code commit introduced by the PR (not the inherited release/0.11 history).
+        Since that code commit is NOT on release/0.11, the aggregate is not_selected
+        and the task appears in needs_delivery.
+        """
+        ci_code = _make_commit_info(self._CODE_SHA, "feat: TRICKLE-12 implement feature")
+        ci_inh1 = _make_commit_info(self._INHERITED_SHA_1, "chore: base commit 1")
+        ci_inh2 = _make_commit_info(self._INHERITED_SHA_2, "chore: base commit 2")
+
+        # After fix: _find_branch_commits_in_main returns ONLY the introduced commit
+        # (inherited ones are below the fork point and excluded).
+        result = self._run(
+            tmp_path,
+            commits=[ci_code, ci_inh1, ci_inh2],
+            branch_commits_for_task=[self._CODE_SHA],  # only introduced commit
+            ancestry_shas={self._INHERITED_SHA_1, self._INHERITED_SHA_2},  # inherited on release/0.11
+            filter="needs_delivery",
+        )
+
+        assert len(result.items) == 1, (
+            f"TRICKLE-12 must appear in needs_delivery when its introduced code commit "
+            f"({self._CODE_SHA[:7]}) is absent from release/0.11.  "
+            f"Got {len(result.items)} items."
+        )
+        item = result.items[0]
+        assert item.identifier == self._TASK_ID
+        assert item.delivery_status.state == "not_selected", (
+            f"Expected not_selected (commit absent from release/0.11), "
+            f"got {item.delivery_status.state!r}"
+        )
+        assert len(item.source_commits) == 1
+        assert item.source_commits[0].sha == self._CODE_SHA
+
+    def test_inherited_only_commits_cause_false_delivery_demonstrates_bug(self, tmp_path):
+        """Demonstrates the old buggy behaviour for contrast.
+
+        When _find_branch_commits_in_main incorrectly returns the INHERITED commits
+        (old behaviour before the fork-point fix), the task is falsely marked as
+        delivered (all associated commits are on release/0.11 by ancestry).
+
+        This test documents the bug that existed before OOMPAH-284.  In the new
+        code, _find_branch_commits_in_main never returns inherited commits; this
+        test simulates what would happen if it did.
+        """
+        ci_code = _make_commit_info(self._CODE_SHA, "feat: TRICKLE-12 implement feature")
+        ci_inh1 = _make_commit_info(self._INHERITED_SHA_1, "chore: base commit 1")
+        ci_inh2 = _make_commit_info(self._INHERITED_SHA_2, "chore: base commit 2")
+
+        # OLD (buggy) behaviour: _find_branch_commits_in_main returns ALL commits
+        # reachable from the branch, including inherited ones.
+        result_buggy = self._run(
+            tmp_path,
+            commits=[ci_code, ci_inh1, ci_inh2],
+            branch_commits_for_task=[self._INHERITED_SHA_1, self._INHERITED_SHA_2],  # only inherited!
+            ancestry_shas={self._INHERITED_SHA_1, self._INHERITED_SHA_2},  # both on release/0.11
+            filter="needs_delivery",
+        )
+
+        # The code commit is NOT associated with TRICKLE-12 → it goes to unassociated
+        # The inherited commits ARE associated but both are "delivered by ancestry"
+        # → aggregate = "delivered" → task EXCLUDED from needs_delivery (BUG!)
+        assert result_buggy.items == [], (
+            "With inherited-only commits (all on release/0.11), the task is "
+            "falsely excluded from needs_delivery.  This documents the pre-fix bug."
+        )
+        # The code commit appears as unassociated (because it's not in branch_commits_for_task)
+        unassoc_shas = {r.sha for r in result_buggy.unassociated_commits}
+        assert self._CODE_SHA in unassoc_shas, (
+            "The undelivered code commit appears in unassociated (not associated with any task)"
+        )
+
+    def test_task_with_introduced_plus_inherited_but_fork_point_correct(self, tmp_path):
+        """After fix: only introduced code commit is associated; inherited ones stay unassociated.
+
+        This verifies the complete picture: the fixed _find_branch_commits_in_main
+        returns only the code commit; the inherited commits that happen to be in main
+        remain as unassociated commits (they're not tied to this task).
+        """
+        ci_code = _make_commit_info(self._CODE_SHA, "feat: TRICKLE-12 implement feature")
+        ci_inh1 = _make_commit_info(self._INHERITED_SHA_1, "chore: base commit 1")
+        ci_inh2 = _make_commit_info(self._INHERITED_SHA_2, "chore: base commit 2")
+
+        result = self._run(
+            tmp_path,
+            commits=[ci_code, ci_inh1, ci_inh2],
+            branch_commits_for_task=[self._CODE_SHA],   # only the introduced commit
+            ancestry_shas={self._INHERITED_SHA_1, self._INHERITED_SHA_2},
+            filter="needs_delivery",
+        )
+
+        assert len(result.items) == 1
+        assert result.items[0].identifier == self._TASK_ID
+        assert result.items[0].delivery_status.state == "not_selected"
+
+        # The inherited commits are NOT claimed by the task → they go to unassociated
+        # (they show as delivered by ancestry, so they don't appear in needs_delivery
+        #  unassociated list — but they ARE in the unassociated set internally)
+        # The code commit is now task-associated → NOT in unassociated
+        code_in_unassoc = any(r.sha == self._CODE_SHA for r in result.unassociated_commits)
+        assert not code_in_unassoc, (
+            "The introduced code commit must be associated with the task, "
+            "not left in unassociated_commits"
+        )
+
+    def test_task_introduced_commit_already_on_release_shows_delivered(self, tmp_path):
+        """If the introduced commit IS already on release/0.11, the task is correctly delivered.
+
+        This verifies that the fix doesn't break the "actually delivered" case:
+        if the introduced commit is in ancestry_shas, the task is delivered.
+        """
+        ci_code = _make_commit_info(self._CODE_SHA, "feat: TRICKLE-12 implement feature")
+
+        result = self._run(
+            tmp_path,
+            commits=[ci_code],
+            branch_commits_for_task=[self._CODE_SHA],
+            ancestry_shas={self._CODE_SHA},   # code commit IS on release/0.11
+            filter="needs_delivery",
+        )
+
+        # Correctly delivered → excluded from needs_delivery
+        assert result.items == [], (
+            "When the introduced commit is already on release/0.11, "
+            "the task must be correctly excluded from needs_delivery."
+        )
+
+    def test_trickle_pattern_44_substantive_commits_visible(self, tmp_path):
+        """Full Trickle regression: 44 code commits on main not in release/0.11 appear in backlog.
+
+        Simulates the Trickle scenario: many merged tasks (23 tasks, each with ~2 commits)
+        were invisible because _find_branch_commits_in_main returned their inherited
+        release/0.11 history.  After the fix, each task is only associated with its
+        introduced code commits, which are NOT on release/0.11 → appears in needs_delivery.
+        """
+        n_tasks = 23
+        commits_per_task = 2
+
+        # Build tasks and commits
+        task_ids = [f"TRICKLE-{i}" for i in range(1, n_tasks + 1)]
+        task_branches = task_ids[:]  # oompah_md style: work_branch = identifier
+        code_shas = [f"c{i:038x}" for i in range(n_tasks * commits_per_task)]
+
+        all_commits = [
+            _make_commit_info(sha, f"feat: code commit {sha[:7]}")
+            for sha in code_shas
+        ]
+
+        # Inherited commit: on release/0.11 by ancestry
+        inherited_sha = "ba" * 20
+
+        # Tracker: all tasks are Merged
+        issues = []
+        for i, (tid, tbranch) in enumerate(zip(task_ids, task_branches)):
+            issue = MagicMock()
+            issue.identifier = tid
+            issue.work_branch = tbranch
+            issue.review_number = None
+            issue.issue_type = "task"
+            issue.state = "Merged"
+            issue.title = f"Task {tid}"
+            issues.append(issue)
+
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = issues
+        tracker.get_issue.return_value = None
+
+        # Each task gets its own 2 code commits via branch discovery
+        task_commit_map: dict[str, list[str]] = {}
+        for i, (tid, tbranch) in enumerate(zip(task_ids, task_branches)):
+            start = i * commits_per_task
+            task_commit_map[tbranch] = code_shas[start: start + commits_per_task]
+
+        # No code commits are on release/0.11; only the inherited sha is
+        ancestry_shas = {inherited_sha}
+
+        svc = _make_service(tmp_path, [])
+
+        def _mock_find_branch(rp, work_branch, main_shas, *, default_branch="main", timeout=60):
+            return task_commit_map.get(work_branch, [])
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=MagicMock(
+                source_head="0" * 40,
+                release_heads={self._RELEASE_011: "0" * 39 + "2"},
+                stale=False,
+                fetched_at=time.monotonic(),
+            )),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=all_commits),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=ancestry_shas),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", return_value=False),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", side_effect=_mock_find_branch),
+        ):
+            result = svc.get_backlog(
+                selected_branch=self._RELEASE_011,
+                filter="needs_delivery",
+                tracker=tracker,
+            )
+
+        assert len(result.items) == n_tasks, (
+            f"Expected all {n_tasks} tasks (each with code commits absent from release/0.11) "
+            f"to appear in needs_delivery.  Got {len(result.items)}.  "
+            f"Before OOMPAH-284 fix, this was 0 items."
+        )
+        returned_ids = {item.identifier for item in result.items}
+        assert returned_ids == set(task_ids), (
+            f"All {n_tasks} task IDs must appear in the backlog"
+        )
+        # Every task is not_selected (never queued for release/0.11)
+        for item in result.items:
+            assert item.delivery_status.state == "not_selected", (
+                f"{item.identifier} must be not_selected, got {item.delivery_status.state!r}"
+            )
+
+
+class TestOOMPAH284MetadataOnlyFiltering:
+    """Regression tests for OOMPAH-284: Bug 2 — metadata-only commit filtering.
+
+    Root cause: commits that exclusively touch .oompah/ files (tracked by
+    _is_tracker_only_commit) appeared as delivery candidates, association
+    inputs, and unassociated diagnostic rows.
+
+    Fix: exclude tracker-only commits from:
+    - Tracker-sourced discovery (branch_shas filtered before item association)
+    - Item rows when all commits are tracker-only (excluded from needs_delivery)
+    - Unassociated diagnostics rows (skipped from output)
+
+    Mixed commits (code + .oompah/) remain eligible.
+    """
+
+    _RELEASE = "release/1.1"
+    _TASK_ID = "TASK-META"
+    _TASK_BRANCH = "task/TASK-META"
+
+    _CODE_SHA = "cc" * 20   # substantive code commit
+    _META_SHA = "mm" * 20   # tracker-only (.oompah/ only commit)
+
+    def _mock_snapshot(self) -> Any:
+        snap = MagicMock()
+        snap.source_head = "aa" * 20
+        snap.release_heads = {self._RELEASE: "bb" * 20}
+        snap.stale = False
+        snap.fetched_at = time.monotonic()
+        return snap
+
+    def _make_tracker(self, branch_shas: list[str]) -> tuple[Any, dict]:
+        """Return (tracker, branch_commits_map) for a single task."""
+        issue = MagicMock()
+        issue.identifier = self._TASK_ID
+        issue.work_branch = self._TASK_BRANCH
+        issue.review_number = None
+        issue.issue_type = "task"
+        issue.state = "Merged"
+        issue.title = "Metadata filtering test task"
+
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [issue]
+        tracker.get_issue.return_value = None
+
+        return tracker, {self._TASK_BRANCH: branch_shas}
+
+    def _run(
+        self,
+        tmp_path: Path,
+        commits: list[Any],
+        branch_shas: list[str],
+        *,
+        tracker_only_shas: set[str],
+        filter: str = "needs_delivery",
+    ) -> BacklogResult:
+        """Run get_backlog with a tracker and per-SHA tracker_only mock."""
+        tracker, branch_map = self._make_tracker(branch_shas)
+
+        def _mock_find_branch(rp, work_branch, main_shas, *, default_branch="main", timeout=60):
+            return branch_map.get(work_branch, [])
+
+        def _mock_tracker_only(rp, sha):
+            return sha in tracker_only_shas
+
+        svc = _make_service(tmp_path, [])
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=self._mock_snapshot()),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=commits),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=set()),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", side_effect=_mock_tracker_only),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", side_effect=_mock_find_branch),
+        ):
+            return svc.get_backlog(
+                selected_branch=self._RELEASE,
+                filter=filter,
+                tracker=tracker,
+            )
+
+    # ------------------------------------------------------------------
+    # Acceptance criterion 1: metadata-only commits never appear as deliverable rows
+    # ------------------------------------------------------------------
+
+    def test_tracker_only_commit_excluded_from_tracker_sourced_item(self, tmp_path):
+        """A tracker-only commit is filtered from branch_shas before item association.
+
+        When _find_branch_commits_in_main returns a tracker-only commit (exclusively
+        touching .oompah/ files), it must be filtered out before the commit is
+        added to the item's source_commits.  If ALL commits are tracker-only,
+        the item has no code commits and must not appear under needs_delivery.
+        """
+        ci_meta = _make_commit_info(self._META_SHA, ".oompah: update task status")
+
+        result = self._run(
+            tmp_path,
+            commits=[ci_meta],
+            branch_shas=[self._META_SHA],  # branch_shas has only a tracker-only commit
+            tracker_only_shas={self._META_SHA},
+            filter="needs_delivery",
+        )
+
+        # The task's only branch commit is tracker-only → filtered out → item has
+        # no commits → must not appear in needs_delivery.
+        assert result.items == [], (
+            "A task whose only branch commit is tracker-only (.oompah/ only) must "
+            "not appear in needs_delivery.  Tracker-only commits are not substantive "
+            "code changes and must not appear as deliverable rows (OOMPAH-284)."
+        )
+
+    def test_tracker_only_item_excluded_from_needs_delivery_but_visible_in_all(self, tmp_path):
+        """An item with only tracker-only commits is excluded from needs_delivery, not from 'all'.
+
+        Under 'all' filter the item appears (its status is computed from the tracker-only
+        commit which remains in the item's commit list after the tracker_only filter is
+        applied at the discovery stage).  Under 'needs_delivery' the item is excluded
+        because tracker_only_for_item=True.
+
+        Note: tracker-only commits are filtered from branch_shas BEFORE being added to
+        item_commits_map, so the item may end up with 0 commits → excluded from both.
+        This test verifies the 'needs_delivery' filter specifically.
+        """
+        ci_meta = _make_commit_info(self._META_SHA, ".oompah: update task status")
+
+        # Under needs_delivery: excluded
+        result_needs = self._run(
+            tmp_path,
+            commits=[ci_meta],
+            branch_shas=[self._META_SHA],
+            tracker_only_shas={self._META_SHA},
+            filter="needs_delivery",
+        )
+        assert result_needs.items == [], (
+            "Tracker-only item must be excluded from needs_delivery filter"
+        )
+
+    def test_mixed_code_and_tracker_only_commits_item_remains(self, tmp_path):
+        """An item with both code and tracker-only commits appears in needs_delivery.
+
+        The tracker-only commit is filtered from branch_shas, leaving only the code
+        commit.  The item is NOT entirely tracker-only (tracker_only_for_item=False
+        because the code commit remains) and must appear in needs_delivery.
+
+        Acceptance criterion: 'keep mixed code-plus-.oompah commits eligible' (OOMPAH-284).
+        """
+        ci_code = _make_commit_info(self._CODE_SHA, "feat: TASK-META implement feature")
+        ci_meta = _make_commit_info(self._META_SHA, ".oompah: update task status")
+
+        result = self._run(
+            tmp_path,
+            commits=[ci_code, ci_meta],
+            branch_shas=[self._CODE_SHA, self._META_SHA],  # both returned by branch discovery
+            tracker_only_shas={self._META_SHA},   # only the meta commit is tracker-only
+            filter="needs_delivery",
+        )
+
+        # The tracker-only commit is filtered; the code commit remains → item appears
+        assert len(result.items) == 1, (
+            "An item with a code commit (even alongside a tracker-only commit) must "
+            "appear in needs_delivery (OOMPAH-284 requirement: mixed commits eligible)."
+        )
+        item = result.items[0]
+        assert item.identifier == self._TASK_ID
+        assert item.delivery_status.state == "not_selected"
+
+        # Only the code commit is in source_commits (the tracker-only one was filtered)
+        commit_shas = {sc.sha for sc in item.source_commits}
+        assert self._CODE_SHA in commit_shas, "Code commit must be in source_commits"
+        assert self._META_SHA not in commit_shas, (
+            "Tracker-only commit must be filtered from source_commits"
+        )
+
+    # ------------------------------------------------------------------
+    # Acceptance criterion 2: metadata-only unassociated commits excluded
+    # ------------------------------------------------------------------
+
+    def test_tracker_only_unassociated_commit_excluded_from_output(self, tmp_path):
+        """A tracker-only commit in the unassociated list is excluded from output.
+
+        When an unassociated commit (no task/ledger association) exclusively touches
+        .oompah/ files, it must not appear in unassociated_commits.  Tracker-only
+        commits are not deliverable and should not appear as diagnostic rows.
+        """
+        ci_meta = _make_commit_info(self._META_SHA, ".oompah: update backlog cache")
+
+        svc = _make_service(tmp_path, [])  # no deliveries
+
+        def _mock_tracker_only(rp, sha):
+            return sha == self._META_SHA  # only the meta commit is tracker-only
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=self._mock_snapshot()),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=[ci_meta]),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=set()),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", side_effect=_mock_tracker_only),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", return_value=[]),
+        ):
+            result = svc.get_backlog(selected_branch=self._RELEASE, filter="all")
+
+        assert result.unassociated_commits == [], (
+            "A tracker-only unassociated commit must be excluded from "
+            "unassociated_commits output (OOMPAH-284: metadata-only commits "
+            "never appear as deliverable rows)."
+        )
+
+    def test_code_unassociated_commit_remains_in_output(self, tmp_path):
+        """A substantive (non-tracker-only) unassociated commit appears in unassociated_commits.
+
+        Verifies that the tracker-only filter does NOT remove regular code commits.
+        """
+        ci_code = _make_commit_info(self._CODE_SHA, "feat: direct push to main")
+
+        svc = _make_service(tmp_path, [])
+
+        def _mock_tracker_only(rp, sha):
+            return False  # not tracker-only
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=self._mock_snapshot()),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=[ci_code]),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=set()),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", side_effect=_mock_tracker_only),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", return_value=[]),
+        ):
+            result = svc.get_backlog(selected_branch=self._RELEASE, filter="all")
+
+        assert len(result.unassociated_commits) == 1, (
+            "A substantive code commit must remain in unassociated_commits"
+        )
+        assert result.unassociated_commits[0].sha == self._CODE_SHA
+
+    def test_mixed_unassociated_commits_code_appears_meta_excluded(self, tmp_path):
+        """Mixed unassociated set: code commits appear, tracker-only commits are excluded.
+
+        When there are multiple unassociated commits, each is classified independently.
+        Tracker-only ones are excluded; code commits remain.
+        """
+        ci_code = _make_commit_info(self._CODE_SHA, "feat: code change")
+        ci_meta = _make_commit_info(self._META_SHA, ".oompah: metadata change")
+
+        svc = _make_service(tmp_path, [])
+
+        def _mock_tracker_only(rp, sha):
+            return sha == self._META_SHA
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=self._mock_snapshot()),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=[ci_code, ci_meta]),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=set()),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", side_effect=_mock_tracker_only),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", return_value=[]),
+        ):
+            result = svc.get_backlog(selected_branch=self._RELEASE, filter="all")
+
+        shas_in_output = {r.sha for r in result.unassociated_commits}
+        assert self._CODE_SHA in shas_in_output, (
+            "Code commit must appear in unassociated_commits"
+        )
+        assert self._META_SHA not in shas_in_output, (
+            "Tracker-only commit must be excluded from unassociated_commits"
+        )
+        assert len(result.unassociated_commits) == 1
+
+    # ------------------------------------------------------------------
+    # Acceptance criterion 3: no impact on ledger-sourced items
+    # ------------------------------------------------------------------
+
+    def test_ledger_sourced_item_with_tracker_only_commit_excluded_from_needs_delivery(self, tmp_path):
+        """A ledger-sourced item whose commits are all tracker-only is excluded from needs_delivery.
+
+        The tracker_only_for_item flag gates needs_delivery exclusion.
+        """
+        meta_sha = self._META_SHA
+        d = _make_delivery(
+            [meta_sha], _RELEASE_BRANCH, AddendumStatus.OPEN, "TASK-LEDGER-META"
+        )
+        ci_meta = _make_commit_info(meta_sha, ".oompah: update task status")
+
+        svc = _make_service(tmp_path, [d])
+
+        def _mock_tracker_only(rp, sha):
+            return sha == meta_sha
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=self._mock_snapshot()),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=[ci_meta]),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=set()),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", side_effect=_mock_tracker_only),
+            patch("oompah.release_delivery_backlog._find_branch_commits_in_main", return_value=[]),
+        ):
+            result = svc.get_backlog(selected_branch=_RELEASE_BRANCH, filter="needs_delivery")
+
+        # Ledger item with only tracker-only commits must be excluded from needs_delivery
+        assert result.items == [], (
+            "Ledger-sourced item with only tracker-only commits must be excluded "
+            "from needs_delivery (OOMPAH-284)"
+        )

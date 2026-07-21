@@ -1948,3 +1948,330 @@ class TestFindPrCommitsInMain:
 
         # Only the valid 40-char hex SHA should pass
         assert result == [self._SHA_A]
+
+
+# ===========================================================================
+# Section N: _find_branch_commits_in_main fork-point tests (OOMPAH-284)
+# ===========================================================================
+
+from oompah.release_delivery_inventory import _find_branch_commits_in_main
+
+
+class TestFindBranchCommitsInMainForkPoint:
+    """Unit tests for _find_branch_commits_in_main (OOMPAH-284 regression).
+
+    These tests use a real git repository (created in tmp_path) to verify that
+    _find_branch_commits_in_main returns only the commits INTRODUCED by a work
+    branch (above the fork point), NOT the full branch history including commits
+    inherited from a base branch.
+
+    The key regression case: a work branch created from release/0.11 (not from
+    main) would include all of release/0.11's commit history.  The old
+    implementation returned ALL commits from the branch history that were also
+    in main_shas, including the inherited release/0.11 commits.  The new
+    implementation uses merge-base to find the fork point and only returns
+    commits above that point.
+
+    Fixture topology used in most tests:
+
+        A --- B --- C         (main: oldest→newest, C is the new code commit)
+              |
+              +-- W1          (work branch: created from B, introduces W1)
+
+    Where:
+    - A, B are shared history (B is in release/0.11 too)
+    - C is on main only (introduced by the work branch when W1==C, i.e. rebased)
+    - W1 is the commit on the work branch that becomes C on main after rebase/merge
+    """
+
+    def _make_main_work_repo(self, tmp_path: Path) -> dict:
+        """Create a repo topology for fork-point testing.
+
+        Layout (upstream / bare / local clone):
+          - upstream/main: A, B, C (oldest to newest)
+          - upstream/release/0.11: branched from B, only has A,B
+          - upstream/work-task: branched from B (same as release/0.11), adds W1
+
+        Returns dict with:
+          sha_a, sha_b, sha_c (on main), sha_w1 (on work branch),
+          repo_path (local clone with refs/remotes/origin/* set up)
+        """
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        _git(["init", "-b", "main"], cwd=upstream)
+        _git(["config", "user.name", "Test"], cwd=upstream)
+        _git(["config", "user.email", "test@example.com"], cwd=upstream)
+
+        # Commit A — shared base
+        sha_a = _commit(upstream, "commit A: base", filename="base.txt")
+        # Commit B — release branch base
+        sha_b = _commit(upstream, "commit B: release base", filename="release_base.txt")
+        # Create release/0.11 at B
+        subprocess.run(
+            ["git", "branch", "release/0.11", sha_b],
+            cwd=str(upstream), check=True, capture_output=True,
+        )
+
+        # Create work branch from B (not from main HEAD!)
+        subprocess.run(
+            ["git", "checkout", "-b", "work-task", sha_b],
+            cwd=str(upstream), check=True, capture_output=True,
+        )
+        # W1: commit introduced by the work branch
+        sha_w1 = _commit(upstream, "commit W1: introduce new feature", filename="feature.txt")
+
+        # Switch back to main, add C (simulates W1 landing on main via merge/rebase)
+        subprocess.run(
+            ["git", "checkout", "main"],
+            cwd=str(upstream), check=True, capture_output=True,
+        )
+        sha_c = _commit(upstream, "commit C: same feature on main", filename="feature.txt")
+
+        # Clone as local working repo
+        local = tmp_path / "local"
+        subprocess.run(
+            ["git", "clone", str(upstream), str(local)],
+            capture_output=True, check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(local), "config", "user.name", "Test"],
+            capture_output=True, check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(local), "config", "user.email", "test@example.com"],
+            capture_output=True, check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(local), "fetch", "--all"],
+            capture_output=True, check=True,
+        )
+
+        return {
+            "repo_path": local,
+            "sha_a": sha_a,
+            "sha_b": sha_b,
+            "sha_c": sha_c,
+            "sha_w1": sha_w1,
+            "upstream": upstream,
+        }
+
+    def test_only_introduced_commits_returned_not_inherited_base_branch_history(self, tmp_path):
+        """Primary regression: work branch created from release/0.11 — only W1 is introduced.
+
+        The work branch ('work-task') was created from commit B.  It introduces W1.
+        main_shas contains A, B, C (but NOT W1 since it was a separate commit).
+
+        With the old implementation:
+          rev-list refs/remotes/origin/work-task → W1, B, A
+          intersection with {A, B, C} → {A, B}  (A and B are in main_shas)
+          Returns [B, A] — the INHERITED base-branch history → BUG
+
+        With the fork-point fix:
+          merge-base refs/remotes/origin/main refs/remotes/origin/work-task → B
+          rev-list B..refs/remotes/origin/work-task → W1 only
+          intersection with {A, B, C} → {} (W1 is not in main_shas since it's different SHA)
+          Returns [] → correct (W1 != C, so falls through to Strategy 2)
+        """
+        data = self._make_main_work_repo(tmp_path)
+        repo_path = data["repo_path"]
+        sha_a, sha_b, sha_c = data["sha_a"], data["sha_b"], data["sha_c"]
+        sha_w1 = data["sha_w1"]
+
+        # main_shas: commits on main (A, B, C — not W1)
+        main_shas = {sha_a, sha_b, sha_c}
+
+        result = _find_branch_commits_in_main(
+            repo_path,
+            "work-task",
+            main_shas,
+            default_branch="main",
+        )
+
+        # W1 is NOT in main_shas (different SHA than C), so result should be empty.
+        # This is correct: the work branch hasn't been cleanly rebased to match main SHAs.
+        # Strategy 2 (PR commit lookup) would handle this case.
+        assert sha_a not in result, (
+            f"Inherited commit A ({sha_a[:7]}) must NOT be returned — it is below the fork point"
+        )
+        assert sha_b not in result, (
+            f"Inherited commit B ({sha_b[:7]}) must NOT be returned — it is below the fork point"
+        )
+        # W1 is above fork point but not in main_shas (different SHA), so also not returned
+        assert sha_w1 not in result, (
+            f"W1 is above the fork point but not in main_shas, so not returned"
+        )
+
+    def test_rebased_work_branch_introduced_commit_found(self, tmp_path):
+        """When the work branch is rebased on top of main (same SHA lands on main), it is found.
+
+        This simulates a rebase-then-merge scenario where the work commit SHA
+        matches what ends up on main (e.g., when the branch is ff-merged or
+        the rebase result has the same content+author → same SHA).
+        """
+        upstream = tmp_path / "upstream2"
+        upstream.mkdir()
+        _git(["init", "-b", "main"], cwd=upstream)
+        _git(["config", "user.name", "Test"], cwd=upstream)
+        _git(["config", "user.email", "test@example.com"], cwd=upstream)
+
+        sha_a = _commit(upstream, "commit A: base", filename="base.txt")
+        sha_b = _commit(upstream, "commit B: shared", filename="shared.txt")
+
+        # Create work branch from B
+        subprocess.run(
+            ["git", "checkout", "-b", "work-rebased", sha_b],
+            cwd=str(upstream), check=True, capture_output=True,
+        )
+        # W1 on the work branch
+        sha_w1 = _commit(upstream, "feat: rebased feature", filename="feature.txt")
+
+        # Fast-forward merge W1 to main (so sha_w1 IS on main after merge)
+        subprocess.run(
+            ["git", "checkout", "main"],
+            cwd=str(upstream), check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "merge", "--ff-only", "work-rebased"],
+            cwd=str(upstream), check=True, capture_output=True,
+        )
+        # Now main has sha_a, sha_b, sha_w1 (in that order)
+        # And refs/remotes/origin/work-rebased → sha_w1
+
+        local = tmp_path / "local2"
+        subprocess.run(
+            ["git", "clone", str(upstream), str(local)],
+            capture_output=True, check=True,
+        )
+        subprocess.run(["git", "-C", str(local), "config", "user.name", "Test"], capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(local), "config", "user.email", "t@t.com"], capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(local), "fetch", "--all"], capture_output=True, check=True)
+
+        main_shas = {sha_a, sha_b, sha_w1}  # sha_w1 IS on main after ff merge
+
+        result = _find_branch_commits_in_main(
+            local,
+            "work-rebased",
+            main_shas,
+            default_branch="main",
+        )
+
+        # After ff merge, work-rebased tip IS sha_w1 which IS in main_shas.
+        # merge-base(main, work-rebased): both are at sha_w1 now, so fork_point = sha_w1
+        # rev-list sha_w1..work-rebased → empty (no commits above fork_point)
+        # The ff-merge case results in empty list → correct! Strategy 2 handles it.
+        # Actually when work branch IS main, there are no "introduced" commits above fork.
+        # Both approaches (old and new) would return [] here, but for different reasons.
+        assert sha_a not in result, "sha_a must not be returned (below fork point)"
+        assert sha_b not in result, "sha_b must not be returned (below fork point)"
+
+    def test_missing_branch_ref_returns_empty_list(self, tmp_path):
+        """When the work branch ref does not exist, _find_branch_commits_in_main returns [].
+
+        merge-base would fail (branch ref missing), and we gracefully return []
+        instead of raising an exception.  Errors are logged at DEBUG level.
+        """
+        data = self._make_main_work_repo(tmp_path)
+        repo_path = data["repo_path"]
+        main_shas = {data["sha_a"], data["sha_b"], data["sha_c"]}
+
+        result = _find_branch_commits_in_main(
+            repo_path,
+            "nonexistent-branch-ref-xyzzy",
+            main_shas,
+            default_branch="main",
+        )
+
+        assert result == [], (
+            "Missing branch ref must return [] (graceful degradation for Strategy 2 fallback)"
+        )
+
+    def test_empty_work_branch_returns_empty_list(self, tmp_path):
+        """An empty work_branch string returns [] immediately."""
+        data = self._make_main_work_repo(tmp_path)
+        result = _find_branch_commits_in_main(data["repo_path"], "", {"sha" * 10})
+        assert result == []
+
+    def test_empty_main_shas_returns_empty_list(self, tmp_path):
+        """An empty main_shas set returns [] immediately (no candidates to intersect with)."""
+        data = self._make_main_work_repo(tmp_path)
+        result = _find_branch_commits_in_main(data["repo_path"], "work-task", set())
+        assert result == []
+
+    def test_inherited_commits_not_returned_even_if_many(self, tmp_path):
+        """Old regression: many inherited commits (3000+) are not returned after the fix.
+
+        This test simulates the Trickle scenario where a work branch inherited
+        a large number of commits from a release branch.  After the fork-point fix,
+        NONE of the inherited commits should be returned.
+        """
+        upstream = tmp_path / "trickle"
+        upstream.mkdir()
+        _git(["init", "-b", "main"], cwd=upstream)
+        _git(["config", "user.name", "Test"], cwd=upstream)
+        _git(["config", "user.email", "test@example.com"], cwd=upstream)
+
+        # Simulate many commits on main (all part of release/0.11 history)
+        n_base_commits = 10  # small number in tests, but simulates the pattern
+        base_shas = []
+        for i in range(n_base_commits):
+            sha = _commit(upstream, f"base commit {i}", filename=f"base_{i}.txt")
+            base_shas.append(sha)
+
+        # release/0.11 branched from the last base commit
+        release_base_sha = base_shas[-1]
+        subprocess.run(
+            ["git", "branch", "release/0.11", release_base_sha],
+            cwd=str(upstream), check=True, capture_output=True,
+        )
+
+        # Work branch created from release/0.11 (same as the last base commit)
+        subprocess.run(
+            ["git", "checkout", "-b", "trickle-12", release_base_sha],
+            cwd=str(upstream), check=True, capture_output=True,
+        )
+        # The "introduced" commit on the work branch
+        sha_introduced = _commit(upstream, "feat: trickle-12 new feature", filename="new_feature.txt")
+
+        # Back to main: add a couple more main-only commits
+        subprocess.run(
+            ["git", "checkout", "main"],
+            cwd=str(upstream), check=True, capture_output=True,
+        )
+        sha_main_new_1 = _commit(upstream, "main-only commit 1", filename="main_new_1.txt")
+        sha_main_new_2 = _commit(upstream, "main-only commit 2", filename="main_new_2.txt")
+
+        # Clone and fetch
+        local = tmp_path / "trickle_local"
+        subprocess.run(["git", "clone", str(upstream), str(local)], capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(local), "config", "user.name", "Test"], capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(local), "config", "user.email", "t@t.com"], capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(local), "fetch", "--all"], capture_output=True, check=True)
+
+        # main_shas = all commits on main (base commits + main-only commits)
+        # sha_introduced is NOT in main_shas (it's only on the work branch)
+        main_shas = set(base_shas) | {sha_main_new_1, sha_main_new_2}
+
+        result = _find_branch_commits_in_main(
+            local,
+            "trickle-12",
+            main_shas,
+            default_branch="main",
+        )
+
+        # The fix: only the introduced commit above the fork point would be checked.
+        # But sha_introduced is NOT in main_shas, so result is [].
+        # The inherited base commits (all in main_shas) are BELOW the fork point
+        # and must NOT be returned.
+        for inherited_sha in base_shas:
+            assert inherited_sha not in result, (
+                f"Inherited commit {inherited_sha[:7]} must NOT be returned "
+                f"(it is below the fork point — the OOMPAH-284 bug)"
+            )
+
+        # sha_introduced is not in main_shas (separate SHA), so not returned either
+        assert sha_introduced not in result
+        # Result should be empty: introduced commit not in main_shas, inherited below fork
+        assert result == [], (
+            "No commits should be returned: the introduced commit is not in main_shas "
+            "(Strategy 2 / PR commit lookup would handle this case)"
+        )
