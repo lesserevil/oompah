@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-315
 type: bug
-status: Merged
+status: In Review
 priority: 0
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T21:32:51.275671Z'
+updated_at: '2026-07-21T21:32:56.509854Z'
 work_branch: OOMPAH-315
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/476
@@ -46,13 +46,13 @@ oompah.intake:
   last_validated_at: '2026-07-21T18:20:20.176791+00:00'
 oompah.agent_run_id: 046b7029-fa11-44bd-99f9-dde8448c0b6d
 oompah.task_costs:
-  total_input_tokens: 961934
-  total_output_tokens: 37236
+  total_input_tokens: 961949
+  total_output_tokens: 39967
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 961934
-      output_tokens: 37236
+      input_tokens: 961949
+      output_tokens: 39967
       cost_usd: 0.0
   runs:
   - profile: default
@@ -85,6 +85,12 @@ oompah.task_costs:
     output_tokens: 7588
     cost_usd: 0.0
     recorded_at: '2026-07-21T21:20:06.415428+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 15
+    output_tokens: 2731
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T21:32:51.041947+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/476
 oompah.review_number: '476'
 oompah.work_branch: OOMPAH-315
@@ -475,5 +481,25 @@ author: oompah
 created: 2026-07-21 21:32
 ---
 CI passing on PR #476. TrackerStateBranchMissingError added; orchestrator catches it as WARNING so error_watcher is not triggered. 156 tests pass.
+---
+author: oompah
+created: 2026-07-21 21:32
+---
+Agent completed successfully in 737s (2746 tokens)
+---
+author: oompah
+created: 2026-07-21 21:32
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/default]
+- Turns: 25, Tool calls: 15
+- Tokens: 15 in / 2.7K out [2.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 12m 17s
+- Log: OOMPAH-315__20260721T212038Z.jsonl
+---
+author: oompah
+created: 2026-07-21 21:32
+---
+YOLO: merged PR #476.
 ---
 <!-- COMMENTS:END -->
