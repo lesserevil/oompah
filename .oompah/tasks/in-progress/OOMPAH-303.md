@@ -7,10 +7,12 @@ title: Use private ~/.oompah/tmp for Oompah and agent temporary files
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-21T15:33:58.183374Z'
-updated_at: '2026-07-21T15:41:08.283198Z'
+updated_at: '2026-07-21T15:43:03.644323Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -110,5 +112,28 @@ author: oompah
 created: 2026-07-21 15:41
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 15:42
+---
+Focus handoff: duplicate_detector
+
+Outcome: No duplicate found. OOMPAH-303 is unique — no prior or existing task covers replacing /tmp with ~/.oompah/tmp as the private Oompah temp root.
+
+Evidence reviewed:
+- Searched .oompah/tasks/ (archived, done, backlog, merged, needs-rebase, needs-ci-fix) for: tmp, TMPDIR, temp_root, OOMPAH_TEMP_ROOT, oompah/tmp, tmpfs quota, private temp
+- No matching tasks found. Closest were OOMPAH-160 (atomic write to disk, different issue) and OOMPAH-6 (auth failure, different issue)
+- Current codebase confirms feature is NOT implemented: .env.example has OOMPAH_WORKSPACE_ROOT=/tmp/oompah_workspaces, oompah/config.py uses tempfile.gettempdir(), no OOMPAH_TEMP_ROOT setting exists anywhere
+
+Note: Previous comment #7 and #9 claiming 'implementation done' were hallucinations — the run stats show 0 turns / 0 tool calls, no commits exist on OOMPAH-303 branch beyond main.
+
+Remaining work: Full implementation per the issue description. Key files to change:
+- oompah/config.py — add OOMPAH_TEMP_ROOT setting with default ~/.oompah/tmp
+- .env.example — add OOMPAH_TEMP_ROOT and update OOMPAH_WORKSPACE_ROOT default
+- Agent/backend environment builders — inject TMPDIR/TMP/TEMP
+- Startup code — create directories at 0700, fail clearly if not writable
+- Tests — unit + integration + regression as specified in issue
+
+Recommended next focus: feature (implementation)
 ---
 <!-- COMMENTS:END -->
