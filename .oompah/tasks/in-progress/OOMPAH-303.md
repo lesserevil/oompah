@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T15:33:58.183374Z'
-updated_at: '2026-07-21T15:37:17.674616Z'
+updated_at: '2026-07-21T15:37:29.919277Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-21 15:37
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 15:37
+---
+Understanding: Investigating OOMPAH-303 for duplicates before implementation. This issue requests replacing /tmp usage with ~/.oompah/tmp as the private temp root for all Oompah and agent subprocesses. Key search terms: tmp, TMPDIR, temp_root, workspace_root, /tmp, oompah_workspaces. Will search .oompah/tasks and project docs for prior art.
 ---
 <!-- COMMENTS:END -->
