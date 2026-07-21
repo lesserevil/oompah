@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-192
 type: epic
-status: Merged
+status: Archived
 priority: 1
 title: Replace release-branch inspector with commit-centric release delivery
 parent: null
@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-13T19:31:12.244396Z'
-updated_at: '2026-07-13T23:39:03.921048Z'
+updated_at: '2026-07-21T00:15:57.729542Z'
 work_branch: epic-OOMPAH-192
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/418
