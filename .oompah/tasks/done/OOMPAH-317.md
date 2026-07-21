@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T19:04:51.954483Z'
-updated_at: '2026-07-21T19:35:26.150651Z'
+updated_at: '2026-07-21T19:35:28.473622Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-07-21 19:35
 ---
 Completion: Delivered the fix for Codex sandbox git write-access failure in git worktrees. Files changed: oompah/acp_backends/codex.py (added _get_worktree_git_meta_dir helper, wired additional_directories into ThreadOptions and acp_session_start payload), tests/test_acp_codex_backend.py (13 new tests across TestGetWorktreeGitMetaDir and TestCodexCliAdditionalDirectories). All 55 tests in the Codex backend file pass; 155 ACP-related tests pass with no regressions. Branch OOMPAH-317 pushed to origin.
+---
+author: oompah
+created: 2026-07-21 19:35
+---
+Fixed Codex CLI sandbox write-access failure for git worktrees. Added _get_worktree_git_meta_dir() to detect git worktree metadata directories and pass them as additional_directories to ThreadOptions, granting the workspace-write sandbox targeted write access to the worktree index/HEAD files without broadening access to the full repository. 13 new tests added covering the detection helper and CLI session integration.
 ---
 <!-- COMMENTS:END -->
