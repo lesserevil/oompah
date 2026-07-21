@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:51:22.951481Z'
+updated_at: '2026-07-21T17:51:52.736391Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
@@ -18,13 +18,13 @@ review_number: '469'
 merged_at: null
 oompah.agent_run_id: bb390f00-c234-4fc2-bce1-66e29919d6dc
 oompah.task_costs:
-  total_input_tokens: 275056
-  total_output_tokens: 53969
+  total_input_tokens: 373423
+  total_output_tokens: 54951
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 275056
-      output_tokens: 53969
+      input_tokens: 373423
+      output_tokens: 54951
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -57,6 +57,12 @@ oompah.task_costs:
     output_tokens: 1091
     cost_usd: 0.0
     recorded_at: '2026-07-21T17:47:01.459573+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 98367
+    output_tokens: 982
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T17:51:49.690795+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/469
 oompah.review_number: '469'
 oompah.work_branch: OOMPAH-304
@@ -347,5 +353,25 @@ author: oompah
 created: 2026-07-21 17:51
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 17:51
+---
+Agent completed successfully in 28s (99349 tokens)
+---
+author: oompah
+created: 2026-07-21 17:51
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 2
+- Tokens: 98.4K in / 982 out [99.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 28s
+- Log: OOMPAH-304__20260721T175123Z.jsonl
+---
+author: oompah
+created: 2026-07-21 17:51
+---
+Agent completed without closing this issue (28s (99349 tokens)). Escalating from 'default' to 'deep'. Retrying in 20s (2/3).
 ---
 <!-- COMMENTS:END -->

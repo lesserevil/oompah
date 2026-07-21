@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-305
 type: bug
-status: Done
+status: In Progress
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T17:51:37.306640Z'
+updated_at: '2026-07-21T17:51:49.594046Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 6faf6dca-9ba7-48c7-b656-b5dbca0d61c3
 oompah.task_costs:
-  total_input_tokens: 1584503
-  total_output_tokens: 15120
+  total_input_tokens: 1584639
+  total_output_tokens: 74839
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1584503
-      output_tokens: 15120
+      input_tokens: 1584639
+      output_tokens: 74839
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -46,6 +46,12 @@ oompah.task_costs:
     output_tokens: 3884
     cost_usd: 0.0
     recorded_at: '2026-07-21T17:13:21.294926+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 136
+    output_tokens: 59719
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T17:51:46.118769+00:00'
 ---
 ## Summary
 
@@ -228,5 +234,38 @@ author: oompah
 created: 2026-07-21 17:51
 ---
 Fixed dashboard/API displaying Merged for canonical-Backlog tasks: added null-evidence guard in display layer (no merged_at+work_branch+review_url → Backlog), checkpoint timestamp for immediate snapshot invalidation, merged_at field on Issue model, and stale tracker banner in dashboard. 29 new regression tests pass; full suite 9980 passed.
+---
+author: oompah
+created: 2026-07-21 17:51
+---
+Agent completed successfully in 2283s (59855 tokens)
+---
+author: oompah
+created: 2026-07-21 17:51
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
+- Turns: 213, Tool calls: 156
+- Tokens: 136 in / 59.7K out [59.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 38m 3s
+- Log: OOMPAH-305__20260721T171346Z.jsonl
+---
+author: oompah
+created: 2026-07-21 17:51
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-305` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-305
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-305
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
