@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-298
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Inject task-relevant repository maps into agent focus startup prompts
 parent: OOMPAH-293
@@ -15,21 +15,21 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:06:39.137552Z'
+updated_at: '2026-07-21T23:06:58.381506Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 4d9a398b-7ee3-415f-b56d-67baa703f2b0
+oompah.agent_run_id: 686349a3-50d1-4983-9774-ee1759762b89
 oompah.task_costs:
-  total_input_tokens: 827486
-  total_output_tokens: 5422
+  total_input_tokens: 827502
+  total_output_tokens: 10134
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 827486
-      output_tokens: 5422
+      input_tokens: 827502
+      output_tokens: 10134
       cost_usd: 0.0
   runs:
   - profile: default
@@ -50,6 +50,12 @@ oompah.task_costs:
     output_tokens: 2675
     cost_usd: 0.0
     recorded_at: '2026-07-21T23:04:49.221706+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 16
+    output_tokens: 4712
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T23:06:45.772903+00:00'
 ---
 ## Summary
 
@@ -247,5 +253,35 @@ Focus handoff: frontend
    - Write tests: fresh map included, stale SHA omits, wrong project omits, missing artifact omits, render failure omits, token ceiling respected, seeds affect selection, untrusted labeling, provenance in diagnostics
 
 4. Recommended next focus: feature
+---
+author: oompah
+created: 2026-07-21 23:06
+---
+Agent completed successfully in 108s (4728 tokens)
+---
+author: oompah
+created: 2026-07-21 23:06
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 32, Tool calls: 21
+- Tokens: 16 in / 4.7K out [4.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 48s
+- Log: OOMPAH-298__20260721T230459Z.jsonl
+---
+author: oompah
+created: 2026-07-21 23:06
+---
+Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-21 23:06
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 23:06
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
