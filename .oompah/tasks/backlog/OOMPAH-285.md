@@ -5,12 +5,15 @@ status: Backlog
 priority: 1
 title: Defend Oompah agents against prompt injection from external content
 parent: null
-children: []
+children:
+- OOMPAH-286
+- OOMPAH-287
+- OOMPAH-288
 blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:29.425206Z'
-updated_at: '2026-07-21T14:51:29.425206Z'
+updated_at: '2026-07-21T14:51:42.025612Z'
 work_branch: null
 target_branch: null
 review_url: null
