@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-314
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Deliver only selected commits to release branches and monitor release CI
 parent: null
@@ -10,13 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T18:07:00.598044Z'
+updated_at: '2026-07-21T18:07:17.236853Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: b3245c1d-34a8-49fe-801d-9b0bb2195188
+oompah.agent_run_id: baeb49cc-51c0-4dda-84c6-b2ddaf82c026
 oompah.task_costs:
   total_input_tokens: 285631
   total_output_tokens: 46510
@@ -154,5 +154,15 @@ Run #1 [attempt=1, profile=deep, role=deep -> Codex/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 39s
 - Log: OOMPAH-314__20260721T180520Z.jsonl
+---
+author: oompah
+created: 2026-07-21 18:07
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 18:07
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
