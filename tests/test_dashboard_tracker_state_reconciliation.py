@@ -108,37 +108,21 @@ def _clear_snapshot() -> None:
 class TestOOUMPAH286Regression:
     """Canonical state branch says Backlog; stale cache or source/main may say Merged."""
 
-    def test_issue_without_merge_evidence_renders_as_backlog_not_merged(self):
-        """An issue whose state is Merged but has no merge evidence (null merged_at,
-        null work_branch, null review_url) must NOT render as Merged.
-
-        This guards against stale cache entries or a source/main checkout
-        surfacing a terminal status for a task whose canonical state-branch
-        record has status=Backlog (OOMPAH-286 regression).
-        """
-        # Simulates: stale snapshot says Merged; canonical state branch says Backlog.
-        # The Issue returned by the tracker reflects the canonical state (Backlog)
-        # but has no merge evidence (merged_at, work_branch, review_url all null).
+    def test_issue_without_merge_evidence_renders_as_merged(self):
+        """Historical Merged records remain Merged without optional metadata."""
         issue = _issue(
             "OOMPAH-286",
-            state="Merged",          # ← stale/wrong state leaked in
+            state="Merged",
             parent_id="OOMPAH-285",
-            merged_at=None,          # canonical state branch: null
-            work_branch=None,        # canonical state branch: null
-            review_url=None,         # canonical state branch: null
+            merged_at=None,
+            work_branch=None,
+            review_url=None,
         )
         orch = _orch_with_issues([issue])
         board = server_module._fetch_and_serialize_issues(orch)
 
-        # The guard must rewrite to Backlog (the canonical status).
         merged_ids = [i["identifier"] for i in board.get("Merged", [])]
-        backlog_ids = [i["identifier"] for i in board.get("Backlog", [])]
-        assert "OOMPAH-286" not in merged_ids, (
-            "OOMPAH-286 must not appear in Merged column when merged_at is null"
-        )
-        assert "OOMPAH-286" in backlog_ids, (
-            "OOMPAH-286 must appear in Backlog when merged_at/work_branch/review_url are null"
-        )
+        assert "OOMPAH-286" in merged_ids
 
     def test_issue_with_merge_evidence_renders_as_merged(self):
         """An issue with merged_at set must remain in the Merged column."""
@@ -181,8 +165,8 @@ class TestOOUMPAH286Regression:
         merged_ids = [i["identifier"] for i in board.get("Merged", [])]
         assert "OOMPAH-102" in merged_ids
 
-    def test_fetch_all_issues_guards_merged_state_without_evidence(self):
-        """_fetch_all_issues applies the null-evidence guard on the Issue list."""
+    def test_fetch_all_issues_preserves_merged_state_without_evidence(self):
+        """_fetch_all_issues preserves canonical Merged state."""
         issue = _issue(
             "OOMPAH-286",
             state="Merged",
@@ -192,17 +176,13 @@ class TestOOUMPAH286Regression:
 
         issues = server_module._fetch_all_issues(orch)
         by_id = {i.identifier: i for i in issues}
-        assert by_id["OOMPAH-286"].state == BACKLOG, (
-            "_fetch_all_issues must revert null-evidence Merged issue to Backlog"
-        )
+        assert by_id["OOMPAH-286"].state == MERGED
 
-    def test_issue_dashboard_state_null_evidence_returns_backlog(self):
-        """_issue_dashboard_state must return Backlog for null-evidence Merged issues."""
+    def test_issue_dashboard_state_null_evidence_returns_merged(self):
+        """_issue_dashboard_state uses canonical Merged state directly."""
         issue = _issue("OOMPAH-286", state="Merged")
         result = server_module._issue_dashboard_state(issue)
-        assert result == BACKLOG, (
-            "_issue_dashboard_state must return Backlog when merged_at/work_branch/review_url are null"
-        )
+        assert result == MERGED
 
     def test_issue_dashboard_state_with_merged_at_returns_merged(self):
         """_issue_dashboard_state returns Merged when merged_at is set."""
@@ -391,17 +371,12 @@ class TestPerProjectStateIsolation:
 class TestEpicChildNullMergedAt:
     """Unstarted epic children must never render as Merged."""
 
-    def test_epic_child_null_merged_at_renders_as_backlog(self):
-        """An epic child with no merge evidence must render as Backlog even if
-        the tracker returns state=Merged (e.g., from a stale snapshot).
-
-        Acceptance criterion: 'Oompah never presents a task as Merged unless
-        canonical tracker state records its terminal merge state.'
-        """
+    def test_epic_child_null_merged_at_renders_as_merged(self):
+        """Missing historical metadata cannot rewrite a child to Backlog."""
         parent = _issue("EPIC-1", "Merged", issue_type="epic", merged_at="2026-07-01T00:00:00Z")
         child = _issue(
             "EPIC-1.1",
-            state="Merged",        # stale / incorrect state from non-state-branch read
+            state="Merged",
             parent_id="EPIC-1",
             merged_at=None,        # no merge evidence
             work_branch=None,
@@ -411,17 +386,10 @@ class TestEpicChildNullMergedAt:
         board = server_module._fetch_and_serialize_issues(orch)
 
         merged_ids = [i["identifier"] for i in board.get("Merged", [])]
-        backlog_ids = [i["identifier"] for i in board.get("Backlog", [])]
+        assert "EPIC-1.1" in merged_ids
 
-        assert "EPIC-1.1" not in merged_ids, (
-            "Epic child with null merged_at must not appear in Merged column"
-        )
-        assert "EPIC-1.1" in backlog_ids, (
-            "Epic child with null merged_at must appear in Backlog"
-        )
-
-    def test_epic_with_null_merged_at_also_guarded(self):
-        """An epic that somehow has Merged state but no evidence is also guarded."""
+    def test_epic_with_null_merged_at_remains_merged(self):
+        """An epic's canonical Merged state wins over missing metadata."""
         epic = _issue(
             "EPIC-2",
             state="Merged",
@@ -434,9 +402,7 @@ class TestEpicChildNullMergedAt:
         board = server_module._fetch_and_serialize_issues(orch)
 
         merged_ids = [i["identifier"] for i in board.get("Merged", [])]
-        assert "EPIC-2" not in merged_ids, (
-            "Epic with null merged_at must not appear in Merged column"
-        )
+        assert "EPIC-2" in merged_ids
 
 
 # ===========================================================================

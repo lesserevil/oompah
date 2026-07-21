@@ -1022,24 +1022,10 @@ def _api_metrics_snapshot() -> dict[str, dict[str, Any]]:
 
 
 def _issue_dashboard_state(issue) -> str:
+    """Map canonical tracker state onto a dashboard column."""
     if "archive:yes" in (issue.labels or []):
         return _dashboard_state(ARCHIVED)
-    state = _dashboard_state(issue.state)
-    # Guard: an issue must not render as Merged unless the canonical tracker
-    # state includes evidence of an actual merge (merged_at, work_branch, or
-    # review_url set).  This prevents a stale source-branch or cache entry from
-    # surfacing a false terminal state for a task whose state-branch canonical
-    # record has not yet recorded a merge event.
-    if state == _dashboard_state(MERGED):
-        if (
-            not getattr(issue, "merged_at", None)
-            and not getattr(issue, "work_branch", None)
-            and not getattr(issue, "review_url", None)
-        ):
-            # No merge evidence — revert to the canonical Backlog status so the
-            # task stays visible rather than hiding in the Merged column.
-            return _dashboard_state(BACKLOG)
-    return state
+    return _dashboard_state(issue.state)
 
 
 def _issue_intake_summary(issue) -> dict[str, Any] | None:
@@ -1274,27 +1260,12 @@ def _status_rank(status: str) -> int:
 
 
 def _effective_display_status(orch, issue) -> str:
-    """Status to display for *issue* from the canonical tracker state.
+    """Return canonical tracker state for dashboard rendering.
 
-    Applies display-layer guards that prevent stale or non-state-branch data
-    from surfacing incorrect terminal statuses.  Specifically, an issue must
-    NOT be displayed as Merged unless the canonical tracker state includes
-    evidence of an actual merge (merged_at, work_branch, or review_url set).
-    This guards against OOMPAH-286-like scenarios where the source/main branch
-    or a stale cache says Merged while the canonical state branch says Backlog.
+    State branches are authoritative. Historical tasks may lack optional merge
+    metadata, so that absence must never rewrite ``Merged`` to ``Backlog``.
     """
-    state = issue.state
-    if canonicalize_status(state) == MERGED:
-        if (
-            not getattr(issue, "merged_at", None)
-            and not getattr(issue, "work_branch", None)
-            and not getattr(issue, "review_url", None)
-        ):
-            # No merge evidence in canonical tracker state — revert to Backlog.
-            # This ensures the task remains visible rather than hiding in the
-            # Merged column with a false terminal status.
-            return BACKLOG
-    return state
+    return issue.state
 
 
 def _manual_needs_human_comment(
