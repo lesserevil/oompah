@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-284
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Fix Release Delivery task associations and metadata-only filtering
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T03:38:39.097123Z'
-updated_at: '2026-07-21T04:27:45.220189Z'
+updated_at: '2026-07-21T04:27:52.401805Z'
 work_branch: null
 target_branch: null
 review_url: null
