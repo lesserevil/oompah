@@ -1,23 +1,22 @@
 ---
 id: OOMPAH-304
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make Release Delivery show live delivery status consistently
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:backend
-- needs:frontend
+labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T16:22:48.841061Z'
+updated_at: '2026-07-21T16:31:18.820812Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 4c4faa9f-3c9c-4cd5-b4a1-4a0b5ab43697
 ---
 ## Summary
 
@@ -29,3 +28,16 @@ Fix the Release Delivery UI so an item selected for delivery always shows its li
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 16:31
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 16:31
+---
+Focus: Frontend Developer
+---
+<!-- COMMENTS:END -->
