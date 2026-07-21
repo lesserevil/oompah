@@ -1024,7 +1024,22 @@ def _api_metrics_snapshot() -> dict[str, dict[str, Any]]:
 def _issue_dashboard_state(issue) -> str:
     if "archive:yes" in (issue.labels or []):
         return _dashboard_state(ARCHIVED)
-    return _dashboard_state(issue.state)
+    state = _dashboard_state(issue.state)
+    # Guard: an issue must not render as Merged unless the canonical tracker
+    # state includes evidence of an actual merge (merged_at, work_branch, or
+    # review_url set).  This prevents a stale source-branch or cache entry from
+    # surfacing a false terminal state for a task whose state-branch canonical
+    # record has not yet recorded a merge event.
+    if state == _dashboard_state(MERGED):
+        if (
+            not getattr(issue, "merged_at", None)
+            and not getattr(issue, "work_branch", None)
+            and not getattr(issue, "review_url", None)
+        ):
+            # No merge evidence — revert to the canonical Backlog status so the
+            # task stays visible rather than hiding in the Merged column.
+            return _dashboard_state(BACKLOG)
+    return state
 
 
 def _issue_intake_summary(issue) -> dict[str, Any] | None:
@@ -1138,6 +1153,31 @@ def _set_issues_snapshot(
     _api_cache.set("issues:all", data, ttl_ms=60_000)
 
 
+def _any_tracker_checkpoint_newer_than(orch: "Orchestrator", snapshot_at: float) -> bool:
+    """Return True if any project tracker has a checkpoint newer than *snapshot_at*.
+
+    Checks the ``last_checkpoint_at`` attribute on every cached tracker instance.
+    When True, the issues snapshot is stale with respect to committed state-branch
+    data and must be refreshed before serving to clients.
+
+    Only checks trackers that expose ``last_checkpoint_at`` (native Markdown
+    trackers with state_branch_enabled=True); GitHub and legacy trackers are
+    ignored.
+    """
+    trackers = []
+    primary = getattr(orch, "tracker", None)
+    if primary is not None:
+        trackers.append(primary)
+    project_trackers = getattr(orch, "_project_trackers", {})
+    if isinstance(project_trackers, dict):
+        trackers.extend(project_trackers.values())
+    for tracker in trackers:
+        checkpoint_at = getattr(tracker, "last_checkpoint_at", None)
+        if isinstance(checkpoint_at, float) and checkpoint_at > snapshot_at:
+            return True
+    return False
+
+
 async def _ensure_issues_snapshot_refresh(
     orch: "Orchestrator",
     *,
@@ -1148,6 +1188,11 @@ async def _ensure_issues_snapshot_refresh(
 
     The request path never waits for the refresh. This keeps the dashboard
     responsive even when the task corpus takes tens of seconds to parse.
+
+    A refresh is also forced when any project tracker's state-branch checkpoint
+    has advanced past the current snapshot's creation time.  This ensures that
+    clients receive fresh data immediately after a checkpoint flush rather than
+    waiting for the normal ``_ISSUES_SNAPSHOT_STALE_MS`` TTL.
     """
     global _issues_refresh_task
     with _issues_snapshot_lock:
@@ -1159,6 +1204,9 @@ async def _ensure_issues_snapshot_refresh(
         if snapshot_orch_id is not None and snapshot_orch_id != id(orch):
             created = 0.0
         age_ms = (time.monotonic() - created) * 1000 if created else None
+        # Force refresh when any tracker checkpoint is newer than the snapshot.
+        if not force and created:
+            force = _any_tracker_checkpoint_newer_than(orch, created)
         if (
             not force
             and created
@@ -1226,8 +1274,27 @@ def _status_rank(status: str) -> int:
 
 
 def _effective_display_status(orch, issue) -> str:
-    """Status to display for *issue* from the canonical tracker state."""
-    return issue.state
+    """Status to display for *issue* from the canonical tracker state.
+
+    Applies display-layer guards that prevent stale or non-state-branch data
+    from surfacing incorrect terminal statuses.  Specifically, an issue must
+    NOT be displayed as Merged unless the canonical tracker state includes
+    evidence of an actual merge (merged_at, work_branch, or review_url set).
+    This guards against OOMPAH-286-like scenarios where the source/main branch
+    or a stale cache says Merged while the canonical state branch says Backlog.
+    """
+    state = issue.state
+    if canonicalize_status(state) == MERGED:
+        if (
+            not getattr(issue, "merged_at", None)
+            and not getattr(issue, "work_branch", None)
+            and not getattr(issue, "review_url", None)
+        ):
+            # No merge evidence in canonical tracker state — revert to Backlog.
+            # This ensures the task remains visible rather than hiding in the
+            # Merged column with a false terminal status.
+            return BACKLOG
+    return state
 
 
 def _manual_needs_human_comment(
@@ -1506,6 +1573,7 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             "managed_repo": getattr(issue, "managed_repo", None),
             "target_branch": getattr(issue, "target_branch", None),
             "work_branch": getattr(issue, "work_branch", None),
+            "merged_at": getattr(issue, "merged_at", None),
             **_issue_display_fields(issue, project_names),
         }
         if intake_summary is not None:
@@ -7883,6 +7951,13 @@ async def api_issue_full_detail(identifier: str, request: Request):
             "managed_repo": getattr(issue, "managed_repo", None),
             "target_branch": getattr(issue, "target_branch", None),
             "work_branch": getattr(issue, "work_branch", None),
+            "merged_at": getattr(issue, "merged_at", None),
+            # Indicate whether the tracker state is fresh (read from canonical
+            # source) or potentially stale (read from a non-state-branch checkout
+            # or when the state-branch worktree could not be synced).
+            "tracker_state_fresh": (
+                getattr(tracker, "state_branch_enabled", False) is True
+            ),
             "intake_actions": action_permissions(
                 issue,
                 _project_by_id(orch, project_id),

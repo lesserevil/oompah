@@ -199,6 +199,12 @@ class Issue:
     # Stored in GitHub issue metadata so review reconciliation can resolve
     # the task from the PR without guessing by task ID.
     work_branch: str | None = None
+    # Timestamp when this issue was recorded as merged in the canonical tracker.
+    # Populated by the native Markdown tracker from the oompah.merged_at /
+    # merged_at frontmatter field.  An issue must NOT be rendered as Merged in
+    # any view unless this field is non-null (or the tracker explicitly records a
+    # terminal Merged status via other means such as GitHub PR metadata).
+    merged_at: str | None = None
 
 
 @dataclass
