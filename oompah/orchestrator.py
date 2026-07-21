@@ -9924,8 +9924,8 @@ class Orchestrator:
                 merged = [
                     d for d in ledger.deliveries
                     if d.status is _AS.MERGED
-                    and not d.ci_remediation_task_id
                     and d.result_commits
+                    and not self._has_live_release_ci_remediation(tracker, d)
                 ]
                 if not merged:
                     continue
@@ -9965,6 +9965,30 @@ class Orchestrator:
                     getattr(project, "name", project.id),
                     exc,
                 )
+
+    @staticmethod
+    def _has_live_release_ci_remediation(tracker: Any, delivery: Any) -> bool:
+        """Return whether a delivery's recorded remediation task still exists.
+
+        Older versions wrote release-CI remediation issues through the service's
+        global tracker.  That leaves an identifier which is not present in the
+        affected project's native tracker, and previously prevented a real
+        project task from ever being created.  A missing task is therefore
+        deliberately retried; tracker lookup errors fail closed to avoid
+        duplicate incident tasks during a transient outage.
+        """
+        task_id = getattr(delivery, "ci_remediation_task_id", None)
+        if not task_id:
+            return False
+        try:
+            return tracker.fetch_issue_detail(task_id) is not None
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "delivery CI monitor: cannot verify remediation task %r: %s",
+                task_id,
+                exc,
+            )
+            return True
 
     def _check_and_remediate_delivery_ci(
         self,
@@ -10047,17 +10071,25 @@ class Orchestrator:
             "on the release branch.\n"
             "3. A dependency or configuration conflict introduced by the delivery.\n\n"
             f"Check the CI run at the release branch HEAD for details.\n\n"
+            "## Acceptance Criteria\n\n"
+            f"- [ ] Identify and fix the failure in the CI run for `{delivery.target_branch}`.\n"
+            f"- [ ] The release branch `{delivery.target_branch}` CI is green after the fix.\n"
+            "- [ ] Add a task comment summarizing the root cause and verification.\n\n"
             "_This task was auto-filed by oompah. It is safe to close once "
             "the release branch CI is green._"
         )
 
         try:
-            new_task = self.tracker.create_issue(
+            # Release delivery belongs to ``project``.  Never use the global
+            # service tracker here: for native-managed projects that turns an
+            # internal remediation task into an external GitHub intake issue.
+            tracker = self._tracker_for_project(str(project.id))
+            new_task = tracker.create_issue(
                 title=title,
                 issue_type="task",
                 description=description,
                 priority=1,
-                labels=["release-ci-failure"],
+                labels=["release-ci-failure", "ci-fix"],
                 initial_status="Needs CI Fix",
             )
             store.update(
