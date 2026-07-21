@@ -16538,10 +16538,31 @@ class Orchestrator:
             if not getattr(current_issue, "branch_name", None):
                 current_issue.branch_name = getattr(entry.issue, "branch_name", None)
 
+        # Resolve the branch-specific worktree path so the uncommitted-changes
+        # check runs against the feature branch's own working tree rather than
+        # the main clone, which may have unrelated dirty state.
+        worktree_path = ""
+        if project_id:
+            try:
+                import os as _os
+                wt = self.project_store.worktree_path_for(
+                    project_id, entry.identifier
+                )
+                if wt and _os.path.isdir(wt):
+                    worktree_path = wt
+            except Exception as exc:
+                logger.debug(
+                    "unpushed_gate: worktree path lookup failed for %s: %s "
+                    "— falling back to repo_path for status check",
+                    entry.identifier,
+                    exc,
+                )
+
         result = check_unpushed_gate(
             current_issue,
             repo_path=repo_path,
             base_branch=base_branch,
+            worktree_path=worktree_path,
             entry_profile=entry.agent_profile_name,
             entry_focus=entry.focus_name or "",
             entry_attempt=entry.retry_attempt or 0,

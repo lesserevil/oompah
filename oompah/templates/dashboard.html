@@ -1052,6 +1052,24 @@
       align-items: center;
       gap: 0.25rem;
     }
+    /* Task-state freshness banner — shown when the issues snapshot is stale
+       or unavailable (OOMPAH-306). Never silently renders obsolete state. */
+    .task-state-stale-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      background: #fff8e1;
+      border: 1px solid #f9a825;
+      border-radius: 6px;
+      padding: 0.6rem 0.9rem;
+      margin: 0 0 0.75rem 0;
+      font-size: 0.85rem;
+      color: #5d4037;
+    }
+    .task-state-stale-banner[hidden] { display: none; }
+    .task-state-stale-banner .stale-icon { font-size: 1rem; flex-shrink: 0; }
+    .task-state-stale-banner .stale-body { flex: 1; }
+    .task-state-stale-banner .stale-title { font-weight: 600; margin-bottom: 0.1rem; }
     /* Credential-error warning banner — shown above the board when provider
        credentials are missing or invalid for one or more retrying tasks. */
     .cred-error-banner {
@@ -1988,6 +2006,14 @@
       <ul class="alerts-list" id="alerts-list"></ul>
     </div>
   </div>
+  <div class="task-state-stale-banner" id="task-state-stale-banner" hidden
+       role="alert" aria-live="polite" aria-label="Task state data may be stale">
+    <span class="stale-icon" aria-hidden="true">&#9888;</span>
+    <div class="stale-body">
+      <div class="stale-title">Task state data may be outdated</div>
+      <div class="stale-detail" id="task-state-stale-detail">The board is displaying a stale snapshot. Refreshing&hellip;</div>
+    </div>
+  </div>
   <div class="board-error" id="board-error" hidden role="alert" aria-live="assertive"></div>
   <div class="main-area">
     <div class="board" id="board">
@@ -2116,8 +2142,9 @@ function connectWebSocket() {
         if (currentProjects.length > 0) {
           renderBoard(filterByProject(msg.data));
           refreshOpenDetailPanel();
-          // A WS push means the server just refreshed; hide the stale banner.
+          // A WS push means the server just refreshed; hide the stale banners.
           _setTrackerStaleBanner(false);
+          _updateTaskStateStaleBanner(false);
         }
       } else if (msg.type === 'activity') {
         handleActivityPush(msg.identifier, msg.entry);
@@ -2866,6 +2893,16 @@ function _setTrackerStaleBanner(stale) {
   banner.setAttribute('aria-hidden', stale ? 'false' : 'true');
 }
 
+function _updateTaskStateStaleBanner(stale) {
+  const banner = document.getElementById('task-state-stale-banner');
+  if (!banner) return;
+  if (stale) {
+    banner.hidden = false;
+  } else {
+    banner.hidden = true;
+  }
+}
+
 async function fetchIssues() {
   const pid = selectedProjectFilterValue();
   const url = pid ? '/api/v1/issues?project_id=' + encodeURIComponent(pid) : '/api/v1/issues';
@@ -2873,13 +2910,21 @@ async function fetchIssues() {
   try {
     res = await fetch(url);
   } catch (err) {
+    // Network error — show stale indicator; state is unavailable.
+    _setTrackerStaleBanner(true);
+    _updateTaskStateStaleBanner(true);
     return null;
   }
-  if (!res.ok) return null;
-  // Surface the stale-tracker banner when the server reports that the issues
-  // snapshot may be older than the most recent canonical state-branch data.
-  const staleHeader = res.headers.get('X-Oompah-Issues-Stale');
-  _setTrackerStaleBanner(staleHeader === 'true');
+  if (!res.ok) {
+    _setTrackerStaleBanner(true);
+    _updateTaskStateStaleBanner(true);
+    return null;
+  }
+  // Surface stale-tracker banners when the server reports the snapshot may be
+  // older than the most recent canonical state-branch data.
+  const isStale = res.headers.get('X-Oompah-Issues-Stale') === 'true';
+  _setTrackerStaleBanner(isStale);
+  _updateTaskStateStaleBanner(isStale);
   return await res.json();
 }
 
