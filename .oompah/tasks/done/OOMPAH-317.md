@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-317
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Restore git write access for OOMPAH-316 landing
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T19:04:51.954483Z'
-updated_at: '2026-07-21T19:34:52.578230Z'
+updated_at: '2026-07-21T19:35:26.150651Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,5 +149,10 @@ author: oompah
 created: 2026-07-21 19:34
 ---
 Verification: 13 new tests added to tests/test_acp_codex_backend.py. TestGetWorktreeGitMetaDir (8 tests): covers plain directory, .git directory (main repo), worktree with absolute gitdir, worktree with relative gitdir, stale gitdir, malformed .git file, unreadable .git file, trailing-newline stripping. TestCodexCliAdditionalDirectories (5 tests): verifies ThreadOptions receives additional_directories for worktrees, is None for plain workspaces, acp_session_start event reflects this, and the path exactly matches the resolved gitdir. All 55 tests in the file pass. Full ACP test suite (155 tests) passes with no regressions.
+---
+author: oompah
+created: 2026-07-21 19:35
+---
+Completion: Delivered the fix for Codex sandbox git write-access failure in git worktrees. Files changed: oompah/acp_backends/codex.py (added _get_worktree_git_meta_dir helper, wired additional_directories into ThreadOptions and acp_session_start payload), tests/test_acp_codex_backend.py (13 new tests across TestGetWorktreeGitMetaDir and TestCodexCliAdditionalDirectories). All 55 tests in the Codex backend file pass; 155 ACP-related tests pass with no regressions. Branch OOMPAH-317 pushed to origin.
 ---
 <!-- COMMENTS:END -->
