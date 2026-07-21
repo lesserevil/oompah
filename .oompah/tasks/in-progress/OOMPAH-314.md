@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T17:36:08.194201Z'
+updated_at: '2026-07-21T17:36:51.106856Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-07-21 17:36
 ---
 Implemented the selected-commit delivery guard in PR #468: the orchestrator no longer requests a source-branch merge before applying selected delivery commits; focused executor tests pass. Corrective Trickle PR #304 is open against release/0.11 to reverse the unintended full-main merge in release-delivery PR #303 (including TRICKLE-29, TRICKLE-30, and TRICKLE-31); cargo test --workspace passes. Trickle remains paused until the correction has merged.
+---
+author: oompah
+created: 2026-07-21 17:36
+---
+Understanding: The bug is in oompah/orchestrator.py where cherry_pick_delivery is called with sync_source_branch=True (line ~9572). This causes the queue to merge origin/main into the release branch BEFORE applying selected source_commits, which means a selected-commit delivery inadvertently pulls in ALL of main. Fix: change sync_source_branch=True to False (the default). Additionally need to add: (1) regression test proving selected subset cannot introduce unselected commits, (2) queue integration test verifying sync_source_branch=False, (3) release CI failure remediation test, (4) verify conflict behavior stays actionable. All tests currently pass (9951 pass). Branch OOMPAH-314 has no commits yet — implementing fix now.
 ---
 <!-- COMMENTS:END -->

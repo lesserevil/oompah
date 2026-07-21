@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: In Review
+status: In Progress
 priority: 1
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -10,13 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:36:38.704491Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-21T17:36:54.366287Z'
+work_branch: OOMPAH-304
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/469
+review_number: '469'
 merged_at: null
-oompah.agent_run_id: 17d210e7-cdd1-4588-a409-133f9c79ebae
+oompah.agent_run_id: 92cef943-e489-4d33-83c7-3e88332597a4
 oompah.task_costs:
   total_input_tokens: 123
   total_output_tokens: 50121
@@ -39,6 +39,10 @@ oompah.task_costs:
     output_tokens: 316
     cost_usd: 0.0
     recorded_at: '2026-07-21T17:13:26.502102+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/469
+oompah.review_number: '469'
+oompah.work_branch: OOMPAH-304
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -165,5 +169,29 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 52s
 - Log: OOMPAH-304__20260721T171235Z.jsonl
+---
+author: oompah
+created: 2026-07-21 17:36
+---
+Review handoff failed: the task branch has unmerged work but no review artifact was created.
+
+Branch: `OOMPAH-304`
+Target branch: `main`
+Unmerged commits: 1 commit
+  2a696ded2 OOMPAH-304: Make Release Delivery show live delivery status consistently
+
+Reason: forge provider returned no review
+
+Required: create or restore the PR/MR for this branch, then move the task to In Review only after the review exists.
+---
+author: oompah
+created: 2026-07-21 17:36
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 17:36
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
