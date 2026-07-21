@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-315
 type: bug
-status: In Progress
+status: Done
 priority: 0
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -12,10 +12,9 @@ blocked_by: []
 labels:
 - external:github
 - focus-complete:duplicate_detector
-- merge-conflict
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T20:48:04.175210Z'
+updated_at: '2026-07-21T20:48:36.262134Z'
 work_branch: OOMPAH-315
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/476
@@ -46,13 +45,13 @@ oompah.intake:
   last_validated_at: '2026-07-21T18:20:20.176791+00:00'
 oompah.agent_run_id: b502048a-c074-443d-968f-5fe25ae3a04f
 oompah.task_costs:
-  total_input_tokens: 90
-  total_output_tokens: 26917
+  total_input_tokens: 99009
+  total_output_tokens: 27866
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 90
-      output_tokens: 26917
+      input_tokens: 99009
+      output_tokens: 27866
       cost_usd: 0.0
   runs:
   - profile: default
@@ -67,6 +66,12 @@ oompah.task_costs:
     output_tokens: 15128
     cost_usd: 0.0
     recorded_at: '2026-07-21T19:01:20.020819+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 98919
+    output_tokens: 949
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T20:48:32.719610+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/476
 oompah.review_number: '476'
 oompah.work_branch: OOMPAH-315
@@ -338,5 +343,20 @@ author: oompah
 created: 2026-07-21 20:48
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-21 20:48
+---
+Agent completed successfully in 30s (99868 tokens)
+---
+author: oompah
+created: 2026-07-21 20:48
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/default]
+- Turns: 1, Tool calls: 2
+- Tokens: 98.9K in / 949 out [99.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 30s
+- Log: OOMPAH-315__20260721T204804Z.jsonl
 ---
 <!-- COMMENTS:END -->
