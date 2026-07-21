@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-288
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Render untrusted content in explicit prompt data boundaries
 parent: OOMPAH-285
@@ -12,13 +12,29 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:41.895980Z'
-updated_at: '2026-07-21T22:07:36.410864Z'
+updated_at: '2026-07-21T22:07:53.369304Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: a62b41a4-5220-47e9-ac40-ad4073304ad4
+oompah.task_costs:
+  total_input_tokens: 21
+  total_output_tokens: 5625
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 21
+      output_tokens: 5625
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 21
+    output_tokens: 5625
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T22:07:49.654560+00:00'
 ---
 ## Summary
 
@@ -66,5 +82,25 @@ Focus handoff: duplicate_detector
 3. Remaining work/risks: Implement (building on OOMPAH-287's provenance.py and XML wrapper foundation): (a) extend safe rendering to continuation prompts, decomposition prompts, agent system prompt construction, and attachment rendering; (b) add non-bypassable safety instruction text to every untrusted data block; (c) add content escaping to prevent role markers, template syntax, control headers, and task-state directives from entering instruction-bearing positions; (d) write adversarial test fixtures (role changes, tool requests, instruction overrides, XML/Markdown delimiters, Liquid-like syntax); assert safety instruction is emitted exactly once and external content stays in data position. Risks: OOMPAH-287's wrapping may already cover some of these paths — implementer should audit what was already wrapped to avoid redundancy.
 
 4. Recommended next focus: feature (security implementation — extend provenance-aware rendering to all prompt positions and add adversarial tests as specified in the description).
+---
+author: oompah
+created: 2026-07-21 22:07
+---
+Agent completed successfully in 956s (5646 tokens)
+---
+author: oompah
+created: 2026-07-21 22:07
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 44, Tool calls: 32
+- Tokens: 21 in / 5.6K out [5.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 15m 56s
+- Log: OOMPAH-288__20260721T215154Z.jsonl
+---
+author: oompah
+created: 2026-07-21 22:07
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-330
 type: task
-status: Done
+status: In Progress
 priority: 0
 title: Rebase epic-OOMPAH-293 onto main
 parent: OOMPAH-293
@@ -10,21 +10,21 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T20:59:27.535782Z'
-updated_at: '2026-07-21T22:07:35.683712Z'
+updated_at: '2026-07-21T22:07:57.641549Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: f81f7d04-ae19-41c5-8dc5-31b562d827d1
+oompah.agent_run_id: f50a42ac-9e49-470c-a40c-15336ad0b1f5
 oompah.task_costs:
-  total_input_tokens: 124189
-  total_output_tokens: 18869
+  total_input_tokens: 124221
+  total_output_tokens: 34058
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 124189
-      output_tokens: 18869
+      input_tokens: 124221
+      output_tokens: 34058
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -45,6 +45,12 @@ oompah.task_costs:
     output_tokens: 9527
     cost_usd: 0.0
     recorded_at: '2026-07-21T21:13:10.951946+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 32
+    output_tokens: 15189
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T22:07:41.705656+00:00'
 ---
 ## Summary
 
@@ -230,5 +236,46 @@ author: oompah
 created: 2026-07-21 22:07
 ---
 Rebased epic-OOMPAH-293 onto origin/main (4 commits applied cleanly, OOMPAH-286 skipped as already on main). Force-pushed with --force-with-lease. Created and pushed OOMPAH-330 branch to satisfy orchestrator unpushed_gate.
+---
+author: oompah
+created: 2026-07-21 22:07
+---
+Agent completed successfully in 1912s (15221 tokens)
+---
+author: oompah
+created: 2026-07-21 22:07
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 57, Tool calls: 29
+- Tokens: 32 in / 15.2K out [15.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 31m 52s
+- Log: OOMPAH-330__20260721T213551Z.jsonl
+---
+author: oompah
+created: 2026-07-21 22:07
+---
+Close refused by orchestrator: branch `OOMPAH-330` has 1 commit not on `main` and no open PR targets `main` from this branch.
+
+Diagnostic:
+  Unmerged commits: 1
+    41880a67e OOMPAH-330: Rebase epic-OOMPAH-293 onto main
+  Open PRs from this branch: 0
+  Merged PRs from this branch: 0
+
+Required: open a PR before closing.
+  gh pr create --base main --head OOMPAH-330 --title "OOMPAH-330: Rebase epic-OOMPAH-293 onto main" --body "..."
+
+Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
+---
+author: oompah
+created: 2026-07-21 22:07
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 22:07
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
