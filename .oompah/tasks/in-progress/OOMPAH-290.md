@@ -14,7 +14,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-21T14:51:56.727670Z'
-updated_at: '2026-07-21T23:17:12.087625Z'
+updated_at: '2026-07-21T23:17:19.578560Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -214,5 +214,13 @@ Integrated into oompah/acp_tools.py:
 - build_tool_catalog(), build_codex_tool_catalog(), build_opencode_tool_catalog(): added action_policy param; shell command check in run_command tool; policy threaded to oompah task commands and project updates
 
 All three backends enforce identical authority boundaries through shared _exec_* helpers. Backward compatible: None policy = permissive (no existing tests broken).
+---
+author: oompah
+created: 2026-07-21 23:17
+---
+Verification: 
+- tests/test_authority_boundary.py: 135 tests covering all 15 test categories (ProtectedAction enum, policy dataclass, factory functions, is_action_allowed, check_action, shell classifier, check_shell_command, external task denials for all protected subcommands, operator task passes, explicit grant allows, none policy backward compat, audit log, injection-cannot-bypass-gate acceptance tests)
+- Full suite: 10858 passed / 36 skipped — zero regressions
+- Key acceptance criteria covered: external prompt injection cannot grant capabilities; external task content cannot modify the server-issued policy; denials are auditable (AUTHORITY_DENY: log lines)
 ---
 <!-- COMMENTS:END -->
