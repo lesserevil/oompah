@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:09.575764Z'
-updated_at: '2026-07-21T23:59:15.142666Z'
+updated_at: '2026-07-21T23:59:27.337637Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 455dd8d1-cc8e-4255-84a8-e43599fb7ef6
 oompah.task_costs:
-  total_input_tokens: 952819
-  total_output_tokens: 12675
+  total_input_tokens: 952863
+  total_output_tokens: 35278
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 952819
-      output_tokens: 12675
+      input_tokens: 952863
+      output_tokens: 35278
       cost_usd: 0.0
   runs:
   - profile: default
@@ -41,6 +41,12 @@ oompah.task_costs:
     output_tokens: 5424
     cost_usd: 0.0
     recorded_at: '2026-07-21T23:42:44.888016+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 44
+    output_tokens: 22603
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T23:59:23.340448+00:00'
 ---
 ## Summary
 
@@ -213,5 +219,15 @@ author: oompah
 created: 2026-07-21 23:59
 ---
 Added OOMPAH_REPO_MAP_* env-backed config to ServiceConfig (6 fields with safe defaults and validation), documented all settings in .env.example, created docs/repository-map.md (activation/freshness/diagnostics/privacy/disable/rebuild), updated docs/project-bootstrap.md with repo-map prerequisites, and wrote 28 bootstrap tests + 7 config tests. All 10597 tests pass via make test.
+---
+author: oompah
+created: 2026-07-21 23:59
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
+- Turns: 0, Tool calls: 55
+- Tokens: 44 in / 22.6K out [22.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 16m 21s
+- Log: OOMPAH-299__20260721T234304Z.jsonl
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-300
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Add end-to-end repository-map observability and regression coverage
 parent: OOMPAH-293
@@ -12,12 +12,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T15:14:10.495385Z'
-updated_at: '2026-07-21T15:45:22.443446Z'
+updated_at: '2026-07-21T23:59:33.283976Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 7ff0b818-35c7-43c6-a3a0-069888d7829d
 ---
 ## Summary
 
@@ -29,3 +30,16 @@ Add API/UI-neutral diagnostics and end-to-end tests proving the complete reposit
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 23:59
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 23:59
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
