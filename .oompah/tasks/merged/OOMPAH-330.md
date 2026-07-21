@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-330
 type: task
-status: Done
+status: Merged
 priority: 0
 title: Rebase epic-OOMPAH-293 onto main
 parent: OOMPAH-293
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T20:59:27.535782Z'
-updated_at: '2026-07-21T22:12:35.290384Z'
+updated_at: '2026-07-21T22:12:46.510196Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -18,13 +18,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: f3facd40-8f31-415a-92ca-2884b3ea134e
 oompah.task_costs:
-  total_input_tokens: 221333
-  total_output_tokens: 35057
+  total_input_tokens: 221352
+  total_output_tokens: 35365
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 221333
-      output_tokens: 35057
+      input_tokens: 221352
+      output_tokens: 35365
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -57,6 +57,12 @@ oompah.task_costs:
     output_tokens: 999
     cost_usd: 0.0
     recorded_at: '2026-07-21T22:08:25.213959+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 19
+    output_tokens: 308
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T22:12:42.443279+00:00'
 ---
 ## Summary
 
@@ -318,5 +324,25 @@ author: oompah
 created: 2026-07-21 22:12
 ---
 Completion: All work was done in prior runs. The actual rebase of epic-OOMPAH-293 onto origin/main completed successfully (4 commits applied, OOMPAH-286 auto-skipped). This run created the required PR #484 (https://github.com/lesserevil/oompah/pull/484) from OOMPAH-330 to main, which the orchestrator requires before closing. Closing task now.
+---
+author: oompah
+created: 2026-07-21 22:12
+---
+YOLO: merged PR #484.
+---
+author: oompah
+created: 2026-07-21 22:12
+---
+Rebased epic-OOMPAH-293 onto origin/main (4 commits applied cleanly, OOMPAH-286 auto-skipped as already on main). Force-pushed with --force-with-lease. Created PR #484 for the OOMPAH-330 management branch.
+---
+author: oompah
+created: 2026-07-21 22:12
+---
+Run #3 [attempt=3, profile=standard, role=standard -> Claude/default]
+- Turns: 0, Tool calls: 7
+- Tokens: 19 in / 308 out [327 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 51s
+- Log: OOMPAH-330__20260721T220853Z.jsonl
 ---
 <!-- COMMENTS:END -->
