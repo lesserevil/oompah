@@ -15,7 +15,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T20:44:54.980344Z'
+updated_at: '2026-07-21T20:44:57.297822Z'
 work_branch: OOMPAH-316
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/478
@@ -435,5 +435,10 @@ author: oompah
 created: 2026-07-21 20:44
 ---
 YOLO: merged PR #478.
+---
+author: oompah
+created: 2026-07-21 20:44
+---
+StateBranchMissingError graceful degradation: server.py now logs WARNING instead of ERROR for unbootstrapped state-branch projects, preventing error_watcher auto-filing. 2 regression tests added. PR #478 created.
 ---
 <!-- COMMENTS:END -->
