@@ -17,7 +17,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:33:31.162292Z'
-updated_at: '2026-07-21T15:41:20.667644Z'
+updated_at: '2026-07-21T15:41:23.660189Z'
 work_branch: null
 target_branch: null
 review_url: null
