@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T16:41:21.498799Z'
+updated_at: '2026-07-21T16:42:00.255997Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-07-21 16:41
 ---
 Discovery: dashboard.html fetchIssues() discards the server's X-Oompah-Issues-Stale header, while board/detail render the returned fields as authoritative. server.py snapshot cache is keyed only as issues:all and detail:{project}:{identifier}:actor, so canonical state-branch revision routing/invalidation is backend work. Frontend scope: render an explicit accessible stale-state warning from API freshness and preserve it across board refreshes.
+---
+author: oompah
+created: 2026-07-21 16:42
+---
+Implementation (frontend): added an accessible task-state freshness banner in dashboard.html. fetchIssues() now consumes X-Oompah-Issues-Stale, warns on stale or failed reads, and clears only on a fresh response. Added tests/test_dashboard_state_read_warning.py covering the banner and stale/unavailable behavior.
 ---
 <!-- COMMENTS:END -->
