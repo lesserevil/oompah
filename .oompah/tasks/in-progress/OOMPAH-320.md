@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:33:50.132513Z'
-updated_at: '2026-07-21T22:47:59.138485Z'
+updated_at: '2026-07-21T22:48:08.391025Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-07-21 22:47
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 22:48
+---
+Understanding: Investigating OOMPAH-320 as Duplicate Investigator. This task asks for a forge-neutral SCM and CI provider contract refactor (SCMProvider, normalized review/CI types for GitHub + GitLab). Searching for any existing tasks that cover the same ground before any implementation begins.
 ---
 <!-- COMMENTS:END -->
