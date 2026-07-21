@@ -515,6 +515,28 @@ def test_cherry_pick_delivery_multi_commit_order():
     assert result.status is AddendumStatus.IN_REVIEW
 
 
+def test_cherry_pick_delivery_does_not_merge_unselected_source_history():
+    """A selected delivery applies only its immutable commit snapshot."""
+    d = _delivery(source_commits=[_sha("a")])
+    store = _FakeStore([d])
+    ps = _make_project_store()
+    scm = _make_scm(created_pr=_make_pr())
+
+    with (
+        patch("oompah.release_delivery_executor._has_new_commits", return_value=False),
+        patch("oompah.release_delivery_executor.apply_cherry_pick"),
+        patch("oompah.release_delivery_executor.push_branch"),
+        patch("oompah.release_delivery_executor._get_result_commits", return_value=[_sha("e")]),
+        patch("oompah.release_delivery_executor._merge_source_branch") as merge_source,
+    ):
+        result = cherry_pick_delivery(
+            store, d, project_store=ps, project_id=PROJECT_ID, scm=scm, repo="org/repo"
+        )
+
+    assert result.status is AddendumStatus.IN_REVIEW
+    merge_source.assert_not_called()
+
+
 def test_cherry_pick_delivery_result_commits_persisted_before_in_review():
     """result_commits appear in the first in_review update call."""
     d = _delivery()
