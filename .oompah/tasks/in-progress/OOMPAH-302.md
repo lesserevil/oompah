@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-21T15:27:26.037712Z'
-updated_at: '2026-07-21T15:46:36.456731Z'
+updated_at: '2026-07-21T15:49:01.200257Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -103,5 +103,10 @@ author: oompah
 created: 2026-07-21 15:46
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 15:49
+---
+Understanding: Investigating OOMPAH-302 as Duplicate Investigator. The error is 'Fetch issues failed for project exocomp: State branch oompah/state/proj-c260b117 does not exist locally or at origin/...' which originates from oompah/oompah_md_tracker.py:1310 (TrackerError raised in _get_state_root() when state_branch_enabled=True but the branch doesn't exist) and is logged at error level in oompah/server.py:2569, triggering error_watcher. Plan: search all tasks for state_branch, Fetch issues failed, proj-c260b117, exocomp, and bootstrap/migration patterns to identify any prior task covering this.
 ---
 <!-- COMMENTS:END -->
