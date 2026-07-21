@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-314
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Deliver only selected commits to release branches and monitor release CI
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T18:05:20.107738Z'
+updated_at: '2026-07-21T18:07:00.598044Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -18,13 +18,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: b3245c1d-34a8-49fe-801d-9b0bb2195188
 oompah.task_costs:
-  total_input_tokens: 102
-  total_output_tokens: 42917
+  total_input_tokens: 285631
+  total_output_tokens: 46510
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 102
-      output_tokens: 42917
+      input_tokens: 285631
+      output_tokens: 46510
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -33,6 +33,12 @@ oompah.task_costs:
     output_tokens: 42917
     cost_usd: 0.0
     recorded_at: '2026-07-21T18:00:11.453550+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 285529
+    output_tokens: 3593
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T18:06:57.693367+00:00'
 ---
 ## Summary
 
@@ -133,5 +139,20 @@ author: oompah
 created: 2026-07-21 18:05
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-21 18:06
+---
+Agent completed successfully in 99s (289122 tokens)
+---
+author: oompah
+created: 2026-07-21 18:06
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/default]
+- Turns: 1, Tool calls: 8
+- Tokens: 285.5K in / 3.6K out [289.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 39s
+- Log: OOMPAH-314__20260721T180520Z.jsonl
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T18:06:49.410746Z'
+updated_at: '2026-07-21T18:07:04.128867Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
 review_number: '469'
 merged_at: null
-oompah.agent_run_id: 82ead177-a677-4b42-aa66-65eb1c615296
+oompah.agent_run_id: ca9d9f5b-99ef-48d0-9924-b4fb609a0c20
 oompah.task_costs:
   total_input_tokens: 523405
   total_output_tokens: 66237
@@ -533,5 +533,15 @@ Steps to resolve:
   git push origin OOMPAH-304
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-21 18:07
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 18:07
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
