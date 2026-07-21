@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-306
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T18:06:33.166410Z'
+updated_at: '2026-07-21T18:06:50.136431Z'
 work_branch: null
 target_branch: null
 review_url: null

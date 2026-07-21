@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-305
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T17:52:09.836093Z'
+updated_at: '2026-07-21T18:06:48.125366Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 6faf6dca-9ba7-48c7-b656-b5dbca0d61c3
+oompah.agent_run_id: 613759e8-c958-466c-94ac-0313e71ec420
 oompah.task_costs:
   total_input_tokens: 1584639
   total_output_tokens: 74839
@@ -267,5 +267,15 @@ Steps to resolve:
   git push origin OOMPAH-305
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-21 18:06
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 18:06
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
