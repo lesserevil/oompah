@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-296
 type: task
-status: In Progress
+status: Done
 priority: 2
 title: Implement Aider-style repository-map ranking and bounded rendering
 parent: OOMPAH-293
@@ -13,7 +13,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T16:55:00.511888Z'
+updated_at: '2026-07-21T17:06:33.125959Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -260,5 +260,10 @@ author: oompah
 created: 2026-07-21 16:55
 ---
 Understanding (Test Engineer): The test file tests/test_repo_map_ranker.py already exists with comprehensive tests for rank_symbols() and render_repo_map(). The implementation file oompah/repo_map_ranker.py is missing — causing a ModuleNotFoundError. My job is to create the implementation to make all tests pass. Tests cover: (1) referenced symbols outranking isolated ones, (2) task-mention and seed-file boosts, (3) deterministic tie-breaking by path+line, (4) token-budget enforcement, (5) ValueError on non-positive budget, (6) readable output without edges, (7) HTML-escaping of untrusted paths/names with UNTRUSTED label. Implementing now.
+---
+author: oompah
+created: 2026-07-21 17:06
+---
+Completion: Implemented oompah/repo_map_ranker.py with rank_symbols() and render_repo_map() per Aider RepoMap principles. Committed tests/test_repo_map_ranker.py (9 tests). All acceptance criteria met: in-degree graph scoring, task-mention boost (1000), seed-file boost (100), deterministic tie-breaking by (path, line), token-budget enforcement with ValueError on non-positive budget, HTML-escaping of < > & in untrusted paths/names, newline→literal-\n escaping, [UNTRUSTED] header label. Full suite: 10232 passed, 36 skipped via make test.
 ---
 <!-- COMMENTS:END -->
