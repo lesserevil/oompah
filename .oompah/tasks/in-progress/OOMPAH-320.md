@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:50.132513Z'
-updated_at: '2026-07-21T23:12:46.630420Z'
+updated_at: '2026-07-21T23:21:58.800081Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -222,5 +222,21 @@ Affected files:
 - tests/test_server_release_addendums.py
 - tests/test_server_release_delivery_backlog_factory.py
 - tests/test_server_release_delivery_backlog_tracker.py
+---
+author: oompah
+created: 2026-07-21 23:21
+---
+Implementation complete: Fixed 16 failing test mocks across 5 test files.
+
+Root cause: The refactoring agent correctly updated production code (release_delivery_inventory.py, release_pick_commit_resolver.py) to call scm.get_review_commits() — the forge-neutral contract method — instead of scm.get_pr_commits(). However, 5 test files still mocked scm.get_pr_commits, which on a MagicMock returns a new MagicMock instead of the configured return value when get_review_commits is actually called.
+
+Changes:
+- tests/test_release_delivery_backlog.py: Updated 14 mock references
+- tests/test_release_delivery_refresh.py: Updated 2 mock references + local function name
+- tests/test_server_release_addendums.py: Updated 1 mock reference
+- tests/test_server_release_delivery_backlog_factory.py: Updated 4 mock references
+- tests/test_server_release_delivery_backlog_tracker.py: Updated 3 mock references
+
+Verification: make test passes — 10525 passed, 36 skipped, 0 failed.
 ---
 <!-- COMMENTS:END -->

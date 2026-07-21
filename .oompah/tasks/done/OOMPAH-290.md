@@ -14,7 +14,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-21T14:51:56.727670Z'
-updated_at: '2026-07-21T23:21:37.176287Z'
+updated_at: '2026-07-21T23:21:51.728854Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,13 +22,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 9a595951-9bc4-42a4-b02a-8943369bcf20
 oompah.task_costs:
-  total_input_tokens: 488818
-  total_output_tokens: 10017
+  total_input_tokens: 488875
+  total_output_tokens: 56647
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 488818
-      output_tokens: 10017
+      input_tokens: 488875
+      output_tokens: 56647
       cost_usd: 0.0
   runs:
   - profile: default
@@ -43,6 +43,12 @@ oompah.task_costs:
     output_tokens: 3278
     cost_usd: 0.0
     recorded_at: '2026-07-21T22:59:18.798073+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 57
+    output_tokens: 46630
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T23:21:49.398836+00:00'
 ---
 ## Summary
 
@@ -244,5 +250,20 @@ author: oompah
 created: 2026-07-21 23:21
 ---
 Implemented oompah/authority_boundary.py (AgentActionPolicy frozen dataclass + ProtectedAction checks for 7 action categories) and integrated authority boundary into all three ACP catalog builders in acp_tools.py. 135 tests in tests/test_authority_boundary.py cover all acceptance criteria: external prompt injection cannot grant capabilities, denials are auditable, approved operator workflows are preserved.
+---
+author: oompah
+created: 2026-07-21 23:21
+---
+Agent completed successfully in 1343s (46687 tokens)
+---
+author: oompah
+created: 2026-07-21 23:21
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 109, Tool calls: 68
+- Tokens: 57 in / 46.6K out [46.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 22m 23s
+- Log: OOMPAH-290__20260721T225930Z.jsonl
 ---
 <!-- COMMENTS:END -->

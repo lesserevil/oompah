@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-291
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Add prompt-injection regression suite, observability, and operator guidance
 parent: OOMPAH-285
@@ -13,12 +13,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:57.738049Z'
-updated_at: '2026-07-21T15:45:09.964096Z'
+updated_at: '2026-07-21T23:21:58.080912Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 3601dcf2-d175-4148-bf1f-f0b9493a0c7e
 ---
 ## Summary
 
@@ -36,3 +37,16 @@ Acceptance criteria: a malicious GitHub issue cannot override agent instructions
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 23:21
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 23:21
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
