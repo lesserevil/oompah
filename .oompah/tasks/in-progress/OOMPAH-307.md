@@ -7,10 +7,11 @@ title: Keep shared-epic child work and merge state on the epic branch
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:57.025790Z'
-updated_at: '2026-07-21T16:45:49.009686Z'
+updated_at: '2026-07-21T16:47:37.790615Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,5 +86,32 @@ author: oompah
 created: 2026-07-21 16:45
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 16:47
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate confirmed. OOMPAH-307 is a unique bug covering shared-epic child dispatch routing to the parent epic branch, prevention of child-to-main PRs, and child status promotion gating on epic merge. No existing task addresses this behavior.
+
+2. Evidence:
+   - Searched .oompah/tasks/ (archived, backlog, done, merged, needs-ci-fix, needs-rebase), plans/, docs/, README.md, WORKFLOW.md for: shared epic, epic branch, child dispatch, work_branch, target_branch, child PR.
+   - Zero matches across all directories.
+   - Closest reviewed tasks:
+     - OOMPAH-285 (In Progress): parent epic for prompt injection defense — not about branch routing
+     - OOMPAH-286 (Merged): exact reproduction case — child given own branch (OOMPAH-286) and PR #466 merged to main; this is the bug OOMPAH-307 wants to prevent
+     - OOMPAH-282 (Backlog): unrelated state-branch migration encoding error
+     - plans/multi-branch-support.md: covers per-task target_branch and project default_branch but no epic branch child routing concept
+   - No existing task or design doc describes the fix.
+
+3. Remaining work and risks:
+   - Implementation: Identify shared epic membership before worktree/branch/PR creation (projects.py, orchestrator.py).
+   - Route child commits and tests to parent epic worktree/branch; prevent child-to-main PR.
+   - Record child completion as integrated-on-epic-branch (non-terminal state); promote to Merged only when parent epic merges.
+   - Reconcile OOMPAH-286/PR #466 existing data safely.
+   - Key files: oompah/orchestrator.py (_create_workspace_for_issue, _ensure_review_exists, _open_epic_main_prs), oompah/projects.py (create_worktree, create_epic_worktree), oompah/models.py (Issue, epic fields).
+   - Tests: regression fixture for OOMPAH-285/286 routing, shared-epic dispatch test, status-promotion lifecycle test.
+
+4. Recommended next focus: feature (implement shared-epic child routing and status lifecycle).
 ---
 <!-- COMMENTS:END -->
