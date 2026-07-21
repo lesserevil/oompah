@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-286
 type: task
-status: In Review
+status: Merged
 priority: 1
 title: Define the external-content trust model and prompt-injection threat model
 parent: OOMPAH-285
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:39.881239Z'
-updated_at: '2026-07-21T16:11:12.306094Z'
+updated_at: '2026-07-21T16:11:19.478216Z'
 work_branch: OOMPAH-286
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/466
@@ -258,5 +258,10 @@ Acceptance criteria met:
 - Machine-readable provenance contract defined (§8 JSON schema)
 - All 5 required inventory components named (intake_bridge, focus_triage, prompt_renderer, continuation_prompts, agent_system_prompt) in §6
 - 29 tests enforce requirements as hard gates
+---
+author: oompah
+created: 2026-07-21 16:11
+---
+YOLO: merged PR #466.
 ---
 <!-- COMMENTS:END -->
