@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-315
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T19:00:37.063252Z'
+updated_at: '2026-07-21T19:01:09.227008Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -261,5 +261,21 @@ No regressions. The 5 new tests all pass:
 - _error_class_for_tracker_exc returns 'tracker_state_branch_missing' for the new subclass
 - The new class is distinct from 'tracker_failed'
 - Generic TrackerError still returns 'tracker_failed' (no regression)
+---
+author: oompah
+created: 2026-07-21 19:01
+---
+Completion: OOMPAH-315 resolved.
+
+Root cause: project exocomp (proj-c260b117) has state_branch_enabled=True but its state branch oompah/state/proj-c260b117 does not exist. Every fetch raised a generic TrackerError, classified as 'tracker_failed', triggering error_watcher to auto-file tasks.
+
+Fix delivered:
+- New TrackerStateBranchMissingError subclass of TrackerError in tracker.py
+- oompah_md_tracker.py raises this specific exception (not generic TrackerError) for missing state branch
+- orchestrator.py catches it as a WARNING (no error_class) in all 4 fetch sites, so error_watcher is NOT triggered
+- Distinct error class 'tracker_state_branch_missing' in _error_class_for_tracker_exc for proper dedup if needed
+- 6 new tests (all passing): TrackerStateBranchMissingError class hierarchy + orchestrator classification
+
+Note: the underlying configuration issue (project exocomp needs bootstrap/migration to create its state branch) is separate. This fix prevents repeated noise; the operator warning log message tells them what action to take.
 ---
 <!-- COMMENTS:END -->
