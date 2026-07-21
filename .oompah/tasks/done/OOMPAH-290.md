@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-290
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Enforce server-side authority boundaries for agent actions influenced by external
   intake
@@ -14,7 +14,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-21T14:51:56.727670Z'
-updated_at: '2026-07-21T23:18:05.123798Z'
+updated_at: '2026-07-21T23:21:34.874712Z'
 work_branch: null
 target_branch: null
 review_url: null
