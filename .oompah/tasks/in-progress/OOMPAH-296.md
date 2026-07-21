@@ -10,9 +10,10 @@ blocked_by:
 - OOMPAH-295
 labels:
 - focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T16:41:34.216390Z'
+updated_at: '2026-07-21T16:41:47.931181Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,5 +58,15 @@ Closest reviewed tasks/evidence:
 - plans/ and docs/: No plans or docs covering Aider-style ranking or token-bounded map rendering found.
 
 No prior task covers directed relationship graph formation, PageRank-style symbol scoring, task-relevance boosting, or token-budget-bounded rendering. OOMPAH-296 is net-new implementation work.
+---
+author: oompah
+created: 2026-07-21 16:41
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate confirmed. OOMPAH-296 is net-new implementation work.
+2. Evidence: Searched all .oompah/tasks/ subdirectories (archived ~200+ tasks, done, merged ~50+ tasks, backlog, needs-ci-fix, needs-rebase) for: repo-map, aider, ranking, tree-sitter, pagerank, token budget, bounded render, directed graph, symbol rank, seed file. Zero matches for ranking/rendering context. OOMPAH-293 is the parent epic; OOMPAH-295 (Done) is the upstream extractor (explicitly excludes ranking). OOMPAH-297–300 are distinct sibling tasks.
+3. Remaining work: Implement the Aider-style ranking and bounded rendering layer: (a) build directed relationship graph from OOMPAH-295 extraction artifacts (defs/refs), (b) apply PageRank-style scoring with boosts for task-mentioned identifiers and seed files, (c) render token-budget-bounded text map with deterministic tie-breaking, (d) escape/mark paths and source excerpts as untrusted, (e) write tests per acceptance criteria (synthetic graph fixtures, boost verification, budget enforcement, determinism, no-edge readability, path escaping), (f) verify 'make test' passes. Key dependency: oompah/repo_indexer.py and oompah/repo_map.py (OOMPAH-295 artifacts).
+4. Recommended next focus: feature.
 ---
 <!-- COMMENTS:END -->
