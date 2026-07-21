@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-283
 type: task
-status: Done
+status: In Review
 priority: null
 title: Expose active state-branch identity and checkpoint health in project APIs
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T22:54:50.695408Z'
-updated_at: '2026-07-20T23:41:00.950918Z'
+updated_at: '2026-07-21T04:04:40.464732Z'
 work_branch: null
 target_branch: null
 review_url: null
