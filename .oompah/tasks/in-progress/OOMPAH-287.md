@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T16:20:10.826896Z'
+updated_at: '2026-07-21T16:38:44.364422Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -152,5 +152,10 @@ author: oompah
 created: 2026-07-21 16:20
 ---
 Discovery: Identified all injection points. Key files: oompah/prompt.py (render_prompt wraps description/comments for model), oompah/focus.py (_build_triage_prompt embeds description inline), oompah/github_intake_bridge.py (_deliver_github_comment_to_agent injects untrusted comment text to running agent), oompah/acp_backends/claude.py (line ~613 injects comment via client.query without delimiter). The plan (§8) specifies a JSON provenance contract and XML delimiters. Security attack vectors: (1) delimiter escape via </oompah:untrusted> in content, (2) trust elevation via spoofed provenance JSON, (3) default-deny bypass for unknown sources. Implementing: new oompah/provenance.py module + prompt/focus/bridge patches + tests.
+---
+author: oompah
+created: 2026-07-21 16:38
+---
+Implementation: Created oompah/provenance.py with ContentProvenance dataclass, TrustLevel/ContentSource/ProvenanceComponent enums, make_provenance() factory (server-side trust assignment), default_deny() for unknown sources, escape_content() (delimiter escape defense), and wrap_untrusted() (raises on model_renderable=False). Patched oompah/prompt.py to wrap issue.description and comment text with XML delimiters before Liquid template rendering. Patched oompah/focus.py _build_triage_prompt() to wrap the issue description block. Patched oompah/github_intake_bridge.py _deliver_github_comment_to_agent() to wrap comment bodies with continuation_prompts component + github_issue_comment source + origin_actor. Added tests/test_provenance.py with 121 tests covering all source types, trust assignments, delimiter escape, serialization, default-deny behavior, native legacy compat, and integration with prompt/focus/bridge.
 ---
 <!-- COMMENTS:END -->
