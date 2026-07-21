@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-303
 type: bug
-status: Open
+status: Done
 priority: 1
 title: Use private ~/.oompah/tmp for Oompah and agent temporary files
 parent: null
@@ -10,13 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T15:33:58.183374Z'
-updated_at: '2026-07-21T15:38:11.851397Z'
+updated_at: '2026-07-21T15:39:07.080115Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: df581839-ce60-4354-96c0-98c7926f457b
+oompah.agent_run_id: 383d49af-a971-406a-8d43-ab05df26c588
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 76
@@ -70,5 +70,20 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 26s
 - Log: OOMPAH-303__20260721T153719Z.jsonl
+---
+author: oompah
+created: 2026-07-21 15:38
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 15:38
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 15:39
+---
+Implemented private Oompah temporary root. The service now configures ~/.oompah/tmp (or OOMPAH_TEMP_ROOT) before startup, exports TMPDIR/TMP/TEMP to child processes, defaults workspaces to ~/.oompah/workspaces, and documents the settings. Focused regression tests pass. Service restarted and resumed with the private root created at mode 0700.
 ---
 <!-- COMMENTS:END -->
