@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-299
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Add repository-map configuration, bootstrap defaults, and operator documentation
 parent: OOMPAH-293
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:09.575764Z'
-updated_at: '2026-07-21T23:03:18.767768Z'
+updated_at: '2026-07-21T23:38:55.087576Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 02f9bb7f-9a10-4200-8027-c995cdfc72ba
+oompah.agent_run_id: 04f0d172-18ca-4447-a9ce-b3d11ec9deca
 oompah.task_costs:
   total_input_tokens: 29
   total_output_tokens: 7251
@@ -132,5 +132,15 @@ author: oompah
 created: 2026-07-21 23:03
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-21 23:38
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 23:38
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->

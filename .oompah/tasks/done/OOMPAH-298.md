@@ -15,7 +15,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:38:35.978706Z'
+updated_at: '2026-07-21T23:38:48.813653Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,13 +23,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 686349a3-50d1-4983-9774-ee1759762b89
 oompah.task_costs:
-  total_input_tokens: 827502
-  total_output_tokens: 10134
+  total_input_tokens: 827562
+  total_output_tokens: 44432
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 827502
-      output_tokens: 10134
+      input_tokens: 827562
+      output_tokens: 44432
       cost_usd: 0.0
   runs:
   - profile: default
@@ -56,6 +56,12 @@ oompah.task_costs:
     output_tokens: 4712
     cost_usd: 0.0
     recorded_at: '2026-07-21T23:06:45.772903+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 60
+    output_tokens: 34298
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T23:38:46.378248+00:00'
 ---
 ## Summary
 
@@ -313,5 +319,20 @@ author: oompah
 created: 2026-07-21 23:38
 ---
 Implemented repository-map context injection into all three agent startup prompt paths. New oompah/repo_map_prompt.py provides fail-open build_repo_map_context() that resolves HEAD SHA, reads fresh artifact from state-branch worktree, derives task seeds from issue metadata, renders bounded map (OOMPAH_REPO_MAP_TOKEN_BUDGET), and wraps result as oompah:untrusted/repo_file provenance block. render_prompt() extended with repo_map_context parameter. All three orchestrator dispatch paths updated. 35 new tests cover all specified cases. 10774 tests pass.
+---
+author: oompah
+created: 2026-07-21 23:38
+---
+Agent completed successfully in 1910s (34358 tokens)
+---
+author: oompah
+created: 2026-07-21 23:38
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 117, Tool calls: 75
+- Tokens: 60 in / 34.3K out [34.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 31m 50s
+- Log: OOMPAH-298__20260721T230702Z.jsonl
 ---
 <!-- COMMENTS:END -->
