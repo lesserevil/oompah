@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:51.110283Z'
-updated_at: '2026-07-21T23:59:09.122753Z'
+updated_at: '2026-07-21T23:59:11.661911Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-07-21 23:59
 ---
 Completion: Delivered comprehensive GitLabProvider MR parity test coverage and fixed 2 spec violations.\n\nDelivered:\n- 102 new fixture-based tests in tests/test_scm.py covering every SCM contract operation for GitLabProvider\n- Tests cover: all 15 contract methods, GitLab.com + self-managed URL construction, nested namespace URL encoding, CI status from head_pipeline, draft/WIP detection, conflicts/divergence/mergeability, label preservation (including oompah:status:* labels), token-not-leaked-in-errors, pagination params, and auth/network failure degradation\n- Fixed merge_review: removed squash=True (history preservation requirement per plan)\n- Fixed enable_auto_merge: replaced direct-merge fallback with merge_when_pipeline_succeeds per spec; added actionable error for policy/approval rejection\n- make test: 10627 passed (was 10525 — 102 net new), 0 failures
+---
+author: oompah
+created: 2026-07-21 23:59
+---
+Added 102 comprehensive fixture-based tests for GitLabProvider covering all SCM contract operations, GitLab.com/self-managed URLs, nested namespace encoding, CI status, draft/WIP, label preservation, token redaction, and error degradation. Fixed 2 impl bugs: (1) merge_review squash=True removed (history preservation); (2) enable_auto_merge now uses merge_when_pipeline_succeeds instead of direct merge. All 10627 tests pass.
 ---
 <!-- COMMENTS:END -->

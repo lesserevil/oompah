@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-299
 type: task
-status: In Progress
+status: Done
 priority: 2
 title: Add repository-map configuration, bootstrap defaults, and operator documentation
 parent: OOMPAH-293
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:09.575764Z'
-updated_at: '2026-07-21T23:59:08.398595Z'
+updated_at: '2026-07-21T23:59:12.759386Z'
 work_branch: null
 target_branch: null
 review_url: null
