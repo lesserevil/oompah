@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:54:53.508033Z'
+updated_at: '2026-07-21T17:54:56.099243Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
@@ -430,5 +430,10 @@ author: oompah
 created: 2026-07-21 17:54
 ---
 Understanding (Maintenance Engineer): Branch OOMPAH-304 is clean and fully pushed (commit 2a696ded2). All prior implementation work is committed: backend BacklogRefreshManager.invalidate() called after executor/PR-poll runs, frontend PR links + 30s auto-refresh poll + stale-cache pending hint, and full test coverage. Git status shows nothing to commit. The task needs to be closed — PR #469 exists. Closing now.
+---
+author: oompah
+created: 2026-07-21 17:54
+---
+Fixed Release Delivery live status: backend cache invalidation (BacklogRefreshManager.invalidate()) after executor/PR-poll runs, frontend PR links inline, 30s auto-refresh poll while active deliveries exist, stale-cache 'Queued — status updating' hint. 9989 tests pass. Branch committed and pushed (2a696ded2), PR #469 open for review.
 ---
 <!-- COMMENTS:END -->
