@@ -248,13 +248,16 @@ class BacklogRefreshManager:
             job = self._jobs.get(key)
             if job is None:
                 return
-            # Reset the completion timestamp to 0.0 so the TTL check in
-            # get_or_start() always evaluates as expired, triggering a new
-            # refresh on the next call.  Setting to None would accidentally
-            # suppress the TTL branch (the condition short-circuits on None),
-            # so we use 0.0 which is guaranteed to exceed any positive TTL.
+            # Reset the completion timestamp so the TTL check in get_or_start()
+            # always evaluates as expired, triggering a new refresh on the next
+            # call.  We cannot use 0.0 here because time.monotonic() on a
+            # freshly-started process/container may be smaller than
+            # self._result_ttl_s (e.g. a CI runner up for < 5 minutes), which
+            # would make (monotonic - 0.0) < TTL and suppress the refresh.
+            # Instead we compute a timestamp that is guaranteed to be at least
+            # one second past the TTL relative to now.
             if not job.is_running():
-                job.result_completed_at = 0.0
+                job.result_completed_at = time.monotonic() - self._result_ttl_s - 1.0
         logger.debug(
             "BacklogRefreshManager: invalidated cached result for %s/%s",
             project_id,
