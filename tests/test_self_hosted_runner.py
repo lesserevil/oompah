@@ -1,7 +1,8 @@
 """Tests for the self-hosted GitHub Actions runner configuration.
 
 Validates:
-- CI workflows target the required self-hosted runner labels.
+- The primary CI workflow uses GitHub-hosted runners and the optional
+  dedicated-runner workflow targets the required self-hosted runner labels.
 - .env.example documents the required runner environment variables.
 - scripts/runner.sh exists, is executable, and contains expected logic.
 - Makefile exposes the runner lifecycle targets.
@@ -19,6 +20,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+DEDICATED_CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci-dedicated.yml"
 RELEASE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "cli-release.yml"
 ENV_EXAMPLE = REPO_ROOT / ".env.example"
 RUNNER_SCRIPT = REPO_ROOT / "scripts" / "runner.sh"
@@ -59,79 +61,47 @@ GITHUB_HOSTED_RUNNERS = frozenset({
 })
 
 
-class TestCiWorkflowRunsOnLabels:
-    """CI workflow must target the self-hosted oompah runner."""
+class TestCiWorkflowRunnerSelection:
+    """Primary CI uses public capacity; dedicated CI remains available on demand."""
 
     def test_ci_workflow_has_test_job(self):
         wf = _load_workflow(CI_WORKFLOW)
         assert "test" in wf["jobs"], "Expected a 'test' job in ci.yml"
 
-    def test_ci_test_job_targets_self_hosted(self):
+    def test_ci_test_job_targets_github_hosted_runner(self):
         wf = _load_workflow(CI_WORKFLOW)
         labels = set(_get_runs_on(wf["jobs"]["test"]))
-        assert "self-hosted" in labels, (
-            f"ci.yml 'test' job must include 'self-hosted' in runs-on; got {labels}"
+        assert labels == {"ubuntu-latest"}, (
+            "ci.yml 'test' job must use the public GitHub-hosted runner; "
+            f"got {labels}"
         )
 
-    def test_ci_test_job_targets_oompah_label(self):
-        wf = _load_workflow(CI_WORKFLOW)
-        labels = set(_get_runs_on(wf["jobs"]["test"]))
-        assert "oompah" in labels, (
-            f"ci.yml 'test' job must include 'oompah' in runs-on; got {labels}"
+    def test_dedicated_ci_workflow_has_test_job(self):
+        wf = _load_workflow(DEDICATED_CI_WORKFLOW)
+        assert "test" in wf["jobs"], "Expected a 'test' job in ci-dedicated.yml"
+
+    def test_dedicated_ci_is_manual_only(self):
+        wf = _load_workflow(DEDICATED_CI_WORKFLOW)
+        assert set(wf[True]) == {"workflow_dispatch"}, (
+            "ci-dedicated.yml must only run when an operator dispatches it"
         )
 
-    def test_ci_test_job_includes_all_required_labels(self):
-        wf = _load_workflow(CI_WORKFLOW)
+    def test_dedicated_ci_test_job_includes_all_required_labels(self):
+        wf = _load_workflow(DEDICATED_CI_WORKFLOW)
         labels = set(_get_runs_on(wf["jobs"]["test"]))
         missing = REQUIRED_LABELS - labels
         assert not missing, (
-            f"ci.yml 'test' job missing labels: {missing}. Current runs-on: {labels}"
+            "ci-dedicated.yml 'test' job missing labels: "
+            f"{missing}. Current runs-on: {labels}"
         )
 
-    def test_ci_test_job_does_not_use_github_hosted_runner(self):
-        wf = _load_workflow(CI_WORKFLOW)
+    def test_dedicated_ci_test_job_does_not_use_github_hosted_runner(self):
+        wf = _load_workflow(DEDICATED_CI_WORKFLOW)
         labels = set(_get_runs_on(wf["jobs"]["test"]))
         overlap = labels & GITHUB_HOSTED_RUNNERS
         assert not overlap, (
-            f"ci.yml 'test' job must not target GitHub-hosted runners; found {overlap}. "
-            "GitHub Actions does not support OR between GitHub-hosted and self-hosted labels."
-        )
-
-    def test_all_ci_jobs_target_required_labels(self):
-        """Every job in ci.yml must use the required self-hosted labels.
-
-        Catches regressions where a newly added job accidentally uses ubuntu-latest.
-        """
-        wf = _load_workflow(CI_WORKFLOW)
-        failures = []
-        for job_name, job in wf["jobs"].items():
-            labels = set(_get_runs_on(job))
-            missing = REQUIRED_LABELS - labels
-            if missing:
-                failures.append(
-                    f"Job '{job_name}' is missing labels {missing} (has {labels})"
-                )
-        assert not failures, (
-            "All ci.yml jobs must target the self-hosted oompah runner:\n"
-            + "\n".join(failures)
-        )
-
-    def test_no_ci_job_uses_github_hosted_runner(self):
-        """No job in ci.yml may use a GitHub-hosted runner name.
-
-        GitHub Actions has no OR between GitHub-hosted and self-hosted labels;
-        any job with ubuntu-latest/macos-latest/etc. would silently bypass the
-        self-hosted runner and fail when GitHub-hosted capacity is unavailable.
-        """
-        wf = _load_workflow(CI_WORKFLOW)
-        violations = []
-        for job_name, job in wf["jobs"].items():
-            labels = set(_get_runs_on(job))
-            overlap = labels & GITHUB_HOSTED_RUNNERS
-            if overlap:
-                violations.append(f"Job '{job_name}' uses GitHub-hosted label(s): {overlap}")
-        assert not violations, (
-            "ci.yml must not use GitHub-hosted runners:\n" + "\n".join(violations)
+            "ci-dedicated.yml 'test' job must not target GitHub-hosted runners; "
+            f"found {overlap}."
         )
 
 
