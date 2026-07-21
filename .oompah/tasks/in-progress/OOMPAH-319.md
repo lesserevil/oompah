@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-319
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Add explicit forge configuration and backward-compatible project migration
 parent: OOMPAH-318
@@ -10,12 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T20:33:31.453522Z'
-updated_at: '2026-07-21T22:16:49.661659Z'
+updated_at: '2026-07-21T22:17:26.526252Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: ec8495fb-1a43-4caf-839f-394a24ea5830
 ---
 ## Summary
 
@@ -42,3 +43,16 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 22:17
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 22:17
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
