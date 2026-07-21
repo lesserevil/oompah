@@ -11,9 +11,10 @@ blocked_by:
 - OOMPAH-296
 labels:
 - focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-21T15:14:07.528667Z'
-updated_at: '2026-07-21T22:13:23.776188Z'
+updated_at: '2026-07-21T22:13:46.969876Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +60,40 @@ Closest reviewed tasks and evidence:
 - No archived or merged task covers: project-sync integration, duplicate-request coalescing, background-bounded generation, per-SHA cache reuse, state-branch integration tests, or concurrent-write atomicity.
 
 OOMPAH-297 is net-new implementation work: the orchestration/integration layer that connects Tree-sitter extraction + ranking to the state-branch persistence lifecycle.
+---
+author: oompah
+created: 2026-07-21 22:13
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: No duplicate confirmed. OOMPAH-297 is net-new implementation work — the orchestration/integration layer of the OOMPAH-293 epic.
+
+2. **Relevant files, commands, and evidence**:
+   - `oompah/repo_map.py` — typed artifact contract (RepoMap, IndexedFile, SymbolTag, RelationshipEdge, RenderingMetadata), atomic write/read helpers (write_repo_map, read_repo_map, prune_repo_maps), freshness check (is_fresh), path construction (repo_map_path, repo_map_slug). Implemented by OOMPAH-294.
+   - `oompah/repo_indexer.py` — Tree-sitter symbol and reference extraction. Implemented by OOMPAH-295.
+   - `oompah/repo_map_ranker.py` — rank_symbols() and render_repo_map() for Aider-style ranking. Implemented by OOMPAH-296.
+   - `tests/test_repo_map.py` — 106 unit tests for schema/lifecycle.
+   - `plans/repo-map-artifact.md` — design doc for schema, atomic write, freshness, pruning, state-branch paths.
+   - `plans/state-branch-design.md` — state-branch namespace and lifecycle.
+   - `make test` — test target (runs uv run pytest tests/).
+
+3. **Remaining work (all of it)**:
+   - Create the generation/maintenance orchestrator (e.g., `oompah/repo_map_generator.py`) that:
+     a) Checks the state branch for a fresh map for the current project/SHA; returns it if available.
+     b) Otherwise, triggers Tree-sitter extraction (repo_indexer) + ranking (repo_map_ranker) to generate a new RepoMap.
+     c) Writes the artifact atomically via write_repo_map() and commits to the configured state branch (never to main/release).
+     d) Coalesces duplicate requests for the same project+SHA (in-flight dedup).
+     e) Runs as a bounded background operation with a configurable timeout.
+     f) Reports failures/timeouts as diagnostic state without blocking task dispatch.
+     g) Retains only bounded history (prune_repo_maps after each commit).
+   - Integration tests with a temporary Git remote verifying: maps land only on the state branch; same-SHA requests reuse the artifact; changed-SHA requests regenerate; concurrent requests coalesce; atomic writes never expose partial JSON; failures leave task dispatch usable; timeouts emit diagnostic state.
+   - Verify all tests pass via `make test`.
+
+4. **Risks**:
+   - The state branch commit logic needs to integrate with the existing state-branch write infrastructure (see `plans/state-branch-design.md`). Verify whether a helper for state-branch commits already exists or needs to be created.
+   - Concurrency primitives (asyncio.Lock or threading.Lock) must match the event loop model used in the rest of the codebase — check `oompah/projects.py` and related files for patterns.
+   - The blocking dependencies (OOMPAH-294, OOMPAH-296) are Done/Merged, so implementation can proceed.
+
+5. **Recommended next focus**: feature
 ---
 <!-- COMMENTS:END -->
