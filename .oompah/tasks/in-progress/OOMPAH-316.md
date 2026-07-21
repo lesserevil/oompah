@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T19:02:03.088158Z'
+updated_at: '2026-07-21T19:02:34.860823Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -244,5 +244,10 @@ author: oompah
 created: 2026-07-21 19:01
 ---
 Understanding: I will trace the GitHub issue fetch/state-branch read path, identify why an unbootstrapped state branch escapes as an error, add focused handling and a regression test, then run the project test target and deliver the fix.
+---
+author: oompah
+created: 2026-07-21 19:02
+---
+Discovery:  raises a generic  for a missing bootstrap branch.  catches it but logs , which error_watcher auto-files. I will introduce a dedicated missing-state-branch exception and downgrade only that expected configuration condition to an actionable warning; unrelated tracker failures remain error-level.
 ---
 <!-- COMMENTS:END -->
