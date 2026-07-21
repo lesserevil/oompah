@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T16:41:23.751545Z'
+updated_at: '2026-07-21T16:45:54.797966Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -235,5 +235,24 @@ author: oompah
 created: 2026-07-21 16:41
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-21 16:45
+---
+Verification: All 10072 tests pass (10072 passed, 36 skipped). Implementation was committed to epic-OOMPAH-285 by the previous agent but not pushed to the correct OOMPAH-287 branch. Created OOMPAH-287 branch pointing to commit 8959e59d8 and pushed to origin. Branch is now up to date.
+---
+author: oompah
+created: 2026-07-21 16:45
+---
+Completion: Provenance metadata implementation delivered and correctly pushed to origin/OOMPAH-287.
+
+Files delivered (commit 8959e59d8):
+- oompah/provenance.py (new, 350 lines): ContentProvenance dataclass + TrustLevel/ContentSource/ProvenanceComponent enums + make_provenance/default_deny/escape_content/wrap_untrusted helpers
+- oompah/prompt.py: render_prompt() wraps description + comments with XML provenance delimiters; build_continuation_prompt() wraps issue.title
+- oompah/focus.py: _build_triage_prompt() wraps description block before LLM call
+- oompah/github_intake_bridge.py: _deliver_github_comment_to_agent() wraps comment body before mid-run injection
+- tests/test_provenance.py (new, 121 tests): all source types, trust assignments, delimiter escape, serialization, default-deny, legacy native-task compat, integration tests
+
+All acceptance criteria met: prompt code distinguishes TRUSTED from UNTRUSTED via ContentProvenance fields without parsing prose; default-deny for UNKNOWN sources; delimiter escape prevents injection attacks; backward compatible for native oompah_md tasks.
 ---
 <!-- COMMENTS:END -->

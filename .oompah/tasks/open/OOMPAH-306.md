@@ -1,22 +1,39 @@
 ---
 id: OOMPAH-306
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T16:42:22.489418Z'
+updated_at: '2026-07-21T16:45:40.370927Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 1a5b4d70-8711-4a4d-ba70-e5528bd0c3db
+oompah.task_costs:
+  total_input_tokens: 1130693
+  total_output_tokens: 5898
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 1130693
+      output_tokens: 5898
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: unknown
+    input_tokens: 1130693
+    output_tokens: 5898
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T16:45:36.238592+00:00'
 ---
 ## Summary
 
@@ -59,5 +76,30 @@ author: oompah
 created: 2026-07-21 16:42
 ---
 Verification: git diff --check passed. make test could not start because the environment's astral-uv launcher failed creating a transient DBus scope (Makefile .venv/.uv-setup, exit 46), before pytest collection. Frontend regression test is included but has not run in this environment.
+---
+author: oompah
+created: 2026-07-21 16:45
+---
+Focus handoff: frontend\n\nOutcome: added an accessible dashboard warning when the issues REST response is stale or unavailable, preventing silent presentation of obsolete board state.\n\nFiles/evidence: oompah/templates/dashboard.html now consumes X-Oompah-Issues-Stale; tests/test_dashboard_state_read_warning.py covers stale/failure banner behavior. git diff --check passes. make test is blocked before collection by astral-uv DBus transient-scope error. Commit/push is also blocked because the shared git worktree admin directory is read-only while creating index.lock; changes remain uncommitted in this worktree.\n\nRemaining work/risks: server.py snapshot and detail cache keys lack state branch/tracker revision; WebSocket payloads do not include freshness; canonical state reads and cache invalidation must be corrected so no stale terminal state is emitted.\n\nRecommended next focus: backend.
+---
+author: oompah
+created: 2026-07-21 16:45
+---
+Agent completed successfully in 314s (1136591 tokens)
+---
+author: oompah
+created: 2026-07-21 16:45
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/default]
+- Turns: 1, Tool calls: 30
+- Tokens: 1.1M in / 5.9K out [1.1M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 14s
+- Log: OOMPAH-306__20260721T164025Z.jsonl
+---
+author: oompah
+created: 2026-07-21 16:45
+---
+Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
