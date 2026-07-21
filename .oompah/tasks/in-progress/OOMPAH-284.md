@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T03:38:39.097123Z'
-updated_at: '2026-07-21T04:07:01.143255Z'
+updated_at: '2026-07-21T04:27:08.811670Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -219,5 +219,16 @@ author: oompah
 created: 2026-07-21 04:07
 ---
 Discovery: Root causes confirmed from duplicate_detector analysis. Bug 1: _find_branch_commits_in_main uses rev-list <branch_ref> which walks ALL branch history including inherited base-branch commits. Fix: use merge-base to find fork point, then rev-list <fork_point>..<branch_ref> to get only introduced commits. Bug 2: tracker-only (.oompah/ only) commits appear in all four paths. Fix: (a) filter from tracker-sourced branch_shas, (b) skip from unassociated_rows output, (c) skip tracker-only items from needs_delivery filter. Now implementing production code + tests.
+---
+author: oompah
+created: 2026-07-21 04:27
+---
+Implementation: Both bugs fixed, all 9874 tests pass.
+
+Bug 1 fix (_find_branch_commits_in_main fork-point): Updated oompah/release_delivery_inventory.py to use git merge-base to find where the work branch diverged from the default branch, then enumerate only commits ABOVE the fork point (introduced commits, not inherited history). Added default_branch parameter. Updated caller in release_delivery_backlog.py to pass default_branch=self._default_branch.
+
+Bug 2 fix (metadata-only filtering): In release_delivery_backlog.py: (a) filter tracker-only commits from branch_shas after tracker-sourced discovery, (b) skip tracker-only commits from unassociated_rows output, (c) skip tracker-only items from needs_delivery filter.
+
+Tests added: TestFindBranchCommitsInMainForkPoint in test_release_delivery_inventory.py (6 real-git-repo unit tests). TestOOMPAH284InheritedBranchHistoryRegression in test_release_delivery_backlog.py (5 tests including Trickle 23-task scenario). TestOOMPAH284MetadataOnlyFiltering (6 tests for all three filtering paths). Updated test_commits_beyond_cap_have_tracker_only_false to reflect new exclusion behavior. Updated all _mock_find_branch functions in 4 test files to accept new default_branch kwarg.
 ---
 <!-- COMMENTS:END -->
