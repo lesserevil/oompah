@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T21:01:56.725203Z'
-updated_at: '2026-07-21T21:11:03.165041Z'
+updated_at: '2026-07-21T21:11:05.493879Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -213,5 +213,10 @@ author: oompah
 created: 2026-07-21 21:10
 ---
 Completion: Branch fix-release-selected-commits successfully rebased onto origin/main and force-pushed. Single conflict in oompah/orchestrator.py resolved by keeping HEAD's explicit sync_source_branch=False (both sides agreed on False — OOMPAH-314 made it explicit, branch removed the param defaulting to False). Branch now has exactly 1 unique commit on top of main (adds test_cherry_pick_delivery_does_not_merge_unselected_source_history). All 9980 tests pass. PR #468 should now be merge-conflict-free.
+---
+author: oompah
+created: 2026-07-21 21:11
+---
+Rebased fix-release-selected-commits onto main. Single conflict (sync_source_branch) resolved: kept HEAD's explicit False. All 9980 tests pass. Force-pushed. PR #468 unblocked.
 ---
 <!-- COMMENTS:END -->
