@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:41.895980Z'
-updated_at: '2026-07-21T22:24:41.750580Z'
+updated_at: '2026-07-21T22:24:44.190272Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ Delivered:
   - TestAdversarialContentFixtures: 25 adversarial payload types × 6 parametrized assertions + 6 specific attacks + 21 integration tests covering all prompt paths (render_prompt, build_continuation_prompt, _build_triage_prompt, _deliver_github_comment_to_agent)
 
 Acceptance criteria: no external content interpolated into instruction-bearing prompt position — tests assert content appears AFTER the opening delimiter and BEFORE the closing delimiter (data position only). Safety instruction emitted exactly once per wrapped block regardless of adversarial payload content.
+---
+author: oompah
+created: 2026-07-21 22:24
+---
+Added SAFETY_INSTRUCTION to wrap_untrusted() in provenance.py (non-bypassable server-generated instruction that content is reference data only and cannot override system/project/task instructions). Added 200 adversarial tests in test_provenance.py covering role changes, tool requests, instruction overrides, XML/Markdown delimiters, Liquid-like syntax, and combined attacks across all 4 prompt builders. All 10707 tests pass.
 ---
 <!-- COMMENTS:END -->
