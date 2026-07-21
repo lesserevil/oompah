@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T20:57:42.999926Z'
+updated_at: '2026-07-21T20:57:45.245733Z'
 work_branch: OOMPAH-315
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/476
@@ -392,5 +392,10 @@ Resolution:
 - Import of TrackerStateBranchMissingError removed from oompah_md_tracker.py (not needed there since the raise now uses the canonical name)
 
 Result: OOMPAH-315 adds orchestrator-level handling of the missing-state-branch condition on top of OOMPAH-316's server-level handling. Both layers now degrade gracefully without triggering error_watcher. 9959 tests pass, 36 skipped.
+---
+author: oompah
+created: 2026-07-21 20:57
+---
+Merge conflict resolved: rebased onto main (which had OOMPAH-316's StateBranchMissingError), kept TrackerStateBranchMissingError as an alias, preserved orchestrator.py graceful-degradation handling. 9959 tests pass.
 ---
 <!-- COMMENTS:END -->
