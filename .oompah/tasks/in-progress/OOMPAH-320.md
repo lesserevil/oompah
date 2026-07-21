@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-320
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Define a forge-neutral SCM and CI provider contract
 parent: OOMPAH-318
@@ -11,12 +11,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:33:50.132513Z'
-updated_at: '2026-07-21T22:16:50.689629Z'
+updated_at: '2026-07-21T22:47:59.138485Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 0c4bedbe-7050-413d-8dce-166bdf3cfbb7
 ---
 ## Summary
 
@@ -42,3 +43,16 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 22:47
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 22:47
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

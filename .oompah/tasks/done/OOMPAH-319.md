@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:31.453522Z'
-updated_at: '2026-07-21T22:47:41.740107Z'
+updated_at: '2026-07-21T22:47:53.171385Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 393a2c94-788c-4b2c-bbb8-375b83a0dcf9
 oompah.task_costs:
-  total_input_tokens: 2263096
-  total_output_tokens: 10258
+  total_input_tokens: 2263115
+  total_output_tokens: 14117
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 2263096
-      output_tokens: 10258
+      input_tokens: 2263115
+      output_tokens: 14117
       cost_usd: 0.0
   runs:
   - profile: default
@@ -40,6 +40,12 @@ oompah.task_costs:
     output_tokens: 8138
     cost_usd: 0.0
     recorded_at: '2026-07-21T22:38:25.350544+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 19
+    output_tokens: 3859
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T22:47:50.712694+00:00'
 ---
 ## Summary
 
@@ -234,5 +240,20 @@ author: oompah
 created: 2026-07-21 22:47
 ---
 Added forge_kind/forge_base_url fields to Project model with backward-compatible GitHub defaults, _validate_forge_config() with cross-field validation, external_issue_intake_enabled alias, and comprehensive tests. All 10517 tests pass. Pushed to origin/epic-OOMPAH-318.
+---
+author: oompah
+created: 2026-07-21 22:47
+---
+Agent completed successfully in 540s (3878 tokens)
+---
+author: oompah
+created: 2026-07-21 22:47
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
+- Turns: 32, Tool calls: 20
+- Tokens: 19 in / 3.9K out [3.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 0s
+- Log: OOMPAH-319__20260721T223858Z.jsonl
 ---
 <!-- COMMENTS:END -->
