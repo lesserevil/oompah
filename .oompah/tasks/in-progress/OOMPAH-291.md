@@ -10,16 +10,33 @@ blocked_by:
 - OOMPAH-288
 - OOMPAH-289
 - OOMPAH-290
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:57.738049Z'
-updated_at: '2026-07-21T23:23:53.728408Z'
+updated_at: '2026-07-21T23:24:20.291486Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 3601dcf2-d175-4148-bf1f-f0b9493a0c7e
+oompah.task_costs:
+  total_input_tokens: 24
+  total_output_tokens: 6361
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 24
+      output_tokens: 6361
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 24
+    output_tokens: 6361
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T23:24:18.185984+00:00'
 ---
 ## Summary
 
@@ -58,5 +75,40 @@ author: oompah
 created: 2026-07-21 23:23
 ---
 Discovery: No duplicate found. Searched .oompah/tasks, docs/, and plans/ for tasks covering prompt-injection regression suites, adversarial fixtures, audit events, and operator guidance. Closest related work: OOMPAH-286 (created plans/prompt-injection-protection.md threat model doc + documentation/contract tests in tests/test_prompt_injection_protection.py), OOMPAH-285 (parent epic). OOMPAH-291 is distinct: it adds E2E adversarial fixtures flowing through the full pipeline, structured audit events for observability, and operator-facing security guidance—none of which exist yet. The existing test file contains only documentation contract tests (validating the plan doc's presence and structure), not adversarial E2E tests or audit event instrumentation. Not a duplicate.
+---
+author: oompah
+created: 2026-07-21 23:24
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate confirmed. OOMPAH-291 is a new, distinct task within the OOMPAH-285 prompt-injection protection epic.
+
+2. Relevant files and evidence:
+   - plans/prompt-injection-protection.md — OOMPAH-286's threat model doc. Sections 1-10 define trust levels, attack scenarios, inventory, provenance contract, and non-goals. This is the design document OOMPAH-291 must implement against.
+   - tests/test_prompt_injection_protection.py — Existing documentation/contract tests (OOMPAH-286). These validate that the plan doc exists and contains required sections. They are NOT the E2E adversarial test suite that OOMPAH-291 requires.
+   - Blockers OOMPAH-288/289/290 are not yet committed as .oompah/tasks/ files on this branch; they are in-flight tasks implementing: delimiters (288), triage hardening (289), server-side authority enforcement (290).
+
+3. Remaining work:
+   - E2E adversarial fixtures: craft malicious GitHub issue/comment fixtures and run them through the full pipeline (import → approval → prompt rendering → focus selection → agent dispatch → protected-action checks), asserting each layer resists injection.
+   - Structured audit events: add structured logging for untrusted-content rendering events and denied actions (no secrets in logs).
+   - Operator guidance docs: security model summary, safe intake configuration guide, incident response playbook — in docs/ (user-facing).
+   - Tests must pass via make test.
+
+4. Recommended next focus: feature (implement E2E tests, audit events, and docs). This task should remain blocked on OOMPAH-288/289/290 until those are merged, unless the implementor can stub the controls.
+---
+author: oompah
+created: 2026-07-21 23:24
+---
+Agent completed successfully in 142s (6385 tokens)
+---
+author: oompah
+created: 2026-07-21 23:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 52, Tool calls: 38
+- Tokens: 24 in / 6.4K out [6.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 22s
+- Log: OOMPAH-291__20260721T232158Z.jsonl
 ---
 <!-- COMMENTS:END -->
