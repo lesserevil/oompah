@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T03:38:39.097123Z'
-updated_at: '2026-07-21T04:00:19.861363Z'
+updated_at: '2026-07-21T04:07:01.143255Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -214,5 +214,10 @@ author: oompah
 created: 2026-07-21 04:00
 ---
 Understanding (Test Engineer, attempt 3): Picking up from previous failed attempts. Will now: (1) explore existing test patterns in test_release_delivery_backlog.py and test_release_delivery_inventory.py, (2) implement both the production code fix and regression tests together, (3) fix Bug 1 (_find_branch_commits_in_main using fork-point instead of full branch history), (4) fix Bug 2 (metadata-only .oompah/ commit exclusion in all paths), (5) commit and push. Previous attempts terminated without landing commits.
+---
+author: oompah
+created: 2026-07-21 04:07
+---
+Discovery: Root causes confirmed from duplicate_detector analysis. Bug 1: _find_branch_commits_in_main uses rev-list <branch_ref> which walks ALL branch history including inherited base-branch commits. Fix: use merge-base to find fork point, then rev-list <fork_point>..<branch_ref> to get only introduced commits. Bug 2: tracker-only (.oompah/ only) commits appear in all four paths. Fix: (a) filter from tracker-sourced branch_shas, (b) skip from unassociated_rows output, (c) skip tracker-only items from needs_delivery filter. Now implementing production code + tests.
 ---
 <!-- COMMENTS:END -->
