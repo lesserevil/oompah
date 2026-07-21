@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: Done
+status: In Progress
 priority: 1
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:54:56.099243Z'
+updated_at: '2026-07-21T17:55:08.500712Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
@@ -19,13 +19,13 @@ review_number: '469'
 merged_at: null
 oompah.agent_run_id: e11ed11b-d68b-45cd-81cf-b6d3049fc334
 oompah.task_costs:
-  total_input_tokens: 523344
-  total_output_tokens: 56127
+  total_input_tokens: 523363
+  total_output_tokens: 59279
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 523344
-      output_tokens: 56127
+      input_tokens: 523363
+      output_tokens: 59279
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -70,6 +70,12 @@ oompah.task_costs:
     output_tokens: 1176
     cost_usd: 0.0
     recorded_at: '2026-07-21T17:53:08.020860+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 19
+    output_tokens: 3152
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T17:55:04.452818+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/469
 oompah.review_number: '469'
 oompah.work_branch: OOMPAH-304
@@ -435,5 +441,38 @@ author: oompah
 created: 2026-07-21 17:54
 ---
 Fixed Release Delivery live status: backend cache invalidation (BacklogRefreshManager.invalidate()) after executor/PR-poll runs, frontend PR links inline, 30s auto-refresh poll while active deliveries exist, stale-cache 'Queued — status updating' hint. 9989 tests pass. Branch committed and pushed (2a696ded2), PR #469 open for review.
+---
+author: oompah
+created: 2026-07-21 17:55
+---
+Agent completed successfully in 100s (3171 tokens)
+---
+author: oompah
+created: 2026-07-21 17:55
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
+- Turns: 28, Tool calls: 17
+- Tokens: 19 in / 3.2K out [3.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 40s
+- Log: OOMPAH-304__20260721T175327Z.jsonl
+---
+author: oompah
+created: 2026-07-21 17:55
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-304` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-304
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-304
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
