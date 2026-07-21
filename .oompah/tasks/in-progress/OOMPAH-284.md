@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T03:38:39.097123Z'
-updated_at: '2026-07-21T03:47:51.272086Z'
+updated_at: '2026-07-21T03:47:55.580083Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: c4697c39-b6e1-4671-85b2-9474f3630ff4
+oompah.agent_run_id: b6b55d89-5748-413f-b3ef-52658e749482
 oompah.task_costs:
   total_input_tokens: 31
   total_output_tokens: 16648
@@ -122,5 +122,15 @@ author: oompah
 created: 2026-07-21 03:47
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-21 03:47
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 03:47
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
