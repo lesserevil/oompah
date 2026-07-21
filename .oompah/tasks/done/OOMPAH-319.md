@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-319
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Add explicit forge configuration and backward-compatible project migration
 parent: OOMPAH-318
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:31.453522Z'
-updated_at: '2026-07-21T22:47:28.747369Z'
+updated_at: '2026-07-21T22:47:39.574345Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -212,5 +212,22 @@ author: oompah
 created: 2026-07-21 22:47
 ---
 Verification: All 10517 tests pass (make test). Changes committed as 84985658b and pushed to origin/epic-OOMPAH-318. Branch is up to date with origin.
+---
+author: oompah
+created: 2026-07-21 22:47
+---
+Completion: Delivered explicit forge configuration and backward-compatible project migration.
+
+Files changed:
+- oompah/models.py: Added forge_kind/forge_base_url fields; backward defaults; external_issue_intake_enabled alias in serialization
+- oompah/projects.py: Added _validate_forge_config() with actionable error messages; wired through ProjectStore.add() and update()  
+- oompah/server.py: Wired forge fields through API create/update endpoints; added to cache-invalidation set
+- tests/test_projects.py: TestForgeConfiguration class covering legacy migration, GitLab normalization, invalid combos, intake alias
+- tests/test_projects_crud.py: API-level tests for forge field emission and GitLab PATCH roundtrip
+
+Acceptance criteria met:
+- All project consumers can read forge_kind and forge_base_url without substring detection
+- Existing GitHub project files and API clients require no migration
+- make test passes (10517 passed, 36 skipped)
 ---
 <!-- COMMENTS:END -->
