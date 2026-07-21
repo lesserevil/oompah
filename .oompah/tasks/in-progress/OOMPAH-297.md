@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:07.528667Z'
-updated_at: '2026-07-21T22:15:37.998747Z'
+updated_at: '2026-07-21T22:16:12.751813Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -176,5 +176,10 @@ author: oompah
 created: 2026-07-21 22:15
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 22:16
+---
+Understanding: This task requires implementing the orchestration layer (repo_map_generator.py) that connects Tree-sitter extraction + ranking to state-branch persistence, plus integration tests covering: same-SHA reuse, changed-SHA regeneration, concurrent request coalescing, atomic write safety, state-branch isolation (no writes to main/release), and failure/timeout behavior. The dependencies (repo_map.py, repo_indexer.py, repo_map_ranker.py) are all implemented. Starting with code exploration to understand existing patterns for state-branch commits and async/threading model.
 ---
 <!-- COMMENTS:END -->
