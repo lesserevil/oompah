@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-306
 type: bug
-status: In Progress
+status: Merged
 priority: 0
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -12,10 +12,9 @@ labels:
 - focus-complete:duplicate_detector
 - focus-complete:test
 - ci-fix
-- merge-conflict
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T21:34:38.252788Z'
+updated_at: '2026-07-21T22:06:44.653409Z'
 work_branch: OOMPAH-306
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/472
