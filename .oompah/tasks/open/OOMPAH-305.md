@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-305
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T16:48:42.113040Z'
+updated_at: '2026-07-21T16:48:54.375307Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 19db91bc-f3d3-47bd-9067-0d84142db0e7
 oompah.task_costs:
-  total_input_tokens: 890541
-  total_output_tokens: 4457
+  total_input_tokens: 890570
+  total_output_tokens: 11236
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 890541
-      output_tokens: 4457
+      input_tokens: 890570
+      output_tokens: 11236
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -35,6 +35,12 @@ oompah.task_costs:
     output_tokens: 4457
     cost_usd: 0.0
     recorded_at: '2026-07-21T16:42:11.475372+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 29
+    output_tokens: 6779
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T16:48:50.742670+00:00'
 ---
 ## Summary
 
@@ -116,5 +122,25 @@ Focus handoff: duplicate_detector
    - Run make test
 
 4. **Recommended next focus**: feature (backend read-path and cache fix)
+---
+author: oompah
+created: 2026-07-21 16:48
+---
+Agent completed successfully in 184s (6808 tokens)
+---
+author: oompah
+created: 2026-07-21 16:48
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
+- Turns: 62, Tool calls: 44
+- Tokens: 29 in / 6.8K out [6.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 4s
+- Log: OOMPAH-305__20260721T164550Z.jsonl
+---
+author: oompah
+created: 2026-07-21 16:48
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
