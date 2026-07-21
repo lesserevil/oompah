@@ -21,6 +21,12 @@ from oompah.intake_comments import (
 from oompah.issue_validator import validate_issue
 from oompah.models import Issue, Project
 from oompah.projects import github_owner_repo_from_url
+from oompah.provenance import (
+    ContentSource,
+    ProvenanceComponent,
+    make_provenance,
+    wrap_untrusted,
+)
 from oompah.statuses import ARCHIVED, MERGED, PROPOSED, canonicalize_status, status_key
 from oompah.tracker import TrackerAuthError, TrackerError
 from oompah.webhooks import WebhookEvent
@@ -595,12 +601,25 @@ def _deliver_github_comment_to_agent(
 ) -> None:
     """Attempt mid-run delivery of a newly imported GitHub comment to any
     running agent for *identifier* (OOMPAH-211). Silently no-ops when no
-    running agent is found or the orchestrator lacks the delivery method."""
+    running agent is found or the orchestrator lacks the delivery method.
+
+    The comment body is wrapped in provenance delimiters before delivery so
+    the running agent can distinguish the untrusted GitHub comment text from
+    trusted server-generated turn messages (§6.4 of the threat model).
+    """
     deliver = getattr(orch, "deliver_comment_to_running_agent", None)
     if deliver is None:
         return
     author_label = author or "github"
-    text = f"[New comment from {author_label}]\n\n{body}"
+    # Wrap the untrusted comment body with provenance metadata before delivery.
+    comment_provenance = make_provenance(
+        ProvenanceComponent.CONTINUATION_PROMPTS,
+        ContentSource.GITHUB_ISSUE_COMMENT,
+        issue_identifier=identifier,
+        origin_actor=author,
+    )
+    wrapped_body = wrap_untrusted(body, comment_provenance)
+    text = f"[New comment from {author_label}]\n\n{wrapped_body}"
     deliver(identifier, text, comment_id=comment_id)
 
 

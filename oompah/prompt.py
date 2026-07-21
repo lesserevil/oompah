@@ -12,6 +12,12 @@ from typing import Any
 from liquid import Environment as LiquidEnvironment
 
 from oompah.models import Issue, Project
+from oompah.provenance import (
+    ContentSource,
+    ProvenanceComponent,
+    make_provenance,
+    wrap_untrusted,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +78,26 @@ def _project_to_template_vars(project: Project | None) -> dict[str, Any]:
     }
 
 
+def _content_source_for_issue(issue: Issue) -> ContentSource:
+    """Return the :class:`~oompah.provenance.ContentSource` for an issue's body.
+
+    GitHub-backed issues carry ``tracker_kind="github_issues"``; everything
+    else is treated as human-authored native content.
+    """
+    kind = str(issue.tracker_kind or "").strip().lower()
+    if kind == "github_issues":
+        return ContentSource.GITHUB_ISSUE_BODY
+    return ContentSource.HUMAN_COMMENT
+
+
+def _comment_source_for_issue(issue: Issue) -> ContentSource:
+    """Return the :class:`~oompah.provenance.ContentSource` for issue comments."""
+    kind = str(issue.tracker_kind or "").strip().lower()
+    if kind == "github_issues":
+        return ContentSource.GITHUB_ISSUE_COMMENT
+    return ContentSource.HUMAN_COMMENT
+
+
 def _issue_to_template_vars(issue: Issue) -> dict[str, Any]:
     """Convert an Issue to a dict suitable for Liquid template rendering."""
     return {
@@ -103,6 +129,37 @@ def _issue_to_template_vars(issue: Issue) -> dict[str, Any]:
         "display_identifier": issue.display_identifier or "",
         "project_id": issue.project_id or "",
     }
+
+
+def _wrap_issue_description(issue: Issue) -> str:
+    """Return the issue description wrapped in provenance delimiters.
+
+    Empty descriptions are returned as the empty string (no wrapper needed).
+    """
+    desc = issue.description or ""
+    if not desc:
+        return desc
+    provenance = make_provenance(
+        ProvenanceComponent.PROMPT_RENDERER,
+        _content_source_for_issue(issue),
+        issue_identifier=issue.identifier,
+    )
+    return wrap_untrusted(desc, provenance)
+
+
+def _wrap_comment_text(text: str, issue: Issue) -> str:
+    """Return comment *text* wrapped in provenance delimiters for *issue*.
+
+    Empty strings are returned unchanged.
+    """
+    if not text:
+        return text
+    provenance = make_provenance(
+        ProvenanceComponent.PROMPT_RENDERER,
+        _comment_source_for_issue(issue),
+        issue_identifier=issue.identifier,
+    )
+    return wrap_untrusted(text, provenance)
 
 
 def _read_agents_md(workspace_path: str | None) -> str:
@@ -191,10 +248,24 @@ def render_prompt(
             }
         )
 
+    # Build template variable dict. Untrusted content (description, comment
+    # text) is wrapped in provenance delimiters before interpolation so that
+    # any Liquid template that renders these variables emits properly
+    # delimited untrusted blocks (§5, §6.3 of the threat model).
+    issue_vars = _issue_to_template_vars(issue)
+    issue_vars["description"] = _wrap_issue_description(issue)
+
+    wrapped_comments: list[dict[str, Any]] = []
+    for c in (comments or []):
+        raw_text = str(c.get("text") or "")
+        wrapped = dict(c)
+        wrapped["text"] = _wrap_comment_text(raw_text, issue)
+        wrapped_comments.append(wrapped)
+
     variables: dict[str, Any] = {
-        "issue": _issue_to_template_vars(issue),
+        "issue": issue_vars,
         "attempt": attempt,
-        "comments": comments or [],
+        "comments": wrapped_comments,
         "focus": focus_text or "",
         "agents_md": agents_md,
         "memories": [{"key": k, "insight": v} for k, v in (memories or {}).items()],
@@ -352,9 +423,20 @@ def _content_part_for(spec: dict) -> dict[str, Any]:
 
 
 def build_continuation_prompt(issue: Issue, turn_number: int, max_turns: int) -> str:
-    """Build a continuation prompt for subsequent turns on the same thread."""
+    """Build a continuation prompt for subsequent turns on the same thread.
+
+    The turn-limit header is trusted (server-derived).  The issue title is
+    untrusted (user/GitHub-provided) and is wrapped in provenance delimiters
+    so the model can distinguish it from the server instruction text (§6.4).
+    """
+    title_provenance = make_provenance(
+        ProvenanceComponent.CONTINUATION_PROMPTS,
+        _content_source_for_issue(issue),
+        issue_identifier=issue.identifier,
+    )
+    wrapped_title = wrap_untrusted(issue.title or "", title_provenance)
     return (
-        f"Continue working on {issue.identifier}: {issue.title}. "
+        f"Continue working on {issue.identifier}: {wrapped_title}. "
         f"This is turn {turn_number} of {max_turns}. "
         f"The issue is still in state '{issue.state}'. "
         "Review your previous work and continue where you left off."
