@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T17:26:19.289331Z'
+updated_at: '2026-07-21T17:50:42.435074Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -194,5 +194,21 @@ created: 2026-07-21 17:26
 Understanding: The dashboard shows OOMPAH-286 as Merged even though the canonical state branch records it as Backlog. Root causes identified: (1) The _issues_snapshot cache (60s TTL) is not invalidated when a state-branch checkpoint advances, so stale terminal status can be served for up to 60 seconds. (2) No guard prevents an unstarted task (null merged_at, null work_branch, null review_url) from rendering as Merged when canonical tracker state says otherwise. (3) No stale/unavailable indicator exists to show when tracker data may be stale.
 
 Plan: (a) Add merged_at to Issue model and extract it from tracker metadata; (b) add guard in _fetch_all_issues to prevent null merged_at/work_branch/review_url tasks from rendering as Merged; (c) hook checkpoint flush to invalidate _issues_snapshot; (d) add stale indicator to dashboard UI; (e) add regression tests.
+---
+author: oompah
+created: 2026-07-21 17:50
+---
+Discovery: Root causes identified and fixed:
+
+1. **Primary read-path bug**: `_effective_display_status()` was a no-op stub. It now includes a null-evidence guard: any issue with state=Merged but null merged_at + null work_branch + null review_url is reverted to Backlog. This prevents the OOMPAH-286 scenario where a stale source/main copy with status=Merged leaks into the display even though the canonical state branch says Backlog.
+
+2. **Missing checkpoint timestamp**: `OompahMarkdownTracker` now sets `last_checkpoint_at` (monotonic float) after each successful `_do_checkpoint_flush`. Server.py's `_ensure_issues_snapshot_refresh` checks all tracker instances for checkpoints newer than the current snapshot; if found, forces a refresh immediately instead of waiting 60 seconds.
+
+3. **Missing stale UI indicator**: Dashboard now has a `#tracker-stale-banner` element (⚠ stale) that appears when the `X-Oompah-Issues-Stale: true` response header is received and clears on WS push.
+
+4. **New `merged_at` field on Issue model**: Populated by `_normalize_record` from `oompah.merged_at` / `merged_at` frontmatter. Exposed in board entries and detail API responses.
+
+Files changed: oompah/models.py, oompah/oompah_md_tracker.py, oompah/server.py, oompah/templates/dashboard.html.
+Tests: new tests/test_dashboard_tracker_state_reconciliation.py (29 tests, all pass). Updated 2 existing tests to add merged_at evidence.
 ---
 <!-- COMMENTS:END -->
