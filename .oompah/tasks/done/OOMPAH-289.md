@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:55.684579Z'
-updated_at: '2026-07-21T22:57:33.622542Z'
+updated_at: '2026-07-21T22:57:48.653804Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 3a31ebdb-eed6-42e6-9539-e061555c6916
 oompah.task_costs:
-  total_input_tokens: 1428560
-  total_output_tokens: 15529
+  total_input_tokens: 1428597
+  total_output_tokens: 30114
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1428560
-      output_tokens: 15529
+      input_tokens: 1428597
+      output_tokens: 30114
       cost_usd: 0.0
   runs:
   - profile: default
@@ -47,6 +47,12 @@ oompah.task_costs:
     output_tokens: 7203
     cost_usd: 0.0
     recorded_at: '2026-07-21T22:38:21.580704+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 37
+    output_tokens: 14585
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T22:57:45.942635+00:00'
 ---
 ## Summary
 
@@ -242,5 +248,20 @@ author: oompah
 created: 2026-07-21 22:57
 ---
 Hardened focus triage and model-only decision paths against prompt injection. Wrapped title, labels, and description each in separate oompah:untrusted provenance blocks; tightened _parse_triage_response to a strict single-line identifier schema; removed LLM 'default' escape path; added 11 new adversarial tests covering wrapping, SAFETY_INSTRUCTION, delimiter escape, space-in-name rejection, and end-to-end injection isolation. All 10723 tests pass.
+---
+author: oompah
+created: 2026-07-21 22:57
+---
+Agent completed successfully in 1141s (14622 tokens)
+---
+author: oompah
+created: 2026-07-21 22:57
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
+- Turns: 66, Tool calls: 45
+- Tokens: 37 in / 14.6K out [14.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 19m 1s
+- Log: OOMPAH-289__20260721T223850Z.jsonl
 ---
 <!-- COMMENTS:END -->
