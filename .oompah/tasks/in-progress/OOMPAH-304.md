@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T21:14:13.479723Z'
+updated_at: '2026-07-21T21:20:13.383721Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
@@ -616,5 +616,16 @@ author: oompah
 created: 2026-07-21 21:14
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-21 21:20
+---
+Understanding (CI Failure Fixer): Two categories of test failures from CI run 29868664340:
+
+1. test_release_delivery_refresh.py::TestBacklogRefreshManagerInvalidate (2 tests) - These PASS locally now. The implementation from commit 2a696ded2 is correct; the CI run that failed was on older code. These are resolved.
+
+2. test_self_hosted_runner.py::TestCiWorkflowRunsOnLabels (6 tests) - These FAIL locally. Root cause: commits merged onto OOMPAH-304 branch (23558b4dd, f8e527c84) split the CI config into ci.yml (ubuntu-latest, github-hosted) and ci-dedicated.yml (self-hosted runner). The tests in TestCiWorkflowRunsOnLabels check ci.yml and assert it uses self-hosted runner labels, but ci.yml was intentionally changed to ubuntu-latest.
+
+Fix: Update TestCiWorkflowRunsOnLabels to test ci-dedicated.yml (where the self-hosted runner config now lives) instead of ci.yml. This is the minimal fix that reflects the new architecture.
 ---
 <!-- COMMENTS:END -->

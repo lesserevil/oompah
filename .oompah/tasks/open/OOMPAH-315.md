@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-315
 type: bug
-status: In Progress
+status: Open
 priority: 0
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T21:13:40.199216Z'
+updated_at: '2026-07-21T21:20:10.932013Z'
 work_branch: OOMPAH-315
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/476
@@ -46,13 +46,13 @@ oompah.intake:
   last_validated_at: '2026-07-21T18:20:20.176791+00:00'
 oompah.agent_run_id: bf1e867a-5189-4a35-a997-81d710eae556
 oompah.task_costs:
-  total_input_tokens: 99078
-  total_output_tokens: 29648
+  total_input_tokens: 961934
+  total_output_tokens: 37236
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 99078
-      output_tokens: 29648
+      input_tokens: 961934
+      output_tokens: 37236
       cost_usd: 0.0
   runs:
   - profile: default
@@ -79,6 +79,12 @@ oompah.task_costs:
     output_tokens: 1782
     cost_usd: 0.0
     recorded_at: '2026-07-21T20:57:51.297218+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 862856
+    output_tokens: 7588
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T21:20:06.415428+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/476
 oompah.review_number: '476'
 oompah.work_branch: OOMPAH-315
@@ -429,5 +435,20 @@ author: oompah
 created: 2026-07-21 21:13
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-21 21:20
+---
+Agent completed successfully in 388s (870444 tokens)
+---
+author: oompah
+created: 2026-07-21 21:20
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/default]
+- Turns: 1, Tool calls: 13
+- Tokens: 862.9K in / 7.6K out [870.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 28s
+- Log: OOMPAH-315__20260721T211340Z.jsonl
 ---
 <!-- COMMENTS:END -->
