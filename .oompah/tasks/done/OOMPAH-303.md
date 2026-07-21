@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T15:33:58.183374Z'
-updated_at: '2026-07-21T15:39:07.080115Z'
+updated_at: '2026-07-21T15:39:22.569574Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,5 +85,20 @@ author: oompah
 created: 2026-07-21 15:39
 ---
 Implemented private Oompah temporary root. The service now configures ~/.oompah/tmp (or OOMPAH_TEMP_ROOT) before startup, exports TMPDIR/TMP/TEMP to child processes, defaults workspaces to ~/.oompah/workspaces, and documents the settings. Focused regression tests pass. Service restarted and resumed with the private root created at mode 0700.
+---
+author: oompah
+created: 2026-07-21 15:39
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19s
+- Log: OOMPAH-303__20260721T153901Z.jsonl
+---
+author: oompah
+created: 2026-07-21 15:39
+---
+Private temp root implemented, tested, pushed to main, and service restarted.
 ---
 <!-- COMMENTS:END -->
