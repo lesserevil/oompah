@@ -9,13 +9,17 @@ children:
 - OOMPAH-294
 - OOMPAH-295
 - OOMPAH-296
+- OOMPAH-297
+- OOMPAH-298
+- OOMPAH-299
+- OOMPAH-300
 blocked_by: []
 labels:
 - needs:backend
 - needs:agents
 assignee: null
 created_at: '2026-07-21T15:13:33.130186Z'
-updated_at: '2026-07-21T15:13:49.410194Z'
+updated_at: '2026-07-21T15:14:10.609464Z'
 work_branch: null
 target_branch: null
 review_url: null
