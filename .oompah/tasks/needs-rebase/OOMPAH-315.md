@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-315
 type: bug
-status: Done
+status: Needs Rebase
 priority: 0
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -12,9 +12,10 @@ blocked_by: []
 labels:
 - external:github
 - focus-complete:duplicate_detector
+- merge-conflict
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T20:48:36.262134Z'
+updated_at: '2026-07-21T20:49:06.126694Z'
 work_branch: OOMPAH-315
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/476
@@ -358,5 +359,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 30s
 - Log: OOMPAH-315__20260721T204804Z.jsonl
+---
+author: oompah
+created: 2026-07-21 20:49
+---
+YOLO: Merge conflict detected on MR #476. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
