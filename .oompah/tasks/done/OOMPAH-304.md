@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:53:27.001731Z'
+updated_at: '2026-07-21T17:54:53.508033Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
@@ -425,5 +425,10 @@ author: oompah
 created: 2026-07-21 17:53
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-21 17:54
+---
+Understanding (Maintenance Engineer): Branch OOMPAH-304 is clean and fully pushed (commit 2a696ded2). All prior implementation work is committed: backend BacklogRefreshManager.invalidate() called after executor/PR-poll runs, frontend PR links + 30s auto-refresh poll + stale-cache pending hint, and full test coverage. Git status shows nothing to commit. The task needs to be closed — PR #469 exists. Closing now.
 ---
 <!-- COMMENTS:END -->
