@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-289
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Harden focus triage and other model-only decisions against external instructions
 parent: OOMPAH-285
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:55.684579Z'
-updated_at: '2026-07-21T22:48:18.942336Z'
+updated_at: '2026-07-21T22:57:31.382199Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -207,5 +207,35 @@ Understanding: Continuing from previous Test Engineer session. The prior agent m
 3. tests/test_provenance.py — Updated TestTriageProvenanceIntegration to assert 3 untrusted blocks (title + labels + description), not 1. New test_title_and_labels_are_wrapped_independently covers the multi-block wrapping. All 477 relevant tests pass.
 
 Plan: Check for remaining test gaps, add any missing coverage, run the full suite, commit and close.
+---
+author: oompah
+created: 2026-07-21 22:57
+---
+Implementation and tests complete. Changes committed and pushed to epic-OOMPAH-285.
+
+## What was delivered
+
+### oompah/focus.py (hardening)
+- _build_triage_prompt: now wraps title, labels, AND description each in their own <oompah:untrusted> provenance block, not just the description. Each field is an independent data boundary so injection in any issue field cannot escape into the trusted prompt structure.
+- _parse_triage_response: tightened to a strict single-line contract — one non-empty 'name: reasoning' line where name matches [a-z0-9][a-z0-9_-]*. Multi-line, single-word, quoted, prefixed, and space-containing responses all return (None, ''), triggering deterministic fallback. 'default' is no longer accepted as an LLM escape path (only the server-side deterministic scorer may return DEFAULT_FOCUS).
+- select_focus_async: removed the special-case 'default' path so forged model output cannot trigger DEFAULT_FOCUS.
+
+### tests/test_focus_triage.py (9 new tests)
+- Names with spaces rejected by response parser
+- Uppercase names normalised before focus lookup
+- Title and description each wrapped in their own <oompah:untrusted> block
+- Non-empty labels get a third separate block
+- SAFETY_INSTRUCTION present in built prompt
+- Closing delimiter in title escaped (prevents block escape)
+- Closing delimiter in description escaped
+- Injected issue content + malicious model output cannot select an out-of-set focus, alter priority, or mutate labels (end-to-end injection test)
+
+### tests/test_provenance.py (updated + 2 new tests)
+- TestTriageProvenanceIntegration updated for the new 3-block prompt
+- test_title_and_labels_are_wrapped_independently (new)
+- test_delimiter_escape_in_triage_title (new)
+
+## Verification
+make test: 10723 passed, 36 skipped, 0 failures
 ---
 <!-- COMMENTS:END -->
