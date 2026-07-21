@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:07.528667Z'
-updated_at: '2026-07-21T22:14:09.560416Z'
+updated_at: '2026-07-21T22:15:21.812813Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: a9b49eac-b66e-4f2f-b7d5-c7e6d0d01e7d
 oompah.task_costs:
-  total_input_tokens: 21
-  total_output_tokens: 5691
+  total_input_tokens: 425949
+  total_output_tokens: 8423
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 21
-      output_tokens: 5691
+      input_tokens: 425949
+      output_tokens: 8423
       cost_usd: 0.0
   runs:
   - profile: default
@@ -36,6 +36,12 @@ oompah.task_costs:
     output_tokens: 5691
     cost_usd: 0.0
     recorded_at: '2026-07-21T22:13:56.160912+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 425928
+    output_tokens: 2732
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T22:15:18.905813+00:00'
 ---
 ## Summary
 
@@ -140,5 +146,25 @@ author: oompah
 created: 2026-07-21 22:14
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 22:15
+---
+Agent completed successfully in 73s (428660 tokens)
+---
+author: oompah
+created: 2026-07-21 22:15
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 1, Tool calls: 7
+- Tokens: 425.9K in / 2.7K out [428.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 13s
+- Log: OOMPAH-297__20260721T221410Z.jsonl
+---
+author: oompah
+created: 2026-07-21 22:15
+---
+Agent completed without closing this issue (73s (428660 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
