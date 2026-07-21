@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T21:14:15.640232Z'
+updated_at: '2026-07-21T21:16:30.255595Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -419,5 +419,10 @@ author: oompah
 created: 2026-07-21 21:14
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-21 21:16
+---
+Understanding: CI is failing because the merge commit (5dcbaa75b) changed ci.yml to use 'ubuntu-latest' (GitHub-hosted runner) but test_self_hosted_runner.py::TestCiWorkflowRunsOnLabels enforces ci.yml must use [self-hosted, linux, x64, oompah]. A separate ci-dedicated.yml (added in same merge) provides the public-runner workflow. Fix: revert ci.yml runs-on back to self-hosted labels.
 ---
 <!-- COMMENTS:END -->
