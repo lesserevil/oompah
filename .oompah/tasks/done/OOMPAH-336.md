@@ -11,7 +11,7 @@ labels:
 - release-ci-failure
 assignee: null
 created_at: '2026-07-21T22:22:50.075291Z'
-updated_at: '2026-07-21T22:42:48.585999Z'
+updated_at: '2026-07-21T22:42:51.712690Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,5 +75,10 @@ author: oompah
 created: 2026-07-21 22:39
 ---
 Completion: PR #485 'Route release CI remediation to project tasks' (commit c384cf949) was successfully merged to main. Implementation delivers: (1) Release-delivery CI failures now create project-local tasks via _tracker_for_project() instead of the global tracker. (2) Stale/external remediation task IDs are detected by _has_live_release_ci_remediation() — missing tasks trigger a new project-local task creation. (3) Remediation tasks include explicit acceptance criteria and 'ci-fix' label for routing. (4) 3 new tests cover: acceptance criteria content, ci-fix label, and stale global reference replacement. CI is green (10734 passed on GitHub, 10508 passed locally).
+---
+author: oompah
+created: 2026-07-21 22:42
+---
+PR #485 merged: release-delivery CI failures now create actionable project-local tasks via project tracker, stale global remediation references auto-replaced, ci-fix routing label and acceptance criteria added. CI green (10734 passed on GitHub, 10508 locally).
 ---
 <!-- COMMENTS:END -->
