@@ -13,9 +13,10 @@ blocked_by:
 - OOMPAH-319
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-21T23:25:02.600877Z'
+updated_at: '2026-07-21T23:25:15.104222Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -174,5 +175,10 @@ author: oompah
 created: 2026-07-21 23:25
 ---
 Discovery: TrackerProtocol defines the complete adapter surface in oompah/tracker.py; oompah/github_tracker.py supplies the parity model, including trusted-status ledger and candidate suppression; plans/gitlab-forge-parity.md requires encoded nested project paths, pagination, GitLab notes/labels, and issue links. No existing children were shown on the task, so three non-duplicative children were created.
+---
+author: oompah
+created: 2026-07-21 23:25
+---
+Focus handoff: epic_planner\n\nOutcome: decomposed GitLab tracker delivery into OOMPAH-337 (core REST adapter/protocol registration), OOMPAH-338 (relationship and metadata lifecycle), and OOMPAH-339 (status-label authorization, audit, and revert). OOMPAH-338 and OOMPAH-339 depend on OOMPAH-337.\n\nRelevant evidence: TrackerProtocol is in oompah/tracker.py; GitHub parity and governance behavior are in oompah/github_tracker.py; design constraints are in plans/gitlab-forge-parity.md.\n\nRemaining work/risks: implement all children with mocked GitLab API contract tests, then run make test; maintain GitHub regression coverage and exclude native external intake.\n\nRecommended next focus: feature.
 ---
 <!-- COMMENTS:END -->
