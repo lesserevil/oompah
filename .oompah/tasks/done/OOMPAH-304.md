@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:10:37.400547Z'
+updated_at: '2026-07-21T17:10:39.857659Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,5 +75,10 @@ Verification: make test ran 9989 tests, 36 skipped, 0 failed. Branch OOMPAH-304 
 - 30-second auto-refresh active while open/in_progress/in_review/blocked deliveries exist
 - 'Queued — status updating...' hint shown when cache has not caught up yet
 - Branch isolation confirmed by TestDeliveryStatusConsistency.test_branch_isolation_different_branch_not_leaked
+---
+author: oompah
+created: 2026-07-21 17:10
+---
+Fixed Release Delivery live status: backend cache invalidation after executor/PR-poll runs + frontend PR links, 30s auto-refresh poll, and stale-cache pending hint. 9989 tests pass.
 ---
 <!-- COMMENTS:END -->
