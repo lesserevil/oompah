@@ -8,10 +8,12 @@ parent: OOMPAH-318
 children: []
 blocked_by:
 - OOMPAH-319
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:refactor
 assignee: null
 created_at: '2026-07-21T20:33:50.132513Z'
-updated_at: '2026-07-21T22:48:08.391025Z'
+updated_at: '2026-07-21T22:58:18.658134Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +61,34 @@ author: oompah
 created: 2026-07-21 22:48
 ---
 Understanding: Investigating OOMPAH-320 as Duplicate Investigator. This task asks for a forge-neutral SCM and CI provider contract refactor (SCMProvider, normalized review/CI types for GitHub + GitLab). Searching for any existing tasks that cover the same ground before any implementation begins.
+---
+author: oompah
+created: 2026-07-21 22:58
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: OOMPAH-320 is NOT a duplicate. Duplicate screening complete.
+
+Candidates searched and reviewed:
+- Searched all tasks in .oompah/tasks/ (main branch: OOMPAH-1 through OOMPAH-282) for SCMProvider, forge-neutral, provider contract, gitlab, CI state, CIState, and review contract — zero matches in any merged/done/archived task files.
+- Searched state branch (oompah/state/proj-14849f1b) tasks: OOMPAH-285–OOMPAH-336 across all status folders. The OOMPAH-318 epic (Add full GitLab forge parity) has children OOMPAH-319–OOMPAH-329. None of these children overlap with OOMPAH-320's scope.
+- OOMPAH-319 (recently merged, commit 84985658b): Added forge_kind/forge_base_url project model fields and _validate_forge_config() — project-model configuration work, NOT SCM contract formalization. OOMPAH-319 is the blocker for OOMPAH-320, not a duplicate.
+- OOMPAH-321 (open, blocked by OOMPAH-320): 'Complete GitLab Merge Request provider parity' — consumes the contract OOMPAH-320 would define; not a duplicate.
+- No task in any state (merged, archived, done, open, in-progress) covers: normalizing CI states as explicit types, structured capability warnings, contract test fixtures against a fake provider, or migrating shared consumers off GitHub-specific methods.
+
+2. Relevant files and evidence:
+- oompah/scm.py — SCMProvider (ABC) at line 131, GitHubProvider at line 428, GitLabProvider stub at line 1777. ReviewRequest at line 68 already has ci_status: str, ci_warnings: list[dict], but these are not yet formal typed enums. get_ci_status_for_sha() returns raw strings ('passed'/'failed'/'pending'/''). Several abstract methods lack explicit unavailable-capability semantics.
+- plans/gitlab-forge-parity.md — 'Core architecture and interfaces' section is the plan reference; OOMPAH-320 implements exactly this section.
+- OOMPAH-319 merge (84985658b) landed on the epic-OOMPAH-318 branch before OOMPAH-320 was dispatched; no SCM contract work was included.
+
+3. Remaining work (for next agent):
+- Define CIState enum (passed, failed, pending, unknown) to replace bare strings.
+- Define CapabilityWarning or similar structured type for capability-unavailable degradation.
+- Add contract-level docstrings documenting error and unavailable-capability semantics on every SCMProvider abstract method.
+- Add optional provider methods (get_review_comments, get_review_commits, etc.) with default no-op implementations that degrade gracefully.
+- Write contract test fixtures: FakeProvider (minimal pass-through) and run the same suite against GitHubProvider (with HTTP mocks).
+- Verify existing review, release, YOLO, churn, and close-gate tests remain green after any type changes.
+
+4. Recommended next focus: refactor (SCMProvider contract formalization + consumer migration + contract tests)
 ---
 <!-- COMMENTS:END -->
