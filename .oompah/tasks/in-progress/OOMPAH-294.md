@@ -10,13 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T15:13:47.496504Z'
-updated_at: '2026-07-21T15:46:25.313150Z'
+updated_at: '2026-07-21T15:46:33.663784Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 2898ad89-dacf-4db5-8e71-22cf17fe3fc7
+oompah.agent_run_id: f0066eb5-c34a-4619-8f70-73b6c36f3405
 oompah.task_costs:
   total_input_tokens: 275556
   total_output_tokens: 1584
@@ -75,5 +75,15 @@ author: oompah
 created: 2026-07-21 15:46
 ---
 Agent completed without landing — no commits found on origin for branch `epic-OOMPAH-293`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-21 15:46
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-21 15:46
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
