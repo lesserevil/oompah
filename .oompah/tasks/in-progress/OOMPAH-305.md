@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T17:13:46.531137Z'
+updated_at: '2026-07-21T17:26:19.289331Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -187,5 +187,12 @@ author: oompah
 created: 2026-07-21 17:13
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-21 17:26
+---
+Understanding: The dashboard shows OOMPAH-286 as Merged even though the canonical state branch records it as Backlog. Root causes identified: (1) The _issues_snapshot cache (60s TTL) is not invalidated when a state-branch checkpoint advances, so stale terminal status can be served for up to 60 seconds. (2) No guard prevents an unstarted task (null merged_at, null work_branch, null review_url) from rendering as Merged when canonical tracker state says otherwise. (3) No stale/unavailable indicator exists to show when tracker data may be stale.
+
+Plan: (a) Add merged_at to Issue model and extract it from tracker metadata; (b) add guard in _fetch_all_issues to prevent null merged_at/work_branch/review_url tasks from rendering as Merged; (c) hook checkpoint flush to invalidate _issues_snapshot; (d) add stale indicator to dashboard UI; (e) add regression tests.
 ---
 <!-- COMMENTS:END -->
