@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T21:01:56.725203Z'
-updated_at: '2026-07-21T21:04:10.157617Z'
+updated_at: '2026-07-21T21:06:27.808375Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -193,5 +193,10 @@ author: oompah
 created: 2026-07-21 21:04
 ---
 Understanding: I am the Merge Conflict Resolver for PR #468 (branch fix-release-selected-commits). My job is to fetch origin, rebase fix-release-selected-commits onto main, resolve all conflicts, run tests, and force-push. Starting investigation now.
+---
+author: oompah
+created: 2026-07-21 21:06
+---
+Discovery: Single conflict in oompah/orchestrator.py at the cherry_pick_delivery call site. HEAD (OOMPAH-314 bug fix) explicitly sets sync_source_branch=False; branch removed the parameter (same effect, default=False). Resolution: keep HEAD's explicit sync_source_branch=False. No conflicts in test files.
 ---
 <!-- COMMENTS:END -->
