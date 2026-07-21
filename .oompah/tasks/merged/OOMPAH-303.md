@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-303
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Use private ~/.oompah/tmp for Oompah and agent temporary files
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:33:58.183374Z'
-updated_at: '2026-07-21T15:44:05.093172Z'
+updated_at: '2026-07-21T15:44:18.788071Z'
 work_branch: null
 target_branch: null
 review_url: null
