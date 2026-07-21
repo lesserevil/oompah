@@ -6,11 +6,12 @@ priority: 1
 title: Add GitLab pipeline and commit CI status support
 parent: OOMPAH-318
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-321
 labels: []
 assignee: null
 created_at: '2026-07-21T20:33:52.275830Z'
-updated_at: '2026-07-21T20:33:52.275830Z'
+updated_at: '2026-07-21T20:35:12.640382Z'
 work_branch: null
 target_branch: null
 review_url: null

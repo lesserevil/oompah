@@ -6,11 +6,12 @@ priority: 2
 title: Generalize external issue intake and provenance for GitLab
 parent: OOMPAH-318
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-323
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:26.149163Z'
-updated_at: '2026-07-21T20:34:26.149163Z'
+updated_at: '2026-07-21T20:35:14.394032Z'
 work_branch: null
 target_branch: null
 review_url: null

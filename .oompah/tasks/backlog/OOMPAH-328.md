@@ -6,11 +6,14 @@ priority: 2
 title: Make project bootstrap and operator documentation forge-aware
 parent: OOMPAH-318
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-323
+- OOMPAH-325
+- OOMPAH-327
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-21T20:34:42.051489Z'
+updated_at: '2026-07-21T20:35:22.391896Z'
 work_branch: null
 target_branch: null
 review_url: null

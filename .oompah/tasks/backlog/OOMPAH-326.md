@@ -6,11 +6,13 @@ priority: 1
 title: Integrate GitLab SCM and pipelines into review, YOLO, and release delivery
 parent: OOMPAH-318
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-321
+- OOMPAH-322
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:28.175529Z'
-updated_at: '2026-07-21T20:34:28.175529Z'
+updated_at: '2026-07-21T20:35:17.135781Z'
 work_branch: null
 target_branch: null
 review_url: null

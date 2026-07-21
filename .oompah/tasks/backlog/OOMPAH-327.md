@@ -6,11 +6,14 @@ priority: 2
 title: Expose GitLab configuration and health in UI, API, and ACP tools
 parent: OOMPAH-318
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-319
+- OOMPAH-323
+- OOMPAH-325
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:41.130372Z'
-updated_at: '2026-07-21T20:34:41.130372Z'
+updated_at: '2026-07-21T20:35:19.837318Z'
 work_branch: null
 target_branch: null
 review_url: null

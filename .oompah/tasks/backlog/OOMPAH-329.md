@@ -6,11 +6,19 @@ priority: 1
 title: Add cross-forge GitLab acceptance and migration test suite
 parent: OOMPAH-318
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-321
+- OOMPAH-322
+- OOMPAH-323
+- OOMPAH-324
+- OOMPAH-325
+- OOMPAH-326
+- OOMPAH-327
+- OOMPAH-328
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:42.931068Z'
-updated_at: '2026-07-21T20:34:42.931068Z'
+updated_at: '2026-07-21T20:35:29.460628Z'
 work_branch: null
 target_branch: null
 review_url: null

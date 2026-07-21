@@ -6,11 +6,12 @@ priority: 1
 title: Define a forge-neutral SCM and CI provider contract
 parent: OOMPAH-318
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-319
 labels: []
 assignee: null
 created_at: '2026-07-21T20:33:50.132513Z'
-updated_at: '2026-07-21T20:33:50.132513Z'
+updated_at: '2026-07-21T20:35:10.728752Z'
 work_branch: null
 target_branch: null
 review_url: null
