@@ -18,7 +18,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:27:57.025790Z'
-updated_at: '2026-07-21T16:55:12.274474Z'
+updated_at: '2026-07-21T16:55:27.635350Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +185,34 @@ Gap E: No diagnostic or remediation path for existing affected children (OOMPAH-
 Gap F: No regression fixture for the specific OOMPAH-285/286 scenario.
 
 Decomposing into 5 focused child tasks.
+---
+author: oompah
+created: 2026-07-21 16:55
+---
+Focus handoff: epic_planner
+
+1. Outcome: Epic decomposed into 6 actionable child tasks (OOMPAH-308 through OOMPAH-313). Each task has a detailed description with implementation scope, relevant files, required tests, and acceptance criteria. Epic status set to Backlog.
+
+2. Evidence / decisions:
+   - Investigated orchestrator.py, projects.py, models.py, statuses.py, oompah_md_tracker.py, and all test_epic_strategy.py / test_shared_epic_display_status.py tests
+   - Key files: oompah/orchestrator.py (_create_workspace_for_issue ~4719, _resolve_parent_epic ~4651, _epic_rollup_child_strategy ~4700, _ensure_review_exists ~7803, Done→Merged promotion ~8280-8330/8595-8625)
+   - Confirmed partial protections already exist but with three critical gaps for native (oompah_md) tasks
+
+3. Child tasks created:
+   - OOMPAH-308 (P1): Fix stale work_branch metadata when child routes to shared epic worktree
+   - OOMPAH-309 (P1): Harden shared-epic protection when _resolve_parent_epic fails with parent_id set
+   - OOMPAH-310 (P2): Verify/harden epic-merge-triggered Merged promotion for shared children [depends on 308, 309]
+   - OOMPAH-311 (P2): Diagnose and surface remediation for existing independently-merged children (OOMPAH-286/PR #466 pattern)
+   - OOMPAH-312 (P3): UI/dashboard: show Done-on-epic-branch vs Merged-to-target status [depends on 310]
+   - OOMPAH-313 (P1): Regression tests: OOMPAH-285/286 fixture + native child lifecycle [depends on 308, 309]
+
+4. Remaining work and risks:
+   - OOMPAH-308 and OOMPAH-309 are the critical path — start here. They address the root cause gaps.
+   - OOMPAH-313 (regression tests) should be written alongside or after 308/309.
+   - OOMPAH-311 is independent and can be done in parallel.
+   - OOMPAH-310 and OOMPAH-312 follow after the core routing fixes land.
+   - Risk: oompah/orchestrator.py is very large (~17000 lines); agents should use grep/search to navigate, not read the whole file.
+
+5. Recommended next focus: feature (implement OOMPAH-308 and OOMPAH-309 — the root routing/hardening fixes)
 ---
 <!-- COMMENTS:END -->
