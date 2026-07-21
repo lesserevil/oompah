@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:47.496504Z'
-updated_at: '2026-07-21T16:10:37.557406Z'
+updated_at: '2026-07-21T16:10:45.133224Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -189,5 +189,10 @@ author: oompah
 created: 2026-07-21 16:10
 ---
 Implementation complete. Created: (1) plans/repo-map-artifact.md — full design doc covering schema, state-branch path, atomic-write, freshness rule, retention, and unsupported-repo behavior; (2) oompah/repo_map.py — typed Python artifact contract (IndexedFile, SymbolTag, RelationshipEdge, RenderingMetadata, RepoMap dataclasses plus SchemaVersionError, repo_map_slug, repo_map_path, is_within_namespace, is_fresh, write_repo_map, read_repo_map, prune_repo_maps); (3) tests/test_repo_map.py — 106 unit tests.
+---
+author: oompah
+created: 2026-07-21 16:10
+---
+Verification: make test passed — 10028 passed, 36 skipped, 11 warnings. All 106 new tests in tests/test_repo_map.py pass. Coverage: schema serialization/deserialization, schema-version rejection (wrong version, None, future, string, missing key), deterministic output, SHA-based invalidation, path construction (all within .oompah/ namespace), atomic write, freshness/staleness, pruning, and unsupported/unavailable repository behavior.
 ---
 <!-- COMMENTS:END -->
