@@ -15,7 +15,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:07:18.504304Z'
+updated_at: '2026-07-21T23:22:34.679715Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -288,5 +288,10 @@ author: oompah
 created: 2026-07-21 23:07
 ---
 Understanding: I am the Software Engineer focus for OOMPAH-298. Based on the prior handoff comments, I need to implement repository map injection into agent startup prompts. The plan is: (1) add build_repo_map_context() in a new oompah/repo_map_prompt.py module that resolves workspace HEAD SHA, loads matching artifact via read_repo_map, derives seeds from task title/description/comments, calls render_repo_map with token budget, wraps result as untrusted provenance block, and returns None on any failure; (2) extend render_prompt() in oompah/prompt.py with an optional repo_map_context parameter that inserts a labeled untrusted block; (3) update the three orchestrator.py render_prompt call sites; (4) expose commit_sha/provenance in dispatch diagnostics; (5) write tests for all inclusion/exclusion/failure/budget/provenance cases.
+---
+author: oompah
+created: 2026-07-21 23:22
+---
+Discovery: Confirmed the implementation approach from prior handoffs. Key findings: (1) oompah/prompt.py render_prompt will get a new repo_map_context: str | None parameter; (2) three orchestrator.py call sites at lines ~15340, ~15688, ~16235 need repo map context injection; (3) new oompah/repo_map_prompt.py will contain build_repo_map_context() + helpers; (4) state_branch_dir is derivable from workspace_path using git rev-parse --git-common-dir then the same convention as OompahMdTracker._state_worktree_path(); (5) project.repo_url is the repo_identity; (6) render_repo_map + read_repo_map + wrap_untrusted are the right primitives; (7) OOMPAH_REPO_MAP_TOKEN_BUDGET env var (default 2000) controls the ceiling. Tests will go in tests/test_repo_map_prompt.py.
 ---
 <!-- COMMENTS:END -->

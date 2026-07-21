@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:50.132513Z'
-updated_at: '2026-07-21T23:22:19.360592Z'
+updated_at: '2026-07-21T23:22:28.297517Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 313f237d-3001-4de3-8067-295699da5287
 oompah.task_costs:
-  total_input_tokens: 2390455
-  total_output_tokens: 25868
+  total_input_tokens: 2390507
+  total_output_tokens: 38464
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 2390455
-      output_tokens: 25868
+      input_tokens: 2390507
+      output_tokens: 38464
       cost_usd: 0.0
   runs:
   - profile: default
@@ -47,6 +47,12 @@ oompah.task_costs:
     output_tokens: 4551
     cost_usd: 0.0
     recorded_at: '2026-07-21T23:07:25.107502+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 52
+    output_tokens: 12596
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T23:22:25.883838+00:00'
 ---
 ## Summary
 
@@ -279,5 +285,20 @@ author: oompah
 created: 2026-07-21 23:22
 ---
 Forge-neutral SCM/CI provider contract defined and tested. CIStatus enum, CapabilityWarning TypedDict, normalize_ci_status(), get_review_commits() contract method, and SCMProvider docstrings added to oompah/scm.py. 9 new contract tests in test_scm.py. 5 test files updated to mock get_review_commits instead of get_pr_commits. All 10525 tests pass.
+---
+author: oompah
+created: 2026-07-21 23:22
+---
+Agent completed successfully in 893s (12648 tokens)
+---
+author: oompah
+created: 2026-07-21 23:22
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 90, Tool calls: 61
+- Tokens: 52 in / 12.6K out [12.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 14m 53s
+- Log: OOMPAH-320__20260721T230734Z.jsonl
 ---
 <!-- COMMENTS:END -->
