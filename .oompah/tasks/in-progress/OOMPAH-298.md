@@ -11,9 +11,11 @@ blocked_by:
 - OOMPAH-297
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:test
+- needs:feature
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:04:17.246434Z'
+updated_at: '2026-07-21T23:04:37.875630Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,5 +151,17 @@ author: oompah
 created: 2026-07-21 23:04
 ---
 Discovery: Startup prompts are assembled in oompah/orchestrator.py at the provider (~15340), ACP (~15688), and CLI first-turn (~16235) paths; all call oompah.prompt.render_prompt after workspace creation. Current render_prompt accepts no repository context, and Issue has no linked-file/PR/commit fields beyond tracker/review metadata. Existing ranker tests already prove direct renderer token bounds and title/file seed ranking, but no integration tests exist. The next implementation should establish one shared fail-open context builder used by all three paths and expose its provenance/SHA through dispatch diagnostics.
+---
+author: oompah
+created: 2026-07-21 23:04
+---
+Verification: make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-293'
+uv run pytest tests/ -v
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-293' could not start pytest:  failed with transient-scope DBus error  (exit 46). No repository-map prompt integration tests were added because the required shared context-builder API does not yet exist; this avoids hard-coding an unsupported interface before implementation.
+---
+author: oompah
+created: 2026-07-21 23:04
+---
+Focus handoff: test\n\n1. Outcome: Test architecture and coverage requirements are identified; implementation is still required.\n2. Relevant files/evidence: oompah/orchestrator.py has three focus startup render sites (~15340, ~15688, ~16235); oompah/prompt.py:render_prompt is the appropriate common boundary; oompah/repo_map.py:read_repo_map enforces SHA freshness; oompah/repo_map_ranker.py:render_repo_map provides bounded rendering; existing tests/test_repo_map_ranker.py covers renderer unit contracts.\n3. Remaining work/risks: implement a single fail-open repository-context builder usable from all startup paths. Its tests should assert fresh matching inclusion for provider/ACP/CLI and all foci, omission for stale SHA/wrong project/missing artifact/render error, task-derived title/description/files/review/commit/handoff seeds, token ceiling, untrusted-data provenance, and SHA/provenance diagnostics. The full suite is presently environment-blocked before collection by uv/DBus transient-scope failure.\n4. Recommended next focus: feature.
 ---
 <!-- COMMENTS:END -->
