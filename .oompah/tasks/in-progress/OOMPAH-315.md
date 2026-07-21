@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-315
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T18:50:38.701005Z'
+updated_at: '2026-07-21T18:51:03.498603Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-21T18:20:20.176791+00:00'
-oompah.agent_run_id: 04eb409e-6918-42da-876d-f4b5bb31895a
+oompah.agent_run_id: ed592296-d191-440b-92c2-c9ace493d0af
 oompah.task_costs:
   total_input_tokens: 40
   total_output_tokens: 11789
@@ -184,5 +184,15 @@ author: oompah
 created: 2026-07-21 18:50
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-21 18:51
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 18:51
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
