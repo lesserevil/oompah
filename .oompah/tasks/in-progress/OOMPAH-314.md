@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T17:40:32.358385Z'
+updated_at: '2026-07-21T17:59:20.898963Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-07-21 17:40
 ---
 Discovery: Root cause confirmed at oompah/orchestrator.py:9572 - cherry_pick_delivery called with sync_source_branch=True, which merges origin/main into the release worktree BEFORE applying source_commits. This is the PR #303 regression. Fix is straightforward: remove sync_source_branch=True. Additionally implementing: (1) ci_remediation_task_id field on ReleaseDelivery, (2) _monitor_merged_delivery_ci method on Orchestrator to poll release branch CI after delivery merges and dispatch remediation tasks on CI failure, (3) get_branch_head_sha SCM method to support the CI check. Tests to add in test_release_delivery_executor.py and test_release_delivery_queue.py (integration with queue verifying sync_source_branch=False).
+---
+author: oompah
+created: 2026-07-21 17:59
+---
+Implementation complete: (1) Fixed sync_source_branch=True→False in orchestrator.py:9564 (the PR #303 root cause). (2) Added ci_remediation_task_id field to ReleaseDelivery + _MUTABLE_FIELDS. (3) Added get_branch_head_sha/get_ci_status_for_sha/get_branch_ci_status to SCMProvider base class and implemented get_branch_head_sha+get_ci_status_for_sha on GitHubProvider. (4) Added _monitor_merged_delivery_ci, _check_and_remediate_delivery_ci, _dispatch_release_ci_fix_task to Orchestrator. (5) Added 4 regression tests to test_release_delivery_executor.py. (6) Created test_release_delivery_ci_monitor.py with 22 tests covering CI monitoring, queue integration (sync_source_branch=False), and SCM methods. Full suite: 9977 passed.
 ---
 <!-- COMMENTS:END -->
