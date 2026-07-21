@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T18:55:47.488904Z'
+updated_at: '2026-07-21T19:00:29.761604Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -221,5 +221,30 @@ Changes made:
 3. oompah/orchestrator.py: (a) Imported TrackerStateBranchMissingError, (b) Added it to _error_class_for_tracker_exc returning 'tracker_state_branch_missing', (c) Added explicit catch for TrackerStateBranchMissingError in all 4 fetch sites — logs WARNING (no error_class), so error_watcher is NOT triggered
 
 Key insight: The existing test test_missing_state_branch_raises_actionable_error checks for TrackerError which TrackerStateBranchMissingError still is (subclass), so it passes unchanged. The orchestrator now treats missing-state-branch like a configuration issue (warning) rather than a transient error (error + error_class), preventing auto-filing.
+---
+author: oompah
+created: 2026-07-21 19:00
+---
+Implementation: 5 files changed.
+
+**oompah/tracker.py** — added TrackerStateBranchMissingError(TrackerError) subclass. Docstring explains it is a configuration/setup problem, not a transient failure, and that the orchestrator catches it separately to avoid error_watcher auto-filing.
+
+**oompah/oompah_md_tracker.py** — imported TrackerStateBranchMissingError; changed _get_state_root() to raise TrackerStateBranchMissingError instead of generic TrackerError when the state branch is missing locally and at origin.
+
+**oompah/orchestrator.py** — three changes:
+1. Imported TrackerStateBranchMissingError
+2. _error_class_for_tracker_exc: added case returning 'tracker_state_branch_missing' (must be tested before generic TrackerError case, after all other specific subtypes)
+3. All 4 fetch sites (_fetch_candidates_from_all_projects coro, _fetch_legacy_candidates, _fetch_in_progress_issues coro, _fetch_legacy_in_progress): added explicit catch for TrackerStateBranchMissingError BEFORE the generic (TrackerError, ProjectError) catch. Logs WARNING (no error_class in extra= dict) so error_watcher is NOT triggered.
+
+**tests/test_oompah_md_tracker_state_branch.py** — 2 new tests in TestStateBranchTrackerFailures:
+- test_missing_state_branch_raises_tracker_state_branch_missing_error: verifies the specific subclass is raised
+- test_tracker_state_branch_missing_error_is_tracker_error_subclass: verifies backward compat
+
+**tests/test_error_watcher_orchestrator.py** — 3 new tests in TestErrorClassForTrackerExc:
+- test_tracker_state_branch_missing_error_returns_distinct_class: class = 'tracker_state_branch_missing'
+- test_tracker_state_branch_missing_error_not_classified_as_tracker_failed
+- test_tracker_state_branch_missing_error_is_tracker_error_subclass
+
+**tests/test_error_watcher.py** — 1 new test in TestErrorClassForTrackerExc verifying the new classification.
 ---
 <!-- COMMENTS:END -->
