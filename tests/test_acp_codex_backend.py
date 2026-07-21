@@ -38,6 +38,7 @@ from oompah.acp_backends.codex import (
     CodexAcpBackend,
     CodexAcpBackendSession,
     _CodexCounters,
+    _get_worktree_git_meta_dir,
 )
 from oompah.models import ModelProvider
 
@@ -1033,3 +1034,279 @@ class TestClaudeBackendNotRegressed:
         B landing."""
         provider = ModelProvider(id="p1", name="x", base_url="", backend=None)
         assert provider.validate_for_mode("acp") == []
+
+
+# ----------------------------------------------------------------------
+# _get_worktree_git_meta_dir: git worktree metadata detection
+# ----------------------------------------------------------------------
+
+
+class TestGetWorktreeGitMetaDir:
+    """Tests for the helper that detects git worktree metadata dirs.
+
+    The Codex CLI ``workspace-write`` sandbox only allows writes inside
+    the workspace path.  ``git add`` / ``git commit`` need to update the
+    index in ``<main-repo>/.git/worktrees/<branch>/``, which is outside
+    the workspace in a git-worktree checkout.  The helper detects this
+    pattern and returns the metadata dir so callers can grant targeted
+    write access via ``ThreadOptions(additional_directories=...)``.
+    """
+
+    def test_returns_none_when_no_git_entry(self, tmp_path):
+        """Plain directory with no .git file/dir returns None."""
+        workspace = str(tmp_path / "workspace")
+        import os
+        os.makedirs(workspace)
+        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
+        assert _get_worktree_git_meta_dir(workspace) is None
+
+    def test_returns_none_when_git_is_directory(self, tmp_path):
+        """A main-repo checkout has .git as a directory, not a file.
+        Metadata is already inside the workspace; additional_directories
+        is not needed."""
+        workspace = tmp_path / "main-repo"
+        workspace.mkdir()
+        (workspace / ".git").mkdir()
+        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
+        assert _get_worktree_git_meta_dir(str(workspace)) is None
+
+    def test_returns_meta_dir_for_worktree_with_absolute_gitdir(self, tmp_path):
+        """A worktree checkout has .git as a file with
+        ``gitdir: /abs/path/to/.git/worktrees/<branch>/``.
+        Returns the absolute path when the directory exists."""
+        # Simulate main repo's worktree metadata directory
+        meta_dir = tmp_path / "repos" / "oompah" / ".git" / "worktrees" / "FEAT-99"
+        meta_dir.mkdir(parents=True)
+
+        workspace = tmp_path / "worktrees" / "oompah" / "FEAT-99"
+        workspace.mkdir(parents=True)
+        (workspace / ".git").write_text(f"gitdir: {meta_dir}\n")
+
+        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
+        result = _get_worktree_git_meta_dir(str(workspace))
+        assert result == str(meta_dir)
+
+    def test_returns_meta_dir_for_worktree_with_relative_gitdir(self, tmp_path):
+        """Relative gitdir paths (e.g. ``../../repos/…``) are resolved
+        relative to the workspace directory."""
+        meta_dir = tmp_path / ".git" / "worktrees" / "FEAT-99"
+        meta_dir.mkdir(parents=True)
+
+        workspace = tmp_path / "worktrees" / "FEAT-99"
+        workspace.mkdir(parents=True)
+
+        # Relative path from workspace to meta_dir
+        import os
+        rel = os.path.relpath(str(meta_dir), str(workspace))
+        (workspace / ".git").write_text(f"gitdir: {rel}\n")
+
+        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
+        result = _get_worktree_git_meta_dir(str(workspace))
+        assert os.path.normpath(result) == os.path.normpath(str(meta_dir))
+
+    def test_returns_none_when_gitdir_directory_missing(self, tmp_path):
+        """If the gitdir path does not exist on disk (stale/broken
+        worktree), return None rather than crashing."""
+        workspace = tmp_path / "worktrees" / "STALE"
+        workspace.mkdir(parents=True)
+        (workspace / ".git").write_text(
+            "gitdir: /nonexistent/path/.git/worktrees/STALE\n"
+        )
+        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
+        assert _get_worktree_git_meta_dir(str(workspace)) is None
+
+    def test_returns_none_when_git_file_has_no_gitdir_prefix(self, tmp_path):
+        """Malformed .git file (missing the ``gitdir: `` prefix) is
+        treated as unrecognised and returns None."""
+        workspace = tmp_path / "ws"
+        workspace.mkdir()
+        (workspace / ".git").write_text("not a gitdir file\n")
+        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
+        assert _get_worktree_git_meta_dir(str(workspace)) is None
+
+    def test_returns_none_when_git_file_is_unreadable(self, tmp_path):
+        """OSError reading the .git file is handled gracefully."""
+        import os
+        workspace = tmp_path / "ws"
+        workspace.mkdir()
+        git_file = workspace / ".git"
+        git_file.write_text("gitdir: /some/path\n")
+        git_file.chmod(0o000)
+        try:
+            from oompah.acp_backends.codex import _get_worktree_git_meta_dir
+            result = _get_worktree_git_meta_dir(str(workspace))
+            # Either None (no permission) or the path — depends on
+            # whether tests run as root. Either way, no exception.
+            assert result is None or isinstance(result, str)
+        finally:
+            git_file.chmod(0o644)
+
+    def test_strips_trailing_newline_from_gitdir_path(self, tmp_path):
+        """The gitdir path is stripped of surrounding whitespace before
+        use — real .git files end with a newline."""
+        meta_dir = tmp_path / ".git" / "worktrees" / "BRANCH"
+        meta_dir.mkdir(parents=True)
+        workspace = tmp_path / "ws"
+        workspace.mkdir()
+        (workspace / ".git").write_text(f"gitdir: {meta_dir}  \n")
+        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
+        result = _get_worktree_git_meta_dir(str(workspace))
+        assert result is not None
+        import os
+        assert os.path.isdir(result)
+
+
+# ----------------------------------------------------------------------
+# Codex CLI sandbox: additional_directories for git worktrees
+# ----------------------------------------------------------------------
+
+
+class TestCodexCliAdditionalDirectories:
+    """The Codex CLI subscription path must pass the git worktree
+    metadata directory as ``additional_directories`` in ``ThreadOptions``
+    so ``git add``, ``git commit``, ``git pull --rebase``, and
+    ``git push`` succeed inside the ``workspace-write`` sandbox.
+
+    Acceptance criterion (OOMPAH-317): an agent in a worktree can run
+    these git operations without broadening filesystem access to the
+    entire repository root.
+    """
+
+    def _drive(self, monkeypatch, tmp_path, *, workspace_has_worktree=True):
+        """Drive a subscription-tier CLI session with a fake Codex SDK.
+
+        If *workspace_has_worktree* is True, the workspace has a .git
+        file pointing to an existing meta dir (simulating a git worktree).
+        Otherwise the workspace is a plain directory.
+
+        Returns (session, collected_events, cap) where cap["thread_options"]
+        is the fake ThreadOptions object passed to start_thread.
+        """
+        # Build workspace
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+
+        if workspace_has_worktree:
+            meta_dir = tmp_path / "meta" / "worktrees" / "BRANCH-42"
+            meta_dir.mkdir(parents=True)
+            (workspace / ".git").write_text(f"gitdir: {meta_dir}\n")
+
+        cap: dict = {}
+        _install_fake_cli(
+            monkeypatch,
+            events=[_cli_ev("turn.completed", usage=None)],
+            capture=cap,
+        )
+
+        async def run():
+            opt = AcpBackendOptions(
+                workspace_path=str(workspace),
+                prompt="do work",
+                billing_model="subscription",
+            )
+            sess = CodexAcpBackendSession(opt)
+            collected = []
+            async for ev in sess.run_turn():
+                collected.append(ev)
+            return sess, collected
+
+        sess, collected = asyncio.run(run())
+        return sess, collected, cap
+
+    def test_worktree_metadata_dir_passed_as_additional_directories(
+        self, monkeypatch, tmp_path
+    ):
+        """When the workspace is a git worktree, ThreadOptions receives
+        the metadata dir in additional_directories so the sandbox grants
+        write access to it."""
+        _sess, _stream, cap = self._drive(
+            monkeypatch, tmp_path, workspace_has_worktree=True
+        )
+        thread_opts = cap.get("thread_options")
+        assert thread_opts is not None, "start_thread was never called"
+
+        additional = getattr(thread_opts, "additional_directories", None)
+        assert additional is not None, (
+            "additional_directories not set — git operations will fail "
+            "inside workspace-write sandbox"
+        )
+        assert len(additional) == 1
+        assert "meta" in additional[0] or "worktrees" in additional[0], (
+            f"Expected metadata dir path, got: {additional[0]!r}"
+        )
+
+    def test_no_additional_directories_for_plain_workspace(
+        self, monkeypatch, tmp_path
+    ):
+        """When the workspace is NOT a git worktree, additional_directories
+        is None — no unnecessary filesystem access is granted."""
+        _sess, _stream, cap = self._drive(
+            monkeypatch, tmp_path, workspace_has_worktree=False
+        )
+        thread_opts = cap.get("thread_options")
+        assert thread_opts is not None, "start_thread was never called"
+
+        additional = getattr(thread_opts, "additional_directories", None)
+        assert additional is None, (
+            f"additional_directories should be None for plain workspace, "
+            f"got: {additional!r}"
+        )
+
+    def test_session_start_event_includes_additional_directories_for_worktree(
+        self, monkeypatch, tmp_path
+    ):
+        """The acp_session_start event payload includes additional_directories
+        for observability / audit when a worktree is detected."""
+        _sess, stream, _cap = self._drive(
+            monkeypatch, tmp_path, workspace_has_worktree=True
+        )
+        start_events = [ev for ev in stream if ev.kind == "session_start"]
+        assert start_events, "No session_start event emitted"
+        payload = start_events[0].payload
+        assert "additional_directories" in payload
+        assert payload["additional_directories"] is not None
+
+    def test_session_start_event_additional_directories_none_for_plain_workspace(
+        self, monkeypatch, tmp_path
+    ):
+        """The acp_session_start event shows additional_directories=None
+        for non-worktree workspaces."""
+        _sess, stream, _cap = self._drive(
+            monkeypatch, tmp_path, workspace_has_worktree=False
+        )
+        start_events = [ev for ev in stream if ev.kind == "session_start"]
+        assert start_events, "No session_start event emitted"
+        payload = start_events[0].payload
+        assert payload.get("additional_directories") is None
+
+    def test_metadata_dir_path_matches_gitdir(self, monkeypatch, tmp_path):
+        """The additional_directories path exactly matches the resolved
+        gitdir from the workspace .git file."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        meta_dir = tmp_path / "shared-repo" / ".git" / "worktrees" / "MY-TASK"
+        meta_dir.mkdir(parents=True)
+        (workspace / ".git").write_text(f"gitdir: {meta_dir}\n")
+
+        cap: dict = {}
+        _install_fake_cli(
+            monkeypatch,
+            events=[_cli_ev("turn.completed", usage=None)],
+            capture=cap,
+        )
+
+        async def run():
+            opt = AcpBackendOptions(
+                workspace_path=str(workspace),
+                prompt="x",
+                billing_model="subscription",
+            )
+            sess = CodexAcpBackendSession(opt)
+            async for _ in sess.run_turn():
+                pass
+            return sess
+
+        asyncio.run(run())
+        thread_opts = cap.get("thread_options")
+        additional = getattr(thread_opts, "additional_directories", None)
+        assert additional == [str(meta_dir)]

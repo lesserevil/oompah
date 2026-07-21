@@ -188,6 +188,60 @@ def _truncate(value: Any, limit: int = 1500) -> Any:
     return value
 
 
+def _get_worktree_git_meta_dir(workspace_path: str) -> str | None:
+    """Return the git worktree metadata directory if *workspace_path* is a git worktree.
+
+    When oompah creates a git worktree via ``git worktree add``, git places a
+    small ``<workspace>/.git`` *file* (not directory) containing::
+
+        gitdir: /path/to/main-repo/.git/worktrees/<branch>/
+
+    That metadata directory holds the worktree's ``index``, ``HEAD``,
+    ``ORIG_HEAD``, and similar state files.  The Codex CLI's
+    ``workspace-write`` sandbox allows writes only inside *workspace_path*, so
+    any ``git add`` / ``git commit`` that tries to update
+    ``<main-repo>/.git/worktrees/<branch>/index`` fails with a "read-only
+    filesystem" error.
+
+    This helper detects the pattern and returns the *absolute* path of the
+    metadata directory so callers can pass it as ``additional_directories``
+    in ``ThreadOptions``, granting the sandbox targeted write access to just
+    that subdirectory without opening the entire repository ``~/.oompah/repos/``
+    for writes.
+
+    Returns ``None`` when:
+
+    * *workspace_path* has no ``.git`` entry (not a git repo).
+    * ``.git`` is a directory — this is a main repository, not a worktree;
+      the metadata already lives inside the workspace.
+    * The ``gitdir:`` line is missing or malformed.
+    * The resolved metadata path does not exist on disk (stale/broken worktree).
+    """
+    git_file = os.path.join(workspace_path, ".git")
+    if not os.path.isfile(git_file):
+        # Either no .git at all (not a git repo) or .git is a directory
+        # (main repo checkout — metadata already in-workspace).
+        return None
+    try:
+        with open(git_file) as fh:
+            content = fh.read().strip()
+    except OSError:
+        return None
+
+    prefix = "gitdir: "
+    if not content.startswith(prefix):
+        return None
+
+    gitdir = content[len(prefix):]
+    if not os.path.isabs(gitdir):
+        # Relative gitdir: resolve against the workspace directory.
+        gitdir = os.path.normpath(os.path.join(workspace_path, gitdir))
+
+    if os.path.isdir(gitdir):
+        return gitdir
+    return None
+
+
 class CodexAcpBackendSession(AcpBackendSession):
     """OpenAI-Agents-SDK-driven session handle.
 
@@ -631,6 +685,16 @@ class CodexAcpBackendSession(AcpBackendSession):
             cli_env.update(self._options.env)
         cli_env.pop("CODEX_API_KEY", None)
 
+        # Detect git worktrees: the Codex ``workspace-write`` sandbox only
+        # allows writes inside the workspace directory, but git worktree
+        # metadata (index, HEAD, ORIG_HEAD …) lives at the path recorded in
+        # ``<workspace>/.git`` — typically inside the shared repo's
+        # ``.git/worktrees/<branch>/``.  Add that directory as an additional
+        # writable path so ``git add``, ``git commit``, and ``git pull --rebase``
+        # work without broadening access to the entire repository.
+        git_meta_dir = _get_worktree_git_meta_dir(self._options.workspace_path)
+        additional_dirs: list[str] | None = [git_meta_dir] if git_meta_dir else None
+
         try:
             codex = Codex(env=cli_env)
             thread = codex.start_thread(
@@ -641,6 +705,7 @@ class CodexAcpBackendSession(AcpBackendSession):
                     sandbox_mode="workspace-write",
                     approval_policy="never",
                     network_access_enabled=True,
+                    additional_directories=additional_dirs,
                 )
             )
         except Exception as exc:
@@ -657,6 +722,7 @@ class CodexAcpBackendSession(AcpBackendSession):
                 "permission_mode": self._options.permission_mode,
                 "tool_policy": "codex_cli:native_sandbox",
                 "sandbox_mode": "workspace-write",
+                "additional_directories": additional_dirs,
                 "approval_policy": "never",
                 "billing_model": self._billing_model,
                 "cwd": self._options.workspace_path,
