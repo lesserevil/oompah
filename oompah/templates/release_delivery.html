@@ -251,6 +251,16 @@
       white-space: nowrap;
     }
     .rdi-author { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
+    .rdi-item-summary {
+      display: block;
+      font-size: 0.73rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 360px;
+      margin-top: 0.1rem;
+    }
     .rdi-assoc {
       font-size: 0.75rem;
       color: var(--accent);
@@ -364,7 +374,7 @@
     .rdi-drawer-panel {
       background: var(--surface);
       border-left: 1px solid var(--border);
-      width: 420px;
+      width: min(800px, 40vw);
       max-width: 90vw;
       display: flex;
       flex-direction: column;
@@ -406,6 +416,92 @@
       font-family: var(--mono, monospace);
       font-size: 0.75rem;
       word-break: break-all;
+    }
+    .rdi-drawer-loading {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      padding: 0.3rem 0;
+    }
+    .rdi-drawer-error {
+      color: var(--red, #f85149);
+      font-size: 0.8rem;
+      padding: 0.3rem 0;
+    }
+    .rdi-drawer-field {
+      margin-bottom: 0.5rem;
+    }
+    .rdi-drawer-field-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 0.15rem;
+    }
+    .rdi-drawer-field-value {
+      font-size: 0.82rem;
+      word-break: break-word;
+    }
+    .rdi-drawer-desc {
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 10rem;
+      overflow-y: auto;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.4rem 0.5rem;
+    }
+    .rdi-drawer-children-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 0.8rem;
+    }
+    .rdi-drawer-children-list li {
+      padding: 0.2rem 0;
+      border-bottom: 1px solid rgba(125, 133, 144, 0.1);
+      cursor: pointer;
+    }
+    .rdi-drawer-children-list li:hover { background: rgba(125, 133, 144, 0.05); }
+    .rdi-drawer-child-state {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-left: 0.4rem;
+    }
+    .rdi-drawer-comments {
+      border-top: 1px solid var(--border);
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+    }
+    .rdi-drawer-comment {
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid rgba(125, 133, 144, 0.1);
+    }
+    .rdi-drawer-comment-header {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-bottom: 0.1rem;
+    }
+    .rdi-drawer-comment-text {
+      font-size: 0.8rem;
+      word-break: break-word;
+    }
+    .rdi-drawer-label-chip {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 1px 6px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      margin-right: 0.25rem;
+      margin-bottom: 0.2rem;
+    }
+    .rdi-drawer-delivery-section {
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 2px solid var(--border);
     }
     /* Responsive */
     @media (max-width: 600px) {
@@ -1112,6 +1208,15 @@ function _rdiRenderItemRow(item, data) {
   titleSpan.textContent = item.title || item.identifier;
   titleSpan.title = item.title || item.identifier;
   tdTitle.appendChild(titleSpan);
+  // Summary — rendered beneath the title as a second line (plain text, HTML-safe)
+  if (item.summary) {
+    const summarySpan = document.createElement('span');
+    summarySpan.className = 'rdi-item-summary';
+    summarySpan.textContent = item.summary;
+    summarySpan.title = item.summary;
+    summarySpan.setAttribute('aria-label', 'Description: ' + item.summary);
+    tdTitle.appendChild(summarySpan);
+  }
   tr.appendChild(tdTitle);
 
   // Commits column
@@ -1460,34 +1565,214 @@ function _rdiOpenItemDrawer(item) {
 
   const body = document.getElementById('rdi-drawer-body');
   if (!body) return;
+
+  // Render the delivery evidence section synchronously (always visible).
+  const deliverySection = _rdiBuildDeliverySection(item);
+
+  // Show a loading placeholder while task details are fetched, then append
+  // the delivery section below so it is never lost during the fetch.
   body.innerHTML = '';
+  const taskDetailEl = document.createElement('div');
+  taskDetailEl.id = 'rdi-drawer-task-detail';
+  taskDetailEl.innerHTML = '<div class="rdi-drawer-loading">Loading task details…</div>';
+  body.appendChild(taskDetailEl);
+  body.appendChild(deliverySection);
 
-  // Identifier + kind
-  _rdiDrawerAddSection(body, 'Identifier', function(cont) {
-    const span = document.createElement('span');
-    span.className = 'rdi-assoc';
-    span.textContent = item.identifier + (item.kind === 'epic' ? ' (epic)' : ' (task)');
-    cont.appendChild(span);
-  });
+  drawer.classList.add('open');
+  const closeBtn = drawer.querySelector('.rdi-drawer-close');
+  if (closeBtn) setTimeout(function() { closeBtn.focus(); }, 50);
 
-  // Title
-  if (item.title) {
-    _rdiDrawerAddSection(body, 'Title', function(cont) {
-      const d = document.createElement('div');
-      d.textContent = item.title;
-      cont.appendChild(d);
-    });
+  // Fetch full task detail from /api/v1/issues/{identifier}/detail.
+  // Only fire for associated items (identifier is meaningful).
+  if (item.identifier) {
+    _rdiFetchTaskDetail(item.identifier, taskDetailEl);
+  }
+}
+
+async function _rdiFetchTaskDetail(identifier, containerEl) {
+  const projectId = _rdiProjectId || '';
+  const url = '/api/v1/issues/' + encodeURIComponent(identifier) + '/detail' +
+    (projectId ? '?project_id=' + encodeURIComponent(projectId) : '');
+  let detail = null;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const errData = await resp.json().catch(function() { return {}; });
+      const msg = (errData.error && errData.error.message) || ('HTTP ' + resp.status);
+      containerEl.innerHTML = '<div class="rdi-drawer-error">Failed to load task details: ' + _rdiEsc(msg) + '</div>';
+      return;
+    }
+    detail = await resp.json();
+  } catch (err) {
+    containerEl.innerHTML = '<div class="rdi-drawer-error">Network error loading task details.</div>';
+    return;
+  }
+  // Render the full task detail into containerEl
+  containerEl.innerHTML = '';
+  _rdiRenderTaskDetail(detail, containerEl);
+}
+
+function _rdiRenderTaskDetail(detail, el) {
+  function addField(labelText, valueEl) {
+    const wrap = document.createElement('div');
+    wrap.className = 'rdi-drawer-field';
+    const lbl = document.createElement('div');
+    lbl.className = 'rdi-drawer-field-label';
+    lbl.textContent = labelText;
+    wrap.appendChild(lbl);
+    if (typeof valueEl === 'string') {
+      const val = document.createElement('div');
+      val.className = 'rdi-drawer-field-value';
+      val.textContent = valueEl;
+      wrap.appendChild(val);
+    } else {
+      wrap.appendChild(valueEl);
+    }
+    el.appendChild(wrap);
   }
 
+  // Title
+  addField('Title', detail.title || '');
+
+  // Type
+  addField('Type', detail.issue_type || '');
+
+  // State
+  addField('State', detail.state || '');
+
+  // Priority
+  if (detail.priority != null) {
+    addField('Priority', 'P' + detail.priority);
+  }
+
+  // Labels
+  if (detail.labels && detail.labels.length > 0) {
+    const labelsWrap = document.createElement('div');
+    for (const lbl of detail.labels) {
+      const chip = document.createElement('span');
+      chip.className = 'rdi-drawer-label-chip';
+      chip.textContent = lbl;
+      labelsWrap.appendChild(chip);
+    }
+    addField('Labels', labelsWrap);
+  }
+
+  // Parent
+  if (detail.parent_id) {
+    addField('Parent', detail.parent_id);
+  }
+
+  // Description
+  if (detail.description) {
+    const descEl = document.createElement('pre');
+    descEl.className = 'rdi-drawer-desc';
+    descEl.textContent = detail.description;
+    addField('Description', descEl);
+  }
+
+  // Children (for epics)
+  if (detail.children && detail.children.length > 0) {
+    const ul = document.createElement('ul');
+    ul.className = 'rdi-drawer-children-list';
+    for (const c of detail.children) {
+      const li = document.createElement('li');
+      const idSpan = document.createElement('span');
+      idSpan.textContent = (c.display_identifier || c.identifier) + ' ';
+      idSpan.style.color = 'var(--accent)';
+      li.appendChild(idSpan);
+      const titleNode = document.createTextNode(c.title || '');
+      li.appendChild(titleNode);
+      const stateSpan = document.createElement('span');
+      stateSpan.className = 'rdi-drawer-child-state';
+      stateSpan.textContent = c.state || '';
+      li.appendChild(stateSpan);
+      ul.appendChild(li);
+    }
+    addField('Children (' + detail.children.length + ')', ul);
+  }
+
+  // Source / repository links
+  if (detail.url) {
+    const linkWrap = document.createElement('div');
+    linkWrap.className = 'rdi-drawer-field-value';
+    const a = document.createElement('a');
+    a.href = detail.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = detail.url;
+    a.style.fontSize = '0.8rem';
+    linkWrap.appendChild(a);
+    addField('Source', linkWrap);
+  }
+  if (detail.tracker_kind) {
+    const trackerLabel = detail.tracker_owner && detail.tracker_repo
+      ? detail.tracker_kind + ' (' + detail.tracker_owner + '/' + detail.tracker_repo + ')'
+      : detail.tracker_kind;
+    addField('Tracker', trackerLabel);
+  }
+  if (detail.work_branch) {
+    addField('Work Branch', detail.work_branch);
+  }
+
+  // Metadata (created_at, updated_at)
+  if (detail.created_at) {
+    addField('Created', new Date(detail.created_at).toLocaleString());
+  }
+  if (detail.updated_at) {
+    addField('Updated', new Date(detail.updated_at).toLocaleString());
+  }
+
+  // Comments
+  const comments = detail.comments || [];
+  const commentsWrap = document.createElement('div');
+  commentsWrap.className = 'rdi-drawer-comments';
+  const commentsLbl = document.createElement('div');
+  commentsLbl.className = 'rdi-drawer-field-label';
+  commentsLbl.textContent = 'Comments (' + comments.length + ')';
+  commentsWrap.appendChild(commentsLbl);
+  if (comments.length === 0) {
+    const none = document.createElement('div');
+    none.style.color = 'var(--text-muted)';
+    none.style.fontSize = '0.75rem';
+    none.style.padding = '0.2rem 0';
+    none.textContent = 'No comments yet.';
+    commentsWrap.appendChild(none);
+  } else {
+    for (const c of comments) {
+      const commentEl = document.createElement('div');
+      commentEl.className = 'rdi-drawer-comment';
+      const hdr = document.createElement('div');
+      hdr.className = 'rdi-drawer-comment-header';
+      hdr.textContent = (c.author || 'unknown') + (c.created_at ? ' \xb7 ' + new Date(c.created_at).toLocaleString() : '');
+      commentEl.appendChild(hdr);
+      const txt = document.createElement('div');
+      txt.className = 'rdi-drawer-comment-text';
+      txt.textContent = c.text || '';
+      commentEl.appendChild(txt);
+      commentsWrap.appendChild(commentEl);
+    }
+  }
+  el.appendChild(commentsWrap);
+}
+
+function _rdiBuildDeliverySection(item) {
+  const section = document.createElement('div');
+  section.className = 'rdi-drawer-delivery-section';
+
+  const heading = document.createElement('div');
+  heading.className = 'rdi-drawer-section-label';
+  heading.textContent = 'Release Delivery';
+  section.appendChild(heading);
+
   // Delivery status for selected branch
-  const cell = item.delivery_status || {state: 'not_selected'};
-  _rdiDrawerAddSection(body, 'Delivery status → ' + (_rdiSelectedBranch || ''), function(cont) {
+  _rdiDrawerAddSectionTo(section, 'Delivery status → ' + (_rdiSelectedBranch || ''), function(cont) {
+    const cell = item.delivery_status || {state: 'not_selected'};
     cont.appendChild(_rdiRenderCellDetail(cell));
   });
 
   // Source commits
   if (item.source_commits && item.source_commits.length > 0) {
-    _rdiDrawerAddSection(body, 'Source commits on ' + ((_rdiCurrentData && _rdiCurrentData.source_branch) || 'main') + ' (' + item.commit_count + ')', function(cont) {
+    _rdiDrawerAddSectionTo(section, 'Source commits on ' + ((_rdiCurrentData && _rdiCurrentData.source_branch) || 'main') + ' (' + item.commit_count + ')', function(cont) {
       for (const c of item.source_commits) {
         const rowDiv = document.createElement('div');
         rowDiv.style.marginBottom = '0.4rem';
@@ -1517,9 +1802,11 @@ function _rdiOpenItemDrawer(item) {
     });
   }
 
-  drawer.classList.add('open');
-  const closeBtn = drawer.querySelector('.rdi-drawer-close');
-  if (closeBtn) setTimeout(function() { closeBtn.focus(); }, 50);
+  return section;
+}
+
+function _rdiEsc(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function _rdiOpenItemDrawerById(identifier) {
@@ -1529,6 +1816,10 @@ function _rdiOpenItemDrawerById(identifier) {
 }
 
 function _rdiDrawerAddSection(body, labelText, contentFn) {
+  _rdiDrawerAddSectionTo(body, labelText, contentFn);
+}
+
+function _rdiDrawerAddSectionTo(container, labelText, contentFn) {
   const section = document.createElement('div');
   section.className = 'rdi-drawer-section';
   const label = document.createElement('div');
@@ -1538,7 +1829,7 @@ function _rdiDrawerAddSection(body, labelText, contentFn) {
   const cont = document.createElement('div');
   contentFn(cont);
   section.appendChild(cont);
-  body.appendChild(section);
+  container.appendChild(section);
 }
 
 function _rdiRenderCellDetail(cell) {

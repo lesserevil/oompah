@@ -1278,3 +1278,94 @@ class TestLargeCommitSetBoundedGitOps:
             f"OOMPAH-239 regression: expected ≤ {MAX_UNASSOC_TRACKER_ONLY_CHECK} git calls "
             f"for {n_unassociated} unassociated commits, got {call_count}"
         )
+
+
+# ===========================================================================
+# Summary field in API response (OOMPAH-292)
+# ===========================================================================
+
+class TestSummaryInApiResponse:
+    """Tests that item summary is included in the backlog API JSON response."""
+
+    def _make_item_with_summary(self, summary: str | None) -> ItemRow:
+        return ItemRow(
+            identifier="TASK-SUMMARY",
+            title="Some Task",
+            kind="task",
+            source_commits=[
+                SourceCommitInfo(
+                    sha=_SHA_1,
+                    short_sha=_SHA_1[:7],
+                    subject="add stuff",
+                    author_name="Dev",
+                    authored_at="2026-07-01T00:00:00Z",
+                )
+            ],
+            delivery_status=ReleaseStatusCell(state="not_selected"),
+            delivery_id=None,
+            commit_count=1,
+            most_recent_commit_at="2026-07-01T00:00:00Z",
+            tracker_only=False,
+            summary=summary,
+        )
+
+    def test_summary_present_in_item_json_when_set(self, tmp_path):
+        """When ItemRow.summary is set, it appears in the JSON response."""
+        from unittest.mock import patch as _patch
+        item = self._make_item_with_summary("This task does something important.")
+        backlog = _make_backlog_result(items=[item])
+        manager = _make_refresh_manager_mock(backlog)
+        orch = _make_orchestrator(tmp_path)
+
+        with (
+            _patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch.object(server_module, "_get_item_backlog_service"),
+            _patch.object(server_module, "_get_backlog_refresh_manager", return_value=manager),
+        ):
+            client = TestClient(app)
+            resp = client.get(f"{_ENDPOINT}?branch={_RELEASE_BRANCH}")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["items"]) == 1
+        assert data["items"][0]["summary"] == "This task does something important."
+
+    def test_summary_null_in_item_json_when_none(self, tmp_path):
+        """When ItemRow.summary is None, it appears as null in JSON."""
+        from unittest.mock import patch as _patch
+        item = self._make_item_with_summary(None)
+        backlog = _make_backlog_result(items=[item])
+        manager = _make_refresh_manager_mock(backlog)
+        orch = _make_orchestrator(tmp_path)
+
+        with (
+            _patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch.object(server_module, "_get_item_backlog_service"),
+            _patch.object(server_module, "_get_backlog_refresh_manager", return_value=manager),
+        ):
+            client = TestClient(app)
+            resp = client.get(f"{_ENDPOINT}?branch={_RELEASE_BRANCH}")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["items"]) == 1
+        assert data["items"][0]["summary"] is None
+
+    def test_summary_key_always_present_in_item_json(self, tmp_path):
+        """The 'summary' key is always present in every item, even when null."""
+        from unittest.mock import patch as _patch
+        backlog = _make_backlog_result()  # default item has summary=None
+        manager = _make_refresh_manager_mock(backlog)
+        orch = _make_orchestrator(tmp_path)
+
+        with (
+            _patch.object(server_module, "_get_orchestrator", return_value=orch),
+            _patch.object(server_module, "_get_item_backlog_service"),
+            _patch.object(server_module, "_get_backlog_refresh_manager", return_value=manager),
+        ):
+            client = TestClient(app)
+            resp = client.get(f"{_ENDPOINT}?branch={_RELEASE_BRANCH}")
+
+        data = resp.json()
+        for item in data["items"]:
+            assert "summary" in item, "Every item row must have a 'summary' key"

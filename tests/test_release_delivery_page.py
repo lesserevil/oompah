@@ -516,3 +516,188 @@ class TestPageAccessibility:
         """Identifier spans have accessible labels."""
         script = _page_script()
         assert "Open" in script and "details" in script
+
+
+# ===========================================================================
+# OOMPAH-292: Summary in rows, drawer width, full task detail
+# ===========================================================================
+
+class TestItemSummaryInRow:
+    """Tests that item summaries are rendered in Release Delivery item rows."""
+
+    def test_rdi_item_summary_css_class_defined(self):
+        """The .rdi-item-summary CSS class is defined in the page styles."""
+        styles = _page_styles()
+        assert ".rdi-item-summary" in styles
+
+    def test_rdi_item_summary_rendered_when_present(self):
+        """The JS row renderer appends a summary span when item.summary is set."""
+        script = _page_script()
+        assert "rdi-item-summary" in script
+        assert "item.summary" in script
+
+    def test_rdi_item_summary_uses_text_content_not_innerHTML(self):
+        """Summary text is set via textContent (not innerHTML) for HTML safety."""
+        script = _page_script()
+        # Find the block that handles item.summary
+        idx = script.find("rdi-item-summary")
+        assert idx >= 0
+        # After the class assignment, textContent must be used, not innerHTML
+        context = script[idx : idx + 500]
+        assert "textContent" in context
+
+    def test_rdi_item_summary_has_aria_label(self):
+        """Summary span has an aria-label for screen-reader accessibility."""
+        script = _page_script()
+        idx = script.find("rdi-item-summary")
+        context = script[idx : idx + 600]
+        assert "aria-label" in context
+
+    def test_rdi_item_summary_only_when_present(self):
+        """Summary element is only appended when item.summary is truthy."""
+        script = _page_script()
+        idx = script.find("item.summary")
+        assert idx >= 0
+        # There must be a conditional check (if item.summary)
+        context = script[max(0, idx - 50) : idx + 20]
+        assert "if" in context
+
+
+class TestDrawerWidth:
+    """Tests for the drawer width change (OOMPAH-292 / OOMPAH-263 parity)."""
+
+    def test_drawer_panel_uses_min_800px_40vw(self):
+        """The drawer panel uses min(800px, 40vw) matching the dashboard detail panel."""
+        styles = _page_styles()
+        assert "min(800px, 40vw)" in styles
+
+    def test_drawer_panel_retains_max_width_fallback(self):
+        """The drawer panel retains a max-width fallback for narrow viewports."""
+        styles = _page_styles()
+        # max-width must be set to handle very narrow viewports
+        assert "max-width:" in styles
+        # The fallback must be ≥ 90vw or similar (not narrower than usable)
+        assert "90vw" in styles
+
+    def test_drawer_no_longer_uses_420px_fixed_width(self):
+        """The old hard-coded 420px width has been removed from the drawer panel."""
+        styles = _page_styles()
+        # The 420px value must not appear as the primary width
+        # (it may appear in other contexts but not as `.rdi-drawer-panel { width: 420px }`)
+        idx = styles.find(".rdi-drawer-panel")
+        assert idx >= 0
+        # Extract the rule block
+        brace = styles.index("{", idx)
+        end = styles.index("}", brace)
+        rule = styles[brace:end]
+        assert "420px" not in rule
+
+
+class TestFullTaskDetailInDrawer:
+    """Tests for the full task detail loaded in the evidence drawer (OOMPAH-292)."""
+
+    def test_fetch_task_detail_function_defined(self):
+        """_rdiFetchTaskDetail() async function is defined in the page script."""
+        script = _page_script()
+        assert "function _rdiFetchTaskDetail(" in script or "async function _rdiFetchTaskDetail(" in script
+
+    def test_fetch_task_detail_calls_detail_endpoint(self):
+        """_rdiFetchTaskDetail fetches /api/v1/issues/{identifier}/detail."""
+        script = _page_script()
+        assert "/detail" in script
+        assert "identifier" in script
+
+    def test_fetch_task_detail_passes_project_id(self):
+        """_rdiFetchTaskDetail includes project_id in the detail request."""
+        script = _page_script()
+        body = _function_body(script, "_rdiFetchTaskDetail")
+        assert "project_id" in body
+
+    def test_render_task_detail_function_defined(self):
+        """_rdiRenderTaskDetail() renders the core task fields."""
+        script = _page_script()
+        assert "function _rdiRenderTaskDetail(" in script
+
+    def test_render_task_detail_shows_title(self):
+        """_rdiRenderTaskDetail renders the task title field."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderTaskDetail")
+        assert "title" in body.lower()
+
+    def test_render_task_detail_shows_state(self):
+        """_rdiRenderTaskDetail renders the task state field."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderTaskDetail")
+        assert "state" in body
+
+    def test_render_task_detail_shows_priority(self):
+        """_rdiRenderTaskDetail renders the task priority field."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderTaskDetail")
+        assert "priority" in body.lower()
+
+    def test_render_task_detail_shows_labels(self):
+        """_rdiRenderTaskDetail renders labels."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderTaskDetail")
+        assert "labels" in body.lower()
+
+    def test_render_task_detail_shows_type(self):
+        """_rdiRenderTaskDetail renders the task type (issue_type)."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderTaskDetail")
+        assert "issue_type" in body or "type" in body.lower()
+
+    def test_render_task_detail_shows_description(self):
+        """_rdiRenderTaskDetail renders the task description."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderTaskDetail")
+        assert "description" in body.lower()
+
+    def test_render_task_detail_shows_children(self):
+        """_rdiRenderTaskDetail renders children for epics."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderTaskDetail")
+        assert "children" in body.lower()
+
+    def test_render_task_detail_shows_comments(self):
+        """_rdiRenderTaskDetail renders comments."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderTaskDetail")
+        assert "comments" in body.lower()
+
+    def test_render_task_detail_shows_source_links(self):
+        """_rdiRenderTaskDetail renders source/repository URL links."""
+        script = _page_script()
+        body = _function_body(script, "_rdiRenderTaskDetail")
+        assert "url" in body.lower()
+
+    def test_drawer_shows_loading_state_while_fetching(self):
+        """_rdiOpenItemDrawer shows a loading message before detail fetch completes."""
+        script = _page_script()
+        body = _function_body(script, "_rdiOpenItemDrawer")
+        assert "Loading" in body or "loading" in body
+
+    def test_drawer_error_displayed_safely(self):
+        """_rdiFetchTaskDetail renders errors without using innerHTML for error text."""
+        script = _page_script()
+        body = _function_body(script, "_rdiFetchTaskDetail")
+        # Error messages must be rendered safely (via textContent or _rdiEsc helper)
+        assert "rdi-drawer-error" in body
+
+    def test_delivery_evidence_preserved_in_drawer(self):
+        """Delivery evidence is kept visible when task details are loading/errored."""
+        script = _page_script()
+        body = _function_body(script, "_rdiOpenItemDrawer")
+        # The delivery section must be built and appended BEFORE awaiting detail fetch
+        assert "_rdiBuildDeliverySection" in body or "deliverySection" in body
+
+    def test_build_delivery_section_function_defined(self):
+        """_rdiBuildDeliverySection() is defined and builds the evidence block."""
+        script = _page_script()
+        assert "function _rdiBuildDeliverySection(" in script
+
+    def test_esc_helper_defined_for_error_sanitisation(self):
+        """_rdiEsc() string-escape helper is defined for safe error display."""
+        script = _page_script()
+        assert "function _rdiEsc(" in script
