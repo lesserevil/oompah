@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:03:41.773488Z'
+updated_at: '2026-07-21T23:04:17.246434Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ author: oompah
 created: 2026-07-21 23:03
 ---
 Understanding: I am covering OOMPAH-298 from the test-engineering focus. I will identify the startup-prompt assembly and repository-map interfaces, add isolated unit tests for matching inclusion, failure/isolation fallbacks, relevance/budget, and diagnostics, then run the Makefile test target and hand off implementation findings.
+---
+author: oompah
+created: 2026-07-21 23:04
+---
+Discovery: Startup prompts are assembled in oompah/orchestrator.py at the provider (~15340), ACP (~15688), and CLI first-turn (~16235) paths; all call oompah.prompt.render_prompt after workspace creation. Current render_prompt accepts no repository context, and Issue has no linked-file/PR/commit fields beyond tracker/review metadata. Existing ranker tests already prove direct renderer token bounds and title/file seed ranking, but no integration tests exist. The next implementation should establish one shared fail-open context builder used by all three paths and expose its provenance/SHA through dispatch diagnostics.
 ---
 <!-- COMMENTS:END -->
