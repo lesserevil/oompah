@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-306
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T18:06:06.172512Z'
+updated_at: '2026-07-21T18:06:19.233611Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -322,5 +322,10 @@ author: oompah
 created: 2026-07-21 18:06
 ---
 Verification: make test passed — 10003 passed, 36 skipped, 0 failed (5 more than before due to new regression tests). All 28 tests in test_unpushed_gate.py pass including the 5 new TestWorktreePathStatusCheck tests. Branch pushed to origin/OOMPAH-306 (commit 832302193). Worktree is clean.
+---
+author: oompah
+created: 2026-07-21 18:06
+---
+Completion: Fixed the repeated 'completion refused by orchestrator' failures that blocked OOMPAH-306 from closing.\n\nDelivered:\n1. Bug fix in unpushed_gate.py: git status --porcelain now runs in the branch's own worktree (not the main clone) when worktree_path is provided.\n2. Orchestrator wiring in orchestrator.py: _run_unpushed_gate resolves and passes the worktree path via project_store.worktree_path_for.\n3. 5 regression tests in TestWorktreePathStatusCheck covering: worktree_path used when exists, repo_path fallback, missing-dir fallback, OOMPAH-306 regression scenario (main dirty + worktree clean → allowed), and gate pass-through.\n\nAll implementation work from previous agents (47 tests + dashboard stale banner + dashboard.html changes) remains intact in commit 7301a377c. The new maintenance fix is commit 832302193. Branch is up-to-date with origin/OOMPAH-306. 10003 tests pass.
 ---
 <!-- COMMENTS:END -->
