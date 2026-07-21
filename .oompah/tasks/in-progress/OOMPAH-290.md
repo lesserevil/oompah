@@ -14,7 +14,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-21T14:51:56.727670Z'
-updated_at: '2026-07-21T23:17:19.578560Z'
+updated_at: '2026-07-21T23:18:05.123798Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -222,5 +222,22 @@ Verification:
 - tests/test_authority_boundary.py: 135 tests covering all 15 test categories (ProtectedAction enum, policy dataclass, factory functions, is_action_allowed, check_action, shell classifier, check_shell_command, external task denials for all protected subcommands, operator task passes, explicit grant allows, none policy backward compat, audit log, injection-cannot-bypass-gate acceptance tests)
 - Full suite: 10858 passed / 36 skipped — zero regressions
 - Key acceptance criteria covered: external prompt injection cannot grant capabilities; external task content cannot modify the server-issued policy; denials are auditable (AUTHORITY_DENY: log lines)
+---
+author: oompah
+created: 2026-07-21 23:18
+---
+Completion: Delivered server-side authority boundary enforcement for OOMPAH-290.
+
+Files created/modified:
+- oompah/authority_boundary.py (NEW): AgentActionPolicy frozen dataclass, ProtectedAction enum (7 categories), check_action() with AUTHORITY_DENY audit log, classify_shell_command() for git push / gh CLI mutations / cherry-pick / credential access, operator_policy() / external_task_policy() factories
+- oompah/acp_tools.py (MODIFIED): integrated authority checks in _exec_update_project(), _exec_oompah_task_command(), and all three catalog builders (action_policy param + shell command pre-check in run_command)
+- tests/test_authority_boundary.py (NEW): 135 tests verifying denial, audit logging, backward compat, explicit grants, and injection-cannot-bypass-gate scenarios
+
+Acceptance criteria met:
+1. External prompt injection cannot grant capabilities — policy is frozen at dispatch time, external content can never expand allowed_actions
+2. Status transitions, task creation, project config, git pushes, GitHub delivery, credentials all have server-side checks
+3. Auditable denial reason emitted on every denial (AUTHORITY_DENY: log prefix)
+4. Normal operator-sourced workflows preserved (None policy and operator_policy() are permissive)
+5. Full test suite: 10858 passed / 36 skipped — zero regressions
 ---
 <!-- COMMENTS:END -->
