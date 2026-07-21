@@ -14,7 +14,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-21T14:51:56.727670Z'
-updated_at: '2026-07-21T23:01:22.906018Z'
+updated_at: '2026-07-21T23:17:12.087625Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -197,5 +197,22 @@ My plan as Test Engineer:
 3. Write tests/test_authority_boundary.py: unit tests for all boundary logic + integration tests using externally-sourced task context that requests each protected action — asserting denial without trusted approval and success through approved path.
 
 This addresses the acceptance criterion: external prompt injection cannot grant capabilities or bypass transition or authorization gates.
+---
+author: oompah
+created: 2026-07-21 23:17
+---
+Implementation: Created oompah/authority_boundary.py with:
+- ProtectedAction enum (7 categories: TASK_STATUS_TRANSITION, TASK_CREATE_DECOMPOSE, PROJECT_CONFIG_CHANGE, GIT_PUSH, GITHUB_DELIVERY, RELEASE_DELIVERY, CREDENTIAL_ACCESS)
+- AgentActionPolicy frozen dataclass (immutable, server-issued, cannot be mutated by external content)
+- operator_policy() / external_task_policy() factory functions
+- is_action_allowed() / check_action() enforcer (returns auditable denial string + WARNING log with AUTHORITY_DENY: prefix)
+- classify_shell_command() / check_shell_command() for git push, gh CLI mutations, cherry-pick, credential access patterns
+
+Integrated into oompah/acp_tools.py:
+- _exec_update_project(): PROJECT_CONFIG_CHANGE check before any mutation
+- _exec_oompah_task_command(): TASK_STATUS_TRANSITION check for set-status/add-label/remove-label; TASK_CREATE_DECOMPOSE for create/child-create
+- build_tool_catalog(), build_codex_tool_catalog(), build_opencode_tool_catalog(): added action_policy param; shell command check in run_command tool; policy threaded to oompah task commands and project updates
+
+All three backends enforce identical authority boundaries through shared _exec_* helpers. Backward compatible: None policy = permissive (no existing tests broken).
 ---
 <!-- COMMENTS:END -->
