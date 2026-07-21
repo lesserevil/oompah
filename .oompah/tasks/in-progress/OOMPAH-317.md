@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T19:04:51.954483Z'
-updated_at: '2026-07-21T19:11:53.896619Z'
+updated_at: '2026-07-21T19:12:11.582978Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -98,5 +98,10 @@ author: oompah
 created: 2026-07-21 19:11
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-21 19:12
+---
+Understanding: As DevOps Engineer, I need to fix the read-only filesystem issue preventing git add/commit/push in worktrees. The problem: /home/shedwards/.oompah/repos/oompah/.git/worktrees/OOMPAH-316/index.lock cannot be created because the .git/worktrees/ metadata directory is on a read-only filesystem. Plan: (1) Explore how worktrees are created in oompah/projects.py, (2) Find where git metadata is stored, (3) Implement a solution that makes worktree git metadata writable — likely by using GIT_DIR or --separate-git-dir to redirect worktree metadata to a writable path, or by adjusting how the worktree directory is set up.
 ---
 <!-- COMMENTS:END -->
