@@ -14,11 +14,11 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T21:01:56.725203Z'
-updated_at: '2026-07-21T21:50:00.668510Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-21T21:50:05.157914Z'
+work_branch: OOMPAH-332
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/483
+review_number: '483'
 merged_at: null
 oompah.agent_run_id: 3c448559-de63-4d9d-b054-4a9a82456a42
 oompah.task_costs:
@@ -55,6 +55,10 @@ oompah.task_costs:
     output_tokens: 3496
     cost_usd: 0.0
     recorded_at: '2026-07-21T21:35:30.382464+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/483
+oompah.review_number: '483'
+oompah.work_branch: OOMPAH-332
+oompah.target_branch: main
 ---
 ## Summary
 
