@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-292
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Show mergeable-item summaries and full task details in Release Delivery
 parent: null
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:24:42.503399Z'
+updated_at: '2026-07-21T15:27:17.368493Z'
 work_branch: OOMPAH-292
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/463
 review_number: '463'
 merged_at: null
-oompah.agent_run_id: 43eb4210-c0e7-4038-b850-ae6b8881983d
+oompah.agent_run_id: b3575fa8-8910-4841-9a44-c8bef3417880
 oompah.task_costs:
   total_input_tokens: 110279
   total_output_tokens: 38383
@@ -323,5 +323,15 @@ Steps to resolve:
   git push origin OOMPAH-292
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-21 15:27
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 15:27
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
