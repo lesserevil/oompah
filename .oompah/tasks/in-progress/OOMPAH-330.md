@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-330
 type: task
-status: Open
+status: In Progress
 priority: 0
 title: Rebase epic-OOMPAH-293 onto main
 parent: OOMPAH-293
@@ -10,13 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T20:59:27.535782Z'
-updated_at: '2026-07-21T21:13:55.647944Z'
+updated_at: '2026-07-21T21:35:51.424451Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 5ac74a8d-561e-4418-b91b-388b8302d7c1
+oompah.agent_run_id: f81f7d04-ae19-41c5-8dc5-31b562d827d1
 oompah.task_costs:
   total_input_tokens: 124189
   total_output_tokens: 18869
@@ -205,5 +205,15 @@ Steps to resolve:
   git push origin OOMPAH-330
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-21 21:35
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 21:35
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
