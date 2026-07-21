@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T17:36:51.106856Z'
+updated_at: '2026-07-21T17:40:32.358385Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-07-21 17:36
 ---
 Understanding: The bug is in oompah/orchestrator.py where cherry_pick_delivery is called with sync_source_branch=True (line ~9572). This causes the queue to merge origin/main into the release branch BEFORE applying selected source_commits, which means a selected-commit delivery inadvertently pulls in ALL of main. Fix: change sync_source_branch=True to False (the default). Additionally need to add: (1) regression test proving selected subset cannot introduce unselected commits, (2) queue integration test verifying sync_source_branch=False, (3) release CI failure remediation test, (4) verify conflict behavior stays actionable. All tests currently pass (9951 pass). Branch OOMPAH-314 has no commits yet — implementing fix now.
+---
+author: oompah
+created: 2026-07-21 17:40
+---
+Discovery: Root cause confirmed at oompah/orchestrator.py:9572 - cherry_pick_delivery called with sync_source_branch=True, which merges origin/main into the release worktree BEFORE applying source_commits. This is the PR #303 regression. Fix is straightforward: remove sync_source_branch=True. Additionally implementing: (1) ci_remediation_task_id field on ReleaseDelivery, (2) _monitor_merged_delivery_ci method on Orchestrator to poll release branch CI after delivery merges and dispatch remediation tasks on CI failure, (3) get_branch_head_sha SCM method to support the CI check. Tests to add in test_release_delivery_executor.py and test_release_delivery_queue.py (integration with queue verifying sync_source_branch=False).
 ---
 <!-- COMMENTS:END -->
