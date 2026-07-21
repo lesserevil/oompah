@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:57.738049Z'
-updated_at: '2026-07-21T23:58:59.870992Z'
+updated_at: '2026-07-21T23:59:17.737542Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,13 +22,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: f6823415-1206-4425-8f45-08bf1104c28d
 oompah.task_costs:
-  total_input_tokens: 413079
-  total_output_tokens: 9416
+  total_input_tokens: 413119
+  total_output_tokens: 35173
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 413079
-      output_tokens: 9416
+      input_tokens: 413119
+      output_tokens: 35173
       cost_usd: 0.0
   runs:
   - profile: default
@@ -43,6 +43,12 @@ oompah.task_costs:
     output_tokens: 3055
     cost_usd: 0.0
     recorded_at: '2026-07-21T23:25:50.517743+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 40
+    output_tokens: 25757
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T23:59:15.163536+00:00'
 ---
 ## Summary
 
@@ -206,5 +212,20 @@ author: oompah
 created: 2026-07-21 23:58
 ---
 Delivered: E2E adversarial regression suite (186 tests in tests/test_prompt_injection_e2e.py covering all 5 pipeline stages + audit event emission), structured UNTRUSTED_RENDER: audit log events in oompah/provenance.py, and operator security guide in docs/prompt-injection-security.md. All 11,044 tests pass.
+---
+author: oompah
+created: 2026-07-21 23:59
+---
+Agent completed successfully in 1985s (25797 tokens)
+---
+author: oompah
+created: 2026-07-21 23:59
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
+- Turns: 87, Tool calls: 55
+- Tokens: 40 in / 25.8K out [25.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 33m 5s
+- Log: OOMPAH-291__20260721T232611Z.jsonl
 ---
 <!-- COMMENTS:END -->

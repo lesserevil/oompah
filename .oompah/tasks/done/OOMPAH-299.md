@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:09.575764Z'
-updated_at: '2026-07-21T23:59:12.759386Z'
+updated_at: '2026-07-21T23:59:15.142666Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -208,5 +208,10 @@ Files changed:
 - tests/test_repo_map_bootstrap.py (new): 28 tests covering config defaults, state-branch prerequisite contract, env-var-only activation, bootstrap infrastructure, and documentation fixtures.
 
 All tests pass: 10597 passed via make test.
+---
+author: oompah
+created: 2026-07-21 23:59
+---
+Added OOMPAH_REPO_MAP_* env-backed config to ServiceConfig (6 fields with safe defaults and validation), documented all settings in .env.example, created docs/repository-map.md (activation/freshness/diagnostics/privacy/disable/rebuild), updated docs/project-bootstrap.md with repo-map prerequisites, and wrote 28 bootstrap tests + 7 config tests. All 10597 tests pass via make test.
 ---
 <!-- COMMENTS:END -->
