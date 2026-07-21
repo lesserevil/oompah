@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-315
 type: bug
-status: Open
+status: In Progress
 priority: 0
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T21:20:10.932013Z'
+updated_at: '2026-07-21T21:20:30.077992Z'
 work_branch: OOMPAH-315
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/476
@@ -29,8 +29,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/470
   requestor_login: lesserevil
   imported_comment_ids: []
-  last_synced_status: In Review
-  last_synced_at: '2026-07-21T21:05:49.849846+00:00'
+  last_synced_status: Open
+  last_synced_at: '2026-07-21T21:20:22.912796+00:00'
 oompah.intake:
   missing_fields: []
   scope: small
