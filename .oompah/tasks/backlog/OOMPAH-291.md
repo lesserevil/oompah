@@ -6,11 +6,12 @@ priority: 1
 title: Add prompt-injection regression suite, observability, and operator guidance
 parent: OOMPAH-285
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-288
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:57.738049Z'
-updated_at: '2026-07-21T14:51:57.738049Z'
+updated_at: '2026-07-21T14:52:05.386695Z'
 work_branch: null
 target_branch: null
 review_url: null
