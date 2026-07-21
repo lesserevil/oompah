@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-287
 type: task
-status: In Progress
+status: Merged
 priority: 0
 title: Add provenance metadata for external content entering Oompah
 parent: OOMPAH-285
@@ -13,13 +13,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T21:24:39.236795Z'
+updated_at: '2026-07-21T21:28:34.772098Z'
 work_branch: OOMPAH-287
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/467
 review_number: '467'
 merged_at: null
-oompah.agent_run_id: b55b142c-2a53-4a84-9614-3734330baefb
+oompah.agent_run_id: 1ef91222-81ec-41e8-9c36-bd5f239cd313
 oompah.task_costs:
   total_input_tokens: 1426544
   total_output_tokens: 55790
@@ -403,5 +403,15 @@ author: oompah
 created: 2026-07-21 21:24
 ---
 Agent completed without closing this issue (243s (1020283 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-21 21:28
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 21:28
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

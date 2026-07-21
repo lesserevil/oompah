@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-306
 type: bug
-status: Needs CI Fix
+status: Needs Rebase
 priority: 0
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -12,15 +12,16 @@ labels:
 - focus-complete:duplicate_detector
 - focus-complete:test
 - ci-fix
+- merge-conflict
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T21:13:50.716933Z'
+updated_at: '2026-07-21T21:28:29.192113Z'
 work_branch: OOMPAH-306
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/472
 review_number: '472'
 merged_at: null
-oompah.agent_run_id: f7ed9f88-1465-4c32-ad42-5e1023e1d83e
+oompah.agent_run_id: bc6d7876-c558-4f96-b6a1-306bfb486ace
 oompah.task_costs:
   total_input_tokens: 1610076
   total_output_tokens: 74081
@@ -443,5 +444,20 @@ author: oompah
 created: 2026-07-21 21:13
 ---
 YOLO: CI tests failed on MR #472. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-21 21:28
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 21:28
+---
+Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-21 21:28
+---
+YOLO: Merge conflict detected on MR #472. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->

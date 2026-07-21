@@ -11,13 +11,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T21:10:46.951200Z'
-updated_at: '2026-07-21T21:24:40.188846Z'
+updated_at: '2026-07-21T21:28:20.517588Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 99825c8a-2a6b-4b2e-ae1c-fd7461635acc
+oompah.agent_run_id: e99b39c6-4e2b-451c-ae4e-7ef19ce525f5
 oompah.task_costs:
   total_input_tokens: 187451
   total_output_tokens: 1653
@@ -96,5 +96,15 @@ author: oompah
 created: 2026-07-21 21:24
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-334`. Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-21 21:28
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 21:28
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
