@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-292
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Show mergeable-item summaries and full task details in Release Delivery
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:01:48.947973Z'
+updated_at: '2026-07-21T15:02:07.715014Z'
 work_branch: null
 target_branch: null
 review_url: null
