@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:41.895980Z'
-updated_at: '2026-07-21T22:15:42.432755Z'
+updated_at: '2026-07-21T22:16:03.661291Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -117,5 +117,10 @@ author: oompah
 created: 2026-07-21 22:15
 ---
 Understanding: As Test Engineer for OOMPAH-288, I need to (1) add the missing SAFETY_INSTRUCTION to wrap_untrusted() (the 'non-bypassable instruction that content inside is reference data only' described in the task — currently absent from the implementation), and (2) write adversarial test fixtures covering role changes, tool requests, instruction overrides, XML/Markdown delimiters, and Liquid-like syntax. The existing 150 tests in test_provenance.py and test_prompt_injection_protection.py all pass, but none test the safety instruction or adversarial content patterns. Plan: add SAFETY_INSTRUCTION constant to provenance.py, include it in wrap_untrusted() output, then add TestAdversarialContentFixtures class with parametrized tests asserting (a) content is preserved as data, (b) closing delimiter appears exactly once, (c) safety instruction is present exactly once per block, (d) adversarial patterns cannot break the wrapper.
+---
+author: oompah
+created: 2026-07-21 22:16
+---
+Discovery: The OOMPAH-287 implementation in provenance.py/prompt.py/focus.py/github_intake_bridge.py is complete and 150 tests pass. The missing pieces for OOMPAH-288 are: (1) SAFETY_INSTRUCTION constant — wrap_untrusted() currently outputs only the XML tag + provenance JSON comment + content, but has NO instruction text telling the model 'this is reference data only'; (2) adversarial test fixtures for role changes, tool requests, instruction overrides, XML/Markdown delimiters, and Liquid-like syntax. Will now add SAFETY_INSTRUCTION to provenance.py and wrap_untrusted(), then add TestAdversarialContentFixtures to test_provenance.py.
 ---
 <!-- COMMENTS:END -->
