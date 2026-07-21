@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:47.496504Z'
-updated_at: '2026-07-21T15:51:18.858366Z'
+updated_at: '2026-07-21T16:10:37.557406Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -184,5 +184,10 @@ author: oompah
 created: 2026-07-21 15:51
 ---
 Discovery: No prior repo_map code exists. Following patterns from oompah/release_pick_schema.py (typed dataclasses, from_raw/to_raw, enum-based states) and oompah/intake_schema.py. State-branch path pattern from plans/state-branch-design.md uses .oompah/ namespace. Will create: plans/repo-map-artifact.md (design doc), oompah/repo_map.py (typed schema + atomic write/read + freshness/prune), tests/test_repo_map.py (full unit test suite).
+---
+author: oompah
+created: 2026-07-21 16:10
+---
+Implementation complete. Created: (1) plans/repo-map-artifact.md — full design doc covering schema, state-branch path, atomic-write, freshness rule, retention, and unsupported-repo behavior; (2) oompah/repo_map.py — typed Python artifact contract (IndexedFile, SymbolTag, RelationshipEdge, RenderingMetadata, RepoMap dataclasses plus SchemaVersionError, repo_map_slug, repo_map_path, is_within_namespace, is_fresh, write_repo_map, read_repo_map, prune_repo_maps); (3) tests/test_repo_map.py — 106 unit tests.
 ---
 <!-- COMMENTS:END -->
