@@ -10,13 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:12:31.627749Z'
+updated_at: '2026-07-21T17:12:35.567625Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 4c4faa9f-3c9c-4cd5-b4a1-4a0b5ab43697
+oompah.agent_run_id: 17d210e7-cdd1-4588-a409-133f9c79ebae
 oompah.task_costs:
   total_input_tokens: 108
   total_output_tokens: 49805
@@ -129,5 +129,15 @@ Steps to resolve:
   git push origin OOMPAH-304
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-21 17:12
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 17:12
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
