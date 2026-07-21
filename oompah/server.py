@@ -4060,6 +4060,7 @@ async def api_release_delivery_backlog(
                     {
                         "identifier": item.identifier,
                         "title": item.title,
+                        "summary": item.summary,
                         "kind": item.kind,
                         "source_commits": [
                             {

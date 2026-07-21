@@ -2875,3 +2875,212 @@ class TestOOMPAH284MetadataOnlyFiltering:
             "Ledger-sourced item with only tracker-only commits must be excluded "
             "from needs_delivery (OOMPAH-284)"
         )
+
+
+# ===========================================================================
+# Summary extraction (OOMPAH-292)
+# ===========================================================================
+
+class TestExtractItemSummary:
+    """Unit tests for _extract_item_summary()."""
+
+    def _make_issue(self, description=None):
+        issue = MagicMock()
+        issue.description = description
+        return issue
+
+    def test_none_when_no_description(self):
+        """Returns None when issue has no description."""
+        from oompah.release_delivery_backlog import _extract_item_summary
+        issue = self._make_issue(None)
+        assert _extract_item_summary(issue) is None
+
+    def test_none_when_empty_description(self):
+        """Returns None when description is an empty string."""
+        from oompah.release_delivery_backlog import _extract_item_summary
+        issue = self._make_issue("")
+        assert _extract_item_summary(issue) is None
+
+    def test_none_when_whitespace_only(self):
+        """Returns None when description is only whitespace."""
+        from oompah.release_delivery_backlog import _extract_item_summary
+        issue = self._make_issue("   \n\t  ")
+        assert _extract_item_summary(issue) is None
+
+    def test_simple_plain_text(self):
+        """Plain-text description is returned normalised."""
+        from oompah.release_delivery_backlog import _extract_item_summary
+        issue = self._make_issue("Fix the login bug.")
+        assert _extract_item_summary(issue) == "Fix the login bug."
+
+    def test_html_tags_stripped(self):
+        """HTML tags are stripped so output is plain text."""
+        from oompah.release_delivery_backlog import _extract_item_summary
+        issue = self._make_issue("<p>Fix the <b>login</b> bug.</p>")
+        result = _extract_item_summary(issue)
+        assert "<p>" not in result
+        assert "<b>" not in result
+        assert "Fix the" in result
+        assert "login" in result
+        assert "bug." in result
+
+    def test_whitespace_normalised(self):
+        """Multiple spaces, tabs, newlines are collapsed to a single space."""
+        from oompah.release_delivery_backlog import _extract_item_summary
+        issue = self._make_issue("  Line one\n\nLine   two\t  end.  ")
+        result = _extract_item_summary(issue)
+        assert result == "Line one Line two end."
+
+    def test_truncated_at_max_length(self):
+        """Descriptions longer than ITEM_SUMMARY_MAX_LENGTH are truncated with ellipsis."""
+        from oompah.release_delivery_backlog import _extract_item_summary, ITEM_SUMMARY_MAX_LENGTH
+        long_desc = "A" * (ITEM_SUMMARY_MAX_LENGTH + 50)
+        issue = self._make_issue(long_desc)
+        result = _extract_item_summary(issue)
+        assert result is not None
+        assert len(result) == ITEM_SUMMARY_MAX_LENGTH
+        assert result.endswith("…")
+
+    def test_not_truncated_at_exact_max_length(self):
+        """Descriptions at exactly ITEM_SUMMARY_MAX_LENGTH are NOT truncated."""
+        from oompah.release_delivery_backlog import _extract_item_summary, ITEM_SUMMARY_MAX_LENGTH
+        exact_desc = "B" * ITEM_SUMMARY_MAX_LENGTH
+        issue = self._make_issue(exact_desc)
+        result = _extract_item_summary(issue)
+        assert result is not None
+        assert not result.endswith("…")
+        assert len(result) == ITEM_SUMMARY_MAX_LENGTH
+
+    def test_html_safe_no_tags_in_output(self):
+        """Output never contains HTML angle-bracket tags."""
+        from oompah.release_delivery_backlog import _extract_item_summary
+        issue = self._make_issue("<script>alert('xss')</script>Description text.")
+        result = _extract_item_summary(issue)
+        assert result is not None
+        assert "<" not in result
+        assert ">" not in result
+        assert "Description text." in result
+
+    def test_custom_max_length(self):
+        """max_length parameter is respected."""
+        from oompah.release_delivery_backlog import _extract_item_summary
+        issue = self._make_issue("Hello world, this is a long description.")
+        result = _extract_item_summary(issue, max_length=10)
+        assert result is not None
+        assert len(result) == 10
+        assert result.endswith("…")
+
+    def test_missing_description_attribute(self):
+        """Returns None when issue object has no description attribute."""
+        from oompah.release_delivery_backlog import _extract_item_summary
+        issue = object()  # plain object with no attributes
+        assert _extract_item_summary(issue) is None
+
+
+class TestItemRowSummaryField:
+    """Tests that summary is populated in ItemRow from get_backlog()."""
+
+    def _mock_snapshot(self):
+        snap = MagicMock()
+        snap.source_head = _SOURCE_HEAD
+        snap.release_heads = {_RELEASE_BRANCH: _RELEASE_HEAD}
+        snap.stale = False
+        snap.fetched_at = None
+        return snap
+
+    def test_summary_populated_from_tracker(self, tmp_path):
+        """ItemRow.summary is extracted from the tracker issue description."""
+        from oompah.release_delivery_backlog import _extract_item_summary
+
+        d = _make_delivery([_SHA_1], _RELEASE_BRANCH, AddendumStatus.OPEN, "TASK-1")
+        ci = _make_commit_info(_SHA_1, "feat: add thing")
+        svc = _make_service(tmp_path, [d])
+
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = []
+        mock_issue = MagicMock()
+        mock_issue.title = "Add the thing"
+        mock_issue.description = "This task adds the thing to the system."
+        tracker.get_issue.return_value = mock_issue
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=self._mock_snapshot()),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=[ci]),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=set()),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", return_value=False),
+        ):
+            result = svc.get_backlog(selected_branch=_RELEASE_BRANCH, filter="all", tracker=tracker)
+
+        assert len(result.items) == 1
+        item = result.items[0]
+        assert item.summary == "This task adds the thing to the system."
+
+    def test_summary_none_when_no_description(self, tmp_path):
+        """ItemRow.summary is None when issue has no description."""
+        d = _make_delivery([_SHA_1], _RELEASE_BRANCH, AddendumStatus.OPEN, "TASK-2")
+        ci = _make_commit_info(_SHA_1, "fix: something")
+        svc = _make_service(tmp_path, [d])
+
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = []
+        mock_issue = MagicMock()
+        mock_issue.title = "Fix something"
+        mock_issue.description = None
+        tracker.get_issue.return_value = mock_issue
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=self._mock_snapshot()),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=[ci]),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=set()),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", return_value=False),
+        ):
+            result = svc.get_backlog(selected_branch=_RELEASE_BRANCH, filter="all", tracker=tracker)
+
+        assert len(result.items) == 1
+        assert result.items[0].summary is None
+
+    def test_summary_none_without_tracker(self, tmp_path):
+        """ItemRow.summary is None when no tracker is provided."""
+        d = _make_delivery([_SHA_1], _RELEASE_BRANCH, AddendumStatus.OPEN, "TASK-3")
+        ci = _make_commit_info(_SHA_1, "chore: update")
+        svc = _make_service(tmp_path, [d])
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=self._mock_snapshot()),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=[ci]),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=set()),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", return_value=False),
+        ):
+            result = svc.get_backlog(selected_branch=_RELEASE_BRANCH, filter="all", tracker=None)
+
+        assert len(result.items) == 1
+        assert result.items[0].summary is None
+
+    def test_summary_html_stripped_before_transport(self, tmp_path):
+        """Summary transported via ItemRow has HTML tags stripped."""
+        d = _make_delivery([_SHA_1], _RELEASE_BRANCH, AddendumStatus.OPEN, "TASK-4")
+        ci = _make_commit_info(_SHA_1, "feat: thing")
+        svc = _make_service(tmp_path, [d])
+
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = []
+        mock_issue = MagicMock()
+        mock_issue.title = "Thing"
+        mock_issue.description = "<b>Bold description</b> with <em>emphasis</em>."
+        tracker.get_issue.return_value = mock_issue
+
+        with (
+            patch("oompah.release_delivery_backlog._acquire_snapshot", return_value=self._mock_snapshot()),
+            patch("oompah.release_delivery_backlog._enumerate_commits", return_value=[ci]),
+            patch("oompah.release_delivery_backlog._check_ancestry_batch", return_value=set()),
+            patch("oompah.release_delivery_backlog._is_tracker_only_commit", return_value=False),
+        ):
+            result = svc.get_backlog(selected_branch=_RELEASE_BRANCH, filter="all", tracker=tracker)
+
+        assert len(result.items) == 1
+        summary = result.items[0].summary
+        assert summary is not None
+        assert "<" not in summary
+        assert ">" not in summary
+        assert "Bold description" in summary
+        assert "emphasis" in summary

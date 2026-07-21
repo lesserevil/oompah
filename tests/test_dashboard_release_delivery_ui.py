@@ -1714,15 +1714,19 @@ class TestItemDetailsDrawer:
         assert "textContent" in body
 
     def test_drawer_shows_source_commits(self):
-        """Source commits are shown as sub-detail inside the drawer."""
+        """Source commits are shown as sub-detail inside the drawer (via delivery section)."""
         script = _load_release_delivery_script()
-        body = _function_body(script, "_rdiOpenItemDrawer")
-        assert "source_commits" in body
+        # Source commits are rendered in _rdiBuildDeliverySection, which is called from
+        # _rdiOpenItemDrawer. Check either location.
+        drawer_body = _function_body(script, "_rdiOpenItemDrawer")
+        delivery_body = _function_body(script, "_rdiBuildDeliverySection")
+        assert "source_commits" in drawer_body or "source_commits" in delivery_body
 
     def test_drawer_shows_commit_subject(self):
+        """Source commit subjects are shown in the drawer delivery section."""
         script = _load_release_delivery_script()
-        body = _function_body(script, "_rdiOpenItemDrawer")
-        assert "subject" in body
+        delivery_body = _function_body(script, "_rdiBuildDeliverySection")
+        assert "subject" in delivery_body
 
     def test_drawer_shows_delivered_by_ancestry(self):
         """Ancestry deliveries must be labeled distinctly; shown via _rdiRenderCellDetail."""

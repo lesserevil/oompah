@@ -63,6 +63,7 @@ Item status precedence (most advanced wins across all commits in the item):
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -103,6 +104,12 @@ MAX_BACKLOG_ITEMS: int = 500
 #: when there are many direct-to-main commits (OOMPAH-239).
 MAX_UNASSOC_TRACKER_ONLY_CHECK: int = 50
 
+#: Maximum character length for the ``summary`` field on :class:`ItemRow`.
+#: Descriptions longer than this are truncated with an ellipsis (``…``).
+#: This bound prevents large Markdown descriptions from inflating API
+#: responses and keeps the inline row summary scannable.
+ITEM_SUMMARY_MAX_LENGTH: int = 280
+
 #: Status rank for aggregation (higher rank = more visible / actionable).
 _STATUS_RANK: dict[str, int] = {
     "blocked": 7,
@@ -117,6 +124,59 @@ _STATUS_RANK: dict[str, int] = {
 
 def _rank_status(state: str) -> int:
     return _STATUS_RANK.get(state, 0)
+
+
+# ---------------------------------------------------------------------------
+# Summary extraction
+# ---------------------------------------------------------------------------
+
+# Matches any HTML/XML tag so we can strip tags before displaying descriptions.
+_HTML_TAG_RE: re.Pattern[str] = re.compile(r"<[^>]+>", re.DOTALL)
+
+
+def _extract_item_summary(issue: Any, max_length: int = ITEM_SUMMARY_MAX_LENGTH) -> str | None:
+    """Extract a concise, plain-text summary from a tracker issue.
+
+    Reads the ``description`` attribute of *issue*, strips HTML tags (so the
+    summary is always safe to render as plain text), normalises all whitespace
+    sequences to a single space, and truncates the result to *max_length*
+    characters (appending ``…`` when truncation occurs).
+
+    Returns ``None`` when no description is present or the description is empty
+    after normalisation so callers can distinguish "no description" from an
+    empty string.
+
+    Args:
+        issue: A tracker issue object with an optional ``description``
+            attribute (``str | None``).
+        max_length: Maximum number of characters in the returned summary.
+            Must be a positive integer.  Defaults to
+            :data:`ITEM_SUMMARY_MAX_LENGTH`.
+
+    Returns:
+        Normalised plain-text summary string, or ``None`` when the issue has
+        no description.
+    """
+    raw = getattr(issue, "description", None)
+    if not raw:
+        return None
+
+    # 1. Strip HTML/XML tags so callers can safely render the result as text.
+    stripped = _HTML_TAG_RE.sub(" ", raw)
+
+    # 2. Normalise all whitespace (including newlines, tabs, multiple spaces)
+    #    to a single space character and strip leading/trailing whitespace.
+    normalised = " ".join(stripped.split())
+
+    if not normalised:
+        return None
+
+    # 3. Truncate to max_length, appending an ellipsis when the description
+    #    is longer.
+    if len(normalised) > max_length:
+        return normalised[: max_length - 1] + "…"
+
+    return normalised
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +220,12 @@ class ItemRow:
             or ``None`` when there are no commits.
         tracker_only: ``True`` when ALL commits in this item are tracker-only
             commits (only change files under ``.oompah/``).
+        summary: Concise plain-text description extracted from the tracker
+            issue's ``description`` field.  HTML tags are stripped,
+            whitespace is normalised, and the text is truncated to at most
+            :data:`ITEM_SUMMARY_MAX_LENGTH` characters.  ``None`` when no
+            description is available.  Always safe to render as plain text
+            (no raw HTML exposed).
     """
 
     identifier: str
@@ -171,6 +237,7 @@ class ItemRow:
     commit_count: int
     most_recent_commit_at: str | None
     tracker_only: bool = False
+    summary: str | None = None
 
 
 @dataclass
@@ -587,16 +654,18 @@ class ItemBacklogService:
                     timeout=self._ancestry_timeout,
                 )
 
-        # 5. Fetch titles from tracker (best-effort)
+        # 5. Fetch titles and summaries from tracker (best-effort)
         _n_items_for_titles = len(item_commits_map)
         _emit("preparing_rows", 0, _n_items_for_titles)
         title_map: dict[str, str | None] = {}
+        summary_map: dict[str, str | None] = {}
         if tracker is not None:
             for _ti, ident in enumerate(item_commits_map):
                 try:
                     issue = tracker.get_issue(ident)
                     if issue is not None:
                         title_map[ident] = getattr(issue, "title", None)
+                        summary_map[ident] = _extract_item_summary(issue)
                 except Exception as exc:  # noqa: BLE001
                     logger.debug(
                         "ItemBacklogService: failed to fetch title for %s: %s",
@@ -612,6 +681,7 @@ class ItemBacklogService:
         for ident, commit_shas in item_commits_map.items():
             kind = item_kind_map.get(ident, "task")
             title = title_map.get(ident)
+            summary = summary_map.get(ident)
 
             # Compute tracker_only for all commits in this item
             tracker_only_for_item = all(
@@ -677,6 +747,7 @@ class ItemBacklogService:
                     commit_count=len(commit_shas),
                     most_recent_commit_at=most_recent_at,
                     tracker_only=tracker_only_for_item,
+                    summary=summary,
                 )
             )
 
