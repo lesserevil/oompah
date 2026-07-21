@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T17:11:18.087633Z'
+updated_at: '2026-07-21T17:11:20.541016Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -189,5 +189,10 @@ author: oompah
 created: 2026-07-21 17:11
 ---
 Completion (test): Delivered regression tests and stale-state banner for OOMPAH-306.\n\nWhat was done:\n1. tests/test_state_branch_cache_reconciliation.py: 25 tests covering the 4 required test scenarios (stale-Merged→canonical-Backlog, checkpoint cache invalidation patterns, per-project isolation, degraded reads, null merged_at safety).\n2. tests/test_dashboard_state_read_warning.py: 22 tests covering accessible stale banner presence, fetchIssues header consumption, error-path banner display.\n3. dashboard.html: task-state-stale-banner element + CSS + _updateTaskStateStaleBanner() helper + fetchIssues header reading (X-Oompah-Issues-Stale).\n\nAll tests pass. Branch OOMPAH-306 pushed.\n\nRemaining work: backend server.py cache keys still do not include state-branch revision (the 60-second TTL provides eventual consistency but not revision-precise invalidation). A feature agent should implement state-branch-revision-aware cache key invalidation on checkpoint push for zero-staleness guarantees.
+---
+author: oompah
+created: 2026-07-21 17:11
+---
+Added 47 regression tests (test_state_branch_cache_reconciliation.py + test_dashboard_state_read_warning.py) covering all required OOMPAH-306 scenarios: stale-Merged/canonical-Backlog reconciliation, cache invalidation patterns, per-project isolation, null merged_at safety, degraded-read stale indicators, and accessible frontend stale banner. Also implemented the frontend stale-state banner in dashboard.html (role=alert, aria-live, X-Oompah-Issues-Stale header consumption). All 9998 tests pass.
 ---
 <!-- COMMENTS:END -->
