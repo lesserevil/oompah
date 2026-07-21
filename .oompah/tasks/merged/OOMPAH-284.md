@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-284
 type: task
-status: In Review
+status: Merged
 priority: null
 title: Fix Release Delivery task associations and metadata-only filtering
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T03:38:39.097123Z'
-updated_at: '2026-07-21T04:28:18.386172Z'
+updated_at: '2026-07-21T05:23:39.104737Z'
 work_branch: OOMPAH-284
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/462
