@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-329
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Add cross-forge GitLab acceptance and migration test suite
 parent: OOMPAH-318
@@ -18,7 +18,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:42.931068Z'
-updated_at: '2026-07-21T20:35:29.460628Z'
+updated_at: '2026-07-21T22:16:56.217384Z'
 work_branch: null
 target_branch: null
 review_url: null

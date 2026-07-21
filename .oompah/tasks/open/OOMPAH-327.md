@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-327
 type: task
-status: Backlog
+status: Open
 priority: 2
 title: Expose GitLab configuration and health in UI, API, and ACP tools
 parent: OOMPAH-318
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:41.130372Z'
-updated_at: '2026-07-21T20:35:19.837318Z'
+updated_at: '2026-07-21T22:16:58.037710Z'
 work_branch: null
 target_branch: null
 review_url: null

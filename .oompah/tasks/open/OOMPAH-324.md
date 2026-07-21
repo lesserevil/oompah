@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-324
 type: task
-status: Backlog
+status: Open
 priority: 2
 title: Generalize external issue intake and provenance for GitLab
 parent: OOMPAH-318
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:26.149163Z'
-updated_at: '2026-07-21T20:35:14.394032Z'
+updated_at: '2026-07-21T22:16:57.093381Z'
 work_branch: null
 target_branch: null
 review_url: null

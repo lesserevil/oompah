@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-325
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Add GitLab project-hook lifecycle and webhook event parity
 parent: OOMPAH-318
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-21T20:35:15.227881Z'
+updated_at: '2026-07-21T22:16:54.444360Z'
 work_branch: null
 target_branch: null
 review_url: null

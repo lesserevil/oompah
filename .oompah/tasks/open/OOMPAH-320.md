@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-320
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Define a forge-neutral SCM and CI provider contract
 parent: OOMPAH-318
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:33:50.132513Z'
-updated_at: '2026-07-21T20:35:10.728752Z'
+updated_at: '2026-07-21T22:16:50.689629Z'
 work_branch: null
 target_branch: null
 review_url: null

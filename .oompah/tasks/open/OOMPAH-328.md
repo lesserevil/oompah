@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-328
 type: task
-status: Backlog
+status: Open
 priority: 2
 title: Make project bootstrap and operator documentation forge-aware
 parent: OOMPAH-318
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-21T20:35:22.391896Z'
+updated_at: '2026-07-21T22:16:58.960171Z'
 work_branch: null
 target_branch: null
 review_url: null
