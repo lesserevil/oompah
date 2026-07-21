@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-281
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Run Oompah CI on a containerized self-hosted GitHub Actions runner
 parent: null
@@ -12,13 +12,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-21T03:40:56.470751Z'
+updated_at: '2026-07-21T03:41:36.585700Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
 review_number: '458'
 merged_at: null
-oompah.agent_run_id: 29211482-7255-4dca-8def-bb06f74ba56d
+oompah.agent_run_id: 227a4c5b-4281-4924-bb76-32c23e1c65da
 oompah.task_costs:
   total_input_tokens: 98589
   total_output_tokens: 23205
@@ -539,5 +539,15 @@ author: oompah
 created: 2026-07-21 03:40
 ---
 YOLO: CI tests failed on MR #458. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-21 03:41
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-21 03:41
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

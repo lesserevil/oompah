@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-284
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Fix Release Delivery task associations and metadata-only filtering
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T03:38:39.097123Z'
-updated_at: '2026-07-21T03:38:39.097123Z'
+updated_at: '2026-07-21T03:41:33.096937Z'
 work_branch: null
 target_branch: null
 review_url: null
