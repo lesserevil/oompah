@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:31.453522Z'
-updated_at: '2026-07-21T22:32:55.909547Z'
+updated_at: '2026-07-21T22:38:28.140137Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: fa604eaf-886a-4c4f-be36-afd030213587
 oompah.task_costs:
-  total_input_tokens: 326768
-  total_output_tokens: 2120
+  total_input_tokens: 2263096
+  total_output_tokens: 10258
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 326768
-      output_tokens: 2120
+      input_tokens: 2263096
+      output_tokens: 10258
       cost_usd: 0.0
   runs:
   - profile: default
@@ -34,6 +34,12 @@ oompah.task_costs:
     output_tokens: 2120
     cost_usd: 0.0
     recorded_at: '2026-07-21T22:18:36.091397+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 1936328
+    output_tokens: 8138
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T22:38:25.350544+00:00'
 ---
 ## Summary
 
@@ -161,5 +167,30 @@ author: oompah
 created: 2026-07-21 22:32
 ---
 Understanding: I will add behavior-level regression coverage for explicit forge configuration: legacy GitHub migration, GitLab normalization, invalid combinations, and API-compatible serialization. I will assess the in-progress implementation before adding tests.
+---
+author: oompah
+created: 2026-07-21 22:38
+---
+Implementation: Added forge persistence/update validation and API field handling; tests now cover legacy GitHub migration, GitLab.com and nested self-managed normalization, actionable mismatch failures, and legacy/new API serialization aliases.
+---
+author: oompah
+created: 2026-07-21 22:38
+---
+Agent completed successfully in 349s (1944466 tokens)
+---
+author: oompah
+created: 2026-07-21 22:38
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 22
+- Tokens: 1.9M in / 8.1K out [1.9M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 49s
+- Log: OOMPAH-319__20260721T223238Z.jsonl
+---
+author: oompah
+created: 2026-07-21 22:38
+---
+Agent completed without landing — no commits found on origin for branch `epic-OOMPAH-318`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
