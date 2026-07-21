@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:57.738049Z'
-updated_at: '2026-07-21T23:26:11.338574Z'
+updated_at: '2026-07-21T23:39:12.759725Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -161,5 +161,18 @@ author: oompah
 created: 2026-07-21 23:26
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-21 23:39
+---
+Understanding: As Security Auditor, implementing the three remaining deliverables for OOMPAH-291:
+
+1. **Structured audit events** — Add UNTRUSTED_RENDER: log events to wrap_untrusted() in provenance.py (mirroring AUTHORITY_DENY: pattern already in authority_boundary.py). Logs component, source, issue_identifier, and content length — no content/secrets.
+
+2. **E2E adversarial test suite** — tests/test_prompt_injection_e2e.py flowing malicious payloads through the full pipeline (intake bridge → prompt rendering → focus triage → authority boundary → protected-action checks).
+
+3. **Operator guidance docs** — docs/prompt-injection-security.md: security model summary, safe intake configuration, monitoring (audit log filters), and incident response playbook.
+
+Blocking tasks OOMPAH-288/289/290 are already merged into this branch. All 10858 tests pass.
 ---
 <!-- COMMENTS:END -->
