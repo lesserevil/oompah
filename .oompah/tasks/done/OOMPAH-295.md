@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-295
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Add Tree-sitter repository symbol and reference extraction
 parent: OOMPAH-293
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:48.374539Z'
-updated_at: '2026-07-21T16:35:21.343885Z'
+updated_at: '2026-07-21T16:39:53.322869Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -194,5 +194,10 @@ author: oompah
 created: 2026-07-21 16:35
 ---
 Implementation + Verification: Implemented oompah/repo_indexer.py (standalone Tree-sitter indexer) and tests/test_repo_indexer.py (166 tests). make test passes: 10,194 total tests, 0 failures. Key coverage: detect_language (all 6 supported languages + unsupported), is_binary_content (null-byte heuristic), _GitignoreSpec (patterns, anchored, negation, node_modules, negation order), extract_symbols_and_edges per language (Python/Rust/JS/TS/YAML/Markdown), index_repository (file walking, .gitignore, binary/oversized/unsupported skipping, always-skip dirs, lexicographic sorting, content hash, schema conformance, error cases), mixed-fixture integration test.
+---
+author: oompah
+created: 2026-07-21 16:39
+---
+Completion: Delivered oompah/repo_indexer.py (standalone Tree-sitter indexer) and tests/test_repo_indexer.py (166 tests). All 10,194 tests pass via 'make test'. The indexer walks a checked-out repository, respects .gitignore rules, skips binary/oversized/unsupported files with diagnostics, and uses Tree-sitter grammars to extract symbols and references for Python, Rust, TypeScript, JavaScript, YAML, and Markdown. Returns a RepoMap conforming to the OOMPAH-294 artifact contract. tree-sitter grammar packages added to pyproject.toml [server] and [dev] extras. Committed to branch epic-OOMPAH-293 (the parent epic's feature branch, consistent with OOMPAH-294) and pushed.
 ---
 <!-- COMMENTS:END -->

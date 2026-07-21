@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T16:39:40.948153Z'
+updated_at: '2026-07-21T16:39:48.491402Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -181,5 +181,10 @@ Acceptance criteria met:
 - Legacy native tasks: oompah_md issues use HUMAN_COMMENT source, content remains renderable, wrapping preserves inner text
 - Serialization: to_dict/to_json/from_dict/from_json round-trip tested
 - Default-deny: UNKNOWN source → model_renderable=False → ValueError in wrap_untrusted()
+---
+author: oompah
+created: 2026-07-21 16:39
+---
+Implemented provenance metadata model: new oompah/provenance.py with ContentProvenance dataclass, TrustLevel/ContentSource/ProvenanceComponent enums, make_provenance/default_deny/escape_content/wrap_untrusted helpers. Patched prompt.py (description+comments wrapped), focus.py (triage description wrapped), github_intake_bridge.py (comment delivery wrapped). 121 new tests passing. All 10072 tests green.
 ---
 <!-- COMMENTS:END -->
