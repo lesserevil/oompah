@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T19:04:51.954483Z'
-updated_at: '2026-07-21T19:23:58.950157Z'
+updated_at: '2026-07-21T19:31:10.582938Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -129,5 +129,10 @@ author: oompah
 created: 2026-07-21 19:23
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 19:31
+---
+Understanding: As Test Engineer, I've traced the root cause of the git write-access failure. The Codex CLI ACP backend (oompah/acp_backends/codex.py) passes sandbox_mode='workspace-write' to ThreadOptions, which restricts write access to the workspace directory only. Git worktree metadata (index, HEAD, ORIG_HEAD) lives outside the workspace at ~/.oompah/repos/oompah/.git/worktrees/<TASK>/, so git add/commit fail with 'read-only filesystem'. The ThreadOptions API already has an additional_directories parameter for exactly this use case. The fix: detect git worktrees via the .git file in the workspace, parse the gitdir path, and pass it as additional_directories to ThreadOptions. I will implement the detection helper + integration, then write tests for both the happy path (worktree) and non-worktree cases.
 ---
 <!-- COMMENTS:END -->
