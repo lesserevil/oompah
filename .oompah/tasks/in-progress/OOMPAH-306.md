@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T18:11:05.360910Z'
+updated_at: '2026-07-21T18:17:23.269007Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -381,5 +381,10 @@ author: oompah
 created: 2026-07-21 18:11
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-21 18:17
+---
+Understanding (maintenance): The orchestrator's unpushed_gate.py runs git status --porcelain against project.repo_path (main clone at /home/shedwards/.oompah/repos/oompah), not the branch worktree. The main clone has AGENTS.md modified (uncommitted), causing has_uncommitted=True which triggers a false refusal. The previous agent's fix (worktree_path parameter in unpushed_gate.py) is on the OOMPAH-306 branch but the RUNNING service uses the main clone's old code. Fix: stash AGENTS.md in the main clone so git status is clean; the old gate will then see has_uncommitted=False + commits_ahead=0 and allow completion.
 ---
 <!-- COMMENTS:END -->
