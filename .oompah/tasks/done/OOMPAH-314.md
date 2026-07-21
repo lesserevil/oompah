@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T17:59:58.543405Z'
+updated_at: '2026-07-21T18:00:00.912298Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,5 +69,10 @@ author: oompah
 created: 2026-07-21 17:59
 ---
 Completion: Delivered OOMPAH-314 with these changes: (1) Bug fix: orchestrator.py sync_source_branch=True→False — prevents unselected main commits from entering release branches. (2) ReleaseDelivery.ci_remediation_task_id field for idempotent CI remediation tracking. (3) SCMProvider.get_branch_head_sha/get_ci_status_for_sha/get_branch_ci_status methods (GitHubProvider implemented, base class default returns None/''/''). (4) Orchestrator._monitor_merged_delivery_ci + _check_and_remediate_delivery_ci + _dispatch_release_ci_fix_task for post-merge release branch CI failure detection and actionable task creation. (5) 26 new tests: regression proofs, queue integration sync_source_branch=False guard, CI failure fixture, conflict behavior, SCM methods.
+---
+author: oompah
+created: 2026-07-21 18:00
+---
+Fixed sync_source_branch=True→False bug (PR #303 regression) and added post-merge release CI monitoring with actionable remediation tasks. 26 new tests covering all acceptance criteria.
 ---
 <!-- COMMENTS:END -->
