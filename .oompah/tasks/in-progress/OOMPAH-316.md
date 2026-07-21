@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-316
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:server] Fetch issues failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -15,7 +15,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T20:45:37.980388Z'
+updated_at: '2026-07-21T20:46:40.475098Z'
 work_branch: OOMPAH-316
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/478
@@ -44,7 +44,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-21T18:20:35.323844+00:00'
-oompah.agent_run_id: b1e7005a-b009-4d64-9d59-644666ae7f92
+oompah.agent_run_id: c10c95ea-f582-4d56-8b67-152730b3dded
 oompah.task_costs:
   total_input_tokens: 1140022
   total_output_tokens: 21954
@@ -479,5 +479,15 @@ Steps to resolve:
   git push origin OOMPAH-316
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-21 20:46
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 20:46
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->

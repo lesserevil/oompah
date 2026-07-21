@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-315
 type: bug
-status: In Review
-priority: 2
+status: Needs Rebase
+priority: 0
 title: '[backend:orchestrator] Fetch failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
   or migration f...'
@@ -12,9 +12,10 @@ blocked_by: []
 labels:
 - external:github
 - focus-complete:duplicate_detector
+- merge-conflict
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T19:24:35.545740Z'
+updated_at: '2026-07-21T20:46:43.138753Z'
 work_branch: OOMPAH-315
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/476
@@ -322,5 +323,10 @@ oompah will create the review automatically when review capacity is available.
 
 Recent commits:
   f0560e897 OOMPAH-315: add TrackerStateBranchMissingError to prevent error_watcher auto-filing
+---
+author: oompah
+created: 2026-07-21 20:46
+---
+YOLO: Merge conflict detected on MR #476. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
