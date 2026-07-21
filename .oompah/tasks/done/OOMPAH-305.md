@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-305
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T17:50:42.435074Z'
+updated_at: '2026-07-21T17:51:35.084703Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -210,5 +210,18 @@ Discovery: Root causes identified and fixed:
 
 Files changed: oompah/models.py, oompah/oompah_md_tracker.py, oompah/server.py, oompah/templates/dashboard.html.
 Tests: new tests/test_dashboard_tracker_state_reconciliation.py (29 tests, all pass). Updated 2 existing tests to add merged_at evidence.
+---
+author: oompah
+created: 2026-07-21 17:51
+---
+Implementation complete. Test results: 9980 passed, 36 skipped (all 29 new regression tests pass).
+
+Delivered:
+1. Null-evidence guard in _effective_display_status and _issue_dashboard_state: tasks showing Merged without merged_at/work_branch/review_url are reverted to Backlog in all display paths (list, board, CLI, detail).
+2. Checkpoint timestamp (last_checkpoint_at) on OompahMarkdownTracker + _any_tracker_checkpoint_newer_than() in server.py: snapshot is force-refreshed when a state-branch checkpoint advances past its creation time, eliminating the 60-second stale window.
+3. _on_checkpoint_flushed callback parameter for post-flush hooks.
+4. merged_at field on Issue model + extraction in _normalize_record, exposed in board + detail API responses.
+5. Stale UI banner in dashboard: #tracker-stale-banner shown when X-Oompah-Issues-Stale: true, cleared on WS push. Accessible (aria-hidden, descriptive title).
+6. 29 new regression tests in tests/test_dashboard_tracker_state_reconciliation.py covering all acceptance criteria.
 ---
 <!-- COMMENTS:END -->
