@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:09.575764Z'
-updated_at: '2026-07-21T23:44:15.546836Z'
+updated_at: '2026-07-21T23:58:40.910616Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,10 @@ author: oompah
 created: 2026-07-21 23:44
 ---
 Understanding: Previous test engineer wrote tests in tests/test_config.py that test repo_map config attributes (repo_map_enabled, repo_map_token_budget, repo_map_languages, repo_map_max_file_size, repo_map_generation_timeout, repo_map_retained_artifacts), but the implementation in oompah/config.py is missing. I need to: (1) Add these 6 fields to ServiceConfig in oompah/config.py with safe defaults and env var parsing, (2) Add .env.example documentation for all 6 variables, (3) Write bootstrap tests verifying new projects get repo-map config, (4) Write operator documentation in docs/, (5) Run make test to verify. The previous agent was running on epic-OOMPAH-293 branch (no dedicated OOMPAH-299 branch exists). I will implement on the same epic branch.
+---
+author: oompah
+created: 2026-07-21 23:58
+---
+Implementation: Added repo_map config to ServiceConfig in oompah/config.py (6 new fields: repo_map_enabled, repo_map_token_budget, repo_map_languages, repo_map_max_file_size, repo_map_generation_timeout, repo_map_retained_artifacts), all environment-only, with safe defaults and fallback validation. Added .env.example section with all 6 vars documented. Created docs/repository-map.md (operator doc covering activation, freshness, diagnostics, privacy/trust, disable/rebuild). Updated docs/project-bootstrap.md with repo-map bootstrap section. Created tests/test_repo_map_bootstrap.py with 28 tests covering: defaults disable feature, state-branch prerequisite contract, env-var-only activation, bootstrap creates required infra, and documentation fixtures.
 ---
 <!-- COMMENTS:END -->
