@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:56.727670Z'
-updated_at: '2026-07-21T22:57:55.673871Z'
+updated_at: '2026-07-21T22:58:05.604472Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,10 @@ author: oompah
 created: 2026-07-21 22:57
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-21 22:58
+---
+Understanding: I will audit agent-reachable mutation and delivery paths for trust/provenance-based authorization, add centralized server-side denials with audit reasons where gaps exist, and verify protected actions remain available through approved paths.
 ---
 <!-- COMMENTS:END -->
