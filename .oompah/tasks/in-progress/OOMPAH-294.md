@@ -7,10 +7,12 @@ title: Define repository-map artifact and state-branch lifecycle
 parent: OOMPAH-293
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-21T15:13:47.496504Z'
-updated_at: '2026-07-21T15:46:33.663784Z'
+updated_at: '2026-07-21T15:48:11.112577Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,5 +87,21 @@ author: oompah
 created: 2026-07-21 15:46
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 15:48
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: No duplicate found. Searched all .oompah/tasks/ directories (archived, done, merged, backlog, needs-ci-fix, needs-rebase) and the plans/ directory for: repository-map, repo-map, repomap, repo_map, symbol tags, indexed files, commit SHA artifact, relationship edges. Zero matches.
+
+2. **Closest reviewed tasks/evidence**:
+   - \`plans/state-branch-design.md\` (related to epic OOMPAH-253): About isolating oompah *task* state onto a git state branch. Completely different from a code-repository-map artifact (indexed files, symbol tags, edges).
+   - OOMPAH-282 (backlog): Bug report about state branch migration UnicodeEncodeError. Unrelated.
+   - No merged task in the 166-280 range describes anything resembling a versioned repo-map JSON schema for code analysis.
+
+3. **Remaining work**: Full implementation required — the schema design, typed Python model, state-branch path definitions, atomic-write logic, freshness rules, retention policy, and unit tests are all absent from the codebase.
+
+4. **Recommended next focus**: feature — this is net-new implementation work (plan doc in plans/, typed artifact model in oompah/, unit tests in tests/).
 ---
 <!-- COMMENTS:END -->
