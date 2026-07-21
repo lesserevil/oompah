@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T18:51:03.498603Z'
+updated_at: '2026-07-21T18:53:41.236949Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -194,5 +194,20 @@ author: oompah
 created: 2026-07-21 18:51
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-21 18:53
+---
+Understanding: Working as Software Engineer on OOMPAH-315.
+
+Root cause (confirmed from duplicate investigator): project exocomp (proj-c260b117) has state_branch_enabled=True but its state branch 'oompah/state/proj-c260b117' does not exist. Every fetch attempt raises a generic TrackerError in oompah_md_tracker.py:1312, which is classified as 'tracker_failed' in orchestrator.py, triggering error_watcher to auto-file this task.
+
+Fix plan (option b from prior investigation):
+1. Add TrackerStateBranchMissingError(TrackerError) subclass to tracker.py
+2. Raise TrackerStateBranchMissingError instead of TrackerError when state branch is missing in oompah_md_tracker.py
+3. In orchestrator.py, catch TrackerStateBranchMissingError BEFORE the generic TrackerError catch — log a warning (not an error with error_class), so error_watcher is not triggered
+4. Add tests in test_oompah_md_tracker_state_branch.py and test_error_watcher_orchestrator.py
+
+Rationale: treating the missing-state-branch condition like TrackerNotConfiguredError (configuration issue requiring operator action, not a transient error) keeps the diagnostic message visible in logs while preventing repetitive auto-filing of tasks.
 ---
 <!-- COMMENTS:END -->
