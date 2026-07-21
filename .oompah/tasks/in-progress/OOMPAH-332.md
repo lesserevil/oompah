@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-332
 type: task
-status: Done
+status: In Progress
 priority: 0
 title: 'YOLO task-PR coherence break on oompah/468: merge-conflict recovery task missing
   or stale'
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T21:01:56.725203Z'
-updated_at: '2026-07-21T21:11:05.493879Z'
+updated_at: '2026-07-21T21:11:15.655016Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,13 +22,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: c15a9c56-f588-439a-9e9d-fe289b1a6458
 oompah.task_costs:
-  total_input_tokens: 243636
-  total_output_tokens: 1579
+  total_input_tokens: 243669
+  total_output_tokens: 7901
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 243636
-      output_tokens: 1579
+      input_tokens: 243669
+      output_tokens: 7901
       cost_usd: 0.0
   runs:
   - profile: default
@@ -37,6 +37,12 @@ oompah.task_costs:
     output_tokens: 1579
     cost_usd: 0.0
     recorded_at: '2026-07-21T21:03:09.717601+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 33
+    output_tokens: 6322
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T21:11:12.005875+00:00'
 ---
 ## Summary
 
@@ -218,5 +224,38 @@ author: oompah
 created: 2026-07-21 21:11
 ---
 Rebased fix-release-selected-commits onto main. Single conflict (sync_source_branch) resolved: kept HEAD's explicit False. All 9980 tests pass. Force-pushed. PR #468 unblocked.
+---
+author: oompah
+created: 2026-07-21 21:11
+---
+Agent completed successfully in 452s (6355 tokens)
+---
+author: oompah
+created: 2026-07-21 21:11
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 60, Tool calls: 37
+- Tokens: 33 in / 6.3K out [6.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 32s
+- Log: OOMPAH-332__20260721T210342Z.jsonl
+---
+author: oompah
+created: 2026-07-21 21:11
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-332` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-332
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-332
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
