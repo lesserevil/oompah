@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:41:46.788547Z'
+updated_at: '2026-07-21T15:41:54.725856Z'
 work_branch: OOMPAH-292
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/463
@@ -19,13 +19,13 @@ review_number: '463'
 merged_at: null
 oompah.agent_run_id: 22bbba08-8f4c-4b38-9e4e-e22be75947af
 oompah.task_costs:
-  total_input_tokens: 386732
-  total_output_tokens: 40132
+  total_input_tokens: 386747
+  total_output_tokens: 40283
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 386732
-      output_tokens: 40132
+      input_tokens: 386747
+      output_tokens: 40283
       cost_usd: 0.0
   runs:
   - profile: default
@@ -64,6 +64,12 @@ oompah.task_costs:
     output_tokens: 1101
     cost_usd: 0.0
     recorded_at: '2026-07-21T15:29:07.177102+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 15
+    output_tokens: 151
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T15:41:52.559006+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/463
 oompah.review_number: '463'
 oompah.work_branch: OOMPAH-292
@@ -431,5 +437,15 @@ author: oompah
 created: 2026-07-21 15:41
 ---
 Implemented mergeable-item summaries and full task details in Release Delivery. Backend: ITEM_SUMMARY_MAX_LENGTH=280, _extract_item_summary() with HTML stripping/normalisation/truncation, summary field on ItemRow, included in backlog JSON. Frontend: .rdi-item-summary in rows (textContent, aria-label), drawer widened to min(800px,40vw) with 90vw fallback, full task detail via GET /api/v1/issues/{identifier}/detail with loading/error states and synchronous delivery evidence. 44 new tests, 2 updated, all pass. Merged via PR #463.
+---
+author: oompah
+created: 2026-07-21 15:41
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 5
+- Tokens: 15 in / 151 out [166 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 51s
+- Log: OOMPAH-292__20260721T154104Z.jsonl
 ---
 <!-- COMMENTS:END -->
