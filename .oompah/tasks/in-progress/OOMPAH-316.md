@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T19:03:34.472828Z'
+updated_at: '2026-07-21T19:04:19.682897Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -259,5 +259,10 @@ author: oompah
 created: 2026-07-21 19:03
 ---
 Implementation: added StateBranchMissingError for the precise unbootstrapped-state-branch condition. The multi-project issue fetcher now logs that exception as an actionable warning and returns no issues for only that project; all other TrackerError and ProjectError cases retain their existing error logging. Added regression tests for both log levels.
+---
+author: oompah
+created: 2026-07-21 19:04
+---
+Verification: focused regression coverage passed: pytest tests/test_server_issue_snapshot.py tests/test_oompah_md_tracker_state_branch.py -v (47 passed). The required make test target was also attempted but could not start because uv failed to create a sandbox DBus transient scope before pytest ran. git diff --check and Python compilation passed.
 ---
 <!-- COMMENTS:END -->
