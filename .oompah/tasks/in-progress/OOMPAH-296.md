@@ -14,13 +14,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T21:16:29.506555Z'
+updated_at: '2026-07-21T21:16:53.319611Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 4b923747-3819-4910-a4f8-9e33178c7878
+oompah.agent_run_id: 6f69b516-434c-47af-8471-850c59763385
 oompah.task_costs:
   total_input_tokens: 1676306
   total_output_tokens: 41414
@@ -392,5 +392,15 @@ author: oompah
 created: 2026-07-21 21:16
 ---
 Agent completed without closing this issue (138s (601977 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-21 21:16
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 21:16
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

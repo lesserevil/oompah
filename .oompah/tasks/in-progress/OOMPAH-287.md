@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-287
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Add provenance metadata for external content entering Oompah
 parent: OOMPAH-285
@@ -13,13 +13,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T21:14:19.951359Z'
+updated_at: '2026-07-21T21:16:54.918608Z'
 work_branch: OOMPAH-287
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/467
 review_number: '467'
 merged_at: null
-oompah.agent_run_id: 98ff2929-da34-4d2a-9ff2-04fb63d0054e
+oompah.agent_run_id: 5aa48113-d741-401f-9a71-b50cec90762f
 oompah.task_costs:
   total_input_tokens: 410025
   total_output_tokens: 52026
@@ -342,5 +342,15 @@ author: oompah
 created: 2026-07-21 21:14
 ---
 YOLO: CI tests failed on MR #467. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-21 21:16
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-21 21:16
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
