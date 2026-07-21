@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T16:42:11.126060Z'
+updated_at: '2026-07-21T16:46:07.172530Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,12 @@ author: oompah
 created: 2026-07-21 16:42
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-21 16:46
+---
+Understanding (as Frontend Developer): OOMPAH-296 requires implementing Aider-style ranking and bounded rendering over Tree-sitter extraction artifacts (OOMPAH-295). This involves: (1) building a directed relationship graph from RepoMap.symbol_tags and RepoMap.relationship_edges, (2) PageRank-style symbol/file scoring with task-mention and seed-file boosts, (3) token-budget-bounded text map rendering with deterministic tie-breaking, (4) path/excerpt escaping as untrusted data, and (5) comprehensive tests per acceptance criteria.
+
+This is a purely Python backend feature (graph algorithms, text rendering) with no UI, accessibility, or frontend component. My 'Frontend Developer' focus is not applicable here. Handing off to 'feature' specialist.
 ---
 <!-- COMMENTS:END -->

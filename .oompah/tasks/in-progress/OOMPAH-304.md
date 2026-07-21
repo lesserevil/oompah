@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T16:31:18.820812Z'
+updated_at: '2026-07-21T16:46:06.425141Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,12 @@ author: oompah
 created: 2026-07-21 16:31
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-21 16:46
+---
+**Understanding**: Root cause identified — the Release Delivery backlog endpoint uses BacklogRefreshManager which caches computed BacklogResult objects for 5 minutes (DEFAULT_RESULT_TTL_S=300). When a delivery executor updates status to IN_REVIEW (with PR), the commit-inventory reads the ledger fresh and shows the correct state, but the backlog serves the cached (pre-delivery) result showing not_selected. Two orthogonal fixes are needed: (1) Backend: delivery executor/poller must trigger backlog cache invalidation on status change; (2) Frontend: show PR links inline in the table, add delivery-status-aware auto-refresh when active deliveries exist, and treat stale delivery status explicitly rather than silently.
+
+Plan: (1) Add PR link to table status cells when cell.pr_url is present; (2) Add _rdiStartDeliveryPoll/_rdiStopDeliveryPoll that auto-refresh every 30s when in_progress/in_review/blocked/open deliveries exist; (3) Track recently-queued items and show 'status updating' indicator when they still show not_selected; (4) After queuing, call _rdiForceRefresh() to trigger immediate backlog refresh; (5) Stop delivery poll on pagehide; (6) Add CSS for .rdi-pr-link and .rdi-delivery-pending; (7) Add frontend tests; (8) Add backend cache-invalidation fix in executor/poller + regression tests.
 ---
 <!-- COMMENTS:END -->

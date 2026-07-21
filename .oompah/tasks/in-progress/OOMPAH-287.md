@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-287
 type: task
-status: Done
+status: In Progress
 priority: 1
 title: Add provenance metadata for external content entering Oompah
 parent: OOMPAH-285
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T16:46:00.317403Z'
+updated_at: '2026-07-21T16:46:19.356104Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: c454df5f-2c79-4de2-90ba-44851b28bdf4
 oompah.task_costs:
-  total_input_tokens: 247148
-  total_output_tokens: 47284
+  total_input_tokens: 247162
+  total_output_tokens: 50651
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 247148
-      output_tokens: 47284
+      input_tokens: 247162
+      output_tokens: 50651
       cost_usd: 0.0
   runs:
   - profile: default
@@ -47,6 +47,12 @@ oompah.task_costs:
     output_tokens: 40885
     cost_usd: 0.0
     recorded_at: '2026-07-21T16:39:59.006844+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 14
+    output_tokens: 3367
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T16:46:10.013120+00:00'
 ---
 ## Summary
 
@@ -254,5 +260,41 @@ Files delivered (commit 8959e59d8):
 - tests/test_provenance.py (new, 121 tests): all source types, trust assignments, delimiter escape, serialization, default-deny, legacy native-task compat, integration tests
 
 All acceptance criteria met: prompt code distinguishes TRUSTED from UNTRUSTED via ContentProvenance fields without parsing prose; default-deny for UNKNOWN sources; delimiter escape prevents injection attacks; backward compatible for native oompah_md tasks.
+---
+author: oompah
+created: 2026-07-21 16:46
+---
+Implemented provenance metadata model: new oompah/provenance.py with ContentProvenance dataclass, TrustLevel/ContentSource/ProvenanceComponent enums, make_provenance/default_deny/escape_content/wrap_untrusted helpers. Patched prompt.py, focus.py, github_intake_bridge.py to wrap untrusted content with XML provenance delimiters. 121 new tests passing. All 10072 tests green. Pushed to origin/OOMPAH-287.
+---
+author: oompah
+created: 2026-07-21 16:46
+---
+Agent completed successfully in 288s (3381 tokens)
+---
+author: oompah
+created: 2026-07-21 16:46
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 25, Tool calls: 14
+- Tokens: 14 in / 3.4K out [3.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 48s
+- Log: OOMPAH-287__20260721T164123Z.jsonl
+---
+author: oompah
+created: 2026-07-21 16:46
+---
+Close refused by orchestrator: branch `OOMPAH-287` has 1 commit not on `main` and no open PR targets `main` from this branch.
+
+Diagnostic:
+  Unmerged commits: 1
+    8959e59d8 OOMPAH-287: Add provenance metadata for external content entering oompah
+  Open PRs from this branch: 0
+  Merged PRs from this branch: 0
+
+Required: open a PR before closing.
+  gh pr create --base main --head OOMPAH-287 --title "OOMPAH-287: Add provenance metadata for external content entering Oompah" --body "..."
+
+Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
 ---
 <!-- COMMENTS:END -->
