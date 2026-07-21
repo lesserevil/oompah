@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T19:01:11.598058Z'
+updated_at: '2026-07-21T19:01:23.816459Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,13 +45,13 @@ oompah.intake:
   last_validated_at: '2026-07-21T18:20:20.176791+00:00'
 oompah.agent_run_id: ed592296-d191-440b-92c2-c9ace493d0af
 oompah.task_costs:
-  total_input_tokens: 40
-  total_output_tokens: 11789
+  total_input_tokens: 90
+  total_output_tokens: 26917
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 40
-      output_tokens: 11789
+      input_tokens: 90
+      output_tokens: 26917
       cost_usd: 0.0
   runs:
   - profile: default
@@ -60,6 +60,12 @@ oompah.task_costs:
     output_tokens: 11789
     cost_usd: 0.0
     recorded_at: '2026-07-21T18:49:58.872531+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 50
+    output_tokens: 15128
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T19:01:20.020819+00:00'
 ---
 ## Summary
 
@@ -282,5 +288,35 @@ author: oompah
 created: 2026-07-21 19:01
 ---
 Added TrackerStateBranchMissingError subclass; orchestrator now catches it as a WARNING (no error_class) so error_watcher is not triggered. 9957 tests pass.
+---
+author: oompah
+created: 2026-07-21 19:01
+---
+Agent completed successfully in 618s (15178 tokens)
+---
+author: oompah
+created: 2026-07-21 19:01
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 90, Tool calls: 55
+- Tokens: 50 in / 15.1K out [15.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 18s
+- Log: OOMPAH-315__20260721T185103Z.jsonl
+---
+author: oompah
+created: 2026-07-21 19:01
+---
+Review handoff deferred: the task branch has unmerged work, but this project is at its open review limit.
+
+Branch: `OOMPAH-315`
+Target branch: `main`
+Unmerged commits: 1 commit
+Open reviews: 6/1
+
+oompah will create the review automatically when review capacity is available.
+
+Recent commits:
+  f0560e897 OOMPAH-315: add TrackerStateBranchMissingError to prevent error_watcher auto-filing
 ---
 <!-- COMMENTS:END -->
