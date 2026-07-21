@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-305
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T18:14:46.266331Z'
+updated_at: '2026-07-21T18:14:54.754636Z'
 work_branch: null
 target_branch: null
 review_url: null
