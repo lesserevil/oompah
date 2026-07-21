@@ -246,6 +246,7 @@ _MUTABLE_FIELDS: frozenset[str] = frozenset({
     "error",
     "migrated_from",
     "conflict_agent_task_id",
+    "ci_remediation_task_id",
 })
 
 
@@ -297,6 +298,11 @@ class ReleaseDelivery:
             has been dispatched.  Set before dispatch to guard against
             duplicate agent creation (idempotency).  Cleared when the
             delivery is reset to ``open`` after successful resolution.
+        ci_remediation_task_id: Internal oompah task identifier for the
+            CI-fix remediation task created when the release branch CI fails
+            after a delivery is merged.  ``None`` when no CI failure has been
+            detected or no remediation task has been dispatched.  Set before
+            dispatch to guard against duplicate task creation (idempotency).
     """
 
     # -- Immutable source fields --
@@ -322,6 +328,7 @@ class ReleaseDelivery:
     error: str | None = None
     migrated_from: str | None = None
     conflict_agent_task_id: str | None = None
+    ci_remediation_task_id: str | None = None
 
     def to_raw(self) -> dict[str, Any]:
         """Serialise this delivery to a raw dict for YAML storage.
@@ -354,6 +361,7 @@ class ReleaseDelivery:
             "error": self.error,
             "migrated_from": self.migrated_from,
             "conflict_agent_task_id": self.conflict_agent_task_id,
+            "ci_remediation_task_id": self.ci_remediation_task_id,
         }
 
     @classmethod
@@ -496,6 +504,7 @@ class ReleaseDelivery:
             error=_opt_str("error"),
             migrated_from=_opt_str("migrated_from"),
             conflict_agent_task_id=_opt_str("conflict_agent_task_id"),
+            ci_remediation_task_id=_opt_str("ci_remediation_task_id"),
         )
 
 
@@ -1064,6 +1073,9 @@ class ReleaseDeliveryStore:
                 ),
                 conflict_agent_task_id=mutable_fields.get(
                     "conflict_agent_task_id", current.conflict_agent_task_id
+                ),
+                ci_remediation_task_id=mutable_fields.get(
+                    "ci_remediation_task_id", current.ci_remediation_task_id
                 ),
             )
 

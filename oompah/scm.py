@@ -307,6 +307,67 @@ class SCMProvider(ABC):
         """
         return []
 
+    def get_branch_head_sha(self, repo: str, branch: str) -> str | None:
+        """Return the HEAD commit SHA for *branch*, or ``None``.
+
+        Used by post-merge release CI monitoring to identify the commit to
+        check CI status against.  Returns ``None`` when the branch does not
+        exist, the provider API is unavailable, or the provider subclass has
+        not implemented this method.
+
+        The default implementation returns ``None`` so that sub-classes that
+        have not yet implemented this method degrade gracefully.
+
+        Args:
+            repo: Repository identifier (e.g. ``"owner/name"``).
+            branch: Branch name (without ``refs/heads/`` prefix).
+
+        Returns:
+            Full 40-character SHA string, or ``None``.
+        """
+        return None
+
+    def get_branch_ci_status(self, repo: str, branch: str) -> str:
+        """Return the CI status for the HEAD commit of *branch*.
+
+        Combines :meth:`get_branch_head_sha` with
+        :meth:`get_ci_status_for_sha` to produce a single CI verdict for a
+        branch tip.  Returns ``""`` when the branch HEAD SHA cannot be
+        determined or CI status cannot be fetched.
+
+        The default implementation calls
+        :meth:`get_branch_head_sha` and then :meth:`get_ci_status_for_sha`.
+        Sub-classes may override for efficiency.
+
+        Args:
+            repo: Repository identifier (e.g. ``"owner/name"``).
+            branch: Branch name (without ``refs/heads/`` prefix).
+
+        Returns:
+            One of ``"passed"``, ``"failed"``, ``"pending"``, or ``""``
+            (unknown / no CI).
+        """
+        sha = self.get_branch_head_sha(repo, branch)
+        if not sha:
+            return ""
+        return self.get_ci_status_for_sha(repo, sha)
+
+    def get_ci_status_for_sha(self, repo: str, sha: str) -> str:
+        """Return the CI status for a specific commit SHA.
+
+        The default implementation returns ``""`` so that sub-classes that
+        have not yet implemented this method degrade gracefully.
+
+        Args:
+            repo: Repository identifier.
+            sha: Full 40-character commit SHA.
+
+        Returns:
+            One of ``"passed"``, ``"failed"``, ``"pending"``, or ``""``
+            (unknown / no CI).
+        """
+        return ""
+
 
 def _resolve_gh_token() -> str | None:
     """Resolve GitHub token from environment or gh CLI config."""
@@ -1654,6 +1715,63 @@ class GitHubProvider(SCMProvider):
             for c in data
             if isinstance(c, dict) and c.get("sha")
         ]
+
+    def get_branch_head_sha(self, repo: str, branch: str) -> str | None:
+        """Return the HEAD commit SHA for *branch* via GitHub refs API.
+
+        Uses ``GET /repos/{repo}/git/refs/heads/{branch}`` to fetch the
+        branch tip SHA.  Returns ``None`` on any error or when the branch
+        does not exist (HTTP 404).
+
+        Args:
+            repo: ``"owner/name"`` slug.
+            branch: Branch name (without ``refs/heads/`` prefix).
+
+        Returns:
+            Full 40-character commit SHA, or ``None``.
+        """
+        try:
+            r = self._api("GET", f"/repos/{repo}/git/refs/heads/{branch}")
+            if r.status_code != 200:
+                logger.debug(
+                    "GitHub get_branch_head_sha %s/%s: HTTP %d",
+                    repo, branch, r.status_code,
+                )
+                return None
+            data = r.json()
+            # Response may be a list (when a prefix matches multiple refs) or
+            # a single object.  Normalise to a list.
+            if isinstance(data, dict):
+                data = [data]
+            for item in data:
+                ref = item.get("ref", "")
+                if ref == f"refs/heads/{branch}":
+                    sha = item.get("object", {}).get("sha", "")
+                    return sha if sha else None
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            logger.debug(
+                "GitHub get_branch_head_sha failed for %s/%s: %s",
+                repo, branch, exc,
+            )
+        return None
+
+    def get_ci_status_for_sha(self, repo: str, sha: str) -> str:
+        """Return the CI status for a specific commit SHA.
+
+        Delegates to :meth:`_fetch_ci_status`.  Returns one of
+        ``"passed"``, ``"failed"``, ``"pending"``, or ``""`` (no CI data).
+
+        Args:
+            repo: ``"owner/name"`` slug.
+            sha: Full 40-character commit SHA.
+
+        Returns:
+            CI status string.
+        """
+        try:
+            return self._fetch_ci_status(repo, sha)
+        except Exception:  # noqa: BLE001
+            return ""
 
 
 class GitLabProvider(SCMProvider):
