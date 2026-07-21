@@ -1,0 +1,41 @@
+---
+id: OOMPAH-328
+type: task
+status: Backlog
+priority: 2
+title: Make project bootstrap and operator documentation forge-aware
+parent: OOMPAH-318
+children: []
+blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-07-21T20:34:42.051489Z'
+updated_at: '2026-07-21T20:34:42.051489Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+---
+## Summary
+
+Plan reference: plans/gitlab-forge-parity.md, Webhooks, UI, bootstrap, and operations.
+
+Extend project-bootstrap, readiness checks, templates, and operator documentation for GitLab.com and GitLab 17+ self-managed projects. Validate token/API access, label creation, issue tracker access, MR access, pipeline read access, state-branch push access, public HTTPS webhook URL, hook creation, and polling fallback. Document minimum GitLab token scopes, direct public webhook deployment, ordinary auto-merge semantics, merge-train non-support, recovery procedures, and GitHub compatibility.
+
+Tests:
+- Bootstrap dry-run fixtures for success plus each capability failure.
+- Documentation contract tests for required GitLab configuration and security guidance.
+- Existing GitHub bootstrap/readiness tests remain green.
+
+Acceptance criteria:
+- An operator can bootstrap a GitLab project without undocumented manual steps.
+- Failure output identifies the exact missing capability and remediation.
+- make test passes.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
