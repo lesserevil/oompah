@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -12,13 +12,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T21:10:52.138623Z'
+updated_at: '2026-07-21T21:11:31.415361Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
 review_number: '469'
 merged_at: null
-oompah.agent_run_id: ca9d9f5b-99ef-48d0-9924-b4fb609a0c20
+oompah.agent_run_id: 386c98d0-2b9d-4bd8-bc3b-3d3ea1e0e637
 oompah.task_costs:
   total_input_tokens: 712024
   total_output_tokens: 67569
@@ -575,5 +575,15 @@ author: oompah
 created: 2026-07-21 21:10
 ---
 YOLO: CI tests failed on MR #469. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-21 21:11
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 21:11
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
