@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:55.684579Z'
-updated_at: '2026-07-21T22:38:49.937226Z'
+updated_at: '2026-07-21T22:48:18.942336Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -194,5 +194,18 @@ author: oompah
 created: 2026-07-21 22:38
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 22:48
+---
+Understanding: Continuing from previous Test Engineer session. The prior agent made three files of changes but did not commit them:
+
+1. oompah/focus.py — Hardened _build_triage_prompt() to wrap title, labels, and description each in their own <oompah:untrusted> provenance block (not just description). Hardened _parse_triage_response() to strictly require a single non-empty 'name: reasoning' line (reject multi-line, single-word, quoted, or prefixed responses). Removed the 'default' LLM escape path so only the deterministic scorer can return DEFAULT_FOCUS.
+
+2. tests/test_focus_triage.py — New tests: test_rejects_output_outside_single_line_schema (parametrized), test_llm_cannot_select_default_focus, test_injected_issue_and_malicious_model_output_cannot_select_focus, test_llm_pick_with_score_zero_falls_back, test_llm_pick_with_score_positive_is_trusted, new cache and timeout tests. All 24 tests pass.
+
+3. tests/test_provenance.py — Updated TestTriageProvenanceIntegration to assert 3 untrusted blocks (title + labels + description), not 1. New test_title_and_labels_are_wrapped_independently covers the multi-block wrapping. All 477 relevant tests pass.
+
+Plan: Check for remaining test gaps, add any missing coverage, run the full suite, commit and close.
 ---
 <!-- COMMENTS:END -->
