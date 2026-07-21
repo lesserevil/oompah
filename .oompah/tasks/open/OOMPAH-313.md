@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-313
 type: task
-status: Backlog
+status: Open
 priority: null
 title: 'Regression tests: OOMPAH-285/286 routing fixture and native shared-epic child
   lifecycle'
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T16:54:41.720887Z'
-updated_at: '2026-07-21T16:55:01.236847Z'
+updated_at: '2026-07-21T18:40:50.069318Z'
 work_branch: null
 target_branch: null
 review_url: null

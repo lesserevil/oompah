@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-312
 type: task
-status: Backlog
+status: Open
 priority: null
 title: 'UI/dashboard: show child completion status in epic branch context (Done on
   branch vs Merged to target)'
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-21T16:54:57.442507Z'
+updated_at: '2026-07-21T18:40:49.221406Z'
 work_branch: null
 target_branch: null
 review_url: null
