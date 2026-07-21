@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-300
 type: task
-status: Backlog
+status: Open
 priority: 2
 title: Add end-to-end repository-map observability and regression coverage
 parent: OOMPAH-293
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T15:14:10.495385Z'
-updated_at: '2026-07-21T15:14:27.361038Z'
+updated_at: '2026-07-21T15:45:22.443446Z'
 work_branch: null
 target_branch: null
 review_url: null

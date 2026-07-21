@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-291
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Add prompt-injection regression suite, observability, and operator guidance
 parent: OOMPAH-285
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:57.738049Z'
-updated_at: '2026-07-21T14:52:09.911012Z'
+updated_at: '2026-07-21T15:45:09.964096Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-295
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Add Tree-sitter repository symbol and reference extraction
 parent: OOMPAH-293
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T15:13:48.374539Z'
-updated_at: '2026-07-21T15:14:19.841547Z'
+updated_at: '2026-07-21T15:45:15.909197Z'
 work_branch: null
 target_branch: null
 review_url: null

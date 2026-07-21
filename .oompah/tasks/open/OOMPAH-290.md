@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-290
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Enforce server-side authority boundaries for agent actions influenced by external
   intake
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:56.727670Z'
-updated_at: '2026-07-21T14:52:03.125692Z'
+updated_at: '2026-07-21T15:45:08.689442Z'
 work_branch: null
 target_branch: null
 review_url: null

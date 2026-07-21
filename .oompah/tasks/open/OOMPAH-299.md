@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-299
 type: task
-status: Backlog
+status: Open
 priority: 2
 title: Add repository-map configuration, bootstrap defaults, and operator documentation
 parent: OOMPAH-293
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T15:14:09.575764Z'
-updated_at: '2026-07-21T15:14:25.513548Z'
+updated_at: '2026-07-21T15:45:21.138812Z'
 work_branch: null
 target_branch: null
 review_url: null

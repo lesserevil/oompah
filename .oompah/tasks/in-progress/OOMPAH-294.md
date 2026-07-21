@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-294
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Define repository-map artifact and state-branch lifecycle
 parent: OOMPAH-293
@@ -10,12 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T15:13:47.496504Z'
-updated_at: '2026-07-21T15:13:47.496504Z'
+updated_at: '2026-07-21T15:45:24.790682Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 2898ad89-dacf-4db5-8e71-22cf17fe3fc7
 ---
 ## Summary
 
@@ -27,3 +28,16 @@ Write the implementation design and add the core model/types for a repository-ma
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 15:45
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 15:45
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

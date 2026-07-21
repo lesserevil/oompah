@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-288
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Render untrusted content in explicit prompt data boundaries
 parent: OOMPAH-285
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:41.895980Z'
-updated_at: '2026-07-21T14:51:59.745660Z'
+updated_at: '2026-07-21T15:45:05.620590Z'
 work_branch: null
 target_branch: null
 review_url: null

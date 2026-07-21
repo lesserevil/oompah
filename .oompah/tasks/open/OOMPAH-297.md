@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-297
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Generate and maintain repository maps on Git-backed state branches
 parent: OOMPAH-293
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T15:14:07.528667Z'
-updated_at: '2026-07-21T15:14:22.799693Z'
+updated_at: '2026-07-21T15:45:17.612801Z'
 work_branch: null
 target_branch: null
 review_url: null

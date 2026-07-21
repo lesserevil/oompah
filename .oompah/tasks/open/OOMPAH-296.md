@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-296
 type: task
-status: Backlog
+status: Open
 priority: 2
 title: Implement Aider-style repository-map ranking and bounded rendering
 parent: OOMPAH-293
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T15:14:20.701946Z'
+updated_at: '2026-07-21T15:45:19.672353Z'
 work_branch: null
 target_branch: null
 review_url: null

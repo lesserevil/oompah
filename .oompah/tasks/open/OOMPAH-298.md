@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-298
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Inject task-relevant repository maps into agent focus startup prompts
 parent: OOMPAH-293
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T15:14:24.590246Z'
+updated_at: '2026-07-21T15:45:18.458988Z'
 work_branch: null
 target_branch: null
 review_url: null
