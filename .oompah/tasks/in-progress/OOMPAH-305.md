@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T17:13:24.086777Z'
+updated_at: '2026-07-21T17:13:43.684514Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 3656e871-60d1-4fee-994f-ec1505e73fb0
+oompah.agent_run_id: 6faf6dca-9ba7-48c7-b656-b5dbca0d61c3
 oompah.task_costs:
   total_input_tokens: 1584503
   total_output_tokens: 15120
@@ -177,5 +177,10 @@ author: oompah
 created: 2026-07-21 17:13
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-305`. No stronger profile is configured; retrying with 'deep' in 10s (1/3).
+---
+author: oompah
+created: 2026-07-21 17:13
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->

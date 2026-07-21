@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-287
 type: task
-status: In Review
+status: Done
 priority: 1
 title: Add provenance metadata for external content entering Oompah
 parent: OOMPAH-285
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T16:47:09.407264Z'
+updated_at: '2026-07-21T17:13:42.973413Z'
 work_branch: OOMPAH-287
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/467
