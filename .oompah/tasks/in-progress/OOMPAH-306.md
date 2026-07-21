@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-306
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -13,13 +13,13 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T17:22:20.496137Z'
+updated_at: '2026-07-21T17:52:06.205269Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: eccc9d10-9cc3-439e-bc06-238f20b10185
+oompah.agent_run_id: 68ce6990-a378-4933-adbc-9e1e3910ce89
 oompah.task_costs:
   total_input_tokens: 1610004
   total_output_tokens: 39833
@@ -292,5 +292,15 @@ Steps to resolve:
   git push origin OOMPAH-306
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-21 17:52
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 17:52
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
