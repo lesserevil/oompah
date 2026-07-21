@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-292
 type: task
-status: Done
+status: In Progress
 priority: null
 title: Show mergeable-item summaries and full task details in Release Delivery
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:24:24.454849Z'
+updated_at: '2026-07-21T15:24:35.024640Z'
 work_branch: OOMPAH-292
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/463
@@ -19,13 +19,13 @@ review_number: '463'
 merged_at: null
 oompah.agent_run_id: 43eb4210-c0e7-4038-b850-ae6b8881983d
 oompah.task_costs:
-  total_input_tokens: 110271
-  total_output_tokens: 36527
+  total_input_tokens: 110279
+  total_output_tokens: 38383
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 110271
-      output_tokens: 36527
+      input_tokens: 110279
+      output_tokens: 38383
       cost_usd: 0.0
   runs:
   - profile: default
@@ -46,6 +46,12 @@ oompah.task_costs:
     output_tokens: 30360
     cost_usd: 0.0
     recorded_at: '2026-07-21T15:23:28.865851+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 8
+    output_tokens: 1856
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T15:24:30.580931+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/463
 oompah.review_number: '463'
 oompah.work_branch: OOMPAH-292
@@ -284,5 +290,38 @@ author: oompah
 created: 2026-07-21 15:24
 ---
 Implemented mergeable-item summaries and full task details in Release Delivery. Backend: ITEM_SUMMARY_MAX_LENGTH=280, _extract_item_summary() with HTML stripping/whitespace normalisation/truncation, summary field on ItemRow, included in backlog JSON. Frontend: .rdi-item-summary in rows (textContent, aria-label), drawer widened to min(800px,40vw) with 90vw fallback, full task detail via GET /api/v1/issues/{identifier}/detail with loading/error states and synchronous delivery evidence. 44 new tests, 2 updated, all 9918 pass. PR: https://github.com/lesserevil/oompah/pull/463
+---
+author: oompah
+created: 2026-07-21 15:24
+---
+Agent completed successfully in 54s (1864 tokens)
+---
+author: oompah
+created: 2026-07-21 15:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 10, Tool calls: 5
+- Tokens: 8 in / 1.9K out [1.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 54s
+- Log: OOMPAH-292__20260721T152338Z.jsonl
+---
+author: oompah
+created: 2026-07-21 15:24
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-292` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-292
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-292
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
