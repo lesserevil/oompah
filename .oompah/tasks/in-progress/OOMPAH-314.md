@@ -1,22 +1,22 @@
 ---
 id: OOMPAH-314
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Deliver only selected commits to release branches and monitor release CI
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:backend
+labels: []
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T17:30:24.208321Z'
+updated_at: '2026-07-21T17:31:59.294477Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 42a5cb3f-cc02-48d8-8d15-585109da3db5
 ---
 ## Summary
 
@@ -28,3 +28,16 @@ Fix release delivery after PR #303 merged all of main into trickle release/0.11 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 17:31
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 17:31
+---
+Focus: CI Failure Fixer
+---
+<!-- COMMENTS:END -->
