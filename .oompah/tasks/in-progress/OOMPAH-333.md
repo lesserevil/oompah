@@ -11,7 +11,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T21:02:27.066884Z'
-updated_at: '2026-07-21T21:12:52.235799Z'
+updated_at: '2026-07-21T21:13:16.568427Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,5 +55,10 @@ author: oompah
 created: 2026-07-21 21:12
 ---
 Verification: All 26 tests in test_release_delivery_executor.py pass (including the 1 new test from the rebased commit: test_cherry_pick_delivery_does_not_merge_unselected_source_history). All 22 CI monitor tests also pass. The conflict resolution is correct: OOMPAH-314 already applied the same orchestrator.py fix more explicitly (sync_source_branch=False), and the branch's test is additive. Force-pushing now.
+---
+author: oompah
+created: 2026-07-21 21:13
+---
+Completion: Merge conflict on PR #468 (fix-release-selected-commits) is resolved. The branch was rebased onto origin/main at 4f7e04a8f. Conflict was in oompah/orchestrator.py where both OOMPAH-314 and the branch changed sync_source_branch=True — resolved by keeping main's explicit sync_source_branch=False (correct fix) and applying the branch's additive test (test_cherry_pick_delivery_does_not_merge_unselected_source_history). PR #468 is now MERGEABLE. All 26 executor tests and 47 related tests pass.
 ---
 <!-- COMMENTS:END -->

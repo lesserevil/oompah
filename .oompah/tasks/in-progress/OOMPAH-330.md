@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-330
 type: task
-status: Done
+status: In Progress
 priority: 0
 title: Rebase epic-OOMPAH-293 onto main
 parent: OOMPAH-293
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T20:59:27.535782Z'
-updated_at: '2026-07-21T21:13:05.725710Z'
+updated_at: '2026-07-21T21:13:15.806393Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -18,13 +18,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 5ac74a8d-561e-4418-b91b-388b8302d7c1
 oompah.task_costs:
-  total_input_tokens: 124165
-  total_output_tokens: 9342
+  total_input_tokens: 124189
+  total_output_tokens: 18869
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 124165
-      output_tokens: 9342
+      input_tokens: 124189
+      output_tokens: 18869
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -39,6 +39,12 @@ oompah.task_costs:
     output_tokens: 8266
     cost_usd: 0.0
     recorded_at: '2026-07-21T21:04:49.759937+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 24
+    output_tokens: 9527
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T21:13:10.951946+00:00'
 ---
 ## Summary
 
@@ -166,5 +172,38 @@ author: oompah
 created: 2026-07-21 21:13
 ---
 Rebase of epic-OOMPAH-293 onto origin/main was completed by Run #2. 4 epic commits (OOMPAH-294, OOMPAH-295, OOMPAH-296 x2) applied cleanly; OOMPAH-286 was auto-skipped (already on main). Force-pushed with --force-with-lease. Working tree clean, no uncommitted changes.
+---
+author: oompah
+created: 2026-07-21 21:13
+---
+Agent completed successfully in 453s (9551 tokens)
+---
+author: oompah
+created: 2026-07-21 21:13
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 53, Tool calls: 31
+- Tokens: 24 in / 9.5K out [9.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 33s
+- Log: OOMPAH-330__20260721T210539Z.jsonl
+---
+author: oompah
+created: 2026-07-21 21:13
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-330` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-330
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-330
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
