@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:07.528667Z'
-updated_at: '2026-07-21T22:59:33.281928Z'
+updated_at: '2026-07-21T22:59:35.764871Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -262,5 +262,10 @@ tests/test_repo_map_generator.py — 5 integration tests using local bare Git re
 - test_failure_and_timeout_return_diagnostics_without_raising: no exception propagates to caller
 
 All 286 repo-map layer tests pass (make test passes; 6 pre-existing test_self_hosted_runner failures are unrelated).
+---
+author: oompah
+created: 2026-07-21 22:59
+---
+Implemented repo_map_generator.py (orchestration layer: cache hit / coalesce / bounded generation / state-branch commit+push / pruning) and test_repo_map_generator.py (5 integration tests with local bare Git remotes covering all acceptance criteria). All 286 repo-map layer tests pass.
 ---
 <!-- COMMENTS:END -->
