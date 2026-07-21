@@ -15,7 +15,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T20:50:25.409461Z'
+updated_at: '2026-07-21T20:52:41.873172Z'
 work_branch: OOMPAH-315
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/476
@@ -374,5 +374,10 @@ author: oompah
 created: 2026-07-21 20:50
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-21 20:52
+---
+Understanding: Resolving merge conflict with main (OOMPAH-316 merged first). Both branches add a TrackerError subclass for missing state branch — main added StateBranchMissingError (handled in server.py), our branch added TrackerStateBranchMissingError (handled in orchestrator.py). Both fixes are needed. Resolution: keep StateBranchMissingError as canonical, add TrackerStateBranchMissingError = StateBranchMissingError as alias so orchestrator.py and tests require no changes. Conflict is only in oompah/oompah_md_tracker.py (both raise the same error, different names).
 ---
 <!-- COMMENTS:END -->
