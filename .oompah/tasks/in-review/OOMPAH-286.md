@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-286
 type: task
-status: In Progress
+status: In Review
 priority: 1
 title: Define the external-content trust model and prompt-injection threat model
 parent: OOMPAH-285
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:39.881239Z'
-updated_at: '2026-07-21T16:07:07.484906Z'
+updated_at: '2026-07-21T16:11:05.546020Z'
 work_branch: null
 target_branch: null
 review_url: null
