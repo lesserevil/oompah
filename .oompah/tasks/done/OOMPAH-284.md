@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T03:38:39.097123Z'
-updated_at: '2026-07-21T04:27:52.401805Z'
+updated_at: '2026-07-21T04:27:54.515102Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -246,5 +246,10 @@ All acceptance criteria met:
 ✓ Metadata-only commits never appear as deliverable rows
 ✓ Mixed code-plus-.oompah commits remain visible
 ✓ Existing 9774 tests still passing (no regressions)
+---
+author: oompah
+created: 2026-07-21 04:27
+---
+Fixed Release Delivery task associations and metadata-only filtering. (1) _find_branch_commits_in_main now uses git merge-base fork-point to enumerate only introduced commits, not inherited base-branch history — prevents falsely-delivered aggregate status for tasks branched from release branches. (2) Tracker-only (.oompah/-only) commits are filtered from tracker-sourced branch_shas, excluded from unassociated_commits output, and excluded from needs_delivery when all item commits are tracker-only. Mixed code+.oompah commits remain eligible. 17 new tests added across test_release_delivery_backlog.py and test_release_delivery_inventory.py. All 9874 tests pass.
 ---
 <!-- COMMENTS:END -->
