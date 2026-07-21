@@ -15,7 +15,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T19:26:52.957539Z'
+updated_at: '2026-07-21T19:26:55.284881Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -351,5 +351,10 @@ author: oompah
 created: 2026-07-21 19:26
 ---
 Completion: Delivered StateBranchMissingError graceful degradation fix. When a project has state_branch_enabled=True but the state branch has never been bootstrapped, server.py now logs a WARNING instead of ERROR, preventing error_watcher from auto-filing tasks. Regression tests added. 47 tests passing. Branch OOMPAH-316 pushed to origin.
+---
+author: oompah
+created: 2026-07-21 19:26
+---
+Added StateBranchMissingError subclass; server.py now logs WARNING (not ERROR) for unbootstrapped state-branch projects, preventing error_watcher auto-filing. 2 regression tests added. All 47 tests pass.
 ---
 <!-- COMMENTS:END -->
