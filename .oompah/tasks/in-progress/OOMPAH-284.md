@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T03:38:39.097123Z'
-updated_at: '2026-07-21T04:27:08.811670Z'
+updated_at: '2026-07-21T04:27:45.220189Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -230,5 +230,21 @@ Bug 1 fix (_find_branch_commits_in_main fork-point): Updated oompah/release_deli
 Bug 2 fix (metadata-only filtering): In release_delivery_backlog.py: (a) filter tracker-only commits from branch_shas after tracker-sourced discovery, (b) skip tracker-only commits from unassociated_rows output, (c) skip tracker-only items from needs_delivery filter.
 
 Tests added: TestFindBranchCommitsInMainForkPoint in test_release_delivery_inventory.py (6 real-git-repo unit tests). TestOOMPAH284InheritedBranchHistoryRegression in test_release_delivery_backlog.py (5 tests including Trickle 23-task scenario). TestOOMPAH284MetadataOnlyFiltering (6 tests for all three filtering paths). Updated test_commits_beyond_cap_have_tracker_only_false to reflect new exclusion behavior. Updated all _mock_find_branch functions in 4 test files to accept new default_branch kwarg.
+---
+author: oompah
+created: 2026-07-21 04:27
+---
+Verification: All 9874 tests pass (0 failures, 36 skipped). Branch pushed to origin/OOMPAH-284.
+
+New tests written and verified:
+- TestFindBranchCommitsInMainForkPoint (6 tests): Real git repo tests confirm inherited base-branch commits are NOT returned by _find_branch_commits_in_main after the fork-point fix.
+- TestOOMPAH284InheritedBranchHistoryRegression (5 tests): Including the Trickle 23-task scenario verifying all tasks appear in needs_delivery when their introduced code commits are absent from release/0.11.
+- TestOOMPAH284MetadataOnlyFiltering (6 tests): Tracker-only commits excluded from item rows, unassociated rows, and needs_delivery. Mixed commits remain visible.
+
+All acceptance criteria met:
+✓ Task with inherited commits already on release branch is NOT falsely delivered
+✓ Metadata-only commits never appear as deliverable rows
+✓ Mixed code-plus-.oompah commits remain visible
+✓ Existing 9774 tests still passing (no regressions)
 ---
 <!-- COMMENTS:END -->
