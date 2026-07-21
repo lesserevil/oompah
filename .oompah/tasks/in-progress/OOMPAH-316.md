@@ -12,9 +12,10 @@ blocked_by: []
 labels:
 - external:github
 - focus-complete:duplicate_detector
+- focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T19:04:19.682897Z'
+updated_at: '2026-07-21T19:04:53.301980Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -264,5 +265,15 @@ author: oompah
 created: 2026-07-21 19:04
 ---
 Verification: focused regression coverage passed: pytest tests/test_server_issue_snapshot.py tests/test_oompah_md_tracker_state_branch.py -v (47 passed). The required make test target was also attempted but could not start because uv failed to create a sandbox DBus transient scope before pytest ran. git diff --check and Python compilation passed.
+---
+author: oompah
+created: 2026-07-21 19:04
+---
+Focus handoff: general
+
+1. Outcome: Implemented and verified the missing-state-branch graceful-degradation fix locally.
+2. Relevant files/evidence: oompah/oompah_md_tracker.py adds StateBranchMissingError; oompah/server.py logs only that condition at warning level while retaining error logging for all other tracker failures; tests/test_server_issue_snapshot.py and tests/test_oompah_md_tracker_state_branch.py cover both behaviors. Focused pytest result: 47 passed. make test could not start because sandboxed uv failed creating a DBus transient scope.
+3. Remaining blocker: git add and commit cannot create /home/shedwards/.oompah/repos/oompah/.git/worktrees/OOMPAH-316/index.lock because that shared git directory is read-only in this agent sandbox. No commit or push is possible; local changes remain in this worktree.
+4. Recommended next focus: devops, to restore write access to the worktree common git directory or provide a landing mechanism.
 ---
 <!-- COMMENTS:END -->
