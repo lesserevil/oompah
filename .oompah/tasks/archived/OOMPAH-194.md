@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-194
 type: task
-status: Merged
+status: Archived
 priority: 1
 title: Migrate legacy release addendums into the delivery ledger
 parent: OOMPAH-192
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-13T19:31:40.173681Z'
-updated_at: '2026-07-13T23:35:29.027796Z'
+updated_at: '2026-07-21T00:16:02.142822Z'
 work_branch: null
 target_branch: null
 review_url: null
