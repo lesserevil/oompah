@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:41.895980Z'
-updated_at: '2026-07-21T22:24:21.000945Z'
+updated_at: '2026-07-21T22:24:28.974496Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -135,5 +135,10 @@ Implementation: Added two pieces to complete OOMPAH-288:
 3. Added TestSafetyInstruction class (20 tests) in test_provenance.py verifying: constant non-empty, mentions reference data, cannot-override, present exactly once per block, appears before content, inside delimiters, stable across all sources, present in render_prompt/build_continuation_prompt/_build_triage_prompt/_deliver_github_comment_to_agent.
 
 4. Added TestAdversarialContentFixtures class (180 tests) with 25 adversarial payloads (role changes, tool requests, instruction overrides, XML/Markdown delimiters, Liquid-like syntax, combined attacks) + integration tests across all 4 prompt builders.
+---
+author: oompah
+created: 2026-07-21 22:24
+---
+Verification: make test completed — 10707 passed, 0 failed, 36 skipped. New tests: 321 total in test_provenance.py (was 121), 200 new tests added. All 200 new tests pass: TestSafetyInstruction (20) + TestAdversarialContentFixtures (180). Existing tests (121 in test_provenance.py + 29 in test_prompt_injection_protection.py + test_prompt.py) unchanged and passing. Commit pushed to epic-OOMPAH-285 at 1cd79507d.
 ---
 <!-- COMMENTS:END -->
