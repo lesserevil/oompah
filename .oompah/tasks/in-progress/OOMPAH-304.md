@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -9,16 +9,15 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
-- needs:chore
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:53:11.546337Z'
+updated_at: '2026-07-21T17:53:27.001731Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
 review_number: '469'
 merged_at: null
-oompah.agent_run_id: 461ac35a-fbb2-4a60-bad0-d677f28d4553
+oompah.agent_run_id: e11ed11b-d68b-45cd-81cf-b6d3049fc334
 oompah.task_costs:
   total_input_tokens: 523344
   total_output_tokens: 56127
@@ -416,5 +415,15 @@ author: oompah
 created: 2026-07-21 17:53
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-21 17:53
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 17:53
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
