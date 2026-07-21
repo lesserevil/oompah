@@ -657,17 +657,39 @@ def _find_branch_commits_in_main(
     work_branch: str,
     main_shas: set[str],
     *,
+    default_branch: str = "main",
     timeout: int = 60,
 ) -> list[str]:
-    """Return commits from *work_branch* that are also reachable from origin/main.
+    """Return commits INTRODUCED by *work_branch* that are also reachable from origin/main.
 
-    Enumerates non-merge commits reachable from
-    ``refs/remotes/origin/<work_branch>`` and returns those whose SHA also
-    appears in *main_shas* (i.e. they are already on the default branch).
+    Enumerates only the non-merge commits that the work branch *introduced*
+    (i.e. commits above the fork point where the branch diverged from the
+    default branch) and returns those whose SHA also appears in *main_shas*
+    (i.e. they are already on the default branch).
 
     This is used for tracker-sourced candidate discovery: when the tracker
     reports a task/epic as Merged, we can find its associated commits by
-    looking for branch-head commits that landed on main.
+    looking for work-branch commits that landed on main.
+
+    **Why fork-point matters (OOMPAH-284 regression):**
+    The previous implementation used ``git rev-list <branch_ref>`` which
+    walks the *entire* commit history reachable from the branch tip, including
+    commits inherited from whatever base branch the work branch was created
+    from (e.g. a release branch).  When a task was branched from
+    ``release/0.11`` instead of ``main``, the intersection with *main_shas*
+    returned thousands of historical commits that were already ancestral to
+    ``release/0.11``.  The aggregate delivery status then became "delivered
+    by ancestry," hiding the task from the ``needs_delivery`` view even when
+    its actual introduced code commit was absent from the release branch.
+
+    The fix uses ``git merge-base`` to find the fork point between the default
+    branch and the work branch, then restricts the rev-list to commits above
+    that fork point (``<fork_point>..<branch_ref>``).  This returns only the
+    commits the work branch *introduced*, not the entire inherited history.
+
+    If the fork point cannot be found (e.g. the branch ref was deleted),
+    an empty list is returned so the caller can fall through to Strategy 2
+    (SCM PR commit lookup via ``_find_pr_commits_in_main``).
 
     Returns an empty list when the branch ref does not exist locally or on
     any subprocess failure.  Errors are logged at DEBUG level rather than
@@ -679,26 +701,61 @@ def _find_branch_commits_in_main(
         repo_path: Local git clone path.
         work_branch: Branch name (without ``origin/`` prefix) that was merged.
         main_shas: Set of non-merge commit SHAs already enumerated from the
-            default branch (``origin/main``).
+            default branch (``origin/<default_branch>``).
+        default_branch: The default/main branch name (e.g. ``"main"``).  Used
+            as the reference point for computing the fork point via
+            ``git merge-base``.
         timeout: Subprocess timeout in seconds.
 
     Returns:
         Ordered list of SHAs that appear in both *main_shas* and the
-        commit history of *work_branch*, in the order they appear in the
-        branch's commit log.
+        *introduced* (above-fork-point) commit history of *work_branch*,
+        in the order they appear in the branch's commit log.
     """
     if not work_branch or not main_shas:
         return []
 
     branch_ref = f"refs/remotes/origin/{work_branch}"
-    # Enumerate up to len(main_shas) commits from the branch; the
-    # intersection with main_shas gives us the candidates.
+    default_ref = f"refs/remotes/origin/{default_branch}"
+
+    # Step 1: find the fork point — where work_branch diverged from
+    # the default branch.  This excludes inherited base-branch history
+    # (e.g. release/0.11 commits that were in the work branch because it
+    # was created from a release branch rather than from main).
+    merge_base_result = _run_git(
+        ["merge-base", default_ref, branch_ref],
+        repo_path=repo_path,
+        timeout=timeout,
+    )
+    if merge_base_result.returncode != 0:
+        logger.debug(
+            "_find_branch_commits_in_main: merge-base failed for %r vs %r (rc=%d): %s",
+            default_ref,
+            branch_ref,
+            merge_base_result.returncode,
+            (merge_base_result.stderr or merge_base_result.stdout or "").strip()[:200],
+        )
+        # Branch ref may not exist or may not share history — return [] so
+        # the caller can fall through to Strategy 2 (PR commit lookup).
+        return []
+
+    fork_point = merge_base_result.stdout.strip()
+    if not _FULL_SHA_RE.match(fork_point):
+        logger.debug(
+            "_find_branch_commits_in_main: merge-base returned unexpected output %r for %r",
+            fork_point[:80] if fork_point else "",
+            branch_ref,
+        )
+        return []
+
+    # Step 2: enumerate only commits INTRODUCED by the work branch (those
+    # above the fork point).  These are the commits the developer actually
+    # added, not the inherited history.
     result = _run_git(
         [
             "rev-list",
             "--no-merges",
-            f"--max-count={len(main_shas)}",
-            branch_ref,
+            f"{fork_point}..{branch_ref}",
         ],
         repo_path=repo_path,
         timeout=timeout,

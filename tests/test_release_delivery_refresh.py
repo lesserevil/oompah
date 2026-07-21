@@ -699,7 +699,7 @@ class TestProgressCallback:
             ci.parents = []
             commits.append(ci)
 
-        def _mock_find_branch(repo_path, work_branch, main_shas, *, timeout=60):
+        def _mock_find_branch(repo_path, work_branch, main_shas, *, default_branch="main", timeout=60):
             # Return one commit per branch
             for ci in commits:
                 if ci.sha in main_shas:
@@ -1030,7 +1030,7 @@ class TestTrickleScaleBacklogRegressionOOMPAH251:
         snap.stale = False
         snap.fetched_at = time.monotonic()
 
-        def _mock_find_branch(repo_path, work_branch, main_shas, *, timeout=60):
+        def _mock_find_branch(repo_path, work_branch, main_shas, *, default_branch="main", timeout=60):
             # Look up the sha for this work branch
             for issue in merged_issues:
                 if issue.work_branch == work_branch:
@@ -1187,7 +1187,7 @@ class TestTrickleScaleBacklogRegressionOOMPAH251:
         snap.stale = False
         snap.fetched_at = time.monotonic()
 
-        def _mock_find_branch(repo_path, work_branch, main_shas, *, timeout=60):
+        def _mock_find_branch(repo_path, work_branch, main_shas, *, default_branch="main", timeout=60):
             idx = int(work_branch.split("-")[1])
             sha = all_commits[idx].sha
             return [sha] if sha in main_shas else []

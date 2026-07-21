@@ -504,12 +504,17 @@ class ItemBacklogService:
                 review_number = getattr(issue, "review_number", None)
 
                 # Strategy 1: try live work branch first (fast, no network call).
+                # Uses the fork-point approach to enumerate only commits
+                # INTRODUCED by the work branch (not inherited base-branch
+                # history), preventing false "delivered" status when the branch
+                # was created from a release branch (OOMPAH-284).
                 branch_shas: list[str] = []
                 if work_branch:
                     branch_shas = _find_branch_commits_in_main(
                         self._repo_path,
                         work_branch,
                         sha_set,
+                        default_branch=self._default_branch,
                         timeout=self._revlist_timeout,
                     )
 
@@ -524,6 +529,16 @@ class ItemBacklogService:
                         sha_set,
                         timeout=self._revlist_timeout,
                     )
+
+                # Filter out tracker-only commits (commits that exclusively
+                # touch .oompah/ files) — they are not substantive code
+                # changes and must not appear as delivery candidates or
+                # drive an item's aggregate delivery status (OOMPAH-284).
+                if branch_shas:
+                    branch_shas = [
+                        sha for sha in branch_shas
+                        if not _is_tracker_only_commit(self._repo_path, sha)
+                    ]
 
                 _emit("resolving_commits", _i + 1, _n_merged)
 
@@ -634,6 +649,11 @@ class ItemBacklogService:
             if filter == "needs_delivery":
                 if agg_cell.state in ("delivered", "archived"):
                     continue
+                # Exclude tracker-only items — items where all commits exclusively
+                # touch .oompah/ files are not substantive code changes and must
+                # not appear as deliverable rows (OOMPAH-284).
+                if tracker_only_for_item:
+                    continue
 
             # Apply text search
             if query_lower:
@@ -687,6 +707,11 @@ class ItemBacklogService:
                 _unassoc_tracker_only_checked += 1
             else:
                 tracker_only = False
+            # Exclude tracker-only commits from unassociated diagnostics.
+            # Commits that exclusively touch .oompah/ files are not substantive
+            # code changes and must not appear as deliverable rows (OOMPAH-284).
+            if tracker_only:
+                continue
             unassociated_rows.append(
                 UnassociatedCommitRow(
                     sha=sha,
