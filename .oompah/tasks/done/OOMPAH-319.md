@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:31.453522Z'
-updated_at: '2026-07-21T22:47:39.574345Z'
+updated_at: '2026-07-21T22:47:41.740107Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -229,5 +229,10 @@ Acceptance criteria met:
 - All project consumers can read forge_kind and forge_base_url without substring detection
 - Existing GitHub project files and API clients require no migration
 - make test passes (10517 passed, 36 skipped)
+---
+author: oompah
+created: 2026-07-21 22:47
+---
+Added forge_kind/forge_base_url fields to Project model with backward-compatible GitHub defaults, _validate_forge_config() with cross-field validation, external_issue_intake_enabled alias, and comprehensive tests. All 10517 tests pass. Pushed to origin/epic-OOMPAH-318.
 ---
 <!-- COMMENTS:END -->
