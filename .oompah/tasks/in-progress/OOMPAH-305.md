@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-305
 type: bug
-status: Done
+status: In Progress
 priority: 1
 title: Reconcile dashboard task state with canonical state-branch records
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:27:55.585498Z'
-updated_at: '2026-07-21T18:14:57.120407Z'
+updated_at: '2026-07-21T18:15:08.693880Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 0583110d-728b-444a-a65a-1092e490a85f
 oompah.task_costs:
-  total_input_tokens: 1760677
-  total_output_tokens: 76407
+  total_input_tokens: 1760686
+  total_output_tokens: 77938
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1760677
-      output_tokens: 76407
+      input_tokens: 1760686
+      output_tokens: 77938
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -58,6 +58,12 @@ oompah.task_costs:
     output_tokens: 1568
     cost_usd: 0.0
     recorded_at: '2026-07-21T18:07:30.609725+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 9
+    output_tokens: 1531
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T18:15:04.804178+00:00'
 ---
 ## Summary
 
@@ -323,5 +329,38 @@ author: oompah
 created: 2026-07-21 18:14
 ---
 Fixed dashboard/API displaying Merged for canonical-Backlog tasks. Added null-evidence guard (_effective_display_status + _issue_dashboard_state): any task showing Merged without merged_at/work_branch/review_url is reverted to Backlog in all display paths. Added last_checkpoint_at on OompahMarkdownTracker + _any_tracker_checkpoint_newer_than() in server.py to force snapshot refresh when a state-branch checkpoint advances, eliminating the 60-second stale window. Added merged_at field on Issue model extracted from tracker frontmatter, exposed in board and detail API responses. Added #tracker-stale-banner in dashboard shown when X-Oompah-Issues-Stale: true, cleared on WS push. 29 new regression tests in tests/test_dashboard_tracker_state_reconciliation.py. Full suite: 9980 passed.
+---
+author: oompah
+created: 2026-07-21 18:15
+---
+Agent completed successfully in 243s (1540 tokens)
+---
+author: oompah
+created: 2026-07-21 18:15
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/default]
+- Turns: 14, Tool calls: 7
+- Tokens: 9 in / 1.5K out [1.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 3s
+- Log: OOMPAH-305__20260721T181104Z.jsonl
+---
+author: oompah
+created: 2026-07-21 18:15
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-305` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-305
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-305
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
