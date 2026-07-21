@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T19:02:34.860823Z'
+updated_at: '2026-07-21T19:02:42.823965Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -249,5 +249,10 @@ author: oompah
 created: 2026-07-21 19:02
 ---
 Discovery:  raises a generic  for a missing bootstrap branch.  catches it but logs , which error_watcher auto-files. I will introduce a dedicated missing-state-branch exception and downgrade only that expected configuration condition to an actionable warning; unrelated tracker failures remain error-level.
+---
+author: oompah
+created: 2026-07-21 19:02
+---
+Discovery: the state-root setup raises a generic TrackerError for a missing bootstrap branch. The server catches it but logs ERROR, which error_watcher auto-files. I will introduce a dedicated missing-state-branch exception and downgrade only that expected configuration condition to an actionable warning; unrelated tracker failures remain error-level.
 ---
 <!-- COMMENTS:END -->
