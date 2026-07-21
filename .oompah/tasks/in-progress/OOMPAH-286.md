@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:39.881239Z'
-updated_at: '2026-07-21T15:50:34.170009Z'
+updated_at: '2026-07-21T16:04:45.193077Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: a6bc5819-7944-4cf9-9139-00bd07db8c5e
 oompah.task_costs:
-  total_input_tokens: 205572
-  total_output_tokens: 1674
+  total_input_tokens: 205635
+  total_output_tokens: 3331
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 205572
-      output_tokens: 1674
+      input_tokens: 205635
+      output_tokens: 3331
       cost_usd: 0.0
   runs:
   - profile: default
@@ -34,6 +34,12 @@ oompah.task_costs:
     output_tokens: 1674
     cost_usd: 0.0
     recorded_at: '2026-07-21T15:46:06.254292+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 63
+    output_tokens: 1657
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T16:04:43.701419+00:00'
 ---
 ## Summary
 
@@ -119,5 +125,15 @@ author: oompah
 created: 2026-07-21 15:48
 ---
 Discovery: Found 5 key prompt paths that need to be inventoried: (1) intake bridge (github_intake_bridge.py — imports GitHub issue body/comments into native tasks), (2) focus triage (_build_triage_prompt in focus.py — issue title/desc/labels go into LLM triage call), (3) prompt renderer (render_prompt in prompt.py — renders WORKFLOW.md template with issue data, comments, focus text), (4) continuation prompts (build_continuation_prompt in prompt.py — mid-turn injection via comment delivery), (5) agent system prompt construction (orchestrator.py:15115 — hard-coded system prompt passed to ApiAgentSession). The plan doc plans/prompt-injection-protection.md does not yet exist. I will create both the plan document and the contract test.
+---
+author: oompah
+created: 2026-07-21 16:04
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 40
+- Tokens: 63 in / 1.7K out [1.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 27s
+- Log: OOMPAH-286__20260721T154620Z.jsonl
 ---
 <!-- COMMENTS:END -->
