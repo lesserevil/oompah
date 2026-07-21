@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T18:11:06.274325Z'
+updated_at: '2026-07-21T18:11:08.723036Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-07-21 18:11
 ---
 Completion (Run #3): Branch OOMPAH-314 is committed and pushed (7733d9e83). All 9977 tests pass. Closing task. All acceptance criteria met: (1) sync_source_branch=True→False prevents unselected main commits from entering release branches via selected delivery; (2) release CI failure is visible/actionable via ci_remediation_task_id and _dispatch_release_ci_fix_task; (3) 26 new regression/integration tests added.
+---
+author: oompah
+created: 2026-07-21 18:11
+---
+Fixed sync_source_branch=True→False bug (PR #303 regression preventing unselected commits from entering release branches), added post-merge release CI monitoring with actionable remediation tasks, and 26 new tests covering all acceptance criteria. All 9977 tests pass.
 ---
 <!-- COMMENTS:END -->
