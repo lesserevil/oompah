@@ -13,13 +13,13 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T16:49:05.964873Z'
+updated_at: '2026-07-21T16:49:24.446307Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 822489b7-4232-4cd0-8261-107d5b8ebb06
+oompah.agent_run_id: e602bdc5-0929-42dd-bfa2-840ef1b99f69
 oompah.task_costs:
   total_input_tokens: 238946
   total_output_tokens: 11457
@@ -214,5 +214,15 @@ author: oompah
 created: 2026-07-21 16:49
 ---
 Agent completed without closing this issue (105s (243152 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-21 16:49
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 16:49
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
