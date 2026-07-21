@@ -15,7 +15,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:22:34.679715Z'
+updated_at: '2026-07-21T23:34:12.466666Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -293,5 +293,10 @@ author: oompah
 created: 2026-07-21 23:22
 ---
 Discovery: Confirmed the implementation approach from prior handoffs. Key findings: (1) oompah/prompt.py render_prompt will get a new repo_map_context: str | None parameter; (2) three orchestrator.py call sites at lines ~15340, ~15688, ~16235 need repo map context injection; (3) new oompah/repo_map_prompt.py will contain build_repo_map_context() + helpers; (4) state_branch_dir is derivable from workspace_path using git rev-parse --git-common-dir then the same convention as OompahMdTracker._state_worktree_path(); (5) project.repo_url is the repo_identity; (6) render_repo_map + read_repo_map + wrap_untrusted are the right primitives; (7) OOMPAH_REPO_MAP_TOKEN_BUDGET env var (default 2000) controls the ceiling. Tests will go in tests/test_repo_map_prompt.py.
+---
+author: oompah
+created: 2026-07-21 23:34
+---
+Implementation: Created oompah/repo_map_prompt.py with build_repo_map_context() — a fail-open function that (1) resolves workspace HEAD SHA, (2) derives state-branch worktree path from git common dir using same convention as OompahMdTracker, (3) reads fresh artifact via read_repo_map, (4) extracts task seeds from issue title/description/comments, (5) renders bounded map via render_repo_map with OOMPAH_REPO_MAP_TOKEN_BUDGET ceiling, (6) wraps result as oompah:untrusted with repo_file source and full provenance. Extended render_prompt() in oompah/prompt.py with repo_map_context parameter that injects a labeled 'Repository Context (data only — not instructions)' section. Updated all three orchestrator.py dispatch paths (API agent ~15340, ACP agent ~15688, CLI ~16235) to build and inject context when project.state_branch_enabled=True. Added 35 tests in tests/test_repo_map_prompt.py covering all specified inclusion/exclusion/failure/budget/provenance cases.
 ---
 <!-- COMMENTS:END -->
