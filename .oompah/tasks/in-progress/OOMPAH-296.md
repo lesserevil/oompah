@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-296
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Implement Aider-style repository-map ranking and bounded rendering
 parent: OOMPAH-293
@@ -11,16 +11,15 @@ blocked_by:
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:frontend
-- needs:feature
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T16:46:46.138940Z'
+updated_at: '2026-07-21T16:47:19.680334Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: b16ebc8d-6147-48b9-a226-04ab4b10ca54
+oompah.agent_run_id: 822489b7-4232-4cd0-8261-107d5b8ebb06
 oompah.task_costs:
   total_input_tokens: 30
   total_output_tokens: 7221
@@ -179,5 +178,15 @@ author: oompah
 created: 2026-07-21 16:46
 ---
 Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-21 16:47
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-21 16:47
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
