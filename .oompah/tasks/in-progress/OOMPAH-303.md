@@ -7,17 +7,16 @@ title: Use private ~/.oompah/tmp for Oompah and agent temporary files
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:backend
-- needs:operations
+labels: []
 assignee: null
 created_at: '2026-07-21T15:33:58.183374Z'
-updated_at: '2026-07-21T15:34:44.028466Z'
+updated_at: '2026-07-21T15:37:17.674616Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: df581839-ce60-4354-96c0-98c7926f457b
 ---
 ## Summary
 
@@ -29,3 +28,16 @@ Replace Oompah’s reliance on the shared system /tmp directory with an Oompah-o
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 15:37
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-21 15:37
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
