@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T17:59:20.898963Z'
+updated_at: '2026-07-21T17:59:47.388370Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-07-21 17:59
 ---
 Implementation complete: (1) Fixed sync_source_branch=True→False in orchestrator.py:9564 (the PR #303 root cause). (2) Added ci_remediation_task_id field to ReleaseDelivery + _MUTABLE_FIELDS. (3) Added get_branch_head_sha/get_ci_status_for_sha/get_branch_ci_status to SCMProvider base class and implemented get_branch_head_sha+get_ci_status_for_sha on GitHubProvider. (4) Added _monitor_merged_delivery_ci, _check_and_remediate_delivery_ci, _dispatch_release_ci_fix_task to Orchestrator. (5) Added 4 regression tests to test_release_delivery_executor.py. (6) Created test_release_delivery_ci_monitor.py with 22 tests covering CI monitoring, queue integration (sync_source_branch=False), and SCM methods. Full suite: 9977 passed.
+---
+author: oompah
+created: 2026-07-21 17:59
+---
+Verification: Full test suite passes: 9977 passed, 36 skipped, 0 failures. New tests: 26 added (22 in test_release_delivery_ci_monitor.py + 4 in test_release_delivery_executor.py). Branch OOMPAH-314 pushed to origin. All acceptance criteria met: (1) no selected delivery can change a target branch except through its selected commits; (2) release CI failure is visible/actionable in Oompah via ci_remediation_task_id and _dispatch_release_ci_fix_task.
 ---
 <!-- COMMENTS:END -->
