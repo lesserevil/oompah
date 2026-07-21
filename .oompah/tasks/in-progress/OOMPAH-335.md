@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T21:33:05.631930Z'
-updated_at: '2026-07-21T21:36:20.921714Z'
+updated_at: '2026-07-21T21:39:43.492113Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,5 +62,27 @@ Searched:
 Closest reviewed tasks: OOMPAH-276 (duplicate of OOMPAH-275 for epic-OOMPAH-253, archived), OOMPAH-244 (rebase epic-OOMPAH-237, merged) — same pattern/workflow, different epics.
 
 OOMPAH-335 is unique: no task has previously attempted to rebase epic-OOMPAH-285 onto main. Proceeding to focus handoff.
+---
+author: oompah
+created: 2026-07-21 21:39
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: OOMPAH-335 is NOT a duplicate. No prior task has attempted to rebase epic-OOMPAH-285 onto main. The task is unique and should proceed to implementation.
+
+2. **Relevant files, commands, evidence, decisions**:
+   - Searched all .oompah/tasks/ dirs (archived, merged, backlog, done, needs-rebase, needs-ci-fix) for 'OOMPAH-285', 'epic-OOMPAH-285', 'stale.*epic' — zero matches.
+   - Prior rebase tasks (OOMPAH-55, OOMPAH-276, OOMPAH-244, etc.) all target different epics; this pattern is recurring but not duplicated for OOMPAH-285 specifically.
+   - Epic OOMPAH-285 ('Defend Oompah agents against prompt injection') is In Progress, label: epic:rebasing. OOMPAH-335 is its only rebase child.
+   - Implementation target: branch `epic-OOMPAH-285`, must `git fetch`, rebase onto `origin/main`, resolve any conflicts, then `git push --force-with-lease`. Do NOT work on the OOMPAH-335 worktree branch — work directly on epic-OOMPAH-285.
+
+3. **Remaining work and risks**:
+   - git fetch origin, then assess how far epic-OOMPAH-285 has diverged from origin/main
+   - Rebase may produce conflicts in .oompah/tasks/ files (prefer main's version for those)
+   - After rebase, run `make test` to verify nothing broke
+   - Force-push: `git push --force-with-lease origin epic-OOMPAH-285`
+   - Close OOMPAH-335 as Done once force-push succeeds
+
+4. **Recommended next focus**: devops or chore — perform the actual git rebase of epic-OOMPAH-285 onto origin/main.
 ---
 <!-- COMMENTS:END -->
