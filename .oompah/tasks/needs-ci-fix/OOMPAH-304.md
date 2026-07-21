@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-304
 type: bug
-status: In Review
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Make Release Delivery show live delivery status consistently
 parent: null
 children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- ci-fix
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T18:50:11.238545Z'
+updated_at: '2026-07-21T21:10:52.138623Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
@@ -569,5 +570,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 54s
 - Log: OOMPAH-304__20260721T180704Z.jsonl
+---
+author: oompah
+created: 2026-07-21 21:10
+---
+YOLO: CI tests failed on MR #469. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
