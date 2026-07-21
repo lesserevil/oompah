@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T16:13:30.352147Z'
+updated_at: '2026-07-21T16:14:29.355214Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 20e9f264-29bb-4be7-8529-b166e4998697
 oompah.task_costs:
-  total_input_tokens: 18
-  total_output_tokens: 4256
+  total_input_tokens: 247091
+  total_output_tokens: 6399
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 18
-      output_tokens: 4256
+      input_tokens: 247091
+      output_tokens: 6399
       cost_usd: 0.0
   runs:
   - profile: default
@@ -35,6 +35,12 @@ oompah.task_costs:
     output_tokens: 4256
     cost_usd: 0.0
     recorded_at: '2026-07-21T16:13:14.749081+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 247073
+    output_tokens: 2143
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T16:14:26.218465+00:00'
 ---
 ## Summary
 
@@ -106,5 +112,25 @@ author: oompah
 created: 2026-07-21 16:13
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-21 16:14
+---
+Agent completed successfully in 59s (249216 tokens)
+---
+author: oompah
+created: 2026-07-21 16:14
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 1, Tool calls: 5
+- Tokens: 247.1K in / 2.1K out [249.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 59s
+- Log: OOMPAH-287__20260721T161331Z.jsonl
+---
+author: oompah
+created: 2026-07-21 16:14
+---
+Agent completed without landing — no commits found on origin for branch `epic-OOMPAH-285`. Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
