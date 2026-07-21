@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-292
 type: task
-status: In Progress
+status: Needs Human
 priority: null
 title: Show mergeable-item summaries and full task details in Release Delivery
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:01:48.947973Z'
-updated_at: '2026-07-21T15:28:23.772665Z'
+updated_at: '2026-07-21T15:29:10.779430Z'
 work_branch: OOMPAH-292
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/463
@@ -19,13 +19,13 @@ review_number: '463'
 merged_at: null
 oompah.agent_run_id: e16c63a5-ac08-4f4e-9d81-d8e3833c06c3
 oompah.task_costs:
-  total_input_tokens: 208228
-  total_output_tokens: 39031
+  total_input_tokens: 386732
+  total_output_tokens: 40132
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 208228
-      output_tokens: 39031
+      input_tokens: 386732
+      output_tokens: 40132
       cost_usd: 0.0
   runs:
   - profile: default
@@ -58,6 +58,12 @@ oompah.task_costs:
     output_tokens: 648
     cost_usd: 0.0
     recorded_at: '2026-07-21T15:27:51.530893+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 178504
+    output_tokens: 1101
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T15:29:07.177102+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/463
 oompah.review_number: '463'
 oompah.work_branch: OOMPAH-292
@@ -369,5 +375,25 @@ author: oompah
 created: 2026-07-21 15:28
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-21 15:29
+---
+Agent completed successfully in 45s (179605 tokens)
+---
+author: oompah
+created: 2026-07-21 15:29
+---
+Run #3 [attempt=3, profile=standard, role=standard -> Codex/default]
+- Turns: 1, Tool calls: 0
+- Tokens: 178.5K in / 1.1K out [179.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 45s
+- Log: OOMPAH-292__20260721T152823Z.jsonl
+---
+author: oompah
+created: 2026-07-21 15:29
+---
+Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
