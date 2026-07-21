@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-298
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Inject task-relevant repository maps into agent focus startup prompts
 parent: OOMPAH-293
@@ -13,13 +13,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-21T23:01:33.451152Z'
+updated_at: '2026-07-21T23:03:25.081692Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 147608ab-c362-470b-b6ac-11da9096b875
+oompah.agent_run_id: 7cc83938-9259-4df0-b2cc-3611c683fd4b
 oompah.task_costs:
   total_input_tokens: 348934
   total_output_tokens: 2747
@@ -129,5 +129,15 @@ author: oompah
 created: 2026-07-21 23:01
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-21 23:03
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 23:03
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->

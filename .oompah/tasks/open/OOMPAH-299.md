@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-299
 type: task
-status: In Progress
+status: Open
 priority: 2
 title: Add repository-map configuration, bootstrap defaults, and operator documentation
 parent: OOMPAH-293
@@ -12,13 +12,29 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:09.575764Z'
-updated_at: '2026-07-21T23:03:07.236208Z'
+updated_at: '2026-07-21T23:03:18.767768Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 02f9bb7f-9a10-4200-8027-c995cdfc72ba
+oompah.task_costs:
+  total_input_tokens: 29
+  total_output_tokens: 7251
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 29
+      output_tokens: 7251
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 29
+    output_tokens: 7251
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T23:03:15.084019+00:00'
 ---
 ## Summary
 
@@ -96,5 +112,25 @@ Focus handoff: duplicate_detector
    - The description explicitly says: do NOT add config values to WORKFLOW.md — use `.env` / `.env.example` only.
 
 5. **Recommended next focus**: feature
+---
+author: oompah
+created: 2026-07-21 23:03
+---
+Agent completed successfully in 155s (7280 tokens)
+---
+author: oompah
+created: 2026-07-21 23:03
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 56, Tool calls: 45
+- Tokens: 29 in / 7.3K out [7.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 35s
+- Log: OOMPAH-299__20260721T230043Z.jsonl
+---
+author: oompah
+created: 2026-07-21 23:03
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
