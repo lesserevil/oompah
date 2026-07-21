@@ -63,6 +63,17 @@ class TrackerNotConfiguredError(TrackerError):
     """Raised when a tracker backend is not configured for a project."""
 
 
+class StateBranchMissingError(TrackerError):
+    """Raised when a state branch does not exist and needs bootstrapping.
+
+    This is a *configuration* error, not a runtime fault.  The project has
+    ``state_branch_enabled=True`` but the bootstrap or migration flow has
+    never been run to create the state branch.  The server degrades
+    gracefully for this project (returning no issues) and logs a WARNING
+    rather than an ERROR so that ``error_watcher`` is not triggered.
+    """
+
+
 class TrackerTimeoutError(TrackerError):
     """Raised when a tracker operation exceeds its timeout."""
 

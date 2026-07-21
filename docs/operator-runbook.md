@@ -7,6 +7,16 @@ common stuck states — all without reading implementation code.
 
 ## Prerequisites
 
+### Pushing workflow files with the project PAT
+
+When an operator needs to push a commit that changes `.github/workflows/`, use
+the project's configured PAT with `x-access-token` as the HTTPS username. Do
+not rely on a remote URL that embeds a GitHub account name: Git credential
+selection can then choose a different cached token.
+
+The PAT must have repository `Contents: Read and write` and `Workflows: Read
+and write` permissions.
+
 - A clone of the oompah repository checked out on the release branch
   (`release/1.0`) or a tagged commit (`v1.0.0`).
 - Python 3.11+, `uv`, and `git` available on the machine.
