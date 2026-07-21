@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-316
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: '[backend:server] Fetch issues failed for project exocomp: State branch ''oompah/state/proj-c260b117''
   does not exist locally or at origin/''oompah/state/proj-c260b117''. Run the bootstrap
@@ -15,7 +15,7 @@ labels:
 - focus-complete:general
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T19:26:21.231320Z'
+updated_at: '2026-07-21T19:26:52.957539Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -346,5 +346,10 @@ author: oompah
 created: 2026-07-21 19:26
 ---
 Verification: All 19 tests in test_server_issue_snapshot.py pass (17 existing + 2 new regression). All 28 tests in test_oompah_md_tracker_state_branch.py pass. Total: 47 passed.
+---
+author: oompah
+created: 2026-07-21 19:26
+---
+Completion: Delivered StateBranchMissingError graceful degradation fix. When a project has state_branch_enabled=True but the state branch has never been bootstrapped, server.py now logs a WARNING instead of ERROR, preventing error_watcher from auto-filing tasks. Regression tests added. 47 tests passing. Branch OOMPAH-316 pushed to origin.
 ---
 <!-- COMMENTS:END -->
