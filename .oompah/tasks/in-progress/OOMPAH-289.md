@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-289
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Harden focus triage and other model-only decisions against external instructions
 parent: OOMPAH-285
@@ -11,12 +11,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:55.684579Z'
-updated_at: '2026-07-21T15:45:07.228365Z'
+updated_at: '2026-07-21T22:25:07.700131Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 0c742f4b-6f09-4bdd-88b6-34be7c8b7ecc
 ---
 ## Summary
 
@@ -34,3 +35,16 @@ Acceptance criteria: triage remains constrained to configured foci and server-si
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 22:25
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 22:25
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

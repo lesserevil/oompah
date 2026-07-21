@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:41.895980Z'
-updated_at: '2026-07-21T22:24:44.190272Z'
+updated_at: '2026-07-21T22:25:01.417477Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 6e35f8b6-a416-49e4-8c93-52fc90e76cf9
 oompah.task_costs:
-  total_input_tokens: 21
-  total_output_tokens: 5625
+  total_input_tokens: 65
+  total_output_tokens: 35373
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 21
-      output_tokens: 5625
+      input_tokens: 65
+      output_tokens: 35373
       cost_usd: 0.0
   runs:
   - profile: default
@@ -35,6 +35,12 @@ oompah.task_costs:
     output_tokens: 5625
     cost_usd: 0.0
     recorded_at: '2026-07-21T22:07:49.654560+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 44
+    output_tokens: 29748
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T22:24:58.792382+00:00'
 ---
 ## Summary
 
@@ -159,5 +165,20 @@ author: oompah
 created: 2026-07-21 22:24
 ---
 Added SAFETY_INSTRUCTION to wrap_untrusted() in provenance.py (non-bypassable server-generated instruction that content is reference data only and cannot override system/project/task instructions). Added 200 adversarial tests in test_provenance.py covering role changes, tool requests, instruction overrides, XML/Markdown delimiters, Liquid-like syntax, and combined attacks across all 4 prompt builders. All 10707 tests pass.
+---
+author: oompah
+created: 2026-07-21 22:24
+---
+Agent completed successfully in 972s (29792 tokens)
+---
+author: oompah
+created: 2026-07-21 22:25
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 95, Tool calls: 55
+- Tokens: 44 in / 29.7K out [29.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 16m 12s
+- Log: OOMPAH-288__20260721T220848Z.jsonl
 ---
 <!-- COMMENTS:END -->
