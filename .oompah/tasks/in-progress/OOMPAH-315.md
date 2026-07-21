@@ -11,9 +11,10 @@ children: []
 blocked_by: []
 labels:
 - external:github
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:09.334393Z'
-updated_at: '2026-07-21T18:45:12.163241Z'
+updated_at: '2026-07-21T18:49:35.587496Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -109,5 +110,25 @@ author: oompah
 created: 2026-07-21 18:45
 ---
 Understanding: Investigating OOMPAH-315 as Duplicate Investigator. The error is about project 'exocomp' (proj-c260b117) having state_branch_enabled=True but the state branch 'oompah/state/proj-c260b117' doesn't exist locally or at origin. This triggers a tracker_failed error caught by error_watcher. My plan: search for similar existing tasks about state branch missing errors, state_branch_enabled misconfiguration, or the same proj-c260b117 project to determine if this is a duplicate.
+---
+author: oompah
+created: 2026-07-21 18:49
+---
+Discovery: Duplicate screening complete. OOMPAH-315 is NOT a duplicate.
+
+Key findings:
+1. **Same fingerprint as OOMPAH-6 (archived)** — both have dedup_fingerprint 4dba66ecb4abddff, but this is because ALL tracker_failed errors share one fingerprint (computed as sha256('class=tracker_failed')[:16] in error_watcher.py). OOMPAH-6 was about a GitHub API auth failure for the OVA project; that's a completely different root cause. Not a duplicate.
+2. **OOMPAH-282 (backlog)** — closest in topic (state branch migration failure), but covers proj-edbc8b4c with a UnicodeEncodeError during Stage A migration. Different project, different error. Not a duplicate.
+3. **OOMPAH-253 epic + children (OOMPAH-254 through OOMPAH-260, all merged)** — implemented the state branch feature. OOMPAH-256 specifically added the intentional TrackerError when the state branch doesn't exist ('Normal reads must not auto-create the state branch'). But none of these tasks addressed what should happen when error_watcher picks up this expected configuration error and auto-files it.
+
+Root cause identified: Project exocomp (proj-c260b117) is in the system with state_branch_enabled=True, but its state branch 'oompah/state/proj-c260b117' does not exist locally or at origin. The TrackerError raised in oompah_md_tracker.py:1312 propagates through the orchestrator as tracker_failed, triggering error_watcher to auto-file this task repeatedly.
+
+Relevant files:
+- oompah/oompah_md_tracker.py:1280-1315 (where the TrackerError is raised)
+- oompah/orchestrator.py:151-173 (_error_class_for_tracker_exc — classifies as tracker_failed)
+- oompah/error_watcher.py:508-540 (fingerprinting — all tracker_failed share same hash)
+- oompah/server.py:10662 (state_branch_enabled=True set during migration Stage A)
+
+The fix options are: (a) run the bootstrap/migration for exocomp to create its state branch, OR (b) add a distinct error class for 'missing state branch' to prevent error_watcher from auto-filing it, OR (c) suppress the error in the orchestrator when it's a known configuration state. A devops or backend agent should assess which is appropriate.
 ---
 <!-- COMMENTS:END -->
