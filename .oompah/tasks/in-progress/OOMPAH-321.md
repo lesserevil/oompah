@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-321
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Complete GitLab Merge Request provider parity
 parent: OOMPAH-318
@@ -10,16 +10,15 @@ blocked_by:
 - OOMPAH-320
 labels:
 - focus-complete:duplicate_detector
-- needs:feature
 assignee: null
 created_at: '2026-07-21T20:33:51.110283Z'
-updated_at: '2026-07-21T23:24:38.643761Z'
+updated_at: '2026-07-21T23:26:01.110676Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 104a0df8-ffe4-4374-9593-8d73a7d75081
+oompah.agent_run_id: c5a26b6e-036a-411c-97c6-4a0481505493
 oompah.task_costs:
   total_input_tokens: 563971
   total_output_tokens: 3508
@@ -135,5 +134,15 @@ author: oompah
 created: 2026-07-21 23:24
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-21 23:25
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-21 23:26
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
