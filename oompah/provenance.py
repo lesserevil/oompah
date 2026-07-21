@@ -28,9 +28,12 @@ Security properties
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -358,6 +361,24 @@ def wrap_untrusted(content: str, provenance: ContentProvenance) -> str:
             "(default-deny).  Do not pass this content to a model.  "
             "Re-classify the source or gate the content out before wrapping."
         )
+
+    # Structured audit event: emitted every time untrusted content is wrapped
+    # for model rendering.  Operators can filter on ``UNTRUSTED_RENDER:`` in
+    # their log aggregator to build a rendering audit trail.
+    #
+    # Security invariants preserved:
+    # - Content bytes are NOT logged (prevents accidental secret exposure).
+    # - Only metadata (component, source, trust, issue identifier, size) is
+    #   logged so the entry is safe to route to a shared log store.
+    logger.info(
+        "UNTRUSTED_RENDER: component=%r source=%r trust=%r issue=%r content_bytes=%d",
+        provenance.component,
+        provenance.source,
+        provenance.trust,
+        provenance.issue_identifier,
+        len(content.encode("utf-8")),
+    )
+
     escaped = escape_content(content)
     provenance_comment = f"<!-- {provenance.to_json()} -->"
     return (
