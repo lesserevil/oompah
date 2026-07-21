@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-207
 type: task
-status: Merged
+status: Archived
 priority: 0
 title: 'YOLO stuck on oompah/418: merge failing 5 ticks running'
 parent: null
@@ -12,7 +12,7 @@ labels:
 - yolo-watchdog
 assignee: null
 created_at: '2026-07-13T23:32:40.758470Z'
-updated_at: '2026-07-14T07:15:25.431257Z'
+updated_at: '2026-07-21T07:34:09.851794Z'
 work_branch: null
 target_branch: null
 review_url: null
