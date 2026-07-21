@@ -11,9 +11,10 @@ children: []
 blocked_by: []
 labels:
 - external:github
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T18:20:20.146747Z'
-updated_at: '2026-07-21T18:53:07.454288Z'
+updated_at: '2026-07-21T18:54:48.537177Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +186,22 @@ author: oompah
 created: 2026-07-21 18:53
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 18:54
+---
+Duplicate screening complete: no duplicate found.
+
+Reviewed all tasks in .oompah/tasks/ (archived, done, backlog) for matches on: 'state_branch', 'exocomp', 'proj-c260b117', 'Fetch issues failed', 'state branch does not exist', fingerprint '9a803f3b8b56abc0'.
+
+Closest candidate reviewed: OOMPAH-282 ('[backend:state_branch_migration] Stage A migration failed for project proj-edbc8b4c'). This is a different error (UnicodeEncodeError during Stage A migration for a different project), with a different fingerprint (9eaadc366ca8cc18). Not a duplicate.
+
+OOMPAH-316 is a unique bug: when state_branch_enabled=True is set for a project but the state branch has never been bootstrapped, fetching issues raises an unhandled error instead of degrading gracefully.
+
+Focus handoff: duplicate_detector
+1. Outcome: No duplicate — this is a unique bug.
+2. Relevant files: oompah/state_branch.py or similar fetch-issues code path that raises the error; plans/state-branch-design.md section on startup validation (§ startup checks when state_branch_enabled=True).
+3. Remaining work: Find the fetch-issues code that raises 'State branch does not exist' and add graceful error handling (catch the exception, log a warning, fall back to non-state-branch read or surface a clear error, suppress the error_watcher trigger).
+4. Recommended next focus: needs:feature (bug fix implementation)
 ---
 <!-- COMMENTS:END -->
