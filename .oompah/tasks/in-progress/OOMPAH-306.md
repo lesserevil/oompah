@@ -10,9 +10,10 @@ blocked_by: []
 labels:
 - focus-complete:frontend
 - focus-complete:duplicate_detector
+- focus-complete:test
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T16:53:24.612435Z'
+updated_at: '2026-07-21T17:11:04.899113Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -173,5 +174,15 @@ author: oompah
 created: 2026-07-21 16:53
 ---
 Discovery (test): Found that the previous frontend agent's changes (stale-header consumption in fetchIssues + stale banner) were NOT committed — git worktree index.lock was read-only. The backend already emits X-Oompah-Issues-Stale header and has a 60-second TTL cache (issues:all) that is not keyed by state-branch revision. _issue_dashboard_state() uses canonical issue.state (not merged_at). Tests needed: (1) null merged_at cannot produce Merged display state, (2) stale snapshot replaced by canonical backlog on refresh, (3) stale header = true when snapshot is old/error, (4) TTLCache prefix isolation, (5) frontend stale banner and fetchIssues header consumption. Plan: write backend + frontend tests, also add the minimal frontend stale-banner + fetchIssues header change (since those are required by the tests and were already designed).
+---
+author: oompah
+created: 2026-07-21 17:10
+---
+Implementation (test): Added 47 regression tests and the minimal frontend implementation they require.\n\nNew test files:\n- tests/test_state_branch_cache_reconciliation.py (25 tests): canonical state controls display; stale snapshot replaced by fresh tracker read; X-Oompah-Issues-Stale header accuracy; per-project TTLCache prefix isolation; degraded tracker reads; null merged_at cannot produce Merged.\n- tests/test_dashboard_state_read_warning.py (22 tests): stale-state banner element accessibility; fetchIssues header consumption; network/HTTP error banner; _updateTaskStateStaleBanner helper.\n\nFrontend (dashboard.html):\n- Added .task-state-stale-banner CSS + HTML element with role=alert, aria-live=polite, hidden by default.\n- Added _updateTaskStateStaleBanner() to show/hide the banner.\n- fetchIssues() now reads X-Oompah-Issues-Stale header and calls _updateTaskStateStaleBanner; also shows banner on network error and non-200 response.
+---
+author: oompah
+created: 2026-07-21 17:10
+---
+Verification (test): make test completed — 9998 passed, 36 skipped, 0 failed. All 47 new tests pass. git diff --check passes. Branch pushed to origin/OOMPAH-306.
 ---
 <!-- COMMENTS:END -->

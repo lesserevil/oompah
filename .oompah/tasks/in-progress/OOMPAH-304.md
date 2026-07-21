@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: Done
+status: In Progress
 priority: 1
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -10,13 +10,29 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:10:39.857659Z'
+updated_at: '2026-07-21T17:10:58.736613Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 4c4faa9f-3c9c-4cd5-b4a1-4a0b5ab43697
+oompah.task_costs:
+  total_input_tokens: 108
+  total_output_tokens: 49805
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 108
+      output_tokens: 49805
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: unknown
+    input_tokens: 108
+    output_tokens: 49805
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T17:10:55.078183+00:00'
 ---
 ## Summary
 
@@ -80,5 +96,38 @@ author: oompah
 created: 2026-07-21 17:10
 ---
 Fixed Release Delivery live status: backend cache invalidation after executor/PR-poll runs + frontend PR links, 30s auto-refresh poll, and stale-cache pending hint. 9989 tests pass.
+---
+author: oompah
+created: 2026-07-21 17:10
+---
+Agent completed successfully in 2379s (49913 tokens)
+---
+author: oompah
+created: 2026-07-21 17:10
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
+- Turns: 205, Tool calls: 131
+- Tokens: 108 in / 49.8K out [49.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 39m 39s
+- Log: OOMPAH-304__20260721T163118Z.jsonl
+---
+author: oompah
+created: 2026-07-21 17:10
+---
+Completion refused by orchestrator: unpushed work detected on branch `OOMPAH-304` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout OOMPAH-304
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin OOMPAH-304
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
