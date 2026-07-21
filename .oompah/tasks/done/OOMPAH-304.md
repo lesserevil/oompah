@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:46:53.594056Z'
+updated_at: '2026-07-21T17:46:55.818118Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
@@ -293,5 +293,10 @@ author: oompah
 created: 2026-07-21 17:46
 ---
 Completion: Branch OOMPAH-304 is clean and up to date with origin. Commit 2a696ded2 ('Make Release Delivery show live delivery status consistently') contains all implementation: backend cache invalidation (BacklogRefreshManager.invalidate() called after executor/PR-poll runs), frontend PR links, 30s auto-refresh poll, stale-cache pending hint, and full test coverage (9989 tests pass). PR #469 exists. Closing task.
+---
+author: oompah
+created: 2026-07-21 17:46
+---
+Fixed Release Delivery live status: backend cache invalidation after executor/PR-poll runs + frontend PR links, 30s auto-refresh poll, and stale-cache pending hint. 9989 tests pass. Branch committed and pushed to origin (2a696ded2), PR #469 open for review.
 ---
 <!-- COMMENTS:END -->
