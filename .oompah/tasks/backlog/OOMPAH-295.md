@@ -6,11 +6,12 @@ priority: 1
 title: Add Tree-sitter repository symbol and reference extraction
 parent: OOMPAH-293
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-294
 labels: []
 assignee: null
 created_at: '2026-07-21T15:13:48.374539Z'
-updated_at: '2026-07-21T15:13:48.374539Z'
+updated_at: '2026-07-21T15:14:19.841547Z'
 work_branch: null
 target_branch: null
 review_url: null

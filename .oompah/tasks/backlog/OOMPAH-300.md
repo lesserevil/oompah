@@ -6,11 +6,13 @@ priority: 2
 title: Add end-to-end repository-map observability and regression coverage
 parent: OOMPAH-293
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-298
+- OOMPAH-299
 labels: []
 assignee: null
 created_at: '2026-07-21T15:14:10.495385Z'
-updated_at: '2026-07-21T15:14:10.495385Z'
+updated_at: '2026-07-21T15:14:27.361038Z'
 work_branch: null
 target_branch: null
 review_url: null

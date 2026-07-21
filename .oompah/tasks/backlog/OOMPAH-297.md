@@ -6,11 +6,13 @@ priority: 1
 title: Generate and maintain repository maps on Git-backed state branches
 parent: OOMPAH-293
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-294
+- OOMPAH-296
 labels: []
 assignee: null
 created_at: '2026-07-21T15:14:07.528667Z'
-updated_at: '2026-07-21T15:14:07.528667Z'
+updated_at: '2026-07-21T15:14:22.799693Z'
 work_branch: null
 target_branch: null
 review_url: null

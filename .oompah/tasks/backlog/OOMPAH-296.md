@@ -6,11 +6,12 @@ priority: 2
 title: Implement Aider-style repository-map ranking and bounded rendering
 parent: OOMPAH-293
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-295
 labels: []
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T15:13:49.289592Z'
+updated_at: '2026-07-21T15:14:20.701946Z'
 work_branch: null
 target_branch: null
 review_url: null
