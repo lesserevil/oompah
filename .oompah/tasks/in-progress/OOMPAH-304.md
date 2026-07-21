@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T17:11:50.109177Z'
+updated_at: '2026-07-21T17:12:31.627749Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-296
 type: task
-status: In Progress
+status: Needs Human
 priority: 2
 title: Implement Aider-style repository-map ranking and bounded rendering
 parent: OOMPAH-293
@@ -13,7 +13,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:13:49.289592Z'
-updated_at: '2026-07-21T17:10:19.647785Z'
+updated_at: '2026-07-21T17:12:25.973458Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 84cc5374-2cde-4f72-ab1e-aa2fc892e905
 oompah.task_costs:
-  total_input_tokens: 630972
-  total_output_tokens: 31780
+  total_input_tokens: 1078500
+  total_output_tokens: 37243
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 630972
-      output_tokens: 31780
+      input_tokens: 1078500
+      output_tokens: 37243
       cost_usd: 0.0
   runs:
   - profile: default
@@ -60,6 +60,12 @@ oompah.task_costs:
     output_tokens: 17579
     cost_usd: 0.0
     recorded_at: '2026-07-21T17:10:00.419434+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 447528
+    output_tokens: 5463
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T17:12:22.280639+00:00'
 ---
 ## Summary
 
@@ -319,5 +325,25 @@ author: oompah
 created: 2026-07-21 17:10
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-21 17:12
+---
+Agent completed successfully in 124s (452991 tokens)
+---
+author: oompah
+created: 2026-07-21 17:12
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 11
+- Tokens: 447.5K in / 5.5K out [453.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 4s
+- Log: OOMPAH-296__20260721T171019Z.jsonl
+---
+author: oompah
+created: 2026-07-21 17:12
+---
+Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
