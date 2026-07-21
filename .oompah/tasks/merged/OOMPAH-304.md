@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: In Progress
+status: Merged
 priority: 0
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T21:20:13.383721Z'
+updated_at: '2026-07-21T21:52:01.174760Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
@@ -627,5 +627,10 @@ Understanding (CI Failure Fixer): Two categories of test failures from CI run 29
 2. test_self_hosted_runner.py::TestCiWorkflowRunsOnLabels (6 tests) - These FAIL locally. Root cause: commits merged onto OOMPAH-304 branch (23558b4dd, f8e527c84) split the CI config into ci.yml (ubuntu-latest, github-hosted) and ci-dedicated.yml (self-hosted runner). The tests in TestCiWorkflowRunsOnLabels check ci.yml and assert it uses self-hosted runner labels, but ci.yml was intentionally changed to ubuntu-latest.
 
 Fix: Update TestCiWorkflowRunsOnLabels to test ci-dedicated.yml (where the self-hosted runner config now lives) instead of ci.yml. This is the minimal fix that reflects the new architecture.
+---
+author: oompah
+created: 2026-07-21 21:52
+---
+YOLO: merged PR #469.
 ---
 <!-- COMMENTS:END -->

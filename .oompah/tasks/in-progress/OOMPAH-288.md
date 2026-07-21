@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-288
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Render untrusted content in explicit prompt data boundaries
 parent: OOMPAH-285
@@ -11,12 +11,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:41.895980Z'
-updated_at: '2026-07-21T15:45:05.620590Z'
+updated_at: '2026-07-21T21:51:54.752901Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: a62b41a4-5220-47e9-ac40-ad4073304ad4
 ---
 ## Summary
 
@@ -34,3 +35,16 @@ Acceptance criteria: no external content is interpolated into an instruction-bea
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-21 21:51
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 21:51
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
