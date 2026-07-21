@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-303
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Use private ~/.oompah/tmp for Oompah and agent temporary files
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T15:33:58.183374Z'
-updated_at: '2026-07-21T15:37:41.569222Z'
+updated_at: '2026-07-21T15:38:11.851397Z'
 work_branch: null
 target_branch: null
 review_url: null
