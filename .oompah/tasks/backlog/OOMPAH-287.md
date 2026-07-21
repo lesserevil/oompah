@@ -6,11 +6,12 @@ priority: 1
 title: Add provenance metadata for external content entering Oompah
 parent: OOMPAH-285
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-286
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T14:51:40.852361Z'
+updated_at: '2026-07-21T14:51:58.841301Z'
 work_branch: null
 target_branch: null
 review_url: null

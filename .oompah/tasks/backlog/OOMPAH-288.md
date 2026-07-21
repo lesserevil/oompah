@@ -6,11 +6,12 @@ priority: 1
 title: Render untrusted content in explicit prompt data boundaries
 parent: OOMPAH-285
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-287
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:41.895980Z'
-updated_at: '2026-07-21T14:51:41.895980Z'
+updated_at: '2026-07-21T14:51:59.745660Z'
 work_branch: null
 target_branch: null
 review_url: null
