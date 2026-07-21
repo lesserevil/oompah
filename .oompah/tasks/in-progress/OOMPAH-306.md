@@ -15,7 +15,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T21:32:48.710055Z'
+updated_at: '2026-07-21T21:34:38.252788Z'
 work_branch: OOMPAH-306
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/472
@@ -485,5 +485,10 @@ author: oompah
 created: 2026-07-21 21:32
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-21 21:34
+---
+Understanding (merge_conflict): OOMPAH-306 branch needs to be rebased onto origin/main. The branch has 4 commits: 7301a377c (regression tests + stale banner in dashboard.html) and 832302193 (unpushed_gate.py worktree_path fix) plus 2 CI merge commits. Main has grown since the branch diverged, including OOMPAH-305 (8c9547cff) which also modified dashboard.html and orchestrator.py with related but different stale-banner code. Conflicts are expected in dashboard.html (two different stale banner implementations) and orchestrator.py (both branches add new code at nearby lines). Starting rebase now.
 ---
 <!-- COMMENTS:END -->
