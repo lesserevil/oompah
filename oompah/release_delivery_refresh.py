@@ -225,6 +225,45 @@ class BacklogRefreshManager:
                 return False
             return job.is_running()
 
+    def invalidate(self, project_id: str, branch: str) -> None:
+        """Mark a cached result as expired so the next GET triggers a refresh.
+
+        Call this when the delivery ledger changes for a project+branch (e.g.
+        the executor transitions a delivery to ``in_review`` or ``merged``) so
+        the next backlog GET immediately starts a fresh refresh rather than
+        serving up-to-5-minute stale data.
+
+        If no cached result exists for the key, this is a no-op.  If a refresh
+        is already running, the in-flight job is left intact (it will produce a
+        fresh result on completion).
+
+        This method is synchronous and safe to call from any thread.
+
+        Args:
+            project_id: Project identifier (cache key component).
+            branch: Release branch name (cache key component).
+        """
+        key = (project_id, branch)
+        with self._lock:
+            job = self._jobs.get(key)
+            if job is None:
+                return
+            # Reset the completion timestamp so the TTL check in get_or_start()
+            # always evaluates as expired, triggering a new refresh on the next
+            # call.  We cannot use 0.0 here because time.monotonic() on a
+            # freshly-started process/container may be smaller than
+            # self._result_ttl_s (e.g. a CI runner up for < 5 minutes), which
+            # would make (monotonic - 0.0) < TTL and suppress the refresh.
+            # Instead we compute a timestamp that is guaranteed to be at least
+            # one second past the TTL relative to now.
+            if not job.is_running():
+                job.result_completed_at = time.monotonic() - self._result_ttl_s - 1.0
+        logger.debug(
+            "BacklogRefreshManager: invalidated cached result for %s/%s",
+            project_id,
+            branch,
+        )
+
     async def get_or_start(
         self,
         project_id: str,

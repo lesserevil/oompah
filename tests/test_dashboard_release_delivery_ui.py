@@ -1615,10 +1615,12 @@ class TestQueueDelivery:
         assert "_rdiSelectedIdentifiers.delete(" in body
 
     def test_queue_reloads_backlog_on_success(self):
-        """After success, the backlog is refreshed."""
+        """After success, the backlog is force-refreshed (bypasses cache, OOMPAH-304)."""
         script = _load_release_delivery_script()
         body = _function_body(script, "_rdiQueueSelected", is_async=True)
-        assert "_rdiLoadBacklog()" in body
+        # OOMPAH-304: after queuing we call _rdiForceRefresh() (cache-bypass) not
+        # _rdiLoadBacklog() so the newly created delivery is visible immediately.
+        assert "_rdiForceRefresh()" in body
 
     def test_queue_shows_outcome_summary(self):
         script = _load_release_delivery_script()

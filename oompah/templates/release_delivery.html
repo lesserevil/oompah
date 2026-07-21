@@ -360,6 +360,26 @@
       margin: 0.25rem 0.75rem 0.5rem;
       max-width: 640px;
     }
+    /* Inline PR link in table status cell (OOMPAH-304) */
+    .rdi-pr-link {
+      font-size: 0.7rem;
+      color: var(--accent);
+      margin-left: 0.35rem;
+      text-decoration: none;
+      opacity: 0.85;
+      white-space: nowrap;
+    }
+    .rdi-pr-link:hover { text-decoration: underline; opacity: 1; }
+    /* Status pending indicator for recently-queued items (OOMPAH-304) */
+    .rdi-delivery-pending {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      font-style: italic;
+      margin-top: 0.1rem;
+      display: block;
+    }
+    /* Status cell wrapper: badge + optional PR link side by side */
+    .rdi-status-wrap { display: inline-flex; align-items: center; flex-wrap: nowrap; gap: 0; }
     /* Evidence drawer */
     .rdi-drawer {
       display: none;
@@ -649,8 +669,10 @@ let _rdiLoading = false;
 let _rdiCurrentData = null;   // last successful backlog response
 let _rdiDrawerItem = null;  // identifier of currently open drawer item
 let _rdiPollTimer = null;   // setInterval handle for refresh-status polling (OOMPAH-251)
+let _rdiDeliveryPollTimer = null;  // setInterval handle for delivery-status auto-refresh (OOMPAH-304)
 let _rdiRefreshRunning = false;  // true when a background refresh is in-flight
 let _rdiSearchTimer = null;
+let _rdiRecentlyQueuedIds = new Set();  // identifiers queued this session, awaiting status (OOMPAH-304)
 
 const _RDI_STATUS_LABELS = {
   not_selected: 'Not selected',
@@ -662,6 +684,9 @@ const _RDI_STATUS_LABELS = {
   merged: 'Delivered',
   archived: 'Archived',
 };
+
+// States that indicate an in-flight delivery (need live status refresh).
+const _RDI_ACTIVE_DELIVERY_STATES = new Set(['open', 'in_progress', 'in_review', 'blocked']);
 
 const _RDI_PHASE_LABELS = {
   pending: 'Preparing…',
@@ -791,6 +816,7 @@ function _rdiOnProjectChange() {
   _rdiQuery = '';
   _rdiFilter = 'needs_delivery';
   _rdiStopPoll();
+  _rdiStopDeliveryPoll();
   // Reset filter controls
   const searchEl = document.getElementById('rdi-search');
   if (searchEl) searchEl.value = '';
@@ -843,6 +869,7 @@ function _rdiOnBranchChange() {
   _rdiCurrentData = null;
   _rdiSelectedIdentifiers = new Set();
   _rdiSelectedUnassocSHAs = new Set();
+  _rdiStopDeliveryPoll();
   _rdiPushUrl(_rdiProjectId, branch);
   _rdiLoadBacklog();
 }
@@ -958,6 +985,40 @@ function _rdiStopPoll() {
   if (_rdiPollTimer) {
     clearInterval(_rdiPollTimer);
     _rdiPollTimer = null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Delivery-status auto-refresh (OOMPAH-304)
+// ---------------------------------------------------------------------------
+// When items have active deliveries (open / in_progress / in_review / blocked),
+// the page polls every 30 s so that executor-driven status changes (e.g. an
+// IN_REVIEW update after a PR is created) are visible without a full reload.
+// This is a second, independent timer from the git-discovery refresh poll.
+
+function _rdiHasActiveDeliveries(data) {
+  if (!data) return false;
+  var items = data.items || [];
+  for (var i = 0; i < items.length; i++) {
+    var state = ((items[i].delivery_status) || {}).state || 'not_selected';
+    if (_RDI_ACTIVE_DELIVERY_STATES.has(state)) return true;
+  }
+  return false;
+}
+
+function _rdiStartDeliveryPoll() {
+  if (_rdiDeliveryPollTimer) return;
+  _rdiDeliveryPollTimer = setInterval(function() {
+    if (_rdiProjectId && _rdiSelectedBranch) {
+      _rdiForceRefresh();
+    }
+  }, 30000);
+}
+
+function _rdiStopDeliveryPoll() {
+  if (_rdiDeliveryPollTimer) {
+    clearInterval(_rdiDeliveryPollTimer);
+    _rdiDeliveryPollTimer = null;
   }
 }
 
@@ -1140,6 +1201,14 @@ function _rdiRenderBacklog(data) {
 
   _rdiUpdateActionBar();
   _rdiUpdateSelectAll();
+
+  // Start or stop delivery-status auto-refresh based on whether active
+  // deliveries (open/in_progress/in_review/blocked) are present (OOMPAH-304).
+  if (_rdiHasActiveDeliveries(data)) {
+    _rdiStartDeliveryPoll();
+  } else {
+    _rdiStopDeliveryPoll();
+  }
 }
 
 function _rdiRenderMeta(data) {
@@ -1239,6 +1308,22 @@ function _rdiRenderItemRow(item, data) {
   const tdStatus = document.createElement('td');
   const cellEl = _rdiRenderStatusCell(item.delivery_status || {state: 'not_selected'}, item.identifier);
   tdStatus.appendChild(cellEl);
+
+  // Show a "status updating" hint when a recently-queued item still shows
+  // not_selected — this means the backlog cache predates the delivery creation
+  // and a background refresh is in progress (OOMPAH-304).
+  const cellState = (item.delivery_status || {}).state || 'not_selected';
+  if (cellState === 'not_selected' && _rdiRecentlyQueuedIds.has(item.identifier)) {
+    const pendingSpan = document.createElement('span');
+    pendingSpan.className = 'rdi-delivery-pending';
+    pendingSpan.textContent = 'Queued — status updating…';
+    pendingSpan.setAttribute('aria-label', 'Delivery queued; status is updating');
+    tdStatus.appendChild(pendingSpan);
+  } else if (cellState !== 'not_selected') {
+    // Clear the recently-queued marker once a live status is known.
+    _rdiRecentlyQueuedIds.delete(item.identifier);
+  }
+
   tr.appendChild(tdStatus);
 
   // Row click → open evidence drawer
@@ -1301,6 +1386,11 @@ function _rdiRenderUnassocRow(row) {
 function _rdiRenderStatusCell(cell, identifier) {
   const state = cell.state || 'not_selected';
   const label = _RDI_STATUS_LABELS[state] || state.replace(/_/g, ' ');
+
+  // Outer wrapper holds the badge + optional PR link side by side.
+  const wrap = document.createElement('span');
+  wrap.className = 'rdi-status-wrap';
+
   const span = document.createElement('span');
 
   let cssClass = 'rdi-cell rdi-cell-' + state;
@@ -1315,6 +1405,11 @@ function _rdiRenderStatusCell(cell, identifier) {
     span.textContent = 'Delivered (cherry-pick)';
   } else {
     span.textContent = label;
+  }
+
+  // Show delivery_id as tooltip on the badge (allows quick identification).
+  if (cell.delivery_id) {
+    span.title = cell.delivery_id;
   }
 
   if (cell.delivery_id || (state === 'delivered' && cell.evidence)) {
@@ -1332,7 +1427,24 @@ function _rdiRenderStatusCell(cell, identifier) {
     });
   }
 
-  return span;
+  wrap.appendChild(span);
+
+  // Inline PR link: visible in the table row so users can navigate directly
+  // to the active pull request without opening the detail drawer (OOMPAH-304).
+  if (cell.pr_url) {
+    const prA = document.createElement('a');
+    prA.href = cell.pr_url;
+    prA.target = '_blank';
+    prA.rel = 'noopener noreferrer';
+    prA.className = 'rdi-pr-link';
+    prA.textContent = 'PR';
+    prA.setAttribute('aria-label', 'Open pull request for this delivery');
+    // Prevent table-row click (drawer open) from triggering on link click.
+    prA.addEventListener('click', function(e) { e.stopPropagation(); });
+    wrap.appendChild(prA);
+  }
+
+  return wrap;
 }
 
 // ---------------------------------------------------------------------------
@@ -1509,7 +1621,18 @@ async function _rdiQueueSelected() {
     _rdiUpdateActionBar();
     _rdiUpdateSelectAll();
     _rdiShowOutcomeSummary(data);
-    _rdiLoadBacklog();
+
+    // Track recently queued items so we can show "status updating" hint when
+    // the backlog cache still shows not_selected (OOMPAH-304).
+    for (const ident of submittedIdentifiers) {
+      _rdiRecentlyQueuedIds.add(ident);
+    }
+    // Start delivery-status poll so the UI refreshes as the executor
+    // transitions the delivery through open → in_progress → in_review.
+    _rdiStartDeliveryPoll();
+    // Force a fresh backlog discovery refresh to pick up the new delivery
+    // (the previous cached result predates the delivery creation).
+    _rdiForceRefresh();
 
   } catch (err) {
     _rdiShowOutcomeError('Network error: ' + String(err));
@@ -1982,6 +2105,7 @@ function _rdiShowNoBranch() {
   _rdiHideActionBar();
   _rdiHideRefreshStatus();
   _rdiStopPoll();
+  _rdiStopDeliveryPoll();
   const meta = document.getElementById('rdi-meta');
   if (meta) meta.textContent = '';
 }
@@ -2000,6 +2124,7 @@ function _rdiRefresh() {
 
 window.addEventListener('pagehide', function() {
   _rdiStopPoll();
+  _rdiStopDeliveryPoll();
 });
 
 // ---------------------------------------------------------------------------

@@ -9603,6 +9603,22 @@ class Orchestrator:
                     project.name,
                     result.status.value,
                 )
+                # Invalidate the backlog cache so the next GET reflects the
+                # new delivery status immediately (OOMPAH-304).  Import is
+                # deferred to avoid a circular import at module load time.
+                try:
+                    from oompah.server import _get_backlog_refresh_manager  # noqa: PLC0415
+                    _get_backlog_refresh_manager().invalidate(
+                        str(project.id), result.target_branch
+                    )
+                except Exception as _inv_exc:  # noqa: BLE001
+                    logger.debug(
+                        "_process_release_delivery_queue: backlog invalidation "
+                        "failed for %s/%s: %s",
+                        project.id,
+                        result.target_branch,
+                        _inv_exc,
+                    )
             except Exception as exc:  # noqa: BLE001
                 logger.exception(
                     "release delivery processing failed for project %s: %s",
@@ -9833,6 +9849,21 @@ class Orchestrator:
                         break
                     try:
                         poll_delivery_pr(store, delivery, scm=scm, repo=repo)
+                        # Invalidate the backlog cache so the next GET reflects
+                        # any merged/updated delivery status (OOMPAH-304).
+                        try:
+                            from oompah.server import _get_backlog_refresh_manager  # noqa: PLC0415
+                            _get_backlog_refresh_manager().invalidate(
+                                str(project.id), delivery.target_branch
+                            )
+                        except Exception as _inv_exc:  # noqa: BLE001
+                            logger.debug(
+                                "delivery PR sweep: backlog invalidation failed "
+                                "for %s/%s: %s",
+                                project.id,
+                                delivery.target_branch,
+                                _inv_exc,
+                            )
                     except Exception as poll_exc:  # noqa: BLE001
                         logger.debug(
                             "delivery PR sweep: poll_delivery_pr failed for %r: %s",

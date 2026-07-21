@@ -1285,3 +1285,190 @@ class TestRefreshManagerThreadSafety:
             f"Expected 1 get_backlog call from concurrent requests, got "
             f"{svc.get_backlog.call_count}"
         )
+
+
+# ---------------------------------------------------------------------------
+# OOMPAH-304: invalidate() method tests
+# ---------------------------------------------------------------------------
+
+
+class TestBacklogRefreshManagerInvalidate:
+    """Tests for BacklogRefreshManager.invalidate() (OOMPAH-304).
+
+    The invalidate() method resets result_completed_at so the next
+    get_or_start() starts a new refresh job rather than serving stale data.
+    """
+
+    @pytest.mark.asyncio
+    async def test_invalidate_causes_next_get_or_start_to_refresh(self):
+        """After invalidate(), the next get_or_start starts a new refresh job."""
+        manager = BacklogRefreshManager(result_ttl_s=300.0)
+        backlog = _make_backlog_result(n_items=2)
+        svc = _make_service_mock(backlog, delay=0.0)
+
+        # Run initial refresh to completion
+        await manager.get_or_start(_PROJECT_ID, _BRANCH, service=svc)
+        await asyncio.sleep(0.05)
+
+        first_call_count = svc.get_backlog.call_count
+        assert first_call_count == 1, "Expected exactly 1 get_backlog call after initial run"
+
+        # Invalidate the cached result
+        manager.invalidate(_PROJECT_ID, _BRANCH)
+
+        # Next get_or_start should start a new refresh (TTL effectively reset)
+        await manager.get_or_start(_PROJECT_ID, _BRANCH, service=svc)
+        await asyncio.sleep(0.05)
+
+        assert svc.get_backlog.call_count == 2, (
+            "Expected a second get_backlog call after invalidation"
+        )
+
+    @pytest.mark.asyncio
+    async def test_invalidate_preserves_stale_result_for_serving(self):
+        """After invalidate(), the cached result is still returned to callers
+        (stale-while-revalidate) until the new refresh completes."""
+        manager = BacklogRefreshManager(result_ttl_s=300.0)
+        backlog = _make_backlog_result(n_items=3)
+        slow_svc = _make_service_mock(backlog, delay=10.0)  # slow refresh
+
+        # Complete an initial refresh
+        fast_svc = _make_service_mock(backlog, delay=0.0)
+        await manager.get_or_start(_PROJECT_ID, _BRANCH, service=fast_svc)
+        await asyncio.sleep(0.05)
+
+        manager.invalidate(_PROJECT_ID, _BRANCH)
+
+        # get_or_start should return the stale cached result immediately
+        status, cached = await manager.get_or_start(_PROJECT_ID, _BRANCH, service=slow_svc)
+        assert cached is not None, "Stale cached result must be returned while refresh runs"
+        assert cached.total_commit_count == 0 or len(cached.items) == 3
+
+    def test_invalidate_noop_when_no_job(self):
+        """invalidate() is a no-op when no job has run for the key."""
+        manager = BacklogRefreshManager()
+        # Must not raise
+        manager.invalidate("no-such-project", "release/0.11")
+
+    @pytest.mark.asyncio
+    async def test_invalidate_noop_while_running(self):
+        """invalidate() while a refresh is running does not disrupt the job."""
+        manager = BacklogRefreshManager(result_ttl_s=300.0)
+        backlog = _make_backlog_result(n_items=1)
+        slow_svc = _make_service_mock(backlog, delay=0.5)
+
+        # Start a refresh job (running)
+        await manager.get_or_start(_PROJECT_ID, _BRANCH, service=slow_svc)
+
+        # Invalidate while running — should be a no-op (job is still running)
+        manager.invalidate(_PROJECT_ID, _BRANCH)
+
+        assert manager.is_running(_PROJECT_ID, _BRANCH), (
+            "Running job must not be disrupted by invalidate()"
+        )
+
+    @pytest.mark.asyncio
+    async def test_invalidate_regression_in_review_not_selected(self):
+        """Regression for OOMPAH-304: after a delivery transitions to in_review
+        (PR created), the backlog should not show not_selected on the next GET.
+
+        Simulates the rd_293edb9b53f44a22851c25e203d7651a scenario:
+        1. Backlog cached → item shows not_selected (no delivery in ledger yet).
+        2. Executor runs → delivery created/updated to in_review with pr_url.
+        3. invalidate() is called (by orchestrator after cherry_pick_delivery).
+        4. Next GET triggers a refresh and returns in_review with pr_url.
+        """
+        from oompah.release_delivery_inventory import ReleaseStatusCell
+
+        manager = BacklogRefreshManager(result_ttl_s=300.0)
+
+        delivery_id = "rd_293edb9b53f44a22851c25e203d7651a"
+        pr_url = "https://github.com/example/repo/pull/303"
+        branch = "release/0.11"
+
+        # First backlog: item is not_selected (no delivery yet)
+        not_selected_cell = ReleaseStatusCell(state="not_selected")
+        not_selected_item = _make_item_row("TRICKLE-495", not_selected_cell)
+        initial_backlog = _make_backlog_result_with_items([not_selected_item])
+
+        # Updated backlog: item is in_review with delivery_id and pr_url
+        in_review_cell = ReleaseStatusCell(
+            state="in_review",
+            delivery_id=delivery_id,
+            pr_url=pr_url,
+        )
+        in_review_item = _make_item_row("TRICKLE-495", in_review_cell)
+        updated_backlog = _make_backlog_result_with_items([in_review_item])
+
+        # Populate cache with the initial (not_selected) result
+        initial_svc = _make_service_mock(initial_backlog, delay=0.0)
+        await manager.get_or_start(_PROJECT_ID, branch, service=initial_svc)
+        await asyncio.sleep(0.05)
+
+        # Verify: without invalidation, get_or_start returns cached (not_selected)
+        _, cached = await manager.get_or_start(_PROJECT_ID, branch, service=initial_svc)
+        assert cached is not None
+        assert cached.items[0].delivery_status.state == "not_selected", (
+            "Without invalidation the cached result must be served"
+        )
+
+        # Simulate executor running: delivery transitions to in_review
+        # → orchestrator calls invalidate()
+        manager.invalidate(_PROJECT_ID, branch)
+
+        # Now get_or_start should trigger a new refresh with the updated service
+        updated_svc = _make_service_mock(updated_backlog, delay=0.0)
+        await manager.get_or_start(_PROJECT_ID, branch, service=updated_svc)
+        await asyncio.sleep(0.05)
+
+        _, fresh_cached = await manager.get_or_start(_PROJECT_ID, branch, service=updated_svc)
+        assert fresh_cached is not None
+        item = fresh_cached.items[0]
+        assert item.delivery_status.state == "in_review", (
+            "After invalidation and refresh the item must show in_review"
+        )
+        assert item.delivery_status.delivery_id == delivery_id
+        assert item.delivery_status.pr_url == pr_url
+
+
+# Helpers for invalidate tests
+
+
+def _make_item_row(identifier: str, cell: "ReleaseStatusCell") -> "ItemRow":
+    from oompah.release_delivery_backlog import ItemRow, SourceCommitInfo
+    sha = ("a" * 40)
+    return ItemRow(
+        identifier=identifier,
+        title=f"Task {identifier}",
+        kind="task",
+        source_commits=[
+            SourceCommitInfo(
+                sha=sha,
+                short_sha=sha[:7],
+                subject="feat: something",
+                author_name="Dev",
+                authored_at="2026-07-01T00:00:00Z",
+            )
+        ],
+        delivery_status=cell,
+        delivery_id=cell.delivery_id,
+        commit_count=1,
+        most_recent_commit_at="2026-07-01T00:00:00Z",
+    )
+
+
+def _make_backlog_result_with_items(items: list) -> "BacklogResult":
+    from oompah.release_delivery_backlog import BacklogResult
+    return BacklogResult(
+        project_id=_PROJECT_ID,
+        source_branch="main",
+        source_head="a" * 40,
+        selected_branch="release/0.11",
+        branch_head="b" * 40,
+        branch_available=True,
+        items=items,
+        unassociated_commits=[],
+        stale=False,
+        refreshed_at="2026-07-21T00:00:00Z",
+        total_commit_count=1,
+    )
