@@ -10,13 +10,29 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:27:57.025790Z'
-updated_at: '2026-07-21T16:40:17.425795Z'
+updated_at: '2026-07-21T16:41:16.901356Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: eee0bdf1-3a4a-4988-9db0-34d7964978ef
+oompah.task_costs:
+  total_input_tokens: 255429
+  total_output_tokens: 2216
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 255429
+      output_tokens: 2216
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: unknown
+    input_tokens: 255429
+    output_tokens: 2216
+    cost_usd: 0.0
+    recorded_at: '2026-07-21T16:41:14.036695+00:00'
 ---
 ## Summary
 
@@ -39,5 +55,25 @@ author: oompah
 created: 2026-07-21 16:40
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-21 16:41
+---
+Agent completed successfully in 62s (257645 tokens)
+---
+author: oompah
+created: 2026-07-21 16:41
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/default]
+- Turns: 1, Tool calls: 5
+- Tokens: 255.4K in / 2.2K out [257.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 2s
+- Log: OOMPAH-307__20260721T164019Z.jsonl
+---
+author: oompah
+created: 2026-07-21 16:41
+---
+Agent completed without landing — no commits found on origin for branch `OOMPAH-307`. No stronger profile is configured; retrying with 'deep' in 10s (1/3).
 ---
 <!-- COMMENTS:END -->

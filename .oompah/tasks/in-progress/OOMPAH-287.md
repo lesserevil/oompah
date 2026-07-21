@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-287
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Add provenance metadata for external content entering Oompah
 parent: OOMPAH-285
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T16:40:20.157439Z'
+updated_at: '2026-07-21T16:41:23.751545Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 8d4c62fa-9fc1-4fb2-8884-ef5e11170ca4
+oompah.agent_run_id: c454df5f-2c79-4de2-90ba-44851b28bdf4
 oompah.task_costs:
   total_input_tokens: 247148
   total_output_tokens: 47284
@@ -225,5 +225,15 @@ Steps to resolve:
   git push origin OOMPAH-287
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-21 16:41
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-21 16:41
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->

@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:27:56.291769Z'
-updated_at: '2026-07-21T16:40:43.181188Z'
+updated_at: '2026-07-21T16:41:21.498799Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-07-21 16:40
 ---
 Understanding: I will trace dashboard task list/detail rendering and its API payloads, then ensure the UI does not present a terminal state when the state-branch read is stale or unavailable. I will add focused regression coverage and hand off any canonical tracker/cache routing work outside frontend scope.
+---
+author: oompah
+created: 2026-07-21 16:41
+---
+Discovery: dashboard.html fetchIssues() discards the server's X-Oompah-Issues-Stale header, while board/detail render the returned fields as authoritative. server.py snapshot cache is keyed only as issues:all and detail:{project}:{identifier}:actor, so canonical state-branch revision routing/invalidation is backend work. Frontend scope: render an explicit accessible stale-state warning from API freshness and preserve it across board refreshes.
 ---
 <!-- COMMENTS:END -->
