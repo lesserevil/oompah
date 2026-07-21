@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T19:04:51.954483Z'
-updated_at: '2026-07-21T19:34:45.282673Z'
+updated_at: '2026-07-21T19:34:52.578230Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ author: oompah
 created: 2026-07-21 19:34
 ---
 Implementation: Added _get_worktree_git_meta_dir() to oompah/acp_backends/codex.py. This helper reads <workspace>/.git if it is a file, parses the 'gitdir: ' prefix, resolves the metadata directory path (handles both absolute and relative gitdir paths), and returns it if it exists on disk. Modified _run_turn_via_cli() to call this helper and pass the result as additional_directories to ThreadOptions — so git add/commit/pull --rebase/push all work inside the workspace-write sandbox. The acp_session_start event payload now also includes additional_directories for audit/observability.
+---
+author: oompah
+created: 2026-07-21 19:34
+---
+Verification: 13 new tests added to tests/test_acp_codex_backend.py. TestGetWorktreeGitMetaDir (8 tests): covers plain directory, .git directory (main repo), worktree with absolute gitdir, worktree with relative gitdir, stale gitdir, malformed .git file, unreadable .git file, trailing-newline stripping. TestCodexCliAdditionalDirectories (5 tests): verifies ThreadOptions receives additional_directories for worktrees, is None for plain workspaces, acp_session_start event reflects this, and the path exactly matches the resolved gitdir. All 55 tests in the file pass. Full ACP test suite (155 tests) passes with no regressions.
 ---
 <!-- COMMENTS:END -->
