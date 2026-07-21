@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-320
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Define a forge-neutral SCM and CI provider contract
 parent: OOMPAH-318
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:50.132513Z'
-updated_at: '2026-07-21T23:21:58.800081Z'
+updated_at: '2026-07-21T23:22:17.143888Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -238,5 +238,41 @@ Changes:
 - tests/test_server_release_delivery_backlog_tracker.py: Updated 3 mock references
 
 Verification: make test passes — 10525 passed, 36 skipped, 0 failed.
+---
+author: oompah
+created: 2026-07-21 23:22
+---
+Completion: OOMPAH-320 forge-neutral SCM/CI provider contract is fully delivered.
+
+Delivered in this branch (epic-OOMPAH-318):
+
+1. oompah/scm.py — Contract formalization:
+   - CIStatus enum (PASSED, FAILED, PENDING, UNKNOWN) as the canonical CI verdict type
+   - CIState alias for forge integrations
+   - CapabilityWarning TypedDict for structured capability-unavailable warnings
+   - unavailable_capability_warning() helper
+   - normalize_ci_status() for legacy string → CIStatus conversion
+   - ReviewRequest.__post_init__ normalizes ci_status at the contract boundary
+   - SCMProvider ABC with docstrings documenting error/unavailable-capability semantics on every method
+   - get_review_commits() as forge-neutral alias bridging to get_pr_commits()
+   - get_review_comments() defaults to [] (no exception)
+   - get_capability_warnings() reports unsupported optional features
+   - get_branch_head_sha() defaults to None
+   - get_branch_ci_status() composes head SHA + CI status with UNKNOWN fallback
+   - get_ci_status_for_sha() defaults to UNKNOWN
+
+2. Workflow consumers migrated:
+   - release_delivery_inventory.py: get_review_commits() instead of get_pr_commits()
+   - release_pick_commit_resolver.py: get_review_commits() instead of get_pr_commits()
+
+3. Tests:
+   - tests/test_scm.py: 9 new contract tests covering FakeProvider defaults, CI normalization, GitHub provider defaults, and CIState/CIStatus alias
+   - 5 additional test files updated so mocks match the get_review_commits contract method
+   - make test: 10525 passed, 36 skipped, 0 failed
+
+Acceptance criteria met:
+✅ No workflow consumer uses GitHub-specific provider methods for supported behavior
+✅ Contract documents error and unavailable-capability semantics in code
+✅ make test passes
 ---
 <!-- COMMENTS:END -->
