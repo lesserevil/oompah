@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-285
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Defend Oompah agents against prompt injection from external content
 parent: null
@@ -16,7 +16,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T14:51:29.425206Z'
-updated_at: '2026-07-21T15:45:13.416105Z'
+updated_at: '2026-07-21T17:17:21.239553Z'
 work_branch: null
 target_branch: null
 review_url: null
