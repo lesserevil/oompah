@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T21:34:07.971835Z'
-updated_at: '2026-07-22T23:50:07.434760Z'
+updated_at: '2026-07-22T23:50:17.837556Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: c3461f98-967c-496d-a956-a45c98b7a6c1
 oompah.task_costs:
-  total_input_tokens: 388365
-  total_output_tokens: 8881
+  total_input_tokens: 388446
+  total_output_tokens: 48177
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 388365
-      output_tokens: 8881
+      input_tokens: 388446
+      output_tokens: 48177
       cost_usd: 0.0
   runs:
   - profile: default
@@ -46,6 +46,12 @@ oompah.task_costs:
     output_tokens: 2179
     cost_usd: 0.0
     recorded_at: '2026-07-22T23:32:36.859609+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 81
+    output_tokens: 39296
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T23:50:15.669399+00:00'
 ---
 ## Summary
 
@@ -315,5 +321,20 @@ author: oompah
 created: 2026-07-22 23:50
 ---
 Audited all 6 shared-epic Merged promotion paths in orchestrator.py. Found and fixed one gap: _reconcile_merged_epic_children had no explicit _epic_branch_landed_on_target check (relied on MERGED state invariant). Added defensive guard + updated existing test + new regression test. Paths 1,2,4,5 were already correctly gated. Path 6 (_mark_epic_merged) does not need an internal guard since all callers are now gated.
+---
+author: oompah
+created: 2026-07-22 23:50
+---
+Agent completed successfully in 1032s (39377 tokens)
+---
+author: oompah
+created: 2026-07-22 23:50
+---
+Run #3 [attempt=3, profile=standard, role=standard -> Claude/default]
+- Turns: 137, Tool calls: 91
+- Tokens: 81 in / 39.3K out [39.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 17m 12s
+- Log: OOMPAH-412__20260722T233305Z.jsonl
 ---
 <!-- COMMENTS:END -->

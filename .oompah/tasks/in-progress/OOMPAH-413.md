@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-413
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Add regression tests for shared-epic Merged promotion gates in test_epic_strategy.py
 parent: OOMPAH-310
@@ -11,12 +11,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T21:34:25.679338Z'
-updated_at: '2026-07-22T23:28:00.456102Z'
+updated_at: '2026-07-22T23:50:23.956684Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: b95a45c3-d7d1-4b46-bf65-25f87c8e99fd
 ---
 ## Summary
 
@@ -58,3 +59,16 @@ tests/test_epic_strategy.py already has:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 23:50
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 23:50
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
