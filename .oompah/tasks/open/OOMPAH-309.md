@@ -8,16 +8,33 @@ title: Harden shared-epic protection when _resolve_parent_epic fails for a child
 parent: OOMPAH-307
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:53:17.046767Z'
-updated_at: '2026-07-22T05:32:16.849618Z'
+updated_at: '2026-07-22T05:34:52.594805Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: d6e2b422-0818-466a-9753-0285a0d8705d
+oompah.task_costs:
+  total_input_tokens: 39
+  total_output_tokens: 10159
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 39
+      output_tokens: 10159
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 39
+    output_tokens: 10159
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T05:34:48.936290+00:00'
 ---
 ## Summary
 
@@ -93,5 +110,52 @@ author: oompah
 created: 2026-07-22 05:31
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 05:34
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate found. OOMPAH-309 is a unique, unimplemented bug fix.
+
+Candidates reviewed (none are duplicates):
+- OOMPAH-219 (Merged): SharedAbsorptionEvidence — covers commit-absorption races on shared branches. Different: that issue is about absorbing uncommitted changes after landing-gate failure; OOMPAH-309 is about what happens when _resolve_parent_epic raises/returns None while the child has parent_id set.
+- OOMPAH-165 (Archived): Fix shared epic landed detection before main merge — different: about premature Merged status detection.
+- OOMPAH-168 (Archived): Simplify orchestration to shared epic workflow — different: structural dead-code removal.
+- OOMPAH-163 (Archived): Allow generated epic target branches through dispatch — different: allowlist bypass for epic branches.
+- All .oompah/tasks files (archived, merged, done, open, in-progress, backlog) searched for: resolve_parent_epic, shared_epic, shared-epic protection, parent_id fail, harden, epic protection.
+
+2. Root cause identified in oompah/orchestrator.py:
+_resolve_parent_epic() (line 4835) fetches the parent epic from the tracker; any tracker exception causes it to return None. Three places in the code apply shared-epic protection only when parent_epic is not None, so a tracker failure for a child that HAS parent_id set bypasses the protection:
+
+a) _yolo_epic_strategy_block_reason (~line 11929): parent_epic = _resolve_parent_epic(issue); if parent_epic is None: return None — returns no block instead of blocking the stale child task PR.
+b) _close_invalid_epic_policy_review (~line 11929 elif branch): elif issue.parent_id and parent_epic is not None: — skips the close logic entirely when resolve fails.
+c) Review handoff (~line 8070): if entry.issue.parent_id and parent_epic is not None: skip_per_child_review — fails to skip, creating a per-child PR when it should not.
+
+The fix should: when issue.parent_id is set but _resolve_parent_epic returns None (tracker failure), treat it as if the parent exists for purposes of protection (fail closed), rather than failing open and allowing the child to proceed as standalone work.
+
+3. Remaining work: implement the hardening — the three sites above need guarding. A child with parent_id set and _resolve_parent_epic returning None should block/close/skip the same as when the parent is successfully resolved. Tests needed for all three paths.
+
+4. Recommended next focus: feature (backend fix in oompah/orchestrator.py, covering _yolo_epic_strategy_block_reason, _close_invalid_epic_policy_review, and the review handoff skip)
+---
+author: oompah
+created: 2026-07-22 05:34
+---
+Agent completed successfully in 215s (10198 tokens)
+---
+author: oompah
+created: 2026-07-22 05:34
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 80, Tool calls: 61
+- Tokens: 39 in / 10.2K out [10.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 35s
+- Log: OOMPAH-309__20260722T053116Z.jsonl
+---
+author: oompah
+created: 2026-07-22 05:34
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->

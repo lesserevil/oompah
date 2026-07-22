@@ -16,7 +16,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-07-20T16:51:11.086624Z'
-updated_at: '2026-07-21T03:41:47.635679Z'
+updated_at: '2026-07-22T05:34:45.212481Z'
 work_branch: OOMPAH-267
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/456
@@ -609,5 +609,10 @@ author: oompah
 created: 2026-07-21 03:41
 ---
 YOLO: merged PR #456.
+---
+author: oompah
+created: 2026-07-22 05:34
+---
+Reconciled the stale default-branch task record: OOMPAH-267 is authoritatively Merged, so its obsolete main-branch In Progress/Needs Rebase copy was removed.
 ---
 <!-- COMMENTS:END -->
