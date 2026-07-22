@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:41.720887Z'
-updated_at: '2026-07-22T22:24:22.809217Z'
+updated_at: '2026-07-22T22:24:37.349938Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,13 +22,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 77405b51-1249-47dc-ade1-b63ae92c9a2e
 oompah.task_costs:
-  total_input_tokens: 562351
-  total_output_tokens: 11510
+  total_input_tokens: 562444
+  total_output_tokens: 59763
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 562351
-      output_tokens: 11510
+      input_tokens: 562444
+      output_tokens: 59763
       cost_usd: 0.0
   runs:
   - profile: default
@@ -49,6 +49,12 @@ oompah.task_costs:
     output_tokens: 7481
     cost_usd: 0.0
     recorded_at: '2026-07-22T21:47:39.805815+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 93
+    output_tokens: 48253
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T22:24:35.186885+00:00'
 ---
 ## Summary
 
@@ -344,5 +350,20 @@ author: oompah
 created: 2026-07-22 22:24
 ---
 Added 16 regression tests in 2 new test classes (TestYoloEpicStrategyBlockReason, TestCloseInvalidEpicPolicyReview) plus a reusable _make_shared_epic_scenario() fixture to tests/test_epic_strategy.py. These cover the OOMPAH-285/286 shared-epic child routing lifecycle for _yolo_epic_strategy_block_reason and _close_invalid_epic_policy_review, which had zero prior test coverage. All 11741 tests pass.
+---
+author: oompah
+created: 2026-07-22 22:24
+---
+Agent completed successfully in 2204s (48346 tokens)
+---
+author: oompah
+created: 2026-07-22 22:24
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 174, Tool calls: 104
+- Tokens: 93 in / 48.3K out [48.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 36m 44s
+- Log: OOMPAH-313__20260722T214753Z.jsonl
 ---
 <!-- COMMENTS:END -->
