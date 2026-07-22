@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:47.554460Z'
-updated_at: '2026-07-22T05:42:20.090991Z'
+updated_at: '2026-07-22T05:42:22.360338Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -624,5 +624,10 @@ Delivered:
 - server.py: extended status-label guard to gitlab_issues tracker kind; _status_before_label_event reads GitLab's changes.labels.previous; _revert_unauthorized_status_label_change captures prior trusted status before clearing ledger.
 - webhooks.py: parse_gitlab_webhook handles Issue Hook events and normalizes oompah:status:* label mutations to WebhookEvent label_name/label_actor.
 - 366 tests pass (115 GitLab tracker + server webhooks + webhook parser tests).
+---
+author: oompah
+created: 2026-07-22 05:42
+---
+Implemented GitLab status-label authorization and audit/revert safety: trusted ledger, unauthorized actor rejection, Issue Hook webhook parsing, and candidate suppression. 366 tests pass.
 ---
 <!-- COMMENTS:END -->
