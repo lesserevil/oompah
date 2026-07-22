@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:39.407769Z'
-updated_at: '2026-07-22T03:51:52.984451Z'
+updated_at: '2026-07-22T03:52:05.129479Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 949d8dde-585e-453a-8b1f-c222879a0d6a
 oompah.task_costs:
-  total_input_tokens: 204669
-  total_output_tokens: 8982
+  total_input_tokens: 204766
+  total_output_tokens: 11595
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 204669
-      output_tokens: 8982
+      input_tokens: 204766
+      output_tokens: 11595
       cost_usd: 0.0
   runs:
   - profile: default
@@ -41,6 +41,12 @@ oompah.task_costs:
     output_tokens: 7395
     cost_usd: 0.0
     recorded_at: '2026-07-22T03:07:32.247118+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 97
+    output_tokens: 2613
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T03:52:02.463618+00:00'
 ---
 ## Summary
 
@@ -206,5 +212,20 @@ Acceptance criteria met:
 
 Files changed: oompah/gitlab_tracker.py, tests/test_gitlab_tracker.py
 Branch: epic-OOMPAH-323 (pushed)
+---
+author: oompah
+created: 2026-07-22 03:51
+---
+Added description-based metadata persistence to GitLabIssueTracker (get_metadata, set_metadata_field, fetch_attachments, set_attachments) using HTML comment block in issue description. Expanded test suite from 5 to 100 tests covering all TrackerProtocol relationship and metadata operations with mocked transport. All 11441 tests pass.
+---
+author: oompah
+created: 2026-07-22 03:52
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 58
+- Tokens: 97 in / 2.6K out [2.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 44m 10s
+- Log: OOMPAH-338__20260722T030754Z.jsonl
 ---
 <!-- COMMENTS:END -->
