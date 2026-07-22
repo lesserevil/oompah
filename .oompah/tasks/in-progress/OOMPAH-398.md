@@ -12,7 +12,7 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T04:21:15.780009Z'
+updated_at: '2026-07-22T04:21:20.269564Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -225,5 +225,15 @@ author: oompah
 created: 2026-07-22 04:21
 ---
 Agent completed without closing this issue (35s (161967 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-22 04:21
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-22 04:21
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
