@@ -45,6 +45,7 @@ from oompah.models import (
     AgentProfile,
     AgentTotals,
     BlockerRef,
+    EPIC_INDEPENDENTLY_MERGED_LABEL,
     EpicRebaseState,
     EpicRebaseStateEntry,
     Issue,
@@ -8446,6 +8447,7 @@ class Orchestrator:
         sweeps = [
             ("label_merged_epics", self._label_merged_epics),
             ("reconcile_merged_epic_children", self._reconcile_merged_epic_children),
+            ("reconcile_independently_merged_children", self._reconcile_independently_merged_children),
             ("label_merged_issues", self._label_merged_issues),
             ("reconcile_in_review_pr_outcomes", self._reconcile_in_review_pr_outcomes),
             ("reconcile_terminal_open_reviews", self._reconcile_terminal_open_reviews),
@@ -10513,6 +10515,135 @@ class Orchestrator:
             except Exception:  # noqa: BLE001
                 epic_branch = epic.identifier
             self._mark_epic_merged(epic, epic_branch=epic_branch)
+
+    def _detect_independently_merged_children(
+        self,
+        epics: list[Issue],
+    ) -> list[tuple[Issue, Issue, str]]:
+        """Return (child, parent_epic, epic_branch) triples for children that
+        bypassed their parent epic's branch and were merged to main directly.
+
+        A child is flagged when ALL of these are true:
+
+        * ``child.parent_id`` points to a shared epic in ``epics``
+        * ``canonicalize_status(child.state) == MERGED``
+        * ``child.work_branch`` is set AND differs from the expected epic branch
+
+        This covers the OOMPAH-286/PR #466 pattern where a task received its
+        own branch (e.g. ``OOMPAH-286``) and merged straight to main instead of
+        going through the parent epic's branch (e.g. ``epic-OOMPAH-285``).
+
+        Returns an empty list when no independently-merged children exist.
+        """
+        epic_by_id: dict[str, tuple[Issue, str]] = {}
+        for epic in epics:
+            try:
+                epic_branch = self._epic_branch_for_issue(epic)
+            except Exception:  # noqa: BLE001 - best effort
+                epic_branch = epic.identifier
+            for key in (epic.id, epic.identifier):
+                if key:
+                    epic_by_id[str(key).strip()] = (epic, epic_branch)
+
+        out: list[tuple[Issue, Issue, str]] = []
+        for _epic_key, (epic, epic_branch) in list(epic_by_id.items()):
+            # Avoid processing the same epic twice when both id and identifier
+            # are present.
+            if (epic, epic_branch) in [(t[1], t[2]) for t in out]:
+                continue
+            try:
+                children = self._fetch_epic_children(epic)
+            except Exception:  # noqa: BLE001
+                children = []
+            for child in children:
+                if canonicalize_status(child.state) != MERGED:
+                    continue
+                child_branch = (child.work_branch or "").strip()
+                if not child_branch:
+                    continue
+                if child_branch == epic_branch:
+                    continue
+                out.append((child, epic, epic_branch))
+        # De-duplicate by child identifier in case we iterated the same child
+        # via both id and identifier keys.
+        seen: set[str] = set()
+        deduped: list[tuple[Issue, Issue, str]] = []
+        for child, epic, epic_branch in out:
+            key = child.identifier or child.id or ""
+            if key not in seen:
+                seen.add(key)
+                deduped.append((child, epic, epic_branch))
+        return deduped
+
+    def _reconcile_independently_merged_children(self) -> int:
+        """Detect and annotate children that bypassed their parent epic's branch.
+
+        For each independently-merged child (see
+        :meth:`_detect_independently_merged_children`), this method:
+
+        * Logs a ``WARNING`` so operators see the anomaly in service logs.
+        * Adds the ``epic:independently-merged`` label to the child task via
+          ``update_issue(..., add_label=...)`` — a read-modify-write that
+          preserves all existing labels.
+        * Is **idempotent**: children that already carry the label are skipped.
+        * Does **not** rewrite git history, change the child's ``Merged`` state,
+          or modify ``work_branch`` / ``target_branch`` metadata.
+
+        Returns the count of children newly annotated in this pass.
+        """
+        # Gather all non-terminal epics (potential parents) plus already-merged
+        # epics whose children might have independently merged.
+        all_epics = self._all_non_terminal_epics() + self._all_merged_epics()
+        # De-duplicate by identifier to avoid double-processing.
+        seen_epic_ids: set[str] = set()
+        unique_epics: list[Issue] = []
+        for epic in all_epics:
+            key = epic.identifier or epic.id or ""
+            if key not in seen_epic_ids:
+                seen_epic_ids.add(key)
+                unique_epics.append(epic)
+
+        candidates = self._detect_independently_merged_children(unique_epics)
+        annotated = 0
+        for child, parent_epic, epic_branch in candidates:
+            if self._job_deadline_exceeded("merged_labels"):
+                break
+            existing_labels = {
+                str(label).strip().lower() for label in (child.labels or [])
+            }
+            if EPIC_INDEPENDENTLY_MERGED_LABEL.lower() in existing_labels:
+                # Already annotated — idempotent skip.
+                continue
+            logger.warning(
+                "Child %s (branch=%s) was merged to main independently, "
+                "bypassing parent epic %s (expected branch=%s). "
+                "Annotating with '%s' label.",
+                child.identifier,
+                child.work_branch,
+                parent_epic.identifier,
+                epic_branch,
+                EPIC_INDEPENDENTLY_MERGED_LABEL,
+            )
+            try:
+                tracker = self._tracker_for_issue(child)
+                tracker.update_issue(
+                    child.identifier,
+                    add_label=EPIC_INDEPENDENTLY_MERGED_LABEL,
+                )
+                annotated += 1
+            except TrackerError as exc:
+                logger.debug(
+                    "Failed to annotate independently-merged child %s: %s",
+                    child.identifier,
+                    exc,
+                )
+        if annotated:
+            logger.info(
+                "Annotated %d independently-merged epic child(ren) with '%s'",
+                annotated,
+                EPIC_INDEPENDENTLY_MERGED_LABEL,
+            )
+        return annotated
 
     def _mark_epic_merged(self, epic: Issue, *, epic_branch: str | None = None) -> None:
         """Mark ``epic`` and all its non-terminal children ``Merged``.
