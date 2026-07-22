@@ -19033,7 +19033,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         {entry.worker_task}, timeout=timeout_s
                     )
                     if not done:
-                        logger.error(
+                        logger.warning(
                             "Worker did not stop within %dms; continuing shutdown "
                             "issue_identifier=%s",
                             self.config.worker_termination_timeout_ms,
