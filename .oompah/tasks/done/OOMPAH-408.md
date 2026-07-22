@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-408
 type: task
-status: Backlog
+status: Done
 priority: null
 title: Redispatch conflicted open PR resolver tasks
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T15:25:36.632395Z'
-updated_at: '2026-07-22T15:25:36.632395Z'
+updated_at: '2026-07-22T15:28:46.396124Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ Fix YOLO conflict reconciliation so an open PR/MR with merge conflicts is always
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 15:28
+---
+Fixed the root cause: _mark_epic_merged now preserves any child that owns an open PR/MR, instead of marking it Merged when its parent epic lands. Added regression coverage for an open conflicted child review. Verification: make test passed.
+---
+<!-- COMMENTS:END -->
