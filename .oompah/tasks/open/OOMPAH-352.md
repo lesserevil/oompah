@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:40.490026Z'
-updated_at: '2026-07-22T01:00:27.165425Z'
+updated_at: '2026-07-22T01:07:46.533339Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,3 +34,11 @@ Acceptance: an operator can identify the blocking phase and thread stack from th
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 01:07
+---
+Implemented first-occurrence stale-loop diagnostics: an independently running supervisor captures all thread stacks when the dispatch loop first becomes stale. Regression coverage added; full suite is running.
+---
+<!-- COMMENTS:END -->

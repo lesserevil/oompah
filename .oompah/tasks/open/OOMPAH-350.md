@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:36.177730Z'
-updated_at: '2026-07-22T01:00:25.608274Z'
+updated_at: '2026-07-22T01:07:44.455552Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,3 +33,11 @@ Acceptance: a blocked scheduler tick cannot prevent state and health API respons
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 01:07
+---
+Implemented default-Uvicorn scheduler isolation: the orchestrator now owns a dedicated event-loop thread, while HTTP/WebSockets and stale-loop supervision remain responsive on the ASGI loop. Full suite is running.
+---
+<!-- COMMENTS:END -->
