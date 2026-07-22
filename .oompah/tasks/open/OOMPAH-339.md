@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-339
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Enforce GitLab status-label authorization and audit/revert safety
 parent: OOMPAH-323
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:47.554460Z'
-updated_at: '2026-07-22T04:48:32.337516Z'
+updated_at: '2026-07-22T04:48:39.794178Z'
 work_branch: null
 target_branch: null
 review_url: null
