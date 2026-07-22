@@ -291,6 +291,7 @@ async def _lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         services.webhook_forwarder,
     )
     await services.webhook_forwarder.start()
+    await services.gitlab_hook_manager.start()
 
     # Workflow file watcher task.
     async def _watch_workflow() -> None:
@@ -373,6 +374,7 @@ async def _lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         else:
             await services.orchestrator.stop()
         await services.webhook_forwarder.stop()
+        await services.gitlab_hook_manager.stop()
         supervise_task.cancel()
         watch_task.cancel()
         try:

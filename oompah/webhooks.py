@@ -28,11 +28,20 @@ Usage::
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import logging
+import os
+import shutil
+import urllib.parse
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Any
+
+import httpx
+
+from oompah.scm import extract_repo_slug
 
 logger = logging.getLogger(__name__)
 
@@ -944,14 +953,6 @@ def match_project_by_repo(
 # Webhook Forwarder
 # ---------------------------------------------------------------------------
 
-import asyncio
-import os
-import shutil
-from datetime import datetime, timezone
-
-from oompah.scm import extract_repo_slug
-
-
 _WEBHOOK_FORWARD_DEFAULT_PORT = 8080
 _WEBHOOK_POLL_INTERVAL_S = 5.0  # how often to check process health
 _WEBHOOK_BASE_DELAY_S = 1.0  # initial restart backoff
@@ -982,6 +983,246 @@ _WEBHOOK_DEFAULT_EVENTS = "push,pull_request,issues,issue_comment,label"
 # Stderr tail size kept in memory per project (for surfacing the most
 # recent error to the dashboard / logs without unbounded growth).
 _WEBHOOK_STDERR_TAIL_BYTES = 4096
+
+# GitLab Project Hooks does not expose a separate label event. Label changes
+# are included in Issue and Merge Request Hook payloads, so the seven flags
+# below cover every GitLab event currently normalized by this module.
+_GITLAB_HOOK_EVENT_FLAGS = {
+    "push_events": True,
+    "merge_requests_events": True,
+    "issues_events": True,
+    "note_events": True,
+    "pipeline_events": True,
+    "job_events": True,
+}
+_GITLAB_HOOK_POLL_INTERVAL_S = 300.0
+
+
+@dataclass
+class _GitLabHookState:
+    """Latest reconciliation result for one GitLab managed project."""
+
+    project_id: str
+    project_name: str
+    hook_id: int | None = None
+    healthy: bool = False
+    last_error: str = ""
+
+
+class GitLabHookManager:
+    """Create, reconcile, and remove managed GitLab Project Hooks.
+
+    The manager owns only hooks whose URL is the configured Oompah GitLab
+    receiver.  This prevents it from modifying unrelated hooks configured by
+    an operator or another integration.  Reconciliation updates the hook
+    token and event subscriptions, which also rotates a changed project
+    ``webhook_secret`` without requiring a separate migration operation.
+    """
+
+    def __init__(
+        self,
+        project_store: Any = None,
+        public_url: str | None = None,
+        poll_interval_s: float = _GITLAB_HOOK_POLL_INTERVAL_S,
+        http_client: Any = None,
+    ) -> None:
+        self.project_store = project_store
+        self._public_url = (public_url or "").strip().rstrip("/")
+        self._webhook_url = (
+            f"{self._public_url}/api/v1/webhooks/gitlab" if self._public_url else ""
+        )
+        self._poll_interval_s = poll_interval_s
+        self._http_client = http_client
+        self._states: dict[str, _GitLabHookState] = {}
+        self._task: asyncio.Task | None = None
+        self._started = False
+        self._stopping = False
+
+    @property
+    def is_running(self) -> bool:
+        return self._started and not self._stopping
+
+    @property
+    def status(self) -> dict[str, Any]:
+        error = self._configuration_error()
+        return {
+            "running": self.is_running,
+            "configured": not bool(error),
+            "detail": error,
+            "webhook_url": self._webhook_url,
+            "projects": {
+                pid: {
+                    "name": state.project_name,
+                    "hook_id": state.hook_id,
+                    "healthy": state.healthy,
+                    "last_error": state.last_error,
+                }
+                for pid, state in self._states.items()
+            },
+        }
+
+    def _configuration_error(self) -> str:
+        if not self._public_url:
+            return "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL is not configured"
+        parsed = urllib.parse.urlparse(self._public_url)
+        if parsed.scheme != "https" or not parsed.netloc:
+            return "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL must be a public HTTPS base URL"
+        return ""
+
+    async def start(self) -> None:
+        """Begin periodic hook reconciliation.  Safe to call more than once."""
+        if self._started:
+            return
+        self._started = True
+        self._stopping = False
+        await self.reconcile()
+        self._task = asyncio.create_task(self._run_loop())
+
+    async def stop(self) -> None:
+        """Stop reconciliation and remove hooks managed during this lifetime."""
+        if self._stopping:
+            return
+        self._stopping = True
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+            self._task = None
+        for project in self._gitlab_projects():
+            await self.remove(project)
+        self._started = False
+
+    async def _run_loop(self) -> None:
+        while not self._stopping:
+            try:
+                await asyncio.sleep(self._poll_interval_s)
+                await self.reconcile()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # pragma: no cover - defensive loop boundary
+                logger.exception("GitLabHookManager reconciliation failed")
+
+    def _gitlab_projects(self) -> list[Any]:
+        if self.project_store is None:
+            return []
+        return [
+            project
+            for project in self.project_store.list_all()
+            if self._is_gitlab_project(project)
+        ]
+
+    @staticmethod
+    def _is_gitlab_project(project: Any) -> bool:
+        forge_kind = str(getattr(project, "forge_kind", "") or "").lower()
+        repo_url = str(getattr(project, "repo_url", "") or "").lower()
+        return forge_kind == "gitlab" or "gitlab" in repo_url
+
+    @staticmethod
+    def _project_slug(project: Any) -> str:
+        from oompah.scm import extract_repo_slug
+
+        return extract_repo_slug(str(getattr(project, "repo_url", "") or ""))
+
+    @staticmethod
+    def _api_base_url(project: Any) -> str:
+        base = str(getattr(project, "forge_base_url", "") or "").strip().rstrip("/")
+        if base:
+            return f"{base}/api/v4"
+        repo_url = str(getattr(project, "repo_url", "") or "")
+        parsed = urllib.parse.urlparse(repo_url)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}/api/v4"
+        if repo_url.startswith("git@") and ":" in repo_url:
+            return f"https://{repo_url.split('@', 1)[1].split(':', 1)[0]}/api/v4"
+        return "https://gitlab.com/api/v4"
+
+    def _headers(self, project: Any) -> dict[str, str]:
+        token = str(getattr(project, "access_token", "") or "").strip()
+        return {"PRIVATE-TOKEN": token} if token else {}
+
+    async def _request(self, method: str, project: Any, path: str, **kwargs: Any) -> httpx.Response:
+        url = f"{self._api_base_url(project)}{path}"
+        if self._http_client is not None:
+            return await self._http_client.request(method, url, headers=self._headers(project), **kwargs)
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            return await client.request(method, url, headers=self._headers(project), **kwargs)
+
+    async def reconcile(self) -> None:
+        """Make each current GitLab project's hook match the desired state."""
+        if self._configuration_error():
+            return
+        projects = self._gitlab_projects()
+        current_ids = {str(project.id) for project in projects}
+        for stale_id in set(self._states) - current_ids:
+            self._states.pop(stale_id, None)
+        for project in projects:
+            await self._reconcile_project(project)
+
+    async def _reconcile_project(self, project: Any) -> None:
+        project_id = str(project.id)
+        state = self._states.setdefault(
+            project_id,
+            _GitLabHookState(project_id=project_id, project_name=str(project.name)),
+        )
+        slug = self._project_slug(project)
+        if not slug:
+            state.last_error = "could not determine GitLab project path"
+            state.healthy = False
+            return
+        encoded_slug = urllib.parse.quote(slug, safe="")
+        path = f"/projects/{encoded_slug}/hooks"
+        try:
+            response = await self._request("GET", project, path)
+            response.raise_for_status()
+            hooks = response.json()
+            matching = [hook for hook in hooks if hook.get("url") == self._webhook_url]
+            payload = {"url": self._webhook_url, **_GITLAB_HOOK_EVENT_FLAGS}
+            secret = str(getattr(project, "webhook_secret", "") or "")
+            if secret:
+                payload["token"] = secret
+            if matching:
+                hook = matching[0]
+                hook_id = int(hook["id"])
+                update = await self._request("PUT", project, f"{path}/{hook_id}", json=payload)
+                update.raise_for_status()
+                state.hook_id = hook_id
+                for duplicate in matching[1:]:
+                    await self._request("DELETE", project, f"{path}/{int(duplicate['id'])}")
+            else:
+                created = await self._request("POST", project, path, json=payload)
+                created.raise_for_status()
+                state.hook_id = int(created.json()["id"])
+            state.healthy = True
+            state.last_error = ""
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+            state.healthy = False
+            state.last_error = _truncate_error_detail(str(exc))
+            logger.warning("GitLab hook reconciliation failed for %s: %s", project.name, exc)
+
+    async def remove(self, project: Any) -> None:
+        """Delete only this manager's hook from a GitLab project."""
+        if self._configuration_error():
+            return
+        slug = self._project_slug(project)
+        if not slug:
+            return
+        path = f"/projects/{urllib.parse.quote(slug, safe='')}/hooks"
+        try:
+            response = await self._request("GET", project, path)
+            response.raise_for_status()
+            for hook in response.json():
+                if hook.get("url") == self._webhook_url:
+                    deleted = await self._request("DELETE", project, f"{path}/{int(hook['id'])}")
+                    deleted.raise_for_status()
+            self._states.pop(str(project.id), None)
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+            state = self._states.get(str(project.id))
+            if state:
+                state.healthy = False
+                state.last_error = _truncate_error_detail(str(exc))
+            logger.warning("GitLab hook removal failed for %s: %s", project.name, exc)
 
 
 def _default_webhook_forward_url(server_port: int | str | None = None) -> str:

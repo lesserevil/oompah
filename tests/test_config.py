@@ -92,7 +92,15 @@ class TestServiceConfig:
         assert cfg.release_pick_max_runtime_seconds == 15
         assert cfg.merged_labels_max_runtime_seconds == 15
         assert cfg.close_gate_enabled is True
+        assert cfg.gitlab_webhook_public_url is None
         assert cfg.workspace_root  # should have a default
+
+    def test_gitlab_webhook_public_url_comes_from_environment(self, monkeypatch):
+        monkeypatch.setenv(
+            "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL", "https://oompah.example.com/"
+        )
+        cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="test"))
+        assert cfg.gitlab_webhook_public_url == "https://oompah.example.com/"
 
 
 class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
