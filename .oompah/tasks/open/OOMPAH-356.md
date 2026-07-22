@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-356
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Reduce unfinished epic branch synchronization churn
 parent: null
@@ -15,7 +15,7 @@ labels:
 - workflow
 assignee: null
 created_at: '2026-07-22T01:23:32.887223Z'
-updated_at: '2026-07-22T01:26:22.246512Z'
+updated_at: '2026-07-22T01:28:39.059148Z'
 work_branch: null
 target_branch: null
 review_url: null
