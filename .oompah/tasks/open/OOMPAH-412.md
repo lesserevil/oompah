@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-412
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Audit and harden all shared-epic Merged promotion paths in orchestrator.py
 parent: OOMPAH-310
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T21:34:07.971835Z'
-updated_at: '2026-07-22T23:27:44.516682Z'
+updated_at: '2026-07-22T23:27:57.967071Z'
 work_branch: null
 target_branch: null
 review_url: null
