@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:41:51.997877Z'
-updated_at: '2026-07-22T15:50:40.748208Z'
+updated_at: '2026-07-22T16:07:20.924178Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -301,5 +301,10 @@ author: oompah
 created: 2026-07-22 15:50
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-22 16:07
+---
+Discovery: The OOMPAH-404 code changes are already committed (d3d733989) but caused 10 test regressions. Root cause: existing tests use raw MagicMock() for issue objects without setting parent_id=None. The new fail-closed code in _yolo_epic_strategy_block_reason sees a truthy MagicMock as a set parent_id and blocks those PRs. Fix: update 10 tests across 3 files to explicitly set parent_id=None or fetch_issue_detail.return_value=None.
 ---
 <!-- COMMENTS:END -->
