@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:47.496504Z'
-updated_at: '2026-07-22T00:31:49.865384Z'
+updated_at: '2026-07-22T00:31:52.110440Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -276,5 +276,10 @@ author: oompah
 created: 2026-07-22 00:31
 ---
 Completion: All acceptance criteria met. (1) plans/repo-map-artifact.md — documented schema and lifecycle in plans/. (2) oompah/repo_map.py — typed artifact contract (RepoMap, IndexedFile, SymbolTag, RelationshipEdge, RenderingMetadata dataclasses, SchemaVersionError, path helpers, atomic write/read, freshness check, pruning). (3) tests/test_repo_map.py — 106 unit tests all passing via pytest. Artifacts keyed by repository identity and commit SHA; stale maps return None by default; all writes stay within .oompah/ namespace; artifact is data-only. Work committed at 53228fd3b and pushed.
+---
+author: oompah
+created: 2026-07-22 00:31
+---
+Implemented repository-map artifact schema and lifecycle: plans/repo-map-artifact.md (design doc), oompah/repo_map.py (typed artifact contract with RepoMap dataclasses, atomic write/read, freshness check, pruning), tests/test_repo_map.py (106 unit tests, all passing). Artifacts are versioned, deterministic JSON keyed by repo identity and commit SHA, with state-branch path lifecycle, atomic writes, and freshness enforcement.
 ---
 <!-- COMMENTS:END -->
