@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:28.175529Z'
-updated_at: '2026-07-22T05:08:04.076007Z'
+updated_at: '2026-07-22T05:08:06.334006Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -480,5 +480,10 @@ Completion: Delivered tests/test_gitlab_review_flows.py (51 tests) and updated t
 - Failed GitLab release pipeline produces exactly one actionable remediation task (idempotency verified)
 - GitHub regression tests confirm no behavioral changes for existing GitHub flows
 - make test passes
+---
+author: oompah
+created: 2026-07-22 05:08
+---
+Added 51 tests in tests/test_gitlab_review_flows.py covering GitLab fake-provider flows (normal review, failed/pending CI, rebase/conflict, auto-merge rejection, merge outcome, branch protection, release delivery CI remediation idempotency) and GitHub regression tests for same flows. Updated tests/test_release_delivery_ci_monitor.py to support repo_slug and scm_instances parameters. make test passes (11378 passed).
 ---
 <!-- COMMENTS:END -->
