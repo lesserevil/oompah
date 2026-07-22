@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-328
 type: task
-status: In Progress
+status: Done
 priority: 2
 title: Make project bootstrap and operator documentation forge-aware
 parent: OOMPAH-318
@@ -16,7 +16,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-22T07:51:34.414582Z'
+updated_at: '2026-07-22T07:51:41.833171Z'
 work_branch: null
 target_branch: null
 review_url: null
