@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-323
 type: task
-status: In Review
+status: Needs Rebase
 priority: 0
 title: Implement GitLab Issues tracker with Oompah status governance
 parent: OOMPAH-318
@@ -21,7 +21,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-22T15:44:32.080528Z'
+updated_at: '2026-07-22T15:44:39.544315Z'
 work_branch: epic-OOMPAH-323
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/534
@@ -690,5 +690,10 @@ author: oompah
 created: 2026-07-22 15:40
 ---
 Understanding: Merge Conflict Resolver session. Local branch epic-OOMPAH-323 has 2 feature commits (OOMPAH-338, OOMPAH-339) already rebased directly onto origin/epic-OOMPAH-318 tip (8146b9963). However, there are uncommitted working-tree changes in oompah/tracker.py (GitLab registry factory entries) and tests/test_server_webhooks.py (forge_kind/webhook_secret support). These changes are needed for correctness but weren't committed in the prior rebase session. Plan: incorporate the uncommitted changes into the appropriate commits via amend/rebase, run make test, and force-push.
+---
+author: oompah
+created: 2026-07-22 15:44
+---
+YOLO: Merge conflict detected on MR #534. Rebase onto epic-OOMPAH-318 and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
