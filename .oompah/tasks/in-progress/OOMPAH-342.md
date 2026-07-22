@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:29:14.500742Z'
-updated_at: '2026-07-22T04:02:02.769276Z'
+updated_at: '2026-07-22T04:02:13.429370Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -208,5 +208,17 @@ author: oompah
 created: 2026-07-22 04:02
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-22 04:02
+---
+Understanding: Implementing OOMPAH-342 as Software Engineer. Based on the duplicate_detector handoff, I need to implement:
+
+1. **Project lifecycle hooks**: Call GitLabHookManager.reconcile() when GitLab projects are added/updated via API, and remove() when deleted
+2. **Hook health API**: Surface GitLabHookManager.status per-project health info via a new endpoint  
+3. **Polling-fallback alerts**: When hook is unhealthy, keep polling active and surface alerts
+4. **Event deduplication**: Shared seen-event cache between webhook handler and polling path to drop duplicate deliveries
+
+Key files: oompah/webhooks.py (GitLabHookManager ~line 1006), oompah/server.py (create ~10114, delete ~10519, update endpoint), oompah/bootstrap.py (services ~lines 240, 319)
 ---
 <!-- COMMENTS:END -->
