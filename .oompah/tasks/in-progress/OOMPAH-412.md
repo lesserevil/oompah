@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T21:34:07.971835Z'
-updated_at: '2026-07-22T23:49:45.187052Z'
+updated_at: '2026-07-22T23:49:57.665160Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -289,5 +289,26 @@ Verification: All tests pass.
 - Full make test: 11710 passed, 38 skipped, 1 pre-existing failure in test_scm.py (test_legacy_failure_short_circuits, unrelated to this work)
 
 Commit: 6edb2a533 on branch epic-OOMPAH-310, pushed to origin.
+---
+author: oompah
+created: 2026-07-22 23:49
+---
+Completion: OOMPAH-412 audit and hardening complete.
+
+PATH-BY-PATH FINDINGS:
+
+1. _label_merged_epics (~line 10400): GATED. _epic_branch_landed_on_target() checked via 'if not _epic_branch_landed_on_target(...): continue' before _mark_epic_merged(). Fully protected.
+
+2. _open_epic_main_prs (~line 5674): GATED. _mark_epic_merged() is only called inside 'if _epic_branch_landed_on_target(...):' block. Fully protected.
+
+3. _reconcile_merged_epic_children (~line 10501): GAP FOUND AND FIXED. Previously relied on MERGED state invariant with no explicit forge verification. Added defensive _epic_branch_landed_on_target check. Children are now skipped with a warning if the forge confirms the branch has not landed, protecting against external state changes or future regressions.
+
+4. _open_deferred_done_reviews (~line 8490): GATED. 'if issue.parent_id and rollup_strategy == shared: continue' fires before all update_issue(MERGED) calls. Shared-epic children exit before any promotion.
+
+5. _label_merged_issues (~line 8839): GATED. 'if rollup_strategy == shared and not helper_issue: continue' fires before tracker.update_issue(MERGED). The helper_issue bypass is intentional for CI-fix/rebase helper tasks. _merged_branch_tip_landed also guards against false signals from intermediate branches.
+
+6. _mark_epic_merged (~line 10526): NO INTERNAL GUARD NEEDED. All callers are gated (_label_merged_epics, _open_epic_main_prs via _epic_branch_landed_on_target; _reconcile_merged_epic_children now also hardened).
+
+CODE CHANGES: oompah/orchestrator.py + tests/test_epic_strategy.py committed as 6edb2a533 on epic-OOMPAH-310.
 ---
 <!-- COMMENTS:END -->
