@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T20:33:52.275830Z'
-updated_at: '2026-07-22T00:04:51.433408Z'
+updated_at: '2026-07-22T00:16:05.013008Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -196,5 +196,17 @@ author: oompah
 created: 2026-07-22 00:04
 ---
 Understanding: I am the DevOps agent on OOMPAH-322. Prior agents confirmed no duplicates and added red tests (TestGitLabCIStatus, 8 tests) in tests/test_scm.py. My role is to implement GitLabProvider.get_branch_head_sha, _fetch_ci_status_and_warnings, and get_ci_status_for_sha in oompah/scm.py to make those tests pass, then verify with make test and close the task.
+---
+author: oompah
+created: 2026-07-22 00:16
+---
+Implementation: Added three new methods to GitLabProvider in oompah/scm.py:
+
+1. get_branch_head_sha: Calls GET /projects/:id/repository/branches/:branch (URL-encoding both repo path and branch name). Returns commit.id or None on 404/malformed.
+2. _normalize_gitlab_status (static): Maps GitLab pipeline/job status strings to forge-neutral contract strings (success/skipped→passed, failed/canceled→failed, running/pending/created/…→pending).
+3. _fetch_ci_status_and_warnings: Calls GET /projects/:id/pipelines?sha=&per_page=100, then fetches jobs per pipeline. Aggregates: failed > pending > passed. Returns bounded (≤10) sorted warnings with job_url and pipeline_url on failure. Handles 403 (gitlab_ci_forbidden), 429 (gitlab_ci_rate_limited), and non-list payloads (gitlab_ci_malformed_response) as capability warnings.
+4. get_ci_status_for_sha: Delegates to _fetch_ci_status_and_warnings, normalizes to CIStatus enum.
+
+All 9 new TestGitLabCIStatus tests pass. Full suite: make test reports 10636 passed, 36 skipped.
 ---
 <!-- COMMENTS:END -->
