@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-407
 type: bug
-status: In Review
+status: Merged
 priority: 2
 title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 900s (threshold=900s).
   Alert armed, recovery queued.'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:37.862938Z'
-updated_at: '2026-07-22T16:15:13.877178Z'
+updated_at: '2026-07-22T16:20:26.337510Z'
 work_branch: OOMPAH-407
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/539
@@ -394,5 +394,10 @@ oompah will create the review automatically when review capacity is available.
 
 Recent commits:
   2aaa62d77 OOMPAH-407: avoid filing stale-loop recovery as an error
+---
+author: oompah
+created: 2026-07-22 16:20
+---
+YOLO: merged PR #539.
 ---
 <!-- COMMENTS:END -->
