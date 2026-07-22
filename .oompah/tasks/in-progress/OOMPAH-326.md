@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:28.175529Z'
-updated_at: '2026-07-22T04:54:11.056051Z'
+updated_at: '2026-07-22T05:07:50.870735Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -446,5 +446,28 @@ Discovery: Explored codebase extensively. Current state: test_scm.py (4471 lines
 Missing test coverage for OOMPAH-326: GitLab orchestrator-level flows for (1) normal review lifecycle, (2) failed/pending CI, (3) rebase/conflict, (4) auto-merge rejection surfacing merge trains as unsupported, (5) merge outcome/post-merge cleanup, (6) branch protection, (7) selected release delivery with GitLab. Also need GitHub regression tests for same flows.
 
 Plan: Create tests/test_gitlab_review_flows.py with fake-provider tests for the orchestrator's YOLO/review integration with GitLab. Leverage existing _ContractFakeProvider patterns from test_scm.py and orchestrator mocking patterns from test_orchestrator_merged.py and test_yolo_handlers.py.
+---
+author: oompah
+created: 2026-07-22 05:07
+---
+Implementation: Created tests/test_gitlab_review_flows.py with 51 tests covering all required GitLab SCM and pipeline integration flows for review, YOLO, and release delivery. Also updated tests/test_release_delivery_ci_monitor.py to parameterize the repo_slug and scm_instances for GitLab nested namespace testing.
+
+Test categories covered:
+1. Normal review flow — GitLab MR CI passed → detect_provider(gitlab_url) → GitLabProvider → merge_review
+2. Pending CI — pending/unknown CI → no merge, no retry
+3. Failed CI — CI failed → _yolo_retry_ci dispatched; fires before auto_merge_enabled guard
+4. Rebase/conflict — has_conflicts → _yolo_notify_conflict → rebase_review attempted first
+5. Auto-merge MWPS — merge_queue_enabled=True → enable_auto_merge with merge_when_pipeline_succeeds endpoint (NOT merge_trains)
+6. Auto-merge rejection — 401/403/405 → actionable message; conflict message → conflict agent; config error → no conflict agent
+7. Merge outcome — success calls provider once; failure handled gracefully
+8. Branch protection — release/ source branch gets should_remove_source_branch=False; work branch gets True
+9. Release delivery CI remediation — GitLab failed pipeline → 1 task; idempotent; nested slug passed to get_branch_ci_status; pending/passed → no task
+10. GitHub regression — all above flows unchanged for GitHub projects
+11. Mixed forge — both forge types dispatch to correct per-project provider
+---
+author: oompah
+created: 2026-07-22 05:07
+---
+Verification: make test passes — 11378 passed, 36 skipped, 12 warnings in 221.52s. All 51 new tests in test_gitlab_review_flows.py pass. No regressions.
 ---
 <!-- COMMENTS:END -->
