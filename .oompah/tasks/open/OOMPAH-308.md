@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-308
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Fix stale work_branch metadata for native shared-epic children and update to
   epic branch on dispatch
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:52:58.139774Z'
-updated_at: '2026-07-22T05:27:20.200772Z'
+updated_at: '2026-07-22T05:29:43.615964Z'
 work_branch: null
 target_branch: null
 review_url: null
