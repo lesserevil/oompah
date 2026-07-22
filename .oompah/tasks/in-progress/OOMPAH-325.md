@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T00:17:00.430542Z'
+updated_at: '2026-07-22T00:17:11.788320Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-07-22 00:17
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 00:17
+---
+Understanding: Investigating OOMPAH-325 for duplicates before any implementation. This task requests GitLab project-hook lifecycle management (create/reconcile/remove hooks with per-project secrets), webhook event parsing (Push, MR, Issue, Note, Pipeline, Job hooks), normalization into WebhookEvent/EventBus, and polling fallback. Plan reference: plans/gitlab-forge-parity.md. Searching for any existing tasks covering the same ground.
 ---
 <!-- COMMENTS:END -->
