@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-344
 type: task
-status: In Progress
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-325 onto epic-OOMPAH-318
 parent: OOMPAH-325
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:38:40.470898Z'
-updated_at: '2026-07-22T01:20:41.900651Z'
+updated_at: '2026-07-22T01:21:19.651497Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -163,5 +163,10 @@ author: oompah
 created: 2026-07-22 01:20
 ---
 Discovery: Found merge base at ecf73efa2. epic-OOMPAH-325 has 16 commits since merge base (OOMPAH-285-300 via two merged PRs); origin/epic-OOMPAH-318 has 8 new commits (OOMPAH-319-322 plus OOMPAH-288-291 duplicates). Starting rebase of epic-OOMPAH-325 onto origin/epic-OOMPAH-318. Expect potential conflicts in files touched by OOMPAH-288-291 in both branches.
+---
+author: oompah
+created: 2026-07-22 01:21
+---
+Completion: Rebase of epic-OOMPAH-325 onto origin/epic-OOMPAH-318 is complete. Summary: (1) Stashed 3 in-progress files (webhooks.py, tests/test_webhooks.py, .env.example); (2) rebased — git skipped 8 already-upstream commits (OOMPAH-288-291 duplicates) and dropped 2 trivially-contained commits, replaying 4 unique commits (OOMPAH-297, 298, 299, 300) cleanly on top of origin/epic-OOMPAH-318's tip (OOMPAH-322); (3) popped stash; (4) force-pushed with --force-with-lease. origin/epic-OOMPAH-325 now points to 584bd3841 and is rebased on top of origin/epic-OOMPAH-318 with no conflicts.
 ---
 <!-- COMMENTS:END -->
