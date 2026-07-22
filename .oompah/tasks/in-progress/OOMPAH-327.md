@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:41.130372Z'
-updated_at: '2026-07-22T05:56:12.473145Z'
+updated_at: '2026-07-22T05:59:57.092680Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -116,5 +116,10 @@ author: oompah
 created: 2026-07-22 05:56
 ---
 Understanding: As Frontend Developer, I'm implementing the UI side of OOMPAH-327. Based on the duplicate_detector handoff, I need to: (1) extend the Projects UI with forge selector (GitHub/GitLab), GitLab base URL field, GitLab tracker/intake controls, masked project token display, webhook endpoint/health display, and 'Merge Request' terminology when forge_kind==gitlab; (2) write UI DOM/JavaScript contract tests for conditional controls, token masking, validation errors, and hook-health display. I'll explore the existing UI templates and JS patterns first.
+---
+author: oompah
+created: 2026-07-22 05:59
+---
+Discovery: Located all relevant code. Backend already emits forge_kind, forge_base_url, last_webhook_received_at, has_access_token, access_token_masked, external_issue_intake_enabled in API responses (models.py to_dict/to_safe_dict). GitLab webhook endpoint exists at /api/v1/webhooks/gitlab. Key files to change: (1) oompah/templates/projects.html - add forge selector, GitLab base URL field, conditional MR/PR terminology, hook health display, gitlab_issues tracker option; (2) oompah/acp_tools.py - add forge_kind/forge_base_url to readable/updatable field sets and _project_snapshot(); (3) New tests: tests/test_projects_gitlab_ui.py for UI contracts, updates to tests/test_acp_project_tools.py for forge fields.
 ---
 <!-- COMMENTS:END -->
