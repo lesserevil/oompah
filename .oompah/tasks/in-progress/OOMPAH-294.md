@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-294
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Define repository-map artifact and state-branch lifecycle
 parent: OOMPAH-293
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:47.496504Z'
-updated_at: '2026-07-22T00:32:14.207638Z'
+updated_at: '2026-07-22T00:37:08.965027Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 6a7df48d-a563-4abc-917a-7a8c7ded80d3
+oompah.agent_run_id: 65712fff-cb78-4284-b569-9f53006d0a1a
 oompah.task_costs:
   total_input_tokens: 732004
   total_output_tokens: 12713
@@ -302,5 +302,15 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 0s
 - Log: OOMPAH-294__20260722T003102Z.jsonl
+---
+author: oompah
+created: 2026-07-22 00:37
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 00:37
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->

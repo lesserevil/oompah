@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-342
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Wire GitLabHookManager into project lifecycle with hook health, polling fallback,
   and delivery dedup
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T00:29:14.500742Z'
-updated_at: '2026-07-22T00:29:20.245259Z'
+updated_at: '2026-07-22T00:36:54.637804Z'
 work_branch: null
 target_branch: null
 review_url: null
