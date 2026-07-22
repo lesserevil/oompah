@@ -10,9 +10,11 @@ blocked_by:
 - OOMPAH-319
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:test
+- needs:feature
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T00:20:43.217339Z'
+updated_at: '2026-07-22T00:21:09.050936Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -730,5 +732,28 @@ FAILED tests/test_webhooks.py::TestParseGitLabWebhook::test_supported_project_ho
 FAILED tests/test_webhooks.py::TestParseGitLabWebhook::test_label_update_retains_label_name_for_downstream_invalidation
 FAILED tests/test_webhooks.py::TestWebhookForwarderInit::test_default_webhook_url
 ======================== 7 failed, 146 passed in 1.39s ========================= collected 153 tests: 146 passed; six new GitLab normalization contracts failed as expected, plus one pre-existing environment-sensitive forwarder port expectation. The new endpoint test independently fails as expected ( rather than ).
+---
+author: oompah
+created: 2026-07-22 00:21
+---
+Discovery correction: The GitLab parser in oompah/webhooks.py accepts only Merge Request Hook, and the GitLab endpoint test expected Push Hook to be ignored. No GitLab project-hook manager or hook-health persistence exists yet. Existing token validation and MR endpoint coverage provide the integration seam.
+---
+author: oompah
+created: 2026-07-22 00:21
+---
+Verification correction: make test cannot launch because uv fails before pytest with a DBus transient-scope error. Fallback virtualenv pytest on tests/test_webhooks.py: 146 passed and the six new GitLab normalization contracts failed as expected; one pre-existing forwarder-port test is environment-sensitive. The new GitLab endpoint push test independently fails as expected because the endpoint returns ignored instead of processed.
+---
+author: oompah
+created: 2026-07-22 00:21
+---
+Focus handoff: test
+
+1. Outcome: Added fixture-only acceptance tests that specify GitLab event parity for Push, Issue, Note, Pipeline, Job, and issue-label updates; updated the endpoint contract so Push Hook must be processed and trigger a tracked-branch refresh.
+
+2. Files/evidence: tests/test_webhooks.py and tests/test_server_webhooks.py. Current parser recognizes only Merge Request Hook, so all six new parser expectations fail. The endpoint returns ignored for Push Hook.
+
+3. Remaining work/risks: Implement GitLab hook lifecycle, public URL configuration, health/fallback and delivery dedupe; expand parser/server handling to satisfy these committed test contracts. Test suite execution is also blocked at make target startup by an environment-level uv DBus failure.
+
+4. Recommended next focus: feature.
 ---
 <!-- COMMENTS:END -->
