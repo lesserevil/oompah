@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-346
 type: bug
-status: In Review
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Reserve round-robin providers atomically at dispatch time
 parent: null
 children: []
@@ -11,9 +11,10 @@ labels:
 - provider-selection
 - round-robin
 - focus-complete:duplicate_detector
+- ci-fix
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T02:28:48.501045Z'
+updated_at: '2026-07-22T02:36:55.509163Z'
 work_branch: OOMPAH-346
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/527
@@ -308,5 +309,10 @@ oompah will create the review automatically when review capacity is available.
 
 Recent commits:
   7c7d2ed36 OOMPAH-346: Reserve round-robin providers atomically at dispatch time
+---
+author: oompah
+created: 2026-07-22 02:36
+---
+YOLO: CI tests failed on MR #527. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->

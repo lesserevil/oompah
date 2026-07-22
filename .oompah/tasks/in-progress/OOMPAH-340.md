@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:28:20.576396Z'
-updated_at: '2026-07-22T01:57:59.363006Z'
+updated_at: '2026-07-22T02:36:51.108816Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -191,5 +191,15 @@ author: oompah
 created: 2026-07-22 01:57
 ---
 Discovery: No duplicate exists. Key files: oompah/webhooks.py (parse_gitlab_webhook at line 589 - only handles 'Merge Request Hook'), oompah/server.py (api_webhook_gitlab at line 13446, _handle_webhook_event at 12094, _webhook_should_request_refresh at 13032, _webhook_advanced_tracked_branch at 12991). Tests: tests/test_webhooks.py (TestParseGitLabWebhook at line 864), tests/test_server_webhooks.py (line 465, test_push_event_ignored). Plan: (1) Refactor parse_gitlab_webhook to use private helpers for each hook type, (2) Update server.py cache invalidation and refresh checks to handle new GitLab event types, (3) Update/add tests.
+---
+author: oompah
+created: 2026-07-22 02:36
+---
+Implementation: Extended parse_gitlab_webhook in oompah/webhooks.py to handle all 6 GitLab hook types. Refactored existing MR parsing into _parse_gitlab_mr(), added _parse_gitlab_push(), _parse_gitlab_issue(), _parse_gitlab_note(), _parse_gitlab_pipeline(), _parse_gitlab_job(). Updated server.py: (1) _webhook_advanced_tracked_branch now handles 'Push Hook' and 'Merge Request Hook' merged=True, (2) _webhook_should_request_refresh handles Note Hook (like issue_comment), Issue Hook (like issues), Push Hook (like push), (3) cache invalidation updated for Issue Hook, Note Hook, Push Hook, (4) _DISPATCH_AFFECTING_ISSUE_ACTIONS extended with GitLab action names (open/close/reopen/update/delete). Added 31 new unit tests in test_webhooks.py and 11 new tests in test_server_webhooks.py.
+---
+author: oompah
+created: 2026-07-22 02:36
+---
+Verification: All 11,369 tests pass (36 skipped). New tests: 31 for TestParseGitLabWebhook covering all 6 hook types + edge cases, 19 for TestGitLabWebhookEndpoint (10 new), 25 for TestWebhookShouldRequestRefresh (10 new). No regressions.
 ---
 <!-- COMMENTS:END -->
