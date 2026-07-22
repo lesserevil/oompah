@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:30.718256Z'
-updated_at: '2026-07-22T16:28:21.102862Z'
+updated_at: '2026-07-22T16:28:36.267726Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: ea2ff7fc-22a1-42b7-ac4f-32ebb097113c
+oompah.agent_run_id: 1086bf75-276c-4b47-be3d-339e8ccbcf92
 oompah.task_costs:
   total_input_tokens: 3001624
   total_output_tokens: 32563
@@ -674,5 +674,15 @@ author: oompah
 created: 2026-07-22 16:28
 ---
 Agent completed without closing this issue (34s (191405 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-22 16:28
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-22 16:28
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
