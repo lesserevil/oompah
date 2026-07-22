@@ -215,6 +215,7 @@ class GitLabIssueTracker:
         base_url: str | None = None,
         client: GitLabClient | None = None,
         cwd: str | None = None,
+        status_label_authorized_logins: list[str] | None = None,
         **_: Any,
     ) -> None:
         self.project = project.strip("/")
@@ -233,6 +234,16 @@ class GitLabIssueTracker:
             list(active_states),
             list(terminal_states),
         )
+        self.status_label_authorized_logins = list(
+            status_label_authorized_logins or []
+        )
+        # A status label observed through polling is not authoritative merely
+        # because it is syntactically valid.  Keep the same small in-memory
+        # trust boundary as the GitHub tracker: oompah writes and authorized
+        # webhook transitions populate the ledger; suspicious changes remain
+        # excluded from dispatch until reviewed/reverted.
+        self._trusted_status_ledger: dict[int, str] = {}
+        self._untrusted_status_issues: set[int] = set()
         self._client = client or GitLabClient(
             base_url=base_url
             or os.getenv("OOMPAH_GITLAB_BASE_URL", "https://gitlab.com"),
@@ -299,17 +310,52 @@ class GitLabIssueTracker:
             updated_at=_parse_timestamp(data.get("updated_at")),
             closed_at=_parse_timestamp(data.get("closed_at")),
             tracker_kind="gitlab_issues",
-            tracker_owner=self.project.rsplit("/", 1)[0]
-            if "/" in self.project
-            else None,
+            tracker_owner=(
+                self.project.rsplit("/", 1)[0] if "/" in self.project else None
+            ),
             tracker_repo=self.project.rsplit("/", 1)[-1],
             issue_number=str(iid),
             requestor_login=(data.get("author") or {}).get("username"),
         )
 
+    def _labels_with_status(self, labels: list[str], status: str) -> list[str]:
+        """Return *labels* with exactly one canonical status label."""
+        return [x for x in labels if not x.startswith(_STATUS_PREFIX)] + [
+            _status_label(status)
+        ]
+
+    def _ensure_status_label(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Backfill/canonicalize a polled issue's status label best-effort."""
+        labels = [str(label) for label in data.get("labels") or []]
+        status = _status_from_labels(labels, str(data.get("state", "opened")))
+        canonical = self._labels_with_status(labels, status)
+        status_labels = [label for label in labels if label.startswith(_STATUS_PREFIX)]
+        iid = data.get("iid")
+        if iid is None:
+            return data
+        if labels == canonical:
+            return data
+        try:
+            self._edit(int(iid), labels=",".join(canonical))
+        except (TrackerError, TypeError, ValueError) as exc:
+            logger.debug(
+                "Failed to backfill GitLab status label for #%s: %s", iid, exc
+            )
+            return data
+        # A missing label is a safe fallback/backfill: the status was derived
+        # from GitLab's native state.  By contrast, repairing duplicate or
+        # conflicting status labels must not bless the selected label; it can
+        # have been supplied by an unauthorized actor and is validated at the
+        # dispatch boundary below.
+        if not status_labels:
+            self.record_trusted_status(int(iid), status)
+        updated = dict(data)
+        updated["labels"] = canonical
+        return updated
+
     def _list(self, **params: Any) -> list[Issue]:
         return [
-            self._issue(row)
+            self._issue(self._ensure_status_label(row))
             for row in self._client.paginated(
                 f"{self._project_path}/issues", params=params
             )
@@ -326,21 +372,124 @@ class GitLabIssueTracker:
     def _replace_status(
         self, iid: int, status: str, *, close: bool | None = None
     ) -> None:
-        labels = [x for x in self._labels(iid) if not x.startswith(_STATUS_PREFIX)] + [
-            _status_label(status)
-        ]
+        labels = self._labels_with_status(self._labels(iid), status)
         payload: dict[str, Any] = {"labels": ",".join(labels)}
         if close is not None:
             payload["state_event"] = "close" if close else "reopen"
         self._edit(iid, **payload)
+        self.record_trusted_status(iid, status)
+
+    # Kept as a named helper because the shared webhook revert path uses the
+    # GitHub tracker's corresponding method when it can restore a trusted
+    # status.  GitLab can make the same atomic label replacement in one PUT.
+    def _set_status_label(self, iid: int, status: str) -> None:
+        self._replace_status(iid, status)
+
+    def identifier_for_number(self, number: int) -> GitLabIdentifier:
+        return GitLabIdentifier(self.project, number)
+
+    def record_trusted_status(self, number: int, status: str) -> None:
+        if number and status:
+            self._trusted_status_ledger[number] = canonicalize_status(status)
+            self._untrusted_status_issues.discard(number)
+
+    def record_untrusted_status_label_change(
+        self, number: int, label_name: str, actor: str, action: str
+    ) -> None:
+        if number:
+            self._untrusted_status_issues.add(number)
+            self._trusted_status_ledger.pop(number, None)
+            logger.warning(
+                "GitLabIssueTracker: untrusted status label change recorded for "
+                "issue #%d (label=%s, actor=%s, action=%s)",
+                number,
+                label_name,
+                actor,
+                action,
+            )
+
+    def _authorized_status_label_logins(self) -> frozenset[str]:
+        from oompah.label_auth import get_bot_login
+
+        # A GitLab namespace is included for compatibility with the GitHub
+        # owner rule; configured logins are the normal human authorization
+        # mechanism for nested groups.
+        logins = {get_bot_login(), self.project.rsplit("/", 1)[0]}
+        logins.update(self.status_label_authorized_logins)
+        return frozenset(
+            str(login).strip().lower() for login in logins if str(login).strip()
+        )
+
+    def validate_status_label_actor(
+        self, number: int, status: str, authorized_logins: frozenset[str]
+    ) -> bool:
+        """Validate the latest GitLab label event, failing open on API gaps."""
+        label = _status_label(status)
+        try:
+            events = self._client.paginated(
+                self._issue_path(number, "/resource_label_events"),
+                params={"per_page": 100},
+            )
+        except Exception as exc:
+            logger.warning(
+                "Could not fetch GitLab label events for #%d: %s; treating as trusted",
+                number,
+                exc,
+            )
+            return True
+
+        matching = [
+            event for event in events
+            if isinstance(event, dict)
+            and event.get("action") in {"add", "labeled"}
+            and (event.get("label") or {}).get("name") == label
+        ]
+        if not matching:
+            return True
+        actor = (
+            ((matching[-1].get("user") or {}).get("username") or "")
+            .strip()
+            .lower()
+        )
+        return actor in authorized_logins
+
+    def _candidate_status_label_is_trusted(self, issue: Issue) -> bool:
+        number = self.parse_identifier(issue.identifier).iid
+        status = canonicalize_status(issue.state)
+        if self._trusted_status_ledger.get(number) == status:
+            return True
+        # A failed best-effort backfill leaves the GitLab state as the safe
+        # fallback.  There is no label mutation to authorize in that case.
+        if _status_label(status) not in issue.labels:
+            return True
+        # The dispatch boundary is Open.  Other active lifecycle states are
+        # never promoted from intake by a status label alone.
+        if status.lower() != "open":
+            return True
+        if self.validate_status_label_actor(
+            number, status, self._authorized_status_label_logins()
+        ):
+            self.record_trusted_status(number, status)
+            return True
+        self.record_untrusted_status_label_change(
+            number, _status_label(status), "polling-reconciliation", "labeled"
+        )
+        return False
 
     def fetch_candidate_issues(self) -> list[Issue]:
         active = {canonicalize_status(s) for s in self.active_states}
+        candidates = [
+            issue
+            for issue in self._list(state="opened")
+            if canonicalize_status(issue.state) in active
+            and self.parse_identifier(issue.identifier).iid
+            not in self._untrusted_status_issues
+        ]
         return _sort_issues_for_dispatch(
             [
                 issue
-                for issue in self._list(state="opened")
-                if canonicalize_status(issue.state) in active
+                for issue in candidates
+                if self._candidate_status_label_is_trusted(issue)
             ]
         )
 
@@ -354,7 +503,7 @@ class GitLabIssueTracker:
         try:
             parsed = self.parse_identifier(identifier)
             data, _ = self._client.request("GET", self._issue_path(parsed.iid))
-            return self._issue(data)
+            return self._issue(self._ensure_status_label(data))
         except TrackerError as exc:
             if "404" in str(exc):
                 return None
@@ -422,13 +571,10 @@ class GitLabIssueTracker:
         labels: list[str] | None = None,
         parent: str | None = None,
     ) -> Issue:
-        all_labels = list(labels or []) + [
-            issue_type,
-            _status_label(
-                initial_status
-                or (self.active_states[0] if self.active_states else "Open")
-            ),
-        ]
+        all_labels = self._labels_with_status(
+            list(labels or []) + [issue_type],
+            initial_status or (self.active_states[0] if self.active_states else "Open"),
+        )
         if priority is not None:
             all_labels.append(f"priority:{priority}")
         if parent:

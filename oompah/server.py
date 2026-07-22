@@ -11060,6 +11060,16 @@ def _is_github_tracker_kind(kind: str | None) -> bool:
     return (kind or "").strip().lower() in {"github_issues", "github-issues"}
 
 
+def _is_status_label_governed_tracker_kind(kind: str | None) -> bool:
+    """Return whether a forge tracker supports status-label authorization."""
+    return (kind or "").strip().lower() in {
+        "github_issues",
+        "github-issues",
+        "gitlab_issues",
+        "gitlab-issues",
+    }
+
+
 def _has_github_issue_template_capability(project: object) -> bool:
     """Return True when *project* can have GitHub issue templates managed.
 
@@ -12417,7 +12427,9 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         and event.label_name
         and event.label_actor
         and project
-        and _is_github_tracker_kind(getattr(project, "tracker_kind", None))
+        and _is_status_label_governed_tracker_kind(
+            getattr(project, "tracker_kind", None)
+        )
     ):
         from oompah.label_auth import is_status_label, is_authorized_status_actor
 
@@ -12513,7 +12525,7 @@ def _is_oompah_owned_label_event(orch, event, project) -> bool:
 
 
 def _status_before_label_event(tracker, event, to_status: str) -> str | None:
-    """Best-effort previous status for a GitHub ``issues.labeled`` event."""
+    """Best-effort previous status for a forge ``issues.labeled`` event."""
 
     try:
         number = int(event.issue_number)
@@ -12528,11 +12540,24 @@ def _status_before_label_event(tracker, event, to_status: str) -> str | None:
 
     from oompah.label_auth import label_name_to_status
 
-    raw_issue = (getattr(event, "raw", {}) or {}).get("issue") or {}
+    raw_event = getattr(event, "raw", {}) or {}
+    raw_issue = raw_event.get("issue") or {}
     labels = raw_issue.get("labels") or []
+    # GitLab Issue Hooks put the pre-change labels under
+    # ``changes.labels.previous`` rather than an ``issue`` object.  Reading
+    # them here preserves the same proposed/backlog transition gates that
+    # GitHub applies to label events.
+    if not labels and getattr(event, "provider", "") == "gitlab":
+        labels = ((raw_event.get("changes") or {}).get("labels") or {}).get(
+            "previous", []
+        )
     if isinstance(labels, list):
         for item in labels:
-            name = item.get("name") if isinstance(item, dict) else str(item)
+            name = (
+                (item.get("name") or item.get("title"))
+                if isinstance(item, dict)
+                else str(item)
+            )
             status = label_name_to_status(name or "")
             if status and _state_key(status) != _state_key(to_status):
                 return canonicalize_status(status)
@@ -12948,6 +12973,18 @@ def _revert_unauthorized_status_label_change(orch, event, project) -> None:
         )
         return
 
+    # Preserve the last trusted state before marking the issue untrusted.
+    # ``record_untrusted_status_label_change`` intentionally clears its
+    # ledger entry so polling cannot dispatch the issue while it is under
+    # review.  The saved value is what makes a successful label replacement
+    # an actual rollback rather than merely removing the unauthorized label.
+    try:
+        previous_trusted_status = getattr(tracker, "_trusted_status_ledger", {}).get(
+            int(issue_number)
+        )
+    except (TypeError, ValueError):
+        previous_trusted_status = None
+
     # Record this unauthorized attempt in the tracker's trusted-status ledger
     # so polling validation is aware.
     record_untrusted = getattr(tracker, "record_untrusted_status_label_change", None)
@@ -12959,7 +12996,13 @@ def _revert_unauthorized_status_label_change(orch, event, project) -> None:
     # previous status — but we don't know the previous status from the webhook
     # alone, so we fetch the issue to determine the current state and reconcile.
     try:
-        _do_revert_status_label(tracker, issue_number, label_name, action)
+        _do_revert_status_label(
+            tracker,
+            issue_number,
+            label_name,
+            action,
+            previous_trusted_status=previous_trusted_status,
+        )
     except Exception as exc:
         logger.error(
             "Failed to revert unauthorized label change on %s#%s: %s",
@@ -13046,7 +13089,14 @@ def _remove_status_label_from_tracker(tracker, number: int, label_name: str) -> 
     remove_label(identifier, label_name)
 
 
-def _do_revert_status_label(tracker, issue_number: str, label_name: str, action: str) -> None:
+def _do_revert_status_label(
+    tracker,
+    issue_number: str,
+    label_name: str,
+    action: str,
+    *,
+    previous_trusted_status: str | None = None,
+) -> None:
     """Perform the actual label revert on the GitHub issue.
 
     For ``labeled`` actions (actor applied label): remove the unauthorized label.
@@ -13073,9 +13123,13 @@ def _do_revert_status_label(tracker, issue_number: str, label_name: str, action:
         # labels.  Use _set_status_label to atomically swap back.
         set_status = getattr(tracker, "_set_status_label", None)
         if callable(set_status):
-            # Try to find a valid previous status via the ledger.
-            ledger = getattr(tracker, "_trusted_status_ledger", {})
-            prev_status = ledger.get(num)
+            # Use the state captured before the issue was marked untrusted.
+            # Fall back to a live ledger lookup for direct callers that do
+            # not use the webhook guard.
+            prev_status = previous_trusted_status
+            if not prev_status:
+                ledger = getattr(tracker, "_trusted_status_ledger", {})
+                prev_status = ledger.get(num)
             if prev_status:
                 # Restore to last known-good status.
                 set_status(num, prev_status)
