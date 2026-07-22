@@ -18,24 +18,23 @@ blocked_by:
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:test
-- needs:chore
 assignee: null
 created_at: '2026-07-21T20:34:42.931068Z'
-updated_at: '2026-07-22T08:03:31.342466Z'
+updated_at: '2026-07-22T08:03:51.485525Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: b1ce6826-3ed7-43ae-acf3-c3d6c4bd75f7
+oompah.agent_run_id: 9b3c8bfa-fcfc-4e91-b88b-a4913ab8815d
 oompah.task_costs:
-  total_input_tokens: 210602
-  total_output_tokens: 5629
+  total_input_tokens: 3285933
+  total_output_tokens: 15549
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 210602
-      output_tokens: 5629
+      input_tokens: 3285933
+      output_tokens: 15549
       cost_usd: 0.0
   runs:
   - profile: default
@@ -50,6 +49,12 @@ oompah.task_costs:
     output_tokens: 4195
     cost_usd: 0.0
     recorded_at: '2026-07-22T07:55:00.906174+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 3075331
+    output_tokens: 9920
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T08:03:39.626594+00:00'
 ---
 ## Summary
 
@@ -192,5 +197,35 @@ author: oompah
 created: 2026-07-22 08:03
 ---
 Focus handoff: test\n\nOutcome: added tests/test_gitlab_cross_forge_acceptance.py with offline shared GitHub/GitLab SCM contract fixtures, pre-forge GitHub persistence migration coverage, and explicit credential-gated GitLab.com/self-managed smoke tests.\n\nEvidence: targeted suite: 10 passed, 2 skipped; full suite: 11,558 passed, 38 skipped (12 warnings). make test was attempted but uv could not create a DBus transient scope before pytest.\n\nRisk/blocker: worktree is detached and contains a large unrelated staged integration batch. Creating OOMPAH-329 failed because the shared repository refs directory is read-only. The new test file is untracked and cannot safely be committed/pushed here; preserve the staged batch and commit only this file from a writable issue worktree.\n\nRecommended next focus: chore (commit/push recovery).
+---
+author: oompah
+created: 2026-07-22 08:03
+---
+Agent completed successfully in 508s (3085251 tokens)
+---
+author: oompah
+created: 2026-07-22 08:03
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 1, Tool calls: 40
+- Tokens: 3.1M in / 9.9K out [3.1M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 28s
+- Log: OOMPAH-329__20260722T075514Z.jsonl
+---
+author: oompah
+created: 2026-07-22 08:03
+---
+Focus handoff from `test` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-22 08:03
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-22 08:03
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
