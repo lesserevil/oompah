@@ -102,6 +102,7 @@ from oompah.tracker import (
     TrackerError,
     TrackerNotConfiguredError,
     TrackerProtocol,
+    TrackerStateBranchFetchError,
     TrackerStateBranchMissingError,
     TrackerTimeoutError,
 )
@@ -174,6 +175,8 @@ def _error_class_for_tracker_exc(exc: BaseException) -> str:
         return "tracker_auth_failed"
     if isinstance(exc, TrackerStateBranchMissingError):
         return "tracker_state_branch_missing"
+    if isinstance(exc, TrackerStateBranchFetchError):
+        return "tracker_state_branch_fetch"
     if isinstance(exc, TrackerError):
         return "tracker_failed"
     return "project_error"
@@ -3697,6 +3700,14 @@ class Orchestrator:
                             exc,
                         )
                         return []
+                    except TrackerStateBranchFetchError as exc:
+                        # Transient network failure — local state valid, retry later.
+                        logger.warning(
+                            "Fetch state-branch sync skipped for project %s: %s",
+                            project.name,
+                            exc,
+                        )
+                        return []
                     except TrackerTimeoutError as exc:
                         logger.warning(
                             "Fetch timed out for project %s: %s",
@@ -3815,6 +3826,10 @@ class Orchestrator:
         except TrackerStateBranchMissingError as exc:
             logger.warning("Tracker fetch skipped: %s", exc)
             return []
+        except TrackerStateBranchFetchError as exc:
+            # Transient network failure — local state valid, retry later.
+            logger.warning("Tracker fetch state-branch sync skipped: %s", exc)
+            return []
         except TrackerTimeoutError as exc:
             logger.warning("Tracker fetch timed out: %s", exc)
             return []
@@ -3848,6 +3863,7 @@ class Orchestrator:
         async def _fetch_all_projects() -> list[Issue]:
             async def _fetch_one(project) -> list[Issue]:
                 project_id = project.id
+<<<<<<< Updated upstream
                 async def _coro() -> list[Issue]:
                     def _read() -> list[Issue]:
                         try:
@@ -3884,6 +3900,47 @@ class Orchestrator:
                     return await asyncio.get_running_loop().run_in_executor(
                         self._refresh_pool, _read
                     )
+=======
+                async def _coro():
+                    try:
+                        tracker = self._tracker_for_project(project_id)
+                        issues = tracker.fetch_issues_by_states([IN_PROGRESS])
+                        for issue in issues:
+                            issue.project_id = project_id
+                        return issues
+                    except TrackerNotConfiguredError:
+                        return []
+                    except TrackerStateBranchMissingError as exc:
+                        logger.warning(
+                            "In Progress fetch skipped for project %s: %s",
+                            project.name,
+                            exc,
+                        )
+                        return []
+                    except TrackerStateBranchFetchError as exc:
+                        # Transient network failure — local state valid, retry later.
+                        logger.warning(
+                            "In Progress fetch state-branch sync skipped for project %s: %s",
+                            project.name,
+                            exc,
+                        )
+                        return []
+                    except TrackerTimeoutError as exc:
+                        logger.warning(
+                            "In Progress fetch timed out for project %s: %s",
+                            project.name,
+                            exc,
+                        )
+                        return []
+                    except (TrackerError, ProjectError) as exc:
+                        logger.error(
+                            "In Progress fetch failed for project %s: %s",
+                            project.name,
+                            exc,
+                            extra={"error_class": _error_class_for_tracker_exc(exc)},
+                        )
+                        return []
+>>>>>>> Stashed changes
 
                 data, _ = await self._run_bounded_refresh(
                     project_id, "in_progress", _coro
@@ -3906,6 +3963,10 @@ class Orchestrator:
             return []
         except TrackerStateBranchMissingError as exc:
             logger.warning("Tracker In Progress fetch skipped: %s", exc)
+            return []
+        except TrackerStateBranchFetchError as exc:
+            # Transient network failure — local state valid, retry later.
+            logger.warning("Tracker In Progress fetch state-branch sync skipped: %s", exc)
             return []
         except TrackerTimeoutError as exc:
             logger.warning("Tracker In Progress fetch timed out: %s", exc)

@@ -45,7 +45,7 @@ import yaml
 
 from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.statuses import DONE, IN_PROGRESS, IN_REVIEW, OPEN
-from oompah.tracker import TrackerError, TrackerStateBranchMissingError
+from oompah.tracker import TrackerError, TrackerStateBranchFetchError, TrackerStateBranchMissingError
 
 
 # ---------------------------------------------------------------------------
@@ -933,10 +933,15 @@ class TestStateBranchTrackerFailures:
         )
 
     @state_branch_not_implemented
-    def test_fetch_failure_raises_tracker_error_mentioning_state_branch(
+    def test_fetch_failure_raises_state_branch_fetch_error(
         self, tmp_path: Path
     ) -> None:
-        """A failed fetch for the state branch must raise a clear TrackerError."""
+        """A failed fetch for the state branch must raise StateBranchFetchError.
+
+        StateBranchFetchError is a TrackerError subclass so existing generic
+        catch blocks continue to work, but callers can now catch it separately
+        to log at WARNING and avoid triggering error_watcher (OOMPAH-345).
+        """
         root = tmp_path / "repo"
         _init_git_repo(root)
         state_branch = "oompah/state/proj-fetch-fail"
@@ -970,7 +975,9 @@ class TestStateBranchTrackerFailures:
 
         tracker._git = _fake_git  # type: ignore[method-assign]
 
-        with pytest.raises(TrackerError) as exc_info:
+        # Must raise the specific StateBranchFetchError subclass, not a
+        # generic TrackerError, so callers can suppress error_watcher.
+        with pytest.raises(TrackerStateBranchFetchError) as exc_info:
             tracker.create_issue("Fetch failure test")
 
         error_msg = str(exc_info.value)
@@ -979,6 +986,49 @@ class TestStateBranchTrackerFailures:
             word in error_msg.lower()
             for word in ("fetch", "sync", "state", "oompah/state")
         ), f"Fetch error must mention the state branch or sync; got: {error_msg!r}"
+
+    def test_fetch_failure_is_also_a_tracker_error(
+        self, tmp_path: Path
+    ) -> None:
+        """StateBranchFetchError must be catchable as TrackerError for back-compat.
+
+        Existing callers that catch the generic TrackerError must not regress.
+        """
+        root = tmp_path / "repo"
+        _init_git_repo(root)
+        state_branch = "oompah/state/proj-fetch-backcompat"
+        _create_state_branch(root, state_branch)
+
+        tracker = _make_tracker(
+            root,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=True,
+        )
+
+        def _fake_git(args: list[str], *, check: bool, **kwargs) -> MagicMock:
+            cmd = args[0] if args else ""
+            cwd = kwargs.get("cwd", root)
+            effective_cwd = str(cwd) if cwd is not None else str(root)
+            if cmd == "fetch":
+                return _make_completed_process(1, "", "network unreachable")
+            if cmd == "remote" and "get-url" in args:
+                return _make_completed_process(0, "https://example.com/fake-remote.git")
+            result = subprocess.run(
+                ["git", *args],
+                cwd=effective_cwd,
+                capture_output=True,
+                text=True,
+            )
+            if check and result.returncode != 0:
+                raise TrackerError(f"git {' '.join(args)} failed: {result.stderr}")
+            return result  # type: ignore[return-value]
+
+        tracker._git = _fake_git  # type: ignore[method-assign]
+
+        # Generic TrackerError catch must still work (back-compat).
+        with pytest.raises(TrackerError):
+            tracker.create_issue("Backcompat test")
 
 
 # ---------------------------------------------------------------------------

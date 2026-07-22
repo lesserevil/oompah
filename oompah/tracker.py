@@ -74,13 +74,28 @@ class StateBranchMissingError(TrackerError):
     """
 
 
+class StateBranchFetchError(TrackerError):
+    """Raised when ``git fetch origin`` fails while syncing the state branch.
+
+    This is a *transient* network or remote-availability error, not a
+    programming fault.  The state-branch worktree's local content is still
+    valid; the push-retry path in :meth:`_commit_and_push_state_branch` will
+    attempt another fetch on the next retry.
+
+    Callers catch this separately and log a WARNING (not an ERROR) so that
+    ``error_watcher`` is not triggered by normal transient fetch failures.
+    """
+
+
 class TrackerTimeoutError(TrackerError):
     """Raised when a tracker operation exceeds its timeout."""
 
 
-# Backward-compatible alias — orchestrator.py and tests still reference this
-# name; the canonical class is StateBranchMissingError (added by OOMPAH-316).
+# Backward-compatible aliases — orchestrator.py and tests still reference
+# these names; the canonical classes were renamed/added by OOMPAH-316 /
+# OOMPAH-345.
 TrackerStateBranchMissingError = StateBranchMissingError
+TrackerStateBranchFetchError = StateBranchFetchError
 
 
 def _write_attachments_manifest(
