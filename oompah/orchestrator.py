@@ -2588,7 +2588,11 @@ class Orchestrator:
         evidence needed to diagnose the next wedge.
         """
         try:
-            logger.error("Dispatch loop stall diagnostics follow (all thread stacks)")
+            # The stale-loop alert and recovery path already make this
+            # operator-visible.  This line merely introduces the diagnostic
+            # thread dump, so it must not look like a second backend failure
+            # to error_watcher.
+            logger.warning("Dispatch loop stall diagnostics follow (all thread stacks)")
             faulthandler.dump_traceback(all_threads=True)
         except Exception as exc:  # noqa: BLE001 -- diagnostics must not fail recovery
             logger.warning("Unable to capture dispatch loop stall diagnostics: %s", exc)
