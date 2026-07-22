@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T16:24:49.141548Z'
-updated_at: '2026-07-22T16:27:13.964181Z'
+updated_at: '2026-07-22T16:27:16.622516Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,5 +33,10 @@ author: oompah
 created: 2026-07-22 16:27
 ---
 Fixed resolver exit handling: when the existing open review is still conflicted, normal resolver completion now keeps the task at Needs Rebase with merge-conflict, records diagnostics, and wakes redispatch instead of treating the repair as complete. Added mature-epic regression coverage. Verification: make test passed.
+---
+author: oompah
+created: 2026-07-22 16:27
+---
+Conflicted resolver exits now remain dispatchable and immediately wake the dispatcher; regression test added.
 ---
 <!-- COMMENTS:END -->
