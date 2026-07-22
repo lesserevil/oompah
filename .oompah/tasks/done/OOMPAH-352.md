@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:40.490026Z'
-updated_at: '2026-07-22T01:16:05.004743Z'
+updated_at: '2026-07-22T01:16:07.657643Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-07-22 01:07
 ---
 Implemented first-occurrence stale-loop diagnostics: an independently running supervisor captures all thread stacks when the dispatch loop first becomes stale. Regression coverage added; full suite is running.
+---
+author: oompah
+created: 2026-07-22 01:16
+---
+Added first-stall all-thread diagnostics and regression coverage.
 ---
 <!-- COMMENTS:END -->
