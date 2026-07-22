@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-407
 type: bug
-status: In Progress
+status: Open
 priority: 2
 title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 900s (threshold=900s).
   Alert armed, recovery queued.'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:37.862938Z'
-updated_at: '2026-07-22T15:50:52.739991Z'
+updated_at: '2026-07-22T15:51:00.126946Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -247,5 +247,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 6m 35s
 - Log: OOMPAH-407__20260722T154418Z.jsonl
+---
+author: oompah
+created: 2026-07-22 15:51
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
