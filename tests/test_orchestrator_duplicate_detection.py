@@ -248,6 +248,28 @@ class TestFocusHandoff:
         assert entry.identifier not in orch.state.stall_counts
         orch._post_comment.assert_called_once()
 
+    def test_handoff_comment_without_label_advances_focus(self):
+        """A posted handoff must not be retried when label creation was lost."""
+        orch = self._make_orchestrator()
+        orch.tracker.fetch_comments.return_value = [
+            {"text": "Focus handoff: duplicate_detector\nNo duplicate found."}
+        ]
+        entry = self._make_entry()
+        current = _make_issue(
+            identifier=entry.identifier,
+            state="In Progress",
+            labels=[],
+        )
+
+        assert orch._handoff_completed_focus(entry, current, None)
+
+        orch.tracker.add_label.assert_called_once_with(
+            entry.identifier, "focus-complete:duplicate_detector"
+        )
+        orch.tracker.update_issue.assert_called_once_with(entry.identifier, status="Open")
+        assert "focus-complete:duplicate_detector" in current.labels
+        assert entry.identifier not in orch.state.reopen_counts
+
     def test_terminal_task_is_not_handed_off(self):
         orch = self._make_orchestrator()
         entry = self._make_entry()

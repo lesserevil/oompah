@@ -14782,14 +14782,11 @@ class Orchestrator:
         ):
             return False
 
-        labels = {label.lower() for label in (current.labels or [])}
-        completed_label = f"focus-complete:{entry.focus_name.lower()}"
-        requested_focus = any(label.startswith("needs:") for label in labels)
-        if completed_label not in labels and not requested_focus:
-            return False
-
         try:
             tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+            labels = {label.lower() for label in (current.labels or [])}
+            completed_label = f"focus-complete:{entry.focus_name.lower()}"
+            requested_focus = any(label.startswith("needs:") for label in labels)
             handoff_heading = f"focus handoff: {entry.focus_name.lower()}"
             comments = tracker.fetch_comments(entry.identifier)
             has_handoff = any(
@@ -14797,6 +14794,18 @@ class Orchestrator:
                 for comment in comments
                 if isinstance(comment, dict)
             )
+            # The comment is the durable handoff evidence. Agents sometimes
+            # successfully post it but fail before issuing the follow-up
+            # add-label command; treating the label as a prerequisite turns a
+            # completed focus into a retry loop. Backfill the label here so
+            # selection will reliably skip the completed focus on every later
+            # dispatch, including after a service restart.
+            if not (completed_label in labels or requested_focus or has_handoff):
+                return False
+            if has_handoff and completed_label not in labels:
+                tracker.add_label(entry.identifier, completed_label)
+                current.labels = list(current.labels or []) + [completed_label]
+                labels.add(completed_label)
             if not has_handoff:
                 # Do not let an empty label discard the outgoing focus's
                 # findings. Remove it and dispatch the same focus again so it
