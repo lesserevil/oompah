@@ -6,13 +6,14 @@ priority: null
 title: Harden shared-epic protection when _resolve_parent_epic fails for a child with
   parent_id set
 parent: OOMPAH-307
-children: []
+children:
+- OOMPAH-404
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:53:17.046767Z'
-updated_at: '2026-07-22T05:41:23.024934Z'
+updated_at: '2026-07-22T05:41:52.139534Z'
 work_branch: null
 target_branch: null
 review_url: null
