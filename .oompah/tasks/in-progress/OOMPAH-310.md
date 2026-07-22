@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T16:53:34.544944Z'
-updated_at: '2026-07-22T16:14:52.577769Z'
+updated_at: '2026-07-22T16:15:14.655824Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -78,5 +78,10 @@ author: oompah
 created: 2026-07-22 16:14
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 16:15
+---
+Understanding: Acting as Duplicate Investigator for OOMPAH-310. This task is about verifying that shared-epic children are only promoted to Merged state after the epic itself merges (epic-merge-triggered promotion). I will search the task tracker and codebase for similar issues before any implementation work begins.
 ---
 <!-- COMMENTS:END -->

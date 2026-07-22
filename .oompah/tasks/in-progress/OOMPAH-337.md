@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:30.718256Z'
-updated_at: '2026-07-22T16:15:10.312360Z'
+updated_at: '2026-07-22T16:15:12.858426Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -438,5 +438,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 47s
 - Log: OOMPAH-337__20260722T161419Z.jsonl
+---
+author: oompah
+created: 2026-07-22 16:15
+---
+Agent completed without closing this issue (47s (237479 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
