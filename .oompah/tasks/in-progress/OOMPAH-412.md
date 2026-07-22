@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T21:34:07.971835Z'
-updated_at: '2026-07-22T23:33:51.138655Z'
+updated_at: '2026-07-22T23:43:16.517260Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -245,5 +245,24 @@ author: oompah
 created: 2026-07-22 23:33
 ---
 Understanding: I am the Feature agent for OOMPAH-412. I'm on branch epic-OOMPAH-310 and will now audit all 6 shared-epic Merged promotion paths in oompah/orchestrator.py, add hardening guards where gaps are found, commit changes, and close this task. The key file is oompah/orchestrator.py (~19563 lines). Starting code audit now.
+---
+author: oompah
+created: 2026-07-22 23:43
+---
+Discovery: Completed audit of all 6 Merged promotion code paths in oompah/orchestrator.py.
+
+PATH 1 - _label_merged_epics (~line 10400): GATED. Checks _epic_branch_landed_on_target() before calling _mark_epic_merged(). Cannot bypass.
+
+PATH 2 - _open_epic_main_prs (~line 5674): GATED. _mark_epic_merged() is inside the 'if _epic_branch_landed_on_target(...)' block. Cannot bypass.
+
+PATH 3 - _reconcile_merged_epic_children (~line 10501): PARTIALLY GATED (gap found). Relies on the invariant that all epics in MERGED state had their branch verified. All current code paths that set MERGED on an epic do verify this, BUT there is no explicit _epic_branch_landed_on_target check here. If an epic is set to MERGED externally or via future code, children would be promoted without branch verification. Adding defensive guard.
+
+PATH 4 - _open_deferred_done_reviews (~line 8490): GATED. 'if issue.parent_id and rollup_strategy == shared: continue' fires before all Merged promotion paths. Confirmed shared-epic children exit before any update_issue(MERGED) call.
+
+PATH 5 - _label_merged_issues (~line 8839): GATED. 'if rollup_strategy == shared and not helper_issue: continue' fires before tracker.update_issue(MERGED). The helper_issue bypass is intentional for 'ci fix:' and 'rebase ' tasks that fix the epic branch itself.
+
+PATH 6 - _mark_epic_merged (~line 10526): NO INTERNAL GUARD NEEDED. All primary callers (_label_merged_epics, _open_epic_main_prs) are explicitly gated via _epic_branch_landed_on_target. However, since _reconcile_merged_epic_children (path 3) is implicitly gated, adding safety there (not here) to be surgical.
+
+HARDENING ACTION: Add defensive _epic_branch_landed_on_target check in _reconcile_merged_epic_children. Also update existing test and add new regression test.
 ---
 <!-- COMMENTS:END -->
