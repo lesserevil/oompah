@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-404
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Harden 3 call sites in orchestrator.py to fail-closed when _resolve_parent_epic
   returns None for a child with parent_id
@@ -11,12 +11,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T05:41:51.997877Z'
-updated_at: '2026-07-22T15:30:51.403283Z'
+updated_at: '2026-07-22T15:34:34.510938Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: ab2f55b8-0ea6-4023-8916-c62a5c9cca9d
 ---
 ## Summary
 
@@ -137,3 +138,16 @@ Test names:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 15:34
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 15:34
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
