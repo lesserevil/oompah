@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-355
 type: task
-status: In Progress
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-325 onto epic-OOMPAH-318
 parent: OOMPAH-325
@@ -12,7 +12,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-22T01:21:49.952576Z'
-updated_at: '2026-07-22T03:38:06.400129Z'
+updated_at: '2026-07-22T03:42:07.558609Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -311,5 +311,20 @@ author: oompah
 created: 2026-07-22 03:38
 ---
 Discovery: epic-OOMPAH-325 needed rebasing onto origin/epic-OOMPAH-318. Common ancestor was 2ba37886b ('Stop automatic synchronization of unfinished epics'). origin/epic-OOMPAH-318 had 7 diverged commits (OOMPAH-319 through OOMPAH-353). epic-OOMPAH-325 had 11 commits on top of the ancestor, 6 of which were skipped as already-applied. 4 commits were replayed: OOMPAH-345 StateBranchFetchError, OOMPAH-345 Fix merge conflict, OOMPAH-353 stale test fix (from 325's version), and OOMPAH-340 extended webhook parsing.
+---
+author: oompah
+created: 2026-07-22 03:41
+---
+Implementation: Rebased epic-OOMPAH-325 onto origin/epic-OOMPAH-318. One conflict in tests/test_epic_rebase_state.py: two versions of the OOMPAH-353 stale test fix competed — origin/epic-OOMPAH-318 changed from 'Oompah will file a high-priority rebase task' to 'observation only'; the replayed OOMPAH-345 commit changed from 'This is observation only' to same. Resolved by keeping 'This is observation only' (matches production code) in the OOMPAH-345 commit; a subsequent OOMPAH-353 commit from epic-OOMPAH-325 then relaxed it back to 'observation only' (still correct, is a substring). Force-pushed with --force-with-lease: ca8d091a9 → 687151e8a.
+---
+author: oompah
+created: 2026-07-22 03:41
+---
+Verification: make test passed — 11385 passed, 36 skipped, 12 warnings in 222.55s. No test regressions.
+---
+author: oompah
+created: 2026-07-22 03:42
+---
+Completion: epic-OOMPAH-325 successfully rebased onto origin/epic-OOMPAH-318 and force-pushed. Result: 4 unique commits on top of 20d0d9cff (origin/epic-OOMPAH-318 HEAD): OOMPAH-345 StateBranchFetchError, OOMPAH-345 conflict resolution, OOMPAH-353 test fix, OOMPAH-340 extended parse_gitlab_webhook. All 11385 tests pass.
 ---
 <!-- COMMENTS:END -->
