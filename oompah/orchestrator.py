@@ -8069,19 +8069,18 @@ class Orchestrator:
         if entry.issue and entry.issue.parent_id:
             parent_epic = self._resolve_parent_epic(entry.issue)
 
-        # Shared workflow: children of a real epic commit to the shared epic
-        # branch, and the only PR is the epic→main PR.  A task can have a
-        # parent that is not an epic, though; those tasks still use per-task
-        # worktrees and must get their own review instead of being stranded.
+        # A child must never receive a standalone PR.  Parent resolution can
+        # fail transiently, so parent_id is the authoritative fail-closed
+        # signal here; the epic rollup remains the only review path.
         if (
             entry.issue is not None
             and (entry.issue.parent_id or "").strip()
-            and parent_epic is not None
         ):
             logger.debug(
-                "Skip per-child review for %s: child shares branch with epic %s",
+                "Skip per-child review for %s: child has parent %s (epic=%s)",
                 entry.identifier,
-                parent_epic.identifier,
+                entry.issue.parent_id,
+                parent_epic.identifier if parent_epic else "unresolved",
             )
             return True
 
@@ -11909,7 +11908,16 @@ class Orchestrator:
 
         parent_epic = self._resolve_parent_epic(issue)
         if parent_epic is None:
-            return None
+            # A tracker failure is indistinguishable from no parent to the
+            # resolver. Since this issue still names a parent, fail closed
+            # rather than allowing a stale child PR to merge standalone.
+            target_branch = self._review_target_branch(project, review)
+            return (
+                f"shared epic workflow: child task {issue.identifier} has "
+                f"parent {issue.parent_id} but it could not be resolved; "
+                f"blocking PR {source_branch}->{target_branch} until "
+                "parent epic is reachable"
+            )
 
         target_branch = self._review_target_branch(project, review)
         parent_epic_branch = self._epic_branch_for_issue(parent_epic)
@@ -11982,29 +11990,39 @@ class Orchestrator:
             and (issue.parent_id or "").strip()
         ):
             parent_epic = self._resolve_parent_epic(issue)
-            if parent_epic is not None:
-                try:
-                    issue_epic_branch = self._epic_branch_for_issue(issue)
-                except Exception:  # noqa: BLE001 - branch mismatch is enough
-                    issue_epic_branch = ""
-                if source_branch != issue_epic_branch:
-                    parent_epic_branch = self._epic_branch_for_issue(parent_epic)
-                    close_comment = (
-                        "Closing stale child task PR. This project uses shared "
-                        "epic branches, so child task work must land through "
-                        f"the parent epic rollup PR from {parent_epic_branch} "
-                        "instead of a direct task PR.\n\n"
-                        f"{reason}"
-                    )
-                    task_comment_prefix = (
-                        "Closed stale child PR #{review_id} because this "
-                        "project uses shared epic branches. "
-                    )
-                    needs_human_tail = (
-                        " The task was moved to Needs Human so the work can "
-                        "be moved to the shared epic branch or the stale PR "
-                        "can be inspected."
-                    )
+            if parent_epic is None:
+                # The merge gate blocks this PR until the parent is reachable.
+                # Do not close it: a transient tracker failure must not
+                # destructively close a potentially valid child PR.
+                logger.warning(
+                    "YOLO epic-policy close deferred for %s: parent %s "
+                    "could not be resolved",
+                    issue.identifier,
+                    issue.parent_id,
+                )
+                return False
+            try:
+                issue_epic_branch = self._epic_branch_for_issue(issue)
+            except Exception:  # noqa: BLE001 - branch mismatch is enough
+                issue_epic_branch = ""
+            if source_branch != issue_epic_branch:
+                parent_epic_branch = self._epic_branch_for_issue(parent_epic)
+                close_comment = (
+                    "Closing stale child task PR. This project uses shared "
+                    "epic branches, so child task work must land through "
+                    f"the parent epic rollup PR from {parent_epic_branch} "
+                    "instead of a direct task PR.\n\n"
+                    f"{reason}"
+                )
+                task_comment_prefix = (
+                    "Closed stale child PR #{review_id} because this "
+                    "project uses shared epic branches. "
+                )
+                needs_human_tail = (
+                    " The task was moved to Needs Human so the work can "
+                    "be moved to the shared epic branch or the stale PR "
+                    "can be inspected."
+                )
 
         if not close_comment:
             return False
