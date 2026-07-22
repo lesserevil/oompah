@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-324
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Generalize external issue intake and provenance for GitLab
 parent: OOMPAH-318
@@ -11,12 +11,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:26.149163Z'
-updated_at: '2026-07-21T22:16:57.093381Z'
+updated_at: '2026-07-22T05:46:07.780160Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 52472b1d-5fb9-4471-8e43-3af73b3cb8ad
 ---
 ## Summary
 
@@ -41,3 +42,16 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 05:46
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 05:46
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
