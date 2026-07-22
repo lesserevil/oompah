@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T05:47:21.336674Z'
+updated_at: '2026-07-22T05:54:45.415124Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -249,5 +249,10 @@ author: oompah
 created: 2026-07-22 05:47
 ---
 Understanding (continuation run): Picking up from prior agents. Root cause confirmed: oompah/orchestrator.py logs at ERROR level when a worker doesn't stop within the termination timeout during shutdown. This triggers error_watcher to auto-file bugs. The fix is to downgrade this specific log from ERROR to WARNING, since a worker not stopping within 10s during shutdown is an expected/acceptable condition (not an actionable error). Plan: (1) Find the exact code, (2) change logger.error → logger.warning, (3) add a regression test, (4) run make test, (5) commit and close.
+---
+author: oompah
+created: 2026-07-22 05:54
+---
+Discovery: Confirmed root cause. In oompah/orchestrator.py, the _terminate_running() method calls logger.error() when a worker task does not complete within worker_termination_timeout_ms (default 10000ms). The error_watcher logging handler is installed at logging.ERROR level, so this log call triggers it to auto-file a bug task. This is expected behavior during shutdown (e.g., when an agent process is hard-killed), not an actionable error requiring a bug report.
 ---
 <!-- COMMENTS:END -->
