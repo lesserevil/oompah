@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-343
 type: task
-status: In Progress
+status: Open
 priority: 0
 title: Rebase epic-OOMPAH-323 onto epic-OOMPAH-318
 parent: OOMPAH-323
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:38:35.359716Z'
-updated_at: '2026-07-22T00:41:46.968300Z'
+updated_at: '2026-07-22T00:46:54.706523Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -134,5 +134,28 @@ author: oompah
 created: 2026-07-22 00:41
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-22 00:46
+---
+Understanding: I am the DevOps agent tasked with rebasing epic-OOMPAH-323 onto origin/epic-OOMPAH-318.
+
+Current state:
+- Branch epic-OOMPAH-323 (current): tip at 5d412ba72 (Merge PR #487 from epic-OOMPAH-285)
+- origin/epic-OOMPAH-318 tip: 121933b5c (OOMPAH-322: GitLab pipeline and commit CI status)
+- Merge base: ecf73efa2
+
+Commits unique to epic-OOMPAH-323 (vs origin/epic-OOMPAH-318):
+- 5d412ba72: Merge PR #487 from epic-OOMPAH-285 (merge commit)
+- 348849cc2: OOMPAH-291 (prompt-injection regression suite)
+- 5a27db3ab: OOMPAH-290 (server-side authority boundary)
+- 7ed0eefe2: OOMPAH-289 (harden focus triage)
+- b036bdbb5: Preserve canonical merged tasks on dashboard
+- 7e09971b2: Route release CI remediation to project tasks
+- 1cd79507d: OOMPAH-288 (SAFETY_INSTRUCTION fixtures)
+
+origin/epic-OOMPAH-318 also has different-hash versions of OOMPAH-288/289/290/291 plus OOMPAH-319/320/321/322 (GitLab support).
+
+Plan: Rebase epic-OOMPAH-323 onto origin/epic-OOMPAH-318, resolve any conflicts, then force-push with --force-with-lease.
 ---
 <!-- COMMENTS:END -->

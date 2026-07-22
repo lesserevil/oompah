@@ -1,16 +1,18 @@
 ---
 id: OOMPAH-337
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Build GitLabIssueTracker core REST adapter and protocol registration
 parent: OOMPAH-323
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-21T23:24:30.718256Z'
-updated_at: '2026-07-22T00:41:20.368708Z'
+updated_at: '2026-07-22T00:46:46.642185Z'
 work_branch: null
 target_branch: null
 review_url: null
