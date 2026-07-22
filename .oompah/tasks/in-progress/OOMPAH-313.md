@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:41.720887Z'
-updated_at: '2026-07-22T21:50:02.614938Z'
+updated_at: '2026-07-22T22:23:58.988062Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -279,5 +279,36 @@ OOMPAH-309 (fail-closed when _resolve_parent_epic raises):
 Gap: No tests exist for the YOLO gate blocking shared-epic child PRs or closing stale per-child PRs. The OOMPAH-309 fix made these fail-closed when branch resolution raises, but that code path is completely untested.
 
 Action: Add TestYoloEpicStrategyBlockReason and TestCloseInvalidEpicPolicyReview test classes to tests/test_epic_strategy.py, plus a shared fixture helper.
+---
+author: oompah
+created: 2026-07-22 22:23
+---
+Implementation: Added regression tests to tests/test_epic_strategy.py covering the OOMPAH-285/286 shared-epic child routing lifecycle.
+
+New helpers:
+- _make_review(): factory for ReviewRequest objects in YOLO gate tests
+- _make_shared_epic_scenario(): reusable native oompah_md shared-epic parent (epic-1) + child (child-1) fixture
+
+TestYoloEpicStrategyBlockReason (8 tests) covering _yolo_epic_strategy_block_reason:
+1. Returns None for empty source branch (foreign PRs pass through)
+2. Returns None when branch can't be mapped to a task
+3. Fail-OPEN when _resolve_task_for_branch raises (OOMPAH-309: transient errors must not block unrelated PRs)
+4. Blocks per-child task PRs when parent epic is resolved (OOMPAH-285 core regression)
+5. Allows epic rollup PR when source branch matches the corrected epic branch
+6. Returns None for top-level tasks without require_epic_for_tasks
+7. Blocks top-level task PRs when require_epic_for_tasks is set
+8. Blocks with 'could not be resolved' when parent_id is set but resolver returns None (OOMPAH-309 fail-closed)
+
+TestCloseInvalidEpicPolicyReview (8 tests) covering _close_invalid_epic_policy_review:
+1. Returns False for empty source branch (can't identify PR to close)
+2. Returns False when _resolve_task_for_branch raises (OOMPAH-309: exception must not destructively close the PR)
+3. Closes stale per-child PR when parent epic is resolved (OOMPAH-285 core regression)
+4. Closes standalone task PR when require_epic_for_tasks is set
+5. Returns False when issue cannot be resolved from the branch
+6. Transitions In Review task to Needs Human after closing stale PR
+7. Records failure outcome when provider.close_review fails (no tracker write)
+8. Records success outcome when provider.close_review succeeds
+
+Commit: 447d134fa on epic-OOMPAH-307 branch
 ---
 <!-- COMMENTS:END -->

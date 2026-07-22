@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-323
 type: task
-status: In Review
+status: Needs Rebase
 priority: 0
 title: Implement GitLab Issues tracker with Oompah status governance
 parent: OOMPAH-318
@@ -21,7 +21,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-22T22:23:51.209123Z'
+updated_at: '2026-07-22T22:23:57.418848Z'
 work_branch: epic-OOMPAH-323
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/534
@@ -766,5 +766,10 @@ author: oompah
 created: 2026-07-22 21:48
 ---
 Discovery: Conflict root cause identified. Upstream OOMPAH-340 added a separate _parse_gitlab_issue() function and routes 'Issue Hook' to it in parse_gitlab_webhook(). Our OOMPAH-339 status-label detection logic was placed in _parse_gitlab_mr()'s Issue Hook branch, which is now dead code. Fix: move the label-change detection from _parse_gitlab_mr into _parse_gitlab_issue, and update it to return event_type='issues' with label_name/label_actor populated. This is the correct conflict resolution - applying OOMPAH-339's intent in the context of the new upstream function layout.
+---
+author: oompah
+created: 2026-07-22 22:23
+---
+YOLO: Merge conflict detected on MR #534. Rebase onto epic-OOMPAH-318 and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
