@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:38:50.948182Z'
-updated_at: '2026-07-22T01:54:24.591372Z'
+updated_at: '2026-07-22T02:02:41.437843Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -288,5 +288,10 @@ author: oompah
 created: 2026-07-22 01:54
 ---
 Discovery: Root cause confirmed. The fix requires: (1) Add StateBranchFetchError(TrackerError) to oompah/tracker.py, (2) Raise it instead of generic TrackerError in _sync_state_branch_from_remote() on git fetch failure, (3) Catch it at api_update_issue handler in server.py with WARNING logging, (4) Add it to orchestrator._error_class_for_tracker_exc. This prevents error_watcher from filing tasks for transient fetch failures. Implementing now.
+---
+author: oompah
+created: 2026-07-22 02:02
+---
+Implementation: Changed oompah/tracker.py to add StateBranchFetchError(TrackerError) and TrackerStateBranchFetchError alias. Updated oompah/oompah_md_tracker.py to raise StateBranchFetchError (not generic TrackerError) when git fetch fails in _sync_state_branch_from_remote(). Updated oompah/server.py to catch StateBranchFetchError at the api_update_issue handler with WARNING logging (503 response) instead of ERROR. Updated oompah/orchestrator.py to import and handle StateBranchFetchError with WARNING in all fetch paths, and added it to _error_class_for_tracker_exc as 'tracker_state_branch_fetch'.
 ---
 <!-- COMMENTS:END -->
