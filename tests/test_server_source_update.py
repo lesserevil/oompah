@@ -124,6 +124,25 @@ def client():
 class TestPatchSetSource:
     """Server-side tests for setting the source reference via PATCH."""
 
+    def test_rejects_dispatchable_status_for_task_with_empty_description(self, client):
+        """Historical malformed tasks cannot be promoted until repaired."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.fetch_issue_detail.return_value = _make_issue(
+            identifier="TASK-1",
+            description="",
+            state="Backlog",
+        )
+
+        with patch.object(server_module, "_get_orchestrator", return_value=mock_orch):
+            resp = client.patch(
+                "/api/v1/issues/TASK-1",
+                json={"project_id": "proj-1", "status": "Open"},
+            )
+
+        assert resp.status_code == 422
+        assert "non-empty description" in resp.json()["error"]["message"]
+        mock_tracker.update_issue.assert_not_called()
+
     def test_set_source_on_task_without_existing_source(self, client):
         """PATCH with source_task_id on a task without a source adds the header."""
         mock_orch, mock_tracker = _make_mock_orchestrator()

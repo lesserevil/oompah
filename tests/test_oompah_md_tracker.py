@@ -94,6 +94,36 @@ class TestOompahMarkdownTrackerCreate:
         assert first.identifier == "REPO-1"
         assert second.identifier == "REPO-2"
 
+    def test_create_issue_preserves_structured_markdown_as_description(self, tmp_path):
+        """H1/H2 input must not make the stored Summary parse as empty."""
+        tracker = _tracker(tmp_path)
+
+        issue = tracker.create_issue(
+            "Structured task",
+            description="## Context\n\nImplement the safeguard.\n\n## Tests\n\nAdd a regression test.",
+        )
+
+        assert issue.description == (
+            "### Context\n\nImplement the safeguard.\n\n"
+            "### Tests\n\nAdd a regression test."
+        )
+        path = tmp_path / "repo" / ".oompah" / "tasks" / "backlog" / "REPO-1.md"
+        assert "## Summary\n\n### Context" in path.read_text(encoding="utf-8")
+
+    def test_update_issue_preserves_structured_markdown_as_description(self, tmp_path):
+        """Description updates receive the same heading normalization as creates."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Structured task", description="Initial summary.")
+
+        tracker.update_issue(
+            issue.identifier,
+            description="## Context\n\nRepaired description.",
+        )
+
+        repaired = tracker.fetch_issue_detail(issue.identifier)
+        assert repaired is not None
+        assert repaired.description == "### Context\n\nRepaired description."
+
 
 class TestOompahMarkdownTrackerMutations:
     def test_duplicate_task_id_uses_most_recent_record_once(self, tmp_path):

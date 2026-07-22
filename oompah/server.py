@@ -113,6 +113,7 @@ from oompah.statuses import (
     PROPOSED,
     canonicalize_status,
     epic_rollup_state,
+    is_dispatchable_status,
 )
 from oompah.transition_gate import (
     TransitionGateResult,
@@ -6991,6 +6992,29 @@ async def api_update_issue(identifier: str, request: Request):
             existing_status = canonicalize_status(
                 existing_issue.state if existing_issue is not None else None
             )
+            # Validate at the promotion boundary too: an old native record can
+            # have a non-empty raw body while its parsed Summary is empty.
+            effective_description = (
+                str(new_description).strip()
+                if new_description is not None
+                else str(existing_issue.description or "").strip()
+                if existing_issue is not None
+                else ""
+            )
+            if is_dispatchable_status(requested_status) and not effective_description:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                "A task needs a non-empty description before it can "
+                                "move to a dispatchable status. Update its description "
+                                "in the same request or move it to Backlog."
+                            ),
+                        }
+                    },
+                    status_code=422,
+                )
             if existing_status == PROPOSED and requested_status == OPEN:
                 return JSONResponse(
                     {

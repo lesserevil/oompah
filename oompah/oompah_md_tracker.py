@@ -108,6 +108,7 @@ _STATUS_DIRS: dict[str, str] = {
     "archived": "archived",
 }
 _ISSUE_TYPES = frozenset({"bug", "feature", "task", "epic", "chore"})
+_SUMMARY_UNSAFE_HEADING_RE = re.compile(r"^(#{1,2})\s+(.+)$", re.MULTILINE)
 
 # Maximum number of push attempts in _commit_and_push and write_and_commit_ledger_file.
 # Each failed push is followed by a _sync_from_remote + short backoff before the next
@@ -139,6 +140,21 @@ def _section(body: str, heading: str) -> str | None:
         return None
     value = match.group(1).strip()
     return value or None
+
+
+def _summary_safe_description(description: str | None) -> str:
+    """Preserve structured Markdown inside a native task's Summary section.
+
+    Descriptions are stored below ``## Summary``. H1/H2 headings supplied by
+    callers would otherwise terminate that section, allowing a non-empty task
+    body to parse as an empty description later. Demote only those headings;
+    H3+ headings are already safe and the supplied structure remains visible.
+    """
+    content = (description or "").strip()
+    return _SUMMARY_UNSAFE_HEADING_RE.sub(
+        lambda match: f"### {match.group(2)}",
+        content,
+    )
 
 
 def _replace_section(body: str, heading: str, text: str | None) -> str:
@@ -1015,7 +1031,9 @@ class OompahMarkdownTracker:
         elif key_norm == "title":
             meta["title"] = str(value)
         elif key_norm in ("description", "desc"):
-            body = _replace_section(body, "Summary", str(value))
+            body = _replace_section(
+                body, "Summary", _summary_safe_description(str(value))
+            )
         elif key_norm == "priority":
             meta["priority"] = normalize_priority_int(value)
         elif key_norm == "assignee":
@@ -1206,7 +1224,7 @@ class OompahMarkdownTracker:
         return str(identifier or "").strip().lower()
 
     def _initial_body(self, description: str | None) -> str:
-        summary = (description or "").strip()
+        summary = _summary_safe_description(description)
         return (
             f"## Summary\n\n{summary}\n\n"
             "## Acceptance Criteria\n\n"
