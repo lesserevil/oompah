@@ -1610,6 +1610,7 @@ class TestYoloReviewSerializationByProject:
         mock_issue.labels = []
         mock_issue.identifier = "test-001"
         mock_issue.id = "test-001"
+        mock_issue.parent_id = None  # not a child task — must not trigger epic fail-closed gate
         mock_tracker.fetch_issue_detail.return_value = mock_issue
         orch._project_trackers[project.id] = mock_tracker
 
@@ -2068,6 +2069,7 @@ class TestYoloMergeConflictLabelClearing:
         mock_task.labels = ["bug", "merge-conflict"]
         mock_task.id = "task-001"
         mock_task.identifier = "oompah-zlz_2-001"
+        mock_task.parent_id = None  # not a child task — must not trigger epic fail-closed gate
         mock_tracker.fetch_issue_detail.return_value = mock_task
         orch._project_trackers[project.id] = mock_tracker
 
@@ -2108,6 +2110,7 @@ class TestYoloMergeConflictLabelClearing:
         mock_task.labels = ["merge-conflict", "tech-debt"]
         mock_task.id = "task-002"
         mock_task.identifier = "oompah-zlz_2-002"
+        mock_task.parent_id = None  # not a child task — must not trigger epic fail-closed gate
         mock_tracker.fetch_issue_detail.return_value = mock_task
         orch._project_trackers[project.id] = mock_tracker
 
@@ -2145,6 +2148,7 @@ class TestYoloMergeConflictLabelClearing:
         mock_task.labels = ["merge-conflict"]  # stale label
         mock_task.id = "task-003"
         mock_task.identifier = "oompah-zlz_2-003"
+        mock_task.parent_id = None  # not a child task — must not trigger epic fail-closed gate
         mock_tracker.fetch_issue_detail.return_value = mock_task
         orch._project_trackers[project.id] = mock_tracker
 
@@ -2186,6 +2190,7 @@ class TestYoloMergeConflictLabelClearing:
         mock_task.labels = ["bug"]  # no merge-conflict
         mock_task.id = "task-004"
         mock_task.identifier = "oompah-zlz_2-004"
+        mock_task.parent_id = None  # not a child task — must not trigger epic fail-closed gate
         mock_tracker.fetch_issue_detail.return_value = mock_task
         orch._project_trackers[project.id] = mock_tracker
 
