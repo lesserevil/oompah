@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:10.495385Z'
-updated_at: '2026-07-22T00:28:58.714884Z'
+updated_at: '2026-07-22T00:29:01.371720Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -226,5 +226,10 @@ Files delivered:
 - tests/test_repo_map_diagnostics.py (new, 52 tests)
 - tests/test_repo_map_workflow.py (new, 4 E2E tests)
 - tests/test_repo_map_prompt.py (pre-existing test bug fix)
+---
+author: oompah
+created: 2026-07-22 00:29
+---
+Delivered repo-map observability diagnostics module (repo_map_diagnostics.py with fresh/stale/generating/unavailable/failed/timeout states), enriched RepoMapResult with timing+counts, E2E workflow tests (test_repo_map_workflow.py, test_repo_map_diagnostics.py). All 11415 tests pass.
 ---
 <!-- COMMENTS:END -->
