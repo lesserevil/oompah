@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-323
 type: task
-status: In Review
+status: In Progress
 priority: 0
 title: Implement GitLab Issues tracker with Oompah status governance
 parent: OOMPAH-318
@@ -21,7 +21,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-22T21:36:23.389351Z'
+updated_at: '2026-07-22T21:37:05.403384Z'
 work_branch: epic-OOMPAH-323
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/534
@@ -756,5 +756,10 @@ author: oompah
 created: 2026-07-22 21:36
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-22 21:37
+---
+Understanding: Merge Conflict Resolver session. Local branch epic-OOMPAH-323 has 2 feature commits (OOMPAH-338: GitLab tracker metadata/tests, OOMPAH-339: GitLab status-label auth/audit/revert) on top of merge-base 3d5b347ec. origin/epic-OOMPAH-318 has 5 new commits since then (OOMPAH-340/341/342/345 + a merge commit). Working tree is clean. Plan: rebase 2 feature commits onto origin/epic-OOMPAH-318, resolve any conflicts, run make test, force-push.
 ---
 <!-- COMMENTS:END -->
