@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T03:47:18.080634Z'
+updated_at: '2026-07-22T03:47:21.671571Z'
 work_branch: OOMPAH-346
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/527
@@ -365,5 +365,10 @@ author: oompah
 created: 2026-07-22 03:43
 ---
 Discovery: The CI failure was caused by a stale test assertion in tests/test_epic_rebase_state.py (line 484). The branch was originally based on commit 2ba37886b which had the old assertion 'Oompah will file a high-priority rebase task', but the production code had already been updated to return 'This is observation only'. The local worktree has already been rebased onto the current main (which includes commit 34bee2a25 fixing this assertion). The local branch HEAD (1a1ff6de6) differs from origin/OOMPAH-346 (7c7d2ed36). Verification: all tests pass locally with the rebased branch. Fix: force-push the rebased branch to origin.
+---
+author: oompah
+created: 2026-07-22 03:47
+---
+YOLO: merged PR #527.
 ---
 <!-- COMMENTS:END -->
