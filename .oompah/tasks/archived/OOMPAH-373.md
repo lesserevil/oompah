@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-373
 type: bug
-status: Backlog
+status: Archived
 priority: 2
 title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 958s (threshold=900s).
   Alert armed, recovery queued.'
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-22T02:27:05.010758Z'
-updated_at: '2026-07-22T02:37:32.317451Z'
+updated_at: '2026-07-22T04:02:36.396003Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -90,4 +90,11 @@ An error occurs in `backend:orchestrator` and is recorded by oompah's `error_wat
 
 ## Notes
 
-
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 04:02
+---
+Archived as duplicate historical service-log intake. The underlying scheduler wedge was fixed in OOMPAH-348 through OOMPAH-352; repeated occurrences should consolidate into one incident.
+---
+<!-- COMMENTS:END -->
