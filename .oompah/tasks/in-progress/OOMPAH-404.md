@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:41:51.997877Z'
-updated_at: '2026-07-22T15:44:20.626342Z'
+updated_at: '2026-07-22T15:50:19.155217Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: a19cafe3-9a68-4e64-9c87-38dac18a5894
 oompah.task_costs:
-  total_input_tokens: 151780
-  total_output_tokens: 4590
+  total_input_tokens: 1224561
+  total_output_tokens: 11527
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 151780
-      output_tokens: 4590
+      input_tokens: 1224561
+      output_tokens: 11527
       cost_usd: 0.0
   runs:
   - profile: default
@@ -41,6 +41,12 @@ oompah.task_costs:
     output_tokens: 1143
     cost_usd: 0.0
     recorded_at: '2026-07-22T15:36:57.638908+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 1072781
+    output_tokens: 6937
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T15:50:16.163005+00:00'
 ---
 ## Summary
 
@@ -265,5 +271,25 @@ author: oompah
 created: 2026-07-22 15:44
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-22 15:50
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 20
+- Tokens: 1.1M in / 6.9K out [1.1M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 57s
+- Log: OOMPAH-404__20260722T154420Z.jsonl
+---
+author: oompah
+created: 2026-07-22 15:50
+---
+Agent completed successfully in 357s (1079718 tokens)
+---
+author: oompah
+created: 2026-07-22 15:50
+---
+Agent completed without closing this issue (357s (1079718 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
