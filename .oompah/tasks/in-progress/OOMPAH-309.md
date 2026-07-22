@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-309
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Harden shared-epic protection when _resolve_parent_epic fails for a child with
   parent_id set
@@ -14,7 +14,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:53:17.046767Z'
-updated_at: '2026-07-22T16:08:04.061300Z'
+updated_at: '2026-07-22T16:09:20.722319Z'
 work_branch: null
 target_branch: null
 review_url: null
