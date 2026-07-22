@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-403
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: '[backend:orchestrator] Worker did not stop within 10000ms; continuing shutdown
   issue_identifier=OOMPAH-339'
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T06:01:18.535415Z'
+updated_at: '2026-07-22T06:09:37.745540Z'
 work_branch: OOMPAH-403
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/532
@@ -43,7 +43,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-22T05:35:18.775008+00:00'
-oompah.agent_run_id: 8ed29581-d906-4685-996c-691fc1d7e4fa
+oompah.agent_run_id: 77aa71cc-3ad0-4ea4-a2b2-380e5ac2a500
 oompah.task_costs:
   total_input_tokens: 1191719
   total_output_tokens: 16347
@@ -303,5 +303,15 @@ author: oompah
 created: 2026-07-22 06:01
 ---
 YOLO: CI tests failed on MR #532. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-22 06:09
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-22 06:09
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
