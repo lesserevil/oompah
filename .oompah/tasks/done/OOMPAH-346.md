@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-346
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Reserve round-robin providers atomically at dispatch time
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T02:07:50.380448Z'
+updated_at: '2026-07-22T02:09:37.623989Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -258,5 +258,10 @@ author: oompah
 created: 2026-07-22 02:07
 ---
 Verification: Full test suite (11238 passed, 36 skipped) — all passing. New tests added: (1) 34 tests in test_candidate_selector.py covering reserve_candidate() basics, atomicity, concurrent fairness, exclude, independent roles, and persistence. (2) 17 tests in tests/test_round_robin_atomic_dispatch.py covering concurrent dispatch alternation, preflight failover, startup failover, Claude/Codex 5-concurrent regression, priority non-regression, and legacy single-provider non-regression. Verified that old ordered_candidates() behavior causes the race (20 concurrent calls → all select same provider); new reserve_candidate() distributes fairly.
+---
+author: oompah
+created: 2026-07-22 02:09
+---
+Completion: Delivered atomic round-robin dispatch-time reservation (OOMPAH-346). Added CandidateSelector.reserve_candidate() that atomically selects LRU + stamps under lock. Updated _resolve_dispatch_targets() to use it for round-robin roles. Added 51 new tests (34 unit + 17 orchestrator-level). Full suite: 11238 passed. Branch OOMPAH-346 pushed to origin.
 ---
 <!-- COMMENTS:END -->
