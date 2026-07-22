@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T08:11:05.394822Z'
-updated_at: '2026-07-22T08:19:53.183069Z'
+updated_at: '2026-07-22T08:19:56.235906Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,10 @@ author: oompah
 created: 2026-07-22 08:19
 ---
 Completion: epic-OOMPAH-318 has been successfully rebased onto origin/main (was 15 commits behind, now 0). One conflict resolved in tests/test_epic_rebase_state.py. Force-pushed to origin. Branch is now current.
+---
+author: oompah
+created: 2026-07-22 08:19
+---
+Rebased epic-OOMPAH-318 onto origin/main. Resolved one merge conflict in tests/test_epic_rebase_state.py (OOMPAH-353 test assertion). Force-pushed with --force-with-lease.
 ---
 <!-- COMMENTS:END -->
