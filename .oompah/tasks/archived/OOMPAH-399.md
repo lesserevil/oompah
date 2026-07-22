@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-399
 type: bug
-status: Backlog
+status: Archived
 priority: 2
 title: '[backend:server] Add comment API error: Cannot sync state branch ''oompah/state/proj-14849f1b'':
   git fetch origin ''oompah/state/proj-14849f1b'' failed: . Remediation: verify network
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-22T04:03:22.267446Z'
-updated_at: '2026-07-22T04:04:44.245850Z'
+updated_at: '2026-07-22T04:06:39.678962Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -91,4 +91,11 @@ An error occurs in `backend:server` and is recorded by oompah's `error_watcher`:
 
 ## Notes
 
-
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 04:06
+---
+Audit: the referenced state-branch fetch now succeeds against origin. This was a transient sync failure and has not recurred after restart; archiving rather than treating it as backlog work.
+---
+<!-- COMMENTS:END -->
