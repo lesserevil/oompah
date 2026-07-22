@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-22T04:34:38.330145Z'
-updated_at: '2026-07-22T04:41:27.746341Z'
+updated_at: '2026-07-22T04:48:52.279585Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -81,7 +81,6 @@ An error occurs in `backend:orchestrator` and is recorded by oompah's `error_wat
 - dedup_fingerprint: 083d9f9cdfa4080e
 - tracker_owner: lesserevil
 - tracker_repo: oompah
-
 ## External GitHub Issue
 
 - URL: https://github.com/lesserevil/oompah/issues/530
@@ -89,5 +88,3 @@ An error occurs in `backend:orchestrator` and is recorded by oompah's `error_wat
 - Reference: lesserevil/oompah#530
 
 ## Notes
-
-
