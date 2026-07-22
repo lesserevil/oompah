@@ -12,13 +12,13 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T04:01:38.197147Z'
+updated_at: '2026-07-22T04:01:44.554942Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 3e3e0961-2158-4402-aa35-2380894daa7a
+oompah.agent_run_id: 505f7d99-b654-4d03-94b4-7441e42615d9
 oompah.task_costs:
   total_input_tokens: 191477
   total_output_tokens: 1295
@@ -77,5 +77,15 @@ author: oompah
 created: 2026-07-22 04:01
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-398`. Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-22 04:01
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-22 04:01
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

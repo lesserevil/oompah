@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-342
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Wire GitLabHookManager into project lifecycle with hook health, polling fallback,
   and delivery dedup
@@ -15,13 +15,29 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-22T00:29:14.500742Z'
-updated_at: '2026-07-22T04:01:32.745612Z'
+updated_at: '2026-07-22T04:01:48.240082Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 30215383-0638-4e8e-aaba-7def008c15d3
+oompah.task_costs:
+  total_input_tokens: 33
+  total_output_tokens: 8976
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 33
+      output_tokens: 8976
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 33
+    output_tokens: 8976
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T04:01:42.332525+00:00'
 ---
 ## Summary
 
@@ -163,5 +179,20 @@ Focus handoff: duplicate_detector
    - Key files: `oompah/webhooks.py` (GitLabHookManager at line 1006), `oompah/server.py` (create ~10114, delete ~10519, update endpoint), `oompah/bootstrap.py` (services wired at lines 240, 319)
 
 4. **Recommended next focus**: `feature` — implement the project lifecycle hooks (add/delete/update wiring) and the deduplication layer; surface hook health via API.
+---
+author: oompah
+created: 2026-07-22 04:01
+---
+Agent completed successfully in 225s (9009 tokens)
+---
+author: oompah
+created: 2026-07-22 04:01
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 65, Tool calls: 50
+- Tokens: 33 in / 9.0K out [9.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 45s
+- Log: OOMPAH-342__20260722T035800Z.jsonl
 ---
 <!-- COMMENTS:END -->
