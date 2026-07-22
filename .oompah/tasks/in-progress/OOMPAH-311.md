@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T05:58:32.589792Z'
+updated_at: '2026-07-22T06:00:52.582990Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -378,5 +378,23 @@ Key constraints:
 - Do NOT change the child's Merged state
 - Only add the epic:independently-merged label and log a warning
 - Pass must be idempotent (check label already present)
+---
+author: oompah
+created: 2026-07-22 06:00
+---
+Discovery and Implementation: Identified key code locations and implemented the feature.
+
+Code locations:
+- oompah/models.py: Added EPIC_INDEPENDENTLY_MERGED_LABEL = 'epic:independently-merged' constant
+- oompah/orchestrator.py: Added import of EPIC_INDEPENDENTLY_MERGED_LABEL, two new methods, and hooked into _do_merged_labels sweep
+
+Changes:
+1. models.py: Added EPIC_INDEPENDENTLY_MERGED_LABEL constant (purely metadata, no git changes)
+2. orchestrator.py:
+   - _detect_independently_merged_children(epics): scans children of epics for Merged children with own branch != epic_branch
+   - _reconcile_independently_merged_children(): calls detection, logs warnings, applies label via add_label (preserves existing labels), idempotent (skips already-labeled children), returns count
+   - Hooked into _do_merged_labels sweep alongside _reconcile_merged_epic_children
+
+Safety: No git history changes, no state changes, no metadata field changes — only adds the epic:independently-merged label and logs a warning.
 ---
 <!-- COMMENTS:END -->
