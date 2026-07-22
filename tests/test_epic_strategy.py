@@ -3614,7 +3614,11 @@ class TestLabelMergedEpics:
         }
         assert marked == {"epic-1": "Merged", "c1": "Merged"}
 
-    def test_merged_epic_reconciles_children_still_done(self, tmp_path):
+    @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_merged_epic_reconciles_children_still_done(
+        self, mock_detect, _mock_slug, tmp_path
+    ):
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
         epic = _make_issue(identifier="epic-1", issue_type="epic", state="Merged")
@@ -3622,6 +3626,24 @@ class TestLabelMergedEpics:
         c2 = _make_issue(identifier="c2", state="Archived", parent_id="epic-1")
         tracker = MagicMock()
         tracker.fetch_all_issues.return_value = [epic, c1, c2]
+        # Provider confirms the epic branch has landed (branch→main merged PR).
+        # The defensive guard in _reconcile_merged_epic_children requires this
+        # before it promotes any children. (OOMPAH-412)
+        provider = MagicMock()
+        provider.list_merged_reviews.return_value = [
+            ReviewRequest(
+                id="99",
+                title="epic-1 → main",
+                url="https://github.com/org/repo/pull/99",
+                author="oompah",
+                state="merged",
+                source_branch="epic-epic-1",
+                target_branch="main",
+                created_at="",
+                updated_at="",
+            )
+        ]
+        mock_detect.return_value = provider
 
         with (
             patch.object(orch, "_tracker_for_project", return_value=tracker),
@@ -3635,6 +3657,51 @@ class TestLabelMergedEpics:
             for call in tracker.update_issue.call_args_list
         }
         assert marked == {"epic-1": "Merged", "c1": "Merged"}
+
+    @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_reconcile_skips_children_when_epic_branch_not_on_target(
+        self, mock_detect, _mock_slug, tmp_path
+    ):
+        """Children must NOT be promoted when the epic branch hasn't landed.
+
+        OOMPAH-412: _reconcile_merged_epic_children now re-verifies the
+        epic branch via _epic_branch_landed_on_target before calling
+        _mark_epic_merged.  This test checks that child promotion is
+        skipped when the forge confirms the epic branch has NOT landed.
+        """
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        # Epic is in MERGED state (e.g. set externally without branch landing).
+        epic = _make_issue(identifier="epic-1", issue_type="epic", state="Merged")
+        c1 = _make_issue(identifier="c1", state="Done", parent_id="epic-1")
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = [epic, c1]
+        # Provider finds no merged PR from the epic branch to main.
+        provider = MagicMock()
+        provider.list_merged_reviews.return_value = []
+        provider.find_pr_for_branch.return_value = ReviewRequest(
+            id="99",
+            title="epic-1 → main",
+            url="https://github.com/org/repo/pull/99",
+            author="oompah",
+            state="open",  # NOT merged
+            source_branch="epic-epic-1",
+            target_branch="main",
+            created_at="",
+            updated_at="",
+        )
+        mock_detect.return_value = provider
+
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[c1]),
+        ):
+            orch._reconcile_merged_epic_children()
+
+        # Neither the epic nor any child should be promoted.
+        assert tracker.update_issue.call_count == 0
 
     @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
     @patch("oompah.orchestrator.detect_provider")

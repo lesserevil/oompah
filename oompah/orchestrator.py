@@ -10504,6 +10504,14 @@ class Orchestrator:
         A restart or stale review-cache race can mark the epic ``Merged`` before
         every child is swept. Since the epic is the authoritative rollup, any
         non-archived child under it should become ``Merged`` as well.
+
+        **Invariant**: every epic returned by :meth:`_all_merged_epics` should
+        have its branch confirmed landed on target.  All normal code paths that
+        set ``Merged`` on an epic — :meth:`_label_merged_epics` and
+        :meth:`_open_epic_main_prs` — call ``_epic_branch_landed_on_target``
+        first, and :meth:`_yolo_mark_task_merged` only fires after the forge
+        actually merges the PR.  We re-verify here as defense-in-depth against
+        external state changes or future regressions. (OOMPAH-412)
         """
         for epic in self._all_merged_epics():
             if self._job_deadline_exceeded("merged_labels"):
@@ -10521,6 +10529,43 @@ class Orchestrator:
                 epic_branch = self._epic_branch_for_issue(epic)
             except Exception:  # noqa: BLE001
                 epic_branch = epic.identifier
+            # Defensive guard (OOMPAH-412): re-verify the epic branch has
+            # confirmed landed on its target before promoting children.
+            # Only performed when project/forge info is available; falls
+            # back to trusting the MERGED state when it cannot be checked.
+            project_id = epic.project_id
+            if project_id:
+                try:
+                    project = self.project_store.get(project_id)
+                    if project and getattr(project, "repo_url", None):
+                        provider = detect_provider(
+                            project.repo_url,
+                            access_token=getattr(project, "access_token", None),
+                        )
+                        slug = extract_repo_slug(project.repo_url) if provider else ""
+                        target_branch = self._resolve_epic_target_branch(
+                            epic, project
+                        )
+                        if provider and slug:
+                            if not self._epic_branch_landed_on_target(
+                                provider, slug, epic_branch, target_branch
+                            ):
+                                logger.warning(
+                                    "Skipping child promotion for epic %s: branch "
+                                    "%s has not confirmed landed on %s (epic marked "
+                                    "MERGED prematurely?)",
+                                    epic.identifier,
+                                    epic_branch,
+                                    target_branch,
+                                )
+                                continue
+                except Exception as exc:  # noqa: BLE001 - best effort
+                    logger.debug(
+                        "Could not verify epic branch landing for %s during child "
+                        "reconciliation; trusting MERGED state: %s",
+                        epic.identifier,
+                        exc,
+                    )
             self._mark_epic_merged(epic, epic_branch=epic_branch)
 
     def _mark_epic_merged(self, epic: Issue, *, epic_branch: str | None = None) -> None:
