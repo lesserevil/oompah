@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-355
 type: task
-status: In Progress
+status: Open
 priority: 0
 title: Rebase epic-OOMPAH-325 onto epic-OOMPAH-318
 parent: OOMPAH-325
@@ -9,9 +9,11 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:epic_planner
+- needs:devops
 assignee: null
 created_at: '2026-07-22T01:21:49.952576Z'
-updated_at: '2026-07-22T01:28:00.923904Z'
+updated_at: '2026-07-22T01:28:20.151765Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,5 +120,28 @@ author: oompah
 created: 2026-07-22 01:28
 ---
 Understanding (Epic Planner): OOMPAH-355 is a concrete devops task — rebase epic-OOMPAH-325 onto origin/epic-OOMPAH-318 and force-push. This is NOT an epic requiring decomposition. No child tasks are needed; the work is a single atomic git rebase operation. Handing off immediately to the appropriate implementation focus (devops/chore).
+---
+author: oompah
+created: 2026-07-22 01:28
+---
+Focus handoff: epic_planner
+
+1. Outcome: No decomposition needed. OOMPAH-355 is a single concrete git operation (rebase + force-push), not an epic with sub-tasks. The Epic Planner role does not apply.
+
+2. Evidence/context:
+   - Task description: rebase epic-OOMPAH-325 onto origin/epic-OOMPAH-318, resolve conflicts, force-push with --force-with-lease.
+   - Duplicate Investigator confirmed no duplicate exists.
+   - Previous agent recommended 'devops/chore' as the appropriate next focus.
+   - No decomposition files or plans exist in plans/ for this work — none are needed.
+
+3. Remaining work:
+   - git fetch origin
+   - git checkout epic-OOMPAH-325
+   - git rebase origin/epic-OOMPAH-318 (resolve any conflicts)
+   - make test (verify no regressions)
+   - git push --force-with-lease
+   - Note: OOMPAH-353 (rebase epic-OOMPAH-318 onto main) is In Progress — epic-OOMPAH-318 may itself be rebased again soon. The rebase should still proceed now per task instructions.
+
+4. Recommended next focus: devops (git rebase + conflict resolution + force-push)
 ---
 <!-- COMMENTS:END -->
