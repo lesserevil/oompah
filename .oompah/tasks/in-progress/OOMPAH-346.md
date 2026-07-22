@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-346
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Reserve round-robin providers atomically at dispatch time
 parent: null
@@ -13,13 +13,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T01:26:27.910599Z'
+updated_at: '2026-07-22T01:29:34.146115Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 65e77842-ea77-4307-9130-6f02e1867249
+oompah.agent_run_id: 190a2e00-42cb-44f4-b5de-f98a20508143
 oompah.task_costs:
   total_input_tokens: 565639
   total_output_tokens: 10019
@@ -197,5 +197,15 @@ author: oompah
 created: 2026-07-22 01:26
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-22 01:29
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 01:29
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
