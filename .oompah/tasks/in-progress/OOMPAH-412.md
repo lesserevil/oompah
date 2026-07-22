@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T21:34:07.971835Z'
-updated_at: '2026-07-22T23:43:16.517260Z'
+updated_at: '2026-07-22T23:49:37.805025Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -264,5 +264,19 @@ PATH 5 - _label_merged_issues (~line 8839): GATED. 'if rollup_strategy == shared
 PATH 6 - _mark_epic_merged (~line 10526): NO INTERNAL GUARD NEEDED. All primary callers (_label_merged_epics, _open_epic_main_prs) are explicitly gated via _epic_branch_landed_on_target. However, since _reconcile_merged_epic_children (path 3) is implicitly gated, adding safety there (not here) to be surgical.
 
 HARDENING ACTION: Add defensive _epic_branch_landed_on_target check in _reconcile_merged_epic_children. Also update existing test and add new regression test.
+---
+author: oompah
+created: 2026-07-22 23:49
+---
+Implementation: Added defensive _epic_branch_landed_on_target guard to _reconcile_merged_epic_children in oompah/orchestrator.py.
+
+CHANGE SUMMARY:
+- oompah/orchestrator.py: Updated _reconcile_merged_epic_children to re-verify the epic branch has landed on its target before calling _mark_epic_merged to promote children. The check uses detect_provider + extract_repo_slug + _resolve_epic_target_branch (same pattern as _label_merged_epics). Falls back gracefully to trusting the MERGED state when project/forge info is unavailable or the check raises an exception.
+
+- tests/test_epic_strategy.py:
+  1. Updated test_merged_epic_reconciles_children_still_done: Added detect_provider + extract_repo_slug mocks with a merged PR review confirming the epic branch has landed. This is the valid scenario (MERGED state = branch confirmed landed).
+  2. Added test_reconcile_skips_children_when_epic_branch_not_on_target: Verifies the new guard prevents child promotion when the forge reports the epic branch has NOT merged to target. update_issue is never called.
+
+All 6 paths are gated; zero paths can promote a shared-epic child to Merged while the parent epic branch is unmerged.
 ---
 <!-- COMMENTS:END -->
