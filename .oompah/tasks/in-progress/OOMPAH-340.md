@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:28:20.576396Z'
-updated_at: '2026-07-22T01:50:35.826390Z'
+updated_at: '2026-07-22T01:57:59.363006Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -186,5 +186,10 @@ author: oompah
 created: 2026-07-22 01:50
 ---
 Understanding (attempt #4): No duplicate found across all task directories. This task requires extending parse_gitlab_webhook() in oompah/webhooks.py (currently only handles 'Merge Request Hook') to also parse Push Hook, Issue Hook, Note Hook, Pipeline Hook, and Job Hook events. The server handler in oompah/server.py uses parse_gitlab_webhook; it may need updating too. Proceeding with implementation on the epic-OOMPAH-325 branch (this task is a child of that epic).
+---
+author: oompah
+created: 2026-07-22 01:57
+---
+Discovery: No duplicate exists. Key files: oompah/webhooks.py (parse_gitlab_webhook at line 589 - only handles 'Merge Request Hook'), oompah/server.py (api_webhook_gitlab at line 13446, _handle_webhook_event at 12094, _webhook_should_request_refresh at 13032, _webhook_advanced_tracked_branch at 12991). Tests: tests/test_webhooks.py (TestParseGitLabWebhook at line 864), tests/test_server_webhooks.py (line 465, test_push_event_ignored). Plan: (1) Refactor parse_gitlab_webhook to use private helpers for each hook type, (2) Update server.py cache invalidation and refresh checks to handle new GitLab event types, (3) Update/add tests.
 ---
 <!-- COMMENTS:END -->
