@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-343
 type: task
-status: Open
+status: In Progress
 priority: 0
 title: Rebase epic-OOMPAH-323 onto epic-OOMPAH-318
 parent: OOMPAH-323
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:38:35.359716Z'
-updated_at: '2026-07-22T00:46:54.706523Z'
+updated_at: '2026-07-22T00:47:18.078153Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 25880580-4f2d-4b99-a4a2-610b895e10d8
+oompah.agent_run_id: 2842c033-9c20-4709-b8b2-8a3d4976d14c
 oompah.task_costs:
   total_input_tokens: 514898
   total_output_tokens: 3772
@@ -157,5 +157,15 @@ Commits unique to epic-OOMPAH-323 (vs origin/epic-OOMPAH-318):
 origin/epic-OOMPAH-318 also has different-hash versions of OOMPAH-288/289/290/291 plus OOMPAH-319/320/321/322 (GitLab support).
 
 Plan: Rebase epic-OOMPAH-323 onto origin/epic-OOMPAH-318, resolve any conflicts, then force-push with --force-with-lease.
+---
+author: oompah
+created: 2026-07-22 00:47
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 00:47
+---
+Focus: Epic Planner
 ---
 <!-- COMMENTS:END -->
