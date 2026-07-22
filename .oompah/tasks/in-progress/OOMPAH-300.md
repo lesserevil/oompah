@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:10.495385Z'
-updated_at: '2026-07-22T00:28:05.430099Z'
+updated_at: '2026-07-22T00:28:45.488330Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -201,5 +201,10 @@ author: oompah
 created: 2026-07-22 00:28
 ---
 **Implementation:** Created three new/modified files: (1) oompah/repo_map_diagnostics.py - new diagnostics module with STATUS_FRESH/STALE/GENERATING/UNAVAILABLE/FAILED/TIMEOUT states, RepoMapDiagnostics dataclass, get_repo_map_diagnostics() function exposing metadata-only snapshots; (2) tests/test_repo_map_diagnostics.py - 52 tests covering all status states, security boundary (no source/credential leakage), and RepoMapResult enrichment; (3) Modified oompah/repo_map_generator.py to add generation_duration_s, file_count, symbol_count to RepoMapResult and is_generating() method to RepoMapGenerator. Also fixed pre-existing test bug in test_repo_map_prompt.py (OOMPAH-298 artefact: token_budget test incorrectly counted SAFETY_INSTRUCTION wrapper tokens).
+---
+author: oompah
+created: 2026-07-22 00:28
+---
+**Verification:** All 11,415 tests pass (5 skipped). New: 52 tests in test_repo_map_diagnostics.py (all pass), 4 E2E tests in test_repo_map_workflow.py (all pass). Fixed pre-existing test_repo_map_prompt.py failure (token budget test counting wrapper overhead). No regressions in any existing test file.
 ---
 <!-- COMMENTS:END -->
