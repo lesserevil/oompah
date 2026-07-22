@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:34.088413Z'
-updated_at: '2026-07-22T01:15:52.050831Z'
+updated_at: '2026-07-22T01:15:54.479247Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-22 01:07
 ---
 Implemented bounded candidate refreshes: blocking tracker reads enter the executor before the per-project deadline, stale data is used on timeout, and an in-flight hung read is reused rather than stacking workers. Regression coverage added; full suite is running.
+---
+author: oompah
+created: 2026-07-22 01:15
+---
+Implemented bounded, isolated candidate and in-progress refreshes with stale-cache fallback and regression tests.
 ---
 <!-- COMMENTS:END -->
