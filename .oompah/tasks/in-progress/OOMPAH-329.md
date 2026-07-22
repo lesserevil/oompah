@@ -19,7 +19,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:42.931068Z'
-updated_at: '2026-07-22T07:55:30.412685Z'
+updated_at: '2026-07-22T07:58:04.471580Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -175,5 +175,10 @@ author: oompah
 created: 2026-07-22 07:55
 ---
 Understanding: I will identify the existing forge/provider interfaces and test conventions, then add network-free shared contract, migration, and credential-gated smoke coverage for GitHub and GitLab. I will verify with the project Makefile test target.
+---
+author: oompah
+created: 2026-07-22 07:58
+---
+Implementation: added tests/test_gitlab_cross_forge_acceptance.py. It uses local HTTP-response fixtures to run the same SCM acceptance contract for GitHub and GitLab, covers auth-failure behavior and nested self-managed GitLab paths, proves persisted pre-forge GitHub project migration, and defines explicit credential-gated GitLab.com/self-managed smoke checks.
 ---
 <!-- COMMENTS:END -->
