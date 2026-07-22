@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-404
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Harden 3 call sites in orchestrator.py to fail-closed when _resolve_parent_epic
   returns None for a child with parent_id
@@ -13,13 +13,29 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-22T05:41:51.997877Z'
-updated_at: '2026-07-22T15:36:01.873665Z'
+updated_at: '2026-07-22T15:36:14.263815Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: ab2f55b8-0ea6-4023-8916-c62a5c9cca9d
+oompah.task_costs:
+  total_input_tokens: 13
+  total_output_tokens: 3447
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 13
+      output_tokens: 3447
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 13
+    output_tokens: 3447
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T15:36:06.392257+00:00'
 ---
 ## Summary
 
@@ -174,5 +190,25 @@ Candidates reviewed:
 3. Remaining work: Full implementation — three code changes in oompah/orchestrator.py and three new tests in tests/test_epic_strategy.py (exact test names specified in the description).
 
 4. Recommended next focus: feature (backend implementation)
+---
+author: oompah
+created: 2026-07-22 15:36
+---
+Agent completed successfully in 94s (3460 tokens)
+---
+author: oompah
+created: 2026-07-22 15:36
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 25, Tool calls: 17
+- Tokens: 13 in / 3.4K out [3.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 34s
+- Log: OOMPAH-404__20260722T153434Z.jsonl
+---
+author: oompah
+created: 2026-07-22 15:36
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
