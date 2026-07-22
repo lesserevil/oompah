@@ -4147,3 +4147,434 @@ class TestYoloEpicPolicyFailClosed:
 
         assert closed is False
         provider.close_review.assert_not_called()
+
+
+# ================================================================== #
+# OOMPAH-285/286 regression: shared-epic child routing fixture and   #
+# YOLO gate lifecycle tests (OOMPAH-308, OOMPAH-309)                 #
+# ================================================================== #
+
+
+def _make_review(
+    source_branch: str = "task-1",
+    target_branch: str = "main",
+    review_id: str = "42",
+    state: str = "open",
+) -> ReviewRequest:
+    """Factory for ReviewRequest objects used in YOLO gate regression tests.
+
+    Provides a minimal but complete ReviewRequest suitable for testing
+    ``_yolo_epic_strategy_block_reason`` and ``_close_invalid_epic_policy_review``.
+    """
+    return ReviewRequest(
+        id=review_id,
+        title="Test PR",
+        url="https://github.com/org/repo/pull/42",
+        author="test-user",
+        state=state,
+        source_branch=source_branch,
+        target_branch=target_branch,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at="2024-01-01T00:00:00Z",
+    )
+
+
+def _make_shared_epic_scenario(tmp_path):
+    """Build a minimal native oompah_md shared-epic parent + child scenario.
+
+    Returns ``(orch, proj, epic, child, tracker)`` ready for routing lifecycle
+    regression tests.  The epic has identifier ``epic-1`` and the child has
+    identifier ``child-1`` with ``parent_id='epic-1'``.
+
+    The ``project_store.epic_branch_name`` side-effect is wired so that
+    ``epic_branch_name("epic-1")`` returns ``"epic-epic-1"``, matching the
+    real convention used by the orchestrator.
+
+    This fixture is the reusable setup requested by OOMPAH-313 to avoid
+    duplicating boilerplate across the OOMPAH-285/286 routing regression suite.
+    """
+    proj = _make_project_record(epic_strategy="shared")
+    orch = _make_orch(tmp_path, projects=[proj])
+    orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+    epic = _make_issue(
+        identifier="epic-1",
+        issue_type="epic",
+        project_id="proj-1",
+    )
+    child = _make_issue(
+        identifier="child-1",
+        parent_id="epic-1",
+        project_id="proj-1",
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = epic
+    return orch, proj, epic, child, tracker
+
+
+class TestYoloEpicStrategyBlockReason:
+    """Regression tests for ``_yolo_epic_strategy_block_reason`` (OOMPAH-309/OOMPAH-285).
+
+    The YOLO gate must:
+    - Block per-child task PRs in shared-epic projects (the only valid PR is the epic rollup)
+    - Allow epic rollup PRs (source branch == epic branch)
+    - Block top-level task PRs when ``require_epic_for_tasks`` is set
+    - Fail *open* (return None) when branch resolution raises — so that transient
+      tracker errors do not accidentally block unrelated PRs (OOMPAH-309 regression)
+    - Fail *closed* (return block reason) when parent_id is set but parent_epic cannot
+      be resolved — ambiguity must not allow a stale child PR to merge standalone (OOMPAH-309)
+    """
+
+    def test_returns_none_for_empty_source_branch(self, tmp_path):
+        """YOLO gate allows PRs with no source branch (foreign or unknown PRs)."""
+        orch, proj, _, _, tracker = _make_shared_epic_scenario(tmp_path)
+        review = _make_review(source_branch="")
+        reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
+        assert reason is None
+
+    def test_returns_none_when_branch_resolves_to_no_issue(self, tmp_path):
+        """YOLO gate allows PRs whose source branch cannot be mapped to a task."""
+        orch, proj, _, _, tracker = _make_shared_epic_scenario(tmp_path)
+        review = _make_review(source_branch="unrelated-branch")
+        with patch.object(orch, "_resolve_task_for_branch", return_value=None):
+            reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
+        assert reason is None
+
+    def test_fail_open_when_branch_resolution_raises(self, tmp_path):
+        """OOMPAH-309 regression: when ``_resolve_task_for_branch`` raises, gate returns None.
+
+        A transient tracker error on branch resolution must not accidentally block
+        unrelated PRs.  The gate fails *open* for PRs it cannot categorise.
+        This is distinct from the parent-epic resolution path (which fails closed).
+        """
+        orch, proj, _, _, tracker = _make_shared_epic_scenario(tmp_path)
+        review = _make_review(source_branch="child-1")
+        with patch.object(
+            orch,
+            "_resolve_task_for_branch",
+            side_effect=RuntimeError("tracker unavailable"),
+        ):
+            reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
+        assert reason is None
+
+    def test_blocks_per_child_pr_when_parent_epic_resolved(self, tmp_path):
+        """OOMPAH-285 regression: per-child PRs are blocked when the parent epic is known.
+
+        A shared-epic child must land via the epic rollup PR, not a standalone
+        per-child PR.  After ``_create_workspace_for_issue`` corrects the child's
+        ``work_branch`` to the epic branch (OOMPAH-308), a stale per-child PR
+        from a previous dispatch must be blocked by the YOLO gate.
+        """
+        orch, proj, epic, child, tracker = _make_shared_epic_scenario(tmp_path)
+        # After OOMPAH-308 the child work_branch is corrected to the epic branch.
+        # A stale per-child PR (source_branch="child-1") from a prior dispatch
+        # should be blocked.
+        child.work_branch = "epic-epic-1"
+        review = _make_review(source_branch="child-1", target_branch="main")
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=child),
+            patch.object(orch, "_resolve_parent_epic", return_value=epic),
+        ):
+            reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
+        assert reason is not None
+        assert "shared epic workflow" in reason
+        assert "child-1" in reason
+        assert "epic-epic-1" in reason
+
+    def test_allows_epic_rollup_pr_when_source_branch_matches_epic_branch(
+        self, tmp_path
+    ):
+        """OOMPAH-285: the epic rollup PR (source == epic branch) must NOT be blocked.
+
+        When the PR source branch IS the corrected epic branch the YOLO gate
+        recognises it as the legitimate rollup PR and allows it through.
+        """
+        orch, proj, epic, child, tracker = _make_shared_epic_scenario(tmp_path)
+        # work_branch corrected to epic branch by OOMPAH-308
+        child.work_branch = "epic-epic-1"
+        review = _make_review(source_branch="epic-epic-1", target_branch="main")
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=child),
+            patch.object(orch, "_resolve_parent_epic", return_value=epic),
+        ):
+            reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
+        assert reason is None
+
+    def test_returns_none_when_issue_has_no_parent_and_no_policy(self, tmp_path):
+        """Top-level tasks without ``require_epic_for_tasks`` are not blocked."""
+        orch, proj, _, _, tracker = _make_shared_epic_scenario(tmp_path)
+        top_level = _make_issue(identifier="task-99", parent_id=None, project_id="proj-1")
+        review = _make_review(source_branch="task-99")
+        with patch.object(orch, "_resolve_task_for_branch", return_value=top_level):
+            reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
+        assert reason is None
+
+    def test_blocks_top_level_task_when_require_epic_for_tasks(self, tmp_path):
+        """Policy enforcement: top-level task PR is blocked when ``require_epic_for_tasks=True``.
+
+        When the project mandates that all tasks must be attached to an epic,
+        a standalone top-level task PR must be blocked at the YOLO gate.
+        """
+        proj = _make_project_record(epic_strategy="shared")
+        proj.require_epic_for_tasks = True
+        orch = _make_orch(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        top_level = _make_issue(identifier="task-99", parent_id=None, project_id="proj-1")
+        review = _make_review(source_branch="task-99")
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=top_level),
+            patch.object(orch, "_resolve_parent_epic", return_value=None),
+        ):
+            reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
+        assert reason is not None
+        assert "requires epic-owned tasks" in reason
+        assert "task-99" in reason
+
+    def test_blocks_with_unresolvable_reason_when_parent_id_set_but_resolve_returns_none(
+        self, tmp_path
+    ):
+        """OOMPAH-309 fail-closed: blocks when parent_id is set but resolver returns None.
+
+        When the issue names a parent but ``_resolve_parent_epic`` returns None
+        (e.g. tracker timeout, parent deleted), the gate must fail *closed* and
+        block the PR.  A stale child PR must not be allowed to merge standalone
+        just because the parent is temporarily unreachable.
+        This is the complement of the fail-open path for branch-resolution errors.
+        """
+        orch, proj, _, child, tracker = _make_shared_epic_scenario(tmp_path)
+        review = _make_review(source_branch="child-1")
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=child),
+            patch.object(orch, "_resolve_parent_epic", return_value=None),
+        ):
+            reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
+        assert reason is not None
+        assert "could not be resolved" in reason
+
+
+class TestCloseInvalidEpicPolicyReview:
+    """Regression tests for ``_close_invalid_epic_policy_review`` (OOMPAH-309/OOMPAH-285).
+
+    When ``_yolo_epic_strategy_block_reason`` returns a block reason, this helper
+    attempts to close the stale PR so YOLO does not keep re-blocking the same
+    terminal violation on every tick.
+
+    The method must:
+    - Fail *closed* (return False) when branch resolution raises (OOMPAH-309)
+    - Close stale per-child task PRs and transition the task to Needs Human
+    - Close stale standalone task PRs when ``require_epic_for_tasks`` is set
+    - Defer the close (return False) when parent epic cannot be resolved — a
+      transient tracker failure must not destructively close a potentially valid
+      child PR (OOMPAH-309 asymmetry: block but don't close on ambiguity)
+    - Record the outcome in the YOLO action history
+    - Return True whether the close attempt succeeded or failed (the caller handles both)
+    """
+
+    def _make_provider(self, *, close_success: bool = True) -> MagicMock:
+        """Mock SCM provider whose ``close_review`` returns (success, msg)."""
+        provider = MagicMock()
+        provider.close_review.return_value = (
+            close_success,
+            "" if close_success else "provider error",
+        )
+        return provider
+
+    def test_returns_false_for_empty_source_branch(self, tmp_path):
+        """Can't close a PR with no identifiable source branch — returns False."""
+        orch, proj, _, _, tracker = _make_shared_epic_scenario(tmp_path)
+        provider = self._make_provider()
+        review = _make_review(source_branch="")
+        result = orch._close_invalid_epic_policy_review(
+            proj, provider, "org/repo", tracker, review, "some reason", tick=1
+        )
+        assert result is False
+        provider.close_review.assert_not_called()
+
+    def test_fail_closed_when_branch_resolution_raises(self, tmp_path):
+        """OOMPAH-309 regression: when ``_resolve_task_for_branch`` raises, returns False.
+
+        The close helper falls back to gate-only behaviour when it cannot
+        determine which issue owns the branch.  It must NOT attempt to close
+        the PR — that would risk closing a PR for an unrelated task.
+        """
+        orch, proj, _, _, tracker = _make_shared_epic_scenario(tmp_path)
+        provider = self._make_provider()
+        review = _make_review(source_branch="child-1")
+        with patch.object(
+            orch,
+            "_resolve_task_for_branch",
+            side_effect=RuntimeError("tracker down"),
+        ):
+            result = orch._close_invalid_epic_policy_review(
+                proj, provider, "org/repo", tracker, review, "some reason", tick=1
+            )
+        assert result is False
+        provider.close_review.assert_not_called()
+
+    def test_closes_stale_per_child_pr_when_parent_epic_resolved(self, tmp_path):
+        """OOMPAH-285 regression: stale per-child task PR is closed when parent epic is known.
+
+        After OOMPAH-308 corrects the child's ``work_branch`` to the epic branch,
+        a pre-existing per-child PR (source_branch != epic branch) must be closed.
+        Leaving it open causes YOLO to re-block it indefinitely.
+        """
+        orch, proj, epic, child, tracker = _make_shared_epic_scenario(tmp_path)
+        # OOMPAH-308 has already corrected the child's work_branch to the epic branch.
+        child.work_branch = "epic-epic-1"
+        provider = self._make_provider(close_success=True)
+        # Stale per-child PR from before the OOMPAH-308 correction.
+        review = _make_review(source_branch="child-1")
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=child),
+            patch.object(orch, "_resolve_parent_epic", return_value=epic),
+        ):
+            result = orch._close_invalid_epic_policy_review(
+                proj,
+                provider,
+                "org/repo",
+                tracker,
+                review,
+                "shared epic workflow: child task child-1 must land via epic-epic-1",
+                tick=1,
+            )
+        assert result is True
+        provider.close_review.assert_called_once()
+        close_call = provider.close_review.call_args
+        comment = close_call.kwargs.get(
+            "comment",
+            close_call.args[2] if len(close_call.args) > 2 else "",
+        )
+        assert "shared epic" in comment.lower() or "stale child" in comment.lower()
+
+    def test_closes_standalone_task_pr_when_require_epic_for_tasks(self, tmp_path):
+        """OOMPAH-309: top-level task PRs are closed when ``require_epic_for_tasks`` is set.
+
+        When policy mandates epic ownership, standalone task PRs are terminal
+        violations and should be closed immediately rather than re-blocked forever.
+        """
+        proj = _make_project_record(epic_strategy="shared")
+        proj.require_epic_for_tasks = True
+        orch = _make_orch(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        provider = self._make_provider(close_success=True)
+
+        top_level = _make_issue(identifier="task-99", parent_id=None, project_id="proj-1")
+        review = _make_review(source_branch="task-99")
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=top_level),
+            patch.object(orch, "_resolve_parent_epic", return_value=None),
+        ):
+            result = orch._close_invalid_epic_policy_review(
+                proj,
+                provider,
+                "org/repo",
+                tracker,
+                review,
+                "project requires epic-owned tasks: task-99 has no parent epic",
+                tick=1,
+            )
+        assert result is True
+        provider.close_review.assert_called_once()
+        close_call = provider.close_review.call_args
+        comment = close_call.kwargs.get(
+            "comment",
+            close_call.args[2] if len(close_call.args) > 2 else "",
+        )
+        assert "standalone" in comment.lower() or "requires" in comment.lower()
+
+    def test_returns_false_when_issue_cannot_be_resolved(self, tmp_path):
+        """Returns False (no close attempt) when the branch cannot be mapped to a task."""
+        orch, proj, _, _, tracker = _make_shared_epic_scenario(tmp_path)
+        provider = self._make_provider()
+        review = _make_review(source_branch="orphan-branch")
+        with patch.object(orch, "_resolve_task_for_branch", return_value=None):
+            result = orch._close_invalid_epic_policy_review(
+                proj, provider, "org/repo", tracker, review, "some reason", tick=1
+            )
+        assert result is False
+        provider.close_review.assert_not_called()
+
+    def test_transitions_in_review_task_to_needs_human_after_close(self, tmp_path):
+        """After closing a per-child PR, a task in In Review state moves to Needs Human.
+
+        The reconciliation step must update the task's state so it does not
+        sit stranded in In Review with no open PR.
+        """
+        orch, proj, epic, child, tracker = _make_shared_epic_scenario(tmp_path)
+        child.work_branch = "epic-epic-1"
+        child.state = IN_REVIEW
+        provider = self._make_provider(close_success=True)
+        review = _make_review(source_branch="child-1", review_id="99")
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=child),
+            patch.object(orch, "_resolve_parent_epic", return_value=epic),
+        ):
+            result = orch._close_invalid_epic_policy_review(
+                proj,
+                provider,
+                "org/repo",
+                tracker,
+                review,
+                "shared epic workflow: child task child-1 must land via epic-epic-1",
+                tick=1,
+            )
+        assert result is True
+        tracker.update_issue.assert_called_once_with("child-1", status=NEEDS_HUMAN)
+        tracker.add_comment.assert_called_once()
+
+    def test_records_failure_when_provider_close_fails(self, tmp_path):
+        """When ``provider.close_review`` fails, returns True and records the failure.
+
+        Returning True tells the YOLO loop we took an action (even if it failed);
+        the failure is recorded in the action history so the watchdog can detect
+        repeated failures.  No tracker reconciliation must happen on a failed close.
+        """
+        orch, proj, epic, child, tracker = _make_shared_epic_scenario(tmp_path)
+        child.work_branch = "epic-epic-1"
+        provider = self._make_provider(close_success=False)
+        review = _make_review(source_branch="child-1")
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=child),
+            patch.object(orch, "_resolve_parent_epic", return_value=epic),
+            patch.object(orch, "_record_yolo_action") as mock_record,
+        ):
+            result = orch._close_invalid_epic_policy_review(
+                proj,
+                provider,
+                "org/repo",
+                tracker,
+                review,
+                "shared epic workflow: ...",
+                tick=5,
+            )
+        assert result is True
+        provider.close_review.assert_called_once()
+        # No tracker state change when the close itself failed.
+        tracker.update_issue.assert_not_called()
+        # Failure outcome must be recorded for watchdog telemetry.
+        mock_record.assert_called_once()
+        assert mock_record.call_args.args[3] == "failure"
+
+    def test_records_success_when_provider_close_succeeds(self, tmp_path):
+        """When ``provider.close_review`` succeeds, the success outcome is recorded."""
+        orch, proj, epic, child, tracker = _make_shared_epic_scenario(tmp_path)
+        child.work_branch = "epic-epic-1"
+        provider = self._make_provider(close_success=True)
+        review = _make_review(source_branch="child-1")
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=child),
+            patch.object(orch, "_resolve_parent_epic", return_value=epic),
+            patch.object(orch, "_record_yolo_action") as mock_record,
+        ):
+            result = orch._close_invalid_epic_policy_review(
+                proj,
+                provider,
+                "org/repo",
+                tracker,
+                review,
+                "shared epic workflow: ...",
+                tick=3,
+            )
+        assert result is True
+        mock_record.assert_called_once()
+        assert mock_record.call_args.args[3] == "success"
