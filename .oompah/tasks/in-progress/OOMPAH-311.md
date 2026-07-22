@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T05:43:10.574167Z'
+updated_at: '2026-07-22T05:45:00.223564Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-07-22 05:43
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 05:45
+---
+Understanding: I am a Duplicate Investigator for OOMPAH-311 ('Diagnose and surface remediation path for existing independently-merged child branches/PRs'). This task is a child of epic OOMPAH-307. My job is to confirm whether this task is a duplicate of any existing issue before any implementation begins. I will search the task store for any prior work covering diagnosis/remediation of independently-merged shared-epic child branches.
 ---
 <!-- COMMENTS:END -->
