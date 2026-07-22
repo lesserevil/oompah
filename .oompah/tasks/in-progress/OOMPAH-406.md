@@ -10,9 +10,10 @@ children: []
 blocked_by: []
 labels:
 - external:github
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:35.680434Z'
-updated_at: '2026-07-22T15:35:42.123975Z'
+updated_at: '2026-07-22T15:37:10.784923Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +108,24 @@ author: oompah
 created: 2026-07-22 15:34
 ---
 Understanding: Investigating OOMPAH-406 as Duplicate Investigator. The issue is an auto-filed error from backend:orchestrator about 'Dispatch loop stall diagnostics follow (all thread stacks)'. I will search existing tasks for duplicates before any implementation work.
+---
+author: oompah
+created: 2026-07-22 15:37
+---
+Discovery: Duplicate screening complete — NO duplicate found.
+
+Searched across all .oompah/tasks/ directories (open, archived, merged, done, backlog), docs, plans, README.md, and WORKFLOW.md for:
+- 'Dispatch loop stall', 'stall diagnostics', 'thread stacks'
+- fingerprint d6ccea1ca2125802
+- 'backend:orchestrator' errors
+- related terms: 'dispatch loop', 'orchestrator error', 'stall'
+
+Findings:
+1. No task in any state matches the fingerprint d6ccea1ca2125802.
+2. No task describes the 'Dispatch loop stall diagnostics follow (all thread stacks)' error.
+3. The closest related tasks are OOMPAH-58/OOMPAH-93/OOMPAH-97 etc. which cover a DIFFERENT error pattern: 'backend:webhooks / WebhookForwarder: disabling webhook forwarding' with fingerprint fab624f77cb2c7ae — a different component and a different error.
+4. Source code confirmed: the error is logged at oompah/orchestrator.py:2591 in _dump_stale_dispatch_threads() when the dispatch loop is first declared stale. It uses logger.error() which causes error_watcher to auto-file it.
+
+This is a unique, previously-unreported error pattern. No implementation done — handing off to the appropriate focus.
 ---
 <!-- COMMENTS:END -->
