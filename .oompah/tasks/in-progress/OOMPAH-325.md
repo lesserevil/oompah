@@ -20,13 +20,13 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T15:29:42.508655Z'
+updated_at: '2026-07-22T15:29:50.414171Z'
 work_branch: epic-OOMPAH-325
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/537
 review_number: '537'
 merged_at: null
-oompah.agent_run_id: fda22f31-ea8e-41c5-b319-6319616ee221
+oompah.agent_run_id: ca394155-8b5b-487b-bbb7-e1878d42edb1
 oompah.task_costs:
   total_input_tokens: 1289312
   total_output_tokens: 14069
@@ -1299,5 +1299,15 @@ author: oompah
 created: 2026-07-22 15:29
 ---
 YOLO: Merge conflict detected on MR #537. Rebase onto epic-OOMPAH-318 and resolve conflicts.
+---
+author: oompah
+created: 2026-07-22 15:29
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-22 15:29
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
