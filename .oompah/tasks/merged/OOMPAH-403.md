@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T06:22:56.136482Z'
+updated_at: '2026-07-22T06:22:58.586179Z'
 work_branch: OOMPAH-403
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/532
@@ -340,5 +340,10 @@ Implementation: Fixed 7 CI failures in PR #532 by adding non-empty description f
 Root cause: commit dcbef393e added server-side validation returning 422 when promoting to a dispatchable status without a description. Test helpers created Issue objects without descriptions, so the 422 fired before the tested logic was reached.
 
 The OOMPAH-403 feature change (orchestrator.py logger.error→warning + regression test) is completely separate and unrelated to these failures.
+---
+author: oompah
+created: 2026-07-22 06:22
+---
+YOLO: merged PR #532.
 ---
 <!-- COMMENTS:END -->
