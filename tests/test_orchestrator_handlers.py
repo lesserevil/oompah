@@ -1087,7 +1087,7 @@ class TestRunStep5cEpicMaintenance:
     def test_all_six_jobs_registered(self, tmp_path):
         """All six epic maintenance jobs appear in _maintenance_jobs after a run."""
         orch = self._orch(tmp_path)
-        # Enable staleness threshold so staleness + rebase jobs fire.
+        # Enable staleness threshold so observational staleness checks fire.
         orch.config.epic_staleness_threshold_commits = 5
 
         orch._run_step5c_epic_maintenance()
@@ -1096,7 +1096,7 @@ class TestRunStep5cEpicMaintenance:
         assert "epic_auto_close" in job_names
         assert "epic_open_prs" in job_names
         assert "epic_staleness" in job_names
-        assert "epic_rebase_filing" in job_names
+        assert "epic_rebase_filing" not in job_names
         assert "epic_prune_rebase" in job_names
         assert "epic_orphan_reset" in job_names
 
@@ -1110,30 +1110,19 @@ class TestRunStep5cEpicMaintenance:
         orch._check_epic_staleness.assert_not_called()
         orch._dispatch_proactive_rebase_agents.assert_not_called()
 
-    def test_staleness_runs_before_rebase_filing(self, tmp_path):
-        """Staleness job MUST complete before rebase filing (ordering contract).
-
-        AC#2: ordering preserved so _check_epic_staleness updates
-        _epic_rebase_states before _dispatch_proactive_rebase_agents reads it.
-        """
+    def test_staleness_does_not_schedule_rebase_filing(self, tmp_path):
+        """Main advancing is observation-only for incomplete epic branches."""
         orch = self._orch(tmp_path)
         orch.config.epic_staleness_threshold_commits = 5
-        call_order = []
         orch._check_epic_staleness = MagicMock(
-            side_effect=lambda c: call_order.append("staleness")
+            return_value=1
         )
-        orch._dispatch_proactive_rebase_agents = MagicMock(
-            side_effect=lambda c: call_order.append("rebase_filing")
-        )
+        orch._dispatch_proactive_rebase_agents = MagicMock()
 
         orch._run_step5c_epic_maintenance()
 
-        staleness_idx = call_order.index("staleness")
-        rebase_idx = call_order.index("rebase_filing")
-        assert staleness_idx < rebase_idx, (
-            "staleness must run before rebase filing but order was: "
-            + str(call_order)
-        )
+        orch._check_epic_staleness.assert_called_once()
+        orch._dispatch_proactive_rebase_agents.assert_not_called()
 
     def test_idempotent_second_call_within_interval(self, tmp_path):
         """Second call within interval is coalesced (no double-dispatch).

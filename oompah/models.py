@@ -59,6 +59,10 @@ class EpicRebaseStateEntry:
     updated_at: float  # epoch seconds
     project_id: str | None = None
     retry_count: int = 0  # number of failed attempts (for exponential backoff)
+    # Why the state was recorded. ``main_advanced`` is observation-only;
+    # actionable values identify an explicitly requested or conflict-driven
+    # synchronization.
+    reason: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -68,6 +72,8 @@ class EpicRebaseStateEntry:
         }
         if self.retry_count:
             d["retry_count"] = self.retry_count
+        if self.reason:
+            d["reason"] = self.reason
         return d
 
     @classmethod
@@ -77,6 +83,7 @@ class EpicRebaseStateEntry:
             updated_at=float(d.get("updated_at", 0) or 0),
             project_id=d.get("project_id") or None,
             retry_count=int(d.get("retry_count", 0) or 0),
+            reason=str(d.get("reason", "") or ""),
         )
 
 

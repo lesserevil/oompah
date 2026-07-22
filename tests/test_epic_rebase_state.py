@@ -98,6 +98,22 @@ class TestSetEpicRebaseState:
         assert entry.project_id == "proj-1"
         assert entry.updated_at > 0
 
+    def test_snapshot_marks_staleness_as_observation_only(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = None
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        orch._set_epic_rebase_state(
+            "epic-1", EpicRebaseState.STALE,
+            project_id="proj-1", reason="main_advanced",
+        )
+
+        state = orch.get_snapshot()["epic_rebase_states"]["epic-1"]
+
+        assert state["reason"] == "main_advanced"
+        assert state["action_scheduled"] is False
+
     def test_adds_label_when_not_present(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         tracker = MagicMock()
@@ -531,6 +547,42 @@ class TestEpicStaleAlert:
 
 
 class TestDispatchProactiveRebaseAgents:
+    def test_main_advance_is_observed_but_not_dispatched(self, tmp_path):
+        """Staleness alone must not create an agent task or mutate a branch."""
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue("TASK-18", state="open", project_id="proj-1")
+
+        allowed, reason = orch._epic_synchronization_decision(issue, "main")
+
+        assert allowed is False
+        assert reason == "main_advanced"
+
+    def test_explicit_request_is_actionable(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(
+            "TASK-18", state="open", project_id="proj-1",
+            labels=["rebase-requested"],
+        )
+
+        allowed, reason = orch._epic_synchronization_decision(issue, "main")
+
+        assert allowed is True
+        assert reason == "operator_requested"
+
+    def test_epic_to_epic_synchronization_is_prohibited(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(
+            "TASK-18", state="needs rebase", project_id="proj-1",
+            labels=["rebase-requested"],
+        )
+
+        allowed, reason = orch._epic_synchronization_decision(
+            issue, "epic-TASK-4"
+        )
+
+        assert allowed is False
+        assert reason == "epic_to_epic_prohibited"
+
     def test_mature_epic_is_marked_needs_rebase_instead_of_helper(
         self, tmp_path
     ):
@@ -542,7 +594,10 @@ class TestDispatchProactiveRebaseAgents:
         orch.project_store.get.return_value = project
         orch.project_store.epic_branch_name.side_effect = lambda ident: f"epic-{ident}"
 
-        issue = _make_issue("TASK-18", state="open", project_id="proj-1")
+        issue = _make_issue(
+            "TASK-18", state="open", project_id="proj-1",
+            labels=["rebase-requested"],
+        )
         children = [
             _make_issue(
                 "TASK-18.1",
@@ -579,7 +634,7 @@ class TestDispatchProactiveRebaseAgents:
             **{"add-label": "merge-conflict"},
         )
 
-    def test_shared_nested_epic_helper_targets_parent_epic_branch(
+    def test_shared_nested_epic_does_not_synchronize_to_parent_epic_branch(
         self, tmp_path
     ):
         orch = _make_orchestrator(tmp_path)
@@ -612,11 +667,8 @@ class TestDispatchProactiveRebaseAgents:
 
         filed = orch._dispatch_proactive_rebase_agents([issue])
 
-        assert filed == 1
-        tracker.create_issue.assert_called_once()
-        assert tracker.create_issue.call_args.kwargs["title"] == (
-            "Rebase epic-TASK-18 onto epic-TASK-4"
-        )
+        assert filed == 0
+        tracker.create_issue.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -625,7 +677,7 @@ class TestDispatchProactiveRebaseAgents:
 
 
 class TestCheckEpicStaleness:
-    def test_shared_nested_epic_checks_parent_epic_branch(self, tmp_path):
+    def test_shared_nested_epic_skips_parent_epic_branch(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         project = MagicMock()
         project.id = "proj-1"
@@ -661,9 +713,4 @@ class TestCheckEpicStaleness:
             stale_count = orch._check_epic_staleness([issue])
 
         assert stale_count == 0
-        check.assert_called_once_with(
-            "/tmp/repo",
-            "epic-TASK-18",
-            "epic-TASK-4",
-            threshold_commits=5,
-        )
+        check.assert_not_called()

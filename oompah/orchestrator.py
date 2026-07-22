@@ -3439,10 +3439,9 @@ class Orchestrator:
                                   child issue states.
           ``epic_auto_close``   — auto-close epics whose children are terminal.
           ``epic_open_prs``     — open epic→main PRs for stacked/shared epics.
-          ``epic_staleness``    — arm/clear staleness alerts; update rebase
-                                  states.  **MUST run before** ``epic_rebase_filing``.
-          ``epic_rebase_filing``— dispatch proactive rebase agents for stale
-                                  epics (depends on ``epic_staleness`` state).
+          ``epic_staleness``    — arm/clear observational staleness alerts and
+                                  update branch-state metadata. It never
+                                  schedules synchronization by itself.
           ``epic_prune_rebase`` — drop ghost rebase-state entries for closed
                                   epics.
           ``epic_orphan_reset`` — reset in_progress issues with no agent.
@@ -3482,20 +3481,14 @@ class Orchestrator:
         )
 
         # 4 + 5. Staleness check then proactive rebase filing.
-        # Step 4 MUST complete before step 5 — _check_epic_staleness()
-        # updates _epic_rebase_states which _dispatch_proactive_rebase_agents()
-        # reads.  Both share the same threshold guard; running them back-to-back
-        # inside a single sequential function guarantees ordering regardless of
-        # individual job throttle states (oompah-zlz_2-82dr ordering contract).
+        # Detect epic staleness, but do not synchronize an unfinished branch
+        # merely because main advanced. Integration happens through main; a
+        # rebase is scheduled only by an explicit actionable workflow (such as
+        # a PR conflict or operator request), never by this periodic scan.
         if self.config.epic_staleness_threshold_commits > 0:
             self._run_maintenance_job(
                 "epic_staleness",
                 lambda: self._check_epic_staleness(candidates),
-                min_interval_s=300.0,
-            )
-            self._run_maintenance_job(
-                "epic_rebase_filing",
-                lambda: self._dispatch_proactive_rebase_agents(candidates),
                 min_interval_s=300.0,
             )
 
@@ -5278,6 +5271,17 @@ class Orchestrator:
 
             epic_branch = self.project_store.epic_branch_name(issue.identifier)
             target_branch = self._resolve_epic_target_branch(issue, project) or "main"
+            if target_branch.startswith("epic-"):
+                # Epic branches never synchronize directly with each other.
+                # Their shared work reaches other epics after it lands on main.
+                self._clear_epic_stale_alert(issue.identifier)
+                logger.debug(
+                    "Skipping epic-to-epic staleness action for %s: %s -> %s",
+                    issue.identifier,
+                    epic_branch,
+                    target_branch,
+                )
+                continue
             current_state = self._get_epic_rebase_state(issue.identifier)
             entry = self._epic_rebase_states.get(issue.identifier)
 
@@ -5315,6 +5319,7 @@ class Orchestrator:
                         issue.identifier,
                         EpicRebaseState.STALE,
                         project_id=project_id,
+                        reason="main_advanced",
                     )
                 elif current_state == EpicRebaseState.REBASING and entry:
                     if time.time() - entry.updated_at > rebase_timeout_s:
@@ -5394,9 +5399,10 @@ class Orchestrator:
             )
         else:
             action = (
-                "Oompah will file a high-priority rebase task for this epic "
-                "and reuse any open rebase child task. This alert clears "
-                "after the epic branch catches up."
+                "This is observation only. Oompah will not merge or rebase "
+                "an unfinished epic branch just because its target advanced. "
+                "A rebase is scheduled only for an explicit operator request, "
+                "a merge-blocking PR conflict, or PR preparation."
             )
 
         self._alerts.append(
@@ -5412,6 +5418,8 @@ class Orchestrator:
                 "project_name": project.name,
                 "target_branch": target_branch,
                 "commits_behind": result.commits_behind,
+                "synchronization_policy": "observed_only",
+                "synchronization_reason": "main_advanced",
             }
         )
         logger.info(
@@ -6342,6 +6350,7 @@ class Orchestrator:
         state: EpicRebaseState,
         *,
         project_id: str | None = None,
+        reason: str = "",
     ) -> None:
         """Transition ``epic_identifier`` to ``state`` and sync labels.
 
@@ -6367,6 +6376,7 @@ class Orchestrator:
             updated_at=now,
             project_id=project_id,
             retry_count=retry_count,
+            reason=reason or (old_entry.reason if old_entry else ""),
         )
 
         # Sync labels on the task.
@@ -6561,6 +6571,26 @@ class Orchestrator:
                     return True
         return False
 
+    def _epic_synchronization_decision(
+        self, issue: Issue, target_branch: str
+    ) -> tuple[bool, str]:
+        """Return whether an epic branch may be synchronized and why.
+
+        A periodic stale observation is never sufficient authority to modify
+        an unfinished branch.  Epic-to-epic synchronization is prohibited;
+        those branches integrate through main.  The ``rebase-requested`` label
+        is the durable operator-request signal, while ``Needs Rebase`` is the
+        existing merge-conflict/PR-repair workflow signal.
+        """
+        if target_branch.startswith("epic-"):
+            return False, "epic_to_epic_prohibited"
+        labels = {str(label).strip().lower() for label in issue.labels or []}
+        if "rebase-requested" in labels:
+            return True, "operator_requested"
+        if canonicalize_status(issue.state) == NEEDS_REBASE:
+            return True, "merge_blocking_conflict"
+        return False, "main_advanced"
+
     def _dispatch_proactive_rebase_agents(self, candidates: list[Issue]) -> int:
         """Mark stale review-ready epics for rebase, or file helper tasks.
 
@@ -6600,6 +6630,16 @@ class Orchestrator:
                 continue
             epic_branch = self.project_store.epic_branch_name(issue.identifier)
             target_branch = self._resolve_epic_target_branch(issue, project) or "main"
+            allowed, reason = self._epic_synchronization_decision(
+                issue, target_branch
+            )
+            if not allowed:
+                logger.info(
+                    "Suppressing epic synchronization for %s: %s",
+                    issue.identifier,
+                    reason,
+                )
+                continue
 
             try:
                 tracker = self._tracker_for_project(issue.project_id)
@@ -6624,6 +6664,7 @@ class Orchestrator:
                         issue.identifier,
                         EpicRebaseState.REBASING,
                         project_id=issue.project_id,
+                        reason=reason,
                     )
                     filed += 1
                     continue
@@ -6645,6 +6686,7 @@ class Orchestrator:
                         issue.identifier,
                         EpicRebaseState.REBASING,
                         project_id=issue.project_id,
+                        reason=reason,
                     )
                     continue
 
@@ -6655,6 +6697,7 @@ class Orchestrator:
                     issue.identifier,
                     EpicRebaseState.REBASING,
                     project_id=issue.project_id,
+                    reason=reason,
                 )
                 filed += 1
             except Exception as exc:
@@ -18980,6 +19023,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "state": entry.state,
                     "updated_at": entry.updated_at,
                     "project_id": entry.project_id,
+                    "reason": entry.reason or (
+                        "main_advanced" if entry.state == EpicRebaseState.STALE.value else None
+                    ),
+                    "action_scheduled": entry.state == EpicRebaseState.REBASING.value,
                 }
                 for epic_id, entry in self._epic_rebase_states.items()
             },
