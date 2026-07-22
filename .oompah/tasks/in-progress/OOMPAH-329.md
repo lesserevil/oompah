@@ -18,13 +18,29 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:42.931068Z'
-updated_at: '2026-07-22T07:52:06.744334Z'
+updated_at: '2026-07-22T07:53:05.128336Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 9f297a26-1c31-4c84-8b9b-fbeaf915aa55
+oompah.task_costs:
+  total_input_tokens: 210579
+  total_output_tokens: 1434
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 210579
+      output_tokens: 1434
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 210579
+    output_tokens: 1434
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T07:53:02.080936+00:00'
 ---
 ## Summary
 
@@ -59,5 +75,25 @@ author: oompah
 created: 2026-07-22 07:52
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 07:53
+---
+Agent completed successfully in 58s (212013 tokens)
+---
+author: oompah
+created: 2026-07-22 07:53
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 5
+- Tokens: 210.6K in / 1.4K out [212.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 58s
+- Log: OOMPAH-329__20260722T075206Z.jsonl
+---
+author: oompah
+created: 2026-07-22 07:53
+---
+Agent completed without closing this issue (58s (212013 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
