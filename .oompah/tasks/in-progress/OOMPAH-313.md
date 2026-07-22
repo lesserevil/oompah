@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:41.720887Z'
-updated_at: '2026-07-22T21:49:34.126108Z'
+updated_at: '2026-07-22T21:50:02.614938Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -259,5 +259,25 @@ Plan:
 - Add TestYoloEpicStrategyBlockReason class covering: (a) returns None for unknown branch, (b) blocks shared-epic child PRs, (c) blocks top-level task PRs when require_epic_for_tasks, (d) fail-closed when _resolve_task_for_branch raises
 - Add TestCloseInvalidEpicPolicyReview class covering: (a) closes stale child task PR when shared epic parent resolved, (b) closes stale standalone PR when require_epic_for_tasks, (c) fail-closed when resolve raises
 - Add a shared_epic_fixture() helper function for reusable epic+child setup
+---
+author: oompah
+created: 2026-07-22 21:50
+---
+Discovery: Key findings for test coverage gaps.
+
+The two bug fixes from OOMPAH-285/286 child routing:
+
+OOMPAH-308 (work_branch correction):
+- tests/test_epic_strategy.py::TestWorkspaceAllocation already has 4 regression tests (~line 1073-1210) covering stale work_branch correction, absent work_branch, no-op when already correct, and tracker failure tolerance.
+- FULLY covered.
+
+OOMPAH-309 (fail-closed when _resolve_parent_epic raises):
+- _yolo_epic_strategy_block_reason (oompah/orchestrator.py:11965) - ZERO tests exist
+- _close_invalid_epic_policy_review (oompah/orchestrator.py:12027) - ZERO tests exist
+- These methods are the YOLO gate and auto-close for invalid per-child PRs
+
+Gap: No tests exist for the YOLO gate blocking shared-epic child PRs or closing stale per-child PRs. The OOMPAH-309 fix made these fail-closed when branch resolution raises, but that code path is completely untested.
+
+Action: Add TestYoloEpicStrategyBlockReason and TestCloseInvalidEpicPolicyReview test classes to tests/test_epic_strategy.py, plus a shared fixture helper.
 ---
 <!-- COMMENTS:END -->
