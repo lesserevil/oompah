@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:41.130372Z'
-updated_at: '2026-07-22T05:55:56.826174Z'
+updated_at: '2026-07-22T05:56:12.473145Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,5 +111,10 @@ author: oompah
 created: 2026-07-22 05:55
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-22 05:56
+---
+Understanding: As Frontend Developer, I'm implementing the UI side of OOMPAH-327. Based on the duplicate_detector handoff, I need to: (1) extend the Projects UI with forge selector (GitHub/GitLab), GitLab base URL field, GitLab tracker/intake controls, masked project token display, webhook endpoint/health display, and 'Merge Request' terminology when forge_kind==gitlab; (2) write UI DOM/JavaScript contract tests for conditional controls, token masking, validation errors, and hook-health display. I'll explore the existing UI templates and JS patterns first.
 ---
 <!-- COMMENTS:END -->
