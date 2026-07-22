@@ -5,14 +5,17 @@ status: Backlog
 priority: 1
 title: Reduce unfinished epic branch synchronization churn
 parent: null
-children: []
+children:
+- OOMPAH-357
+- OOMPAH-358
+- OOMPAH-359
 blocked_by: []
 labels:
 - reliability
 - workflow
 assignee: null
 created_at: '2026-07-22T01:23:32.887223Z'
-updated_at: '2026-07-22T01:23:32.887223Z'
+updated_at: '2026-07-22T01:23:53.546013Z'
 work_branch: null
 target_branch: null
 review_url: null
