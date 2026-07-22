@@ -575,6 +575,15 @@ class ErrorWatcher:
             normalized,
         )
 
+        # Operational duration values change on every watchdog pass (for
+        # example "900s", "910s", and "1.5 minutes") but describe the
+        # same incident. Normalize them before fingerprinting so a prolonged
+        # fault updates one error task instead of flooding the backlog.
+        normalized = re.sub(
+            r"\b\d+(?:\.\d+)?\s*(?:ms|s|seconds?|minutes?|hours?)\b",
+            "<duration>",
+            normalized,
+        )
         normalized = re.sub(r"\b\d{4,}\b", "<num>", normalized)
         raw = f"{source}:{normalized}"
         return hashlib.sha256(raw.encode()).hexdigest()[:16]

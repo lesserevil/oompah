@@ -210,6 +210,14 @@ class TestDispatchStaleAlert:
             f"Expected 1 stale alert, got {len(stale_alerts)}"
         )
 
+    def test_repeated_arm_does_not_repeat_error_log(self, tmp_path, caplog):
+        """One stale incident should not produce an error log flood."""
+        orch = _make_orchestrator(tmp_path)
+        with caplog.at_level("ERROR"):
+            orch._arm_dispatch_stale_alert(elapsed_s=300.0)
+            orch._arm_dispatch_stale_alert(elapsed_s=400.0)
+        assert sum("Dispatch loop stale:" in r.message for r in caplog.records) == 1
+
     def test_clear_removes_alert(self, tmp_path):
         """_clear_dispatch_stale_alert() must remove the alert."""
         orch = _make_orchestrator(tmp_path)

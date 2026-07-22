@@ -2459,6 +2459,7 @@ class Orchestrator:
         message; it does not add duplicate entries.
         """
         source = "dispatch_loop_stale"
+        was_armed = any(a.get("source") == source for a in self._alerts)
         self._alerts = [a for a in self._alerts if a.get("source") != source]
         self._alerts.append(
             {
@@ -2474,11 +2475,13 @@ class Orchestrator:
                 ),
             }
         )
-        logger.error(
+        log = logger.debug if was_armed else logger.error
+        log(
             "Dispatch loop stale: no tick completed in %.0fs "
-            "(threshold=%.0fs). Alert armed, recovery queued.",
+            "(threshold=%.0fs). Alert %s, recovery queued.",
             elapsed_s,
             self.config.full_sync_interval_ms / 1000 * self.config.dispatch_loop_stale_factor,
+            "refreshed" if was_armed else "armed",
         )
 
     def _clear_dispatch_stale_alert(self) -> None:

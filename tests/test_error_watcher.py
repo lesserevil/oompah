@@ -440,6 +440,15 @@ class TestFingerprintNormalization:
         b = "memory leak at 0xfeedface on 2024-12-31T23:59:59 task 9999999"
         assert self._fp(w, a) == self._fp(w, b)
 
+    def test_varying_duration_values_collapse(self):
+        """Repeated watchdog timing updates represent one incident."""
+        w, _ = self._make_watcher()
+        a = "Dispatch loop stale: no tick completed in 900s (threshold=900s)"
+        b = "Dispatch loop stale: no tick completed in 1094s (threshold=900s)"
+        assert self._fp(w, a, source="log:backend") == self._fp(
+            w, b, source="log:backend"
+        )
+
     def test_uuid_normalization(self):
         w, _ = self._make_watcher()
         a = "session 11111111-2222-3333-4444-555555555555 dropped"
