@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-325
 type: task
-status: In Review
-priority: 1
+status: Needs Rebase
+priority: 0
 title: Add GitLab project-hook lifecycle and webhook event parity
 parent: OOMPAH-318
 children:
@@ -17,9 +17,10 @@ labels:
 - focus-complete:duplicate_detector
 - focus-complete:test
 - epic:rebasing
+- merge-conflict
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T08:38:17.746813Z'
+updated_at: '2026-07-22T08:38:20.088060Z'
 work_branch: epic-OOMPAH-325
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/537
