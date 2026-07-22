@@ -17,10 +17,9 @@ labels:
 - focus-complete:duplicate_detector
 - focus-complete:test
 - epic:rebased
-- merge-conflict
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T15:35:08.475809Z'
+updated_at: '2026-07-22T15:35:12.466975Z'
 work_branch: epic-OOMPAH-325
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/537
@@ -28,13 +27,13 @@ review_number: '537'
 merged_at: null
 oompah.agent_run_id: feef4105-3157-4a72-ae82-1de9d65b470e
 oompah.task_costs:
-  total_input_tokens: 1539645
-  total_output_tokens: 14847
+  total_input_tokens: 1953796
+  total_output_tokens: 16371
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1539645
-      output_tokens: 14847
+      input_tokens: 1953796
+      output_tokens: 16371
       cost_usd: 0.0
   runs:
   - profile: default
@@ -73,6 +72,12 @@ oompah.task_costs:
     output_tokens: 778
     cost_usd: 0.0
     recorded_at: '2026-07-22T15:30:18.874442+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 414151
+    output_tokens: 1524
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T15:35:06.958197+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/537
 oompah.review_number: '537'
 oompah.work_branch: epic-OOMPAH-325
