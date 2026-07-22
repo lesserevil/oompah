@@ -756,3 +756,79 @@ class CandidateSelector:
                 self._usage[role_name][candidate.provider_id] = {}
             self._usage[role_name][candidate.provider_id][candidate.model] = now_iso
             self._save()
+
+    def reserve_candidate(
+        self,
+        role: "Role",
+        exclude: "list[Candidate] | None" = None,
+    ) -> "Candidate | None":
+        """Atomically select the LRU eligible candidate and stamp it as reserved.
+
+        For ``round_robin`` roles this is the atomic operation that prevents
+        concurrent dispatches from all selecting the same candidate:
+
+        1.  Under ``self._lock``, find the least-recently-used candidate
+            that is not in *exclude*.
+        2.  Write the current UTC time as ``last_used_at`` for that
+            candidate (still under the lock).
+        3.  Persist the updated state to disk before releasing the lock.
+        4.  Return the selected :class:`Candidate`.
+
+        Because the stamp is written *before* this method returns, a
+        concurrent call to :meth:`reserve_candidate` or
+        :meth:`ordered_candidates` will observe the updated state and
+        select a different candidate.
+
+        For non-``round_robin`` roles (``priority`` or unknown strategy)
+        no stamping occurs — priority ordering is configuration-driven, not
+        usage-driven, so atomic reservation is not needed.
+
+        Args:
+            role: The :class:`Role` to select a candidate from.
+            exclude: Candidates already attempted (failed preflight or
+                startup) for this dispatch.  They are skipped so the
+                caller does not repeatedly receive the same failed
+                candidate.
+
+        Returns:
+            The selected :class:`Candidate`, or ``None`` if all
+            candidates are exhausted (empty role or all in *exclude*).
+        """
+        exclude_set: frozenset[Candidate] = frozenset(exclude or [])
+
+        if role.strategy != "round_robin":
+            # Priority (or unknown): return first eligible candidate without
+            # stamping.  Ordering is configuration-driven, not usage-driven.
+            for c in role.candidates:
+                if c not in exclude_set:
+                    return c
+            return None
+
+        with self._lock:
+            eligible = [c for c in role.candidates if c not in exclude_set]
+            if not eligible:
+                return None
+
+            def sort_key(indexed: tuple[int, "Candidate"]) -> tuple:
+                idx, candidate = indexed
+                last_used = self._get_last_used(role.name, candidate)
+                if last_used is None:
+                    return (0, "", idx)
+                return (1, last_used, idx)
+
+            indexed_sorted = sorted(enumerate(eligible), key=sort_key)
+            selected = indexed_sorted[0][1]
+
+            # Stamp the selected candidate immediately while still holding
+            # the lock.  This makes the selection visible to any concurrent
+            # reserve_candidate() / ordered_candidates() call before it
+            # returns, preventing the all-first-candidate race.
+            now_iso = datetime.now(timezone.utc).isoformat()
+            if role.name not in self._usage:
+                self._usage[role.name] = {}
+            if selected.provider_id not in self._usage[role.name]:
+                self._usage[role.name][selected.provider_id] = {}
+            self._usage[role.name][selected.provider_id][selected.model] = now_iso
+            self._save()
+
+            return selected

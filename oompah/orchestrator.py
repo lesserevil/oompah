@@ -13455,7 +13455,25 @@ class Orchestrator:
         if profile.model_role:
             role = self.role_store.get(profile.model_role)
             if role and role.candidates:
-                ordered = self._candidate_selector.ordered_candidates(role)
+                if role.strategy == "round_robin":
+                    # Atomically reserve the LRU candidate at dispatch time so
+                    # that concurrent dispatches observe different stamps and
+                    # select different providers.  OOMPAH-346.
+                    reserved = self._candidate_selector.reserve_candidate(role)
+                    if reserved is not None:
+                        # Build an ordered list: reserved candidate first, then
+                        # the remaining candidates in LRU order (reserve_candidate
+                        # has already stamped the reserved one, so ordered_candidates
+                        # will place it last — we exclude it from the remainder).
+                        rest = [
+                            c for c in self._candidate_selector.ordered_candidates(role)
+                            if c != reserved
+                        ]
+                        ordered = [reserved] + rest
+                    else:
+                        ordered = []
+                else:
+                    ordered = self._candidate_selector.ordered_candidates(role)
                 targets: list[DispatchTarget] = []
                 for i, cand in enumerate(ordered):
                     prov = self.provider_store.get(cand.provider_id)
