@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-328
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Make project bootstrap and operator documentation forge-aware
 parent: OOMPAH-318
@@ -15,13 +15,13 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-22T06:57:46.993270Z'
+updated_at: '2026-07-22T07:07:14.909566Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: c9d92621-6081-41e9-a9c7-661fbaa2f523
+oompah.agent_run_id: c1b2396c-f6b5-4ff6-bdef-99d810393889
 oompah.task_costs:
   total_input_tokens: 1547099
   total_output_tokens: 15388
@@ -314,5 +314,15 @@ created: 2026-07-22 06:57
 **Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-22 07:07
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 07:07
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
