@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T05:55:35.138275Z'
+updated_at: '2026-07-22T05:55:38.643390Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -272,5 +272,10 @@ author: oompah
 created: 2026-07-22 05:55
 ---
 Completion: Fixed OOMPAH-403. Changed logger.error() → logger.warning() in oompah/orchestrator.py _terminate_running() (the worker-shutdown timeout path). error_watcher captures only ERROR+ records, so this change prevents it from auto-filing spurious bug tasks when a worker doesn't stop within the termination timeout — an expected condition during hard kills. Added regression test to prevent recurrence. Branch OOMPAH-403 pushed and up to date.
+---
+author: oompah
+created: 2026-07-22 05:55
+---
+Changed logger.error → logger.warning in orchestrator._terminate_running() for the worker-shutdown timeout path. error_watcher only captures ERROR+ records, so this prevents spurious auto-filed bug tasks for expected shutdown timeouts. Added regression test test_shutdown_timeout_logs_warning_not_error.
 ---
 <!-- COMMENTS:END -->
