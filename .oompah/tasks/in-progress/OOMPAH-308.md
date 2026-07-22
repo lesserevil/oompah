@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-308
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fix stale work_branch metadata for native shared-epic children and update to
   epic branch on dispatch
@@ -11,13 +11,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:52:58.139774Z'
-updated_at: '2026-07-22T05:27:01.522381Z'
+updated_at: '2026-07-22T05:27:20.200772Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: e799f04c-9710-4eba-9f27-4c3346b4d348
+oompah.agent_run_id: 86d722c7-977c-4dc9-9661-f59397d91925
 oompah.task_costs:
   total_input_tokens: 387141
   total_output_tokens: 1734
@@ -106,5 +106,15 @@ author: oompah
 created: 2026-07-22 05:27
 ---
 Agent completed without landing — no commits found on origin for branch `epic-OOMPAH-307`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-22 05:27
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-22 05:27
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->

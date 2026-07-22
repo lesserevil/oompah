@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-309
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Harden shared-epic protection when _resolve_parent_epic fails for a child with
   parent_id set
@@ -11,12 +11,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:53:17.046767Z'
-updated_at: '2026-07-22T05:20:53.458361Z'
+updated_at: '2026-07-22T05:27:25.679468Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 06274e62-6c75-4104-b376-c7fbf9864d18
 ---
 ## Summary
 
@@ -65,3 +66,22 @@ This is a latent race condition / transient failure that can cause the OOMPAH-28
 - [ ] Define acceptance criteria.
 
 ## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 05:27
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 05:27
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 05:27
+---
+Understanding: Investigating OOMPAH-309 as Duplicate Investigator. The issue is about hardening shared-epic protection when _resolve_parent_epic fails for a child with parent_id set. Will search for similar/duplicate tasks before any implementation work.
+---
+<!-- COMMENTS:END -->
