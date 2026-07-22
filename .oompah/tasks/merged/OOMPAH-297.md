@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-297
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Generate and maintain repository maps on Git-backed state branches
 parent: OOMPAH-293
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:07.528667Z'
-updated_at: '2026-07-21T22:59:49.114969Z'
+updated_at: '2026-07-22T00:37:56.831091Z'
 work_branch: null
 target_branch: null
 review_url: null
