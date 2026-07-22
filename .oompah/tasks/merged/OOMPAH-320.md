@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-320
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Define a forge-neutral SCM and CI provider contract
 parent: OOMPAH-318
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:50.132513Z'
-updated_at: '2026-07-21T23:22:28.297517Z'
+updated_at: '2026-07-22T08:20:11.769407Z'
 work_branch: null
 target_branch: null
 review_url: null
