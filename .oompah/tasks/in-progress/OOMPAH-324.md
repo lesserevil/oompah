@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-324
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Generalize external issue intake and provenance for GitLab
 parent: OOMPAH-318
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:26.149163Z'
-updated_at: '2026-07-22T05:47:00.196265Z'
+updated_at: '2026-07-22T05:53:42.915106Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 52472b1d-5fb9-4471-8e43-3af73b3cb8ad
+oompah.agent_run_id: 84d84d01-5149-4684-a931-3ebf9dffd154
 oompah.task_costs:
   total_input_tokens: 226948
   total_output_tokens: 1466
@@ -110,5 +110,15 @@ author: oompah
 created: 2026-07-22 05:47
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-22 05:53
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 05:53
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->

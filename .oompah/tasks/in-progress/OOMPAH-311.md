@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T05:46:11.706985Z'
+updated_at: '2026-07-22T05:53:32.861515Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -216,5 +216,19 @@ author: oompah
 created: 2026-07-22 05:46
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-22 05:53
+---
+Understanding: I am an Epic Planner for OOMPAH-311 ('Diagnose and surface remediation path for existing independently-merged child branches/PRs'). This task is already a well-scoped child of epic OOMPAH-307, created by the OOMPAH-307 Epic Planner with a clear implementation scope. My role is to evaluate whether this task needs further decomposition into child tasks or is implementable as-is.
+
+Task scope (from OOMPAH-307 epic planner + duplicate_detector context):
+- Gap E from OOMPAH-307: children like OOMPAH-286 received work_branch=OOMPAH-286, target_branch=main, PR #466, status=Merged — bypassing the epic branch entirely.
+- Required: detect these independently-merged children, surface diagnostic warnings, provide a safe remediation path (annotate as independently-merged without rewriting git history), and ensure reconciliation does not corrupt the epic branch.
+
+Plan:
+1. Investigate codebase to understand relevant code paths and detect complexity
+2. Determine if decomposition is needed or if this is a single-session task
+3. Create child tasks if needed, or document implementation guidance for feature agent
 ---
 <!-- COMMENTS:END -->
