@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-22T00:38:50.948182Z'
-updated_at: '2026-07-22T02:10:02.904530Z'
+updated_at: '2026-07-22T02:10:06.794404Z'
 work_branch: OOMPAH-345
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/491
@@ -44,7 +44,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-22T00:39:02.560010+00:00'
-oompah.agent_run_id: f92e7582-eba5-46c0-b80c-1d0cd85dc85b
+oompah.agent_run_id: c31a6375-29a8-486b-bb21-7277f1edaf7f
 oompah.task_costs:
   total_input_tokens: 490508
   total_output_tokens: 13600
@@ -334,5 +334,15 @@ author: oompah
 created: 2026-07-22 02:09
 ---
 YOLO: CI tests failed on MR #491. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-22 02:10
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-22 02:10
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
