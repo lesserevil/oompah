@@ -10550,6 +10550,23 @@ class Orchestrator:
                 return
             if canonicalize_status(child.state) in (MERGED, ARCHIVED):
                 continue
+            # A child can have its own PR/MR while its parent epic's rollup
+            # has already landed.  The parent landing is not evidence that
+            # the child's separate review landed.  In particular, replacing
+            # an actionable conflict-repair state with Merged here prevents
+            # the resolver from ever being dispatched.
+            open_review_branch = self._open_review_branch_for_issue_in_cache(
+                child, epic
+            )
+            if open_review_branch:
+                logger.warning(
+                    "Leaving epic child %s non-terminal: its open review branch %s "
+                    "has not landed (epic %s landed)",
+                    child.identifier,
+                    open_review_branch,
+                    epic.identifier,
+                )
+                continue
             try:
                 tracker.update_issue(child.identifier, status=MERGED)
                 logger.info(
@@ -10561,6 +10578,44 @@ class Orchestrator:
                 logger.debug(
                     "Failed to mark child %s merged: %s", child.identifier, exc
                 )
+
+    def _open_review_branch_for_issue_in_cache(
+        self, issue: Issue, parent: Issue | None = None
+    ) -> str:
+        """Return an open cached review branch owned by ``issue``, if any.
+
+        An epic rollup landing must not terminalize a child that is still
+        represented by a separate open PR/MR.  Prefer the issue's project,
+        then its parent's project, and finally scan the cache as a defensive
+        fallback for legacy issues without project metadata.
+        """
+        reviews_cache = getattr(self, "_reviews_cache", {}) or {}
+        project_ids = [
+            str(project_id)
+            for project_id in (
+                getattr(issue, "project_id", None),
+                getattr(parent, "project_id", None) if parent else None,
+            )
+            if project_id
+        ]
+        project_ids = list(dict.fromkeys(project_ids))
+        review_groups = [
+            reviews_cache.get(project_id, []) for project_id in project_ids
+        ]
+        if not review_groups:
+            review_groups = list(reviews_cache.values())
+
+        for reviews in review_groups:
+            branches = {
+                str(review.source_branch): review
+                for review in reviews or []
+                if getattr(review, "source_branch", None)
+                and str(getattr(review, "state", "") or "").lower() == "open"
+            }
+            branch = self._open_review_branch_for_issue(issue, None, branches)
+            if branch:
+                return branch
+        return ""
 
     def _yolo_review_actions_sync(self) -> None:
         """Auto-manage reviews for projects with YOLO enabled.
