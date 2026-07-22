@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-398
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Add configurable stalled-task remediation watchdog
 parent: null
@@ -12,13 +12,13 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T04:31:24.650906Z'
+updated_at: '2026-07-22T04:33:08.193212Z'
 work_branch: OOMPAH-398
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/529
 review_number: '529'
 merged_at: null
-oompah.agent_run_id: 9ea85cd9-5b86-44da-aa94-411cfb9adeb1
+oompah.agent_run_id: 0c1a692c-44fc-47e7-8bef-ec0888a2de99
 oompah.task_costs:
   total_input_tokens: 510217
   total_output_tokens: 33948
@@ -279,5 +279,15 @@ author: oompah
 created: 2026-07-22 04:30
 ---
 Claimed for implementation. User requested an operational 15-minute audit cadence; the code will retain a documented 30-minute default and this installation will set OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS=900.
+---
+author: oompah
+created: 2026-07-22 04:33
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-22 04:33
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
