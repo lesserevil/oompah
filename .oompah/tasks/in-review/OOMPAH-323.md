@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-323
 type: task
-status: Merged
+status: In Review
 priority: 0
 title: Implement GitLab Issues tracker with Oompah status governance
 parent: OOMPAH-318
@@ -21,7 +21,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-22T12:29:35.539388Z'
+updated_at: '2026-07-22T12:34:22.773201Z'
 work_branch: epic-OOMPAH-323
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/534
@@ -463,6 +463,11 @@ YOLO: Merge conflict detected on MR #534. Rebase onto epic-OOMPAH-318 and resolv
 ---
 author: oompah
 created: 2026-07-22 12:29
+---
+YOLO: Merge conflict detected on MR #534. Rebase onto epic-OOMPAH-318 and resolve conflicts.
+---
+author: oompah
+created: 2026-07-22 12:34
 ---
 YOLO: Merge conflict detected on MR #534. Rebase onto epic-OOMPAH-318 and resolve conflicts.
 ---
