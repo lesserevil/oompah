@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-403
 type: bug
-status: In Progress
+status: Merged
 priority: 0
 title: '[backend:orchestrator] Worker did not stop within 10000ms; continuing shutdown
   issue_identifier=OOMPAH-339'
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T06:21:51.210372Z'
+updated_at: '2026-07-22T06:22:56.136482Z'
 work_branch: OOMPAH-403
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/532
@@ -328,5 +328,17 @@ author: oompah
 created: 2026-07-22 06:21
 ---
 Discovery: Root cause of 7 CI failures confirmed. Commit dcbef393e ('Preserve structured native task descriptions') added a description validation to api_update_issue() in server.py that returns 422 when trying to promote to a dispatchable status (Open, Needs CI Fix, Needs Rebase) without a description. The failing tests create Issue objects via helper functions (_issue(), _make_issue()) without descriptions, so the 422 validation fires before the actual logic being tested. The fix is minimal: add description='Implementation details' to the Issue factory helpers in the 3 failing test files. These failures pre-exist on main — our orchestrator.py change did not cause them, but they block the PR from merging.
+---
+author: oompah
+created: 2026-07-22 06:22
+---
+Implementation: Fixed 7 CI failures in PR #532 by adding non-empty description fields to Issue helper factories in 3 test files:
+- tests/test_intake_promotion.py: inline Issue in test_api_rejects_direct_proposed_to_open_transition
+- tests/test_transition_gate.py: _issue() helper
+- tests/test_server_epic_state.py: _make_issue() helper
+
+Root cause: commit dcbef393e added server-side validation returning 422 when promoting to a dispatchable status without a description. Test helpers created Issue objects without descriptions, so the 422 fired before the tested logic was reached.
+
+The OOMPAH-403 feature change (orchestrator.py logger.error→warning + regression test) is completely separate and unrelated to these failures.
 ---
 <!-- COMMENTS:END -->
