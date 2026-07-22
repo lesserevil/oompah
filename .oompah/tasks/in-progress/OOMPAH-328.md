@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-328
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Make project bootstrap and operator documentation forge-aware
 parent: OOMPAH-318
@@ -15,13 +15,13 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-22T06:38:17.864735Z'
+updated_at: '2026-07-22T06:38:50.518961Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: d6e9abc9-30dc-4aee-8810-c4d64c0664a0
+oompah.agent_run_id: 3c2c7551-ec46-4ad5-b698-9e4789855583
 oompah.task_costs:
   total_input_tokens: 25
   total_output_tokens: 6779
@@ -194,5 +194,15 @@ author: oompah
 created: 2026-07-22 06:38
 ---
 Focus handoff from `` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-22 06:38
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 06:38
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
