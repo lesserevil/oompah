@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-22T02:28:09.764370Z'
-updated_at: '2026-07-22T04:04:50.774410Z'
+updated_at: '2026-07-22T04:04:54.223829Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -92,6 +92,11 @@ An error occurs in `backend:orchestrator` and is recorded by oompah's `error_wat
 
 ## Comments
 <!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 04:04
+---
+Duplicate historical error-log intake after resolved scheduler wedge.
+---
 author: oompah
 created: 2026-07-22 04:04
 ---
