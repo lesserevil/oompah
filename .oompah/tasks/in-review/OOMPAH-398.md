@@ -12,11 +12,11 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T04:21:52.744647Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-22T04:21:58.280600Z'
+work_branch: OOMPAH-398
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/529
+review_number: '529'
 merged_at: null
 oompah.agent_run_id: 9ea85cd9-5b86-44da-aa94-411cfb9adeb1
 oompah.task_costs:
@@ -53,6 +53,10 @@ oompah.task_costs:
     output_tokens: 1085
     cost_usd: 0.0
     recorded_at: '2026-07-22T04:20:57.479284+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/529
+oompah.review_number: '529'
+oompah.work_branch: OOMPAH-398
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -235,5 +239,19 @@ author: oompah
 created: 2026-07-22 04:21
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-22 04:21
+---
+Completion: PR #529 opened (https://github.com/lesserevil/oompah/pull/529) for the stalled-task remediation watchdog implementation.
+
+Delivered in this PR:
+- oompah/stalled_task_watchdog.py: pure classifier auditing Needs Human, Needs CI Fix, Needs Rebase, Needs Answer, and custom Blocked/Stalled states; safe remediations with idempotency via sentinel comments; telemetry via WatchdogAuditResult.to_dict()
+- config.py: stalled_task_watchdog_interval_seconds=1800, OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS env var, 60s minimum clamp
+- orchestrator.py: _maybe_run_stalled_task_watchdog() + _do_stalled_task_watchdog() wired into _run_step5b_maintenance(); telemetry in _maintenance_status
+- .env.example: OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS documented
+- tests/test_stalled_task_watchdog.py: 74 tests; all 11338 project tests passing
+
+All acceptance criteria verified.
 ---
 <!-- COMMENTS:END -->
