@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-404
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Harden 3 call sites in orchestrator.py to fail-closed when _resolve_parent_epic
   returns None for a child with parent_id
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:41:51.997877Z'
-updated_at: '2026-07-22T16:07:20.924178Z'
+updated_at: '2026-07-22T16:13:55.941082Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -306,5 +306,27 @@ author: oompah
 created: 2026-07-22 16:07
 ---
 Discovery: The OOMPAH-404 code changes are already committed (d3d733989) but caused 10 test regressions. Root cause: existing tests use raw MagicMock() for issue objects without setting parent_id=None. The new fail-closed code in _yolo_epic_strategy_block_reason sees a truthy MagicMock as a set parent_id and blocks those PRs. Fix: update 10 tests across 3 files to explicitly set parent_id=None or fetch_issue_detail.return_value=None.
+---
+author: oompah
+created: 2026-07-22 16:13
+---
+Implementation complete. All changes pushed.
+
+Summary of work done:
+
+1. Site 1 (_yolo_epic_strategy_block_reason, ~line 11908): When parent_id is set but _resolve_parent_epic returns None, now returns a block reason string instead of None. Previously failed open (allowed merge); now fails closed.
+
+2. Site 2 (_close_invalid_epic_policy_review, ~line 11990): When parent_id is set but parent_epic is None (tracker error), now logs a WARNING and returns False instead of silently skipping. A transient failure must not destructively close a valid child PR.
+
+3. Site 3 (review handoff per-child skip, ~line 8069): Removed 'and parent_epic is not None' guard. A child with parent_id set must never get a standalone PR, even when the parent lookup fails transiently.
+
+Tests added in tests/test_epic_strategy.py:
+- TestYoloEpicPolicyFailClosed::test_yolo_epic_strategy_blocks_when_parent_id_set_but_resolve_fails
+- TestYoloEpicPolicyFailClosed::test_close_invalid_epic_policy_review_does_not_close_when_parent_resolve_fails
+- TestEnsureReviewExistsRespectsEpicStrategy::test_review_handoff_skips_per_child_review_when_parent_id_set_but_resolve_fails
+
+Additional fix: 10 pre-existing tests in test_orchestrator_merged.py, test_yolo_watchdog.py, test_yolo_watchdog_w9m.py used raw MagicMock() without parent_id=None, causing them to trip the new fail-closed gate. Fixed by explicitly setting parent_id=None or fetch_issue_detail.return_value=None.
+
+Full suite: 11709 passed, 38 skipped, 0 failures.
 ---
 <!-- COMMENTS:END -->
