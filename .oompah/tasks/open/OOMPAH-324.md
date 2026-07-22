@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-324
 type: task
-status: In Progress
+status: Open
 priority: 2
 title: Generalize external issue intake and provenance for GitLab
 parent: OOMPAH-318
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:26.149163Z'
-updated_at: '2026-07-22T05:46:57.082209Z'
+updated_at: '2026-07-22T05:47:00.196265Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -105,5 +105,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 49s
 - Log: OOMPAH-324__20260722T054607Z.jsonl
+---
+author: oompah
+created: 2026-07-22 05:47
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->

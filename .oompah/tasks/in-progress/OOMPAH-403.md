@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T05:46:54.856759Z'
+updated_at: '2026-07-22T05:47:04.757319Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-22T05:35:18.775008+00:00'
-oompah.agent_run_id: c7f5d501-3092-44ef-af2a-1030260d89d4
+oompah.agent_run_id: 8ed29581-d906-4685-996c-691fc1d7e4fa
 oompah.task_costs:
   total_input_tokens: 1191645
   total_output_tokens: 14242
@@ -234,5 +234,15 @@ author: oompah
 created: 2026-07-22 05:46
 ---
 Agent completed without closing this issue (214s (1198454 tokens)). Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-22 05:47
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-22 05:47
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
