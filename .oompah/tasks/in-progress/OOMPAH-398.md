@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-398
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Add configurable stalled-task remediation watchdog
 parent: null
@@ -12,13 +12,13 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T04:03:17.205819Z'
+updated_at: '2026-07-22T04:03:34.150825Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 505f7d99-b654-4d03-94b4-7441e42615d9
+oompah.agent_run_id: badff656-da06-4930-976e-ecc7cf03185d
 oompah.task_costs:
   total_input_tokens: 349267
   total_output_tokens: 2636
@@ -113,5 +113,15 @@ author: oompah
 created: 2026-07-22 04:02
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-398`. No stronger profile is configured; retrying with 'deep' in 20s (2/3).
+---
+author: oompah
+created: 2026-07-22 04:03
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-22 04:03
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
