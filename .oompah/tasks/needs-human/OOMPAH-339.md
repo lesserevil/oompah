@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:47.554460Z'
-updated_at: '2026-07-22T05:40:48.447138Z'
+updated_at: '2026-07-22T05:41:27.337638Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -594,5 +594,24 @@ author: oompah
 created: 2026-07-22 05:40
 ---
 Understanding: Resuming from previous agent runs. Previous agents made substantial uncommitted changes across 6 files implementing the GitLab status-label governance. All 366 modified tests pass. Now committing and closing.
+---
+author: oompah
+created: 2026-07-22 05:41
+---
+Implementation: Changes are complete across 6 files. Summary:
+
+1. oompah/gitlab_tracker.py — Full status-label governance: _trusted_status_ledger, _untrusted_status_issues, record_trusted_status(), record_untrusted_status_label_change(), _authorized_status_label_logins(), validate_status_label_actor() via GitLab label events API, _candidate_status_label_is_trusted(), candidate suppression via fetch_candidate_issues() filter, and _ensure_status_label() backfill.
+
+2. oompah/server.py — Extended _is_status_label_governed_tracker_kind() to include gitlab_issues; _status_before_label_event() now reads GitLab's changes.labels.previous payload; _revert_unauthorized_status_label_change() now captures previous_trusted_status before clearing ledger so reverts are true rollbacks.
+
+3. oompah/webhooks.py — parse_gitlab_webhook() now handles Issue Hook events: normalizes label additions/removals (both string and object forms) into the WebhookEvent.label_name/label_actor contract used by the GitHub authorization guard.
+
+4. tests/test_gitlab_tracker.py — 115 tests covering lifecycle, authorized/unauthorized actors, label canonicalization, trusted/untrusted transitions, candidate suppression, audit comments, API errors, revert success, revert failure.
+
+5. tests/test_server_webhooks.py — 2 new tests: GitLab unauthorized status label triggers shared revert; GitLab authorized transition reads previous status from hook.
+
+6. tests/test_webhooks.py — 3 new tests: Issue Hook captures status label actor and iid; status label removal captured for revert; rich label objects normalized.
+
+All 366 tests pass.
 ---
 <!-- COMMENTS:END -->

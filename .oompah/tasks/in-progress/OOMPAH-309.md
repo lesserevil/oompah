@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:53:17.046767Z'
-updated_at: '2026-07-22T05:36:15.319596Z'
+updated_at: '2026-07-22T05:41:23.024934Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -167,5 +167,10 @@ author: oompah
 created: 2026-07-22 05:36
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-22 05:41
+---
+Understanding (Epic Planner): This epic covers a targeted hardening fix in oompah/orchestrator.py. Three call sites fail open when _resolve_parent_epic() returns None for an issue that HAS parent_id set (tracker transient error). The previous duplicate-detector agent identified them precisely: (a) _yolo_epic_strategy_block_reason (~line 11855) returns None instead of blocking, (b) _close_invalid_epic_policy_review (~line 11929) skips the close branch, (c) review handoff (~line 8070) creates a per-child PR instead of skipping. All three fixes live in the same file and follow the same pattern: fail closed when parent_id is set. Will decompose into one implementation child (code + tests in one session) since they're tightly coupled and the change is small.
 ---
 <!-- COMMENTS:END -->
