@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-360
 type: bug
-status: Proposed
+status: Backlog
 priority: 2
 title: '[backend:orchestrator] Worker did not stop within 10000ms; continuing shutdown
   issue_identifier=OOMPAH-357'
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-22T01:30:09.469717Z'
-updated_at: '2026-07-22T01:30:14.685778Z'
+updated_at: '2026-07-22T01:30:18.398808Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,6 +28,19 @@ oompah.external.github:
   imported_comment_ids: []
   last_synced_status: Proposed
   last_synced_at: '2026-07-22T01:30:09.624705+00:00'
+oompah.intake:
+  missing_fields: []
+  scope: small
+  requestor_approved: false
+  requestor_approved_at: null
+  requestor_actor: null
+  owner_override: false
+  owner_override_at: null
+  owner_actor: null
+  decomposition_status: not_needed
+  proposal_fingerprint: null
+  last_validator_result: pass
+  last_validated_at: '2026-07-22T01:30:14.803854+00:00'
 ---
 ## Summary
 

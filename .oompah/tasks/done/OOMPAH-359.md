@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:53.416699Z'
-updated_at: '2026-07-22T01:30:13.981343Z'
+updated_at: '2026-07-22T01:30:17.712803Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Update the dashboard/API representation of epic branch state so users can distin
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 01:30
+---
+Added synchronization policy, reason, and action-scheduled state to stale epic alerts and API snapshots.
+---
+<!-- COMMENTS:END -->
