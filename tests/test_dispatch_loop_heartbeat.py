@@ -23,6 +23,7 @@ Coverage:
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import signal
 import time
@@ -339,6 +340,23 @@ class TestCheckAndRecoverDispatchLoop:
         orch.check_and_recover_dispatch_loop()
 
         orch._dump_stale_dispatch_threads.assert_called_once()
+
+    def test_thread_dump_marker_is_warning_not_error(self, tmp_path, caplog):
+        """Diagnostic thread dumps must not create error_watcher bug tasks."""
+        orch = _make_orchestrator(tmp_path)
+
+        with patch("oompah.orchestrator.faulthandler.dump_traceback"):
+            with caplog.at_level(logging.WARNING, logger="oompah.orchestrator"):
+                orch._dump_stale_dispatch_threads()
+
+        marker_records = [
+            record
+            for record in caplog.records
+            if "Dispatch loop stall diagnostics follow" in record.getMessage()
+        ]
+        assert len(marker_records) == 1
+        assert marker_records[0].levelno == logging.WARNING
+        assert not any(record.levelno >= logging.ERROR for record in marker_records)
 
     def test_clears_alert_when_recovered(self, tmp_path):
         """After the loop resumes ticking, check_and_recover must clear the alert."""
