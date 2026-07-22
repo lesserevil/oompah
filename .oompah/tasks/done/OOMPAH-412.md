@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T21:34:07.971835Z'
-updated_at: '2026-07-22T23:50:05.051701Z'
+updated_at: '2026-07-22T23:50:07.434760Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -310,5 +310,10 @@ PATH-BY-PATH FINDINGS:
 6. _mark_epic_merged (~line 10526): NO INTERNAL GUARD NEEDED. All callers are gated (_label_merged_epics, _open_epic_main_prs via _epic_branch_landed_on_target; _reconcile_merged_epic_children now also hardened).
 
 CODE CHANGES: oompah/orchestrator.py + tests/test_epic_strategy.py committed as 6edb2a533 on epic-OOMPAH-310.
+---
+author: oompah
+created: 2026-07-22 23:50
+---
+Audited all 6 shared-epic Merged promotion paths in orchestrator.py. Found and fixed one gap: _reconcile_merged_epic_children had no explicit _epic_branch_landed_on_target check (relied on MERGED state invariant). Added defensive guard + updated existing test + new regression test. Paths 1,2,4,5 were already correctly gated. Path 6 (_mark_epic_merged) does not need an internal guard since all callers are now gated.
 ---
 <!-- COMMENTS:END -->
