@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T02:09:39.973428Z'
+updated_at: '2026-07-22T02:09:57.805910Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: e055607c-3e53-40c8-a58e-fe3bcdb854be
 oompah.task_costs:
-  total_input_tokens: 962000
-  total_output_tokens: 13173
+  total_input_tokens: 962038
+  total_output_tokens: 54350
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 962000
-      output_tokens: 13173
+      input_tokens: 962038
+      output_tokens: 54350
       cost_usd: 0.0
   runs:
   - profile: default
@@ -54,6 +54,12 @@ oompah.task_costs:
     output_tokens: 3154
     cost_usd: 0.0
     recorded_at: '2026-07-22T01:31:00.527671+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 38
+    output_tokens: 41177
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T02:09:54.026078+00:00'
 ---
 ## Summary
 
@@ -268,5 +274,35 @@ author: oompah
 created: 2026-07-22 02:09
 ---
 Added CandidateSelector.reserve_candidate() for atomic dispatch-time LRU selection with immediate stamping under lock. Updated _resolve_dispatch_targets() to use it for round-robin roles, fixing the all-first-candidate race. 51 new tests cover fairness (N concurrent reserves), failover (preflight/startup), Claude/Codex 5-concurrent regression, priority non-regression, and persistence across service restart. All 11238 tests passing.
+---
+author: oompah
+created: 2026-07-22 02:09
+---
+Agent completed successfully in 1724s (41215 tokens)
+---
+author: oompah
+created: 2026-07-22 02:09
+---
+Run #5 [attempt=5, profile=deep, role=deep -> Claude/default]
+- Turns: 74, Tool calls: 44
+- Tokens: 38 in / 41.2K out [41.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 28m 44s
+- Log: OOMPAH-346__20260722T014113Z.jsonl
+---
+author: oompah
+created: 2026-07-22 02:09
+---
+Review handoff deferred: the task branch has unmerged work, but this project is at its open review limit.
+
+Branch: `OOMPAH-346`
+Target branch: `main`
+Unmerged commits: 1 commit
+Open reviews: 1/1
+
+oompah will create the review automatically when review capacity is available.
+
+Recent commits:
+  7c7d2ed36 OOMPAH-346: Reserve round-robin providers atomically at dispatch time
 ---
 <!-- COMMENTS:END -->
