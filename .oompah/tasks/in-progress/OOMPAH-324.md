@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-324
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Generalize external issue intake and provenance for GitLab
 parent: OOMPAH-318
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:26.149163Z'
-updated_at: '2026-07-22T06:39:21.296124Z'
+updated_at: '2026-07-22T06:41:44.564655Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 6aca8b57-4d2c-4016-904f-1e15227f65ee
+oompah.agent_run_id: e0d65e60-9dbc-4012-9561-bc8db3a501d8
 oompah.task_costs:
   total_input_tokens: 2447277
   total_output_tokens: 18914
@@ -278,5 +278,15 @@ created: 2026-07-22 06:39
 **Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-22 06:41
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 06:41
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->

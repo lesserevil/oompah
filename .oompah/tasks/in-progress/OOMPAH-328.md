@@ -15,7 +15,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-22T06:38:50.518961Z'
+updated_at: '2026-07-22T06:41:49.702696Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,13 +23,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 3c2c7551-ec46-4ad5-b698-9e4789855583
 oompah.task_costs:
-  total_input_tokens: 25
-  total_output_tokens: 6779
+  total_input_tokens: 731720
+  total_output_tokens: 11291
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 25
-      output_tokens: 6779
+      input_tokens: 731720
+      output_tokens: 11291
       cost_usd: 0.0
   runs:
   - profile: default
@@ -38,6 +38,12 @@ oompah.task_costs:
     output_tokens: 6779
     cost_usd: 0.0
     recorded_at: '2026-07-22T06:37:35.739673+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 731695
+    output_tokens: 4512
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T06:41:34.720509+00:00'
 ---
 ## Summary
 
@@ -204,5 +210,25 @@ author: oompah
 created: 2026-07-22 06:38
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-22 06:41
+---
+Agent completed successfully in 166s (736207 tokens)
+---
+author: oompah
+created: 2026-07-22 06:41
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 11
+- Tokens: 731.7K in / 4.5K out [736.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 46s
+- Log: OOMPAH-328__20260722T063850Z.jsonl
+---
+author: oompah
+created: 2026-07-22 06:41
+---
+Agent completed without closing this issue (166s (736207 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
