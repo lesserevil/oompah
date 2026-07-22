@@ -1,9 +1,9 @@
 ---
-id: OOMPAH-379
+id: OOMPAH-380
 type: bug
-status: Proposed
+status: Backlog
 priority: 2
-title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 994s (threshold=900s).
+title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 1000s (threshold=900s).
   Alert armed, recovery queued.'
 parent: null
 children: []
@@ -11,23 +11,23 @@ blocked_by: []
 labels:
 - external:github
 assignee: null
-created_at: '2026-07-22T02:28:09.764370Z'
-updated_at: '2026-07-22T02:30:05.880545Z'
+created_at: '2026-07-22T02:28:21.190855Z'
+updated_at: '2026-07-22T02:30:10.671698Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.external.github:
-  id: lesserevil/oompah#509
+  id: lesserevil/oompah#510
   owner: lesserevil
   repo: oompah
-  number: '509'
-  url: https://github.com/lesserevil/oompah/issues/509
+  number: '510'
+  url: https://github.com/lesserevil/oompah/issues/510
   requestor_login: NVShawn
   imported_comment_ids: []
   last_synced_status: Proposed
-  last_synced_at: '2026-07-22T02:28:09.889856+00:00'
+  last_synced_at: '2026-07-22T02:28:21.298596+00:00'
 oompah.intake:
   missing_fields: []
   scope: small
@@ -40,7 +40,7 @@ oompah.intake:
   decomposition_status: not_needed
   proposal_fingerprint: null
   last_validator_result: pass
-  last_validated_at: '2026-07-22T02:30:05.139563+00:00'
+  last_validated_at: '2026-07-22T02:30:09.199417+00:00'
 ---
 ## Summary
 
@@ -48,7 +48,7 @@ oompah.intake:
 
 Oompah detected a backend error from `backend:orchestrator`:
 
-> Dispatch loop stale: no tick completed in 994s (threshold=900s). Alert armed, recovery queued.
+> Dispatch loop stale: no tick completed in 1000s (threshold=900s). Alert armed, recovery queued.
 
 ### Desired Behavior
 
@@ -64,7 +64,7 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> Dispatch loop stale: no tick completed in 994s (threshold=900s). Alert armed, recovery queued.
+> Dispatch loop stale: no tick completed in 1000s (threshold=900s). Alert armed, recovery queued.
 
 ### Acceptance Criteria
 
@@ -77,16 +77,16 @@ An error occurs in `backend:orchestrator` and is recorded by oompah's `error_wat
 - source_project: global
 - tracker: github_issues:lesserevil/oompah
 - tracker_kind: github_issues
-- fingerprint: 7a99b35497d59e1d
-- dedup_fingerprint: 7a99b35497d59e1d
+- fingerprint: 1c6069e3d881400d
+- dedup_fingerprint: 1c6069e3d881400d
 - tracker_owner: lesserevil
 - tracker_repo: oompah
 
 ## External GitHub Issue
 
-- URL: https://github.com/lesserevil/oompah/issues/509
+- URL: https://github.com/lesserevil/oompah/issues/510
 - Requestor: @NVShawn
-- Reference: lesserevil/oompah#509
+- Reference: lesserevil/oompah#510
 
 ## Notes
 
