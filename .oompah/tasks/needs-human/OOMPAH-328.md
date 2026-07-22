@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-328
 type: task
-status: In Progress
+status: Needs Human
 priority: 2
 title: Make project bootstrap and operator documentation forge-aware
 parent: OOMPAH-318
@@ -15,7 +15,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-22T07:07:14.909566Z'
+updated_at: '2026-07-22T07:10:05.073149Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,13 +23,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: c1b2396c-f6b5-4ff6-bdef-99d810393889
 oompah.task_costs:
-  total_input_tokens: 1547099
-  total_output_tokens: 15388
+  total_input_tokens: 2330505
+  total_output_tokens: 19091
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1547099
-      output_tokens: 15388
+      input_tokens: 2330505
+      output_tokens: 19091
       cost_usd: 0.0
   runs:
   - profile: default
@@ -56,6 +56,12 @@ oompah.task_costs:
     output_tokens: 2153
     cost_usd: 0.0
     recorded_at: '2026-07-22T06:47:58.298403+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 783406
+    output_tokens: 3703
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T07:10:01.305913+00:00'
 ---
 ## Summary
 
@@ -324,5 +330,25 @@ author: oompah
 created: 2026-07-22 07:07
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-22 07:10
+---
+Agent completed successfully in 169s (787109 tokens)
+---
+author: oompah
+created: 2026-07-22 07:10
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 12
+- Tokens: 783.4K in / 3.7K out [787.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 49s
+- Log: OOMPAH-328__20260722T070715Z.jsonl
+---
+author: oompah
+created: 2026-07-22 07:10
+---
+Agent completed 4 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
