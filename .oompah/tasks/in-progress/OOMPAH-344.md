@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:38:40.470898Z'
-updated_at: '2026-07-22T00:40:24.060991Z'
+updated_at: '2026-07-22T00:40:29.588891Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,5 +77,15 @@ author: oompah
 created: 2026-07-22 00:40
 ---
 Agent completed without landing — no commits found on origin for branch `epic-OOMPAH-325`. Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-22 00:40
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-22 00:40
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
