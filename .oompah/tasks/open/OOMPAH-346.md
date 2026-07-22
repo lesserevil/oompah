@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-346
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Reserve round-robin providers atomically at dispatch time
 parent: null
@@ -12,7 +12,7 @@ labels:
 - round-robin
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T00:50:14.701022Z'
+updated_at: '2026-07-22T00:50:42.815497Z'
 work_branch: null
 target_branch: null
 review_url: null
