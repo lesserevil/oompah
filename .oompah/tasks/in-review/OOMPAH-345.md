@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-345
 type: bug
-status: Done
+status: In Review
 priority: 2
 title: '[backend:server] Update issue API error: Cannot sync state branch ''oompah/state/proj-14849f1b'':
   git fetch origin ''oompah/state/proj-14849f1b'' failed: . Remediation: verify network
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:38:50.948182Z'
-updated_at: '2026-07-22T02:07:46.310919Z'
+updated_at: '2026-07-22T02:07:51.916620Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -303,5 +303,10 @@ author: oompah
 created: 2026-07-22 02:07
 ---
 Completion: OOMPAH-345 resolved. Introduced StateBranchFetchError(TrackerError) to classify git fetch failures on the state branch as transient network errors. The api_update_issue handler and all orchestrator fetch paths now catch this error separately and log at WARNING (not ERROR), so error_watcher no longer files new tasks for transient fetch failures. The feedback loop is broken. 7 files changed, 448 insertions. 11205 tests pass. Branch pushed to origin/OOMPAH-345.
+---
+author: oompah
+created: 2026-07-22 02:07
+---
+Fixed: Added StateBranchFetchError(TrackerError) subclass so git fetch failures during state-branch sync are logged at WARNING (not ERROR), preventing error_watcher from auto-filing duplicate bug tasks. All 11205 tests pass.
 ---
 <!-- COMMENTS:END -->

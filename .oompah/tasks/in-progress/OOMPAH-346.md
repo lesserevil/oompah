@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T02:07:42.109249Z'
+updated_at: '2026-07-22T02:07:50.380448Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -253,5 +253,10 @@ author: oompah
 created: 2026-07-22 02:07
 ---
 Implementation: Added CandidateSelector.reserve_candidate() in oompah/roles.py. This method atomically selects the LRU candidate and stamps it under the selector lock BEFORE returning — so concurrent calls see the updated state and select different candidates. Modified _resolve_dispatch_targets() in orchestrator.py to call reserve_candidate() for round-robin roles instead of ordered_candidates(), ensuring atomic dispatch-time reservation. Priority roles and legacy single-provider profiles are untouched.
+---
+author: oompah
+created: 2026-07-22 02:07
+---
+Verification: Full test suite (11238 passed, 36 skipped) — all passing. New tests added: (1) 34 tests in test_candidate_selector.py covering reserve_candidate() basics, atomicity, concurrent fairness, exclude, independent roles, and persistence. (2) 17 tests in tests/test_round_robin_atomic_dispatch.py covering concurrent dispatch alternation, preflight failover, startup failover, Claude/Codex 5-concurrent regression, priority non-regression, and legacy single-provider non-regression. Verified that old ordered_candidates() behavior causes the race (20 concurrent calls → all select same provider); new reserve_candidate() distributes fairly.
 ---
 <!-- COMMENTS:END -->
