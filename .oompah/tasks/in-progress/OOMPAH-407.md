@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-407
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 900s (threshold=900s).
   Alert armed, recovery queued.'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:37.862938Z'
-updated_at: '2026-07-22T15:51:00.126946Z'
+updated_at: '2026-07-22T15:51:14.835123Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,8 +27,8 @@ oompah.external.github:
   url: https://github.com/lesserevil/oompah/issues/536
   requestor_login: NVShawn
   imported_comment_ids: []
-  last_synced_status: In Progress
-  last_synced_at: '2026-07-22T15:44:56.464102+00:00'
+  last_synced_status: Open
+  last_synced_at: '2026-07-22T15:51:07.208639+00:00'
 oompah.intake:
   missing_fields: []
   scope: small
@@ -42,7 +42,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-22T08:37:55.309711+00:00'
-oompah.agent_run_id: 415ed326-3e67-41b1-996e-bc7290c977ce
+oompah.agent_run_id: 500219de-b54d-444c-8e0d-209ab01b30bf
 oompah.task_costs:
   total_input_tokens: 698511
   total_output_tokens: 10463
@@ -252,5 +252,15 @@ author: oompah
 created: 2026-07-22 15:51
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-22 15:51
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 15:51
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
