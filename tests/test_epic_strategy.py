@@ -1070,6 +1070,131 @@ class TestWorkspaceAllocation:
         )
         orch.project_store.create_worktree.assert_not_called()
 
+    def test_shared_mode_updates_stale_child_work_branch_to_epic_branch(
+        self, tmp_path
+    ):
+        """Child with stale work_branch gets it corrected to the epic branch on dispatch."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.create_epic_worktree.return_value = "/wt/epic-1"
+        # epic_branch_name returns "epic-epic-1" for the epic identifier "epic-1"
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+        epic = _make_issue(identifier="epic-1", issue_type="epic")
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = epic
+
+        child = _make_issue(
+            identifier="child-1",
+            parent_id="epic-1",
+            project_id="proj-1",
+            # stale per-task branch from a prior dispatch
+            work_branch="child-1",
+        )
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            wp, epic_ret = orch._create_workspace_for_issue(child)
+
+        # Workspace is the epic worktree
+        assert wp == "/wt/epic-1"
+        assert epic_ret is not None
+        assert epic_ret.identifier == "epic-1"
+
+        # In-memory work_branch and branch_name corrected
+        assert child.work_branch == "epic-epic-1"
+        assert child.branch_name == "epic-epic-1"
+
+        # Persisted to tracker
+        tracker.set_metadata_field.assert_called_once_with(
+            "child-1", "oompah.work_branch", "epic-epic-1"
+        )
+
+    def test_shared_mode_does_not_persist_when_work_branch_already_correct(
+        self, tmp_path
+    ):
+        """No tracker write when child work_branch already matches the epic branch."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.create_epic_worktree.return_value = "/wt/epic-1"
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+        epic = _make_issue(identifier="epic-1", issue_type="epic")
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = epic
+
+        child = _make_issue(
+            identifier="child-1",
+            parent_id="epic-1",
+            project_id="proj-1",
+            work_branch="epic-epic-1",  # already correct
+        )
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            wp, epic_ret = orch._create_workspace_for_issue(child)
+
+        assert wp == "/wt/epic-1"
+        assert child.work_branch == "epic-epic-1"
+
+        # No unnecessary write to tracker
+        tracker.set_metadata_field.assert_not_called()
+
+    def test_shared_mode_sets_work_branch_when_previously_absent(self, tmp_path):
+        """Child with no prior work_branch gets it set to the epic branch."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.create_epic_worktree.return_value = "/wt/epic-1"
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+        epic = _make_issue(identifier="epic-1", issue_type="epic")
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = epic
+
+        child = _make_issue(
+            identifier="child-2",
+            parent_id="epic-1",
+            project_id="proj-1",
+            work_branch=None,  # never dispatched before
+        )
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            wp, epic_ret = orch._create_workspace_for_issue(child)
+
+        assert wp == "/wt/epic-1"
+        assert child.work_branch == "epic-epic-1"
+        assert child.branch_name == "epic-epic-1"
+        tracker.set_metadata_field.assert_called_once_with(
+            "child-2", "oompah.work_branch", "epic-epic-1"
+        )
+
+    def test_shared_mode_tolerates_tracker_set_metadata_failure(self, tmp_path):
+        """Tracker write failure is logged but does NOT block dispatch."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.create_epic_worktree.return_value = "/wt/epic-1"
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+        epic = _make_issue(identifier="epic-1", issue_type="epic")
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = epic
+        tracker.set_metadata_field.side_effect = RuntimeError("disk full")
+
+        child = _make_issue(
+            identifier="child-3",
+            parent_id="epic-1",
+            project_id="proj-1",
+            work_branch="child-3",  # stale
+        )
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            # Must not raise despite tracker failure
+            wp, epic_ret = orch._create_workspace_for_issue(child)
+
+        # Dispatch still succeeds
+        assert wp == "/wt/epic-1"
+        assert epic_ret is not None
+        # In-memory update still applied even when persist fails
+        assert child.work_branch == "epic-epic-1"
+
 
 # ------------------------------------------------------------- PR target test
 

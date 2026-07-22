@@ -4951,6 +4951,34 @@ class Orchestrator:
 
         parent_epic = self._resolve_parent_epic(issue)
         if parent_epic is not None:
+            # Correct stale work_branch metadata on the child before
+            # dispatching to the epic worktree.  A child may carry a
+            # per-task branch name (e.g. "OOMPAH-286") from an earlier
+            # dispatch run.  That stale value breaks Done→Merged promotion
+            # and branch-index lookups because they use work_branch to
+            # identify the delivery branch.  Always align the child's
+            # work_branch with the parent epic's branch so that subsequent
+            # orchestrator passes see a consistent, correct branch name.
+            epic_branch = self._epic_branch_for_issue(parent_epic)
+            current_child_branch = (
+                getattr(issue, "work_branch", None) or ""
+            ).strip()
+            if current_child_branch != epic_branch:
+                issue.work_branch = epic_branch
+                issue.branch_name = epic_branch
+                # Persist best-effort so the change survives across
+                # orchestrator restarts.  Failures must not block dispatch.
+                try:
+                    tracker = self._tracker_for_issue(issue)
+                    tracker.set_metadata_field(
+                        issue.identifier, "oompah.work_branch", epic_branch
+                    )
+                except Exception as _exc:  # noqa: BLE001
+                    logger.warning(
+                        "Failed to update work_branch for shared-epic child %s: %s",
+                        issue.identifier,
+                        _exc,
+                    )
             wp = self.project_store.create_epic_worktree(
                 issue.project_id,
                 parent_epic.identifier,
