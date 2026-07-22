@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-361
 type: task
-status: In Progress
+status: Archived
 priority: null
 title: 'OOMPAH-322 follow-up: Expand parse_gitlab_webhook to handle push/issue/note/pipeline/job
   event types'
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T01:55:04.171330Z'
-updated_at: '2026-07-22T03:32:38.857262Z'
+updated_at: '2026-07-22T03:42:20.163456Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,19 @@ author: oompah
 created: 2026-07-22 03:32
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 03:42
+---
+Duplicate screening result: CONFIRMED DUPLICATE of OOMPAH-340.
+
+OOMPAH-340 ('Extend parse_gitlab_webhook and server handler for Push/Issue/Note/Pipeline/Job hooks') covers exactly the same scope:
+- Extends parse_gitlab_webhook() for Push Hook, Issue Hook, Note Hook, Pipeline Hook, Job Hook
+- Updates oompah/server.py _webhook_advanced_tracked_branch, _webhook_should_request_refresh, and cache invalidation
+- Adds 31+ tests in TestParseGitLabWebhook and 10+ tests in TestGitLabWebhookEndpoint (including test_push_event_is_processed_and_refreshes_tracked_branch)
+
+OOMPAH-340 is already Done (status confirmed via oompah task view OOMPAH-340). The implementation is committed as 687151e8a / ca8d091a9 on origin/epic-OOMPAH-325.
+
+No implementation needed here. Archiving as duplicate-of:OOMPAH-340.
 ---
 <!-- COMMENTS:END -->
