@@ -54,6 +54,8 @@ class TestAdapterRegistry:
         assert set(ADAPTER_REGISTRY) == {
             "github_issues",
             "github-issues",
+            "gitlab_issues",
+            "gitlab-issues",
             "oompah_md",
             "oompah.md",
             "oompah",
