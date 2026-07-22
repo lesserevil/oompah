@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-398
 type: task
-status: Done
+status: In Progress
 priority: 1
 title: Add configurable stalled-task remediation watchdog
 parent: null
@@ -12,21 +12,21 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T04:20:02.292321Z'
+updated_at: '2026-07-22T04:20:25.255838Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: badff656-da06-4930-976e-ecc7cf03185d
+oompah.agent_run_id: 18b38171-b444-4625-ae25-f912db5c886f
 oompah.task_costs:
-  total_input_tokens: 349267
-  total_output_tokens: 2636
+  total_input_tokens: 349318
+  total_output_tokens: 32578
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 349267
-      output_tokens: 2636
+      input_tokens: 349318
+      output_tokens: 32578
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -41,6 +41,12 @@ oompah.task_costs:
     output_tokens: 1341
     cost_usd: 0.0
     recorded_at: '2026-07-22T04:02:27.911352+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 51
+    output_tokens: 29942
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T04:20:14.733944+00:00'
 ---
 ## Summary
 
@@ -152,5 +158,46 @@ author: oompah
 created: 2026-07-22 04:20
 ---
 Implemented configurable stalled-task remediation watchdog: new oompah/stalled_task_watchdog.py module with classify_stalled_task()/run_watchdog_audit() pure APIs; OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS config (default 1800s); orchestrator integration via _run_step5b_maintenance maintenance lane; 74 new tests; all 11338 project tests passing.
+---
+author: oompah
+created: 2026-07-22 04:20
+---
+Agent completed successfully in 1003s (29993 tokens)
+---
+author: oompah
+created: 2026-07-22 04:20
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 89, Tool calls: 62
+- Tokens: 51 in / 29.9K out [30.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 16m 43s
+- Log: OOMPAH-398__20260722T040334Z.jsonl
+---
+author: oompah
+created: 2026-07-22 04:20
+---
+Close refused by orchestrator: branch `OOMPAH-398` has 1 commit not on `main` and no open PR targets `main` from this branch.
+
+Diagnostic:
+  Unmerged commits: 1
+    c9678a997 OOMPAH-398: Add configurable stalled-task remediation watchdog
+  Open PRs from this branch: 0
+  Merged PRs from this branch: 0
+
+Required: open a PR before closing.
+  gh pr create --base main --head OOMPAH-398 --title "OOMPAH-398: Add configurable stalled-task remediation watchdog" --body "..."
+
+Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
+---
+author: oompah
+created: 2026-07-22 04:20
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-22 04:20
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
