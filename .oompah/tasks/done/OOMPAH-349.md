@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-349
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Make project tracker refresh timeouts real
 parent: OOMPAH-348
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:34.088413Z'
-updated_at: '2026-07-22T01:12:48.243897Z'
+updated_at: '2026-07-22T01:15:52.050831Z'
 work_branch: null
 target_branch: null
 review_url: null
