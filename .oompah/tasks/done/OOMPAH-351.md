@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-351
 type: bug
-status: Open
+status: Done
 priority: 1
 title: Bound worker termination and service shutdown
 parent: OOMPAH-348
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:37.758720Z'
-updated_at: '2026-07-22T01:15:50.589367Z'
+updated_at: '2026-07-22T01:16:00.645040Z'
 work_branch: null
 target_branch: null
 review_url: null

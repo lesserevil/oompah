@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:36.177730Z'
-updated_at: '2026-07-22T01:15:55.553263Z'
+updated_at: '2026-07-22T01:15:58.094706Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-22 01:07
 ---
 Implemented default-Uvicorn scheduler isolation: the orchestrator now owns a dedicated event-loop thread, while HTTP/WebSockets and stale-loop supervision remain responsive on the ASGI loop. Full suite is running.
+---
+author: oompah
+created: 2026-07-22 01:15
+---
+Moved the default scheduler onto a dedicated thread and retained HTTP-loop supervision.
 ---
 <!-- COMMENTS:END -->
