@@ -16,10 +16,10 @@ blocked_by:
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:test
-- epic:rebasing
+- epic:rebased
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T08:43:04.233460Z'
+updated_at: '2026-07-22T08:43:07.673104Z'
 work_branch: epic-OOMPAH-325
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/537
