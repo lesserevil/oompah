@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T05:45:00.223564Z'
+updated_at: '2026-07-22T05:45:21.816019Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -136,5 +136,25 @@ author: oompah
 created: 2026-07-22 05:45
 ---
 Understanding: I am a Duplicate Investigator for OOMPAH-311 ('Diagnose and surface remediation path for existing independently-merged child branches/PRs'). This task is a child of epic OOMPAH-307. My job is to confirm whether this task is a duplicate of any existing issue before any implementation begins. I will search the task store for any prior work covering diagnosis/remediation of independently-merged shared-epic child branches.
+---
+author: oompah
+created: 2026-07-22 05:45
+---
+Discovery: Duplicate screening found NO duplicate for OOMPAH-311.
+
+Search scope: all .oompah/tasks/ folders (archived, merged, done, open, in-progress, backlog), plans/, docs/, README.md, WORKFLOW.md.
+
+Keywords searched: 'independently merged', 'child branch remediation', 'epic child', 'OOMPAH-286 pattern', 'diagnose.*branch', 'surface.*remediat', 'existing.*merged child'.
+
+Closest candidates reviewed and REJECTED as duplicates:
+- OOMPAH-308 (Needs Human): Fix stale work_branch metadata — different; covers routing-time metadata correction, not diagnosis of already-merged children.
+- OOMPAH-309 (Backlog): Harden _resolve_parent_epic failure path — different; covers runtime protection hardening, not historical data reconciliation.
+- OOMPAH-310 (Open): Verify Merged promotion lifecycle — different; covers status promotion gating, not existing independently-merged child data.
+- OOMPAH-312 (Open): UI/dashboard status display — different; covers display labels, not remediation.
+- OOMPAH-313 (Open): Regression tests — different; covers test coverage, not operator remediation tooling.
+- OOMPAH-165 (Archived): Shared epic landed detection before main merge — different topic.
+- OOMPAH-219 (Archived): SharedAbsorptionEvidence commit-absorption races — different topic.
+
+Conclusion: OOMPAH-311 is unique. It addresses Gap E from the OOMPAH-307 epic planner analysis: no code path currently detects or reports on children that were already independently merged to main (OOMPAH-286/PR #466 pattern), and no operator remediation path exists for that historical state.
 ---
 <!-- COMMENTS:END -->
