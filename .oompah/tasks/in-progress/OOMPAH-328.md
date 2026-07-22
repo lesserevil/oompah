@@ -15,7 +15,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-22T07:38:27.849378Z'
+updated_at: '2026-07-22T07:39:58.472946Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -377,5 +377,23 @@ author: oompah
 created: 2026-07-22 07:38
 ---
 Understanding: Security Auditor reviewing OOMPAH-328 GitLab forge-aware bootstrap. Tests pass (11479). Prior agents didn't close because the actual GitLab bootstrap readiness check feature is still unimplemented. Plan: (1) Security review existing GitLab code for OWASP issues, (2) Implement GitLab bootstrap readiness checks with security best practices, (3) Add documentation, (4) Run tests, (5) Close. Key security areas: webhook token validation, forge_base_url SSRF, token scoping, secret storage.
+---
+author: oompah
+created: 2026-07-22 07:39
+---
+Discovery: Security audit complete + implementation plan.
+
+SECURITY ISSUES FOUND:
+1. (Medium) GitLab webhook handler processes events for unmatched projects without authentication. When no registered project matches the webhook repo slug, `_handle_webhook_event(event, None)` is still called, emitting FORGE_WEBHOOK_RECEIVED events on the bus unauthenticated. The endpoint docstring says 'fail closed' but the unmatched-project path falls through. Fix: return 200 ignored for unmatched.
+
+2. (Low) forge_base_url validated as HTTPS but no private-IP block. Mitigated by local-only API exposure.
+
+IMPLEMENTATION NEEDED (no GitLab bootstrap readiness exists):
+- oompah/project_bootstrap/gitlab_readiness.py: capability checks (token, labels, issues, MR, pipeline, state-branch push, webhook URL, hook creation, polling fallback)
+- tests/test_gitlab_bootstrap_readiness.py: dry-run fixtures for success + each failure
+- docs/project-bootstrap.md: GitLab section (min token scopes, webhook, auto-merge, merge-train non-support, recovery)
+- tests/test_docs_gitlab_contract.py: documentation contract tests
+
+ALL changes now being implemented.
 ---
 <!-- COMMENTS:END -->
