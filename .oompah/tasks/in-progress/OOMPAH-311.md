@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T06:00:52.582990Z'
+updated_at: '2026-07-22T06:10:30.756891Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -396,5 +396,29 @@ Changes:
    - Hooked into _do_merged_labels sweep alongside _reconcile_merged_epic_children
 
 Safety: No git history changes, no state changes, no metadata field changes — only adds the epic:independently-merged label and logs a warning.
+---
+author: oompah
+created: 2026-07-22 06:10
+---
+Verification: All 12 new tests pass, all 11350 existing tests continue to pass.
+
+New tests (tests/test_independently_merged.py):
+TestDetectIndependentlyMergedChildren:
+- test_detects_child_with_own_branch_merged_to_main PASSED
+- test_ignores_child_on_epic_branch PASSED
+- test_ignores_non_merged_children PASSED
+- test_ignores_child_with_no_work_branch PASSED
+- test_multiple_epics_multiple_children PASSED
+- test_epic_work_branch_overrides_name_derivation PASSED
+
+TestReconcileIndependentlyMergedChildren:
+- test_annotates_independently_merged_child PASSED
+- test_idempotent_already_labeled_child_is_skipped PASSED
+- test_child_on_epic_branch_not_annotated PASSED
+- test_tracker_error_does_not_crash_reconcile PASSED
+- test_returns_zero_when_no_candidates PASSED
+- test_reconcile_hooked_into_do_merged_labels_sweep PASSED
+
+Full suite: 11350 passed, 36 skipped, 13 warnings in 232.41s
 ---
 <!-- COMMENTS:END -->

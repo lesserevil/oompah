@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T06:10:02.353612Z'
+updated_at: '2026-07-22T06:10:31.555662Z'
 work_branch: OOMPAH-403
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/532
@@ -313,5 +313,15 @@ author: oompah
 created: 2026-07-22 06:09
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-22 06:10
+---
+Understanding: CI Failure Fixer role. CI failed on PR #532 (Python 3.13 job). 7 tests failed, all with 422 responses when other codes were expected:
+- test_intake_promotion.py::test_api_rejects_direct_proposed_to_open_transition (422 != 409)
+- test_server_epic_state.py (3 failures, 422 != 200/409)
+- test_transition_gate.py (3 failures, 422 != 403/200)
+
+Branch diff shows only 2 files changed: oompah/orchestrator.py (logger.error→warning) and tests/test_task_cost_telemetry.py (regression test). The failures are in unrelated test files. Plan: (1) run failing tests locally to reproduce, (2) check if failures pre-exist on main, (3) determine if something in our diff is causing them, (4) fix minimally.
 ---
 <!-- COMMENTS:END -->
