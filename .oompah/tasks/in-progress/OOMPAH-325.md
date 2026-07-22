@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T00:19:04.599363Z'
+updated_at: '2026-07-22T00:20:43.217339Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -129,5 +129,606 @@ author: oompah
 created: 2026-07-22 00:19
 ---
 Understanding: As the test engineer, I will locate the GitLab and webhook boundaries, define and add fast isolated tests for project-hook lifecycle, authentication/project matching, normalization, deduplication, and health behavior, then hand off implementation gaps to the feature focus.
+---
+author: oompah
+created: 2026-07-22 00:20
+---
+Discovery:  currently accepts only Merge Request Hook; the server test explicitly expected Push Hook to be ignored. No GitLab project-hook manager or hook-health persistence exists yet. Existing token validation and MR endpoint coverage provide the integration seam.
+---
+author: oompah
+created: 2026-07-22 00:20
+---
+Implementation: Added contract tests for normalized GitLab Push, Issue, Note, Pipeline, and Job hooks plus issue-label updates, and changed the GitLab endpoint push test to require processing and tracked-branch refresh. The tests are fully fixture-based and do not call GitLab.
+---
+author: oompah
+created: 2026-07-22 00:20
+---
+Verification: make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-318'
+uv run pytest tests/ -v
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-318' could not launch because uv failed before pytest (DBus transient-scope error). Fallback ============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0 -- /home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-318/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-318
+configfile: pyproject.toml
+plugins: asyncio-1.3.0, anyio-4.12.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 153 items
+
+tests/test_webhooks.py::TestValidateGitHubSignature::test_valid_signature PASSED [  0%]
+tests/test_webhooks.py::TestValidateGitHubSignature::test_invalid_signature PASSED [  1%]
+tests/test_webhooks.py::TestValidateGitHubSignature::test_wrong_secret PASSED [  1%]
+tests/test_webhooks.py::TestValidateGitHubSignature::test_missing_prefix PASSED [  2%]
+tests/test_webhooks.py::TestValidateGitHubSignature::test_empty_signature_header PASSED [  3%]
+tests/test_webhooks.py::TestValidateGitHubSignature::test_empty_secret PASSED [  3%]
+tests/test_webhooks.py::TestValidateGitHubSignature::test_empty_both PASSED [  4%]
+tests/test_webhooks.py::TestValidateGitHubSignature::test_large_payload PASSED [  5%]
+tests/test_webhooks.py::TestValidateGitLabToken::test_valid_token PASSED [  5%]
+tests/test_webhooks.py::TestValidateGitLabToken::test_invalid_token PASSED [  6%]
+tests/test_webhooks.py::TestValidateGitLabToken::test_empty_token PASSED [  7%]
+tests/test_webhooks.py::TestValidateGitLabToken::test_empty_secret PASSED [  7%]
+tests/test_webhooks.py::TestValidateGitLabToken::test_empty_both PASSED  [  8%]
+tests/test_webhooks.py::TestValidateGitLabToken::test_timing_safe_comparison PASSED [  9%]
+tests/test_webhooks.py::TestParseGitHubWebhook::test_pr_opened PASSED    [  9%]
+tests/test_webhooks.py::TestParseGitHubWebhook::test_pr_closed_merged PASSED [ 10%]
+tests/test_webhooks.py::TestParseGitHubWebhook::test_pr_closed_not_merged PASSED [ 11%]
+tests/test_webhooks.py::TestParseGitHubWebhook::test_pr_synchronize PASSED [ 11%]
+tests/test_webhooks.py::TestParseGitHubWebhook::test_pr_review_requested PASSED [ 12%]
+tests/test_webhooks.py::TestParseGitHubWebhook::test_ping_event_returns_none PASSED [ 13%]
+tests/test_webhooks.py::TestParseGitHubWebhook::test_issues_event_missing_issue_key_returns_none PASSED [ 13%]
+tests/test_webhooks.py::TestParseGitHubWebhook::test_missing_pull_request_key_returns_none PASSED [ 14%]
+tests/test_webhooks.py::TestParseGitHubWebhook::test_raw_payload_preserved PASSED [ 15%]
+tests/test_webhooks.py::TestParseGitHubWebhook::test_different_repo PASSED [ 15%]
+tests/test_webhooks.py::TestParseGitHubPushWebhook::test_push_to_main PASSED [ 16%]
+tests/test_webhooks.py::TestParseGitHubPushWebhook::test_push_to_feature_branch PASSED [ 16%]
+tests/test_webhooks.py::TestParseGitHubPushWebhook::test_push_branch_deletion_returns_none PASSED [ 17%]
+tests/test_webhooks.py::TestParseGitHubPushWebhook::test_push_tag_returns_none PASSED [ 18%]
+tests/test_webhooks.py::TestParseGitHubPushWebhook::test_push_multiline_message_takes_first_line_only PASSED [ 18%]
+tests/test_webhooks.py::TestParseGitHubPushWebhook::test_push_missing_head_commit PASSED [ 19%]
+tests/test_webhooks.py::TestParseGitHubPushWebhook::test_push_falls_back_to_sender_when_pusher_missing PASSED [ 20%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_issue_opened PASSED [ 20%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_issue_closed PASSED [ 21%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_issue_reopened PASSED [ 22%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_issue_labeled PASSED [ 22%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_issue_edited PASSED [ 23%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_pr_backed_issue_returns_none PASSED [ 24%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_missing_issue_key_returns_none PASSED [ 24%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_raw_payload_preserved PASSED [ 25%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_issue_number_as_string PASSED [ 26%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_empty_comment_id_and_label_name PASSED [ 26%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_non_labeled_action_has_no_label_actor PASSED [ 27%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_labeled_event_captures_sender_as_label_actor PASSED [ 28%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_labeled_event_captures_label_name PASSED [ 28%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_unlabeled_event_captures_sender_as_label_actor PASSED [ 29%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_labeled_by_oompah_bot_captures_correctly PASSED [ 30%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_labeled_without_label_key_gives_empty_fields PASSED [ 30%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_sender_login_is_label_actor_not_issue_author PASSED [ 31%]
+tests/test_webhooks.py::TestParseGitHubIssuesWebhook::test_different_repo PASSED [ 32%]
+tests/test_webhooks.py::TestParseGitHubIssueCommentWebhook::test_comment_created PASSED [ 32%]
+tests/test_webhooks.py::TestParseGitHubIssueCommentWebhook::test_comment_edited PASSED [ 33%]
+tests/test_webhooks.py::TestParseGitHubIssueCommentWebhook::test_comment_deleted PASSED [ 33%]
+tests/test_webhooks.py::TestParseGitHubIssueCommentWebhook::test_missing_issue_returns_none PASSED [ 34%]
+tests/test_webhooks.py::TestParseGitHubIssueCommentWebhook::test_missing_comment_returns_none PASSED [ 35%]
+tests/test_webhooks.py::TestParseGitHubIssueCommentWebhook::test_comment_id_as_string PASSED [ 35%]
+tests/test_webhooks.py::TestParseGitHubIssueCommentWebhook::test_raw_payload_preserved PASSED [ 36%]
+tests/test_webhooks.py::TestParseGitHubIssueCommentWebhook::test_empty_label_name PASSED [ 37%]
+tests/test_webhooks.py::TestParseGitHubLabelWebhook::test_label_created PASSED [ 37%]
+tests/test_webhooks.py::TestParseGitHubLabelWebhook::test_label_edited PASSED [ 38%]
+tests/test_webhooks.py::TestParseGitHubLabelWebhook::test_label_deleted PASSED [ 39%]
+tests/test_webhooks.py::TestParseGitHubLabelWebhook::test_missing_label_returns_none PASSED [ 39%]
+tests/test_webhooks.py::TestParseGitHubLabelWebhook::test_label_name_in_both_fields PASSED [ 40%]
+tests/test_webhooks.py::TestParseGitHubLabelWebhook::test_raw_payload_preserved PASSED [ 41%]
+tests/test_webhooks.py::TestParseGitHubLabelWebhook::test_empty_issue_number_and_comment_id PASSED [ 41%]
+tests/test_webhooks.py::TestParseGitHubProjectsV2ItemWebhook::test_item_edited PASSED [ 42%]
+tests/test_webhooks.py::TestParseGitHubProjectsV2ItemWebhook::test_item_created PASSED [ 43%]
+tests/test_webhooks.py::TestParseGitHubProjectsV2ItemWebhook::test_item_deleted PASSED [ 43%]
+tests/test_webhooks.py::TestParseGitHubProjectsV2ItemWebhook::test_missing_item_returns_none PASSED [ 44%]
+tests/test_webhooks.py::TestParseGitHubProjectsV2ItemWebhook::test_field_value_change_extracted PASSED [ 45%]
+tests/test_webhooks.py::TestParseGitHubProjectsV2ItemWebhook::test_no_changes_field PASSED [ 45%]
+tests/test_webhooks.py::TestParseGitHubProjectsV2ItemWebhook::test_item_node_id_preferred_over_numeric_id PASSED [ 46%]
+tests/test_webhooks.py::TestParseGitHubProjectsV2ItemWebhook::test_numeric_id_used_when_no_node_id PASSED [ 47%]
+tests/test_webhooks.py::TestParseGitHubProjectsV2ItemWebhook::test_raw_payload_preserved PASSED [ 47%]
+tests/test_webhooks.py::TestParseGitHubProjectsV2ItemWebhook::test_unsupported_event_still_returns_none PASSED [ 48%]
+tests/test_webhooks.py::TestParseGitHubProjectsV2ItemWebhook::test_title_field_fallback_for_field_value PASSED [ 49%]
+tests/test_webhooks.py::TestParseGitLabWebhook::test_mr_open PASSED      [ 49%]
+tests/test_webhooks.py::TestParseGitLabWebhook::test_mr_merged PASSED    [ 50%]
+tests/test_webhooks.py::TestParseGitLabWebhook::test_mr_close PASSED     [ 50%]
+tests/test_webhooks.py::TestParseGitLabWebhook::test_mr_update PASSED    [ 51%]
+tests/test_webhooks.py::TestParseGitLabWebhook::test_supported_project_hook_is_normalized[push] FAILED [ 52%]
+tests/test_webhooks.py::TestParseGitLabWebhook::test_supported_project_hook_is_normalized[issue] FAILED [ 52%]
+tests/test_webhooks.py::TestParseGitLabWebhook::test_supported_project_hook_is_normalized[note] FAILED [ 53%]
+tests/test_webhooks.py::TestParseGitLabWebhook::test_supported_project_hook_is_normalized[pipeline] FAILED [ 54%]
+tests/test_webhooks.py::TestParseGitLabWebhook::test_supported_project_hook_is_normalized[job] FAILED [ 54%]
+tests/test_webhooks.py::TestParseGitLabWebhook::test_label_update_retains_label_name_for_downstream_invalidation FAILED [ 55%]
+tests/test_webhooks.py::TestParseGitLabWebhook::test_unknown_event_returns_none PASSED [ 56%]
+tests/test_webhooks.py::TestParseGitLabWebhook::test_missing_object_attributes_returns_none PASSED [ 56%]
+tests/test_webhooks.py::TestParseGitLabWebhook::test_raw_payload_preserved PASSED [ 57%]
+tests/test_webhooks.py::TestMatchProjectByRepo::test_match_github_https PASSED [ 58%]
+tests/test_webhooks.py::TestMatchProjectByRepo::test_match_github_ssh PASSED [ 58%]
+tests/test_webhooks.py::TestMatchProjectByRepo::test_match_gitlab PASSED [ 59%]
+tests/test_webhooks.py::TestMatchProjectByRepo::test_no_match PASSED     [ 60%]
+tests/test_webhooks.py::TestMatchProjectByRepo::test_empty_projects PASSED [ 60%]
+tests/test_webhooks.py::TestMatchProjectByRepo::test_multiple_projects_returns_first_match PASSED [ 61%]
+tests/test_webhooks.py::TestWebhookEvent::test_default_values PASSED     [ 62%]
+tests/test_webhooks.py::TestWebhookEvent::test_all_fields PASSED         [ 62%]
+tests/test_webhooks.py::TestWebhookEvent::test_extended_fields PASSED    [ 63%]
+tests/test_webhooks.py::TestForwarderProcess::test_initial_state PASSED  [ 64%]
+tests/test_webhooks.py::TestWebhookForwarderInit::test_default_webhook_url FAILED [ 64%]
+tests/test_webhooks.py::TestWebhookForwarderInit::test_default_webhook_url_uses_server_port_arg PASSED [ 65%]
+tests/test_webhooks.py::TestWebhookForwarderInit::test_default_webhook_url_uses_server_port_env PASSED [ 66%]
+tests/test_webhooks.py::TestWebhookForwarderInit::test_explicit_webhook_url PASSED [ 66%]
+tests/test_webhooks.py::TestWebhookForwarderInit::test_env_var_override PASSED [ 67%]
+tests/test_webhooks.py::TestWebhookForwarderInit::test_explicit_overrides_env PASSED [ 67%]
+tests/test_webhooks.py::TestWebhookForwarderInit::test_forward_url_env_overrides_server_port PASSED [ 68%]
+tests/test_webhooks.py::TestWebhookForwarderInit::test_custom_poll_interval PASSED [ 69%]
+tests/test_webhooks.py::TestWebhookForwarderInit::test_default_poll_interval PASSED [ 69%]
+tests/test_webhooks.py::TestWebhookForwarderInit::test_is_running_false_initially PASSED [ 70%]
+tests/test_webhooks.py::TestWebhookForwarderStartStop::test_start_is_idempotent PASSED [ 71%]
+tests/test_webhooks.py::TestWebhookForwarderStartStop::test_stop_is_idempotent PASSED [ 71%]
+tests/test_webhooks.py::TestWebhookForwarderStartStop::test_start_then_stop_cleans_up_task PASSED [ 72%]
+tests/test_webhooks.py::TestWebhookForwarderPoll::test_no_project_store_means_no_error PASSED [ 73%]
+tests/test_webhooks.py::TestWebhookForwarderPoll::test_empty_project_store_means_no_error PASSED [ 73%]
+tests/test_webhooks.py::TestWebhookForwarderPoll::test_adding_project_creates_forwarder_process PASSED [ 74%]
+tests/test_webhooks.py::TestWebhookForwarderPoll::test_existing_project_refreshes_forwarder_metadata PASSED [ 75%]
+tests/test_webhooks.py::TestWebhookForwarderPoll::test_disabled_project_does_not_launch_forwarder PASSED [ 75%]
+tests/test_webhooks.py::TestWebhookForwarderPoll::test_removing_project_terminates_forwarder PASSED [ 76%]
+tests/test_webhooks.py::TestWebhookForwarderPoll::test_skips_non_git_repo PASSED [ 77%]
+tests/test_webhooks.py::TestWebhookForwarderPoll::test_missing_repo_path_disables_at_warning_not_error PASSED [ 77%]
+tests/test_webhooks.py::TestWebhookForwarderPoll::test_launch_skips_missing_gh PASSED [ 78%]
+tests/test_webhooks.py::TestWebhookForwarderPoll::test_exponential_backoff_reset_on_running PASSED [ 79%]
+tests/test_webhooks.py::TestWebhookForwarderPoll::test_terminate_noop_when_already_exited PASSED [ 79%]
+tests/test_webhooks.py::TestWebhookForwarderPoll::test_kill_all_terminates_all PASSED [ 80%]
+tests/test_webhooks.py::TestWebhookForwarderFullLifecycle::test_start_stop_with_empty_store PASSED [ 81%]
+tests/test_webhooks.py::TestWebhookForwarderFullLifecycle::test_stop_while_loop_running_cancels_task PASSED [ 81%]
+tests/test_webhooks.py::TestForwarderProcessFullLifecycle::test_process_start_and_immediate_exit PASSED [ 82%]
+tests/test_webhooks.py::TestForwarderProcessFullLifecycle::test_exponential_backoff_capped_at_60s PASSED [ 83%]
+tests/test_webhooks.py::TestForwarderProcessFullLifecycle::test_stop_terminates_all_tracked_processes PASSED [ 83%]
+tests/test_webhooks.py::TestForwarderProcessFullLifecycle::test_polling_resume_when_forwarder_process_dies PASSED [ 84%]
+tests/test_webhooks.py::TestForwarderProcessFullLifecycle::test_launch_without_git_directory_skipped PASSED [ 84%]
+tests/test_webhooks.py::TestForwarderProcessFullLifecycle::test_check_and_restart_noops_when_no_process PASSED [ 85%]
+tests/test_webhooks.py::TestCheckGhWebhookAvailable::test_gh_not_on_path_returns_false PASSED [ 86%]
+tests/test_webhooks.py::TestCheckGhWebhookAvailable::test_extension_present_returns_true PASSED [ 86%]
+tests/test_webhooks.py::TestCheckGhWebhookAvailable::test_extension_missing_returns_false PASSED [ 87%]
+tests/test_webhooks.py::TestWebhookForwarderEventsFlag::test_default_events_passed_to_subprocess PASSED [ 88%]
+tests/test_webhooks.py::TestWebhookForwarderEventsFlag::test_missing_repo_slug_skips_subprocess PASSED [ 88%]
+tests/test_webhooks.py::TestWebhookForwarderEventsFlag::test_project_token_passed_as_gh_token_env PASSED [ 89%]
+tests/test_webhooks.py::TestWebhookForwarderEventsFlag::test_custom_events_via_init PASSED [ 90%]
+tests/test_webhooks.py::TestWebhookForwarderEventsFlag::test_events_env_var_override PASSED [ 90%]
+tests/test_webhooks.py::TestWebhookForwarderHookCleanup::test_cleanup_deletes_stale_cli_forwarder_hooks PASSED [ 91%]
+tests/test_webhooks.py::TestWebhookForwarderHookCleanup::test_cleanup_transient_inspection_failure_does_not_block_launch PASSED [ 92%]
+tests/test_webhooks.py::TestWebhookForwarderHookCleanup::test_cleanup_repo_not_found_disables_project_and_blocks_launch PASSED [ 92%]
+tests/test_webhooks.py::TestWebhookForwarderExtensionMissing::test_launch_skipped_when_extension_unavailable PASSED [ 93%]
+tests/test_webhooks.py::TestWebhookForwarderExtensionMissing::test_start_runs_probe_and_logs_single_error PASSED [ 94%]
+tests/test_webhooks.py::TestWebhookForwarderExtensionMissing::test_status_callback_invoked_when_unavailable PASSED [ 94%]
+tests/test_webhooks.py::TestWebhookForwarderExtensionMissing::test_status_callback_invoked_when_available PASSED [ 95%]
+tests/test_webhooks.py::TestWebhookForwarderExtensionMissing::test_status_property_reports_extension_state PASSED [ 96%]
+tests/test_webhooks.py::test_build_webhook_forwarder_alerts_includes_project_errors PASSED [ 96%]
+tests/test_webhooks.py::test_build_webhook_forwarder_alerts_skips_config_disabled_projects PASSED [ 97%]
+tests/test_webhooks.py::TestWebhookForwarderStderrCapture::test_stderr_drained_into_last_stderr PASSED [ 98%]
+tests/test_webhooks.py::TestWebhookForwarderStderrCapture::test_completed_process_is_detached_after_stderr_eof PASSED [ 98%]
+tests/test_webhooks.py::TestWebhookForwarderStderrCapture::test_fatal_stderr_disables_project_and_reports_status PASSED [ 99%]
+tests/test_webhooks.py::TestWebhookForwarderStderrCapture::test_terminate_cancels_stderr_task PASSED [100%]
+
+=================================== FAILURES ===================================
+____ TestParseGitLabWebhook.test_supported_project_hook_is_normalized[push] ____
+
+self = <tests.test_webhooks.TestParseGitLabWebhook object at 0x7d036e5c78f0>
+event_type = 'Push Hook'
+payload = {'project': {'path_with_namespace': 'group/project'}, 'ref': 'refs/heads/main', 'user_username': 'tanuki'}
+expected = {'action': 'pushed', 'author': 'tanuki', 'target_branch': 'main'}
+
+    @pytest.mark.parametrize(
+        ("event_type", "payload", "expected"),
+        [
+            (
+                "Push Hook",
+                {
+                    "ref": "refs/heads/main",
+                    "user_username": "tanuki",
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "pushed", "target_branch": "main", "author": "tanuki"},
+            ),
+            (
+                "Issue Hook",
+                {
+                    "object_attributes": {
+                        "iid": 11,
+                        "action": "open",
+                        "title": "Track webhook work",
+                    },
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "open", "issue_number": "11", "title": "Track webhook work"},
+            ),
+            (
+                "Note Hook",
+                {
+                    "object_attributes": {
+                        "id": 123,
+                        "action": "create",
+                        "noteable_type": "Issue",
+                        "noteable_iid": 11,
+                    },
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "create", "issue_number": "11", "comment_id": "123"},
+            ),
+            (
+                "Pipeline Hook",
+                {
+                    "object_attributes": {"status": "success", "ref": "main"},
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "success", "target_branch": "main"},
+            ),
+            (
+                "Job Hook",
+                {
+                    "build_status": "failed",
+                    "ref": "main",
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "failed", "target_branch": "main"},
+            ),
+        ],
+        ids=("push", "issue", "note", "pipeline", "job"),
+    )
+    def test_supported_project_hook_is_normalized(self, event_type, payload, expected):
+        event = parse_gitlab_webhook(event_type, payload)
+    
+>       assert event is not None
+E       assert None is not None
+
+tests/test_webhooks.py:960: AssertionError
+___ TestParseGitLabWebhook.test_supported_project_hook_is_normalized[issue] ____
+
+self = <tests.test_webhooks.TestParseGitLabWebhook object at 0x7d036e5de600>
+event_type = 'Issue Hook'
+payload = {'object_attributes': {'action': 'open', 'iid': 11, 'title': 'Track webhook work'}, 'project': {'path_with_namespace': 'group/project'}, 'user': {'username': 'tanuki'}}
+expected = {'action': 'open', 'issue_number': '11', 'title': 'Track webhook work'}
+
+    @pytest.mark.parametrize(
+        ("event_type", "payload", "expected"),
+        [
+            (
+                "Push Hook",
+                {
+                    "ref": "refs/heads/main",
+                    "user_username": "tanuki",
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "pushed", "target_branch": "main", "author": "tanuki"},
+            ),
+            (
+                "Issue Hook",
+                {
+                    "object_attributes": {
+                        "iid": 11,
+                        "action": "open",
+                        "title": "Track webhook work",
+                    },
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "open", "issue_number": "11", "title": "Track webhook work"},
+            ),
+            (
+                "Note Hook",
+                {
+                    "object_attributes": {
+                        "id": 123,
+                        "action": "create",
+                        "noteable_type": "Issue",
+                        "noteable_iid": 11,
+                    },
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "create", "issue_number": "11", "comment_id": "123"},
+            ),
+            (
+                "Pipeline Hook",
+                {
+                    "object_attributes": {"status": "success", "ref": "main"},
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "success", "target_branch": "main"},
+            ),
+            (
+                "Job Hook",
+                {
+                    "build_status": "failed",
+                    "ref": "main",
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "failed", "target_branch": "main"},
+            ),
+        ],
+        ids=("push", "issue", "note", "pipeline", "job"),
+    )
+    def test_supported_project_hook_is_normalized(self, event_type, payload, expected):
+        event = parse_gitlab_webhook(event_type, payload)
+    
+>       assert event is not None
+E       assert None is not None
+
+tests/test_webhooks.py:960: AssertionError
+____ TestParseGitLabWebhook.test_supported_project_hook_is_normalized[note] ____
+
+self = <tests.test_webhooks.TestParseGitLabWebhook object at 0x7d036e5de000>
+event_type = 'Note Hook'
+payload = {'object_attributes': {'action': 'create', 'id': 123, 'noteable_iid': 11, 'noteable_type': 'Issue'}, 'project': {'path_with_namespace': 'group/project'}, 'user': {'username': 'tanuki'}}
+expected = {'action': 'create', 'comment_id': '123', 'issue_number': '11'}
+
+    @pytest.mark.parametrize(
+        ("event_type", "payload", "expected"),
+        [
+            (
+                "Push Hook",
+                {
+                    "ref": "refs/heads/main",
+                    "user_username": "tanuki",
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "pushed", "target_branch": "main", "author": "tanuki"},
+            ),
+            (
+                "Issue Hook",
+                {
+                    "object_attributes": {
+                        "iid": 11,
+                        "action": "open",
+                        "title": "Track webhook work",
+                    },
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "open", "issue_number": "11", "title": "Track webhook work"},
+            ),
+            (
+                "Note Hook",
+                {
+                    "object_attributes": {
+                        "id": 123,
+                        "action": "create",
+                        "noteable_type": "Issue",
+                        "noteable_iid": 11,
+                    },
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "create", "issue_number": "11", "comment_id": "123"},
+            ),
+            (
+                "Pipeline Hook",
+                {
+                    "object_attributes": {"status": "success", "ref": "main"},
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "success", "target_branch": "main"},
+            ),
+            (
+                "Job Hook",
+                {
+                    "build_status": "failed",
+                    "ref": "main",
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "failed", "target_branch": "main"},
+            ),
+        ],
+        ids=("push", "issue", "note", "pipeline", "job"),
+    )
+    def test_supported_project_hook_is_normalized(self, event_type, payload, expected):
+        event = parse_gitlab_webhook(event_type, payload)
+    
+>       assert event is not None
+E       assert None is not None
+
+tests/test_webhooks.py:960: AssertionError
+__ TestParseGitLabWebhook.test_supported_project_hook_is_normalized[pipeline] __
+
+self = <tests.test_webhooks.TestParseGitLabWebhook object at 0x7d036e5dde50>
+event_type = 'Pipeline Hook'
+payload = {'object_attributes': {'ref': 'main', 'status': 'success'}, 'project': {'path_with_namespace': 'group/project'}, 'user': {'username': 'tanuki'}}
+expected = {'action': 'success', 'target_branch': 'main'}
+
+    @pytest.mark.parametrize(
+        ("event_type", "payload", "expected"),
+        [
+            (
+                "Push Hook",
+                {
+                    "ref": "refs/heads/main",
+                    "user_username": "tanuki",
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "pushed", "target_branch": "main", "author": "tanuki"},
+            ),
+            (
+                "Issue Hook",
+                {
+                    "object_attributes": {
+                        "iid": 11,
+                        "action": "open",
+                        "title": "Track webhook work",
+                    },
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "open", "issue_number": "11", "title": "Track webhook work"},
+            ),
+            (
+                "Note Hook",
+                {
+                    "object_attributes": {
+                        "id": 123,
+                        "action": "create",
+                        "noteable_type": "Issue",
+                        "noteable_iid": 11,
+                    },
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "create", "issue_number": "11", "comment_id": "123"},
+            ),
+            (
+                "Pipeline Hook",
+                {
+                    "object_attributes": {"status": "success", "ref": "main"},
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "success", "target_branch": "main"},
+            ),
+            (
+                "Job Hook",
+                {
+                    "build_status": "failed",
+                    "ref": "main",
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "failed", "target_branch": "main"},
+            ),
+        ],
+        ids=("push", "issue", "note", "pipeline", "job"),
+    )
+    def test_supported_project_hook_is_normalized(self, event_type, payload, expected):
+        event = parse_gitlab_webhook(event_type, payload)
+    
+>       assert event is not None
+E       assert None is not None
+
+tests/test_webhooks.py:960: AssertionError
+____ TestParseGitLabWebhook.test_supported_project_hook_is_normalized[job] _____
+
+self = <tests.test_webhooks.TestParseGitLabWebhook object at 0x7d036e5ddd90>
+event_type = 'Job Hook'
+payload = {'build_status': 'failed', 'project': {'path_with_namespace': 'group/project'}, 'ref': 'main', 'user': {'username': 'tanuki'}}
+expected = {'action': 'failed', 'target_branch': 'main'}
+
+    @pytest.mark.parametrize(
+        ("event_type", "payload", "expected"),
+        [
+            (
+                "Push Hook",
+                {
+                    "ref": "refs/heads/main",
+                    "user_username": "tanuki",
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "pushed", "target_branch": "main", "author": "tanuki"},
+            ),
+            (
+                "Issue Hook",
+                {
+                    "object_attributes": {
+                        "iid": 11,
+                        "action": "open",
+                        "title": "Track webhook work",
+                    },
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "open", "issue_number": "11", "title": "Track webhook work"},
+            ),
+            (
+                "Note Hook",
+                {
+                    "object_attributes": {
+                        "id": 123,
+                        "action": "create",
+                        "noteable_type": "Issue",
+                        "noteable_iid": 11,
+                    },
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "create", "issue_number": "11", "comment_id": "123"},
+            ),
+            (
+                "Pipeline Hook",
+                {
+                    "object_attributes": {"status": "success", "ref": "main"},
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "success", "target_branch": "main"},
+            ),
+            (
+                "Job Hook",
+                {
+                    "build_status": "failed",
+                    "ref": "main",
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "failed", "target_branch": "main"},
+            ),
+        ],
+        ids=("push", "issue", "note", "pipeline", "job"),
+    )
+    def test_supported_project_hook_is_normalized(self, event_type, payload, expected):
+        event = parse_gitlab_webhook(event_type, payload)
+    
+>       assert event is not None
+E       assert None is not None
+
+tests/test_webhooks.py:960: AssertionError
+_ TestParseGitLabWebhook.test_label_update_retains_label_name_for_downstream_invalidation _
+
+self = <tests.test_webhooks.TestParseGitLabWebhook object at 0x7d036e5dd6a0>
+
+    def test_label_update_retains_label_name_for_downstream_invalidation(self):
+        payload = {
+            "object_attributes": {
+                "iid": 11,
+                "action": "update",
+                "title": "Track webhook work",
+            },
+            "changes": {"labels": {"previous": [], "current": ["oompah:status:Open"]}},
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+    
+        event = parse_gitlab_webhook("Issue Hook", payload)
+    
+>       assert event is not None
+E       assert None is not None
+
+tests/test_webhooks.py:981: AssertionError
+______________ TestWebhookForwarderInit.test_default_webhook_url _______________
+
+self = <tests.test_webhooks.TestWebhookForwarderInit object at 0x7d036e5b3d40>
+
+    def test_default_webhook_url(self):
+        fwd = WebhookForwarder()
+>       assert fwd._webhook_url == "http://localhost:8080/api/v1/webhooks/github"
+E       AssertionError: assert 'http://local...bhooks/github' == 'http://local...bhooks/github'
+E         
+E         - http://localhost:8080/api/v1/webhooks/github
+E         ?                    ^
+E         + http://localhost:8090/api/v1/webhooks/github
+E         ?                    ^
+
+tests/test_webhooks.py:1163: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_webhooks.py::TestParseGitLabWebhook::test_supported_project_hook_is_normalized[push]
+FAILED tests/test_webhooks.py::TestParseGitLabWebhook::test_supported_project_hook_is_normalized[issue]
+FAILED tests/test_webhooks.py::TestParseGitLabWebhook::test_supported_project_hook_is_normalized[note]
+FAILED tests/test_webhooks.py::TestParseGitLabWebhook::test_supported_project_hook_is_normalized[pipeline]
+FAILED tests/test_webhooks.py::TestParseGitLabWebhook::test_supported_project_hook_is_normalized[job]
+FAILED tests/test_webhooks.py::TestParseGitLabWebhook::test_label_update_retains_label_name_for_downstream_invalidation
+FAILED tests/test_webhooks.py::TestWebhookForwarderInit::test_default_webhook_url
+======================== 7 failed, 146 passed in 1.39s ========================= collected 153 tests: 146 passed; six new GitLab normalization contracts failed as expected, plus one pre-existing environment-sensitive forwarder port expectation. The new endpoint test independently fails as expected ( rather than ).
 ---
 <!-- COMMENTS:END -->
