@@ -12,7 +12,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-22T01:21:49.952576Z'
-updated_at: '2026-07-22T03:12:04.956905Z'
+updated_at: '2026-07-22T03:38:06.400129Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -306,5 +306,10 @@ author: oompah
 created: 2026-07-22 03:12
 ---
 Understanding: Task is to rebase epic-OOMPAH-325 onto origin/epic-OOMPAH-318 and force-push. Current state: common ancestor is 2ba37886b ('Stop automatic synchronization'). epic-OOMPAH-325 has 8 unique commits on top (OOMPAH-319 through OOMPAH-340 including a revert and OOMPAH-353 fix). origin/epic-OOMPAH-318 (HEAD=20d0d9cff) has 7 commits on top of the same ancestor (OOMPAH-319 through OOMPAH-353, similar content). The unique new commit in epic-OOMPAH-325 is OOMPAH-340 (Extend parse_gitlab_webhook). Plan: rebase epic-OOMPAH-325 onto origin/epic-OOMPAH-318, which should leave only OOMPAH-340 on top, resolve any conflicts, run make test, force-push.
+---
+author: oompah
+created: 2026-07-22 03:38
+---
+Discovery: epic-OOMPAH-325 needed rebasing onto origin/epic-OOMPAH-318. Common ancestor was 2ba37886b ('Stop automatic synchronization of unfinished epics'). origin/epic-OOMPAH-318 had 7 diverged commits (OOMPAH-319 through OOMPAH-353). epic-OOMPAH-325 had 11 commits on top of the ancestor, 6 of which were skipped as already-applied. 4 commits were replayed: OOMPAH-345 StateBranchFetchError, OOMPAH-345 Fix merge conflict, OOMPAH-353 stale test fix (from 325's version), and OOMPAH-340 extended webhook parsing.
 ---
 <!-- COMMENTS:END -->
