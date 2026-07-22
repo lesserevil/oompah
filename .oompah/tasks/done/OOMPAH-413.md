@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-413
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Add regression tests for shared-epic Merged promotion gates in test_epic_strategy.py
 parent: OOMPAH-310
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T21:34:25.679338Z'
-updated_at: '2026-07-22T23:53:41.570248Z'
+updated_at: '2026-07-22T23:58:50.319381Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -168,5 +168,20 @@ author: oompah
 created: 2026-07-22 23:53
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-22 23:58
+---
+Completion: All 6 regression test scenarios are implemented and passing in tests/test_epic_strategy.py (commit 4e0fe8c07 on epic-OOMPAH-310 branch).
+
+Coverage summary:
+1. _label_merged_epics not-yet-merged gate: test_noop_when_epic_branch_not_merged (line 3564) - pre-existing
+2. _reconcile_merged_epic_children idempotency: test_reconcile_is_noop_when_all_children_already_merged - NEW
+3. _reconcile_merged_epic_children only fires for MERGED epics: test_reconcile_ignores_done_epic_until_rollup_is_merged - NEW
+4. _open_deferred_done_reviews shared guard: test_shared_done_child_with_merged_branch_skips_all_checks (line 2694) - pre-existing
+5. _label_merged_issues shared guard: test_label_merged_issues_does_not_promote_shared_child_branch - NEW
+6. _open_epic_main_prs already-landed gate: test_marks_merged_instead_of_reopening_when_epic_already_landed (line 2283) - pre-existing
+
+All 3 new tests pass, all 3 pre-existing tests confirmed passing. Full test run: 11713 passed, 1 pre-existing failure (test_scm.py::TestFetchCiStatus::test_legacy_failure_short_circuits - unrelated to this task).
 ---
 <!-- COMMENTS:END -->
