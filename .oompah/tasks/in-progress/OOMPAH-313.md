@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-313
 type: task
-status: Open
+status: In Progress
 priority: null
 title: 'Regression tests: OOMPAH-285/286 routing fixture and native shared-epic child
   lifecycle'
@@ -13,12 +13,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T16:54:41.720887Z'
-updated_at: '2026-07-22T05:21:52.928619Z'
+updated_at: '2026-07-22T21:35:00.115028Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 267c8adc-8d38-45ee-b289-a25820f5efd6
 ---
 ## Summary
 
@@ -78,3 +79,17 @@ All four test groups described above.
 - [ ] Define acceptance criteria.
 
 ## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 21:34
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 21:35
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
