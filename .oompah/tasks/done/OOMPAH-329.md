@@ -20,7 +20,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T20:34:42.931068Z'
-updated_at: '2026-07-22T08:06:14.521125Z'
+updated_at: '2026-07-22T08:06:16.929499Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -252,5 +252,10 @@ author: oompah
 created: 2026-07-22 08:06
 ---
 Completion: tests/test_gitlab_cross_forge_acceptance.py is committed and pushed. Delivers: (1) shared offline provider contract for GitHub and GitLab, (2) GitLab self-managed nested path acceptance, (3) pre-forge GitHub project migration round-trip, (4) credential-gated GitLab.com and self-managed smoke tests. All 10 offline tests pass; 2 smoke tests skip with explicit reasons. No standard test requires a token or network access.
+---
+author: oompah
+created: 2026-07-22 08:06
+---
+Added tests/test_gitlab_cross_forge_acceptance.py: 10 offline tests pass (shared GitHub+GitLab provider contract, migration round-trip, self-managed path encoding); 2 credential-gated smoke tests skip when env vars absent. Committed to epic-OOMPAH-318 and pushed.
 ---
 <!-- COMMENTS:END -->
