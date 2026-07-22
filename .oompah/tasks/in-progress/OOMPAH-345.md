@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:38:50.948182Z'
-updated_at: '2026-07-22T01:41:29.140858Z'
+updated_at: '2026-07-22T01:54:24.591372Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -283,5 +283,10 @@ author: oompah
 created: 2026-07-22 01:41
 ---
 Understanding (attempt #4, Test Engineer): Previous agents identified the root cause but left no commits. My plan: (1) Read the current code in oompah/tracker.py, oompah/oompah_md_tracker.py, oompah/server.py to understand the exact change needed, (2) Implement the StateBranchFetchError fix + update call sites, (3) Write regression tests, (4) Run make test, (5) Commit, push, and close.
+---
+author: oompah
+created: 2026-07-22 01:54
+---
+Discovery: Root cause confirmed. The fix requires: (1) Add StateBranchFetchError(TrackerError) to oompah/tracker.py, (2) Raise it instead of generic TrackerError in _sync_state_branch_from_remote() on git fetch failure, (3) Catch it at api_update_issue handler in server.py with WARNING logging, (4) Add it to orchestrator._error_class_for_tracker_exc. This prevents error_watcher from filing tasks for transient fetch failures. Implementing now.
 ---
 <!-- COMMENTS:END -->
