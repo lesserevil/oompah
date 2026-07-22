@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:26.149163Z'
-updated_at: '2026-07-22T06:58:00.712814Z'
+updated_at: '2026-07-22T06:58:12.423748Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: e0d65e60-9dbc-4012-9561-bc8db3a501d8
 oompah.task_costs:
-  total_input_tokens: 2447277
-  total_output_tokens: 18914
+  total_input_tokens: 2447337
+  total_output_tokens: 41756
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 2447277
-      output_tokens: 18914
+      input_tokens: 2447337
+      output_tokens: 41756
       cost_usd: 0.0
   runs:
   - profile: default
@@ -59,6 +59,12 @@ oompah.task_costs:
     output_tokens: 1900
     cost_usd: 0.0
     recorded_at: '2026-07-22T06:34:45.009913+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 60
+    output_tokens: 22842
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T06:58:09.699563+00:00'
 ---
 ## Summary
 
@@ -323,5 +329,20 @@ author: oompah
 created: 2026-07-22 06:58
 ---
 Delivered docs/gitlab-issue-intake.md (full GitLab intake operator guide), updated managed-project-onboarding.md and prompt-injection-security.md for forge-neutral framing, fixed forge-isolation guard in webhooks.py to prevent cross-forge project matching, and updated webhook test fixtures. make test passes.
+---
+author: oompah
+created: 2026-07-22 06:58
+---
+Agent completed successfully in 987s (22902 tokens)
+---
+author: oompah
+created: 2026-07-22 06:58
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 121, Tool calls: 83
+- Tokens: 60 in / 22.8K out [22.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 16m 27s
+- Log: OOMPAH-324__20260722T064144Z.jsonl
 ---
 <!-- COMMENTS:END -->
