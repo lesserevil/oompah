@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T06:14:36.961788Z'
+updated_at: '2026-07-22T06:14:49.616724Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 6d804b49-62da-44ef-871d-36045b5151bf
 oompah.task_costs:
-  total_input_tokens: 308600
-  total_output_tokens: 25655
+  total_input_tokens: 308644
+  total_output_tokens: 40948
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 308600
-      output_tokens: 25655
+      input_tokens: 308644
+      output_tokens: 40948
       cost_usd: 0.0
   runs:
   - profile: default
@@ -48,6 +48,12 @@ oompah.task_costs:
     output_tokens: 16228
     cost_usd: 0.0
     recorded_at: '2026-07-22T05:56:03.857466+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 44
+    output_tokens: 15293
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T06:14:46.551821+00:00'
 ---
 ## Summary
 
@@ -444,5 +450,20 @@ author: oompah
 created: 2026-07-22 06:14
 ---
 Implemented detection and annotation of independently-merged epic children. Added EPIC_INDEPENDENTLY_MERGED_LABEL to models.py, two new orchestrator methods (_detect_independently_merged_children, _reconcile_independently_merged_children), sweep hook in _do_merged_labels, and 12 tests covering detection, idempotency, resilience, and hook wiring. All 11350 tests pass.
+---
+author: oompah
+created: 2026-07-22 06:14
+---
+Agent completed successfully in 993s (15337 tokens)
+---
+author: oompah
+created: 2026-07-22 06:14
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 82, Tool calls: 58
+- Tokens: 44 in / 15.3K out [15.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 16m 33s
+- Log: OOMPAH-311__20260722T055816Z.jsonl
 ---
 <!-- COMMENTS:END -->
