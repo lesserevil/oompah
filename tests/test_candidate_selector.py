@@ -905,3 +905,581 @@ class TestEdgeCases:
         sel = CandidateSelector(path=path)
         sel.record_used("fast", _c("p1", "m1"))
         assert (tmp_path / "nested" / "dir" / "usage.json").exists()
+
+
+# ===========================================================================
+# OOMPAH-346 — reserve_candidate: atomic dispatch-time reservation
+# ===========================================================================
+#
+# These tests cover the new reserve_candidate() method and verify the
+# acceptance criteria from OOMPAH-346:
+#
+#   AC#R1  reserve_candidate() selects the LRU candidate and stamps it
+#          atomically so that a concurrent call selects a different candidate.
+#   AC#R2  N concurrent reserve_candidate() calls for a two-candidate
+#          round-robin role alternate fairly (counts differ by ≤1 for even N).
+#   AC#R3  reserve_candidate() for separate roles uses independent state.
+#   AC#R4  For non-round-robin roles reserve_candidate() returns the first
+#          eligible candidate without stamping usage state.
+#   AC#R5  reserve_candidate() with exclude skips named candidates and
+#          selects the next eligible one.
+#   AC#R6  reserve_candidate() returns None when no eligible candidates remain.
+#   AC#R7  Usage state is persisted to disk before the method returns, so
+#          a fresh CandidateSelector loaded from that file observes the
+#          reservation and selects the next candidate.
+
+
+class TestReserveCandidateBasics:
+    """Unit tests for CandidateSelector.reserve_candidate() — basic contract."""
+
+    def test_returns_candidate_object(self, tmp_path):
+        """reserve_candidate() returns a Candidate, not None, when candidates exist."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        role = _role("rr", "round_robin", [c1])
+        result = sel.reserve_candidate(role)
+        assert isinstance(result, Candidate)
+        assert result == c1
+
+    def test_returns_none_for_empty_role(self, tmp_path):
+        """reserve_candidate() returns None when the role has no candidates."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        role = _role("rr", "round_robin", [])
+        assert sel.reserve_candidate(role) is None
+
+    def test_returns_none_when_all_excluded(self, tmp_path):
+        """reserve_candidate() returns None when all candidates are in exclude."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+        assert sel.reserve_candidate(role, exclude=[c1, c2]) is None
+
+    def test_selects_lru_candidate(self, tmp_path):
+        """reserve_candidate() selects the least-recently-used candidate."""
+        path = str(tmp_path / "usage.json")
+        sel = CandidateSelector(path=path)
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+
+        # Pre-stamp c1 as more recently used
+        with sel._lock:
+            sel._usage = {
+                "rr": {
+                    "p1": {"m1": _ago_iso(10)},   # older
+                    "p2": {"m2": _ago_iso(100)},  # more recent
+                }
+            }
+
+        result = sel.reserve_candidate(role)
+        # c2 has the older stamp → it's the LRU → selected
+        assert result == c2
+
+    def test_selects_never_used_over_used(self, tmp_path):
+        """reserve_candidate() prefers a never-used candidate over a used one."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")  # never used
+        role = _role("rr", "round_robin", [c1, c2])
+        sel.record_used("rr", c1)  # c1 has been used
+
+        result = sel.reserve_candidate(role)
+        assert result == c2
+
+    def test_stamps_selected_candidate_immediately(self, tmp_path):
+        """After reserve_candidate(), the selected candidate is stamped in usage state."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+
+        before = datetime.now(timezone.utc)
+        selected = sel.reserve_candidate(role)
+        after = datetime.now(timezone.utc)
+
+        assert selected is not None
+        with sel._lock:
+            ts_str = (
+                sel._usage
+                .get("rr", {})
+                .get(selected.provider_id, {})
+                .get(selected.model)
+            )
+        assert ts_str is not None, "Selected candidate must be stamped"
+        ts = datetime.fromisoformat(ts_str)
+        assert before <= ts <= after, "Stamp must be within the call window"
+
+    def test_stamp_persisted_to_disk(self, tmp_path):
+        """reserve_candidate() persists the stamp to disk before returning."""
+        import json as _json
+        path = str(tmp_path / "usage.json")
+        sel = CandidateSelector(path=path)
+        c1 = _c("p1", "m1")
+        role = _role("rr", "round_robin", [c1])
+
+        sel.reserve_candidate(role)
+
+        with open(path) as f:
+            data = _json.load(f)
+        assert "rr" in data
+        assert "p1" in data["rr"]
+        assert "m1" in data["rr"]["p1"]
+
+    def test_consecutive_reserves_alternate_two_candidates(self, tmp_path):
+        """Two consecutive reserve_candidate() calls on a 2-candidate role alternate."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+
+        first = sel.reserve_candidate(role)
+        second = sel.reserve_candidate(role)
+
+        assert first != second, "Consecutive reserve_candidate() calls must select different candidates"
+        assert {first, second} == {c1, c2}
+
+    def test_three_consecutive_reserves_cycle(self, tmp_path):
+        """Three consecutive reserves cycle: C1, C2, C1."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+
+        r1 = sel.reserve_candidate(role)
+        r2 = sel.reserve_candidate(role)
+        r3 = sel.reserve_candidate(role)
+
+        assert r1 == c1
+        assert r2 == c2
+        assert r3 == c1
+
+    def test_reserve_creates_parent_dirs(self, tmp_path):
+        """reserve_candidate() creates parent directories for the usage file."""
+        path = str(tmp_path / "nested" / "dir" / "usage.json")
+        sel = CandidateSelector(path=path)
+        c1 = _c("p1", "m1")
+        role = _role("rr", "round_robin", [c1])
+        sel.reserve_candidate(role)
+        assert (tmp_path / "nested" / "dir" / "usage.json").exists()
+
+
+class TestReserveCandidateAtomicity:
+    """Concurrency tests — the core correctness guarantee of OOMPAH-346."""
+
+    def test_n_concurrent_reserves_alternate_fairly(self, tmp_path):
+        """N concurrent reserve_candidate() calls for a 2-candidate role
+        distribute evenly: for even N, counts differ by no more than one,
+        and never exhibit the all-first-candidate race (AC#R2).
+        """
+        N = 20  # even number of concurrent reservations
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+
+        results: list[Candidate] = []
+        lock = threading.Lock()
+        errors: list[Exception] = []
+
+        def worker():
+            try:
+                selected = sel.reserve_candidate(role)
+                assert selected is not None
+                with lock:
+                    results.append(selected)
+            except Exception as exc:
+                with lock:
+                    errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(N)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors, f"Errors during concurrent reserves: {errors}"
+        assert len(results) == N
+
+        count_c1 = results.count(c1)
+        count_c2 = results.count(c2)
+
+        # Fairness: counts must differ by at most 1
+        assert abs(count_c1 - count_c2) <= 1, (
+            f"Unfair distribution: c1={count_c1}, c2={count_c2}. "
+            f"All-first-candidate race not fixed."
+        )
+        # Liveness: both candidates must be selected at least once
+        assert count_c1 > 0, "c1 must be selected at least once"
+        assert count_c2 > 0, "c2 must be selected at least once"
+
+    def test_concurrent_reserves_never_all_select_first_candidate(self, tmp_path):
+        """No matter how many concurrent calls happen, never ALL select c1."""
+        N = 10
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+
+        results: list[Candidate] = []
+        lock = threading.Lock()
+
+        def worker():
+            r = sel.reserve_candidate(role)
+            with lock:
+                results.append(r)
+
+        threads = [threading.Thread(target=worker) for _ in range(N)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert results.count(c2) > 0, (
+            f"Regression: all {N} concurrent reserves selected c1 only. "
+            "The all-first-candidate race is NOT fixed."
+        )
+
+    def test_concurrent_reserves_for_two_candidate_role_odd_n(self, tmp_path):
+        """Odd N: the majority candidate is selected ceil(N/2) times."""
+        N = 7
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+
+        results: list[Candidate] = []
+        lock = threading.Lock()
+
+        def worker():
+            r = sel.reserve_candidate(role)
+            with lock:
+                results.append(r)
+
+        threads = [threading.Thread(target=worker) for _ in range(N)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        count_c1 = results.count(c1)
+        count_c2 = results.count(c2)
+
+        # For odd N, counts can differ by at most 1
+        assert abs(count_c1 - count_c2) <= 1, (
+            f"Unfair distribution for odd N={N}: c1={count_c1}, c2={count_c2}"
+        )
+        assert count_c1 + count_c2 == N
+
+    def test_concurrent_reserves_no_crash(self, tmp_path):
+        """Many concurrent reserve_candidate() calls complete without errors."""
+        N = 50
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        c3 = _c("p3", "m3")
+        role = _role("rr", "round_robin", [c1, c2, c3])
+
+        errors: list[Exception] = []
+        lock = threading.Lock()
+        results: list[Candidate] = []
+
+        def worker():
+            try:
+                r = sel.reserve_candidate(role)
+                with lock:
+                    results.append(r)
+            except Exception as exc:
+                with lock:
+                    errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(N)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors, f"Errors during concurrent reserves: {errors}"
+        assert len(results) == N
+        # All three candidates should be selected
+        assert results.count(c1) > 0
+        assert results.count(c2) > 0
+        assert results.count(c3) > 0
+
+    def test_concurrent_reserve_usage_file_remains_valid_json(self, tmp_path):
+        """After concurrent reserve_candidate() calls, the usage file is valid JSON."""
+        import json as _json
+        path = str(tmp_path / "usage.json")
+        sel = CandidateSelector(path=path)
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+
+        threads = [
+            threading.Thread(target=lambda: [sel.reserve_candidate(role) for _ in range(5)])
+            for _ in range(4)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        with open(path) as f:
+            data = _json.load(f)
+        assert isinstance(data, dict)
+
+
+class TestReserveCandidatePriorityStrategy:
+    """AC#R4 — priority strategy: no stamping, configured order preserved."""
+
+    def test_priority_returns_first_candidate(self, tmp_path):
+        """reserve_candidate() on a priority role returns the first candidate."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("fast", "priority", [c1, c2])
+        assert sel.reserve_candidate(role) == c1
+
+    def test_priority_does_not_stamp_usage(self, tmp_path):
+        """reserve_candidate() on a priority role does not write usage state."""
+        path = str(tmp_path / "usage.json")
+        sel = CandidateSelector(path=path)
+        c1 = _c("p1", "m1")
+        role = _role("fast", "priority", [c1])
+        sel.reserve_candidate(role)
+        # For priority roles, no file should be created
+        assert not (tmp_path / "usage.json").exists(), (
+            "reserve_candidate() on priority role must not create usage file"
+        )
+
+    def test_priority_repeated_calls_same_result(self, tmp_path):
+        """Multiple reserve_candidate() calls on a priority role return the same candidate."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("fast", "priority", [c1, c2])
+        for _ in range(5):
+            assert sel.reserve_candidate(role) == c1
+
+    def test_priority_exclude_skips_to_next(self, tmp_path):
+        """reserve_candidate() on priority role with exclude returns next non-excluded."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        c3 = _c("p3", "m3")
+        role = _role("fast", "priority", [c1, c2, c3])
+        assert sel.reserve_candidate(role, exclude=[c1]) == c2
+        assert sel.reserve_candidate(role, exclude=[c1, c2]) == c3
+        assert sel.reserve_candidate(role, exclude=[c1, c2, c3]) is None
+
+
+class TestReserveCandidateExclude:
+    """AC#R5 — exclude parameter skips failed candidates."""
+
+    def test_exclude_single_candidate(self, tmp_path):
+        """reserve_candidate() skips the excluded candidate and selects the next."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+
+        # First reserve picks c1, exclude it, second must pick c2
+        sel.reserve_candidate(role)  # stamps c1
+        result = sel.reserve_candidate(role, exclude=[c1])
+        assert result == c2
+
+    def test_exclude_does_not_affect_other_selects(self, tmp_path):
+        """Excluding a candidate does not permanently remove it from future calls."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+
+        # Exclude c1 in one call; subsequent call (without exclude) can still get c1
+        result_with_exclude = sel.reserve_candidate(role, exclude=[c1])
+        assert result_with_exclude == c2  # c2 selected (c1 excluded)
+
+        # Now call without exclude — both are eligible; c1 is never-used (LRU)
+        result_no_exclude = sel.reserve_candidate(role)
+        assert result_no_exclude == c1  # c1 is LRU (never stamped by reserve)
+
+    def test_exclude_empty_list_treated_as_no_exclusion(self, tmp_path):
+        """Passing an empty exclude list is equivalent to no exclusion."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+        assert sel.reserve_candidate(role, exclude=[]) == c1
+
+    def test_exclude_none_is_same_as_no_exclusion(self, tmp_path):
+        """Passing exclude=None is the default (no exclusion)."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        role = _role("rr", "round_robin", [c1])
+        assert sel.reserve_candidate(role, exclude=None) == c1
+
+
+class TestReserveCandidateIndependentRoles:
+    """AC#R3 — separate roles retain independent usage state."""
+
+    def test_reserve_on_one_role_does_not_affect_other_role(self, tmp_path):
+        """Reserving in role_a does not change ordering in role_b."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role_a = _role("role_a", "round_robin", [c1, c2])
+        role_b = _role("role_b", "round_robin", [c1, c2])
+
+        # Reserve c1 in role_a
+        selected_a = sel.reserve_candidate(role_a)
+        assert selected_a == c1  # c1 is LRU (never used)
+
+        # role_b: c1 has never been reserved there → still gets c1
+        selected_b = sel.reserve_candidate(role_b)
+        assert selected_b == c1, (
+            "Role_b must be independent of role_a's reservation"
+        )
+
+    def test_concurrent_reserves_for_different_roles_are_independent(self, tmp_path):
+        """Concurrent reserves on different roles do not interfere."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role_a = _role("role_a", "round_robin", [c1, c2])
+        role_b = _role("role_b", "round_robin", [c1, c2])
+
+        results_a: list[Candidate] = []
+        results_b: list[Candidate] = []
+        lock = threading.Lock()
+
+        def worker_a():
+            r = sel.reserve_candidate(role_a)
+            with lock:
+                results_a.append(r)
+
+        def worker_b():
+            r = sel.reserve_candidate(role_b)
+            with lock:
+                results_b.append(r)
+
+        N = 10
+        threads = (
+            [threading.Thread(target=worker_a) for _ in range(N)]
+            + [threading.Thread(target=worker_b) for _ in range(N)]
+        )
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # Both roles should have balanced distributions
+        assert abs(results_a.count(c1) - results_a.count(c2)) <= 1, (
+            "role_a distribution must be fair"
+        )
+        assert abs(results_b.count(c1) - results_b.count(c2)) <= 1, (
+            "role_b distribution must be fair"
+        )
+
+    def test_two_roles_usage_stored_under_separate_keys(self, tmp_path):
+        """Usage from different roles is stored under separate top-level keys."""
+        import json as _json
+        path = str(tmp_path / "usage.json")
+        sel = CandidateSelector(path=path)
+        c1 = _c("p1", "m1")
+        role_a = _role("role_a", "round_robin", [c1])
+        role_b = _role("role_b", "round_robin", [c1])
+
+        sel.reserve_candidate(role_a)
+        sel.reserve_candidate(role_b)
+
+        with open(path) as f:
+            data = _json.load(f)
+        assert "role_a" in data, "role_a must have its own key"
+        assert "role_b" in data, "role_b must have its own key"
+
+
+class TestReserveCandidatePersistence:
+    """AC#R7 — reservation persists across selector instances (service restart)."""
+
+    def test_reservation_visible_to_fresh_selector(self, tmp_path):
+        """Usage stamped by reserve_candidate() is visible to a fresh selector instance."""
+        path = str(tmp_path / "usage.json")
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+
+        sel1 = CandidateSelector(path=path)
+        selected1 = sel1.reserve_candidate(role)
+        assert selected1 == c1
+
+        # Reload from disk — simulates service restart
+        sel2 = CandidateSelector(path=path)
+        selected2 = sel2.reserve_candidate(role)
+        assert selected2 == c2, (
+            "After service restart, the next reserve must get the next candidate"
+        )
+
+    def test_reservation_ordering_correct_after_reload(self, tmp_path):
+        """The full cycle c1→c2→c1 is maintained across selector reloads."""
+        path = str(tmp_path / "usage.json")
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+
+        sel1 = CandidateSelector(path=path)
+        assert sel1.reserve_candidate(role) == c1  # dispatch 1
+
+        sel2 = CandidateSelector(path=path)
+        assert sel2.reserve_candidate(role) == c2  # dispatch 2
+
+        sel3 = CandidateSelector(path=path)
+        assert sel3.reserve_candidate(role) == c1  # dispatch 3 → cycles back
+
+    def test_reserve_creates_file_if_not_exists(self, tmp_path):
+        """reserve_candidate() creates the usage file if it does not exist yet."""
+        path = str(tmp_path / "usage.json")
+        sel = CandidateSelector(path=path)
+        assert not (tmp_path / "usage.json").exists()
+
+        c1 = _c("p1", "m1")
+        role = _role("rr", "round_robin", [c1])
+        sel.reserve_candidate(role)
+
+        assert (tmp_path / "usage.json").exists()
+
+
+class TestReserveCandidateReturnValue:
+    """API contract: return type and behaviour."""
+
+    def test_returns_candidate_or_none(self, tmp_path):
+        """reserve_candidate() returns a Candidate or None — never raises."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        role_with = _role("rr", "round_robin", [_c("p1", "m1")])
+        role_empty = _role("rr", "round_robin", [])
+
+        r1 = sel.reserve_candidate(role_with)
+        r2 = sel.reserve_candidate(role_empty)
+
+        assert isinstance(r1, Candidate)
+        assert r2 is None
+
+    def test_reserve_does_not_mutate_role_candidates(self, tmp_path):
+        """reserve_candidate() does not modify the role's candidate list."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("p1", "m1")
+        c2 = _c("p2", "m2")
+        role = _role("rr", "round_robin", [c1, c2])
+        original_candidates = list(role.candidates)
+
+        sel.reserve_candidate(role)
+
+        assert list(role.candidates) == original_candidates, (
+            "reserve_candidate() must not modify role.candidates"
+        )
+
+    def test_reserve_candidate_method_exists(self, tmp_path):
+        """CandidateSelector must expose a reserve_candidate() public method."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        assert callable(getattr(sel, "reserve_candidate", None)), (
+            "CandidateSelector must have a reserve_candidate() method"
+        )
