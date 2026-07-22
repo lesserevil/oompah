@@ -16,7 +16,7 @@ labels:
 - service-wedge
 assignee: null
 created_at: '2026-07-22T00:56:17.834972Z'
-updated_at: '2026-07-22T01:16:08.768671Z'
+updated_at: '2026-07-22T01:16:11.129362Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,3 +33,11 @@ Implement and verify the durable reliability fixes identified from production we
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 01:16
+---
+Completed and pushed the durable scheduler wedge fixes; Exocomp state branch migration is complete.
+---
+<!-- COMMENTS:END -->
