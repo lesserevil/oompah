@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-403
 type: bug
-status: Done
+status: In Review
 priority: 2
 title: '[backend:orchestrator] Worker did not stop within 10000ms; continuing shutdown
   issue_identifier=OOMPAH-339'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T05:55:38.643390Z'
+updated_at: '2026-07-22T05:55:58.404946Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,13 @@ oompah.intake:
   last_validated_at: '2026-07-22T05:35:18.775008+00:00'
 oompah.agent_run_id: 8ed29581-d906-4685-996c-691fc1d7e4fa
 oompah.task_costs:
-  total_input_tokens: 1191645
-  total_output_tokens: 14242
+  total_input_tokens: 1191719
+  total_output_tokens: 16347
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1191645
-      output_tokens: 14242
+      input_tokens: 1191719
+      output_tokens: 16347
       cost_usd: 0.0
   runs:
   - profile: default
@@ -65,6 +65,12 @@ oompah.task_costs:
     output_tokens: 6849
     cost_usd: 0.0
     recorded_at: '2026-07-22T05:46:38.515540+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 74
+    output_tokens: 2105
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T05:55:49.840763+00:00'
 ---
 ## Summary
 
@@ -277,5 +283,15 @@ author: oompah
 created: 2026-07-22 05:55
 ---
 Changed logger.error → logger.warning in orchestrator._terminate_running() for the worker-shutdown timeout path. error_watcher only captures ERROR+ records, so this prevents spurious auto-filed bug tasks for expected shutdown timeouts. Added regression test test_shutdown_timeout_logs_warning_not_error.
+---
+author: oompah
+created: 2026-07-22 05:55
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 37
+- Tokens: 74 in / 2.1K out [2.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 48s
+- Log: OOMPAH-403__20260722T054706Z.jsonl
 ---
 <!-- COMMENTS:END -->
