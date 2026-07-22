@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-400
 type: bug
-status: Backlog
+status: Archived
 priority: 2
 title: '[backend:orchestrator] Worker did not stop within 10000ms; continuing shutdown
   issue_identifier=OOMPAH-398'
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-22T04:34:38.330145Z'
-updated_at: '2026-07-22T04:48:52.279585Z'
+updated_at: '2026-07-22T04:58:22.235695Z'
 work_branch: null
 target_branch: null
 review_url: null
