@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-339
 type: task
-status: In Progress
+status: Needs Human
 priority: null
 title: Enforce GitLab status-label authorization and audit/revert safety
 parent: OOMPAH-323
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:47.554460Z'
-updated_at: '2026-07-22T04:41:25.049587Z'
+updated_at: '2026-07-22T04:43:24.532641Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: dca48579-fc62-4d0d-94c6-231c57d514c5
 oompah.task_costs:
-  total_input_tokens: 5678014
-  total_output_tokens: 41084
+  total_input_tokens: 6503085
+  total_output_tokens: 45305
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 5678014
-      output_tokens: 41084
+      input_tokens: 6503085
+      output_tokens: 45305
       cost_usd: 0.0
   runs:
   - profile: default
@@ -71,6 +71,12 @@ oompah.task_costs:
     output_tokens: 10845
     cost_usd: 0.0
     recorded_at: '2026-07-22T04:40:53.660120+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 825071
+    output_tokens: 4221
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T04:43:20.933094+00:00'
 ---
 ## Summary
 
@@ -378,5 +384,25 @@ author: oompah
 created: 2026-07-22 04:41
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-22 04:43
+---
+Agent completed successfully in 119s (829292 tokens)
+---
+author: oompah
+created: 2026-07-22 04:43
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Codex/default]
+- Turns: 1, Tool calls: 19
+- Tokens: 825.1K in / 4.2K out [829.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 59s
+- Log: OOMPAH-339__20260722T044126Z.jsonl
+---
+author: oompah
+created: 2026-07-22 04:43
+---
+Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
