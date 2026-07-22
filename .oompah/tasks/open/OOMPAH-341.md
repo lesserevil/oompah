@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-341
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Implement GitLabHookManager with OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL config
 parent: OOMPAH-325
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:28:44.100086Z'
-updated_at: '2026-07-22T00:37:18.658676Z'
+updated_at: '2026-07-22T00:37:53.705829Z'
 work_branch: null
 target_branch: null
 review_url: null
