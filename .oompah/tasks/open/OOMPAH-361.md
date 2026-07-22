@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-361
 type: task
-status: Backlog
+status: Open
 priority: null
 title: 'OOMPAH-322 follow-up: Expand parse_gitlab_webhook to handle push/issue/note/pipeline/job
   event types'
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T01:55:04.171330Z'
-updated_at: '2026-07-22T01:55:04.171330Z'
+updated_at: '2026-07-22T02:14:28.601713Z'
 work_branch: null
 target_branch: null
 review_url: null
