@@ -19,7 +19,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:42.931068Z'
-updated_at: '2026-07-22T07:58:04.471580Z'
+updated_at: '2026-07-22T08:02:38.758860Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -180,5 +180,10 @@ author: oompah
 created: 2026-07-22 07:58
 ---
 Implementation: added tests/test_gitlab_cross_forge_acceptance.py. It uses local HTTP-response fixtures to run the same SCM acceptance contract for GitHub and GitLab, covers auth-failure behavior and nested self-managed GitLab paths, proves persisted pre-forge GitHub project migration, and defines explicit credential-gated GitLab.com/self-managed smoke checks.
+---
+author: oompah
+created: 2026-07-22 08:02
+---
+Verification: targeted cross-forge suite passed (10 passed, 2 credential-gated smoke tests skipped). Full suite also passed via .venv/bin/python -m pytest tests/ (11,558 passed, 38 skipped, 12 warnings). The prescribed make test command was attempted but uv failed before pytest started with a DBus transient-scope error; this is environment-specific.
 ---
 <!-- COMMENTS:END -->
