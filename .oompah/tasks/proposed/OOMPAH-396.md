@@ -1,9 +1,9 @@
 ---
-id: OOMPAH-381
+id: OOMPAH-396
 type: bug
 status: Proposed
 priority: 2
-title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 1011s (threshold=900s).
+title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 1094s (threshold=900s).
   Alert armed, recovery queued.'
 parent: null
 children: []
@@ -11,30 +11,20 @@ blocked_by: []
 labels:
 - external:github
 assignee: null
-created_at: '2026-07-22T02:28:32.994193Z'
-updated_at: '2026-07-22T02:28:41.118297Z'
+created_at: '2026-07-22T02:29:05.747360Z'
+updated_at: '2026-07-22T02:29:05.747360Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.external.github:
-  id: lesserevil/oompah#512
-  owner: lesserevil
-  repo: oompah
-  number: '512'
-  url: https://github.com/lesserevil/oompah/issues/512
-  requestor_login: NVShawn
-  imported_comment_ids: []
-  last_synced_status: Proposed
-  last_synced_at: '2026-07-22T02:28:34.362628+00:00'
 ---
 ## Summary
 
 ### Problem
 Oompah detected a backend error from `backend:orchestrator`:
 
-> Dispatch loop stale: no tick completed in 1011s (threshold=900s). Alert armed, recovery queued.
+> Dispatch loop stale: no tick completed in 1094s (threshold=900s). Alert armed, recovery queued.
 
 ### Steps to Reproduce
 1. Run oompah with `backend:orchestrator` active.
@@ -44,7 +34,7 @@ Oompah detected a backend error from `backend:orchestrator`:
 ### Actual Behavior
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> Dispatch loop stale: no tick completed in 1011s (threshold=900s). Alert armed, recovery queued.
+> Dispatch loop stale: no tick completed in 1094s (threshold=900s). Alert armed, recovery queued.
 
 ### Expected Behavior
 The operation in `backend:orchestrator` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -59,15 +49,15 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 - source_project: global
 - tracker: github_issues:lesserevil/oompah
 - tracker_kind: github_issues
-- fingerprint: 037927480ab4b5f6
-- dedup_fingerprint: 037927480ab4b5f6
+- fingerprint: f0144b268ac87e24
+- dedup_fingerprint: f0144b268ac87e24
 - tracker_owner: lesserevil
 - tracker_repo: oompah
 
 ## External GitHub Issue
-- URL: https://github.com/lesserevil/oompah/issues/512
+- URL: https://github.com/lesserevil/oompah/issues/526
 - Requestor: @NVShawn
-- Reference: lesserevil/oompah#512
+- Reference: lesserevil/oompah#526
 
 ## Acceptance Criteria
 

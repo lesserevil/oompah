@@ -1,40 +1,30 @@
 ---
-id: OOMPAH-362
+id: OOMPAH-395
 type: bug
 status: Proposed
 priority: 2
-title: '[backend:orchestrator] Dispatch loop stall diagnostics follow (all thread
-  stacks)'
+title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 1088s (threshold=900s).
+  Alert armed, recovery queued.'
 parent: null
 children: []
 blocked_by: []
 labels:
 - external:github
 assignee: null
-created_at: '2026-07-22T02:25:17.238017Z'
-updated_at: '2026-07-22T02:25:18.096291Z'
+created_at: '2026-07-22T02:29:04.463836Z'
+updated_at: '2026-07-22T02:29:04.463836Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.external.github:
-  id: lesserevil/oompah#492
-  owner: lesserevil
-  repo: oompah
-  number: '492'
-  url: https://github.com/lesserevil/oompah/issues/492
-  requestor_login: NVShawn
-  imported_comment_ids: []
-  last_synced_status: Proposed
-  last_synced_at: '2026-07-22T02:25:17.354929+00:00'
 ---
 ## Summary
 
 ### Problem
 Oompah detected a backend error from `backend:orchestrator`:
 
-> Dispatch loop stall diagnostics follow (all thread stacks)
+> Dispatch loop stale: no tick completed in 1088s (threshold=900s). Alert armed, recovery queued.
 
 ### Steps to Reproduce
 1. Run oompah with `backend:orchestrator` active.
@@ -44,7 +34,7 @@ Oompah detected a backend error from `backend:orchestrator`:
 ### Actual Behavior
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> Dispatch loop stall diagnostics follow (all thread stacks)
+> Dispatch loop stale: no tick completed in 1088s (threshold=900s). Alert armed, recovery queued.
 
 ### Expected Behavior
 The operation in `backend:orchestrator` should complete successfully, or degrade gracefully with a clear actionable message. No unhandled error should be auto-filed as a task during normal operation.
@@ -59,15 +49,15 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 - source_project: global
 - tracker: github_issues:lesserevil/oompah
 - tracker_kind: github_issues
-- fingerprint: d6ccea1ca2125802
-- dedup_fingerprint: d6ccea1ca2125802
+- fingerprint: 7de0fe3bc57545b4
+- dedup_fingerprint: 7de0fe3bc57545b4
 - tracker_owner: lesserevil
 - tracker_repo: oompah
 
 ## External GitHub Issue
-- URL: https://github.com/lesserevil/oompah/issues/492
+- URL: https://github.com/lesserevil/oompah/issues/525
 - Requestor: @NVShawn
-- Reference: lesserevil/oompah#492
+- Reference: lesserevil/oompah#525
 
 ## Acceptance Criteria
 
