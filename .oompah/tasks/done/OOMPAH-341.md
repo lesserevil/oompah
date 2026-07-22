@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:28:44.100086Z'
-updated_at: '2026-07-22T03:57:38.627798Z'
+updated_at: '2026-07-22T03:57:41.006319Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -259,5 +259,10 @@ Delivered:
 - Tests: TestGitLabHookManager (4 scenarios) and config test
 
 Commit: a04981ace on epic-OOMPAH-325
+---
+author: oompah
+created: 2026-07-22 03:57
+---
+Implemented GitLabHookManager in oompah/webhooks.py with create/reconcile/remove lifecycle, OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL config wired into ServiceConfig and .env.example, and tests. All 11391 tests pass.
 ---
 <!-- COMMENTS:END -->
