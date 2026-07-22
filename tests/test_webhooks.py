@@ -22,9 +22,11 @@ import json
 import os
 import tempfile
 
+import httpx
 import pytest
 
 from oompah.webhooks import (
+    GitLabHookManager,
     WebhookEvent,
     WebhookForwarder,
     _ForwarderProcess,
@@ -1355,6 +1357,120 @@ class _DummyProjectStore:
 
     def list_all(self) -> list[Project]:
         return []
+
+
+class _FakeGitLabClient:
+    """Queued async GitLab API responses with a record of requests."""
+
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    async def request(self, method, url, **kwargs):
+        self.calls.append((method, url, kwargs))
+        status_code, payload = self.responses.pop(0)
+        return httpx.Response(
+            status_code,
+            json=payload,
+            request=httpx.Request(method, url),
+        )
+
+
+class TestGitLabHookManager:
+    """GitLab Project Hooks lifecycle tests."""
+
+    def _project(self, **kwargs):
+        project = _make_project(
+            repo_url="https://gitlab.example.com/group/project.git",
+            webhook_secret="hook-secret",
+            **kwargs,
+        )
+        project.forge_kind = "gitlab"
+        project.forge_base_url = "https://gitlab.example.com"
+        project.access_token = "api-token"
+        return project
+
+    @pytest.mark.asyncio
+    async def test_reconcile_creates_missing_hook_with_secret_and_events(self):
+        project = self._project()
+        client = _FakeGitLabClient([(200, []), (201, {"id": 12})])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            public_url="https://oompah.example.com/",
+            http_client=client,
+        )
+
+        await manager.reconcile()
+
+        assert [call[0] for call in client.calls] == ["GET", "POST"]
+        method, url, kwargs = client.calls[1]
+        assert url == "https://gitlab.example.com/api/v4/projects/group%2Fproject/hooks"
+        assert kwargs["headers"] == {"PRIVATE-TOKEN": "api-token"}
+        assert kwargs["json"] == {
+            "url": "https://oompah.example.com/api/v1/webhooks/gitlab",
+            "push_events": True,
+            "merge_requests_events": True,
+            "issues_events": True,
+            "note_events": True,
+            "pipeline_events": True,
+            "job_events": True,
+            "token": "hook-secret",
+        }
+        assert manager.status["projects"][project.id]["hook_id"] == 12
+        assert manager.status["projects"][project.id]["healthy"] is True
+
+    @pytest.mark.asyncio
+    async def test_reconcile_updates_one_matching_hook_and_removes_duplicates(self):
+        project = self._project()
+        target = "https://oompah.example.com/api/v1/webhooks/gitlab"
+        client = _FakeGitLabClient([
+            (200, [{"id": 3, "url": target}, {"id": 4, "url": target}]),
+            (200, {"id": 3}),
+            (204, None),
+        ])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]), public_url="https://oompah.example.com", http_client=client,
+        )
+
+        await manager.reconcile()
+
+        assert [call[0] for call in client.calls] == ["GET", "PUT", "DELETE"]
+        assert client.calls[1][1].endswith("/hooks/3")
+        assert client.calls[2][1].endswith("/hooks/4")
+
+    @pytest.mark.asyncio
+    async def test_remove_deletes_only_managed_hook(self):
+        project = self._project()
+        target = "https://oompah.example.com/api/v1/webhooks/gitlab"
+        client = _FakeGitLabClient([
+            (200, [{"id": 3, "url": target}, {"id": 9, "url": "https://other.example/hook"}]),
+            (204, None),
+        ])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]), public_url="https://oompah.example.com", http_client=client,
+        )
+
+        await manager.remove(project)
+
+        assert [call[0] for call in client.calls] == ["GET", "DELETE"]
+        assert client.calls[1][1].endswith("/hooks/3")
+
+    @pytest.mark.asyncio
+    async def test_missing_or_non_https_public_url_does_not_call_gitlab(self):
+        project = self._project()
+        client = _FakeGitLabClient([])
+        manager = GitLabHookManager(_FakeProjectStore([project]), http_client=client)
+        await manager.reconcile()
+        assert client.calls == []
+        assert manager.status["configured"] is False
+        assert "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL" in manager.status["detail"]
+
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]), public_url="http://oompah.example.com", http_client=client,
+        )
+        await manager.reconcile()
+        assert client.calls == []
+        assert "HTTPS" in manager.status["detail"]
 
 
 class TestForwarderProcess:

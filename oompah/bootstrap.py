@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from oompah.providers import ProviderStore
     from oompah.roles import RoleStore
     from oompah.webhooks import WebhookForwarder
+    from oompah.webhooks import GitLabHookManager
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,7 @@ class Services:
     agent_profile_store: "AgentProfileStore"
     role_store: "RoleStore"
     webhook_forwarder: "WebhookForwarder"
+    gitlab_hook_manager: "GitLabHookManager"
     port: int | None
     workflow_path: str
     workflow: object  # oompah.config.WorkflowDefinition, typed loosely
@@ -147,7 +149,7 @@ async def setup_services(
     from oompah.projects import ProjectStore
     from oompah.providers import ProviderStore
     from oompah.roles import RoleStore, migrate_agent_profiles_to_roles
-    from oompah.webhooks import WebhookForwarder
+    from oompah.webhooks import GitLabHookManager, WebhookForwarder
 
     # ------------------------------------------------------------------
     # 1. Load and parse WORKFLOW.md
@@ -235,6 +237,10 @@ async def setup_services(
         project_store=project_store,
         server_port=port,
     )
+    gitlab_hook_manager = GitLabHookManager(
+        project_store=project_store,
+        public_url=config.gitlab_webhook_public_url,
+    )
 
     # ------------------------------------------------------------------
     # 9. Sync managed-project sources before dispatch
@@ -310,6 +316,7 @@ async def setup_services(
         agent_profile_store=agent_profile_store,
         role_store=role_store,
         webhook_forwarder=webhook_forwarder,
+        gitlab_hook_manager=gitlab_hook_manager,
         port=port,
         workflow_path=workflow_path,
         workflow=workflow,
