@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:38:40.470898Z'
-updated_at: '2026-07-22T01:21:19.651497Z'
+updated_at: '2026-07-22T01:21:22.006480Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -168,5 +168,10 @@ author: oompah
 created: 2026-07-22 01:21
 ---
 Completion: Rebase of epic-OOMPAH-325 onto origin/epic-OOMPAH-318 is complete. Summary: (1) Stashed 3 in-progress files (webhooks.py, tests/test_webhooks.py, .env.example); (2) rebased — git skipped 8 already-upstream commits (OOMPAH-288-291 duplicates) and dropped 2 trivially-contained commits, replaying 4 unique commits (OOMPAH-297, 298, 299, 300) cleanly on top of origin/epic-OOMPAH-318's tip (OOMPAH-322); (3) popped stash; (4) force-pushed with --force-with-lease. origin/epic-OOMPAH-325 now points to 584bd3841 and is rebased on top of origin/epic-OOMPAH-318 with no conflicts.
+---
+author: oompah
+created: 2026-07-22 01:21
+---
+Rebased epic-OOMPAH-325 onto origin/epic-OOMPAH-318 cleanly (4 unique commits replayed: OOMPAH-297-300). Force-pushed with --force-with-lease. No conflicts.
 ---
 <!-- COMMENTS:END -->
