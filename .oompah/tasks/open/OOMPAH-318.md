@@ -23,10 +23,10 @@ labels:
 - needs:backend
 - needs:frontend
 - needs:docs
-- epic:rebasing
+- epic:stale
 assignee: null
 created_at: '2026-07-21T20:33:00.759935Z'
-updated_at: '2026-07-22T05:10:50.440406Z'
+updated_at: '2026-07-22T05:18:08.562358Z'
 work_branch: null
 target_branch: null
 review_url: null
