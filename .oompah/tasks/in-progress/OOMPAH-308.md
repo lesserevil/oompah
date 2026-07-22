@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:52:58.139774Z'
-updated_at: '2026-07-22T06:14:56.571036Z'
+updated_at: '2026-07-22T06:20:08.793776Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -329,5 +329,10 @@ author: oompah
 created: 2026-07-22 06:14
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 06:20
+---
+Understanding: I am running as Duplicate Investigator but previous agents have already confirmed no duplicate exists for OOMPAH-308. I am on branch epic-OOMPAH-307 (the shared epic branch). The task is to fix stale work_branch metadata in oompah/orchestrator.py: when a native shared-epic child is dispatched to the parent epic worktree, its work_branch metadata should be updated to reflect the epic branch (not the stale per-task branch). This prevents false Done→Merged promotions on the wrong branch. I will proceed with duplicate screening confirmation and then implement the fix.
 ---
 <!-- COMMENTS:END -->
