@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-22T02:25:48.806212Z'
-updated_at: '2026-07-22T04:01:54.086074Z'
+updated_at: '2026-07-22T04:01:58.259081Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -96,5 +96,10 @@ author: oompah
 created: 2026-07-22 04:01
 ---
 Archived as duplicate historical service-log intake. The underlying scheduler wedge was fixed in OOMPAH-348 through OOMPAH-352; repeated occurrences should consolidate into one incident.
+---
+author: oompah
+created: 2026-07-22 04:01
+---
+Duplicate historical error-log intake after resolved scheduler wedge.
 ---
 <!-- COMMENTS:END -->
