@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T06:14:34.642936Z'
+updated_at: '2026-07-22T06:14:36.961788Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -439,5 +439,10 @@ Delivered:
 Safety: No git history changes, no state changes, no metadata field mutations — purely metadata label annotation. Reconcile pass is idempotent and resilient to tracker failures.
 
 Branch epic-OOMPAH-307 pushed to origin.
+---
+author: oompah
+created: 2026-07-22 06:14
+---
+Implemented detection and annotation of independently-merged epic children. Added EPIC_INDEPENDENTLY_MERGED_LABEL to models.py, two new orchestrator methods (_detect_independently_merged_children, _reconcile_independently_merged_children), sweep hook in _do_merged_labels, and 12 tests covering detection, idempotency, resilience, and hook wiring. All 11350 tests pass.
 ---
 <!-- COMMENTS:END -->
