@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:39.407769Z'
-updated_at: '2026-07-22T03:20:38.408594Z'
+updated_at: '2026-07-22T03:47:09.295871Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -152,5 +152,19 @@ author: oompah
 created: 2026-07-22 03:20
 ---
 Understanding: I'm the Test Engineer for this task. I'll implement missing GitLab tracker features and comprehensive tests. The current state has stub implementations for fetch_attachments (returns []), set_attachments (no-op), get_metadata (returns {}), and set_metadata_field (raises TrackerError). The label-based add_parent_child and add_dependency are functional. I'll implement description-based metadata storage (same HTML comment pattern as GitHub) and write comprehensive tests covering: metadata round-trips, attachment persistence, priority/type label round-trips, parent-child relationships, blocked-by relationships, fetch_children, archive/reopen behavior, and error cases.
+---
+author: oompah
+created: 2026-07-22 03:47
+---
+Implementation: Added description-based metadata persistence to GitLabIssueTracker (matching GitHub adapter pattern):
+
+- _parse_description_metadata(): extracts JSON from <!-- oompah:metadata --> HTML comment block in issue description
+- _update_description_metadata(): inserts/replaces metadata block while preserving visible description text
+- get_metadata(): reads oompah.* keys from description block (returns {} on missing/invalid)
+- set_metadata_field(): writes key into description block, requires oompah. prefix; raises TrackerError on invalid key
+- fetch_attachments(): delegates to get_metadata(oompah.attachments)
+- set_attachments(): delegates to set_metadata_field(oompah.attachments)
+
+Existing label-based add_parent_child/add_dependency/fetch_children implementations retained (functional, not stubs). No external API calls - all metadata stored in GitLab issue description field as hidden HTML comment block.
 ---
 <!-- COMMENTS:END -->
