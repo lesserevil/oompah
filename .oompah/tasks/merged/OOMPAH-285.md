@@ -18,7 +18,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-21T14:51:29.425206Z'
-updated_at: '2026-07-22T00:02:32.091727Z'
+updated_at: '2026-07-22T00:02:36.245041Z'
 work_branch: epic-OOMPAH-285
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/487
@@ -53,3 +53,11 @@ Implement children in dependency order. Update the threat model and operator doc
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 00:02
+---
+YOLO: merged PR #487.
+---
+<!-- COMMENTS:END -->
