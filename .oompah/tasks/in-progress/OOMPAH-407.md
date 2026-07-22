@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:37.862938Z'
-updated_at: '2026-07-22T16:05:43.737543Z'
+updated_at: '2026-07-22T16:06:04.514639Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -329,5 +329,10 @@ author: oompah
 created: 2026-07-22 16:05
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-22 16:06
+---
+Understanding: Previous agents confirmed this is a unique bug (no duplicate). The dispatch loop in oompah/orchestrator.py stalls for 900s (exactly the threshold), triggering the stale-dispatch alert. This gets filed as an error_watcher task. Root causes to investigate: (1) blocking operation in tick function, (2) deadlock in async code, (3) misconfigured/too-tight threshold for heavy-load periods. Plan: read orchestrator.py around lines 2425-2527 to understand the dispatch loop mechanism, identify what could cause a 900s stall, implement a fix (either make the tick non-blocking, increase/make configurable the threshold, or add graceful degradation).
 ---
 <!-- COMMENTS:END -->
