@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-322
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Add GitLab pipeline and commit CI status support
 parent: OOMPAH-318
@@ -13,7 +13,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T20:33:52.275830Z'
-updated_at: '2026-07-22T00:16:27.196872Z'
+updated_at: '2026-07-22T00:16:39.173791Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -213,5 +213,16 @@ author: oompah
 created: 2026-07-22 00:16
 ---
 Verification: make test passed — 10636 passed, 36 skipped, 12 warnings (all pre-existing). All 9 TestGitLabCIStatus tests pass. Branch epic-OOMPAH-318 pushed to origin.
+---
+author: oompah
+created: 2026-07-22 00:16
+---
+Completion: OOMPAH-322 delivered. GitLabProvider now implements the full forge-neutral CI contract:
+
+- get_branch_head_sha: URL-encodes both repo and branch, fetches /repository/branches/:branch, returns commit.id or None.
+- _fetch_ci_status_and_warnings: aggregates pipeline + job statuses, normalizes to passed/failed/pending/unknown, returns bounded sorted warnings with type/message/job_url/pipeline_url for 403/429/malformed cases.
+- get_ci_status_for_sha: normalizes to CIStatus enum.
+
+Acceptance criteria met: callers determine GitLab CI state without parsing provider payloads; unavailable CI permissions are visible as capability warnings; make test passes (10636 passed).
 ---
 <!-- COMMENTS:END -->
