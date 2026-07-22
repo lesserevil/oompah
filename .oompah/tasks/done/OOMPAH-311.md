@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-311
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Diagnose and surface remediation path for existing independently-merged child
   branches/PRs
@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T06:10:30.756891Z'
+updated_at: '2026-07-22T06:14:34.642936Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -420,5 +420,24 @@ TestReconcileIndependentlyMergedChildren:
 - test_reconcile_hooked_into_do_merged_labels_sweep PASSED
 
 Full suite: 11350 passed, 36 skipped, 13 warnings in 232.41s
+---
+author: oompah
+created: 2026-07-22 06:14
+---
+Completion: OOMPAH-311 is fully implemented.
+
+Delivered:
+1. models.py: EPIC_INDEPENDENTLY_MERGED_LABEL = 'epic:independently-merged' constant with documentation.
+
+2. orchestrator.py:
+   - _detect_independently_merged_children(epics): returns (child, epic, epic_branch) triples for Merged children whose work_branch != epic branch, covering the OOMPAH-286/PR #466 pattern.
+   - _reconcile_independently_merged_children(): annotates found children with the label via add_label (idempotent, TrackerError-safe), logs WARNING per candidate, returns annotated count.
+   - Hooked into _do_merged_labels() sweep alongside _reconcile_merged_epic_children.
+
+3. tests/test_independently_merged.py: 12 tests covering all acceptance criteria.
+
+Safety: No git history changes, no state changes, no metadata field mutations — purely metadata label annotation. Reconcile pass is idempotent and resilient to tracker failures.
+
+Branch epic-OOMPAH-307 pushed to origin.
 ---
 <!-- COMMENTS:END -->
