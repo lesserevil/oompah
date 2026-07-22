@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-307
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep shared-epic child work and merge state on the epic branch
 parent: null
@@ -18,7 +18,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:27:57.025790Z'
-updated_at: '2026-07-22T05:46:19.681580Z'
+updated_at: '2026-07-22T05:52:43.392860Z'
 work_branch: null
 target_branch: null
 review_url: null
