@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-326
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Integrate GitLab SCM and pipelines into review, YOLO, and release delivery
 parent: OOMPAH-318
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:28.175529Z'
-updated_at: '2026-07-22T00:50:33.131764Z'
+updated_at: '2026-07-22T00:52:35.898951Z'
 work_branch: null
 target_branch: null
 review_url: null
