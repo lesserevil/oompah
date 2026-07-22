@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-337
 type: task
-status: In Progress
+status: Needs Human
 priority: null
 title: Build GitLabIssueTracker core REST adapter and protocol registration
 parent: OOMPAH-323
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:30.718256Z'
-updated_at: '2026-07-22T16:30:45.152347Z'
+updated_at: '2026-07-22T16:31:29.971588Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: e7471fd1-fe1e-480c-9adf-09a2ba5d1917
 oompah.task_costs:
-  total_input_tokens: 3245048
-  total_output_tokens: 34065
+  total_input_tokens: 3483527
+  total_output_tokens: 35539
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 3245048
-      output_tokens: 34065
+      input_tokens: 3483527
+      output_tokens: 35539
       cost_usd: 0.0
   runs:
   - profile: default
@@ -130,6 +130,12 @@ oompah.task_costs:
     output_tokens: 1502
     cost_usd: 0.0
     recorded_at: '2026-07-22T16:30:12.500326+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 238479
+    output_tokens: 1474
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T16:31:25.947903+00:00'
 ---
 ## Summary
 
@@ -720,5 +726,25 @@ author: oompah
 created: 2026-07-22 16:30
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-22 16:31
+---
+Agent completed successfully in 42s (239953 tokens)
+---
+author: oompah
+created: 2026-07-22 16:31
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Codex/default]
+- Turns: 1, Tool calls: 4
+- Tokens: 238.5K in / 1.5K out [240.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 42s
+- Log: OOMPAH-337__20260722T163045Z.jsonl
+---
+author: oompah
+created: 2026-07-22 16:31
+---
+Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
