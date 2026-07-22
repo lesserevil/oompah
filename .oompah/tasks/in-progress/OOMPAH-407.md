@@ -10,9 +10,10 @@ children: []
 blocked_by: []
 labels:
 - external:github
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:37.862938Z'
-updated_at: '2026-07-22T15:44:57.184859Z'
+updated_at: '2026-07-22T15:50:52.739991Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,13 +44,13 @@ oompah.intake:
   last_validated_at: '2026-07-22T08:37:55.309711+00:00'
 oompah.agent_run_id: 415ed326-3e67-41b1-996e-bc7290c977ce
 oompah.task_costs:
-  total_input_tokens: 698487
-  total_output_tokens: 3925
+  total_input_tokens: 698511
+  total_output_tokens: 10463
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 698487
-      output_tokens: 3925
+      input_tokens: 698511
+      output_tokens: 10463
       cost_usd: 0.0
   runs:
   - profile: default
@@ -64,6 +65,12 @@ oompah.task_costs:
     output_tokens: 1936
     cost_usd: 0.0
     recorded_at: '2026-07-22T15:36:37.494411+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 24
+    output_tokens: 6538
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T15:50:50.047733+00:00'
 ---
 ## Summary
 
@@ -199,5 +206,46 @@ author: oompah
 created: 2026-07-22 15:44
 ---
 Understanding: Investigating whether this 'dispatch loop stale: no tick completed in 900s' error from backend:orchestrator is a duplicate of an existing task. Will search .oompah/tasks and docs for similar errors before proceeding further.
+---
+author: oompah
+created: 2026-07-22 15:50
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-407 is a unique, first-occurrence bug report.
+
+**Evidence searched:**
+- All .oompah/tasks/ directories (open, backlog, done, archived, merged) — 280+ tasks searched
+- Keywords: 'dispatch loop stale', 'no tick completed', 'dispatch_loop', 'heartbeat', 'threshold=900', 'stale.*tick', 'backend:orchestrator'
+- Specific dedup fingerprint: 636fd17c490ee7f4 — zero matches in any task
+- external-imports.yml for GitHub issue #536 mapping — not present in any prior import
+
+**Closest candidates reviewed (all ruled out as non-duplicates):**
+1. OOMPAH-256 (Merged): State-branch tracker implementation — its comment mentions test_dispatch_loop_heartbeat.py only in the context of fixing a MagicMock bug, NOT related to the runtime stale-dispatch alert.
+2. OOMPAH-177 (Archived): ReleaseAddendumQueue implementation — involves the orchestrator dispatch loop API but describes a durable queue feature, not a stale-dispatch error.
+3. All auto-filed backend:webhooks bugs (OOMPAH-62, 71, 80, 82, 92, 101, 113, 118, 125, 129, 132, 135, 146, 151, 153, 154, 188 etc.) — all use fingerprint fab624f77cb2c7ae, completely different error and component.
+
+**Code location confirmed:** `oompah/orchestrator.py` lines 2425-2527 implement is_dispatch_loop_stale(), dispatch_loop_stale_seconds(), and the alert/recovery logic that emits this message when no tick completes within the threshold. The error message is generated at line 2480.
+
+**Test file location:** tests/test_error_watcher.py lines 446-447 reference this message pattern.
+
+**Remaining work:** Root-cause investigation and fix for the dispatch loop stall condition. The loop stalled for exactly 900s (the threshold), suggesting either a blocking operation in the tick, a deadlock, or a misconfigured threshold relative to expected heavy-load periods.
+
+**Recommended next focus:** feature (backend engineer to investigate dispatch loop stall root cause and implement fix or graceful degradation)
+---
+author: oompah
+created: 2026-07-22 15:50
+---
+Agent completed successfully in 395s (6562 tokens)
+---
+author: oompah
+created: 2026-07-22 15:50
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 57, Tool calls: 38
+- Tokens: 24 in / 6.5K out [6.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 35s
+- Log: OOMPAH-407__20260722T154418Z.jsonl
 ---
 <!-- COMMENTS:END -->
