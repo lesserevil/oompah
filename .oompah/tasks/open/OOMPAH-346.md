@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-346
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Reserve round-robin providers atomically at dispatch time
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T01:26:14.116341Z'
+updated_at: '2026-07-22T01:26:27.910599Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 65e77842-ea77-4307-9130-6f02e1867249
 oompah.task_costs:
-  total_input_tokens: 565612
-  total_output_tokens: 3747
+  total_input_tokens: 565639
+  total_output_tokens: 10019
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 565612
-      output_tokens: 3747
+      input_tokens: 565639
+      output_tokens: 10019
       cost_usd: 0.0
   runs:
   - profile: default
@@ -42,6 +42,12 @@ oompah.task_costs:
     output_tokens: 2343
     cost_usd: 0.0
     recorded_at: '2026-07-22T01:23:12.222420+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 27
+    output_tokens: 6272
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T01:26:22.435294+00:00'
 ---
 ## Summary
 
@@ -171,5 +177,25 @@ Focus handoff: duplicate_detector
 - Priority-role behavior and legacy single-provider profile behavior must not change
 
 (4) Recommended next focus: feature (backend — implement atomic dispatch-time CandidateSelector.reserve_candidate() method and integrate into orchestrator dispatch path)
+---
+author: oompah
+created: 2026-07-22 01:26
+---
+Agent completed successfully in 144s (6299 tokens)
+---
+author: oompah
+created: 2026-07-22 01:26
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/default]
+- Turns: 63, Tool calls: 44
+- Tokens: 27 in / 6.3K out [6.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 24s
+- Log: OOMPAH-346__20260722T012402Z.jsonl
+---
+author: oompah
+created: 2026-07-22 01:26
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
