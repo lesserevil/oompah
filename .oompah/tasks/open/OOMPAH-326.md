@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-326
 type: task
-status: Needs Human
+status: Open
 priority: 1
 title: Integrate GitLab SCM and pipelines into review, YOLO, and release delivery
 parent: OOMPAH-318
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:28.175529Z'
-updated_at: '2026-07-22T02:47:44.544117Z'
+updated_at: '2026-07-22T03:57:11.121064Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -376,5 +376,10 @@ author: oompah
 created: 2026-07-22 02:47
 ---
 Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
+---
+author: oompah
+created: 2026-07-22 03:57
+---
+Audit: this task has no human question or external dependency. Its duplicate-investigation focus completed; reopening it so Oompah can select the next implementation focus.
 ---
 <!-- COMMENTS:END -->
