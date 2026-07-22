@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-327
 type: task
-status: In Progress
+status: Done
 priority: 2
 title: Expose GitLab configuration and health in UI, API, and ACP tools
 parent: OOMPAH-318
@@ -12,9 +12,10 @@ blocked_by:
 - OOMPAH-325
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T20:34:41.130372Z'
-updated_at: '2026-07-22T06:32:33.621313Z'
+updated_at: '2026-07-22T06:33:21.359255Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -156,5 +157,20 @@ author: oompah
 created: 2026-07-22 06:32
 ---
 Verification: make test passes — 11478 passed, 36 skipped, 0 failed. New test coverage: 59 UI contract tests (test_projects_gitlab_ui.py) + 29 ACP forge field tests (test_acp_forge_fields.py). All existing project/ACP/authority tests continue to pass.
+---
+author: oompah
+created: 2026-07-22 06:33
+---
+Completion: OOMPAH-327 delivered on branch epic-OOMPAH-318.
+
+Delivered:
+1. Projects UI (oompah/templates/projects.html) — forge selector, GitLab base URL field, forge badge, webhook health display, GL Hook URL hint, conditional MR/PR terminology (merge_when_pipeline_succeeds / merge trains note), GL/GH intake labels, gitlab_issues tracker kind, forge fields in Add/Edit payloads.
+2. ACP tools (oompah/acp_tools.py) — forge_kind, forge_base_url, external_issue_intake_enabled in readable fields; forge_kind, forge_base_url in updatable fields; _project_snapshot() updated; str_attr() guard helper; tool descriptions updated across all three backend catalogs.
+3. Tests — 59 UI DOM/JS contract tests (test_projects_gitlab_ui.py) + 29 ACP forge field tests (test_acp_forge_fields.py) + updated test_acp_project_tools.py.
+
+Acceptance criteria met:
+- Operators can configure forge_kind, forge_base_url, gitlab_issues tracker, and inspect webhook health via the Projects UI.
+- GitHub project UI/API behavior unchanged (backward-compatible labels, Merge Queue toggle, GH Intake label).
+- make test passes (11478 passed, 36 skipped, 0 failed).
 ---
 <!-- COMMENTS:END -->
