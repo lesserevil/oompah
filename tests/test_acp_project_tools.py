@@ -31,6 +31,8 @@ def _make_project(
     project_id: str = "proj-test",
     name: str = "test-project",
     repo_url: str = "https://github.com/acme/test-project",
+    forge_kind: str = "github",
+    forge_base_url: str = "https://github.com",
     tracker_kind: str | None = None,
     tracker_owner: str | None = None,
     tracker_repo: str | None = None,
@@ -45,12 +47,17 @@ def _make_project(
     p.id = project_id
     p.name = name
     p.repo_url = repo_url
+    # Forge configuration (OOMPAH-327). Must be set explicitly so that
+    # _project_snapshot() str_attr() sees real strings, not MagicMocks.
+    p.forge_kind = forge_kind
+    p.forge_base_url = forge_base_url
     p.tracker_kind = tracker_kind
     p.tracker_owner = tracker_owner
     p.tracker_repo = tracker_repo
     p.github_project_node_id = github_project_node_id
     p.status_actor_login = status_actor_login
     p.status_label_authorized_logins = status_label_authorized_logins or []
+    p.github_issue_intake_enabled = False
     p.intake_auto_promote = intake_auto_promote
     p.paused = paused
     return p
@@ -397,6 +404,9 @@ class TestExecUpdateProject:
         from oompah.acp_tools import _PROJECT_UPDATABLE_FIELDS
 
         expected = {
+            # Forge configuration (OOMPAH-327).
+            "forge_kind",
+            "forge_base_url",
             "tracker_kind",
             "tracker_owner",
             "tracker_repo",
