@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-300
 type: task
-status: In Progress
+status: Done
 priority: 2
 title: Add end-to-end repository-map observability and regression coverage
 parent: OOMPAH-293
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:10.495385Z'
-updated_at: '2026-07-22T00:28:45.488330Z'
+updated_at: '2026-07-22T00:28:58.714884Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -206,5 +206,25 @@ author: oompah
 created: 2026-07-22 00:28
 ---
 **Verification:** All 11,415 tests pass (5 skipped). New: 52 tests in test_repo_map_diagnostics.py (all pass), 4 E2E tests in test_repo_map_workflow.py (all pass). Fixed pre-existing test_repo_map_prompt.py failure (token budget test counting wrapper overhead). No regressions in any existing test file.
+---
+author: oompah
+created: 2026-07-22 00:28
+---
+**Completion:** Delivered all acceptance criteria for OOMPAH-300:
+
+1. **Operators can distinguish all required states** - repo_map_diagnostics.py exposes fresh/stale/generating/unavailable/failed/timeout states via RepoMapDiagnostics.index_status
+
+2. **Full workflow covered by automated regression tests** - test_repo_map_workflow.py covers: first dispatch generates map, second reuses it, commit change regenerates; source/release branches unchanged; failure/timeout leave agents runnable without map; credential non-leakage verified
+
+3. **Failure behavior demonstrably safe and non-blocking** - all failure/timeout tests confirm agents get a runnable prompt even when indexing fails; fail-open guarantee verified in 5 dedicated tests
+
+4. **Tests pass through Makefile target** - 11,415 pass, 5 skipped, 0 failures
+
+Files delivered:
+- oompah/repo_map_diagnostics.py (new, 13KB)
+- oompah/repo_map_generator.py (enriched RepoMapResult + is_generating())
+- tests/test_repo_map_diagnostics.py (new, 52 tests)
+- tests/test_repo_map_workflow.py (new, 4 E2E tests)
+- tests/test_repo_map_prompt.py (pre-existing test bug fix)
 ---
 <!-- COMMENTS:END -->
