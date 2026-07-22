@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T21:34:07.971835Z'
-updated_at: '2026-07-22T23:28:51.648902Z'
+updated_at: '2026-07-22T23:30:18.974580Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,27 @@ author: oompah
 created: 2026-07-22 23:28
 ---
 Understanding: I am the Duplicate Investigator for OOMPAH-412. This task asks to audit and harden all shared-epic Merged promotion paths in orchestrator.py, ensuring shared-epic children can only reach Merged state after their parent epic branch is confirmed merged. The description explicitly references OOMPAH-310 and OOMPAH-307. I will now search for related/duplicate tasks before any implementation begins.
+---
+author: oompah
+created: 2026-07-22 23:30
+---
+Discovery: Duplicate screening found NO duplicate for OOMPAH-412.
+
+Search scope: All .oompah/tasks/ folders (archived, merged, done, open, backlog), docs/, plans/, README.md, WORKFLOW.md.
+
+Keywords searched: shared-epic, mark_epic_merged, label_merged_epics, reconcile_merged_epic, Merged promotion, harden.*promotion, audit.*orchestrator, shared_epic, promotion paths.
+
+Zero keyword matches across the task filesystem.
+
+Candidates reviewed by ID and REJECTED:
+- OOMPAH-310 (Open, parent): 'Verify and harden epic-merge-triggered Merged promotion for shared-epic children' — this is the PARENT of OOMPAH-412, not a duplicate. OOMPAH-412 was explicitly created by the OOMPAH-310 Epic Planner (comment #12) as a decomposed child for the code audit + hardening sub-scope.
+- OOMPAH-309 (Merged): 'Harden shared-epic protection when _resolve_parent_epic fails' — different scope: covers failure-path hardening when parent lookup throws; resolved and merged.
+- OOMPAH-311 (referenced as Done): 'Diagnose and surface remediation for existing independently-merged children' — different scope: covers detection and annotation of already-merged child branches, not Merged promotion gating.
+- OOMPAH-308 (Done): 'Fix stale work_branch metadata when child routes to shared epic worktree' — different scope: fixes metadata corruption at dispatch time, not the Merged promotion paths.
+- OOMPAH-312 (Open): 'UI/dashboard status display' — different scope: display labels.
+- OOMPAH-313: Regression tests for OOMPAH-285/286 fixture — different scope: routing lifecycle tests, not the 6 promotion-path audit.
+- OOMPAH-413 (Open, sibling): Regression tests depending on OOMPAH-412 audit results — this is a sibling test task, not a duplicate of the audit/hardening work.
+
+Conclusion: OOMPAH-412 is NOT a duplicate. It is a unique, properly decomposed child task of OOMPAH-310 with a specific scope: audit the 6 Merged promotion code paths in orchestrator.py and add hardening guards where gaps are found.
 ---
 <!-- COMMENTS:END -->
