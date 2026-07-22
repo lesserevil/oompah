@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:28:44.100086Z'
-updated_at: '2026-07-22T00:47:04.218308Z'
+updated_at: '2026-07-22T00:49:32.961662Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,10 @@ author: oompah
 created: 2026-07-22 00:47
 ---
 Understanding: Implementing GitLabHookManager class that manages GitLab project hooks (create/reconcile/remove) via the GitLab Project Hooks API, and adding OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL configuration. Plan: (1) explore existing GitHub hook manager and config patterns, (2) implement GitLabHookManager following same patterns, (3) wire up config, (4) write tests, (5) verify.
+---
+author: oompah
+created: 2026-07-22 00:49
+---
+Discovery: Found all key patterns. The existing code has: (1) WebhookForwarder in oompah/webhooks.py for GitHub (manages gh subprocess), (2) GitLabProvider in oompah/scm.py using httpx for GitLab API, (3) Project model with webhook_secret and access_token fields, (4) detect_provider() detects GitLab projects from repo_url ('gitlab' in url). GitLabHookManager will: use httpx to call GitLab Project Hooks API, detect GitLab projects from repo_url, create/reconcile/remove hooks per project, use OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL + /api/v1/webhooks/gitlab as the target URL, and follow the same start/stop/status pattern as WebhookForwarder.
 ---
 <!-- COMMENTS:END -->
