@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T05:53:32.861515Z'
+updated_at: '2026-07-22T05:54:57.041880Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -230,5 +230,43 @@ Plan:
 1. Investigate codebase to understand relevant code paths and detect complexity
 2. Determine if decomposition is needed or if this is a single-session task
 3. Create child tasks if needed, or document implementation guidance for feature agent
+---
+author: oompah
+created: 2026-07-22 05:54
+---
+Discovery: Codebase investigation complete. OOMPAH-311 is implementable as a single feature session — no further decomposition needed.
+
+Key findings:
+
+1. **Detection pattern** (the OOMPAH-286/PR #466 case):
+   - Child has `parent_id` pointing to a shared epic
+   - Child has its OWN `work_branch` (e.g., 'OOMPAH-286') instead of the epic branch (e.g., 'epic-OOMPAH-285')  
+   - Child has `state == Merged` (already merged to main, not through the epic branch)
+   - Child's `target_branch == main` (bypassed epic branch entirely)
+   - Detection logic: for each epic, call `_epic_branch_for_issue(epic)` → fetch children → flag children where `canonicalize_status(child.state) == MERGED` AND `child.work_branch != epic_branch` AND `child.work_branch is not None`
+
+2. **Existing reconcile code is SAFE** (no corruption risk):
+   - `_reconcile_merged_epic_children` already skips children with `state in (MERGED, ARCHIVED)` so independently-merged Merged children don't get double-processed
+   - `epic_rollup_state()` in statuses.py handles `{MERGED, ARCHIVED}` sets correctly — independently-merged children contribute to rollup MERGED state properly
+   - The only missing piece is DETECTION + LOGGING + ANNOTATION
+
+3. **Remediation annotation**:
+   - Pattern to follow: `EpicRebaseState` in `models.py` uses `epic:stale`/`epic:rebasing`/`epic:rebased` labels
+   - New label: `epic:independently-merged` added to the child task
+   - This surfaces in dashboard + CLI and gives operators clear visibility that the child's work is in main but bypassed the epic branch
+   - The annotation does NOT rewrite git history — it's purely metadata
+
+4. **Relevant files for feature agent**:
+   - `oompah/orchestrator.py`: lines 10492-10563 (`_reconcile_merged_epic_children` — add sibling reconcile pass), line 4708 (`_epic_branch_for_issue`), lines 4509-4535 (`_fetch_epic_children`), line 4835 (`_resolve_parent_epic`)
+   - `oompah/models.py`: lines 20-50 (`EpicRebaseState` enum — pattern to follow for new enum or just use a constant string label)
+   - `oompah/statuses.py`: `MERGED`, `canonicalize_status()`, `epic_rollup_state()`
+   - `tests/test_epic_strategy.py`: existing shared-epic tests (add new test class here)
+   - OR new file: `tests/test_independently_merged.py`
+
+5. **Implementation scope** (one session, ~200-300 lines):
+   - New method `_detect_independently_merged_children(epics: list[Issue]) -> list[tuple[Issue, Issue, str]]` returning (child, epic, epic_branch) triples
+   - New method `_reconcile_independently_merged_children()` that calls detection, logs warnings, adds `epic:independently-merged` label via tracker.update_issue(child.identifier, labels=...)
+   - Hook into reconcile tick in `startup_cleanup` or the maintenance LANE at lines 3031+
+   - 3-5 unit tests: detection logic, label annotation, no-op when already annotated, rollup state unaffected
 ---
 <!-- COMMENTS:END -->

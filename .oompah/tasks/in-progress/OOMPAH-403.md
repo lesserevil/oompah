@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T05:54:45.415124Z'
+updated_at: '2026-07-22T05:54:52.745071Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -254,5 +254,10 @@ author: oompah
 created: 2026-07-22 05:54
 ---
 Discovery: Confirmed root cause. In oompah/orchestrator.py, the _terminate_running() method calls logger.error() when a worker task does not complete within worker_termination_timeout_ms (default 10000ms). The error_watcher logging handler is installed at logging.ERROR level, so this log call triggers it to auto-file a bug task. This is expected behavior during shutdown (e.g., when an agent process is hard-killed), not an actionable error requiring a bug report.
+---
+author: oompah
+created: 2026-07-22 05:54
+---
+Implementation: Changed logger.error() → logger.warning() in oompah/orchestrator.py _terminate_running() for the worker-shutdown timeout path. Since error_watcher only captures ERROR+ log records, this prevents spurious bug auto-filing for expected shutdown timeouts. Added regression test test_shutdown_timeout_logs_warning_not_error in tests/test_task_cost_telemetry.py that patches asyncio.wait to force the timeout path and asserts the log record is at WARNING level. All 39 cost telemetry tests + 130 error_watcher tests pass.
 ---
 <!-- COMMENTS:END -->
