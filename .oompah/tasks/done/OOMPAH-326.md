@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-326
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Integrate GitLab SCM and pipelines into review, YOLO, and release delivery
 parent: OOMPAH-318
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:28.175529Z'
-updated_at: '2026-07-22T05:07:50.870735Z'
+updated_at: '2026-07-22T05:08:04.076007Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -469,5 +469,16 @@ author: oompah
 created: 2026-07-22 05:07
 ---
 Verification: make test passes — 11378 passed, 36 skipped, 12 warnings in 221.52s. All 51 new tests in test_gitlab_review_flows.py pass. No regressions.
+---
+author: oompah
+created: 2026-07-22 05:07
+---
+Completion: Delivered tests/test_gitlab_review_flows.py (51 tests) and updated tests/test_release_delivery_ci_monitor.py. All acceptance criteria met:
+- GitLab managed projects verified to use forge-neutral SCM and CI contracts through detect_provider
+- GitLab MRs auto-merge only through merge_when_pipeline_succeeds (not merge trains)
+- Merge trains explicitly NOT used (endpoint assertion: must not call merge_trains)
+- Failed GitLab release pipeline produces exactly one actionable remediation task (idempotency verified)
+- GitHub regression tests confirm no behavioral changes for existing GitHub flows
+- make test passes
 ---
 <!-- COMMENTS:END -->

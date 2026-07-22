@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-323
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Implement GitLab Issues tracker with Oompah status governance
 parent: OOMPAH-318
@@ -21,7 +21,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-22T05:03:09.603748Z'
+updated_at: '2026-07-22T05:08:02.308343Z'
 work_branch: null
 target_branch: null
 review_url: null
