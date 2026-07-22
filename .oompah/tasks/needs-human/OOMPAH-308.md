@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-308
 type: task
-status: In Progress
+status: Needs Human
 priority: null
 title: Fix stale work_branch metadata for native shared-epic children and update to
   epic branch on dispatch
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:52:58.139774Z'
-updated_at: '2026-07-22T05:56:20.626300Z'
+updated_at: '2026-07-22T05:58:05.865124Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 0945c8dd-fa18-4f7b-87ea-95779fd5ac38
 oompah.task_costs:
-  total_input_tokens: 1440452
-  total_output_tokens: 6599
+  total_input_tokens: 1984377
+  total_output_tokens: 10861
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1440452
-      output_tokens: 6599
+      input_tokens: 1984377
+      output_tokens: 10861
       cost_usd: 0.0
   runs:
   - profile: default
@@ -52,6 +52,12 @@ oompah.task_costs:
     output_tokens: 1621
     cost_usd: 0.0
     recorded_at: '2026-07-22T05:42:52.019059+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 543925
+    output_tokens: 4262
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T05:58:02.141810+00:00'
 ---
 ## Summary
 
@@ -281,5 +287,25 @@ author: oompah
 created: 2026-07-22 05:56
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 05:58
+---
+Agent completed successfully in 108s (548187 tokens)
+---
+author: oompah
+created: 2026-07-22 05:58
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 24
+- Tokens: 543.9K in / 4.3K out [548.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 48s
+- Log: OOMPAH-308__20260722T055623Z.jsonl
+---
+author: oompah
+created: 2026-07-22 05:58
+---
+Agent completed 4 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
