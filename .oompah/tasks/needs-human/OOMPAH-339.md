@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:47.554460Z'
-updated_at: '2026-07-22T04:43:24.532641Z'
+updated_at: '2026-07-22T04:48:32.337516Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -404,5 +404,10 @@ author: oompah
 created: 2026-07-22 04:43
 ---
 Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
+---
+author: user
+created: 2026-07-22 04:48
+---
+There isn't enough information in the comments to tell why you are getting stuck. Try again, or decompose.
 ---
 <!-- COMMENTS:END -->
