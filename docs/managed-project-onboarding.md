@@ -167,20 +167,23 @@ see [Release Delivery](release-addendums.md).
 
 ---
 
-## 5. Optional: GitHub Issues Intake
+## 5. Optional: External Issue Intake
 
-If the project accepts external issue reports through GitHub Issues, enable
-intake after the native tracker is verified.
+If the project accepts external issue reports through GitHub or GitLab Issues,
+enable intake after the native tracker is verified.
 
 > **Skip this section** if the project uses GitHub Issues as its sole task
-> tracker (`tracker_kind: github_issues`). Intake is only relevant for native
-> tracker projects that also want a GitHub-facing intake surface.
+> tracker (`tracker_kind: github_issues` or `gitlab_issues`). Intake is only
+> relevant for native tracker projects that also want a forge-facing intake
+> surface.
 
 ### Enable intake
 
-Via the dashboard: go to **Projects → [your project] → Settings** and turn on
-**GitHub Issue Intake**, then set **Tracker owner** and **Tracker repo** to the
-GitHub org and repository where customers file issues.
+Via the dashboard: go to **Projects → [your project] → Settings**, select the
+forge, and turn on **External Issue Intake**. Set **Tracker owner** and
+**Tracker repo** to the GitHub organization/repository or GitLab
+namespace/project where customers file issues. GitLab intake also requires a
+configured public HTTPS webhook URL and webhook secret.
 
 Via the API:
 
@@ -188,7 +191,7 @@ Via the API:
 curl -X PATCH http://localhost:8080/api/v1/projects/<project-id> \
   -H 'Content-Type: application/json' \
   -d '{
-    "github_issue_intake_enabled": true,
+    "external_issue_intake_enabled": true,
     "tracker_owner": "my-org",
     "tracker_repo": "my-repo"
   }'
@@ -207,22 +210,26 @@ curl -X PATCH http://localhost:8080/api/v1/projects/<project-id> \
 
 ### Verify intake
 
-1. Open a test issue in the GitHub repository.
-2. Within 30–60 seconds, the issue should receive an `oompah:status:proposed`
-   label and oompah should create a corresponding internal native task under
-   `.oompah/tasks/proposed/`.
+1. Open a test issue in the configured GitHub repository or GitLab project.
+2. Within 30–60 seconds, oompah should create a corresponding internal native
+   task under `.oompah/tasks/proposed/`. Its external metadata must use the
+   provider-specific `oompah.external.github` or `oompah.external.gitlab`
+   namespace.
 3. Check the oompah dashboard to confirm the task appears in **Proposed**.
 
 If the label does not appear, check:
 
-- Webhook forwarding: `ps -ef | grep "gh webhook" | grep -v grep` — expect one
-  `gh webhook forward` line per managed project.
+- GitHub webhook forwarding: `ps -ef | grep "gh webhook" | grep -v grep` —
+  expect one `gh webhook forward` line per GitHub project. For GitLab, verify
+  the project hook points at the configured public HTTPS endpoint.
 - Service logs: `make logs | grep -i webhook`.
 - GitHub token scopes: the token must have `write:org` or `repo` scope to
-  apply labels.
+  apply labels. GitLab tokens require `api` scope (or equivalent project
+  permissions) to read issues and manage the project hook.
 
-See [GitHub Issue Intake Workflow](github-issue-intake.md) for the full
-intake flow.
+See [GitHub Issue Intake Workflow](github-issue-intake.md) for the GitHub
+workflow and [Webhook Forwarding](webhook-forwarding.md) for webhook
+troubleshooting.
 
 ---
 

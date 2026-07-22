@@ -117,28 +117,33 @@ If a stale process is found, stop it with `kill <pid>` and then run
 For implementation details and the fix for cross-instance races that can occur
 during graceful reloads, see `plans/concurrent-git-tracker-writes.md`.
 
-## Optional GitHub Issue Intake
+## Optional External Issue Intake
 
-Native projects can also accept customer-facing intake from GitHub Issues
-without making GitHub the task tracker. Enable `github_issue_intake_enabled`
-on the project and set `tracker_owner` / `tracker_repo` to the GitHub
-repository that receives external issues.
+Native projects can also accept customer-facing intake from GitHub or GitLab
+Issues without making that forge the task tracker. Enable
+`external_issue_intake_enabled` and set `tracker_owner` / `tracker_repo` to
+the provider namespace and project that receives external issues. The legacy
+`github_issue_intake_enabled` field remains accepted for existing GitHub
+automation.
 
 The workflow is:
 
-1. A customer opens or comments on a GitHub issue.
-2. Oompah validates the GitHub issue in GitHub, but does not decompose work
+1. A customer opens or comments on a GitHub or GitLab issue.
+2. Oompah validates the issue on its source forge, but does not decompose work
    there.
 3. Oompah creates an internal `.oompah/tasks` issue in `Proposed` with
-   `oompah.external.github` metadata referencing the GitHub issue.
+   provider-qualified metadata: `oompah.external.github` for GitHub or
+   `oompah.external.gitlab` for GitLab. Provider-qualified metadata prevents
+   matching the same external issue number from two different forges.
 4. Intake readiness and decomposition happen on the internal Markdown issue.
    If decomposition is needed, the imported issue becomes the epic and child
    tasks are created under it.
-5. Oompah works from the internal Markdown issue graph. On internal status
-   changes, oompah posts a status comment to the originating GitHub issue.
+5. Oompah works from the internal Markdown issue graph. On internal terminal
+   status changes, oompah posts a status comment to the originating external
+   issue.
 6. When the internal issue reaches `Merged` or `Archived`, oompah closes the
-   originating GitHub issue.
+   originating external issue.
 
-GitHub comments are copied into the internal issue once. Comments authored by
-oompah on GitHub are ignored, and comments made on internal Markdown tasks are
-not copied back to GitHub.
+External comments are copied into the internal issue once. Comments authored
+by oompah on the source forge are ignored, and comments made on internal
+Markdown tasks are not copied back except for terminal status mirrors.
