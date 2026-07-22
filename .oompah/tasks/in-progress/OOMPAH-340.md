@@ -11,13 +11,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:28:20.576396Z'
-updated_at: '2026-07-22T01:30:52.923608Z'
+updated_at: '2026-07-22T01:31:12.755416Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: a42e74e8-93f3-4ff4-97d3-e9f884e1c9ba
+oompah.agent_run_id: 34d42922-8774-48fa-b4aa-a3cc6e6080f4
 oompah.task_costs:
   total_input_tokens: 300324
   total_output_tokens: 2630
@@ -135,5 +135,15 @@ author: oompah
 created: 2026-07-22 01:30
 ---
 Agent completed without closing this issue (65s (302954 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-22 01:31
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-22 01:31
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
