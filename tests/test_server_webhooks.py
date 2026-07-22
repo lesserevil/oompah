@@ -136,6 +136,7 @@ def client_gitlab():
             repo_url="https://gitlab.com/group/project.git",
             repo_path="/tmp/repos/project",
             webhook_secret="gl-secret",
+            forge_kind="gitlab",
         ),
     ]
     orch = _make_mock_orchestrator(projects=projects)

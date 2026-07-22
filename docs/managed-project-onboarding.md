@@ -228,7 +228,8 @@ If the label does not appear, check:
   permissions) to read issues and manage the project hook.
 
 See [GitHub Issue Intake Workflow](github-issue-intake.md) for the GitHub
-workflow and [Webhook Forwarding](webhook-forwarding.md) for webhook
+workflow, [GitLab Issue Intake Workflow](gitlab-issue-intake.md) for the GitLab
+workflow, and [Webhook Forwarding](webhook-forwarding.md) for webhook
 troubleshooting.
 
 ---
@@ -415,4 +416,5 @@ flowchart TD
 
 For service-level issues, see the [Operator Runbook](operator-runbook.md).
 For GitHub intake issues, see the [GitHub Issue Intake Workflow](github-issue-intake.md).
+For GitLab intake issues, see the [GitLab Issue Intake Workflow](gitlab-issue-intake.md).
 For CLI install issues, see [Installing the oompah Task CLI](cli-install.md).

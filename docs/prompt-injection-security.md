@@ -11,8 +11,9 @@ a suspected attack.
 > - `plans/prompt-injection-protection.md` — threat model, trust levels, attack
 >   scenarios, and the machine-readable provenance contract (§8).  Read this
 >   first if you are an oompah developer adding a new intake path.
-> - `docs/github-issue-intake.md` — the GitHub-specific intake workflow. GitLab
->   intake follows the same native-task and review model when it is enabled.
+> - `docs/github-issue-intake.md` — the GitHub-specific intake workflow.
+> - `docs/gitlab-issue-intake.md` — the GitLab-specific intake workflow. Both
+>   forges follow the same native-task lifecycle and provenance model.
 > - `docs/operator-runbook.md` — general service operation reference.
 
 ---
