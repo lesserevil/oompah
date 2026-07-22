@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-409
 type: task
-status: Backlog
+status: Done
 priority: null
 title: Allow Codex conflict resolvers to write shared git metadata
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T15:36:41.250138Z'
-updated_at: '2026-07-22T15:36:41.250138Z'
+updated_at: '2026-07-22T15:37:59.697811Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ Fix the Codex ACP workspace-write sandbox for git worktrees. Conflict resolver a
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 15:37
+---
+Fixed Codex ACP worktree sandbox permissions: sessions now grant the worktree gitdir and Git's resolved common .git metadata directory from commondir, allowing fetch/rebase lock files without granting repository working files. Added coverage for valid and invalid common-dir resolution. Verification: make test passed.
+---
+<!-- COMMENTS:END -->
