@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-342
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Wire GitLabHookManager into project lifecycle with hook health, polling fallback,
   and delivery dedup
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:29:14.500742Z'
-updated_at: '2026-07-22T04:26:52.167418Z'
+updated_at: '2026-07-22T04:27:05.911700Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -315,5 +315,19 @@ Verification: Full test suite ran: 11433 passed, 36 skipped, 12 warnings (0 fail
 - 3 tests for lifecycle create (gitlab reconciled, github not, None safe)
 - 4 tests for lifecycle update (access_token, webhook_secret, unrelated field, github)
 - 4 tests for lifecycle delete (gitlab remove called, github not, not found, None safe)
+---
+author: oompah
+created: 2026-07-22 04:27
+---
+Completion: OOMPAH-342 implementation is complete. Delivered:
+
+1. **Project lifecycle hooks**: GitLabHookManager.reconcile() is called when GitLab projects are created or have hook-relevant fields updated (forge_kind, repo_url, forge_base_url, access_token, webhook_secret); remove() is called before project deletion
+2. **Hook health alerts**: build_gitlab_hook_alerts() produces orchestrator dashboard alerts for unhealthy hooks and unconfigured manager URL; wired via attach_gitlab_hook_alerts() callback in bootstrap.py so alerts update after every reconcile cycle
+3. **Polling-fallback alerts**: Alerts include explicit messaging that 'Polling fallback is active' when a hook is unhealthy
+4. **Event deduplication**: GitLabEventDedup class with TTL-based fingerprint cache (X-Gitlab-Event-UUID preferred, sha256 fingerprint fallback) suppresses duplicate webhook deliveries within 5-minute window; returns action='deduplicated' in response
+5. **Status endpoint**: GET /api/v1/webhooks/gitlab/status returns full hook health snapshot per project
+6. **Both startup paths** (uvicorn/__main__ and Granian/_lifespan) call set_gitlab_hook_manager() to wire the globals
+
+All 11433 tests pass (42 new tests added).
 ---
 <!-- COMMENTS:END -->
