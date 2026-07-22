@@ -10,10 +10,11 @@ children: []
 blocked_by:
 - OOMPAH-308
 - OOMPAH-309
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:41.720887Z'
-updated_at: '2026-07-22T21:38:32.300738Z'
+updated_at: '2026-07-22T21:43:08.830536Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -178,5 +179,32 @@ author: oompah
 created: 2026-07-22 21:38
 ---
 Understanding: OOMPAH-313 asks for regression tests covering the OOMPAH-285/286 shared-epic child routing lifecycle. The blockers (OOMPAH-308 — fixed stale work_branch metadata; OOMPAH-309 — hardened shared-epic protection when _resolve_parent_epic fails) are both Done/Merged. This run will complete duplicate screening then hand off to a test engineer.
+---
+author: oompah
+created: 2026-07-22 21:43
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate found. OOMPAH-313 is a unique regression test task. It is NOT covered by any existing task.
+
+Candidates reviewed and dismissed:
+- OOMPAH-285 (Merged): The security epic itself — not a test task.
+- OOMPAH-286 (Merged): The threat-model definition child — adds contract tests only (tests/test_prompt_injection_protection.py), not routing lifecycle tests.
+- OOMPAH-308 (Done): Fixed stale work_branch metadata; added 4 regression tests to tests/test_epic_strategy.py::TestWorkspaceAllocation. Those tests cover work_branch correction, but NOT the broader dispatch routing lifecycle.
+- OOMPAH-309 (Merged) / OOMPAH-404 (Merged): Hardened 3 fail-closed sites; added 3 regression tests in tests/test_epic_strategy.py::TestYoloEpicPolicyFailClosed and TestEnsureReviewExistsRespectsEpicStrategy. Those cover the fail-closed paths, but NOT a reusable routing fixture or full child lifecycle.
+- All .oompah/tasks/ files searched for: routing fixture, shared-epic lifecycle, 285/286, regression routing.
+
+2. Relevant files and evidence:
+- tests/test_epic_strategy.py — main test file, contains TestWorkspaceAllocation (OOMPAH-308 tests at ~line 1073) and TestYoloEpicPolicyFailClosed (OOMPAH-404 tests). This is where new regression tests should land.
+- oompah/orchestrator.py — _create_workspace_for_issue (work_branch correction), _yolo_epic_strategy_block_reason, _close_invalid_epic_policy_review, review handoff per-child skip.
+- The bug origin: OOMPAH-285's shared-epic children (like OOMPAH-286, OOMPAH-287) exposed two routing bugs: (a) stale per-task work_branch on dispatch to epic worktree, (b) fail-open when _resolve_parent_epic raises during YOLO gate / review handoff.
+
+3. Remaining work and risks:
+- Add a pytest fixture (conftest.py or test_epic_strategy.py) for setting up a minimal native (oompah_md tracker) shared-epic parent + child scenario. This fixture should be reusable across the routing regression tests.
+- Write tests covering the end-to-end routing lifecycle for a native shared-epic child: creation → dispatch to epic worktree → work_branch correction → done → YOLO gate blocks standalone PR → review handoff skips per-child PR → epic rollup.
+- The existing test infrastructure in tests/test_epic_strategy.py already has a _mk_issue() helper and tmp_path fixtures; new tests should follow that pattern.
+- Risk: the test scope could expand — keep it focused on the two specific regressions from OOMPAH-308 and OOMPAH-309 rather than full end-to-end orchestration.
+
+4. Recommended next focus: test (Test Engineer to write the routing fixture and lifecycle regression tests).
 ---
 <!-- COMMENTS:END -->
