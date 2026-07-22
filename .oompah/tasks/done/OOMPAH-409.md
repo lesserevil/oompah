@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T15:36:41.250138Z'
-updated_at: '2026-07-22T15:37:59.697811Z'
+updated_at: '2026-07-22T15:38:02.138087Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,5 +33,10 @@ author: oompah
 created: 2026-07-22 15:37
 ---
 Fixed Codex ACP worktree sandbox permissions: sessions now grant the worktree gitdir and Git's resolved common .git metadata directory from commondir, allowing fetch/rebase lock files without granting repository working files. Added coverage for valid and invalid common-dir resolution. Verification: make test passed.
+---
+author: oompah
+created: 2026-07-22 15:38
+---
+Granted required shared Git metadata path for Codex worktree resolver sessions; tests added and make test passed.
 ---
 <!-- COMMENTS:END -->
