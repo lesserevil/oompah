@@ -17381,6 +17381,33 @@ class Orchestrator:
         if not self._is_epic_review_repair_issue(current):
             return None
 
+        # An agent exiting normally does not prove that its rebase succeeded.
+        # Do not hand the epic back to In Review while its existing review is
+        # still reported as conflicted: doing so marks the repair complete and
+        # leaves the PR with no resolver until another unrelated sweep notices
+        # it.
+        if self._review_conflict_remains(entry, current, project_id):
+            try:
+                tracker.update_issue(
+                    current.identifier,
+                    status=NEEDS_REBASE,
+                    priority="0",
+                    **{"add-label": "merge-conflict"},
+                )
+                tracker.add_comment(
+                    current.identifier,
+                    "Resolver exited but the review still has merge conflicts; "
+                    "keeping this task in Needs Rebase for redispatch.",
+                    author="oompah",
+                )
+            except Exception as exc:  # noqa: BLE001 - exit must still release claim
+                logger.warning(
+                    "Failed to requeue conflicted epic repair %s: %s",
+                    current.identifier,
+                    exc,
+                )
+            return False
+
         review_ready = self._ensure_review_exists(entry, project_id)
         if not review_ready:
             return False
@@ -17421,6 +17448,34 @@ class Orchestrator:
             current.identifier,
         )
         return True
+
+    def _review_conflict_remains(
+        self,
+        entry: RunningEntry,
+        current: Issue,
+        project_id: str | None,
+    ) -> bool:
+        """Whether the cached open review for a resolver task is conflicted."""
+        if not project_id:
+            return False
+        branches = {
+            str(branch).strip()
+            for branch in (
+                getattr(current, "work_branch", None),
+                getattr(current, "branch_name", None),
+                getattr(entry.issue, "work_branch", None) if entry.issue else None,
+                getattr(entry.issue, "branch_name", None) if entry.issue else None,
+            )
+            if isinstance(branch, str) and branch.strip()
+        }
+        for review in (getattr(self, "_reviews_cache", {}) or {}).get(project_id, []):
+            if (
+                str(getattr(review, "state", "") or "").lower() == "open"
+                and getattr(review, "source_branch", None) in branches
+                and bool(getattr(review, "has_conflicts", False))
+            ):
+                return True
+        return False
 
     async def _on_worker_exit(
         self, issue_id: str, reason: str, error: str | None
@@ -17590,6 +17645,45 @@ class Orchestrator:
                         "merge-conflict" in current_labels
                         or canonicalize_status(current.state) == NEEDS_REBASE
                     ):
+                        if self._review_conflict_remains(entry, current, project_id):
+                            tracker.update_issue(
+                                current.identifier,
+                                status=NEEDS_REBASE,
+                                priority="0",
+                                **{"add-label": "merge-conflict"},
+                            )
+                            tracker.add_comment(
+                                current.identifier,
+                                "Resolver exited but the review still has merge "
+                                "conflicts; keeping this task in Needs Rebase for "
+                                "redispatch.",
+                                author="oompah",
+                            )
+                            self.state.completed.discard(issue_id)
+                            logger.warning(
+                                "Merge-conflict agent exited before resolving %s; "
+                                "requeued for redispatch",
+                                entry.identifier,
+                            )
+                            self.event_bus.emit(
+                                _exit_event,
+                                {
+                                    "issue_id": issue_id,
+                                    "identifier": entry.identifier,
+                                    "reason": reason,
+                                    "error": error,
+                                    "elapsed_s": elapsed,
+                                },
+                            )
+                            self._notify_observers()
+                            self._post_event(
+                                DispatchEvent(
+                                    event_type=DispatchEventType.WORKER_EXIT,
+                                    issue_id=issue_id,
+                                    payload={"reason": reason},
+                                )
+                            )
+                            return
                         logger.info(
                             "Merge-conflict agent completed for %s — "
                             "closing, awaiting YOLO merge",

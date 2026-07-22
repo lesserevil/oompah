@@ -3353,6 +3353,62 @@ class TestEpicReviewRepairCompletion:
         ]
         assert epic.state == IN_REVIEW
 
+    def test_conflicted_review_requeues_epic_repair(self, tmp_path):
+        """A normal agent exit must not finish a repair while its PR conflicts."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="TASK-739",
+            issue_type="epic",
+            state=IN_PROGRESS,
+            labels=["merge-conflict"],
+            work_branch="epic-TASK-739",
+            project_id="proj-1",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier=epic.identifier,
+            issue=epic,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+        orch._reviews_cache = {
+            "proj-1": [
+                ReviewRequest(
+                    id="739",
+                    title="conflicted epic",
+                    url="https://example.test/pr/739",
+                    author="alice",
+                    state="open",
+                    source_branch="epic-TASK-739",
+                    target_branch="main",
+                    created_at="",
+                    updated_at="",
+                    has_conflicts=True,
+                )
+            ]
+        }
+        orch._ensure_review_exists = MagicMock(return_value=True)
+        tracker = MagicMock()
+        children = [_make_issue(identifier="TASK-739.1", state=IN_REVIEW)]
+
+        with patch.object(orch, "_fetch_epic_children", return_value=children):
+            result = orch._finish_epic_review_repair(
+                tracker, entry, epic, "proj-1"
+            )
+
+        assert result is False
+        orch._ensure_review_exists.assert_not_called()
+        assert tracker.update_issue.call_args == call(
+            "TASK-739",
+            status=NEEDS_REBASE,
+            priority="0",
+            **{"add-label": "merge-conflict"},
+        )
+        tracker.add_comment.assert_called_once()
+
 
 class TestPushEpicBranch:
     def test_shared_mode_skips_fast_forward_for_dirty_worktree(self, tmp_path):
