@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-285
 type: epic
-status: In Review
+status: Merged
 priority: 1
 title: Defend Oompah agents against prompt injection from external content
 parent: null
@@ -18,7 +18,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-21T14:51:29.425206Z'
-updated_at: '2026-07-22T00:02:23.380086Z'
+updated_at: '2026-07-22T00:02:32.091727Z'
 work_branch: epic-OOMPAH-285
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/487
