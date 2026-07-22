@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-294
 type: task
-status: Done
+status: In Progress
 priority: 1
 title: Define repository-map artifact and state-branch lifecycle
 parent: OOMPAH-293
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:47.496504Z'
-updated_at: '2026-07-21T16:11:28.226626Z'
+updated_at: '2026-07-22T00:29:46.254753Z'
 work_branch: null
 target_branch: null
 review_url: null

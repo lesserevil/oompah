@@ -21,12 +21,16 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-21T15:13:33.130186Z'
-updated_at: '2026-07-22T00:29:25.746653Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-22T00:29:31.140879Z'
+work_branch: epic-OOMPAH-293
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/488
+review_number: '488'
 merged_at: null
+oompah.review_url: https://github.com/lesserevil/oompah/pull/488
+oompah.review_number: '488'
+oompah.work_branch: epic-OOMPAH-293
+oompah.target_branch: main
 ---
 ## Summary
 
