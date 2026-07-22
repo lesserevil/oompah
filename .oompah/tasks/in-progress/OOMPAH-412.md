@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T21:34:07.971835Z'
-updated_at: '2026-07-22T23:49:37.805025Z'
+updated_at: '2026-07-22T23:49:45.187052Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -278,5 +278,16 @@ CHANGE SUMMARY:
   2. Added test_reconcile_skips_children_when_epic_branch_not_on_target: Verifies the new guard prevents child promotion when the forge reports the epic branch has NOT merged to target. update_issue is never called.
 
 All 6 paths are gated; zero paths can promote a shared-epic child to Merged while the parent epic branch is unmerged.
+---
+author: oompah
+created: 2026-07-22 23:49
+---
+Verification: All tests pass.
+- tests/test_epic_strategy.py::TestLabelMergedEpics::test_merged_epic_reconciles_children_still_done PASSED
+- tests/test_epic_strategy.py::TestLabelMergedEpics::test_reconcile_skips_children_when_epic_branch_not_on_target PASSED
+- Full test_epic_strategy.py suite: 159 passed
+- Full make test: 11710 passed, 38 skipped, 1 pre-existing failure in test_scm.py (test_legacy_failure_short_circuits, unrelated to this work)
+
+Commit: 6edb2a533 on branch epic-OOMPAH-310, pushed to origin.
 ---
 <!-- COMMENTS:END -->
