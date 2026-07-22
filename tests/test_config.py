@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -92,6 +93,95 @@ class TestServiceConfig:
         assert cfg.merged_labels_max_runtime_seconds == 15
         assert cfg.close_gate_enabled is True
         assert cfg.workspace_root  # should have a default
+
+
+class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
+    """Repository-map settings are environment-only operator controls."""
+
+    ENVIRONMENT_VARIABLES = {
+        "OOMPAH_REPO_MAP_ENABLED",
+        "OOMPAH_REPO_MAP_TOKEN_BUDGET",
+        "OOMPAH_REPO_MAP_LANGUAGES",
+        "OOMPAH_REPO_MAP_MAX_FILE_SIZE",
+        "OOMPAH_REPO_MAP_GENERATION_TIMEOUT",
+        "OOMPAH_REPO_MAP_RETAINED_ARTIFACTS",
+    }
+
+    def _config(self) -> ServiceConfig:
+        return ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+    def test_safe_defaults_leave_repository_maps_disabled(self):
+        cfg = self._config()
+
+        assert cfg.repo_map_enabled is False
+        assert cfg.repo_map_token_budget == 2000
+        assert set(cfg.repo_map_languages) == {
+            "javascript", "markdown", "python", "rust", "typescript", "yaml"
+        }
+        assert cfg.repo_map_max_file_size == 1_000_000
+        assert cfg.repo_map_generation_timeout == 120
+        assert cfg.repo_map_retained_artifacts == 5
+
+    def test_valid_environment_overrides_are_applied(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_REPO_MAP_ENABLED", "true")
+        monkeypatch.setenv("OOMPAH_REPO_MAP_TOKEN_BUDGET", "4096")
+        monkeypatch.setenv("OOMPAH_REPO_MAP_LANGUAGES", "python, typescript")
+        monkeypatch.setenv("OOMPAH_REPO_MAP_MAX_FILE_SIZE", "524288")
+        monkeypatch.setenv("OOMPAH_REPO_MAP_GENERATION_TIMEOUT", "45")
+        monkeypatch.setenv("OOMPAH_REPO_MAP_RETAINED_ARTIFACTS", "3")
+
+        cfg = self._config()
+
+        assert cfg.repo_map_enabled is True
+        assert cfg.repo_map_token_budget == 4096
+        assert cfg.repo_map_languages == ("python", "typescript")
+        assert cfg.repo_map_max_file_size == 524288
+        assert cfg.repo_map_generation_timeout == 45
+        assert cfg.repo_map_retained_artifacts == 3
+
+    @pytest.mark.parametrize(
+        ("env_name", "bad_value", "attribute", "expected"),
+        [
+            ("OOMPAH_REPO_MAP_TOKEN_BUDGET", "0", "repo_map_token_budget", 2000),
+            ("OOMPAH_REPO_MAP_MAX_FILE_SIZE", "-1", "repo_map_max_file_size", 1_000_000),
+            ("OOMPAH_REPO_MAP_GENERATION_TIMEOUT", "nope", "repo_map_generation_timeout", 120),
+            ("OOMPAH_REPO_MAP_RETAINED_ARTIFACTS", "0", "repo_map_retained_artifacts", 5),
+        ],
+    )
+    def test_invalid_numeric_overrides_fall_back_to_safe_defaults(
+        self, monkeypatch, env_name, bad_value, attribute, expected
+    ):
+        monkeypatch.setenv(env_name, bad_value)
+
+        assert getattr(self._config(), attribute) == expected
+
+    def test_invalid_language_policy_falls_back_to_supported_languages(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_REPO_MAP_LANGUAGES", "python,fortran")
+
+        assert set(self._config().repo_map_languages) == {
+            "javascript", "markdown", "python", "rust", "typescript", "yaml"
+        }
+
+    def test_explicit_disabled_mode_remains_disabled_with_other_tuning(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_REPO_MAP_ENABLED", "false")
+        monkeypatch.setenv("OOMPAH_REPO_MAP_TOKEN_BUDGET", "4096")
+
+        cfg = self._config()
+
+        assert cfg.repo_map_enabled is False
+        assert cfg.repo_map_token_budget == 4096
+
+    def test_every_repository_map_setting_is_documented_in_env_example(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        documented = {
+            line.split("=", 1)[0].lstrip("#").strip()
+            for line in env_example.read_text(encoding="utf-8").splitlines()
+            if line.lstrip("#").strip().startswith("OOMPAH_REPO_MAP_")
+        }
+
+        assert self.ENVIRONMENT_VARIABLES <= documented
 
     def test_close_gate_env_can_disable_default(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_CLOSE_GATE_ENABLED", "false")

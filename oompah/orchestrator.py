@@ -84,6 +84,7 @@ from oompah.focus import (
     select_focus_async,
 )
 from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
+from oompah.repo_map_prompt import build_repo_map_context
 from oompah.projects import (
     ProjectError,
     ProjectStore,
@@ -15337,6 +15338,22 @@ class Orchestrator:
                 if attachments and issue.identifier:
                     self._lfs_pull_attachments(wp, issue.identifier)
 
+                # Build repository-map context for prompt injection (OOMPAH-298).
+                # Fail-open: returns None if no fresh map is available.
+                repo_map_ctx = None
+                if (
+                    project_obj is not None
+                    and getattr(project_obj, "state_branch_enabled", False)
+                    and wp
+                ):
+                    repo_map_ctx = build_repo_map_context(
+                        issue=issue,
+                        workspace_path=wp,
+                        state_branch_name=project_obj.state_branch_name,
+                        repo_identity=project_obj.repo_url,
+                        comments=comments,
+                    )
+
                 rendered = render_prompt(
                     self._prompt_template,
                     issue,
@@ -15349,6 +15366,7 @@ class Orchestrator:
                     capabilities=capabilities,
                     project_root=wp,
                     project=project_obj,
+                    repo_map_context=repo_map_ctx.text if repo_map_ctx else None,
                 )
                 return wp, rendered, attachments
 
@@ -15685,6 +15703,22 @@ class Orchestrator:
                 if attachments and issue.identifier:
                     self._lfs_pull_attachments(wp, issue.identifier)
 
+                # Build repository-map context for prompt injection (OOMPAH-298).
+                # Fail-open: returns None if no fresh map is available.
+                repo_map_ctx = None
+                if (
+                    project_obj is not None
+                    and getattr(project_obj, "state_branch_enabled", False)
+                    and wp
+                ):
+                    repo_map_ctx = build_repo_map_context(
+                        issue=issue,
+                        workspace_path=wp,
+                        state_branch_name=project_obj.state_branch_name,
+                        repo_identity=project_obj.repo_url,
+                        comments=comments,
+                    )
+
                 rendered = render_prompt(
                     self._prompt_template,
                     issue,
@@ -15697,6 +15731,7 @@ class Orchestrator:
                     capabilities=capabilities,
                     project_root=wp,
                     project=project_obj,
+                    repo_map_context=repo_map_ctx.text if repo_map_ctx else None,
                 )
                 return wp, rendered, attachments
 
@@ -16229,6 +16264,22 @@ class Orchestrator:
                     else None
                 )
 
+                # Build repository-map context for prompt injection (OOMPAH-298).
+                # Fail-open: returns None if no fresh map is available.
+                cli_repo_map_ctx = None
+                if (
+                    cli_project_obj is not None
+                    and getattr(cli_project_obj, "state_branch_enabled", False)
+                    and workspace_path
+                ):
+                    cli_repo_map_ctx = build_repo_map_context(
+                        issue=issue,
+                        workspace_path=workspace_path,
+                        state_branch_name=cli_project_obj.state_branch_name,
+                        repo_identity=cli_project_obj.repo_url,
+                        comments=cli_comments,
+                    )
+
                 for turn_number in range(1, max_turns + 1):
                     # Build prompt
                     if turn_number == 1:
@@ -16241,6 +16292,9 @@ class Orchestrator:
                             workspace_path=workspace_path,
                             memories=cli_memories,
                             project=cli_project_obj,
+                            repo_map_context=(
+                                cli_repo_map_ctx.text if cli_repo_map_ctx else None
+                            ),
                         )
                     else:
                         prompt = build_continuation_prompt(
