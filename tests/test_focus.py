@@ -112,6 +112,34 @@ class TestSelectFocus:
         focus = select_focus(issue, foci)
         assert focus.name == DEFAULT_FOCUS.name
 
+    def test_test_focus_does_not_outrank_implementation_from_acceptance_tests(self):
+        """Ordinary test requirements must not route a feature task to test-only work."""
+        foci = [
+            Focus(name="test", role="Test", description="", keywords=["tests"], priority=20),
+            Focus(name="feature", role="Feature", description="", keywords=["implement"], priority=5),
+        ]
+        issue = _make_issue(
+            title="Implement GitLab label governance",
+            description="Tests: add lifecycle and authorization regression coverage.",
+            issue_type="task",
+        )
+
+        assert select_focus(issue, foci).name == "feature"
+
+    def test_test_focus_uses_description_when_explicitly_requested(self):
+        foci = [
+            Focus(name="test", role="Test", description="", keywords=["tests"], priority=20),
+            Focus(name="feature", role="Feature", description="", keywords=["implement"], priority=5),
+        ]
+        issue = _make_issue(
+            title="Implement GitLab label governance",
+            description="Tests: add lifecycle and authorization regression coverage.",
+            labels=["needs:test"],
+            issue_type="task",
+        )
+
+        assert select_focus(issue, foci).name == "test"
+
     def test_ignores_inactive_foci(self):
         foci = [
             Focus(name="bugfix", role="", description="", keywords=["bug"], status="inactive"),

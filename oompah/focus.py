@@ -600,8 +600,21 @@ def score_focus(focus: Focus, issue: Issue) -> int:
                 if requested_focus.lower() == focus.name.lower():
                     score += 200
 
-    # Keyword matches in title and description
-    search_text = f"{issue.title or ''} {issue.description or ''}"
+    # Test requirements are routine acceptance criteria for implementation
+    # tasks. Letting every ``Tests:`` section select Test Engineer sends a
+    # feature task into a test-only loop before anyone implements it. Choose
+    # that specialist from a test-oriented title or explicit routing instead;
+    # all other foci continue to score against the full task description.
+    is_test_focus = focus.name.strip().lower() == "test"
+    issue_labels = _effective_issue_labels(issue)
+    explicit_test_routing = any(
+        label in {"test", "testing", "needs:test"} for label in issue_labels
+    )
+    search_text = (
+        issue.title or ""
+        if is_test_focus and not explicit_test_routing
+        else f"{issue.title or ''} {issue.description or ''}"
+    )
     keyword_hits = _text_matches(search_text, focus.keywords)
     score += keyword_hits * 10
 
@@ -615,7 +628,6 @@ def score_focus(focus: Focus, issue: Issue) -> int:
 
     # Label match
     if focus.labels:
-        issue_labels = _effective_issue_labels(issue)
         for fl in focus.labels:
             if fl.lower() in issue_labels:
                 score += 30
