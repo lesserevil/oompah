@@ -788,6 +788,76 @@ class TestTerminateRunningWritesCostRecord:
         assert elapsed < 0.08
         assert "stuck-worker" not in orch.state.running
 
+    def test_shutdown_timeout_logs_warning_not_error(self, tmp_path):
+        """Worker-shutdown timeout must log at WARNING, not ERROR.
+
+        Regression test for OOMPAH-403: the error_watcher installs a handler
+        at logging.ERROR level.  A logger.error() call for the shutdown-timeout
+        path auto-filed spurious bug tasks.  The correct level is WARNING
+        because a worker not stopping within the timeout is an expected
+        outcome during a hard kill, not an actionable error.
+
+        We force the "not done within timeout" path by patching asyncio.wait
+        (as used inside oompah.orchestrator) to return the empty-done sentinel,
+        simulating a worker that does not stop within the configured timeout.
+        """
+        import logging
+        from unittest.mock import patch
+
+        orch = _make_orchestrator(tmp_path)
+        orch.config.worker_termination_timeout_ms = 100  # non-zero → uses asyncio.wait
+
+        captured_records: list[logging.LogRecord] = []
+
+        class _CapturingHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                captured_records.append(record)
+
+        handler = _CapturingHandler(level=logging.DEBUG)
+        oompah_logger = logging.getLogger("oompah")
+        oompah_logger.addHandler(handler)
+
+        # asyncio.wait normally returns (done_set, pending_set). We return an empty
+        # done set to simulate the worker exceeding the termination timeout.
+        async def _fake_wait(aws, timeout=None):
+            tasks = set(aws)
+            # Cancel underlying tasks to avoid leaked resources.
+            for t in tasks:
+                t.cancel()
+                try:
+                    await t
+                except (asyncio.CancelledError, Exception):
+                    pass
+            return (set(), set())  # empty done → "not done" branch fires
+
+        try:
+            async def _run():
+                task = asyncio.create_task(asyncio.sleep(60))
+                entry = _make_running_entry("slow-worker")
+                entry.worker_task = task
+                orch.state.running["slow-worker"] = entry
+                with patch("oompah.orchestrator.asyncio.wait", side_effect=_fake_wait):
+                    await orch._terminate_running("slow-worker", cleanup_workspace=False)
+
+            asyncio.run(_run())
+        finally:
+            oompah_logger.removeHandler(handler)
+
+        # Should have logged the shutdown-timeout message.
+        timeout_records = [
+            r for r in captured_records if "did not stop within" in r.getMessage()
+        ]
+        assert timeout_records, (
+            "Expected a 'did not stop within' log message but none was emitted"
+        )
+        # The critical assertion: every matching record must be WARNING, never ERROR.
+        for record in timeout_records:
+            assert record.levelno == logging.WARNING, (
+                f"Shutdown-timeout message logged at {record.levelname} "
+                f"(expected WARNING). This triggers error_watcher to auto-file "
+                f"spurious bug tasks — see OOMPAH-403."
+            )
+
 
 # ---------------------------------------------------------------------------
 # Acceptance: reconcile-triggered termination writes cost
