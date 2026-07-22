@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-324
 type: task
-status: Done
+status: Merged
 priority: 2
 title: Generalize external issue intake and provenance for GitLab
 parent: OOMPAH-318
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:26.149163Z'
-updated_at: '2026-07-22T06:58:12.423748Z'
+updated_at: '2026-07-22T11:39:38.439468Z'
 work_branch: null
 target_branch: null
 review_url: null
