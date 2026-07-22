@@ -9,6 +9,7 @@ children:
 - OOMPAH-340
 - OOMPAH-341
 - OOMPAH-342
+- OOMPAH-344
 blocked_by:
 - OOMPAH-319
 labels:
@@ -17,7 +18,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T00:38:33.913305Z'
+updated_at: '2026-07-22T00:38:40.573298Z'
 work_branch: null
 target_branch: null
 review_url: null

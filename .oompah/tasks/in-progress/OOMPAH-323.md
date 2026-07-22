@@ -16,10 +16,10 @@ labels:
 - focus-complete:duplicate_detector
 - focus-complete:epic_planner
 - needs:feature
-- epic:stale
+- epic:rebasing
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-22T00:38:35.457439Z'
+updated_at: '2026-07-22T00:38:39.051035Z'
 work_branch: null
 target_branch: null
 review_url: null
