@@ -3298,6 +3298,139 @@ class TestGitLabSelfManagedUrl:
         assert p.provider_name() == "gitlab"
 
 
+class TestGitLabCIStatus:
+    """GitLab pipelines and jobs expose the forge-neutral CI contract."""
+
+    _SHA = "a" * 40
+
+    def _provider(self, pipelines, jobs_by_pipeline=None, pipeline_code=200):
+        provider = _GL.provider()
+        calls = []
+        jobs_by_pipeline = jobs_by_pipeline or {}
+
+        def fake_api(method, path, **kwargs):
+            calls.append((method, path, kwargs))
+            if path.endswith("/pipelines"):
+                return _GL.r(pipelines, code=pipeline_code)
+            pipeline_id = path.rsplit("/", 2)[-2]
+            return _GL.r(jobs_by_pipeline.get(pipeline_id, []))
+
+        provider._api = fake_api
+        return provider, calls
+
+    def test_branch_head_sha_uses_encoded_project_and_returns_commit_id(self):
+        provider = _GL.provider()
+        calls = []
+
+        def fake_api(method, path, **kwargs):
+            calls.append((method, path))
+            return _GL.r({"commit": {"id": self._SHA}})
+
+        provider._api = fake_api
+
+        assert provider.get_branch_head_sha("group/sub/project", "release/1.0") == self._SHA
+        assert calls == [("GET", "/projects/group%2Fsub%2Fproject/repository/branches/release%2F1.0")]
+
+    def test_branch_head_sha_returns_none_for_not_found_or_malformed_payload(self):
+        provider = _GL.provider()
+        provider._api = lambda *args, **kwargs: _GL.r({"commit": {}}, code=200)
+        assert provider.get_branch_head_sha("group/project", "missing") is None
+
+        provider._api = lambda *args, **kwargs: _GL.r({}, code=404)
+        assert provider.get_branch_head_sha("group/project", "missing") is None
+
+    def test_pipeline_states_normalize_to_contract_states(self):
+        cases = {
+            "success": CIStatus.PASSED,
+            "failed": CIStatus.FAILED,
+            "canceled": CIStatus.FAILED,
+            "skipped": CIStatus.PASSED,
+            "running": CIStatus.PENDING,
+            "pending": CIStatus.PENDING,
+        }
+        for gitlab_status, expected in cases.items():
+            provider, _calls = self._provider([{"id": 12, "status": gitlab_status}])
+            assert provider.get_ci_status_for_sha("group/project", self._SHA) is expected
+
+    def test_no_pipeline_returns_unknown_without_treating_it_as_success(self):
+        provider, calls = self._provider([])
+
+        assert provider.get_ci_status_for_sha("group/project", self._SHA) is CIStatus.UNKNOWN
+        assert calls == [
+            ("GET", "/projects/group%2Fproject/pipelines", {"params": {"sha": self._SHA, "per_page": 100}}),
+        ]
+
+    def test_job_results_override_stale_pipeline_rollup_and_aggregate_all_pipelines(self):
+        provider, _calls = self._provider(
+            [
+                {"id": 20, "status": "success", "web_url": "https://gitlab/pipelines/20"},
+                {"id": 10, "status": "running", "web_url": "https://gitlab/pipelines/10"},
+            ],
+            {
+                "20": [{"name": "unit", "status": "success"}],
+                "10": [{"name": "lint", "status": "failed", "web_url": "https://gitlab/jobs/10"}],
+            },
+        )
+
+        assert provider.get_ci_status_for_sha("group/project", self._SHA) is CIStatus.FAILED
+
+    def test_pending_job_wins_over_completed_pipeline(self):
+        provider, _calls = self._provider(
+            [{"id": 1, "status": "success"}],
+            {"1": [{"name": "deploy", "status": "running"}]},
+        )
+
+        assert provider.get_ci_status_for_sha("group/project", self._SHA) is CIStatus.PENDING
+
+    def test_ci_lookup_warnings_are_bounded_actionable_and_deterministic(self):
+        provider, _calls = self._provider(
+            [
+                {"id": 2, "status": "failed", "web_url": "https://gitlab/pipelines/2"},
+                {"id": 1, "status": "failed", "web_url": "https://gitlab/pipelines/1"},
+            ],
+            {
+                "2": [{"name": "zebra", "status": "failed", "web_url": "https://gitlab/jobs/z"}],
+                "1": [{"name": "alpha", "status": "failed", "web_url": "https://gitlab/jobs/a"}],
+            },
+        )
+
+        status, warnings = provider._fetch_ci_status_and_warnings("group/project", self._SHA)
+
+        assert status == "failed"
+        assert len(warnings) <= 10
+        assert [warning["job_url"] for warning in warnings] == [
+            "https://gitlab/jobs/a", "https://gitlab/jobs/z",
+        ]
+        assert [warning["pipeline_url"] for warning in warnings] == [
+            "https://gitlab/pipelines/1", "https://gitlab/pipelines/2",
+        ]
+
+    def test_forbidden_rate_limited_and_malformed_pipeline_responses_are_capability_warnings(self):
+        scenarios = ((403, "gitlab_ci_forbidden"), (429, "gitlab_ci_rate_limited"))
+        for code, warning_type in scenarios:
+            provider, _calls = self._provider({}, pipeline_code=code)
+            status, warnings = provider._fetch_ci_status_and_warnings("group/project", self._SHA)
+            assert status == ""
+            assert warnings[0]["type"] == warning_type
+            assert "CI" in warnings[0]["message"]
+
+        provider, _calls = self._provider({"not": "a list"})
+        status, warnings = provider._fetch_ci_status_and_warnings("group/project", self._SHA)
+        assert status == ""
+        assert warnings[0]["type"] == "gitlab_ci_malformed_response"
+
+    def test_self_managed_ci_requests_use_the_configured_api_base(self):
+        provider = GitLabProvider(hostname="gitlab.acme.internal", access_token="t")
+        provider._api = mock.MagicMock(return_value=_GL.r([]))
+
+        assert provider.get_ci_status_for_sha("group/project", self._SHA) is CIStatus.UNKNOWN
+        provider._api.assert_called_once_with(
+            "GET", "/projects/group%2Fproject/pipelines",
+            params={"sha": self._SHA, "per_page": 100},
+        )
+        assert provider._api_url() == "https://gitlab.acme.internal/api/v4"
+
+
 class TestGitLabNestedNamespaceEncoding:
     """Nested group paths must be percent-encoded in every API call."""
 

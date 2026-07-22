@@ -2413,6 +2413,213 @@ class GitLabProvider(SCMProvider):
         shas.reverse()
         return shas
 
+    def get_branch_head_sha(self, repo: str, branch: str) -> str | None:
+        """Return the HEAD commit SHA for *branch* via GitLab branches API.
+
+        Uses ``GET /projects/:id/repository/branches/:branch`` to fetch the
+        branch tip SHA from the ``commit.id`` field.  Returns ``None`` on any
+        error, a 404, or a malformed response.
+
+        Args:
+            repo: GitLab project path (e.g. ``"group/sub/project"``).
+            branch: Branch name (without ``refs/heads/`` prefix).
+
+        Returns:
+            Full commit SHA string, or ``None``.
+        """
+        encoded_repo = self._project_path(repo)
+        encoded_branch = urllib.parse.quote(branch, safe="")
+        try:
+            r = self._api(
+                "GET",
+                f"/projects/{encoded_repo}/repository/branches/{encoded_branch}",
+            )
+            if r.status_code != 200:
+                logger.debug(
+                    "GitLab get_branch_head_sha %s/%s: HTTP %d",
+                    repo, branch, r.status_code,
+                )
+                return None
+            data = r.json()
+            sha = data.get("commit", {}).get("id", "")
+            return sha if sha else None
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            logger.debug(
+                "GitLab get_branch_head_sha failed for %s/%s: %s",
+                repo, branch, exc,
+            )
+            return None
+
+    @staticmethod
+    def _normalize_gitlab_status(status: str) -> str:
+        """Map a GitLab pipeline/job status string to a forge-neutral contract string.
+
+        Returns one of ``"passed"``, ``"failed"``, ``"pending"``, or ``""``
+        (for unknown/unrecognised states).
+        """
+        s = (status or "").lower()
+        if s in ("success", "skipped"):
+            return "passed"
+        if s in ("failed", "canceled"):
+            return "failed"
+        if s in ("running", "pending", "created", "waiting_for_resource",
+                 "preparing", "scheduled"):
+            return "pending"
+        return ""
+
+    def _fetch_ci_status_and_warnings(
+        self, repo: str, sha: str
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """Fetch CI status and bounded capability warnings from GitLab pipelines.
+
+        Calls ``GET /projects/:id/pipelines?sha=:sha`` then fetches jobs for
+        each pipeline to produce a single aggregated forge-neutral verdict.
+
+        Aggregation priority: ``failed`` > ``pending`` > ``passed``.  An empty
+        pipeline list yields an empty status (mapped to ``unknown`` by callers).
+
+        Capability failures (HTTP 403, 429, or non-list payloads) are returned
+        as structured warnings rather than silent ``unknown`` so the UI can
+        surface a degraded-state notice.
+
+        Args:
+            repo: GitLab project path.
+            sha: Full commit SHA.
+
+        Returns:
+            ``(status_string, warnings)`` where *status_string* is one of
+            ``"passed"``, ``"failed"``, ``"pending"``, or ``""`` (unknown),
+            and *warnings* is a list of ``CapabilityWarning``-shaped dicts
+            capped at 10 entries.
+        """
+        encoded = self._project_path(repo)
+        try:
+            r = self._api(
+                "GET",
+                f"/projects/{encoded}/pipelines",
+                params={"sha": sha, "per_page": 100},
+            )
+        except httpx.HTTPError as exc:
+            logger.debug("GitLab _fetch_ci_status_and_warnings %s/%s: %s", repo, sha[:7], exc)
+            return "", []
+
+        if r.status_code == 403:
+            return "", [{
+                "type": "gitlab_ci_forbidden",
+                "message": (
+                    "CI check results are unavailable: HTTP 403 from GitLab "
+                    "pipelines API. Grant CI access to your token so oompah "
+                    "can observe CI status."
+                ),
+            }]
+        if r.status_code == 429:
+            return "", [{
+                "type": "gitlab_ci_rate_limited",
+                "message": (
+                    "CI check results are unavailable: HTTP 429 rate limit "
+                    "from GitLab pipelines API. Retry later."
+                ),
+            }]
+        if r.status_code != 200:
+            return "", []
+
+        try:
+            pipelines = r.json()
+        except (json.JSONDecodeError, ValueError):
+            return "", [{
+                "type": "gitlab_ci_malformed_response",
+                "message": "CI response from GitLab pipelines could not be parsed.",
+            }]
+
+        if not isinstance(pipelines, list):
+            return "", [{
+                "type": "gitlab_ci_malformed_response",
+                "message": "CI response from GitLab pipelines was not a list.",
+            }]
+
+        if not pipelines:
+            return "", []
+
+        failed_jobs: list[dict[str, Any]] = []
+        has_pending = False
+        has_passed = False
+
+        for pipeline in pipelines:
+            pipeline_id = str(pipeline.get("id", ""))
+            pipeline_url = pipeline.get("web_url", "")
+            pipeline_status = pipeline.get("status", "")
+
+            # Fetch individual jobs so stale pipeline-level rollups can be
+            # overridden by the live job statuses.
+            jobs: list | None = None
+            try:
+                jobs_r = self._api(
+                    "GET",
+                    f"/projects/{encoded}/pipelines/{pipeline_id}/jobs",
+                )
+                if jobs_r.status_code == 200:
+                    try:
+                        parsed = jobs_r.json()
+                        if isinstance(parsed, list):
+                            jobs = parsed
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+            except httpx.HTTPError:
+                pass
+
+            if jobs:
+                for job in jobs:
+                    normalized = self._normalize_gitlab_status(job.get("status", ""))
+                    if normalized == "failed":
+                        failed_jobs.append({
+                            "job_url": job.get("web_url", ""),
+                            "pipeline_url": pipeline_url,
+                        })
+                    elif normalized == "pending":
+                        has_pending = True
+                    elif normalized == "passed":
+                        has_passed = True
+            else:
+                # No job-level data available; fall back to pipeline status.
+                normalized = self._normalize_gitlab_status(pipeline_status)
+                if normalized == "failed":
+                    failed_jobs.append({"job_url": "", "pipeline_url": pipeline_url})
+                elif normalized == "pending":
+                    has_pending = True
+                elif normalized == "passed":
+                    has_passed = True
+
+        if failed_jobs:
+            # Sort deterministically by job URL (then pipeline URL) so warning
+            # order is stable across multiple runs.
+            failed_jobs.sort(key=lambda w: (w.get("job_url", ""), w.get("pipeline_url", "")))
+            return "failed", failed_jobs[:10]
+        if has_pending:
+            return "pending", []
+        if has_passed:
+            return "passed", []
+        return "", []
+
+    def get_ci_status_for_sha(self, repo: str, sha: str) -> CIStatus:
+        """Return the CI status for a specific commit SHA on GitLab.
+
+        Delegates to :meth:`_fetch_ci_status_and_warnings` and normalises the
+        raw status string to a :class:`CIStatus` enum member.  Returns
+        ``CIStatus.UNKNOWN`` when CI data is unavailable or an error occurs.
+
+        Args:
+            repo: GitLab project path (e.g. ``"group/project"``).
+            sha: Full commit SHA.
+
+        Returns:
+            A forge-neutral :class:`CIStatus` value.
+        """
+        try:
+            status, _warnings = self._fetch_ci_status_and_warnings(repo, sha)
+            return normalize_ci_status(status)
+        except Exception:  # noqa: BLE001
+            return CIStatus.UNKNOWN
+
 
 # -- Helpers --
 
