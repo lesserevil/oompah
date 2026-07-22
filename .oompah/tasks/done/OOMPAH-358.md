@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:51.390755Z'
-updated_at: '2026-07-22T01:30:08.751570Z'
+updated_at: '2026-07-22T01:30:12.460844Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Update the epic maintenance and rebase-dispatch flow to consume the synchronizat
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 01:30
+---
+Removed periodic proactive rebase scheduling; staleness detection no longer creates branch-mutating work.
+---
+<!-- COMMENTS:END -->
