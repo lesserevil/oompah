@@ -15,10 +15,12 @@ blocked_by:
 - OOMPAH-326
 - OOMPAH-327
 - OOMPAH-328
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:test
 assignee: null
 created_at: '2026-07-21T20:34:42.931068Z'
-updated_at: '2026-07-22T07:53:21.334941Z'
+updated_at: '2026-07-22T07:55:02.405760Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -105,5 +107,48 @@ author: oompah
 created: 2026-07-22 07:53
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 07:54
+---
+Focus handoff: duplicate_detector
+
+Outcome: No duplicate found. OOMPAH-329 is unique in the task tracker.
+
+Evidence:
+- Searched all task state directories (in-progress, open, backlog, done, merged, archived)
+- Found no tasks covering cross-forge GitLab acceptance/migration testing
+- Closest related tasks: OOMPAH-6 (GitHub intake auth) and OOMPAH-259 (state branch migration) - both unrelated
+- The plan reference plans/gitlab-forge-parity.md exists; OOMPAH-329 covers its 'Migration, testing, and acceptance' section specifically
+- Blocking tasks OOMPAH-321 through OOMPAH-328 have no task files in the filesystem (likely not yet created or are managed externally)
+
+Relevant files:
+- plans/gitlab-forge-parity.md — full spec for the test suite
+- tests/ — existing test patterns to follow
+- Blockers OOMPAH-321 through OOMPAH-328 reference the GitLab feature implementation tasks this test suite depends on
+
+Remaining work:
+- Build network-free GitLab HTTP fixtures
+- Provider contract suite shared with GitHub
+- Migration fixture for pre-forge GitHub project records
+- Gated live GitLab.com and self-managed smoke tests (skipped without credentials)
+- Verify make test passes
+
+Recommended next focus: test (implementation of the test suite)
+---
+author: oompah
+created: 2026-07-22 07:55
+---
+Agent completed successfully in 101s (4218 tokens)
+---
+author: oompah
+created: 2026-07-22 07:55
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
+- Turns: 40, Tool calls: 32
+- Tokens: 23 in / 4.2K out [4.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 41s
+- Log: OOMPAH-329__20260722T075321Z.jsonl
 ---
 <!-- COMMENTS:END -->
