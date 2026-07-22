@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:52:58.139774Z'
-updated_at: '2026-07-22T06:28:07.482562Z'
+updated_at: '2026-07-22T06:28:14.745637Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -349,5 +349,10 @@ author: oompah
 created: 2026-07-22 06:28
 ---
 Verification: Added 4 new tests to tests/test_epic_strategy.py TestWorkspaceAllocation: (1) test_shared_mode_updates_stale_child_work_branch_to_epic_branch — stale per-task branch is corrected to epic branch, persisted to tracker; (2) test_shared_mode_does_not_persist_when_work_branch_already_correct — no-op when already correct; (3) test_shared_mode_sets_work_branch_when_previously_absent — None work_branch gets set; (4) test_shared_mode_tolerates_tracker_set_metadata_failure — tracker failure is tolerated, dispatch continues. All 12 tests in TestWorkspaceAllocation pass. 7 failures in full test run are pre-existing flaky/isolation issues (pass individually), not caused by this change.
+---
+author: oompah
+created: 2026-07-22 06:28
+---
+Completion: OOMPAH-308 is done. Fixed stale work_branch metadata for native shared-epic children in oompah/orchestrator.py. Commit 1e52f6134 on epic-OOMPAH-307 branch. Children with stale per-task branch names (e.g. OOMPAH-286) now have their work_branch corrected to the epic branch on every dispatch, preventing false Done→Merged promotions on unrelated branches. 4 new regression tests added. Duplicate screening note: no duplicate was found — this is a unique bug confirmed as a gap in _create_workspace_for_issue.
 ---
 <!-- COMMENTS:END -->
