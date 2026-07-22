@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-346
 type: bug
-status: Done
+status: In Review
 priority: 1
 title: Reserve round-robin providers atomically at dispatch time
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T02:09:57.805910Z'
+updated_at: '2026-07-22T02:28:30.845966Z'
 work_branch: null
 target_branch: null
 review_url: null
