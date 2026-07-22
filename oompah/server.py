@@ -13490,9 +13490,10 @@ async def api_webhook_github(request: Request):
 async def api_webhook_gitlab(request: Request):
     """Receive GitLab webhook events (Merge Request Hook, etc.).
 
-    Validates the ``X-Gitlab-Token`` header against the project's
-    ``webhook_secret``. If no secret is configured on any matching
-    project, the webhook is accepted without validation.
+    Validates the ``X-Gitlab-Token`` header against the matched project's
+    ``webhook_secret``. GitLab project hooks are public HTTPS endpoints, so a
+    matched GitLab project without a configured secret is rejected rather than
+    allowing an unauthenticated caller to trigger project automation.
     """
     try:
         body_bytes = await request.body()
@@ -13526,17 +13527,38 @@ async def api_webhook_gitlab(request: Request):
         projects = orch.project_store.list_all()
         project = match_project_by_repo(projects, event.repo_slug, "gitlab")
 
-        # Validate token if project has a webhook_secret
-        if project and project.webhook_secret:
-            if not validate_gitlab_token(token, project.webhook_secret):
-                logger.warning(
-                    "GitLab webhook token validation failed for %s",
-                    event.repo_slug,
-                )
-                return JSONResponse(
-                    {"error": "Invalid token"},
-                    status_code=401,
-                )
+        # A GitLab hook is delivered directly to this public endpoint, unlike
+        # GitHub's local ``gh webhook forward`` path.  Fail closed:
+        # - No matching project → ignore (never emit events for unknown repos).
+        # - Matched project without a secret → reject 401.
+        # - Matched project with wrong token → reject 401.
+        if project is None:
+            logger.debug(
+                "GitLab webhook ignored: no registered project for %s",
+                event.repo_slug,
+            )
+            return JSONResponse(
+                {"ok": True, "action": "ignored", "event_type": event_type}
+            )
+
+        if not project.webhook_secret:
+            logger.warning(
+                "GitLab webhook rejected for %s: project has no webhook secret",
+                event.repo_slug,
+            )
+            return JSONResponse(
+                {"error": "Webhook secret is not configured"},
+                status_code=401,
+            )
+        if not validate_gitlab_token(token, project.webhook_secret):
+            logger.warning(
+                "GitLab webhook token validation failed for %s",
+                event.repo_slug,
+            )
+            return JSONResponse(
+                {"error": "Invalid token"},
+                status_code=401,
+            )
 
         _handle_webhook_event(event, project)
         return JSONResponse(

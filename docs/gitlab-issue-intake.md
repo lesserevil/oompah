@@ -43,9 +43,12 @@ Before enabling GitLab intake on a project:
    that it can reach. Set `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` in `.env` to the
    base URL oompah listens on publicly.
 
-3. **Webhook secret** — set a random secret on the project (`webhook_secret`).
-   Oompah uses it to create and reconcile the GitLab project hook, and to
-   validate incoming requests at `POST /api/v1/webhooks/gitlab`.
+3. **Webhook secret** — set a high-entropy random secret on the project
+   (`webhook_secret`) and keep it out of source control and logs. Oompah uses
+   it to create and reconcile the GitLab project hook, and to validate incoming
+   requests at `POST /api/v1/webhooks/gitlab`. A matched project without a
+   secret fails closed with HTTP 401; it must be configured before GitLab
+   webhook delivery can work.
 
 > **Self-managed GitLab:** also set `forge_base_url` on the project to your
 > instance's canonical URL (e.g. `https://gitlab.example.com`). The default is

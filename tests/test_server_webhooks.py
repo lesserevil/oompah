@@ -524,8 +524,8 @@ class TestGitLabWebhookEndpoint:
         assert received[0]["review_id"] == "7"
         assert received[0]["project_id"] == "proj-gl1"
 
-    def test_no_secret_configured_accepts_any(self):
-        """When no webhook_secret is set, webhooks are accepted without token validation."""
+    def test_no_secret_configured_is_rejected(self):
+        """A public GitLab hook must fail closed without a configured secret."""
         from oompah.server import app, _api_cache
 
         projects = [
@@ -535,6 +535,7 @@ class TestGitLabWebhookEndpoint:
                 repo_url="https://gitlab.com/group/project.git",
                 repo_path="/tmp/repos/project",
                 webhook_secret=None,  # No secret!
+                forge_kind="gitlab",
             ),
         ]
         orch = _make_mock_orchestrator(projects=projects)
@@ -551,8 +552,40 @@ class TestGitLabWebhookEndpoint:
                     "Content-Type": "application/json",
                 },
             )
-            assert resp.status_code == 200
-            assert resp.json()["ok"] is True
+            assert resp.status_code == 401
+            assert "secret is not configured" in resp.json()["error"]
+            orch.request_refresh.assert_not_called()
+
+    def test_unmatched_repo_is_silently_ignored(self, client_gitlab):
+        """GitLab webhook for an unregistered repo must NOT trigger event-bus emission."""
+        client, orch = client_gitlab
+        # Subscribe to detect any spurious event-bus emissions
+        received = []
+        orch.event_bus.subscribe(
+            EventType.FORGE_WEBHOOK_RECEIVED,
+            lambda et, p: received.append(p),
+        )
+        # Payload uses a different repo slug not registered in client_gitlab
+        payload = _gitlab_mr_payload(repo="unknown-group/unknown-project")
+        resp = client.post(
+            "/api/v1/webhooks/gitlab",
+            content=json.dumps(payload),
+            headers={
+                "X-Gitlab-Event": "Merge Request Hook",
+                "X-Gitlab-Token": "any-token-does-not-matter",
+                "Content-Type": "application/json",
+            },
+        )
+        # Must return 200 OK (ignored) — not process the event
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("ok") is True
+        assert data.get("action") == "ignored"
+        # No refresh triggered and no event emitted for an unknown repo
+        orch.request_refresh.assert_not_called()
+        assert received == [], (
+            "GitLab webhook from unregistered repo must not emit FORGE_WEBHOOK_RECEIVED"
+        )
 
 
 # ---------------------------------------------------------------------------

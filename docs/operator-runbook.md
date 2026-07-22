@@ -50,6 +50,15 @@ $EDITOR .env
 | `OOMPAH_GITHUB_TRACKER_REPO` | GitHub repo used as the default task hub. |
 | `OOMPAH_WORKSPACE_ROOT` | Directory where agent workspaces and git worktrees are created. Defaults to a temp directory if unset. |
 
+**GitLab project settings** (required only when managing GitLab projects):
+
+| Variable | Description |
+|---|---|
+| `GITLAB_TOKEN` | Default GitLab personal access token with **`api`** scope. Used when a project does not have a per-project `access_token` configured. Also accepted as `GITLAB_API_TOKEN`. |
+| `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` | Public HTTPS base URL where oompah receives GitLab webhook events. GitLab delivers webhooks directly (unlike GitHub's `gh webhook forward`), so this URL must be reachable from the GitLab instance. Required for webhook-driven event delivery; omit or leave blank to use polling-only mode. |
+
+Per-project `access_token`, `forge_kind`, `forge_base_url`, and `webhook_secret` are stored in `.oompah/projects.json` and configured through the dashboard or API rather than `.env`. See `docs/project-bootstrap.md` § GitLab Projects for token scope requirements and webhook setup.
+
 **Commonly tuned settings:**
 
 | Variable | Default | Description |
