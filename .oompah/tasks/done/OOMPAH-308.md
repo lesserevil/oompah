@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:52:58.139774Z'
-updated_at: '2026-07-22T06:28:22.148546Z'
+updated_at: '2026-07-22T06:28:24.463125Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -354,5 +354,10 @@ author: oompah
 created: 2026-07-22 06:28
 ---
 Completion: OOMPAH-308 is done. Fixed stale work_branch metadata for native shared-epic children in oompah/orchestrator.py. Commit 1e52f6134 on epic-OOMPAH-307 branch. Children with stale per-task branch names (e.g. OOMPAH-286) now have their work_branch corrected to the epic branch on every dispatch, preventing false Done→Merged promotions on unrelated branches. 4 new regression tests added. Duplicate screening note: no duplicate was found — this is a unique bug confirmed as a gap in _create_workspace_for_issue.
+---
+author: oompah
+created: 2026-07-22 06:28
+---
+Fixed stale work_branch metadata for shared-epic children: _create_workspace_for_issue now updates issue.work_branch to epic branch on dispatch and persists via set_metadata_field (best-effort). 4 new regression tests added. Commit 1e52f6134 on epic-OOMPAH-307.
 ---
 <!-- COMMENTS:END -->
