@@ -463,7 +463,8 @@ class TestGitLabWebhookEndpoint:
         assert "Invalid token" in resp.json().get("error", "")
         orch.request_refresh.assert_not_called()
 
-    def test_push_event_ignored(self, client_gitlab):
+    def test_push_hook_without_project_is_ignored(self, client_gitlab):
+        """Push Hook payload with no project field (cannot determine repo_slug) is ignored."""
         client, orch = client_gitlab
         resp = client.post(
             "/api/v1/webhooks/gitlab",
@@ -586,6 +587,279 @@ class TestGitLabWebhookEndpoint:
         assert received == [], (
             "GitLab webhook from unregistered repo must not emit FORGE_WEBHOOK_RECEIVED"
         )
+
+    # ------------------------------------------------------------------
+    # Push Hook tests
+    # ------------------------------------------------------------------
+
+    def test_push_hook_with_project_processed(self, client_gitlab):
+        """Push Hook with a valid project payload should be processed, not ignored."""
+        client, orch = client_gitlab
+        payload = {
+            "ref": "refs/heads/main",
+            "user_username": "tanuki",
+            "project": {"path_with_namespace": "group/project"},
+        }
+        resp = client.post(
+            "/api/v1/webhooks/gitlab",
+            content=json.dumps(payload),
+            headers={
+                "X-Gitlab-Event": "Push Hook",
+                "X-Gitlab-Token": "gl-secret",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["action"] == "processed"
+        assert data["event_type"] == "Push Hook"
+
+    def test_push_hook_without_project_ignored(self, client_gitlab):
+        """Push Hook missing the project field returns 'ignored'."""
+        client, orch = client_gitlab
+        resp = client.post(
+            "/api/v1/webhooks/gitlab",
+            content=json.dumps({"ref": "refs/heads/main"}),
+            headers={
+                "X-Gitlab-Event": "Push Hook",
+                "X-Gitlab-Token": "gl-secret",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["action"] == "ignored"
+        orch.request_refresh.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # Issue Hook tests
+    # ------------------------------------------------------------------
+
+    def test_issue_hook_open_processed(self, client_gitlab):
+        """Issue Hook with valid payload should be processed."""
+        client, orch = client_gitlab
+        payload = {
+            "object_attributes": {
+                "iid": 5,
+                "title": "New bug",
+                "action": "open",
+                "state": "opened",
+            },
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+        resp = client.post(
+            "/api/v1/webhooks/gitlab",
+            content=json.dumps(payload),
+            headers={
+                "X-Gitlab-Event": "Issue Hook",
+                "X-Gitlab-Token": "gl-secret",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["action"] == "processed"
+        assert data["event_type"] == "Issue Hook"
+
+    def test_issue_hook_missing_project_ignored(self, client_gitlab):
+        """Issue Hook without a project field is ignored."""
+        client, orch = client_gitlab
+        payload = {
+            "object_attributes": {"iid": 1, "title": "t", "action": "open"},
+        }
+        resp = client.post(
+            "/api/v1/webhooks/gitlab",
+            content=json.dumps(payload),
+            headers={
+                "X-Gitlab-Event": "Issue Hook",
+                "X-Gitlab-Token": "gl-secret",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["action"] == "ignored"
+
+    # ------------------------------------------------------------------
+    # Note Hook tests
+    # ------------------------------------------------------------------
+
+    def test_note_hook_processed(self, client_gitlab):
+        """Note Hook with valid payload should be processed."""
+        client, orch = client_gitlab
+        payload = {
+            "object_attributes": {
+                "id": 301,
+                "note": "LGTM",
+                "noteable_type": "MergeRequest",
+                "action": "create",
+            },
+            "user": {"username": "reviewer"},
+            "project": {"path_with_namespace": "group/project"},
+            "merge_request": {"iid": 7},
+        }
+        resp = client.post(
+            "/api/v1/webhooks/gitlab",
+            content=json.dumps(payload),
+            headers={
+                "X-Gitlab-Event": "Note Hook",
+                "X-Gitlab-Token": "gl-secret",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["action"] == "processed"
+        assert data["event_type"] == "Note Hook"
+
+    def test_note_hook_triggers_refresh(self, client_gitlab):
+        """Note Hook should trigger an orchestrator refresh (like issue_comment)."""
+        client, orch = client_gitlab
+        payload = {
+            "object_attributes": {
+                "id": 1,
+                "note": "lgtm",
+                "noteable_type": "Issue",
+                "action": "create",
+            },
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+            "issue": {"iid": 3},
+        }
+        resp = client.post(
+            "/api/v1/webhooks/gitlab",
+            content=json.dumps(payload),
+            headers={
+                "X-Gitlab-Event": "Note Hook",
+                "X-Gitlab-Token": "gl-secret",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        orch.request_refresh.assert_called_once()
+
+    # ------------------------------------------------------------------
+    # Pipeline Hook tests
+    # ------------------------------------------------------------------
+
+    def test_pipeline_hook_processed(self, client_gitlab):
+        """Pipeline Hook with valid payload should be processed."""
+        client, orch = client_gitlab
+        payload = {
+            "object_attributes": {
+                "id": 31,
+                "ref": "main",
+                "status": "success",
+            },
+            "user": {"username": "ci-bot"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+        resp = client.post(
+            "/api/v1/webhooks/gitlab",
+            content=json.dumps(payload),
+            headers={
+                "X-Gitlab-Event": "Pipeline Hook",
+                "X-Gitlab-Token": "gl-secret",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["action"] == "processed"
+        assert data["event_type"] == "Pipeline Hook"
+
+    def test_pipeline_hook_no_refresh(self, client_gitlab):
+        """Pipeline Hook events do not trigger an orchestrator refresh."""
+        client, orch = client_gitlab
+        payload = {
+            "object_attributes": {"id": 1, "ref": "main", "status": "running"},
+            "user": {"username": "ci"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+        resp = client.post(
+            "/api/v1/webhooks/gitlab",
+            content=json.dumps(payload),
+            headers={
+                "X-Gitlab-Event": "Pipeline Hook",
+                "X-Gitlab-Token": "gl-secret",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        orch.request_refresh.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # Job Hook tests
+    # ------------------------------------------------------------------
+
+    def test_job_hook_processed(self, client_gitlab):
+        """Job Hook with valid payload should be processed."""
+        client, orch = client_gitlab
+        payload = {
+            "build_id": 1977,
+            "build_name": "test",
+            "build_status": "success",
+            "ref": "main",
+            "user": {"name": "Tanuki"},
+            "repository": {"homepage": "https://gitlab.com/group/project"},
+        }
+        resp = client.post(
+            "/api/v1/webhooks/gitlab",
+            content=json.dumps(payload),
+            headers={
+                "X-Gitlab-Event": "Job Hook",
+                "X-Gitlab-Token": "gl-secret",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["action"] == "processed"
+        assert data["event_type"] == "Job Hook"
+
+    def test_job_hook_missing_homepage_ignored(self, client_gitlab):
+        """Job Hook without repository homepage is ignored."""
+        client, orch = client_gitlab
+        payload = {
+            "build_id": 1,
+            "build_status": "success",
+            "repository": {},
+        }
+        resp = client.post(
+            "/api/v1/webhooks/gitlab",
+            content=json.dumps(payload),
+            headers={
+                "X-Gitlab-Event": "Job Hook",
+                "X-Gitlab-Token": "gl-secret",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["action"] == "ignored"
+
+    # ------------------------------------------------------------------
+    # Unknown hook type
+    # ------------------------------------------------------------------
+
+    def test_unknown_hook_ignored(self, client_gitlab):
+        """Unrecognised GitLab hook types are ignored."""
+        client, orch = client_gitlab
+        resp = client.post(
+            "/api/v1/webhooks/gitlab",
+            content=json.dumps({"foo": "bar"}),
+            headers={
+                "X-Gitlab-Event": "Confidential Issue Hook",
+                "X-Gitlab-Token": "gl-secret",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["action"] == "ignored"
+        orch.request_refresh.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -1207,6 +1481,84 @@ class TestWebhookShouldRequestRefresh:
         assert _webhook_should_request_refresh(
             self._event("push", target_branch="main"), project=None
         ) is False
+
+    # ------------------------------------------------------------------
+    # GitLab-specific event types
+    # ------------------------------------------------------------------
+
+    def test_gitlab_mr_hook_always_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("Merge Request Hook", action="open"), project=None
+        ) is True
+
+    def test_gitlab_note_hook_always_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("Note Hook", action="create"), project=None
+        ) is True
+
+    def test_gitlab_issue_hook_open_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("Issue Hook", action="open"), project=None
+        ) is True
+
+    def test_gitlab_issue_hook_close_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("Issue Hook", action="close"), project=None
+        ) is True
+
+    def test_gitlab_issue_hook_reopen_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("Issue Hook", action="reopen"), project=None
+        ) is True
+
+    def test_gitlab_issue_hook_update_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("Issue Hook", action="update"), project=None
+        ) is True
+
+    def test_gitlab_pipeline_hook_does_not_refresh(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("Pipeline Hook", action="success"), project=None
+        ) is False
+
+    def test_gitlab_job_hook_does_not_refresh(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("Job Hook", action="success"), project=None
+        ) is False
+
+    def test_gitlab_push_hook_to_tracked_branch_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        event = self._event("Push Hook", target_branch="main")
+        event = type(event)(
+            provider="gitlab",
+            event_type="Push Hook",
+            action="pushed",
+            repo_slug="group/project",
+            target_branch="main",
+        )
+        project = self._project(tracked_branch="main")
+        assert _webhook_should_request_refresh(event, project=project) is True
+
+    def test_gitlab_push_hook_to_non_tracked_branch_does_not_refresh(self):
+        from oompah.server import _webhook_should_request_refresh
+        from oompah.webhooks import WebhookEvent
+        event = WebhookEvent(
+            provider="gitlab",
+            event_type="Push Hook",
+            action="pushed",
+            repo_slug="group/project",
+            target_branch="feature-x",
+        )
+        project = self._project(tracked_branch="main")
+        assert _webhook_should_request_refresh(event, project=project) is False
 
 
 # Webhook-driven task state reconciliation
