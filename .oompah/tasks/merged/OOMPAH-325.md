@@ -20,7 +20,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T08:53:31.319659Z'
+updated_at: '2026-07-22T08:59:02.893090Z'
 work_branch: epic-OOMPAH-325
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/537
@@ -883,5 +883,10 @@ author: oompah
 created: 2026-07-22 08:53
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-22 08:59
+---
+Understanding: Merge conflict resolver dispatched for the third time. Current state: there is an active rebase in progress (orig-head=3a457e579, onto=8146b9963/origin/epic-OOMPAH-318). The rebase is in a stuck 'editing' state with 2 done (duplicated OOMPAH-353 commit) and 5 remaining. The branch HEAD (3a457e579) has not moved from orig-head. Plan: abort the stuck rebase and start a clean rebase onto origin/epic-OOMPAH-318, then resolve any conflicts.
 ---
 <!-- COMMENTS:END -->
