@@ -776,6 +776,7 @@ class TestOrchestratorD1Watchdog:
         mock_tracker = MagicMock()
         new_issue = MagicMock(identifier="watchdog-001")
         mock_tracker.create_issue.return_value = new_issue
+        mock_tracker.fetch_issue_detail.return_value = None  # no task for branch — skip epic gate
 
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch._project_trackers[project.id] = mock_tracker
@@ -811,6 +812,7 @@ class TestOrchestratorD1Watchdog:
             MagicMock(identifier="watchdog-001"),
             MagicMock(identifier="watchdog-002"),
         ]
+        mock_tracker.fetch_issue_detail.return_value = None  # no task for branch — skip epic gate
 
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch._project_trackers[project.id] = mock_tracker
@@ -993,6 +995,7 @@ class TestOrchestratorD4Watchdog:
 
         mock_tracker = MagicMock()
         mock_tracker.create_issue.return_value = MagicMock(identifier="watchdog-001")
+        mock_tracker.fetch_issue_detail.return_value = None  # no task for branch — skip epic gate
 
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch._project_trackers[project.id] = mock_tracker
@@ -1031,6 +1034,7 @@ class TestOrchestratorWatchdogStatePruning:
 
         mock_tracker = MagicMock()
         mock_tracker.create_issue.return_value = MagicMock(identifier="watchdog-001")
+        mock_tracker.fetch_issue_detail.return_value = None  # no task for branch — skip epic gate
 
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch._project_trackers[project.id] = mock_tracker

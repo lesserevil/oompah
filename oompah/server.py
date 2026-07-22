@@ -919,6 +919,9 @@ _PROJECT_TRACKER_CACHE_FIELDS = frozenset(
         "tracker_owner",
         "tracker_repo",
         "github_issue_intake_enabled",
+        "external_issue_intake_enabled",
+        "forge_kind",
+        "forge_base_url",
         "github_project_node_id",
         # Changing the state-branch setting changes which branch the tracker
         # reads and writes — the tracker instance and the read cache must be
@@ -10056,15 +10059,18 @@ async def api_create_project(request: Request):
         git_user_name = body.get("git_user_name", "").strip() or None
         git_user_email = body.get("git_user_email", "").strip() or None
         access_token = (body.get("access_token") or "").strip() or None
+        forge_kind = (body.get("forge_kind") or "github").strip() or "github"
+        forge_base_url = (body.get("forge_base_url") or "").strip() or None
         # Per-project tracker configuration. New projects use oompah's native
         # Markdown task store by default; GitHub Issues must be selected
         # explicitly.
         tracker_kind = (body.get("tracker_kind") or "").strip() or "oompah_md"
         tracker_owner = (body.get("tracker_owner") or "").strip() or None
         tracker_repo = (body.get("tracker_repo") or "").strip() or None
-        github_issue_intake_enabled = bool(
-            body.get("github_issue_intake_enabled", False)
-        )
+        github_issue_intake_enabled = bool(body.get(
+            "external_issue_intake_enabled",
+            body.get("github_issue_intake_enabled", False),
+        ))
         github_project_node_id = (body.get("github_project_node_id") or "").strip() or None
         status_actor_raw = body.get("status_actor_login")
         if status_actor_raw is not None and not isinstance(status_actor_raw, str):
@@ -10136,6 +10142,8 @@ async def api_create_project(request: Request):
             git_user_name=git_user_name,
             git_user_email=git_user_email,
             access_token=access_token,
+            forge_kind=forge_kind,
+            forge_base_url=forge_base_url,
             tracker_kind=tracker_kind,
             tracker_owner=tracker_owner,
             tracker_repo=tracker_repo,
@@ -10222,9 +10230,17 @@ async def api_update_project(project_id: str, request: Request):
             "log_path",
             "webhook_secret",
             "access_token",
+            "forge_kind",
+            "forge_base_url",
         ):
             if key in body:
                 fields[key] = body[key]
+        # The forge-neutral name is preferred when a new client sends it;
+        # ProjectStore maps it back to the persisted legacy field name.
+        if "external_issue_intake_enabled" in body:
+            fields["external_issue_intake_enabled"] = body[
+                "external_issue_intake_enabled"
+            ]
         if "yolo" in body:
             fields["yolo"] = bool(body["yolo"])
         if "max_in_flight_prs" in body:
@@ -13474,9 +13490,10 @@ async def api_webhook_github(request: Request):
 async def api_webhook_gitlab(request: Request):
     """Receive GitLab webhook events (Merge Request Hook, etc.).
 
-    Validates the ``X-Gitlab-Token`` header against the project's
-    ``webhook_secret``. If no secret is configured on any matching
-    project, the webhook is accepted without validation.
+    Validates the ``X-Gitlab-Token`` header against the matched project's
+    ``webhook_secret``. GitLab project hooks are public HTTPS endpoints, so a
+    matched GitLab project without a configured secret is rejected rather than
+    allowing an unauthenticated caller to trigger project automation.
     """
     try:
         body_bytes = await request.body()
@@ -13510,17 +13527,38 @@ async def api_webhook_gitlab(request: Request):
         projects = orch.project_store.list_all()
         project = match_project_by_repo(projects, event.repo_slug, "gitlab")
 
-        # Validate token if project has a webhook_secret
-        if project and project.webhook_secret:
-            if not validate_gitlab_token(token, project.webhook_secret):
-                logger.warning(
-                    "GitLab webhook token validation failed for %s",
-                    event.repo_slug,
-                )
-                return JSONResponse(
-                    {"error": "Invalid token"},
-                    status_code=401,
-                )
+        # A GitLab hook is delivered directly to this public endpoint, unlike
+        # GitHub's local ``gh webhook forward`` path.  Fail closed:
+        # - No matching project → ignore (never emit events for unknown repos).
+        # - Matched project without a secret → reject 401.
+        # - Matched project with wrong token → reject 401.
+        if project is None:
+            logger.debug(
+                "GitLab webhook ignored: no registered project for %s",
+                event.repo_slug,
+            )
+            return JSONResponse(
+                {"ok": True, "action": "ignored", "event_type": event_type}
+            )
+
+        if not project.webhook_secret:
+            logger.warning(
+                "GitLab webhook rejected for %s: project has no webhook secret",
+                event.repo_slug,
+            )
+            return JSONResponse(
+                {"error": "Webhook secret is not configured"},
+                status_code=401,
+            )
+        if not validate_gitlab_token(token, project.webhook_secret):
+            logger.warning(
+                "GitLab webhook token validation failed for %s",
+                event.repo_slug,
+            )
+            return JSONResponse(
+                {"error": "Invalid token"},
+                status_code=401,
+            )
 
         _handle_webhook_event(event, project)
         return JSONResponse(

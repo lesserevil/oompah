@@ -139,6 +139,121 @@ def _sanitize_identifier(value: str) -> str:
     return cleaned.strip("._-") or "unnamed"
 
 
+# ---------------------------------------------------------------------------
+# Forge configuration validation (OOMPAH-319)
+# ---------------------------------------------------------------------------
+
+_VALID_FORGE_KINDS = frozenset({"github", "gitlab"})
+_GITHUB_BASE_URL = "https://github.com"
+_GITLAB_COM_BASE_URL = "https://gitlab.com"
+
+# Tracker kinds that bind to a specific forge
+_TRACKER_KIND_FORGE = {
+    "github_issues": "github",
+    "github-issues": "github",
+    "gitlab_issues": "gitlab",
+    "gitlab-issues": "gitlab",
+}
+
+
+def _validate_forge_config(
+    forge_kind: str,
+    forge_base_url: str,
+    tracker_kind: str | None = None,
+    repo_url: str | None = None,
+) -> tuple[str, str]:
+    """Validate and normalise explicit forge configuration before saving.
+
+    Returns ``(normalised_forge_kind, normalised_forge_base_url)`` on
+    success.  Raises :exc:`ProjectError` with an actionable message on any
+    invalid combination.
+
+    Rules
+    -----
+    - ``forge_kind`` must be ``"github"`` or ``"gitlab"`` (case-insensitive).
+    - ``forge_base_url`` must be an ``https://`` URL with no trailing slash.
+    - GitHub projects must use ``https://github.com`` as the base URL.
+    - GitLab projects that omit ``forge_base_url`` default to
+      ``https://gitlab.com``.
+    - ``tracker_kind`` must be compatible with ``forge_kind`` when set:
+      ``github_issues`` requires GitHub; ``gitlab_issues`` requires GitLab.
+    - If ``repo_url`` resolves to a known forge host, it must match
+      ``forge_kind`` (e.g. a ``github.com`` clone URL with
+      ``forge_kind="gitlab"`` is rejected).
+    """
+    # --- forge_kind ---
+    fk = str(forge_kind or "").strip().lower()
+    if fk not in _VALID_FORGE_KINDS:
+        raise ProjectError(
+            f"forge_kind must be 'github' or 'gitlab', got {forge_kind!r}"
+        )
+
+    # --- forge_base_url ---
+    raw_url = str(forge_base_url or "").strip().rstrip("/")
+    if not raw_url:
+        raw_url = _GITHUB_BASE_URL if fk == "github" else _GITLAB_COM_BASE_URL
+
+    if not raw_url.startswith("https://"):
+        raise ProjectError(
+            f"forge_base_url must be an https:// URL, got {forge_base_url!r}"
+        )
+
+    # GitHub must always use exactly https://github.com
+    if fk == "github" and raw_url != _GITHUB_BASE_URL:
+        raise ProjectError(
+            f"forge_base_url must be '{_GITHUB_BASE_URL}' for GitHub projects, "
+            f"got {forge_base_url!r}"
+        )
+
+    # --- tracker_kind compatibility ---
+    if tracker_kind:
+        tk_norm = str(tracker_kind).strip().lower()
+        required_forge = _TRACKER_KIND_FORGE.get(tk_norm)
+        if required_forge is not None and required_forge != fk:
+            raise ProjectError(
+                f"tracker_kind '{tracker_kind}' requires forge_kind='{required_forge}', "
+                f"but forge_kind is set to '{fk}'"
+            )
+
+    # --- repo_url host vs forge_kind ---
+    if repo_url:
+        _url = str(repo_url).strip()
+        try:
+            parsed = urlsplit(_url)
+            host = (parsed.hostname or "").lower()
+        except Exception:
+            host = ""
+
+        # SSH URL pattern (git@github.com:org/repo.git)
+        if not host and ("@" in _url and ":" in _url):
+            at_part = _url.split("@", 1)[-1]
+            host = at_part.split(":")[0].lower()
+
+        if host == "github.com" and fk != "github":
+            raise ProjectError(
+                f"repo_url host is github.com but forge_kind is '{fk}'; "
+                "set forge_kind='github' or use a GitLab repo URL"
+            )
+        if host == "gitlab.com" and fk != "gitlab":
+            raise ProjectError(
+                f"repo_url host is gitlab.com but forge_kind is '{fk}'; "
+                "set forge_kind='gitlab' or use a GitHub repo URL"
+            )
+        # For self-managed GitLab, the repo host must match the forge_base_url host
+        if fk == "gitlab" and host and raw_url != _GITLAB_COM_BASE_URL:
+            try:
+                forge_host = (urlsplit(raw_url).hostname or "").lower()
+            except Exception:
+                forge_host = ""
+            if forge_host and host != forge_host:
+                raise ProjectError(
+                    f"repo_url host '{host}' does not match forge_base_url host "
+                    f"'{forge_host}'; they must refer to the same GitLab instance"
+                )
+
+    return fk, raw_url
+
+
 def github_work_branch_name(project_name: str, issue_number: int | str) -> str:
     """Generate a GitHub-safe git branch name for a GitHub-backed task.
 
@@ -791,6 +906,8 @@ class ProjectStore:
         git_user_name: str | None = None,
         git_user_email: str | None = None,
         access_token: str | None = None,
+        forge_kind: str = "github",
+        forge_base_url: str | None = None,
         tracker_kind: str | None = "oompah_md",
         tracker_owner: str | None = None,
         tracker_repo: str | None = None,
@@ -840,6 +957,19 @@ class ProjectStore:
             branches = [branch] if branch != "main" else ["main"]
         if default_branch is None:
             default_branch = branches[0] if branches else "main"
+
+        # Validate and normalise forge configuration (OOMPAH-319).
+        # Default forge_base_url to the canonical value for the given forge_kind.
+        _default_forge_base = (
+            _GITLAB_COM_BASE_URL if str(forge_kind or "").strip().lower() == "gitlab"
+            else _GITHUB_BASE_URL
+        )
+        forge_kind_norm, forge_base_url_norm = _validate_forge_config(
+            forge_kind=forge_kind,
+            forge_base_url=forge_base_url or _default_forge_base,
+            tracker_kind=tracker_kind,
+            repo_url=repo_url,
+        )
 
         # Validate and normalise supported_release_branches.
         if supported_release_branches is None:
@@ -967,6 +1097,8 @@ class ProjectStore:
             git_user_email=git_user_email,
             access_token=access_token,
             lfs_available=lfs_available,
+            forge_kind=forge_kind_norm,
+            forge_base_url=forge_base_url_norm,
             tracker_kind=str(tracker_kind).strip() if tracker_kind else None,
             tracker_owner=tracker_owner_value,
             tracker_repo=tracker_repo_value,
@@ -1020,11 +1152,16 @@ class ProjectStore:
             "provider_whitelist",
             "status_actor_login",
             "status_label_authorized_logins",
+            # Explicit forge configuration.  The legacy GitHub defaults are
+            # retained for projects which never send either field.
+            "forge_kind",
+            "forge_base_url",
             # Per-project tracker configuration
             "tracker_kind",
             "tracker_owner",
             "tracker_repo",
             "github_issue_intake_enabled",
+            "external_issue_intake_enabled",
             "github_project_node_id",
             # Supported release lines (section 5 of release-branch-addendums.md)
             "supported_release_branches",
@@ -1199,6 +1336,19 @@ class ProjectStore:
 
         # ---- Per-project tracker configuration (TASK-459.3) ----
 
+        # external_issue_intake_enabled is the forge-neutral public alias.
+        # Keep storing the existing field name so persisted records and old
+        # clients remain compatible.
+        if "external_issue_intake_enabled" in fields:
+            if "github_issue_intake_enabled" in fields:
+                raise ProjectError(
+                    "Specify only one of 'external_issue_intake_enabled' or "
+                    "'github_issue_intake_enabled'"
+                )
+            fields["github_issue_intake_enabled"] = fields.pop(
+                "external_issue_intake_enabled"
+            )
+
         # tracker_kind: optional string; None clears to global default.
         if "tracker_kind" in fields:
             val = fields["tracker_kind"]
@@ -1230,6 +1380,24 @@ class ProjectStore:
                 fields["github_issue_intake_enabled"] = val
             else:
                 raise ProjectError("'github_issue_intake_enabled' must be a boolean")
+
+        # Validate forge configuration against the effective values after all
+        # related fields have been normalized.  This prevents a PATCH from
+        # persisting a forge/tracker/repository mismatch.
+        if "forge_kind" in fields or "forge_base_url" in fields or \
+                "tracker_kind" in fields or "repo_url" in fields:
+            effective_kind = fields.get("forge_kind", project.forge_kind)
+            effective_base = fields.get("forge_base_url", project.forge_base_url)
+            effective_tracker = fields.get("tracker_kind", project.tracker_kind)
+            effective_repo = fields.get("repo_url", project.repo_url)
+            norm_kind, norm_base = _validate_forge_config(
+                forge_kind=effective_kind,
+                forge_base_url=effective_base,
+                tracker_kind=effective_tracker,
+                repo_url=effective_repo,
+            )
+            fields["forge_kind"] = norm_kind
+            fields["forge_base_url"] = norm_base
 
         # Validate and normalise supported_release_branches.
         # Cross-field validation uses the effective branches/default_branch

@@ -412,22 +412,41 @@ class Project:
     status_label_authorized_logins: list[str] = field(default_factory=list)
 
     # ---------------------------------------------------------------------------
+    # Per-project forge configuration (OOMPAH-319).
+    # ---------------------------------------------------------------------------
+    # Explicit forge kind: "github" or "gitlab".  Inferred as "github" for
+    # all existing projects that lack this field (backward-compatible default).
+    # Consumers MUST use this field to determine forge kind — do not use
+    # substring detection on repo_url or forge_base_url.
+    forge_kind: str = "github"
+    # Canonical web/API origin for the forge.  Defaults to
+    # "https://github.com" for GitHub and "https://gitlab.com" for GitLab.
+    # Required for self-managed GitLab instances (anything other than
+    # https://gitlab.com).  Must be an https:// URL with no trailing slash.
+    forge_base_url: str = "https://github.com"
+
+    # ---------------------------------------------------------------------------
     # Per-project tracker configuration.
     # ---------------------------------------------------------------------------
     # Which tracker backend this project uses. When None, falls back to the
     # global ServiceConfig.tracker_kind. Recognized values are the keys in
     # oompah.tracker.ADAPTER_REGISTRY plus aliases like "oompah".
-    # Use "oompah_md" for native Markdown task files or
-    # "github_issues" for GitHub-backed projects.
+    # Use "oompah_md" for native Markdown task files,
+    # "github_issues" for GitHub-backed projects, or
+    # "gitlab_issues" for GitLab-backed projects.
     tracker_kind: str | None = None
-    # GitHub Issues task hub owner/repo for this project. When set, new tasks
-    # are created under <tracker_owner>/<tracker_repo> on GitHub.  Falls back
-    # to global OOMPAH_GITHUB_TRACKER_OWNER / _REPO env vars when None.
+    # Tracker namespace/project for this project. Serialized as
+    # tracker_owner/tracker_repo for backward compatibility; these fields are
+    # provider-neutral in behavior (GitLab group path / project path).
+    # When set, new tasks are created under <tracker_owner>/<tracker_repo>.
+    # Falls back to global OOMPAH_GITHUB_TRACKER_OWNER / _REPO env vars.
     tracker_owner: str | None = None
     tracker_repo: str | None = None
-    # For native Markdown projects, allow GitHub issues in tracker_owner/repo
-    # to act as an external customer intake source. The internal Markdown task
-    # remains authoritative after import.
+    # Forge-neutral flag: allow issues in tracker_owner/repo to act as an
+    # external customer intake source. The internal Markdown task remains
+    # authoritative after import.  Serialized as "github_issue_intake_enabled"
+    # for backward compatibility; "external_issue_intake_enabled" is accepted
+    # as an alias on input and also emitted on output.
     github_issue_intake_enabled: bool = False
     # GitHub Projects (v2) node ID for board/roadmap views. Optional — oompah
     # does not require a Project board to manage GitHub Issues.
@@ -575,6 +594,10 @@ class Project:
         # projects rely on the default project status actor and don't need this field.
         if self.status_label_authorized_logins:
             d["status_label_authorized_logins"] = list(self.status_label_authorized_logins)
+        # Forge configuration (OOMPAH-319). Always emit so consumers never
+        # need substring detection on repo_url to determine forge kind.
+        d["forge_kind"] = self.forge_kind
+        d["forge_base_url"] = self.forge_base_url
         # Per-project tracker configuration. Only emit when set to keep the
         # serialized dict compact for projects that haven't been cut over yet.
         if self.tracker_kind is not None:
@@ -583,7 +606,10 @@ class Project:
             d["tracker_owner"] = self.tracker_owner
         if self.tracker_repo is not None:
             d["tracker_repo"] = self.tracker_repo
+        # Emit both the canonical name and the legacy name for intake flag so
+        # both old and new API clients can read/write without breakage.
         d["github_issue_intake_enabled"] = self.github_issue_intake_enabled
+        d["external_issue_intake_enabled"] = self.github_issue_intake_enabled
         if self.github_project_node_id is not None:
             d["github_project_node_id"] = self.github_project_node_id
         # Always emit supported_release_branches (even when empty) so API
@@ -702,6 +728,25 @@ class Project:
             ]
         else:
             provider_whitelist = []
+        # Forge configuration (OOMPAH-319).
+        # Existing records without forge_kind default to "github" for
+        # backward compatibility — every pre-existing project is a GitHub
+        # project and must remain one without any configuration change.
+        raw_forge_kind = d.get("forge_kind")
+        if raw_forge_kind:
+            forge_kind = str(raw_forge_kind).strip().lower()
+            if forge_kind not in ("github", "gitlab"):
+                forge_kind = "github"
+        else:
+            forge_kind = "github"
+        # forge_base_url defaults from forge_kind when absent.
+        raw_forge_base_url = d.get("forge_base_url")
+        if raw_forge_base_url:
+            forge_base_url = str(raw_forge_base_url).rstrip("/").strip()
+        elif forge_kind == "gitlab":
+            forge_base_url = "https://gitlab.com"
+        else:
+            forge_base_url = "https://github.com"
         # Per-project tracker configuration
         raw_tracker_kind = d.get("tracker_kind")
         tracker_kind_proj: str | None = (
@@ -719,6 +764,13 @@ class Project:
         github_project_node_id: str | None = (
             str(raw_github_node).strip() if raw_github_node else None
         ) or None
+        # external_issue_intake_enabled is the forge-neutral name; accept it
+        # as an alias for github_issue_intake_enabled. The legacy name wins
+        # when both are present so existing stored records are not silently
+        # overridden by a missing new field.
+        _legacy_intake = bool(d.get("github_issue_intake_enabled", False))
+        _new_intake = bool(d.get("external_issue_intake_enabled", False))
+        github_issue_intake_enabled_resolved: bool = _legacy_intake or _new_intake
         raw_status_actor_login = d.get("status_actor_login")
         status_actor_login: str | None = (
             str(raw_status_actor_login).strip() if raw_status_actor_login else None
@@ -794,12 +846,12 @@ class Project:
                 for login in (d.get("status_label_authorized_logins") or [])
                 if str(login).strip()
             ],
+            forge_kind=forge_kind,
+            forge_base_url=forge_base_url,
             tracker_kind=tracker_kind_proj,
             tracker_owner=tracker_owner,
             tracker_repo=tracker_repo,
-            github_issue_intake_enabled=bool(
-                d.get("github_issue_intake_enabled", False)
-            ),
+            github_issue_intake_enabled=github_issue_intake_enabled_resolved,
             github_project_node_id=github_project_node_id,
             supported_release_branches=supported_release_branches,
             state_branch_enabled=state_branch_enabled,

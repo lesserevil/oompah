@@ -690,13 +690,26 @@ def ensure_project_bootstrap(
     return bool(result.applied)
 
 
+from oompah.project_bootstrap.gitlab_readiness import (
+    CapabilityResult,
+    CapabilityStatus,
+    GitLabReadinessResult,
+    MINIMUM_TOKEN_SCOPES,
+    check_gitlab_readiness,
+)
+
 __all__ = [
     "BootstrapDrift",
+    "CapabilityResult",
+    "CapabilityStatus",
+    "GitLabReadinessResult",
+    "MINIMUM_TOKEN_SCOPES",
     "ProjectBootstrapApplyResult",
     "ProjectBootstrapStatus",
     "STATE_BRANCH_TASK_DIRS",
     "StateBranchBootstrapResult",
     "apply_project_bootstrap_updates",
+    "check_gitlab_readiness",
     "check_project_bootstrap_drift",
     "ensure_project_bootstrap",
     "ensure_state_branch_initialized",

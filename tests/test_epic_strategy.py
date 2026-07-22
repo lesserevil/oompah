@@ -1266,7 +1266,7 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         issue = _make_issue(
-            identifier="task-1", parent_id="epic-1", project_id="proj-1"
+            identifier="task-1", parent_id=None, project_id="proj-1"
         )
         entry = RunningEntry(
             worker_task=MagicMock(),
@@ -1459,16 +1459,16 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             orch._ensure_review_exists(entry, "proj-1")
         provider.create_review.assert_not_called()
 
-    def test_shared_non_epic_parent_creates_per_task_pr(self, tmp_path):
-        """Shared mode creates child PRs only when the parent cannot be resolved."""
+    def test_review_handoff_skips_per_child_review_when_parent_id_set_but_resolve_fails(
+        self, tmp_path
+    ):
+        """An unresolved parent must not make a child PR eligible for handoff."""
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
         orch._reviews_cache = {"proj-1": []}
 
         provider = MagicMock()
-        provider.create_review.return_value = MagicMock(id="42")
         tracker = MagicMock()
-        tracker.fetch_issue_detail.return_value = None
         orch._tracker_for_project = MagicMock(return_value=tracker)
         issue = _make_issue(
             identifier="task-1", parent_id="epic-1", project_id="proj-1"
@@ -1487,19 +1487,13 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
-            patch(
-                "oompah.close_gate._count_commits_ahead",
-                return_value=(2, ["abc123 feature"], ""),
-            ),
+            patch.object(orch, "_resolve_parent_epic", return_value=None),
         ):
             result = orch._ensure_review_exists(entry, "proj-1")
 
         assert result is True
-        tracker.fetch_issue_detail.assert_called_once_with("epic-1")
-        provider.create_review.assert_called_once()
-        kwargs = provider.create_review.call_args.kwargs
-        assert kwargs.get("target_branch") == "main"
-        tracker.update_issue.assert_called_once_with("task-1", status=IN_REVIEW)
+        provider.create_review.assert_not_called()
+        tracker.update_issue.assert_not_called()
 
     def test_stacked_top_level_targets_main(self, tmp_path):
         """Top-level tasks in stacked mode (no parent_id) still target main."""
@@ -3572,6 +3566,64 @@ class TestLabelMergedEpics:
         for call in tracker.update_issue.call_args_list:
             assert call.kwargs.get("status") == "Merged"
 
+    def test_does_not_mark_child_merged_while_its_review_is_open(self, tmp_path):
+        """A landed rollup must not close a child's unresolved PR/MR."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            state="Backlog",
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="c1", state="Needs Rebase", project_id=proj.id
+        )
+        child.work_branch = "epic-c1"
+        orch._reviews_cache = {
+            proj.id: [
+                ReviewRequest(
+                    id="77",
+                    title="c1",
+                    url="https://example.test/pr/77",
+                    author="alice",
+                    state="open",
+                    source_branch="epic-c1",
+                    target_branch="epic-1",
+                    created_at="",
+                    updated_at="",
+                    has_conflicts=True,
+                )
+            ]
+        }
+        orch._merged_branches = {"epic-epic-1"}
+        provider = MagicMock()
+        provider.list_merged_reviews.return_value = [
+            ReviewRequest(
+                id="12",
+                title="epic-1",
+                url="https://example.test/pr/12",
+                author="alice",
+                state="merged",
+                source_branch="epic-epic-1",
+                target_branch="main",
+                created_at="",
+                updated_at="",
+            )
+        ]
+        tracker = MagicMock()
+        with (
+            patch.object(orch, "_all_non_terminal_epics", return_value=[epic]),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+        ):
+            orch._label_merged_epics()
+
+        marked = [call.args[0] for call in tracker.update_issue.call_args_list]
+        assert marked == ["epic-1"]
+
     def test_noop_when_epic_branch_not_merged(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
@@ -4032,3 +4084,66 @@ class TestNestedEpicMergeChain:
         # B is still open → A's PR must NOT be opened yet
         assert opened == 0
         provider.create_review.assert_not_called()
+
+
+# --------------------------------------------------------- YOLO epic policy
+
+
+class TestYoloEpicPolicyFailClosed:
+    def _review(self, source_branch: str = "task-1") -> ReviewRequest:
+        return ReviewRequest(
+            id="42",
+            title="task review",
+            url="https://github.com/org/repo/pull/42",
+            author="alice",
+            state="open",
+            source_branch=source_branch,
+            target_branch="main",
+            created_at="",
+            updated_at="",
+        )
+
+    def test_yolo_epic_strategy_blocks_when_parent_id_set_but_resolve_fails(
+        self, tmp_path
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        issue = _make_issue(identifier="task-1", parent_id="epic-1")
+        tracker = MagicMock()
+
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=issue),
+            patch.object(orch, "_resolve_parent_epic", return_value=None),
+        ):
+            reason = orch._yolo_epic_strategy_block_reason(
+                proj, tracker, self._review()
+            )
+
+        assert reason is not None
+        assert "could not be resolved" in reason
+
+    def test_close_invalid_epic_policy_review_does_not_close_when_parent_resolve_fails(
+        self, tmp_path
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        issue = _make_issue(identifier="task-1", parent_id="epic-1")
+        tracker = MagicMock()
+        provider = MagicMock()
+
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=issue),
+            patch.object(orch, "_resolve_parent_epic", return_value=None),
+        ):
+            closed = orch._close_invalid_epic_policy_review(
+                proj,
+                provider,
+                "org/repo",
+                tracker,
+                self._review(),
+                "parent could not be resolved",
+                tick=1,
+            )
+
+        assert closed is False
+        provider.close_review.assert_not_called()

@@ -281,7 +281,7 @@ def _resolve_via_scm(
         return []
 
     try:
-        commits = scm.get_pr_commits(repo, pr.id)
+        commits = scm.get_review_commits(repo, pr.id)
     except Exception as exc:
         logger.debug(
             "resolve_commits (SCM): get_pr_commits failed for %s PR %s: %s",

@@ -673,8 +673,10 @@ class TestWatchdogStatePruningMultiProject:
 
         mock_tracker_a = MagicMock()
         mock_tracker_a.create_issue.return_value = MagicMock(identifier="wd-a-001")
+        mock_tracker_a.fetch_issue_detail.return_value = None  # no task for branch — skip epic gate
         mock_tracker_b = MagicMock()
         mock_tracker_b.create_issue.return_value = MagicMock(identifier="wd-b-001")
+        mock_tracker_b.fetch_issue_detail.return_value = None  # no task for branch — skip epic gate
 
         orch = _make_orchestrator(tmp_path, projects=[project_a, project_b])
         orch._project_trackers[project_a.id] = mock_tracker_a

@@ -481,7 +481,7 @@ class TestEpicStaleAlert:
         assert alert["title"] == "Epic TASK-465 on oompah is 6 commits behind main"
         assert "threshold: 5" in alert["detail"]
         assert "Overlapping files: oompah/orchestrator.py" in alert["detail"]
-        assert "This is observation only" in alert["action"]
+        assert "observation only" in alert["action"]
         assert alert["message"] == f"{alert['title']}. {alert['action']}"
         assert alert["epic_identifier"] == "TASK-465"
         assert alert["project_id"] == "proj-1"

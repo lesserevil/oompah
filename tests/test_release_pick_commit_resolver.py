@@ -92,9 +92,9 @@ def _make_scm(
         scm.find_pr_for_branch.return_value = pr
 
     if commits_raises is not None:
-        scm.get_pr_commits.side_effect = commits_raises
+        scm.get_review_commits.side_effect = commits_raises
     else:
-        scm.get_pr_commits.return_value = list(commits) if commits is not None else ["abc123", "def456"]
+        scm.get_review_commits.return_value = list(commits) if commits is not None else ["abc123", "def456"]
 
     return scm
 
@@ -129,7 +129,7 @@ class TestExplicitCommits:
         assert result == ["aaa", "bbb"]
         # SCM should NOT be called when commits are already known
         scm.find_pr_for_branch.assert_not_called()
-        scm.get_pr_commits.assert_not_called()
+        scm.get_review_commits.assert_not_called()
 
     def test_single_explicit_commit(self):
         task = _issue()
@@ -167,7 +167,7 @@ class TestSCMStrategy:
 
         assert result == ["c1", "c2", "c3"]
         scm.find_pr_for_branch.assert_called_once_with("org/repo", task.branch_name)
-        scm.get_pr_commits.assert_called_once_with("org/repo", "42")
+        scm.get_review_commits.assert_called_once_with("org/repo", "42")
 
     def test_skips_open_pr(self):
         task = _issue()
@@ -177,7 +177,7 @@ class TestSCMStrategy:
         result = resolve_commits_for_entry(task, entry, scm=scm, repo="org/repo")
 
         assert result == []
-        scm.get_pr_commits.assert_not_called()
+        scm.get_review_commits.assert_not_called()
 
     def test_skips_closed_non_merged_pr(self):
         task = _issue()
@@ -187,7 +187,7 @@ class TestSCMStrategy:
         result = resolve_commits_for_entry(task, entry, scm=scm, repo="org/repo")
 
         assert result == []
-        scm.get_pr_commits.assert_not_called()
+        scm.get_review_commits.assert_not_called()
 
     def test_skips_when_no_pr_found(self):
         task = _issue()
@@ -197,7 +197,7 @@ class TestSCMStrategy:
         result = resolve_commits_for_entry(task, entry, scm=scm, repo="org/repo")
 
         assert result == []
-        scm.get_pr_commits.assert_not_called()
+        scm.get_review_commits.assert_not_called()
 
     def test_find_pr_exception_returns_empty(self):
         task = _issue()
@@ -208,7 +208,7 @@ class TestSCMStrategy:
 
         assert result == []
 
-    def test_get_pr_commits_exception_returns_empty(self):
+    def test_get_review_commits_exception_returns_empty(self):
         task = _issue()
         entry = _entry()
         scm = _make_scm(pr_state="merged", commits_raises=RuntimeError("API error"))
@@ -511,7 +511,7 @@ class TestResolveViaSCM:
         scm = _make_scm(pr_state="merged", pr_id="99", commits=["x"])
         _resolve_via_scm(scm, "myorg/myrepo", "my-branch", "TASK-5", "release/2.0")
         scm.find_pr_for_branch.assert_called_once_with("myorg/myrepo", "my-branch")
-        scm.get_pr_commits.assert_called_once_with("myorg/myrepo", "99")
+        scm.get_review_commits.assert_called_once_with("myorg/myrepo", "99")
 
 
 # ---------------------------------------------------------------------------

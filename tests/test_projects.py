@@ -94,6 +94,99 @@ class TestGitHubOwnerRepoFromUrl:
             "repo",
         )
 
+
+class TestForgeConfiguration:
+    """Persisted-project migration and cross-field forge validation."""
+
+    def test_legacy_project_defaults_to_github_and_serializes_new_fields(self):
+        project = Project.from_dict(
+            {
+                "id": "legacy",
+                "name": "legacy-project",
+                "repo_url": "https://github.com/acme/legacy.git",
+                "repo_path": "/tmp/legacy-project",
+                "branch": "main",
+                "tracker_kind": "github_issues",
+                "tracker_owner": "acme",
+                "tracker_repo": "legacy",
+                "github_issue_intake_enabled": True,
+            }
+        )
+
+        assert project.forge_kind == "github"
+        assert project.forge_base_url == "https://github.com"
+        assert project.tracker_owner == "acme"
+        assert project.tracker_repo == "legacy"
+        assert project.to_dict()["github_issue_intake_enabled"] is True
+        assert project.to_dict()["external_issue_intake_enabled"] is True
+        assert project.to_dict()["forge_kind"] == "github"
+
+    def test_gitlab_com_and_nested_self_managed_urls_normalize(self, tmp_path):
+        store, _ = _store_with_one_project(tmp_path)
+
+        gitlab_com = store.update(
+            "proj-sync1",
+            forge_kind="GITLAB",
+            forge_base_url="https://gitlab.com/",
+            repo_url="git@gitlab.com:group/subgroup/repo.git",
+            tracker_kind="gitlab_issues",
+        )
+        assert gitlab_com.forge_kind == "gitlab"
+        assert gitlab_com.forge_base_url == "https://gitlab.com"
+
+        self_managed = store.update(
+            "proj-sync1",
+            forge_base_url="https://gitlab.example.test/gitlab/",
+            repo_url="https://gitlab.example.test/group/subgroup/repo.git",
+        )
+        assert self_managed.forge_base_url == "https://gitlab.example.test/gitlab"
+
+    @pytest.mark.parametrize(
+        ("fields", "message"),
+        [
+            ({"forge_kind": "bitbucket"}, "forge_kind must be"),
+            ({"forge_base_url": "http://gitlab.example.test"}, "https://"),
+            (
+                {"forge_kind": "github", "tracker_kind": "gitlab_issues"},
+                "requires forge_kind='gitlab'",
+            ),
+            (
+                {
+                    "forge_kind": "gitlab",
+                    "forge_base_url": "https://gitlab.example.test",
+                    "repo_url": "https://github.com/acme/repo.git",
+                },
+                "repo_url host is github.com",
+            ),
+            (
+                {
+                    "forge_kind": "gitlab",
+                    "forge_base_url": "https://gitlab.example.test",
+                    "repo_url": "https://other-gitlab.example.test/acme/repo.git",
+                },
+                "does not match forge_base_url host",
+            ),
+        ],
+    )
+    def test_update_rejects_invalid_or_mismatched_forge_configuration(
+        self, tmp_path, fields, message
+    ):
+        store, _ = _store_with_one_project(tmp_path)
+
+        with pytest.raises(ProjectError, match=message):
+            store.update("proj-sync1", **fields)
+
+    def test_external_intake_alias_updates_legacy_persisted_field(self, tmp_path):
+        store, _ = _store_with_one_project(tmp_path)
+
+        project = store.update(
+            "proj-sync1", external_issue_intake_enabled=True
+        )
+
+        assert project.github_issue_intake_enabled is True
+        saved = Project.from_dict(project.to_dict())
+        assert saved.github_issue_intake_enabled is True
+
     def test_non_github_url_returns_none_pair(self):
         assert github_owner_repo_from_url("https://gitlab.com/org/repo.git") == (
             None,

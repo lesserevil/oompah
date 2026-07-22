@@ -199,6 +199,203 @@ Projects that were bootstrapped before state branches were introduced must be
 migrated first. Run `oompah project-bootstrap apply` to create the state branch,
 then enable the feature via the environment variable.
 
+## GitLab Projects
+
+This section covers bootstrap requirements and configuration specific to GitLab.com
+and GitLab 17+ self-managed projects. Existing GitHub projects are **unaffected** —
+no configuration changes are required unless you are adding a GitLab project.
+
+### Minimum GitLab token scopes
+
+When configuring a GitLab project, the `access_token` field must be set to a
+GitLab personal access token (PAT) or project access token with at minimum the
+**`api`** scope. This grants the privileges oompah needs to:
+
+- Read and create issues and merge requests
+- Read pipeline and CI status
+- Create and manage project-level labels
+- Create, reconcile, and delete project webhook hooks
+- Push state-branch commits (via the GitLab repository API)
+
+For self-managed GitLab 17+ instances, the equivalent project-level permissions
+(at minimum **Developer** role for most operations, **Maintainer** for hook
+creation) are required.
+
+To set the token for a project:
+
+```bash
+curl -X PATCH http://localhost:8080/api/v1/projects/<project-id> \
+  -H 'Content-Type: application/json' \
+  -d '{"access_token": "<your-gitlab-token>"}'
+```
+
+Or configure it via the dashboard: **Projects → Settings → Access Token**.
+
+> **Security:** The token is stored on the server and masked in all API
+> responses (`***`). Never include the raw token in logs, config files committed
+> to source control, or task comments.
+
+### Webhook configuration (public HTTPS endpoint required)
+
+GitLab delivers webhook events directly to an HTTPS endpoint that must be
+publicly reachable from the GitLab instance. Unlike the GitHub integration
+(which uses `gh webhook forward` via a local process), the GitLab webhook
+endpoint is public.
+
+**Required:** Set `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` in `.env` to the base URL
+where oompah is reachable over HTTPS, for example:
+
+```ini
+OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL=https://oompah.example.com
+```
+
+GitLab will POST events to `<OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL>/api/v1/webhooks/gitlab`.
+
+**HTTPS is required** — GitLab rejects webhook endpoints that do not use HTTPS.
+If running locally during initial setup, expose oompah with a tunnel:
+
+```bash
+# Using ngrok:
+ngrok http 8080
+# Then set OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL=https://<random>.ngrok.io
+
+# Using cloudflared:
+cloudflare tunnel --url http://localhost:8080
+```
+
+If no public URL is available, oompah falls back to polling for project
+activity. Set `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` to an empty string or leave it
+unset to run in polling-only mode. Polling introduces higher latency (up to
+`OOMPAH_POLL_INTERVAL_MS`, default 2 minutes).
+
+### Webhook secret (security requirement)
+
+Every GitLab project **must** have a `webhook_secret` configured. The webhook
+endpoint fails closed: GitLab webhooks received for a project without a
+configured secret are rejected with HTTP 401, and webhooks for unregistered
+repositories are silently discarded.
+
+Generate a high-entropy secret and configure it:
+
+```bash
+SECRET=$(openssl rand -hex 32)
+curl -X PATCH http://localhost:8080/api/v1/projects/<project-id> \
+  -H 'Content-Type: application/json' \
+  -d "{\"webhook_secret\": \"$SECRET\"}"
+```
+
+The same secret value must be set in the GitLab project hook (oompah manages
+this automatically when `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` is configured and
+the token has Maintainer role).
+
+### Auto-merge semantics
+
+GitLab auto-merge uses `merge_when_pipeline_succeeds`. When oompah requests an
+auto-merge on a merge request, it sets this flag via the GitLab API. The MR is
+merged automatically once all required pipeline jobs pass.
+
+If GitLab rejects the auto-merge request (because approvals are required or
+policy is unmet), oompah retains the MR in open state and surfaces the reason
+as an alert.
+
+**Merge trains are not supported in v1.** Oompah uses ordinary auto-merge
+(`merge_when_pipeline_succeeds`) only. If the target project uses merge trains,
+oompah will request an ordinary auto-merge and GitLab will execute the MR
+outside the train. To disable merge trains for a specific project, go to
+**Settings → Merge Requests → Merge method** and disable "Merge Trains".
+
+### State branch push access
+
+The oompah service account must be able to push directly to `oompah/state/*`
+branches without a merge request. This is required for the state branch feature.
+
+If the project has branch protections that prevent direct pushes, add an
+exception for the `oompah/state/*` pattern:
+
+1. Go to **GitLab → Settings → Repository → Protected branches**.
+2. Add a rule for `oompah/state/*` with **Allowed to push** set to the
+   oompah service account or Developers.
+3. Leave **Allowed to merge** unchecked (state branches are never merged).
+
+### Self-managed GitLab
+
+For self-managed GitLab 17+, set `forge_base_url` to the instance's canonical
+HTTPS URL:
+
+```bash
+curl -X PATCH http://localhost:8080/api/v1/projects/<project-id> \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "forge_kind": "gitlab",
+    "forge_base_url": "https://gitlab.example.com"
+  }'
+```
+
+The `repo_url` host must match the `forge_base_url` host — oompah validates
+this at project creation and update time.
+
+### Bootstrap dry-run (readiness check)
+
+Before running a full bootstrap against a GitLab project, run the readiness
+check to validate all required capabilities:
+
+```python
+from oompah.project_bootstrap import check_gitlab_readiness
+
+result = check_gitlab_readiness(
+    forge_base_url="https://gitlab.com",       # or your self-managed URL
+    token="glpat-...",                         # your GitLab PAT
+    namespace="my-group",                      # GitLab namespace
+    project_name="my-project",                 # GitLab project name
+    webhook_public_url="https://oompah.example.com",
+    dry_run=True,                              # no state mutations
+)
+print(result.summary())
+```
+
+The dry-run check validates:
+
+| Capability | What is checked |
+|---|---|
+| `api_access` | Token authenticates and can call `/api/v4/user` |
+| `label_create` | Token can list/create project labels (Developer role) |
+| `issue_access` | Token can read project issues |
+| `mr_access` | Token can read project merge requests |
+| `pipeline_read` | Token can read CI pipeline results |
+| `state_branch_push` | Token has Developer access level (push permission) |
+| `webhook_url` | `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` is a valid HTTPS URL |
+| `hook_create` | Token can list project hooks (Maintainer role) |
+| `polling_fallback` | Token can list branches (polling available as fallback) |
+
+When a capability fails, the output identifies the exact missing permission and
+the remediation step. No state is modified in dry-run mode.
+
+### Recovery procedures
+
+**Token expired or revoked:**
+- Create a new GitLab PAT with `api` scope.
+- Update the project: `PATCH /api/v1/projects/<id>` with `{"access_token": "..."}`.
+- Run the readiness check to confirm all capabilities are restored.
+
+**Webhook hook missing or incorrect:**
+- Oompah reconciles project hooks on startup and each maintenance tick.
+- To force reconciliation: `make restart` or `POST /api/v1/orchestrator/restart`.
+- If the hook cannot be created (Maintainer role missing), configure it manually
+  in GitLab → Settings → Webhooks with the URL and token shown in the dashboard.
+
+**State branch push rejected:**
+- Check GitLab → Settings → Repository → Protected branches for a rule that
+  blocks `oompah/state/*`.
+- Add a push exception for the service account, or disable branch protection
+  for the `oompah/state/*` pattern.
+
+**Polling degraded (no webhooks):**
+- Set `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` in `.env` and restart.
+- Verify the URL is HTTPS and publicly reachable from the GitLab instance.
+- If running behind a firewall, set up a tunnel (ngrok, cloudflared, etc.).
+
+---
+
 ## Dirty Worktree Safety
 
 Oompah refuses to overwrite bootstrap-managed paths with uncommitted changes.

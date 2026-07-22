@@ -75,10 +75,15 @@ _PROJECT_READABLE_FIELDS = frozenset(
         "id",
         "name",
         "repo_url",
+        # Forge configuration (OOMPAH-327).
+        "forge_kind",
+        "forge_base_url",
         "tracker_kind",
         "tracker_owner",
         "tracker_repo",
         "github_issue_intake_enabled",
+        # forge-neutral alias for github_issue_intake_enabled (OOMPAH-327)
+        "external_issue_intake_enabled",
         "github_project_node_id",
         "status_actor_login",
         "status_label_authorized_logins",
@@ -89,6 +94,10 @@ _PROJECT_READABLE_FIELDS = frozenset(
 
 _PROJECT_UPDATABLE_FIELDS = frozenset(
     {
+        # Forge configuration (OOMPAH-327). Validation is enforced by
+        # ProjectStore.update() — the ACP layer passes them through.
+        "forge_kind",
+        "forge_base_url",
         "tracker_kind",
         "tracker_owner",
         "tracker_repo",
@@ -109,17 +118,25 @@ def _project_snapshot(project: Any) -> dict[str, Any]:
         value = getattr(project, name, default)
         return value if isinstance(value, bool) else default
 
+    def str_attr(name: str, default: str) -> str:
+        """Like bool_attr but for strings — guards against MagicMock values."""
+        value = getattr(project, name, default)
+        return value if isinstance(value, str) else default
+
+    intake_enabled = bool_attr("github_issue_intake_enabled", False)
     return {
         "id": project.id,
         "name": getattr(project, "name", None),
         "repo_url": getattr(project, "repo_url", None),
+        # Forge configuration (OOMPAH-327).
+        "forge_kind": str_attr("forge_kind", "github"),
+        "forge_base_url": str_attr("forge_base_url", "https://github.com"),
         "tracker_kind": getattr(project, "tracker_kind", None),
         "tracker_owner": getattr(project, "tracker_owner", None),
         "tracker_repo": getattr(project, "tracker_repo", None),
-        "github_issue_intake_enabled": bool_attr(
-            "github_issue_intake_enabled",
-            False,
-        ),
+        "github_issue_intake_enabled": intake_enabled,
+        # forge-neutral alias — matches the API field name (OOMPAH-327)
+        "external_issue_intake_enabled": intake_enabled,
         "github_project_node_id": getattr(project, "github_project_node_id", None),
         "status_actor_login": getattr(project, "status_actor_login", None),
         "status_label_authorized_logins": list(
@@ -635,10 +652,11 @@ def build_tool_catalog(
     @tool(
         "list_projects",
         "List managed projects and their tracker configuration. "
-        "Returns JSON containing id, name, repo_url, tracker_kind, "
-        "tracker_owner, tracker_repo, status_actor_login, "
+        "Returns JSON containing id, name, repo_url, forge_kind, forge_base_url, "
+        "tracker_kind, tracker_owner, tracker_repo, status_actor_login, "
         "status_label_authorized_logins, "
-        "github_issue_intake_enabled, github_project_node_id, and paused for each project. "
+        "github_issue_intake_enabled, external_issue_intake_enabled, "
+        "github_project_node_id, and paused for each project. "
         "Use this to discover target project ids instead of reading "
         ".oompah/projects.json.",
         {},
@@ -649,10 +667,11 @@ def build_tool_catalog(
     @tool(
         "get_project",
         "Read the tracker configuration for the managed project this "
-        "worktree belongs to. Returns JSON with id, name, tracker_kind, "
-        "tracker_owner, tracker_repo, status_actor_login, "
-        "status_label_authorized_logins, "
-        "github_issue_intake_enabled, github_project_node_id, and paused fields. "
+        "worktree belongs to. Returns JSON with id, name, forge_kind, "
+        "forge_base_url, tracker_kind, tracker_owner, tracker_repo, "
+        "status_actor_login, status_label_authorized_logins, "
+        "github_issue_intake_enabled, external_issue_intake_enabled, "
+        "github_project_node_id, and paused fields. "
         "Use this instead of calling http://127.0.0.1:8090 — HTTP "
         "self-calls from inside an oompah MCP tool deadlock the server. "
         "No parameters required.",
@@ -681,11 +700,11 @@ def build_tool_catalog(
         "update_project",
         "Update tracker configuration fields for the managed project. "
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
-        "subset of: tracker_kind, tracker_owner, tracker_repo, "
-        "github_issue_intake_enabled, github_project_node_id, status_actor_login, "
-        "status_label_authorized_logins, paused. "
-        "Example: '{\"tracker_kind\": \"github_issues\", "
-        "\"tracker_owner\": \"my-org\", \"tracker_repo\": \"my-repo\"}'. "
+        "subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner, "
+        "tracker_repo, github_issue_intake_enabled, github_project_node_id, "
+        "status_actor_login, status_label_authorized_logins, paused. "
+        "Example: '{\"forge_kind\": \"gitlab\", \"forge_base_url\": "
+        "\"https://gitlab.com\", \"tracker_kind\": \"gitlab_issues\"}'. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
         "or editing .oompah/projects.json directly — both can deadlock or "
         "corrupt the running service.",
@@ -706,9 +725,9 @@ def build_tool_catalog(
         "Update tracker configuration fields for a specific managed "
         "project id. Call list_projects first to find the project id. "
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
-        "subset of: tracker_kind, tracker_owner, tracker_repo, "
-        "github_issue_intake_enabled, github_project_node_id, status_actor_login, "
-        "status_label_authorized_logins, paused. "
+        "subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner, "
+        "tracker_repo, github_issue_intake_enabled, github_project_node_id, "
+        "status_actor_login, status_label_authorized_logins, paused. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
         "or editing .oompah/projects.json directly.",
         {"project_id": str, "fields_json": str},
@@ -885,9 +904,10 @@ def build_codex_tool_catalog(
     @function_tool
     def get_project() -> str:
         """Read the tracker configuration for the managed project this
-        worktree belongs to. Returns JSON with id, name, tracker_kind,
-        tracker_owner, tracker_repo,
-        github_issue_intake_enabled, github_project_node_id, and paused fields.
+        worktree belongs to. Returns JSON with id, name, forge_kind,
+        forge_base_url, tracker_kind, tracker_owner, tracker_repo,
+        github_issue_intake_enabled, external_issue_intake_enabled,
+        github_project_node_id, and paused fields.
         Use this instead of calling http://127.0.0.1:8090 — HTTP
         self-calls from inside an oompah MCP tool deadlock the server."""
         return _exec_get_project(project_store, current_project_id)
@@ -902,8 +922,8 @@ def build_codex_tool_catalog(
     def update_project(fields_json: str) -> str:
         """Update tracker configuration fields for the managed project.
         ``fields_json`` must be a JSON-encoded object whose keys are a
-        subset of: tracker_kind, tracker_owner, tracker_repo,
-        github_issue_intake_enabled, github_project_node_id, paused.
+        subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner,
+        tracker_repo, github_issue_intake_enabled, github_project_node_id, paused.
         Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id>
         or editing .oompah/projects.json directly — both can deadlock or
         corrupt the running service."""
@@ -1089,10 +1109,11 @@ def build_opencode_tool_catalog(
     @tool(
         "list_projects",
         "List managed projects and their tracker configuration. "
-        "Returns JSON containing id, name, repo_url, tracker_kind, "
-        "tracker_owner, tracker_repo, status_actor_login, "
+        "Returns JSON containing id, name, repo_url, forge_kind, forge_base_url, "
+        "tracker_kind, tracker_owner, tracker_repo, status_actor_login, "
         "status_label_authorized_logins, "
-        "github_issue_intake_enabled, github_project_node_id, and paused for each project. "
+        "github_issue_intake_enabled, external_issue_intake_enabled, "
+        "github_project_node_id, and paused for each project. "
         "Use this to discover target project ids instead of reading "
         ".oompah/projects.json.",
         {},
@@ -1103,10 +1124,11 @@ def build_opencode_tool_catalog(
     @tool(
         "get_project",
         "Read the tracker configuration for the managed project this "
-        "worktree belongs to. Returns JSON with id, name, tracker_kind, "
-        "tracker_owner, tracker_repo, status_actor_login, "
-        "status_label_authorized_logins, "
-        "github_issue_intake_enabled, github_project_node_id, and paused fields. "
+        "worktree belongs to. Returns JSON with id, name, forge_kind, "
+        "forge_base_url, tracker_kind, tracker_owner, tracker_repo, "
+        "status_actor_login, status_label_authorized_logins, "
+        "github_issue_intake_enabled, external_issue_intake_enabled, "
+        "github_project_node_id, and paused fields. "
         "Use this instead of calling http://127.0.0.1:8090 — HTTP "
         "self-calls from inside an oompah MCP tool deadlock the server. "
         "No parameters required.",
@@ -1135,11 +1157,11 @@ def build_opencode_tool_catalog(
         "update_project",
         "Update tracker configuration fields for the managed project. "
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
-        "subset of: tracker_kind, tracker_owner, tracker_repo, "
-        "github_issue_intake_enabled, github_project_node_id, status_actor_login, "
-        "status_label_authorized_logins, paused. "
-        "Example: '{\"tracker_kind\": \"github_issues\", "
-        "\"tracker_owner\": \"my-org\", \"tracker_repo\": \"my-repo\"}'. "
+        "subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner, "
+        "tracker_repo, github_issue_intake_enabled, github_project_node_id, "
+        "status_actor_login, status_label_authorized_logins, paused. "
+        "Example: '{\"forge_kind\": \"gitlab\", \"forge_base_url\": "
+        "\"https://gitlab.com\", \"tracker_kind\": \"gitlab_issues\"}'. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
         "or editing .oompah/projects.json directly — both can deadlock or "
         "corrupt the running service.",
@@ -1160,9 +1182,9 @@ def build_opencode_tool_catalog(
         "Update tracker configuration fields for a specific managed "
         "project id. Call list_projects first to find the project id. "
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
-        "subset of: tracker_kind, tracker_owner, tracker_repo, "
-        "github_issue_intake_enabled, github_project_node_id, status_actor_login, "
-        "status_label_authorized_logins, paused. "
+        "subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner, "
+        "tracker_repo, github_issue_intake_enabled, github_project_node_id, "
+        "status_actor_login, status_label_authorized_logins, paused. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
         "or editing .oompah/projects.json directly.",
         {"project_id": str, "fields_json": str},

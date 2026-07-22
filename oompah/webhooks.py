@@ -650,6 +650,12 @@ def match_project_by_repo(
     from oompah.scm import extract_repo_slug
 
     for project in projects:
+        # A repository slug is only unique within a forge.  In particular,
+        # ``group/project`` may legitimately exist on both GitHub and GitLab.
+        # Do not let an event from one forge select the other forge's project
+        # (and therefore its webhook secret or downstream automation).
+        if getattr(project, "forge_kind", "github") != provider:
+            continue
         slug = extract_repo_slug(project.repo_url)
         if slug == repo_slug:
             return project

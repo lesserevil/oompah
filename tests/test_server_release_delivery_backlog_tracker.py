@@ -297,7 +297,7 @@ class TestMultiProjectTrackerIsolation:
         legacy_tracker = _make_tracker([legacy_issue])
 
         scm = MagicMock()
-        scm.get_pr_commits.return_value = [_PR_SHA_TRICKLE]
+        scm.get_review_commits.return_value = [_PR_SHA_TRICKLE]
 
         commit = _make_commit_info(_PR_SHA_TRICKLE, f"feat: {_TRICKLE_TASK_ID}")
 
@@ -392,7 +392,7 @@ class TestMultiProjectTrackerIsolation:
 
         trickle_scm = MagicMock()
         # Only TRICKLE-42's PR commit is reachable from main
-        trickle_scm.get_pr_commits.return_value = [_PR_SHA_TRICKLE]
+        trickle_scm.get_review_commits.return_value = [_PR_SHA_TRICKLE]
 
         commit = _make_commit_info(_PR_SHA_TRICKLE, f"feat: {_TRICKLE_TASK_ID}")
 
@@ -902,7 +902,7 @@ class TestSingleProjectLegacyModeCompatibility:
 
         scm = MagicMock()
         pr_sha = "ff" * 20
-        scm.get_pr_commits.return_value = [pr_sha]
+        scm.get_review_commits.return_value = [pr_sha]
 
         commit = _make_commit_info(pr_sha, "feat: SINGLE-10 implement something")
 

@@ -931,7 +931,7 @@ class TestTrickleScaleBacklogRegressionOOMPAH251:
     - Dozens of Merged items in the tracker (including deleted branches + PR refs)
     - Verifies that:
       1. The PRIMARY items list is built and returned.
-      2. External SCM lookups (get_pr_commits) are bounded/called (one per item with PR).
+      2. External SCM lookups (get_review_commits) are bounded/called (one per item with PR).
       3. Title enrichment failure does NOT prevent primary rows from being returned.
       4. Not-selected and delivered items are correctly filtered.
     """
@@ -1000,7 +1000,7 @@ class TestTrickleScaleBacklogRegressionOOMPAH251:
         scm = MagicMock()
         scm_call_count = [0]
 
-        def _mock_get_pr_commits(repo, pr_number):
+        def _mock_get_review_commits(repo, pr_number):
             scm_call_count[0] += 1
             # Return the SHA for this item's PR
             pr_idx = int(pr_number) - 400
@@ -1008,7 +1008,7 @@ class TestTrickleScaleBacklogRegressionOOMPAH251:
             sha = item_shas.get(ident, "")
             return [sha] if sha else []
 
-        scm.get_pr_commits.side_effect = _mock_get_pr_commits
+        scm.get_review_commits.side_effect = _mock_get_review_commits
 
         store = MagicMock(spec=ReleaseDeliveryStore)
         ledger = MagicMock()
