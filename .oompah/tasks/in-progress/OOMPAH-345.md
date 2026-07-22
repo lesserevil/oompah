@@ -11,9 +11,11 @@ children: []
 blocked_by: []
 labels:
 - external:github
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-22T00:38:50.948182Z'
-updated_at: '2026-07-22T00:50:45.943410Z'
+updated_at: '2026-07-22T00:52:51.292327Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -135,5 +137,34 @@ author: oompah
 created: 2026-07-22 00:50
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 00:52
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. This is a novel error — the previous dispatch confirmed OOMPAH-345 has a unique fingerprint and no prior task covers 'Cannot sync state branch: git fetch origin failed'.
+
+**Root cause (confirmed, code read):**
+- File: \`oompah/oompah_md_tracker.py\`, method \`_sync_state_branch_from_remote()\`, lines 1440–1448
+- When \`git fetch origin 'oompah/state/proj-14849f1b'\` exits non-zero (empty stderr/stdout — transient network or branch not yet on remote), the method raises \`TrackerError\`
+- That propagates through \`_ensure_state_branch_setup()\` and up to the Update issue API handler in \`oompah/server.py\` line 7200: \`logger.error("Update issue API error: %s", exc)\`
+- \`error_watcher\` watches the \`oompah\` logger at ERROR level, catches this log line, and auto-files it as a new bug task — causing the feedback loop
+
+**Recommended fix (precedent exists):**
+- \`oompah/tracker.py\` lines 66–78 already defines \`StateBranchMissingError(TrackerError)\` — a subclass that is caught separately and logged as WARNING so error_watcher is NOT triggered (see \`oompah/server.py\` line 2607, \`oompah/orchestrator.py\` lines 174, 3659, 3702, 3738, 3780)
+- The fix is to create \`StateBranchFetchError(TrackerError)\` in \`oompah/tracker.py\` for transient fetch failures, raise it instead of generic \`TrackerError\` in \`_sync_state_branch_from_remote()\`, and catch it at the Update issue API handler (and other callers) logging as WARNING not ERROR
+- Alternative (simpler): change \`_sync_state_branch_from_remote()\` to log a warning and return early on fetch failure, rather than raising at all (since local state is still valid and push retry handles conflicts)
+
+**Files to change:**
+1. \`oompah/tracker.py\` — add \`StateBranchFetchError\` class (or just change the raise behavior)
+2. \`oompah/oompah_md_tracker.py\` — use new exception or log+return in \`_sync_state_branch_from_remote()\` fetch failure branch (~line 1441)
+3. \`oompah/server.py\` — catch \`StateBranchFetchError\` separately and log WARNING (or skip the raise entirely)
+4. \`tests/test_error_watcher.py\` — add test that \`StateBranchFetchError\` does NOT trigger error_watcher (follow the pattern at line 705 for \`TrackerStateBranchMissingError\`)
+5. \`tests/\` — add regression test that \`_sync_state_branch_from_remote()\` when fetch fails does not raise to caller
+
+**Remaining work:** Backend implementation only — no frontend, no schema changes, no migration needed.
+
+**Recommended next focus:** \`feature\` (backend implementation)
 ---
 <!-- COMMENTS:END -->
