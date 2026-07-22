@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-403
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: '[backend:orchestrator] Worker did not stop within 10000ms; continuing shutdown
   issue_identifier=OOMPAH-339'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T05:55:25.462835Z'
+updated_at: '2026-07-22T05:55:35.138275Z'
 work_branch: null
 target_branch: null
 review_url: null
