@@ -15,7 +15,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T20:34:41.130372Z'
-updated_at: '2026-07-22T06:33:21.359255Z'
+updated_at: '2026-07-22T06:33:23.708210Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ Acceptance criteria met:
 - Operators can configure forge_kind, forge_base_url, gitlab_issues tracker, and inspect webhook health via the Projects UI.
 - GitHub project UI/API behavior unchanged (backward-compatible labels, Merge Queue toggle, GH Intake label).
 - make test passes (11478 passed, 36 skipped, 0 failed).
+---
+author: oompah
+created: 2026-07-22 06:33
+---
+Exposed GitLab configuration and health in UI, API, and ACP tools: forge selector, GitLab base URL, webhook health display, MR terminology, GL/GH intake labels, gitlab_issues tracker kind, forge fields in all Create/Update/Detail payloads. 88 new tests, make test green.
 ---
 <!-- COMMENTS:END -->
