@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:51:56.983167Z'
-updated_at: '2026-07-22T01:17:03.744466Z'
+updated_at: '2026-07-22T01:17:14.772424Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-07-22 01:17
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 01:17
+---
+Understanding: This task requests rebasing epic-OOMPAH-323 onto epic-OOMPAH-318 and force-pushing with --force-with-lease. As Duplicate Investigator, I will search for any existing or prior tasks covering the same epic pair before concluding.
 ---
 <!-- COMMENTS:END -->
