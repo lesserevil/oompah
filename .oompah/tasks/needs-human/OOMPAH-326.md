@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:28.175529Z'
-updated_at: '2026-07-22T04:00:32.368611Z'
+updated_at: '2026-07-22T04:47:35.801140Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -417,5 +417,10 @@ author: oompah
 created: 2026-07-22 04:00
 ---
 Agent completed 4 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
+---
+author: user
+created: 2026-07-22 04:47
+---
+Run again. Most of the runs have been incorrect re-runs of the duplicate checker. So you can run again.
 ---
 <!-- COMMENTS:END -->
