@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-412
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Audit and harden all shared-epic Merged promotion paths in orchestrator.py
 parent: OOMPAH-310
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T21:34:07.971835Z'
-updated_at: '2026-07-22T23:49:57.665160Z'
+updated_at: '2026-07-22T23:50:05.051701Z'
 work_branch: null
 target_branch: null
 review_url: null
