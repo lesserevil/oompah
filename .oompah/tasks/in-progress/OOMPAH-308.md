@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:52:58.139774Z'
-updated_at: '2026-07-22T06:20:08.793776Z'
+updated_at: '2026-07-22T06:22:07.460560Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -334,5 +334,10 @@ author: oompah
 created: 2026-07-22 06:20
 ---
 Understanding: I am running as Duplicate Investigator but previous agents have already confirmed no duplicate exists for OOMPAH-308. I am on branch epic-OOMPAH-307 (the shared epic branch). The task is to fix stale work_branch metadata in oompah/orchestrator.py: when a native shared-epic child is dispatched to the parent epic worktree, its work_branch metadata should be updated to reflect the epic branch (not the stale per-task branch). This prevents false Done→Merged promotions on the wrong branch. I will proceed with duplicate screening confirmation and then implement the fix.
+---
+author: oompah
+created: 2026-07-22 06:22
+---
+Discovery: Root cause confirmed in oompah/orchestrator.py _create_workspace_for_issue (~line 4952). When a native child routes to the shared epic worktree, the code creates the epic worktree and returns — but never updates issue.work_branch or issue.branch_name to the epic branch. A child with stale work_branch=OOMPAH-286 keeps that stale value, which causes false Done→Merged promotions on the wrong branch. Fix: after resolving parent_epic, call _epic_branch_for_issue(parent_epic), compare with issue.work_branch, and if stale, update in-memory fields and persist via tracker.set_metadata_field (best-effort, both oompah_md and github_issues trackers support this). Test pattern exists in tests/test_epic_strategy.py TestWorkspaceAllocation class.
 ---
 <!-- COMMENTS:END -->
