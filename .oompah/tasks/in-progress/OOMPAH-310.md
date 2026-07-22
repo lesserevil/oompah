@@ -9,10 +9,11 @@ children: []
 blocked_by:
 - OOMPAH-308
 - OOMPAH-309
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:53:34.544944Z'
-updated_at: '2026-07-22T16:17:38.548442Z'
+updated_at: '2026-07-22T16:18:05.032863Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -104,5 +105,33 @@ All candidate tasks reviewed and REJECTED as duplicates:
 OOMPAH-310 was explicitly created by the OOMPAH-307 epic planner (see OOMPAH-307 comment #15) to address Gap D: the epic-merge-triggered Merged promotion path in orchestrator.py needs verification and hardening. The epic planner noted _epic_rollup_child_strategy at line 8282 guards one path but a second path at ~line 8607 also depends on rollup_strategy being 'shared'. This is a distinct, unique, unimplemented task.
 
 Conclusion: OOMPAH-310 is NOT a duplicate. It needs a feature agent to verify and harden _mark_epic_merged and _reconcile_merged_epic_children so shared-epic children are promoted to Merged ONLY when the parent epic branch is confirmed merged, with proper guards where rollup_strategy or parent_id checks could fail.
+---
+author: oompah
+created: 2026-07-22 16:18
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate found. OOMPAH-310 is a unique, unimplemented task.
+
+2. Relevant files, commands, evidence, and decisions:
+   - OOMPAH-307 epic planner (comment #15) created OOMPAH-310 explicitly to address Gap D.
+   - Key code in oompah/orchestrator.py:
+     * _mark_epic_merged (~line 10676): marks epic and all children Merged. Contains child loop that skips only MERGED/ARCHIVED children. Needs verification that it correctly gates on epic branch being confirmed merged.
+     * _reconcile_merged_epic_children (~line 10522): sweeps existing merged epics and calls _mark_epic_merged for each — entry path driven by _all_merged_epics(). Needs verification that it does not fire prematurely for shared-epic children.
+     * _label_merged_epics (also calls _mark_epic_merged via line 5707) — drives promotion from the merged-branches set; should only fire after the epic branch merges to target.
+     * _epic_rollup_child_strategy check at line 8282 (Done→Merged guard for one path).
+     * Done→Merged promotion path at ~line 8607 that also depends on rollup_strategy being 'shared'.
+   - OOMPAH-308 (Done) fixed stale work_branch metadata so children's branch correctly reflects the epic branch — this is a prerequisite for OOMPAH-310.
+   - OOMPAH-309 (In Review) hardens _resolve_parent_epic failure paths — also a prerequisite.
+
+3. Remaining work:
+   - Read and verify _mark_epic_merged, _reconcile_merged_epic_children, and all Done→Merged promotion paths in orchestrator.py.
+   - Confirm each path requires confirmed epic-branch merge (not just Done state on the child) before setting children Merged.
+   - Identify any gap where a child could be promoted to Merged before the epic branch merges.
+   - If gaps exist: add guards (e.g., verify epic is in MERGED state before promoting children; ensure rollup_strategy is 'shared' check is present on all promotion paths).
+   - Write/extend tests in tests/test_epic_strategy.py covering: (a) child NOT promoted to Merged while epic is still open, (b) child IS promoted to Merged only after epic lands, (c) regression for the two promotion paths at ~8282 and ~8607.
+   - Run make test to verify.
+
+4. Recommended next focus: feature (backend verification and hardening of epic-merge-triggered Merged promotion in oompah/orchestrator.py).
 ---
 <!-- COMMENTS:END -->
