@@ -16,7 +16,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:53:34.544944Z'
-updated_at: '2026-07-22T21:34:35.144202Z'
+updated_at: '2026-07-22T21:34:46.413354Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -201,5 +201,24 @@ Existing test coverage in tests/test_epic_strategy.py:
 - test_shared_done_child_with_merged_branch_skips_all_checks: tests deferred Done reviews path
 
 Planning approach: Decompose into (1) a code audit + hardening task and (2) a regression tests task, since the scope covers multiple orchestrator.py functions and a 4034-line test file. The audit must confirm no gaps exist; the test task fills in any coverage gaps.
+---
+author: oompah
+created: 2026-07-22 21:34
+---
+Focus handoff: epic_planner
+
+1. Outcome: Epic decomposition complete. Two child tasks created under OOMPAH-310.
+
+2. Relevant files, commands, evidence, and decisions:
+   - All 3 callers of _mark_epic_merged in oompah/orchestrator.py (lines 5707, 10475, 10545) appear correctly gated by either _epic_branch_landed_on_target() or by requiring the epic to already be in MERGED state.
+   - Two additional Merged promotion paths (deferred Done reviews ~line 8545, label_merged_issues ~line 8935) both have rollup_strategy == 'shared' guards.
+   - Existing test classes: TestLabelMergedEpics (~line 3533), test_merged_epic_reconciles_children_still_done, test_shared_done_child_with_merged_branch_skips_all_checks.
+   - Child tasks: OOMPAH-412 (audit + harden), OOMPAH-413 (regression tests, depends on OOMPAH-412).
+
+3. Remaining work:
+   - OOMPAH-412: Feature agent reads all 6 code paths, documents guard status, adds hardening if gaps found.
+   - OOMPAH-413: Feature agent fills remaining test coverage gaps and runs make test.
+
+4. Recommended next focus: feature agent on OOMPAH-412 first (OOMPAH-413 depends on it).
 ---
 <!-- COMMENTS:END -->
