@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:38:50.948182Z'
-updated_at: '2026-07-22T02:02:41.437843Z'
+updated_at: '2026-07-22T02:06:40.080069Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -293,5 +293,10 @@ author: oompah
 created: 2026-07-22 02:02
 ---
 Implementation: Changed oompah/tracker.py to add StateBranchFetchError(TrackerError) and TrackerStateBranchFetchError alias. Updated oompah/oompah_md_tracker.py to raise StateBranchFetchError (not generic TrackerError) when git fetch fails in _sync_state_branch_from_remote(). Updated oompah/server.py to catch StateBranchFetchError at the api_update_issue handler with WARNING logging (503 response) instead of ERROR. Updated oompah/orchestrator.py to import and handle StateBranchFetchError with WARNING in all fetch paths, and added it to _error_class_for_tracker_exc as 'tracker_state_branch_fetch'.
+---
+author: oompah
+created: 2026-07-22 02:06
+---
+Verification: make test passed — 11205 passed, 36 skipped, 0 failures. New tests added: tests/test_state_branch_fetch_error.py (12 tests covering hierarchy, error classification, and server WARNING vs ERROR logging). Existing tests in test_oompah_md_tracker_state_branch.py updated to verify StateBranchFetchError specifically. test_error_watcher.py extended with 3 new tests for the new error class.
 ---
 <!-- COMMENTS:END -->
