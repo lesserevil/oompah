@@ -362,13 +362,15 @@ class TestBuildRepoMapContextTokenBudget:
     def test_token_budget_is_respected(self, tmp_path):
         import re
 
+        from oompah.provenance import DELIMITER, SAFETY_INSTRUCTION
+
         workspace, state_wt, actual_sha = _setup_git_repos(tmp_path)
         repo_map = _make_repo_map(actual_sha)
         write_repo_map(state_wt, repo_map)
         issue = _make_issue()
 
         # Use a very small budget — the rendered map inside the wrapper
-        # should be minimal.
+        # should be minimal (only the mandatory header should fit).
         ctx = build_repo_map_context(
             issue=issue,
             workspace_path=str(workspace),
@@ -377,17 +379,23 @@ class TestBuildRepoMapContextTokenBudget:
             token_budget=5,
         )
 
-        # With budget=5, only the header should fit.
-        # The total text is the wrapped block; extract the inner content.
-        # The header "[UNTRUSTED] repository map" is always present.
+        # With budget=5, only the mandatory "# [UNTRUSTED] repository map"
+        # header fits (4 tokens), so no symbol sections are included.
         assert ctx is not None
-        # Count tokens in the inner rendered part (between provenance comment and closing tag)
-        inner_lines = ctx.text.split("\n")
-        # Find the rendered map line that starts with "# [UNTRUSTED]"
-        map_lines = [ln for ln in inner_lines if ln.startswith("# [UNTRUSTED]") or (ln and not ln.startswith("<") and not ln.startswith("<!--"))]
-        inner_text = "\n".join(map_lines)
-        token_count = len(re.findall(r"\S+", inner_text))
-        assert token_count <= 5 + 5  # some slack for wrapper overhead
+
+        # Extract only the inner rendered map content: the render_repo_map
+        # output lives after the SAFETY_INSTRUCTION line and before the
+        # closing </oompah:untrusted> tag.  The SAFETY_INSTRUCTION itself is
+        # wrapper overhead and must not be counted toward the token budget.
+        text = ctx.text
+        si_pos = text.find(SAFETY_INSTRUCTION)
+        assert si_pos != -1, "SAFETY_INSTRUCTION must appear in wrapped output"
+        inner = text[si_pos + len(SAFETY_INSTRUCTION):]
+        close_pos = inner.rfind(f"</{DELIMITER}>")
+        if close_pos != -1:
+            inner = inner[:close_pos]
+        token_count = len(re.findall(r"\S+", inner.strip()))
+        assert token_count <= 5 + 2  # header (4 tokens) always emitted; small slack
 
     def test_env_budget_is_used_as_default(self, tmp_path, monkeypatch):
         """OOMPAH_REPO_MAP_TOKEN_BUDGET env var is respected."""

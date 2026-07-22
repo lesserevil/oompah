@@ -58,9 +58,10 @@ from __future__ import annotations
 import logging
 import subprocess
 import threading
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from oompah.repo_indexer import index_repository
@@ -124,12 +125,26 @@ class RepoMapResult:
     error:
         Human-readable description of the failure, populated when ``status``
         is :data:`STATUS_FAILED` or :data:`STATUS_TIMEOUT`.
+    generation_duration_s:
+        Wall-clock time in seconds spent waiting for the generation result.
+        ``None`` for :data:`STATUS_FRESH` (cache hit, no generation occurred).
+        Populated for :data:`STATUS_GENERATED`, :data:`STATUS_FAILED`, and
+        :data:`STATUS_TIMEOUT`.
+    file_count:
+        Number of files indexed, from ``rendering_metadata.total_files``.
+        ``None`` when ``repo_map`` is ``None``.
+    symbol_count:
+        Number of symbol tags extracted, from ``rendering_metadata.total_symbols``.
+        ``None`` when ``repo_map`` is ``None``.
     """
 
     status: str
     repo_map: RepoMap | None = None
     reused: bool = False
     error: str | None = None
+    generation_duration_s: float | None = None
+    file_count: int | None = None
+    symbol_count: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +261,13 @@ class RepoMapGenerator:
                 self._repo_identity,
                 sha,
             )
-            return RepoMapResult(status=STATUS_FRESH, repo_map=existing, reused=True)
+            return RepoMapResult(
+                status=STATUS_FRESH,
+                repo_map=existing,
+                reused=True,
+                file_count=existing.rendering_metadata.total_files,
+                symbol_count=existing.rendering_metadata.total_symbols,
+            )
 
         # Coalesce: get or create the in-flight Future for this SHA.
         with self._in_flight_lock:
@@ -259,9 +280,11 @@ class RepoMapGenerator:
                 future = self._in_flight[sha]
 
         # Wait for the result, bounded by timeout.
+        _wait_start = time.monotonic()
         try:
             repo_map = future.result(timeout=self._timeout_s)
         except FutureTimeoutError:
+            elapsed = time.monotonic() - _wait_start
             logger.warning(
                 "repo-map generation timed out after %.1fs for %s @ %.8s",
                 self._timeout_s,
@@ -271,15 +294,21 @@ class RepoMapGenerator:
             return RepoMapResult(
                 status=STATUS_TIMEOUT,
                 error=f"Generation timed out after {self._timeout_s:.0f}s",
+                generation_duration_s=elapsed,
             )
         except Exception as exc:  # noqa: BLE001
+            elapsed = time.monotonic() - _wait_start
             logger.error(
                 "repo-map generation failed for %s @ %.8s: %s",
                 self._repo_identity,
                 sha,
                 exc,
             )
-            return RepoMapResult(status=STATUS_FAILED, error=str(exc))
+            return RepoMapResult(
+                status=STATUS_FAILED,
+                error=str(exc),
+                generation_duration_s=elapsed,
+            )
         finally:
             # Remove from the coalescing table so the next caller re-checks
             # the state branch (which will find the new artifact on success,
@@ -287,7 +316,33 @@ class RepoMapGenerator:
             with self._in_flight_lock:
                 self._in_flight.pop(sha, None)
 
-        return RepoMapResult(status=STATUS_GENERATED, repo_map=repo_map)
+        elapsed = time.monotonic() - _wait_start
+        return RepoMapResult(
+            status=STATUS_GENERATED,
+            repo_map=repo_map,
+            generation_duration_s=elapsed,
+            file_count=repo_map.rendering_metadata.total_files,
+            symbol_count=repo_map.rendering_metadata.total_symbols,
+        )
+
+    def is_generating(self, commit_sha: str) -> bool:
+        """Return ``True`` if a generation task for *commit_sha* is in flight.
+
+        Thread-safe.  Returns ``False`` if the SHA is not normalised or if
+        no generation for this SHA is currently running.
+
+        This is used by the diagnostics layer to report the ``generating``
+        state for a pending index run.
+
+        Parameters
+        ----------
+        commit_sha:
+            Commit SHA to check.  Case-insensitive; leading/trailing
+            whitespace is stripped.
+        """
+        sha = commit_sha.lower().strip()
+        with self._in_flight_lock:
+            return sha in self._in_flight
 
     def shutdown(self, *, wait: bool = True) -> None:
         """Shut down the background thread pool.
