@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T05:27:02.143073Z'
-updated_at: '2026-07-22T05:31:27.164467Z'
+updated_at: '2026-07-22T05:31:30.954315Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,5 +33,10 @@ author: oompah
 created: 2026-07-22 05:31
 ---
 Implemented and verified two scheduler fixes: (1) a durable Focus handoff comment now backfills its focus-complete label and advances focus instead of falling into completed-without-closing retries; (2) Test Engineer no longer wins solely from a generic Tests acceptance section, while explicit test routing and test-oriented titles still select it. Added regression coverage and ran make test.
+---
+author: oompah
+created: 2026-07-22 05:31
+---
+Fixed handoff retry loops and test-focus preemption; added regression coverage; make test passed.
 ---
 <!-- COMMENTS:END -->

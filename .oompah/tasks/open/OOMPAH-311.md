@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-311
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Diagnose and surface remediation path for existing independently-merged child
   branches/PRs
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T05:30:44.303478Z'
+updated_at: '2026-07-22T05:31:29.514039Z'
 work_branch: null
 target_branch: null
 review_url: null
