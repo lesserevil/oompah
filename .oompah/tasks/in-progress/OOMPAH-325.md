@@ -15,10 +15,10 @@ blocked_by:
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:test
-- epic:stale
+- epic:rebasing
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T00:38:40.573298Z'
+updated_at: '2026-07-22T00:38:43.987398Z'
 work_branch: null
 target_branch: null
 review_url: null

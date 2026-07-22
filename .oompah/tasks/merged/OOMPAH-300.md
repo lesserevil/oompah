@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-300
 type: task
-status: Done
+status: Merged
 priority: 2
 title: Add end-to-end repository-map observability and regression coverage
 parent: OOMPAH-293
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:10.495385Z'
-updated_at: '2026-07-22T00:29:13.788246Z'
+updated_at: '2026-07-22T00:38:44.701911Z'
 work_branch: null
 target_branch: null
 review_url: null
