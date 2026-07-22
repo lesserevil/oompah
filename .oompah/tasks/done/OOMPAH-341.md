@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-341
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Implement GitLabHookManager with OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL config
 parent: OOMPAH-325
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:28:44.100086Z'
-updated_at: '2026-07-22T03:56:57.757524Z'
+updated_at: '2026-07-22T03:57:38.627798Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -239,5 +239,25 @@ author: oompah
 created: 2026-07-22 03:56
 ---
 Understanding: Reviewing previous agent's work. The GitLabHookManager class has been fully implemented in oompah/webhooks.py with create/reconcile/remove operations via the GitLab Project Hooks API. OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL is wired into ServiceConfig. All 11391 tests pass. The changes were left uncommitted by the previous agent. I need to commit and push them to close the task.
+---
+author: oompah
+created: 2026-07-22 03:57
+---
+Implementation complete. The previous agent had fully implemented all required code but left changes uncommitted. I reviewed, verified (11391 tests pass), committed, and pushed.
+
+Delivered:
+- GitLabHookManager class in oompah/webhooks.py
+  - start()/stop() lifecycle (integrates with asyncio task loop)
+  - reconcile() creates/updates hooks for all managed GitLab projects
+  - remove() deletes only our managed hook (others left untouched)
+  - Deduplicates multiple hooks with the same URL
+  - Detects GitLab projects via forge_kind or gitlab in repo_url
+  - Validates OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL is HTTPS before making API calls
+- OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL config in ServiceConfig (env-only, not WORKFLOW.md)
+- .env.example documentation for the new config var
+- Wired into bootstrap, __main__, and server lifespan
+- Tests: TestGitLabHookManager (4 scenarios) and config test
+
+Commit: a04981ace on epic-OOMPAH-325
 ---
 <!-- COMMENTS:END -->
