@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-210
 type: bug
-status: Merged
+status: Archived
 priority: 2
 title: Detect and surface unavailable GitHub check-run access
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T20:39:59.115969Z'
-updated_at: '2026-07-15T21:03:46.815739Z'
+updated_at: '2026-07-22T21:27:35.089981Z'
 work_branch: OOMPAH-210
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/419
