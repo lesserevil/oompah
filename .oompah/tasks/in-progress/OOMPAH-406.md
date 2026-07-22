@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:35.680434Z'
-updated_at: '2026-07-22T15:50:44.970896Z'
+updated_at: '2026-07-22T15:55:22.367598Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,18 @@ author: oompah
 created: 2026-07-22 15:50
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-22 15:55
+---
+Understanding (continuation): Previous agent (Run #1) already implemented the fix and pushed it to origin/OOMPAH-406. This run verifies the work and closes the task.
+
+Root cause: In oompah/orchestrator.py, _dump_stale_dispatch_threads() used logger.error() to introduce the diagnostic thread dump. This caused error_watcher to auto-file a new bug task on every dispatch loop stall, creating noise.
+
+Fix: Changed logger.error() → logger.warning() at line 2591. The stale-loop alert and recovery path already make the situation operator-visible; the thread dump line is just a diagnostic header, not a new failure.
+
+Test: Added test_thread_dump_marker_is_warning_not_error to tests/test_dispatch_loop_heartbeat.py — confirms the log record is at WARNING (not ERROR) level.
+
+Verification: All 11708 tests pass (make test). Specific new test passes in isolation.
 ---
 <!-- COMMENTS:END -->
