@@ -10,9 +10,10 @@ children: []
 blocked_by: []
 labels:
 - external:github
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T05:40:54.330677Z'
+updated_at: '2026-07-22T05:42:33.026489Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +108,32 @@ author: oompah
 created: 2026-07-22 05:35
 ---
 Understanding: This issue is an auto-filed error report from the error_watcher. The error 'Worker did not stop within 10000ms; continuing shutdown' occurred in backend:orchestrator while processing OOMPAH-339. My role is Duplicate Investigator — I need to determine if this shutdown timeout issue is already tracked in an existing task. Plan: (1) Search .oompah/tasks for 'worker', 'shutdown', 'timeout', and 'stop within' keywords; (2) View OOMPAH-339 for context; (3) Check for any existing tasks covering the same shutdown timeout problem.
+---
+author: oompah
+created: 2026-07-22 05:42
+---
+Discovery: OOMPAH-403 is NOT a duplicate. Duplicate screening complete.
+
+**Root cause identified:**
+The error originates in oompah/orchestrator.py line 18906 where logger.error() logs 'Worker did not stop within Xms; continuing shutdown issue_identifier=OOMPAH-339'. This is logged when the orchestrator cancels a running worker task for OOMPAH-339 during shutdown and the worker doesn't complete cancellation within worker_termination_timeout_ms (10000ms default). The logger.error() call is what triggers error_watcher to auto-file this task.
+
+Looking at OOMPAH-339's comment history, there were multiple 'terminated' exit events (comments #57 and #64) where workers were killed mid-run, which is the scenario that triggers this code path.
+
+**Search scope:**
+- All .oompah/tasks/ states: archived (225+), merged (53+), done (1), open (1), backlog (1)
+- Searched: 'stop within', '10000ms', 'did not stop', 'Worker did not stop', 'backend:orchestrator', 'shutdown.*worker', 'worker.*shutdown'
+- All returned zero results
+
+**Closest candidates reviewed (NOT duplicates):**
+- OOMPAH-339 (In Progress): This is the SUBJECT of the error (the worker that wouldn't stop), not a duplicate. OOMPAH-339 is about GitLab status-label governance — a completely different concern.
+- OOMPAH-282 (Backlog): Different auto-filed error (UnicodeEncodeError in state_branch_migration), same error_watcher mechanism but different root cause.
+- OOMPAH-118/188/113/161: Other auto-filed errors from backend:webhooks and backend:server — different backends and different error conditions.
+
+**Root cause options for the implementation agent:**
+1. Downgrade logger.error() → logger.warning() at orchestrator.py:18906 so error_watcher doesn't file tasks for expected shutdown timeouts
+2. Increase worker_termination_timeout_ms (configurable via .env) to give long-running agent processes more time to exit cleanly
+3. Filter this specific error class in error_watcher to suppress known-acceptable shutdown noise
+
+Key file: oompah/orchestrator.py ~line 18890-18930 (the _cancel_running_worker or similar method)
 ---
 <!-- COMMENTS:END -->
