@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:37.862938Z'
-updated_at: '2026-07-22T16:08:05.039794Z'
+updated_at: '2026-07-22T16:08:07.780071Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -349,5 +349,10 @@ author: oompah
 created: 2026-07-22 16:07
 ---
 Completion: Fix delivered in commit 2aaa62d77 (already on origin/OOMPAH-407).\n\nChange: oompah/orchestrator.py _arm_dispatch_stale_alert() — changed first-arm log from logger.error to logger.warning. The stale-loop condition is an operational health signal with an in-process recovery path; it should not trigger error_watcher auto-filing.\n\nTest coverage: test_stale_alert_is_warning_not_error_watcher_incident in tests/test_dispatch_loop_heartbeat.py verifies the fix end-to-end using a real ErrorWatcher instance.\n\nAcceptance criteria met:\n- error_watcher no longer files tasks for dispatch loop stall (first occurrence now WARNING, not ERROR)\n- Dashboard alert severity unchanged (still 'error' level for operators)\n- No regression: 117 error_watcher tests pass, other error types continue to be reported correctly
+---
+author: oompah
+created: 2026-07-22 16:08
+---
+Fixed: changed dispatch-loop stale alert from logger.error to logger.warning in orchestrator.py _arm_dispatch_stale_alert(). ErrorWatcher only auto-files ERROR+ records, so WARNING bypasses it. Dashboard alert severity unchanged. All 36 heartbeat tests and 117 error_watcher tests pass. Commit: 2aaa62d77.
 ---
 <!-- COMMENTS:END -->
