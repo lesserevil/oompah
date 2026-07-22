@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-360
 type: bug
-status: Backlog
+status: Archived
 priority: 2
 title: '[backend:orchestrator] Worker did not stop within 10000ms; continuing shutdown
   issue_identifier=OOMPAH-357'
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-22T01:30:09.469717Z'
-updated_at: '2026-07-22T01:41:36.387409Z'
+updated_at: '2026-07-22T04:01:16.936213Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -90,4 +90,11 @@ An error occurs in `backend:orchestrator` and is recorded by oompah's `error_wat
 
 ## Notes
 
-
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 04:01
+---
+Archived as duplicate historical service-log intake. The underlying scheduler wedge was fixed in OOMPAH-348 through OOMPAH-352; repeated occurrences should consolidate into one incident.
+---
+<!-- COMMENTS:END -->
