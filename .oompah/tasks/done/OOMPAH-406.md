@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:35.680434Z'
-updated_at: '2026-07-22T15:55:35.179082Z'
+updated_at: '2026-07-22T15:55:48.482987Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,13 @@ oompah.intake:
   last_validated_at: '2026-07-22T08:37:52.327186+00:00'
 oompah.agent_run_id: 227e482a-6852-4114-a48b-e9a623582e0f
 oompah.task_costs:
-  total_input_tokens: 823383
-  total_output_tokens: 3616
+  total_input_tokens: 823393
+  total_output_tokens: 5277
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 823383
-      output_tokens: 3616
+      input_tokens: 823393
+      output_tokens: 5277
       cost_usd: 0.0
   runs:
   - profile: default
@@ -59,6 +59,12 @@ oompah.task_costs:
     output_tokens: 3616
     cost_usd: 0.0
     recorded_at: '2026-07-22T15:50:19.355724+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 10
+    output_tokens: 1661
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T15:55:42.153475+00:00'
 ---
 ## Summary
 
@@ -201,5 +207,35 @@ author: oompah
 created: 2026-07-22 15:55
 ---
 Fixed: changed logger.error() to logger.warning() in _dump_stale_dispatch_threads() (oompah/orchestrator.py:2591) so dispatch-loop thread dump diagnostics no longer trigger error_watcher. Added regression test test_thread_dump_marker_is_warning_not_error. All 11708 tests pass.
+---
+author: oompah
+created: 2026-07-22 15:55
+---
+Agent completed successfully in 300s (1671 tokens)
+---
+author: oompah
+created: 2026-07-22 15:55
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
+- Turns: 20, Tool calls: 9
+- Tokens: 10 in / 1.7K out [1.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 0s
+- Log: OOMPAH-406__20260722T155045Z.jsonl
+---
+author: oompah
+created: 2026-07-22 15:55
+---
+Review handoff deferred: the task branch has unmerged work, but this project is at its open review limit.
+
+Branch: `OOMPAH-406`
+Target branch: `main`
+Unmerged commits: 1 commit
+Open reviews: 2/1
+
+oompah will create the review automatically when review capacity is available.
+
+Recent commits:
+  a3905b880 OOMPAH-406: avoid filing thread dump diagnostics as errors
 ---
 <!-- COMMENTS:END -->
