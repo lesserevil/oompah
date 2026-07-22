@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:26.149163Z'
-updated_at: '2026-07-22T06:49:15.867665Z'
+updated_at: '2026-07-22T06:57:50.892161Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -301,5 +301,22 @@ Key gap identified: there is no docs/gitlab-issue-intake.md document (the GitHub
 Additionally, 2 tests are failing (test_server_webhooks.py GitLab fixture missing forge_kind='gitlab') and there are uncommitted code changes (oompah/webhooks.py, tests/test_webhooks.py) — those are code/test tasks outside the Technical Writer scope.
 
 Plan: Write docs/gitlab-issue-intake.md modeled on the GitHub equivalent, then hand off for remaining code/test work.
+---
+author: oompah
+created: 2026-07-22 06:57
+---
+Implementation complete. Deliverables committed in this session (43cd261f9):
+
+Documentation:
+- docs/gitlab-issue-intake.md (new): full operator guide for GitLab issue intake — prerequisites (token scope, webhook URL, secret), enabling intake, the import lifecycle (detection → validation → native task creation with oompah.external.gitlab metadata → comment import → status mirroring → closure), webhook setup and troubleshooting, authorization model, trust/prompt-injection safety notes, and a comparison table with GitHub intake.
+- docs/managed-project-onboarding.md: §5 and troubleshooting table now reference gitlab-issue-intake.md.
+- docs/prompt-injection-security.md: Related Documents block updated to list GitLab intake doc separately.
+
+Code/tests:
+- oompah/webhooks.py: forge_kind guard in match_project_by_repo prevents a GitLab event from selecting a GitHub project that shares the same repo slug (and vice versa), satisfying the 'external IDs and metadata never collide across providers' acceptance criterion.
+- tests/test_webhooks.py: tests for the new cross-forge isolation guard.
+- tests/test_server_webhooks.py: added forge_kind='gitlab' to the client_gitlab fixture so token-validation and event-bus tests work correctly with the guard.
+
+Verification: make test passes (11479 passed, 36 skipped). Previously 2 GitLab webhook tests were failing; both now pass.
 ---
 <!-- COMMENTS:END -->

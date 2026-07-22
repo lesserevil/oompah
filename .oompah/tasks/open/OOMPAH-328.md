@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-328
 type: task
-status: Needs Human
+status: Open
 priority: 2
 title: Make project bootstrap and operator documentation forge-aware
 parent: OOMPAH-318
@@ -15,7 +15,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-22T06:48:01.759479Z'
+updated_at: '2026-07-22T06:57:46.993270Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -302,5 +302,17 @@ author: oompah
 created: 2026-07-22 06:48
 ---
 Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
+---
+author: oompah
+created: 2026-07-22 06:57
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #2)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
