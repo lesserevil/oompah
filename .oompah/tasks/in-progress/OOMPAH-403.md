@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T05:35:35.958670Z'
+updated_at: '2026-07-22T05:35:46.805722Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,5 +102,10 @@ author: oompah
 created: 2026-07-22 05:35
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 05:35
+---
+Understanding: This issue is an auto-filed error report from the error_watcher. The error 'Worker did not stop within 10000ms; continuing shutdown' occurred in backend:orchestrator while processing OOMPAH-339. My role is Duplicate Investigator — I need to determine if this shutdown timeout issue is already tracked in an existing task. Plan: (1) Search .oompah/tasks for 'worker', 'shutdown', 'timeout', and 'stop within' keywords; (2) View OOMPAH-339 for context; (3) Check for any existing tasks covering the same shutdown timeout problem.
 ---
 <!-- COMMENTS:END -->
