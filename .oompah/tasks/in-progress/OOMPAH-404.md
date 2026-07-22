@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-404
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Harden 3 call sites in orchestrator.py to fail-closed when _resolve_parent_epic
   returns None for a child with parent_id
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:41:51.997877Z'
-updated_at: '2026-07-22T15:39:09.742669Z'
+updated_at: '2026-07-22T15:44:20.626342Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: f98ae8b8-d756-4f9f-b24e-c3cfd5fac9e9
+oompah.agent_run_id: a19cafe3-9a68-4e64-9c87-38dac18a5894
 oompah.task_costs:
   total_input_tokens: 151780
   total_output_tokens: 4590
@@ -253,6 +253,16 @@ Agent dispatched (profile: deep)
 ---
 author: oompah
 created: 2026-07-22 15:37
+---
+Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-22 15:44
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 15:44
 ---
 Focus: Epic Planner
 ---

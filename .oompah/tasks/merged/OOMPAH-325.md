@@ -17,10 +17,9 @@ labels:
 - focus-complete:duplicate_detector
 - focus-complete:test
 - epic:rebased
-- merge-conflict
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T15:40:15.787929Z'
+updated_at: '2026-07-22T15:44:21.359025Z'
 work_branch: epic-OOMPAH-325
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/537
