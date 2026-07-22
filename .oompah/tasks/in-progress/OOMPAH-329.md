@@ -17,9 +17,11 @@ blocked_by:
 - OOMPAH-328
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:test
+- needs:chore
 assignee: null
 created_at: '2026-07-21T20:34:42.931068Z'
-updated_at: '2026-07-22T08:02:38.758860Z'
+updated_at: '2026-07-22T08:03:31.342466Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +187,10 @@ author: oompah
 created: 2026-07-22 08:02
 ---
 Verification: targeted cross-forge suite passed (10 passed, 2 credential-gated smoke tests skipped). Full suite also passed via .venv/bin/python -m pytest tests/ (11,558 passed, 38 skipped, 12 warnings). The prescribed make test command was attempted but uv failed before pytest started with a DBus transient-scope error; this is environment-specific.
+---
+author: oompah
+created: 2026-07-22 08:03
+---
+Focus handoff: test\n\nOutcome: added tests/test_gitlab_cross_forge_acceptance.py with offline shared GitHub/GitLab SCM contract fixtures, pre-forge GitHub persistence migration coverage, and explicit credential-gated GitLab.com/self-managed smoke tests.\n\nEvidence: targeted suite: 10 passed, 2 skipped; full suite: 11,558 passed, 38 skipped (12 warnings). make test was attempted but uv could not create a DBus transient scope before pytest.\n\nRisk/blocker: worktree is detached and contains a large unrelated staged integration batch. Creating OOMPAH-329 failed because the shared repository refs directory is read-only. The new test file is untracked and cannot safely be committed/pushed here; preserve the staged batch and commit only this file from a writable issue worktree.\n\nRecommended next focus: chore (commit/push recovery).
 ---
 <!-- COMMENTS:END -->
