@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-407
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 900s (threshold=900s).
   Alert armed, recovery queued.'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:37.862938Z'
-updated_at: '2026-07-22T16:05:32.286739Z'
+updated_at: '2026-07-22T16:05:43.737543Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-22T08:37:55.309711+00:00'
-oompah.agent_run_id: d1d06afc-a59f-449e-86cd-2c0998572a69
+oompah.agent_run_id: d5ac5c3f-826e-4d97-8e5d-d1491afe0761
 oompah.task_costs:
   total_input_tokens: 2633894
   total_output_tokens: 17747
@@ -319,5 +319,15 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 16s
 - Log: OOMPAH-407__20260722T160418Z.jsonl
+---
+author: oompah
+created: 2026-07-22 16:05
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 16:05
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
