@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-325
 type: task
-status: In Review
+status: Merged
 priority: 0
 title: Add GitLab project-hook lifecycle and webhook event parity
 parent: OOMPAH-318
@@ -19,7 +19,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T21:30:20.924691Z'
+updated_at: '2026-07-22T21:30:26.202477Z'
 work_branch: epic-OOMPAH-325
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/537
@@ -1415,5 +1415,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 27s
 - Log: OOMPAH-325__20260722T153851Z.jsonl
+---
+author: oompah
+created: 2026-07-22 21:30
+---
+YOLO: merged PR #537.
 ---
 <!-- COMMENTS:END -->
