@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:29:14.500742Z'
-updated_at: '2026-07-22T04:03:47.908880Z'
+updated_at: '2026-07-22T04:08:38.886904Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -254,5 +254,21 @@ Understanding: Implementing OOMPAH-342 as Software Engineer (retry after previou
 4. **Event deduplication**: Shared seen-event cache between webhook handler and polling path to drop duplicate deliveries
 
 Starting by exploring oompah/webhooks.py (GitLabHookManager), oompah/server.py (create/delete/update endpoints), and oompah/bootstrap.py.
+---
+author: oompah
+created: 2026-07-22 04:08
+---
+Discovery: Code reviewed. Implementation plan:
+
+1. **webhooks.py**: Add GitLabEventDedup class (fingerprint-based, TTL 300s) and build_gitlab_hook_alerts() function
+2. **server.py**: Add _gitlab_hook_manager global + set_gitlab_hook_manager(), wire reconcile() in create/update project, remove() in delete, add /api/v1/webhooks/gitlab/status endpoint, add dedup in webhook handler  
+3. **bootstrap.py**: Add attach_gitlab_hook_alerts() function, call it at startup
+4. **__main__.py**: Call set_gitlab_hook_manager() after set_orchestrator()
+
+Key findings:
+- _log_watcher_manager pattern in server.py is the model for _gitlab_hook_manager global
+- api_delete_project must get the project BEFORE deletion so remove() can make GitLab API calls
+- Fields triggering reconciliation: forge_kind, repo_url, access_token, webhook_secret, forge_base_url
+- GitLab sends X-Gitlab-Event-UUID header (use as dedup key when present, fingerprint fallback)
 ---
 <!-- COMMENTS:END -->
