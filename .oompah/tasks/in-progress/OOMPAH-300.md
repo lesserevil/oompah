@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:10.495385Z'
-updated_at: '2026-07-22T00:07:26.783574Z'
+updated_at: '2026-07-22T00:16:51.467946Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -186,5 +186,10 @@ author: oompah
 created: 2026-07-22 00:07
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-22 00:16
+---
+**Understanding (attempt #2):** Previous agents created tests/test_repo_map_workflow.py with comprehensive E2E tests covering the lifecycle, failure, and timeout scenarios. The file is untracked. Missing piece: the diagnostics module (oompah/repo_map_diagnostics.py) that exposes per-project index status (fresh, stale, generating, unavailable, failed), analyzed SHA, schema version, generation duration, cache reuse, file/symbol counts, failure reason, and prompt inclusion status. Plan: (1) Enrich RepoMapResult with timing and count fields, (2) Create repo_map_diagnostics.py with a status query API, (3) Write tests/test_repo_map_diagnostics.py, (4) Ensure all tests pass via make test.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-325
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Add GitLab project-hook lifecycle and webhook event parity
 parent: OOMPAH-318
@@ -11,12 +11,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-21T22:16:54.444360Z'
+updated_at: '2026-07-22T00:17:00.430542Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 6b85d10d-5f23-4596-91b2-bc6362b142e5
 ---
 ## Summary
 
@@ -42,3 +43,16 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 00:16
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 00:17
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
