@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-358
 type: task
-status: Open
+status: Done
 priority: 1
 title: Gate epic rebase scheduling on actionable conditions
 parent: OOMPAH-356
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:51.390755Z'
-updated_at: '2026-07-22T01:27:31.203888Z'
+updated_at: '2026-07-22T01:30:08.751570Z'
 work_branch: null
 target_branch: null
 review_url: null
