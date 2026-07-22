@@ -22,6 +22,10 @@ Usage::
         parse_gitlab_webhook,
         WebhookEvent,
         WebhookForwarder,
+        GitLabEventDedup,
+        GitLabHookManager,
+        build_gitlab_hook_alerts,
+        build_webhook_forwarder_alerts,
         check_gh_webhook_available,
     )
 """
@@ -1037,6 +1041,10 @@ class GitLabHookManager:
         self._task: asyncio.Task | None = None
         self._started = False
         self._stopping = False
+        # Optional callback invoked after every reconcile() with the current
+        # status snapshot.  Set by attach_gitlab_hook_alerts() to propagate
+        # hook health into orchestrator dashboard alerts.
+        self._status_callback: Any = None
 
     @property
     def is_running(self) -> bool:
@@ -1152,6 +1160,7 @@ class GitLabHookManager:
     async def reconcile(self) -> None:
         """Make each current GitLab project's hook match the desired state."""
         if self._configuration_error():
+            self._fire_status_callback()
             return
         projects = self._gitlab_projects()
         current_ids = {str(project.id) for project in projects}
@@ -1159,6 +1168,17 @@ class GitLabHookManager:
             self._states.pop(stale_id, None)
         for project in projects:
             await self._reconcile_project(project)
+        self._fire_status_callback()
+
+    def _fire_status_callback(self) -> None:
+        """Invoke the status callback with a fresh snapshot (best-effort)."""
+        cb = self._status_callback
+        if cb is None:
+            return
+        try:
+            cb(self.status)
+        except Exception:  # pragma: no cover — defensive callback boundary
+            logger.exception("GitLabHookManager status callback raised")
 
     async def _reconcile_project(self, project: Any) -> None:
         project_id = str(project.id)
@@ -1362,6 +1382,182 @@ def _truncate_error_detail(detail: str, limit: int = 500) -> str:
     if len(text) <= limit:
         return text
     return text[: max(limit - 1, 0)].rstrip(" ,.;:-") + "..."
+
+
+# ---------------------------------------------------------------------------
+# GitLab event deduplication
+# ---------------------------------------------------------------------------
+
+_GITLAB_DEDUP_TTL_S = 300.0  # 5-minute window matches GitLab's retry window
+
+
+class GitLabEventDedup:
+    """Fingerprint-based deduplication for GitLab webhook events.
+
+    GitLab retries webhook delivery on temporary failures.  When both a
+    retry and the polling fallback deliver the same logical event this
+    cache suppresses the duplicate within a 5-minute window.
+
+    Keys are either the ``X-Gitlab-Event-UUID`` header value (preferred,
+    globally unique per delivery) or a derived fingerprint built from
+    event_type + repo_slug + review_id + action + issue_number.  The
+    UUID-based key is always preferred because it survives content changes
+    in the retry payload; the fingerprint key is used when the header is
+    absent (e.g., older GitLab versions or polling paths that synthesise
+    events).
+
+    Thread-safety: the class is designed for use from a single asyncio
+    event loop (FastAPI's request handlers).  All mutations happen inside
+    ``is_duplicate`` which is not a coroutine and is not awaited, so no
+    concurrent mutation can occur within one loop turn.  If the dedup
+    instance is ever shared across threads, callers must add an
+    ``asyncio.Lock`` or threading lock.
+
+    Args:
+        ttl_s: Seconds after which a seen fingerprint is forgotten.
+    """
+
+    def __init__(self, ttl_s: float = _GITLAB_DEDUP_TTL_S) -> None:
+        self._ttl_s = ttl_s
+        # Maps fingerprint -> first-seen monotonic timestamp.
+        self._seen: dict[str, float] = {}
+
+    def _now(self) -> float:
+        import time
+        return time.monotonic()
+
+    def _prune(self) -> None:
+        """Remove entries older than the TTL."""
+        now = self._now()
+        stale = [k for k, ts in self._seen.items() if now - ts >= self._ttl_s]
+        for k in stale:
+            del self._seen[k]
+
+    @staticmethod
+    def make_fingerprint(
+        event_type: str,
+        repo_slug: str,
+        review_id: str = "",
+        action: str = "",
+        issue_number: str = "",
+    ) -> str:
+        """Return a stable fingerprint for a logical event.
+
+        The fingerprint captures the *logical* event identity: what kind of
+        event happened, on which repository, for which MR/issue, and which
+        action was taken.  It does NOT include mutable fields such as the
+        MR title or description — those can change between retries while the
+        logical identity stays the same.
+        """
+        parts = "|".join(
+            [
+                event_type or "",
+                repo_slug or "",
+                review_id or "",
+                action or "",
+                issue_number or "",
+            ]
+        )
+        return hashlib.sha256(parts.encode()).hexdigest()
+
+    def is_duplicate(
+        self,
+        *,
+        event_uuid: str | None,
+        event_type: str,
+        repo_slug: str,
+        review_id: str = "",
+        action: str = "",
+        issue_number: str = "",
+    ) -> bool:
+        """Return True if this event was already seen within the TTL.
+
+        Records the event as seen on first call.  Subsequent calls within
+        the TTL window return True; calls after the window return False and
+        re-register the event.
+
+        Args:
+            event_uuid: Value of the ``X-Gitlab-Event-UUID`` header, if
+                        present.  Used as the primary dedup key.  When
+                        ``None``, a fingerprint is derived from the other
+                        parameters.
+            event_type: ``X-Gitlab-Event`` header value.
+            repo_slug: ``"group/project"`` path extracted from the payload.
+            review_id: MR/PR IID as a string, if applicable.
+            action: Event action (e.g. ``"open"``, ``"close"``).
+            issue_number: Issue IID as a string, if applicable.
+        """
+        self._prune()
+        key = event_uuid if event_uuid else self.make_fingerprint(
+            event_type, repo_slug, review_id, action, issue_number
+        )
+        now = self._now()
+        if key in self._seen:
+            return True
+        self._seen[key] = now
+        return False
+
+
+# ---------------------------------------------------------------------------
+# GitLab hook health alerts
+# ---------------------------------------------------------------------------
+
+
+def build_gitlab_hook_alerts(status: dict[str, Any]) -> list[dict[str, str]]:
+    """Build dashboard alerts from a :class:`GitLabHookManager` status snapshot.
+
+    Produces one alert per unhealthy project.  A healthy manager with all
+    projects in good standing returns an empty list.
+
+    Args:
+        status: The dict returned by :attr:`GitLabHookManager.status`.
+
+    Returns:
+        A list of alert dicts with ``level``, ``source``, and ``message``
+        keys — the same shape consumed by the orchestrator's ``_alerts``
+        list.
+    """
+    alerts: list[dict[str, str]] = []
+
+    if not status.get("configured"):
+        detail = str(status.get("detail") or "GitLab webhook URL not configured")
+        alerts.append(
+            {
+                "level": "warning",
+                "source": "gitlab_hook_manager",
+                "message": (
+                    f"GitLab hooks not configured: {detail}. "
+                    "Set OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL to enable managed "
+                    "GitLab project hooks. Polling fallback is active."
+                ),
+            }
+        )
+        return alerts
+
+    projects = status.get("projects") or {}
+    if not isinstance(projects, dict):
+        return alerts
+
+    for project_id, project_status in projects.items():
+        if not isinstance(project_status, dict):
+            continue
+        if project_status.get("healthy"):
+            continue
+        error = str(project_status.get("last_error") or "").strip()
+        name = str(project_status.get("name") or project_id)
+        alerts.append(
+            {
+                "level": "warning",
+                "source": f"gitlab_hook_manager:{project_id}",
+                "message": (
+                    f"GitLab hook unhealthy for {name}"
+                    + (f": {error}" if error else "")
+                    + ". Polling fallback is active, but real-time events may be delayed."
+                ),
+            }
+        )
+
+    return alerts
 
 
 def build_webhook_forwarder_alerts(status: dict[str, Any]) -> list[dict[str, str]]:

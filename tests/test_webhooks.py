@@ -2783,3 +2783,262 @@ class TestWebhookForwarderStderrCapture:
 
         # Stderr task should have been cancelled and cleared.
         assert fp.stderr_task is None
+
+
+# ---------------------------------------------------------------------------
+# GitLabEventDedup
+# ---------------------------------------------------------------------------
+
+
+class TestGitLabEventDedup:
+    """Tests for GitLabEventDedup fingerprint-based deduplication."""
+
+    def test_import(self):
+        from oompah.webhooks import GitLabEventDedup
+        assert GitLabEventDedup is not None
+
+    def test_first_call_not_duplicate(self):
+        from oompah.webhooks import GitLabEventDedup
+        dedup = GitLabEventDedup()
+        result = dedup.is_duplicate(
+            event_uuid=None,
+            event_type="Merge Request Hook",
+            repo_slug="group/project",
+            review_id="42",
+            action="open",
+        )
+        assert result is False
+
+    def test_second_call_is_duplicate(self):
+        from oompah.webhooks import GitLabEventDedup
+        dedup = GitLabEventDedup()
+        kwargs = dict(
+            event_uuid=None,
+            event_type="Merge Request Hook",
+            repo_slug="group/project",
+            review_id="42",
+            action="open",
+        )
+        dedup.is_duplicate(**kwargs)
+        assert dedup.is_duplicate(**kwargs) is True
+
+    def test_uuid_key_takes_precedence(self):
+        from oompah.webhooks import GitLabEventDedup
+        dedup = GitLabEventDedup()
+        uuid = "abc-123-uuid"
+        # First call with UUID
+        assert dedup.is_duplicate(
+            event_uuid=uuid,
+            event_type="Merge Request Hook",
+            repo_slug="group/project",
+            review_id="1",
+            action="open",
+        ) is False
+        # Second call with same UUID but different fingerprint fields — still dup
+        assert dedup.is_duplicate(
+            event_uuid=uuid,
+            event_type="Push Hook",
+            repo_slug="other/repo",
+            review_id="99",
+            action="close",
+        ) is True
+
+    def test_different_action_not_duplicate(self):
+        from oompah.webhooks import GitLabEventDedup
+        dedup = GitLabEventDedup()
+        dedup.is_duplicate(
+            event_uuid=None,
+            event_type="Merge Request Hook",
+            repo_slug="group/project",
+            review_id="42",
+            action="open",
+        )
+        result = dedup.is_duplicate(
+            event_uuid=None,
+            event_type="Merge Request Hook",
+            repo_slug="group/project",
+            review_id="42",
+            action="close",
+        )
+        assert result is False
+
+    def test_different_repo_not_duplicate(self):
+        from oompah.webhooks import GitLabEventDedup
+        dedup = GitLabEventDedup()
+        dedup.is_duplicate(
+            event_uuid=None,
+            event_type="Merge Request Hook",
+            repo_slug="group/project",
+            review_id="42",
+            action="open",
+        )
+        result = dedup.is_duplicate(
+            event_uuid=None,
+            event_type="Merge Request Hook",
+            repo_slug="group/other",
+            review_id="42",
+            action="open",
+        )
+        assert result is False
+
+    def test_ttl_expiry_allows_reprocessing(self):
+        """After TTL the same event fingerprint is no longer treated as duplicate."""
+        import time
+        from oompah.webhooks import GitLabEventDedup
+        dedup = GitLabEventDedup(ttl_s=0.05)  # 50ms TTL for fast test
+
+        kwargs = dict(
+            event_uuid=None,
+            event_type="Push Hook",
+            repo_slug="group/repo",
+            review_id="",
+            action="push",
+        )
+        dedup.is_duplicate(**kwargs)
+        assert dedup.is_duplicate(**kwargs) is True
+
+        time.sleep(0.1)  # exceed TTL
+        # _prune is called at the start of is_duplicate, so the entry expires
+        result = dedup.is_duplicate(**kwargs)
+        assert result is False
+
+    def test_make_fingerprint_is_deterministic(self):
+        from oompah.webhooks import GitLabEventDedup
+        fp1 = GitLabEventDedup.make_fingerprint("A", "b/c", "1", "open", "")
+        fp2 = GitLabEventDedup.make_fingerprint("A", "b/c", "1", "open", "")
+        assert fp1 == fp2
+
+    def test_make_fingerprint_differs_on_different_inputs(self):
+        from oompah.webhooks import GitLabEventDedup
+        fp1 = GitLabEventDedup.make_fingerprint("A", "b/c", "1", "open", "")
+        fp2 = GitLabEventDedup.make_fingerprint("A", "b/c", "1", "close", "")
+        assert fp1 != fp2
+
+    def test_issue_number_contributes_to_fingerprint(self):
+        from oompah.webhooks import GitLabEventDedup
+        fp1 = GitLabEventDedup.make_fingerprint("Issue Hook", "g/p", "", "open", "5")
+        fp2 = GitLabEventDedup.make_fingerprint("Issue Hook", "g/p", "", "open", "6")
+        assert fp1 != fp2
+
+
+# ---------------------------------------------------------------------------
+# build_gitlab_hook_alerts
+# ---------------------------------------------------------------------------
+
+
+class TestBuildGitlabHookAlerts:
+    """Tests for build_gitlab_hook_alerts()."""
+
+    def test_import(self):
+        from oompah.webhooks import build_gitlab_hook_alerts
+        assert callable(build_gitlab_hook_alerts)
+
+    def test_unconfigured_returns_single_warning(self):
+        from oompah.webhooks import build_gitlab_hook_alerts
+        alerts = build_gitlab_hook_alerts(
+            {"configured": False, "detail": "URL not set", "projects": {}}
+        )
+        assert len(alerts) == 1
+        assert alerts[0]["level"] == "warning"
+        assert alerts[0]["source"] == "gitlab_hook_manager"
+        assert "URL not set" in alerts[0]["message"]
+
+    def test_all_healthy_returns_empty(self):
+        from oompah.webhooks import build_gitlab_hook_alerts
+        alerts = build_gitlab_hook_alerts(
+            {
+                "configured": True,
+                "projects": {
+                    "p1": {"name": "proj-a", "healthy": True, "last_error": ""},
+                },
+            }
+        )
+        assert alerts == []
+
+    def test_unhealthy_project_produces_warning(self):
+        from oompah.webhooks import build_gitlab_hook_alerts
+        alerts = build_gitlab_hook_alerts(
+            {
+                "configured": True,
+                "projects": {
+                    "p1": {
+                        "name": "my-proj",
+                        "healthy": False,
+                        "last_error": "404 Not Found",
+                    }
+                },
+            }
+        )
+        assert len(alerts) == 1
+        alert = alerts[0]
+        assert alert["level"] == "warning"
+        assert alert["source"] == "gitlab_hook_manager:p1"
+        assert "my-proj" in alert["message"]
+        assert "404 Not Found" in alert["message"]
+        assert "Polling fallback" in alert["message"]
+
+    def test_multiple_unhealthy_projects(self):
+        from oompah.webhooks import build_gitlab_hook_alerts
+        alerts = build_gitlab_hook_alerts(
+            {
+                "configured": True,
+                "projects": {
+                    "p1": {"name": "proj-a", "healthy": False, "last_error": "err-a"},
+                    "p2": {"name": "proj-b", "healthy": True, "last_error": ""},
+                    "p3": {"name": "proj-c", "healthy": False, "last_error": "err-c"},
+                },
+            }
+        )
+        assert len(alerts) == 2
+        sources = {a["source"] for a in alerts}
+        assert sources == {"gitlab_hook_manager:p1", "gitlab_hook_manager:p3"}
+
+
+# ---------------------------------------------------------------------------
+# GitLabHookManager: _status_callback wiring
+# ---------------------------------------------------------------------------
+
+
+class TestGitLabHookManagerStatusCallback:
+    """Tests for _status_callback integration on GitLabHookManager."""
+
+    @pytest.mark.asyncio
+    async def test_reconcile_fires_status_callback(self):
+        from oompah.webhooks import GitLabHookManager
+        project = _make_project(
+            repo_url="https://gitlab.example.com/g/p.git",
+            webhook_secret="s",
+        )
+        project.forge_kind = "gitlab"
+        project.forge_base_url = "https://gitlab.example.com"
+        project.access_token = "tok"
+
+        fired: list[dict] = []
+        client = _FakeGitLabClient([(200, []), (201, {"id": 7})])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            public_url="https://oompah.example.com",
+            http_client=client,
+        )
+        manager._status_callback = fired.append
+
+        await manager.reconcile()
+
+        assert len(fired) == 1
+        assert fired[0]["projects"][project.id]["healthy"] is True
+
+    @pytest.mark.asyncio
+    async def test_reconcile_fires_callback_on_configuration_error(self):
+        from oompah.webhooks import GitLabHookManager
+        project = _make_project(repo_url="https://gitlab.example.com/g/p.git")
+        project.forge_kind = "gitlab"
+
+        fired: list[dict] = []
+        manager = GitLabHookManager(_FakeProjectStore([project]))  # no public_url
+        manager._status_callback = fired.append
+
+        await manager.reconcile()
+
+        # Callback is fired even when there's a config error
+        assert len(fired) == 1
+        assert fired[0]["configured"] is False

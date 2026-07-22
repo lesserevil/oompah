@@ -98,6 +98,38 @@ def attach_webhook_forwarder_alerts(
     webhook_forwarder._status_callback = _on_forwarder_status
 
 
+def attach_gitlab_hook_alerts(
+    orchestrator: "Orchestrator",
+    gitlab_hook_manager: "GitLabHookManager",
+) -> None:
+    """Route GitLabHookManager health updates into orchestrator alerts.
+
+    Installs a status callback on *gitlab_hook_manager* that rebuilds the
+    ``gitlab_hook_manager`` family of alerts in the orchestrator's
+    ``_alerts`` list whenever the manager's reconciliation state changes.
+
+    Args:
+        orchestrator: The running :class:`~oompah.orchestrator.Orchestrator`
+            instance whose ``_alerts`` list will be updated.
+        gitlab_hook_manager: The :class:`~oompah.webhooks.GitLabHookManager`
+            instance to monitor.
+    """
+    from oompah.webhooks import build_gitlab_hook_alerts
+
+    def _on_hook_status(status: dict[str, Any]) -> None:
+        orchestrator._alerts = [
+            alert
+            for alert in orchestrator._alerts
+            if not (
+                str(alert.get("source", "")) == "gitlab_hook_manager"
+                or str(alert.get("source", "")).startswith("gitlab_hook_manager:")
+            )
+        ]
+        orchestrator._alerts.extend(build_gitlab_hook_alerts(status))
+
+    gitlab_hook_manager._status_callback = _on_hook_status
+
+
 async def setup_services(
     workflow_path: str,
     cli_port: int | None = None,
@@ -288,6 +320,7 @@ async def setup_services(
     )
     orchestrator.set_prompt_template(workflow.prompt_template)
     attach_webhook_forwarder_alerts(orchestrator, webhook_forwarder)
+    attach_gitlab_hook_alerts(orchestrator, gitlab_hook_manager)
     if label_bootstrap_results:
         from oompah.label_bootstrap import build_label_bootstrap_alerts
 
