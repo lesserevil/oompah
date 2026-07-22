@@ -15,13 +15,13 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-22T06:43:13.522703Z'
+updated_at: '2026-07-22T06:43:38.708572Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 65e2545b-3a89-47a3-8a17-aa12c409ddec
+oompah.agent_run_id: c9d92621-6081-41e9-a9c7-661fbaa2f523
 oompah.task_costs:
   total_input_tokens: 1177677
   total_output_tokens: 13235
@@ -266,5 +266,15 @@ author: oompah
 created: 2026-07-22 06:43
 ---
 Agent completed without closing this issue (78s (447901 tokens)). Escalating from 'standard' to 'deep'. Retrying in 20s (2/3).
+---
+author: oompah
+created: 2026-07-22 06:43
+---
+Retrying (attempt #2, agent: deep)
+---
+author: oompah
+created: 2026-07-22 06:43
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
