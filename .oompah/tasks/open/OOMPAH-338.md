@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-338
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Add GitLab tracker lifecycle relationships and metadata persistence
 parent: OOMPAH-323
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T23:24:39.407769Z'
-updated_at: '2026-07-21T23:24:52.989337Z'
+updated_at: '2026-07-22T00:36:44.746193Z'
 work_branch: null
 target_branch: null
 review_url: null

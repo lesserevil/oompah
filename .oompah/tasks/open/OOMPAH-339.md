@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-339
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Enforce GitLab status-label authorization and audit/revert safety
 parent: OOMPAH-323
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T23:24:47.554460Z'
-updated_at: '2026-07-21T23:24:55.220749Z'
+updated_at: '2026-07-22T00:36:45.944643Z'
 work_branch: null
 target_branch: null
 review_url: null

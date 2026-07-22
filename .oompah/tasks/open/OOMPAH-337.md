@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-337
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Build GitLabIssueTracker core REST adapter and protocol registration
 parent: OOMPAH-323
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T23:24:30.718256Z'
-updated_at: '2026-07-21T23:24:30.718256Z'
+updated_at: '2026-07-22T00:36:43.161607Z'
 work_branch: null
 target_branch: null
 review_url: null
