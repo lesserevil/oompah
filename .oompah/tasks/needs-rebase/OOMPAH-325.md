@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-325
 type: task
-status: In Review
+status: Needs Rebase
 priority: 0
 title: Add GitLab project-hook lifecycle and webhook event parity
 parent: OOMPAH-318
@@ -20,7 +20,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T15:04:34.278264Z'
+updated_at: '2026-07-22T15:09:17.360292Z'
 work_branch: epic-OOMPAH-325
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/537
@@ -1272,6 +1272,11 @@ YOLO: Merge conflict detected on MR #537. Rebase onto epic-OOMPAH-318 and resolv
 ---
 author: oompah
 created: 2026-07-22 15:04
+---
+YOLO: Merge conflict detected on MR #537. Rebase onto epic-OOMPAH-318 and resolve conflicts.
+---
+author: oompah
+created: 2026-07-22 15:09
 ---
 YOLO: Merge conflict detected on MR #537. Rebase onto epic-OOMPAH-318 and resolve conflicts.
 ---
