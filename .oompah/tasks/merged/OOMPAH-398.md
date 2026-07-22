@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-398
 type: task
-status: In Progress
+status: Merged
 priority: 1
 title: Add configurable stalled-task remediation watchdog
 parent: null
@@ -12,7 +12,7 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T04:33:08.193212Z'
+updated_at: '2026-07-22T04:34:16.727467Z'
 work_branch: OOMPAH-398
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/529
@@ -289,5 +289,10 @@ author: oompah
 created: 2026-07-22 04:33
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-22 04:34
+---
+PR #529 is merged to main. Configured this installation with OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS=900 and restarted the service. First audit completed successfully: 2 stalled tasks evaluated, 1 safely reopened, and 1 genuine human blocker retained.
 ---
 <!-- COMMENTS:END -->
