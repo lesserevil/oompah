@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T21:26:04.166626Z'
-updated_at: '2026-07-22T21:26:04.166626Z'
+updated_at: '2026-07-22T21:29:41.101197Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ Fix YOLO review handling so a GitHub PR whose status and check-run APIs are succ
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 21:29
+---
+Implemented and pushed edf4bc481. GitHub now treats successfully observed zero status/check runs as CI-passed, while unavailable CI remains unknown. Added SCM and YOLO regression coverage. make test passed.
+---
+<!-- COMMENTS:END -->
