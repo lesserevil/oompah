@@ -5,7 +5,8 @@ status: Open
 priority: null
 title: Verify and harden epic-merge-triggered Merged promotion for shared-epic children
 parent: OOMPAH-307
-children: []
+children:
+- OOMPAH-412
 blocked_by:
 - OOMPAH-308
 - OOMPAH-309
@@ -13,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:53:34.544944Z'
-updated_at: '2026-07-22T21:33:51.895437Z'
+updated_at: '2026-07-22T21:34:08.079909Z'
 work_branch: null
 target_branch: null
 review_url: null
