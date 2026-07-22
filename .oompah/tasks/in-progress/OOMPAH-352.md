@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-352
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Add stall diagnostics and wedge recovery telemetry
 parent: OOMPAH-348
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:40.490026Z'
-updated_at: '2026-07-22T01:07:46.533339Z'
+updated_at: '2026-07-22T01:12:51.072469Z'
 work_branch: null
 target_branch: null
 review_url: null
