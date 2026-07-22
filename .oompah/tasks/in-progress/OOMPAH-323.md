@@ -21,7 +21,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-22T15:36:16.198031Z'
+updated_at: '2026-07-22T15:36:29.396399Z'
 work_branch: epic-OOMPAH-323
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/534
@@ -665,5 +665,10 @@ author: oompah
 created: 2026-07-22 15:34
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-22 15:36
+---
+Understanding: Merge Conflict Resolver session. The branch epic-OOMPAH-323 has 2 feature commits (OOMPAH-338 and OOMPAH-339) currently based on the main-branch merge commit a4975ea71 (Merge PR #533 from epic-OOMPAH-318). The MR #534 targets origin/epic-OOMPAH-318 (tip: 8146b9963), which has a different history. There are also uncommitted working-tree changes to oompah/tracker.py (GitLab registry entries) and tests/test_server_webhooks.py (forge_kind/webhook_secret additions). These appear to be leftover from the previous rebase attempt that collapsed OOMPAH-337 into OOMPAH-338. Plan: stash uncommitted changes, rebase the 2 feature commits directly onto origin/epic-OOMPAH-318, resolve any conflicts, incorporate the uncommitted registry additions into the appropriate commit, run make test, and force-push.
 ---
 <!-- COMMENTS:END -->
