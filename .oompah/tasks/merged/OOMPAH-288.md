@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-288
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Render untrusted content in explicit prompt data boundaries
 parent: OOMPAH-285
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:41.895980Z'
-updated_at: '2026-07-21T22:25:01.417477Z'
+updated_at: '2026-07-22T00:03:36.993630Z'
 work_branch: null
 target_branch: null
 review_url: null
