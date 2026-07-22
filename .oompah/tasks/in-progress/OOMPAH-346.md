@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-346
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Reserve round-robin providers atomically at dispatch time
 parent: null
@@ -12,13 +12,13 @@ labels:
 - round-robin
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T01:00:23.463645Z'
+updated_at: '2026-07-22T01:21:53.971898Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 5a7e9a5a-a07e-43ab-8479-f4968965f8f1
+oompah.agent_run_id: 66732556-2139-48ba-9a5e-cd380fa3fd61
 oompah.task_costs:
   total_input_tokens: 228422
   total_output_tokens: 1404
@@ -98,5 +98,15 @@ author: oompah
 created: 2026-07-22 00:56
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-346`. Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-22 01:21
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 01:21
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
