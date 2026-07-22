@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-410
 type: task
-status: Backlog
+status: Done
 priority: null
 title: Redispatch resolvers when conflicted reviews remain open
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T16:24:49.141548Z'
-updated_at: '2026-07-22T16:24:49.141548Z'
+updated_at: '2026-07-22T16:27:13.964181Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ Fix the YOLO conflict-resolution lifecycle. When a merge-conflict resolver exits
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 16:27
+---
+Fixed resolver exit handling: when the existing open review is still conflicted, normal resolver completion now keeps the task at Needs Rebase with merge-conflict, records diagnostics, and wakes redispatch instead of treating the repair as complete. Added mature-epic regression coverage. Verification: make test passed.
+---
+<!-- COMMENTS:END -->
