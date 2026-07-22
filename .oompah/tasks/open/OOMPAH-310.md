@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-310
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Verify and harden epic-merge-triggered Merged promotion for shared-epic children
 parent: OOMPAH-307
@@ -13,13 +13,29 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:53:34.544944Z'
-updated_at: '2026-07-22T16:18:05.032863Z'
+updated_at: '2026-07-22T16:18:19.962196Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 5a9931fd-3a15-4f13-88c0-2b9b10e0d5b7
+oompah.task_costs:
+  total_input_tokens: 33
+  total_output_tokens: 7117
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 33
+      output_tokens: 7117
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 33
+    output_tokens: 7117
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T16:18:15.274827+00:00'
 ---
 ## Summary
 
@@ -133,5 +149,25 @@ Focus handoff: duplicate_detector
    - Run make test to verify.
 
 4. Recommended next focus: feature (backend verification and hardening of epic-merge-triggered Merged promotion in oompah/orchestrator.py).
+---
+author: oompah
+created: 2026-07-22 16:18
+---
+Agent completed successfully in 211s (7150 tokens)
+---
+author: oompah
+created: 2026-07-22 16:18
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 58, Tool calls: 44
+- Tokens: 33 in / 7.1K out [7.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 31s
+- Log: OOMPAH-310__20260722T161453Z.jsonl
+---
+author: oompah
+created: 2026-07-22 16:18
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
