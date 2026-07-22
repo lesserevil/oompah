@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T01:46:01.894405Z'
+updated_at: '2026-07-22T02:07:42.109249Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -248,5 +248,10 @@ author: oompah
 created: 2026-07-22 01:46
 ---
 Understanding (Test Engineer, attempt #4): The CandidateSelector class in oompah/roles.py has ordered_candidates() and record_used() as separate operations. When N tasks dispatch concurrently, all calls to ordered_candidates() read the same stale state and return the same first candidate. The fix requires a reserve_candidate() method that atomically selects LRU candidate + stamps it under the selector lock in one call. This session will: (1) implement reserve_candidate() in CandidateSelector, (2) update orchestrator._resolve_dispatch_targets() to use it for round-robin roles, (3) write comprehensive tests per the task spec.
+---
+author: oompah
+created: 2026-07-22 02:07
+---
+Implementation: Added CandidateSelector.reserve_candidate() in oompah/roles.py. This method atomically selects the LRU candidate and stamps it under the selector lock BEFORE returning — so concurrent calls see the updated state and select different candidates. Modified _resolve_dispatch_targets() in orchestrator.py to call reserve_candidate() for round-robin roles instead of ordered_candidates(), ensuring atomic dispatch-time reservation. Priority roles and legacy single-provider profiles are untouched.
 ---
 <!-- COMMENTS:END -->
