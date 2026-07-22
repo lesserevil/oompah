@@ -21,7 +21,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-22T21:47:45.278080Z'
+updated_at: '2026-07-22T21:48:16.474446Z'
 work_branch: epic-OOMPAH-323
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/534
@@ -761,5 +761,10 @@ author: oompah
 created: 2026-07-22 21:37
 ---
 Understanding: Merge Conflict Resolver session. Local branch epic-OOMPAH-323 has 2 feature commits (OOMPAH-338: GitLab tracker metadata/tests, OOMPAH-339: GitLab status-label auth/audit/revert) on top of merge-base 3d5b347ec. origin/epic-OOMPAH-318 has 5 new commits since then (OOMPAH-340/341/342/345 + a merge commit). Working tree is clean. Plan: rebase 2 feature commits onto origin/epic-OOMPAH-318, resolve any conflicts, run make test, force-push.
+---
+author: oompah
+created: 2026-07-22 21:48
+---
+Discovery: Conflict root cause identified. Upstream OOMPAH-340 added a separate _parse_gitlab_issue() function and routes 'Issue Hook' to it in parse_gitlab_webhook(). Our OOMPAH-339 status-label detection logic was placed in _parse_gitlab_mr()'s Issue Hook branch, which is now dead code. Fix: move the label-change detection from _parse_gitlab_mr into _parse_gitlab_issue, and update it to return event_type='issues' with label_name/label_actor populated. This is the correct conflict resolution - applying OOMPAH-339's intent in the context of the new upstream function layout.
 ---
 <!-- COMMENTS:END -->
