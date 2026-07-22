@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-407
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 900s (threshold=900s).
   Alert armed, recovery queued.'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:37.862938Z'
-updated_at: '2026-07-22T16:07:44.316793Z'
+updated_at: '2026-07-22T16:08:05.039794Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -339,5 +339,15 @@ author: oompah
 created: 2026-07-22 16:07
 ---
 Discovery: Root cause confirmed. In orchestrator.py _arm_dispatch_stale_alert(), the first-occurrence log used logger.error (ERROR level), which is exactly what ErrorWatcher monitors to auto-file tasks. Subsequent occurrences used logger.debug. The fix by the previous SW engineer agent (commit 2aaa62d77) changed the first-occurrence log from logger.error to logger.warning. ErrorWatcher only files ERROR+ records, so WARNING bypasses it. The dashboard alert itself remains at 'error' severity — only the log line was changed. The fix is already committed and pushed to origin/OOMPAH-407.
+---
+author: oompah
+created: 2026-07-22 16:07
+---
+Verification: All tests pass.\n- tests/test_dispatch_loop_heartbeat.py: 36/36 PASSED. Key test 'test_stale_alert_is_warning_not_error_watcher_incident' confirms: (1) only 1 log record emitted for first arm, (2) at WARNING level not ERROR, (3) ErrorWatcher.tracker.create_issue not called.\n- tests/test_error_watcher.py: 117/117 PASSED. No regression in error_watcher behavior for other error types.
+---
+author: oompah
+created: 2026-07-22 16:07
+---
+Completion: Fix delivered in commit 2aaa62d77 (already on origin/OOMPAH-407).\n\nChange: oompah/orchestrator.py _arm_dispatch_stale_alert() — changed first-arm log from logger.error to logger.warning. The stale-loop condition is an operational health signal with an in-process recovery path; it should not trigger error_watcher auto-filing.\n\nTest coverage: test_stale_alert_is_warning_not_error_watcher_incident in tests/test_dispatch_loop_heartbeat.py verifies the fix end-to-end using a real ErrorWatcher instance.\n\nAcceptance criteria met:\n- error_watcher no longer files tasks for dispatch loop stall (first occurrence now WARNING, not ERROR)\n- Dashboard alert severity unchanged (still 'error' level for operators)\n- No regression: 117 error_watcher tests pass, other error types continue to be reported correctly
 ---
 <!-- COMMENTS:END -->
