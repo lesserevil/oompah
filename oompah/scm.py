@@ -1068,6 +1068,13 @@ class GitHubProvider(SCMProvider):
                         # the modern check-runs instead.
                         return "passed", warnings
                     return "pending", warnings
+                # Both CI APIs were read successfully and neither reports a
+                # check for this commit. This is a valid "no CI configured"
+                # result, not an unavailable CI result: treating it as
+                # unknown leaves an otherwise clean YOLO PR in In Review
+                # forever. Unknown remains reserved for failed or unavailable
+                # CI observation.
+                return "passed", warnings
             elif cr.status_code == 403:
                 # The token lacks Checks access (common with fine-grained PATs
                 # that were not granted the Checks permission). Fall back to

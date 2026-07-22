@@ -1747,6 +1747,30 @@ class TestYoloReviewSerializationByProject:
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
+    def test_no_check_pr_is_merged_after_github_classifies_it_as_passed(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """A clean PR with a successfully observed no-checks verdict merges."""
+        project = _make_project()
+        project.yolo = True
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        # GitHubProvider maps successfully observed zero checks to "passed".
+        orch._reviews_cache = {
+            project.id: [
+                _make_review("1", source_branch="no-checks", ci_status="passed")
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.merge_review.assert_called_once_with("org/repo", "1")
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
     def test_pr_needing_rebase_not_merged(self, mock_slug, mock_detect, tmp_path):
         """A PR that needs a rebase is not merged even if CI passed."""
         project = _make_project()
