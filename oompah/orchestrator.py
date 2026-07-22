@@ -2695,6 +2695,8 @@ class Orchestrator:
            metadata and backport tasks.
         7. :meth:`_maybe_sync_github_issue_intake` — import external GitHub intake
            into native tasks and mirror native status changes back to GitHub.
+        8. :meth:`_maybe_run_stalled_task_watchdog` — audit stalled tasks and
+           perform safe evidence-backed remediations.
 
         Submitted to ``_tick_pool`` by :meth:`_tick` and **not** awaited so it
         does not contribute to dispatch tick latency.
@@ -2706,6 +2708,7 @@ class Orchestrator:
         self._maybe_run_merged_labels()
         self._maybe_run_release_pick_reconciliation()
         self._maybe_sync_github_issue_intake()
+        self._maybe_run_stalled_task_watchdog()
 
     def _dispatch_event_key(self, event: DispatchEvent) -> str:
         return str(event.event_type)
@@ -8758,6 +8761,71 @@ class Orchestrator:
             **metrics,
             "finished_at": datetime.now(timezone.utc).isoformat(),
         }
+
+    # -----------------------------------------------------------------------
+    # Stalled-task remediation watchdog (OOMPAH-398)
+    # -----------------------------------------------------------------------
+
+    def _maybe_run_stalled_task_watchdog(self) -> None:
+        """Periodically audit stalled tasks and perform safe remediations.
+
+        Delegates to the maintenance lane scheduling gate
+        (:meth:`_run_maintenance_job`) so in-flight coalescing, interval
+        throttling, and observability tracking apply alongside other
+        maintenance jobs.
+
+        The interval is configurable via
+        ``OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS`` (default 1800 s /
+        30 minutes).  The actual work is in
+        :meth:`_do_stalled_task_watchdog`.
+        """
+        interval_s = float(
+            getattr(self.config, "stalled_task_watchdog_interval_seconds", 1800)
+        )
+        self._run_maintenance_job(
+            "stalled_task_watchdog",
+            self._do_stalled_task_watchdog,
+            min_interval_s=interval_s,
+        )
+
+    def _do_stalled_task_watchdog(self) -> None:
+        """Inner body of the stalled-task watchdog; called under the maintenance gate.
+
+        Builds the list of (project_id, tracker) pairs, increments the run
+        counter, delegates to :func:`~oompah.stalled_task_watchdog.run_watchdog_audit`,
+        and stores the result in ``_maintenance_status`` so the API/dashboard
+        maintenance snapshot can surface it.
+        """
+        from oompah.stalled_task_watchdog import run_watchdog_audit
+
+        # Monotonically increasing run counter stored on self so it survives
+        # between calls within the same process lifetime.
+        run_id: int = getattr(self, "_stalled_watchdog_run_id", 0) + 1
+        self._stalled_watchdog_run_id = run_id  # type: ignore[attr-defined]
+
+        # Build (project_id, tracker) pairs.
+        projects_and_trackers: list[tuple[str | None, Any]] = []
+        projects = self.project_store.list_all() if self.project_store else []
+        if projects:
+            for project in projects:
+                try:
+                    tracker = self._tracker_for_project(project.id)
+                    projects_and_trackers.append((project.id, tracker))
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug(
+                        "Stalled-task watchdog: could not get tracker for "
+                        "project %s: %s", project.id, exc,
+                    )
+        else:
+            # Legacy single-project mode.
+            projects_and_trackers.append((None, self.tracker))
+
+        result = run_watchdog_audit(
+            projects_and_trackers,
+            run_id=run_id,
+        )
+
+        self._maintenance_status["stalled_task_watchdog"] = result.to_dict()
 
     def _label_merged_issues(self) -> None:
         """Label issues whose own or helper-associated branch has merged."""

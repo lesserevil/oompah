@@ -517,6 +517,10 @@ class ServiceConfig:
     maintenance_startup_delay_seconds: int = 60
     release_pick_max_runtime_seconds: int = 15
     merged_labels_max_runtime_seconds: int = 15
+    # Stalled-task remediation watchdog (OOMPAH-398).
+    # Interval (seconds) between watchdog audit passes. Default 1800 (30 min).
+    # Configurable via OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS.
+    stalled_task_watchdog_interval_seconds: int = 1800
     # Multi-process service split (TASK-469.5.1).
     # When set, the scheduler process publishes state/issues snapshots to this
     # SQLite database and the API process reads from it.  An empty string means
@@ -628,6 +632,9 @@ class ServiceConfig:
         )
         self.merged_labels_max_runtime_seconds = max(
             int(self.merged_labels_max_runtime_seconds), 0
+        )
+        self.stalled_task_watchdog_interval_seconds = max(
+            int(self.stalled_task_watchdog_interval_seconds), 60
         )
         self.temp_root = str(resolve_temp_root(self.temp_root or default_temp_root()))
         if not self.workspace_root:
@@ -914,6 +921,9 @@ class ServiceConfig:
             ),
             merged_labels_max_runtime_seconds=_env_int(
                 "OOMPAH_MERGED_LABELS_MAX_RUNTIME_SECONDS", None, 15
+            ),
+            stalled_task_watchdog_interval_seconds=_env_int(
+                "OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS", None, 1800
             ),
             ipc_db_path=_env_str("OOMPAH_IPC_DB_PATH", None, ""),
             project_refresh_timeout_ms=_env_int(
