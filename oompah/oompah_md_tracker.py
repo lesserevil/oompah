@@ -36,6 +36,7 @@ from oompah.statuses import (
     status_key,
 )
 from oompah.tracker import (
+    StateBranchFetchError,
     StateBranchMissingError,
     TrackerError,
     _parse_timestamp,
@@ -1440,7 +1441,7 @@ class OompahMarkdownTracker:
         fetch = self._git(["fetch", "origin", branch_name], check=False)
         if fetch.returncode != 0:
             fetch_err = fetch.stderr.strip() or fetch.stdout.strip()
-            raise TrackerError(
+            raise StateBranchFetchError(
                 f"Cannot sync state branch {branch_name!r}: "
                 f"git fetch origin {branch_name!r} failed: {fetch_err}. "
                 f"Remediation: verify network access and remote URL "

@@ -2559,7 +2559,7 @@ def _get_tracker_for_managed_repo(orch, managed_repo: str):
 def _fetch_all_issues(orch, filter_project: str | None = None):
     """Fetch issues from all projects or a specific one (parallel)."""
     from concurrent.futures import ThreadPoolExecutor
-    from oompah.tracker import StateBranchMissingError, TrackerError
+    from oompah.tracker import StateBranchFetchError, StateBranchMissingError, TrackerError
 
     projects = orch.project_store.list_all()
     if not projects:
@@ -2621,6 +2621,16 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
             # error_watcher is not triggered.
             logger.warning(
                 "Fetch issues skipped for project %s: %s",
+                project.name,
+                exc,
+            )
+            return []
+        except StateBranchFetchError as exc:
+            # Transient network failure fetching the remote state branch —
+            # local state is still valid.  Degrade gracefully so
+            # error_watcher is not triggered.
+            logger.warning(
+                "Fetch issues state-branch sync skipped for project %s: %s",
                 project.name,
                 exc,
             )
@@ -7208,6 +7218,16 @@ async def api_update_issue(identifier: str, request: Request):
         await broadcast_issues()
         return JSONResponse({"ok": True})
     except Exception as exc:
+        from oompah.tracker import StateBranchFetchError
+
+        if isinstance(exc, StateBranchFetchError):
+            # Transient network failure syncing the state branch — degrade
+            # gracefully so error_watcher is not triggered.
+            logger.warning("Update issue state-branch sync skipped: %s", exc)
+            return JSONResponse(
+                {"error": {"code": "state_branch_fetch_failed", "message": str(exc)}},
+                status_code=503,
+            )
         logger.error("Update issue API error: %s", exc)
         return JSONResponse(
             {"error": {"code": "update_failed", "message": str(exc)}},

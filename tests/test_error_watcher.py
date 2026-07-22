@@ -708,6 +708,29 @@ class TestErrorClassForTrackerExc:
             == "tracker_state_branch_missing"
         )
 
+    def test_tracker_state_branch_fetch_error(self):
+        """StateBranchFetchError must map to 'tracker_state_branch_fetch' class.
+
+        This ensures error_watcher dedup treats all fetch failures as one class,
+        not as generic 'tracker_failed'. (OOMPAH-345)
+        """
+        from oompah.orchestrator import _error_class_for_tracker_exc
+        from oompah.tracker import TrackerStateBranchFetchError
+        assert (
+            _error_class_for_tracker_exc(TrackerStateBranchFetchError("fetch failed"))
+            == "tracker_state_branch_fetch"
+        )
+
+    def test_tracker_state_branch_fetch_error_is_tracker_error_subclass(self):
+        """StateBranchFetchError must be a TrackerError subclass for back-compat."""
+        from oompah.tracker import StateBranchFetchError, TrackerError
+        assert issubclass(StateBranchFetchError, TrackerError)
+
+    def test_tracker_state_branch_fetch_error_alias(self):
+        """TrackerStateBranchFetchError alias must resolve to StateBranchFetchError."""
+        from oompah.tracker import StateBranchFetchError, TrackerStateBranchFetchError
+        assert TrackerStateBranchFetchError is StateBranchFetchError
+
 
 # ---------------------------------------------------------------------------
 # Tests for LogFileWatcher
