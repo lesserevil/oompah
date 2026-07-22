@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:29:14.500742Z'
-updated_at: '2026-07-22T04:27:05.911700Z'
+updated_at: '2026-07-22T04:27:08.437670Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -329,5 +329,10 @@ Completion: OOMPAH-342 implementation is complete. Delivered:
 6. **Both startup paths** (uvicorn/__main__ and Granian/_lifespan) call set_gitlab_hook_manager() to wire the globals
 
 All 11433 tests pass (42 new tests added).
+---
+author: oompah
+created: 2026-07-22 04:27
+---
+Wired GitLabHookManager into project lifecycle: reconcile() on create/update, remove() on delete, health alerts via _status_callback, event dedup via GitLabEventDedup, and GET /api/v1/webhooks/gitlab/status endpoint. 42 new tests, all 11433 pass.
 ---
 <!-- COMMENTS:END -->
