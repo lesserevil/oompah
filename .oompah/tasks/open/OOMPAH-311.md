@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-21T18:40:48.341112Z'
+updated_at: '2026-07-22T05:20:55.409884Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,6 +20,7 @@ merged_at: null
 ---
 ## Summary
 
+Diagnose and provide remediation for independently merged shared-epic child branches and PRs.
 ## Context
 
 OOMPAH-286 was a child of epic OOMPAH-285 but received its own branch (OOMPAH-286) and PR #466 which merged to main. This is the exact bug OOMPAH-307 wants to prevent. The existing data cannot be reverted (history preserved), but the system should:
@@ -61,4 +62,3 @@ OOMPAH-286 was a child of epic OOMPAH-285 but received its own branch (OOMPAH-28
 - [ ] Define acceptance criteria.
 
 ## Notes
-

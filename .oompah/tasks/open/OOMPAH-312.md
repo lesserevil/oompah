@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-21T18:40:49.221406Z'
+updated_at: '2026-07-22T05:20:56.280729Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,6 +21,7 @@ merged_at: null
 ---
 ## Summary
 
+Show shared-epic child completion on the epic branch separately from merge-to-target status.
 ## Context
 
 The current _effective_display_status function in oompah/server.py returns the canonical tracker state for shared-epic children. When a child is Done (complete on the epic branch) but the epic has not yet merged, the UI shows 'Done' with no indication that the work is sitting on the epic branch awaiting the epic merge. This is confusing for operators who see 'Done' but the code isn't in the target branch yet.
@@ -61,4 +62,3 @@ The _effective_display_status function (tests in tests/test_shared_epic_display_
 - [ ] Define acceptance criteria.
 
 ## Notes
-

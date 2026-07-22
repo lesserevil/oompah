@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T16:53:34.544944Z'
-updated_at: '2026-07-21T18:40:47.496871Z'
+updated_at: '2026-07-22T05:20:54.315636Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,6 +21,7 @@ merged_at: null
 ---
 ## Summary
 
+Verify shared-epic child promotion to Merged occurs only after the epic merge.
 ## Context
 
 The epic rollup model requires that shared-epic children are NOT promoted to Merged when their own work completes; they should only reach Merged when the parent epic's PR merges to its target branch. The current code has partial protection:
@@ -64,4 +65,3 @@ However, it is not clear that a clear code path exists for: 'epic PR merges to t
 - [ ] Define acceptance criteria.
 
 ## Notes
-

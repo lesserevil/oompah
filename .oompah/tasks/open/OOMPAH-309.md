@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:53:17.046767Z'
-updated_at: '2026-07-21T18:40:46.588705Z'
+updated_at: '2026-07-22T05:20:53.458361Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,6 +20,7 @@ merged_at: null
 ---
 ## Summary
 
+Keep shared-epic protections active when resolving a child parent epic fails.
 ## Context
 
 The shared-epic protection (no per-task worktree, no per-child PR, no Merged promotion) relies on _resolve_parent_epic(issue) returning a non-None parent Issue. This function calls tracker.fetch_issue_detail(parent_id) and returns None on any error:
@@ -64,4 +65,3 @@ This is a latent race condition / transient failure that can cause the OOMPAH-28
 - [ ] Define acceptance criteria.
 
 ## Notes
-

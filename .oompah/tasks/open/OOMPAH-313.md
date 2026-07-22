@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T16:54:41.720887Z'
-updated_at: '2026-07-21T18:40:50.069318Z'
+updated_at: '2026-07-22T05:20:57.227096Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,6 +22,7 @@ merged_at: null
 ---
 ## Summary
 
+Add regression coverage for the OOMPAH-285/286 shared-epic child routing lifecycle.
 ## Context
 
 No regression tests currently exist for the specific OOMPAH-285/286 routing failure. All existing tests in test_epic_strategy.py mock the tracker with MagicMock. We need regression fixtures that:
@@ -77,4 +78,3 @@ All four test groups described above.
 - [ ] Define acceptance criteria.
 
 ## Notes
-

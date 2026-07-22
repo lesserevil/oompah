@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:52:58.139774Z'
-updated_at: '2026-07-21T17:30:23.458877Z'
+updated_at: '2026-07-22T05:20:52.511466Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,6 +20,7 @@ merged_at: null
 ---
 ## Summary
 
+Correct stale shared-epic child branch metadata when dispatching to the parent epic branch.
 ## Context
 
 When a native (oompah_md) child task has pre-existing work_branch/branch_name metadata in its frontmatter (e.g., from a prior erroneous dispatch), the field is preserved in the in-memory Issue object. Even when _create_workspace_for_issue correctly routes the child to the parent epic worktree, issue.work_branch still holds the stale per-task value (e.g., 'OOMPAH-286' instead of 'epic-OOMPAH-285').
@@ -56,4 +57,3 @@ This stale branch is used by _branch_for_issue (lines 7680-7695 in orchestrator.
 - [ ] Define acceptance criteria.
 
 ## Notes
-
