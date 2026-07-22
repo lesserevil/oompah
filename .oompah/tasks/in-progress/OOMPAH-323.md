@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-323
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Implement GitLab Issues tracker with Oompah status governance
 parent: OOMPAH-318
@@ -9,15 +9,17 @@ children:
 - OOMPAH-337
 - OOMPAH-338
 - OOMPAH-339
+- OOMPAH-343
 blocked_by:
 - OOMPAH-319
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:epic_planner
 - needs:feature
+- epic:stale
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-22T00:37:46.302325Z'
+updated_at: '2026-07-22T00:38:35.457439Z'
 work_branch: null
 target_branch: null
 review_url: null
