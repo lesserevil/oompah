@@ -21,11 +21,11 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-22T08:20:55.065435Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-22T08:21:03.332255Z'
+work_branch: epic-OOMPAH-323
+target_branch: epic-OOMPAH-318
+review_url: https://github.com/lesserevil/oompah/pull/534
+review_number: '534'
 merged_at: null
 oompah.agent_run_id: e6a1afd4-99af-49ed-9528-28654633cfed
 oompah.task_costs:
@@ -50,6 +50,10 @@ oompah.task_costs:
     output_tokens: 5795
     cost_usd: 0.0
     recorded_at: '2026-07-21T23:06:58.184823+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/534
+oompah.review_number: '534'
+oompah.work_branch: epic-OOMPAH-323
+oompah.target_branch: epic-OOMPAH-318
 ---
 ## Summary
 
