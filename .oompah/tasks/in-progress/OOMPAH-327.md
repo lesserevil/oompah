@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T20:34:41.130372Z'
-updated_at: '2026-07-22T05:47:06.263506Z'
+updated_at: '2026-07-22T05:52:55.355007Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-07-22 05:47
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 05:52
+---
+Understanding: As Duplicate Investigator, I am screening OOMPAH-327 ('Expose GitLab configuration and health in UI, API, and ACP tools') before any implementation begins. The task is a child of the OOMPAH-318 GitLab forge parity epic. My plan: search all task records, plans, docs, and git history for any existing task that covers the same UI/API/ACP scope for GitLab config (forge selector, forge_base_url field, GitLab tracker/intake controls, masked project token, webhook endpoint/health display, pipeline warnings, 'Merge Request' terminology, and ACP tool schema extensions).
 ---
 <!-- COMMENTS:END -->
