@@ -548,6 +548,12 @@ class ServiceConfig:
     # agent.project_stale_cache_ttl_ms in WORKFLOW.md.
     project_stale_cache_ttl_ms: int = 300000
 
+    # Maximum time to wait for a cancelled worker coroutine during shutdown or
+    # manual termination. A worker that ignores cancellation must not wedge
+    # the scheduler or prevent the service from stopping.
+    # Configurable via OOMPAH_WORKER_TERMINATION_TIMEOUT_MS.
+    worker_termination_timeout_ms: int = 10000
+
     # Dispatch-loop heartbeat staleness detection (lesserevil/oompah#305).
     # If the dispatch loop has not completed a tick for longer than
     # (full_sync_interval_ms × dispatch_loop_stale_factor) milliseconds,
@@ -924,6 +930,9 @@ class ServiceConfig:
                 "OOMPAH_PROJECT_STALE_CACHE_TTL_MS",
                 agent.get("project_stale_cache_ttl_ms"),
                 300000,
+            ),
+            worker_termination_timeout_ms=_env_int(
+                "OOMPAH_WORKER_TERMINATION_TIMEOUT_MS", None, 10000
             ),
             dispatch_loop_stale_factor=_env_float(
                 "OOMPAH_DISPATCH_LOOP_STALE_FACTOR",

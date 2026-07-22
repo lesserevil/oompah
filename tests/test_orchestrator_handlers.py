@@ -341,6 +341,56 @@ class TestHandleDispatchNeeded:
 
         orch._fetch_all_candidates.assert_called_once()
 
+    def test_candidate_refresh_timeout_does_not_block_dispatch_loop(self, tmp_path):
+        """A blocking tracker call is timed out after it enters the executor.
+
+        This regression test guards against wrapping ``wait_for`` around an
+        inner event loop which is itself blocked by synchronous git I/O.
+        """
+        slow = _make_project("slow")
+        fast = _make_project("fast")
+        orch = _make_orchestrator(tmp_path, projects=[slow, fast])
+        orch.config.project_refresh_timeout_ms = 10
+        expected = _make_issue("FAST-1", project_id="fast")
+
+        slow_tracker = MagicMock()
+        slow_tracker.fetch_candidate_issues.side_effect = lambda: time.sleep(0.2)
+        fast_tracker = MagicMock()
+        fast_tracker.fetch_candidate_issues.return_value = [expected]
+        orch._tracker_for_project = lambda project_id: (
+            slow_tracker if project_id == "slow" else fast_tracker
+        )
+
+        started = time.monotonic()
+        candidates = asyncio.run(orch._fetch_all_candidates_bounded())
+
+        assert time.monotonic() - started < 0.15
+        assert candidates == [expected]
+        assert orch._project_refresh_metrics["slow"]["candidates"]["timeout_count"] == 1
+
+    def test_in_progress_refresh_timeout_uses_the_same_safe_boundary(self, tmp_path):
+        """Orphan reconciliation cannot block on synchronous tracker I/O."""
+        slow = _make_project("slow")
+        fast = _make_project("fast")
+        orch = _make_orchestrator(tmp_path, projects=[slow, fast])
+        orch.config.project_refresh_timeout_ms = 10
+        expected = _make_issue("FAST-RUNNING", project_id="fast")
+
+        slow_tracker = MagicMock()
+        slow_tracker.fetch_issues_by_states.side_effect = lambda _states: time.sleep(0.2)
+        fast_tracker = MagicMock()
+        fast_tracker.fetch_issues_by_states.return_value = [expected]
+        orch._tracker_for_project = lambda project_id: (
+            slow_tracker if project_id == "slow" else fast_tracker
+        )
+
+        started = time.monotonic()
+        issues = asyncio.run(orch._fetch_in_progress_issues_bounded())
+
+        assert time.monotonic() - started < 0.15
+        assert issues == [expected]
+        assert orch._project_refresh_metrics["slow"]["in_progress"]["timeout_count"] == 1
+
     def test_pre_resolves_blockers_for_candidates(self, tmp_path):
         """_pre_resolve_blockers is called with the fetched candidates."""
         orch = _make_orchestrator(tmp_path)

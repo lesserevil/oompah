@@ -834,6 +834,17 @@ _api_metrics_lock = threading.Lock()
 _api_metrics: dict[str, dict[str, Any]] = {}
 _api_event_loop: asyncio.AbstractEventLoop | None = None
 
+
+def set_api_event_loop(loop: asyncio.AbstractEventLoop | None) -> None:
+    """Register the loop that owns HTTP and WebSocket connections.
+
+    The scheduler normally runs in a dedicated thread.  Observer callbacks
+    must therefore marshal WebSocket work back to the ASGI loop rather than
+    attempting to use the scheduler's event loop.
+    """
+    global _api_event_loop
+    _api_event_loop = loop
+
 # ---------------------------------------------------------------------------
 # State snapshot cache for combined-mode API responsiveness
 # ---------------------------------------------------------------------------

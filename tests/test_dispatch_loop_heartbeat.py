@@ -319,6 +319,19 @@ class TestCheckAndRecoverDispatchLoop:
             f"Expected stale alert, alerts: {sources}"
         )
 
+    def test_captures_thread_stacks_on_first_stale_detection(self, tmp_path):
+        """The first stale observation preserves evidence for diagnosis."""
+        orch = _make_orchestrator(
+            tmp_path, full_sync_interval_ms=10_000, dispatch_loop_stale_factor=1.0
+        )
+        orch._last_full_sync = time.monotonic() - 15.0
+        orch._dump_stale_dispatch_threads = MagicMock()
+
+        orch.check_and_recover_dispatch_loop()
+        orch.check_and_recover_dispatch_loop()
+
+        orch._dump_stale_dispatch_threads.assert_called_once()
+
     def test_clears_alert_when_recovered(self, tmp_path):
         """After the loop resumes ticking, check_and_recover must clear the alert."""
         orch = _make_orchestrator(

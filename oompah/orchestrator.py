@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import faulthandler
 import logging
 import os
 import re
@@ -764,6 +765,13 @@ class Orchestrator:
         # Dedicated thread pool for tick operations so they don't compete
         # with agent tool-execution threads on the default pool.
         self._tick_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="tick")
+        # Tracker/git reads may remain blocked after their async deadline
+        # expires. Keep them in a small, dedicated pool so they can never
+        # consume maintenance or dispatch workers.
+        self._refresh_pool = ThreadPoolExecutor(
+            max_workers=max(1, config.project_refresh_max_concurrent),
+            thread_name_prefix="refresh",
+        )
         # Watchdog state
         self._last_watchdog_run: float = 0.0
         self._watchdog_interval_s: float = 300.0  # 5 minutes
@@ -903,6 +911,10 @@ class Orchestrator:
         # Per-project refresh metrics for diagnostics.
         # project_id -> {operation: {last_duration_ms, timeout_count, success_count, last_error}}
         self._project_refresh_metrics: dict[str, dict[str, dict[str, Any]]] = {}
+        # Executor reads that outlive their coroutine timeout.  Reusing an
+        # in-flight read prevents a hung git subprocess from consuming another
+        # worker on every subsequent refresh tick.
+        self._project_refresh_inflight: dict[tuple[str, str], asyncio.Future] = {}
         # Lock for thread-safe stale cache updates.
         self._stale_cache_lock = threading.Lock()
 
@@ -2551,6 +2563,7 @@ class Orchestrator:
 
         if self._dispatch_stale_detected_at == 0.0:
             self._dispatch_stale_detected_at = time.monotonic()
+            self._dump_stale_dispatch_threads()
 
         # Always arm/refresh the alert so the dashboard shows current elapsed.
         self._arm_dispatch_stale_alert(elapsed_s)
@@ -2560,6 +2573,19 @@ class Orchestrator:
         time_since_detection = time.monotonic() - self._dispatch_stale_detected_at
         if time_since_detection >= grace_s:
             self.recover_stale_dispatch_loop()
+
+    def _dump_stale_dispatch_threads(self) -> None:
+        """Emit all thread stacks once when the scheduler is first declared stale.
+
+        This runs from the independent HTTP/supervisor loop, so it captures a
+        scheduler that is blocked in git or a tracker call while preserving the
+        evidence needed to diagnose the next wedge.
+        """
+        try:
+            logger.error("Dispatch loop stall diagnostics follow (all thread stacks)")
+            faulthandler.dump_traceback(all_threads=True)
+        except Exception as exc:  # noqa: BLE001 -- diagnostics must not fail recovery
+            logger.warning("Unable to capture dispatch loop stall diagnostics: %s", exc)
 
     def _maybe_heal_repos(self) -> None:
         """Periodically drive every managed checkout back to a sound state.
@@ -3262,8 +3288,23 @@ class Orchestrator:
             metrics[f"{name}_ms"] = round((time.monotonic() - start) * 1000, 3)
             return result
 
+        async def _timed_async(name: str, coro_factory, *args):
+            """Time an async tick operation without routing it through a worker.
+
+            The operation itself is responsible for moving blocking work to a
+            bounded executor.  Keeping that boundary explicit prevents an
+            ``asyncio.wait_for`` from being installed around a coroutine whose
+            body is already blocking its event loop.
+            """
+            start = time.monotonic()
+            result = await coro_factory(*args)
+            metrics[f"{name}_ms"] = round((time.monotonic() - start) * 1000, 3)
+            return result
+
         # 1. Candidate fetch — dominant I/O cost (one tracker query per project)
-        candidates = await _timed("fetch_candidates", self._fetch_all_candidates)
+        candidates = await _timed_async(
+            "fetch_candidates", self._fetch_all_candidates_bounded
+        )
         self._last_candidates = candidates
         metrics["candidate_count"] = len(candidates)
         timings["candidate_fetch"] = metrics["fetch_candidates_ms"]
@@ -3693,6 +3734,85 @@ class Orchestrator:
 
         return asyncio.run(_fetch_all_projects())
 
+    async def _fetch_all_candidates_bounded(self) -> list[Issue]:
+        """Fetch candidate issues with effective per-project deadlines.
+
+        ``_fetch_all_candidates`` predates the async dispatcher and retains an
+        inner event loop for compatibility with synchronous callers.  Calling a
+        tracker directly from that inner loop made ``asyncio.wait_for`` unable
+        to fire: the loop was blocked until git/network I/O returned.  This
+        production path instead places each tracker read in a worker before
+        applying the deadline, so a slow project falls back to its stale cache
+        without delaying healthy projects.
+        """
+        # Keep the long-standing seam used by focused handler tests and local
+        # integrations.  Production uses the class implementation below; a
+        # replacement is deliberately executed off the dispatch loop as well.
+        # This also makes a test double that blocks behave like a real tracker
+        # read rather than freezing the scheduler.
+        legacy_fetch = self._fetch_all_candidates
+        if getattr(legacy_fetch, "__func__", None) is not Orchestrator._fetch_all_candidates:
+            return await asyncio.to_thread(legacy_fetch)
+
+        projects = self.project_store.list_all()
+        if not projects:
+            return await asyncio.to_thread(self._fetch_legacy_candidates)
+
+        async def _fetch_one(project) -> list[Issue]:
+            project_id = project.id
+
+            async def _coro() -> list[Issue]:
+                def _read() -> list[Issue]:
+                    try:
+                        tracker = self._tracker_for_project(project_id)
+                        issues = tracker.fetch_candidate_issues()
+                        for issue in issues:
+                            issue.project_id = project_id
+                        return issues
+                    except TrackerNotConfiguredError:
+                        return []
+                    except TrackerStateBranchMissingError as exc:
+                        logger.warning("Fetch skipped for project %s: %s", project.name, exc)
+                        return []
+                    except TrackerTimeoutError as exc:
+                        logger.warning("Fetch timed out for project %s: %s", project.name, exc)
+                        return []
+                    except (TrackerError, ProjectError) as exc:
+                        logger.error(
+                            "Fetch failed for project %s: %s",
+                            project.name,
+                            exc,
+                            extra={"error_class": _error_class_for_tracker_exc(exc)},
+                        )
+                        return []
+
+                key = (project_id, "candidates")
+                future = self._project_refresh_inflight.get(key)
+                if future is None or future.done():
+                    future = asyncio.get_running_loop().run_in_executor(
+                        self._refresh_pool, _read
+                    )
+                    self._project_refresh_inflight[key] = future
+
+                    def _clear(completed: asyncio.Future) -> None:
+                        if self._project_refresh_inflight.get(key) is completed:
+                            self._project_refresh_inflight.pop(key, None)
+
+                    future.add_done_callback(_clear)
+
+                # wait_for cancels its child coroutine on timeout; shield the
+                # underlying executor future so it can be reused rather than
+                # spawning an unbounded sequence of stuck subprocess reads.
+                return await asyncio.shield(future)
+
+            data, _ = await self._run_bounded_refresh(
+                project_id, "candidates", _coro
+            )
+            return data
+
+        results = await asyncio.gather(*(_fetch_one(project) for project in projects))
+        return [issue for issues in results for issue in issues]
+
     def _fetch_legacy_candidates(self) -> list[Issue]:
         """Fetch candidates from the globally configured tracker."""
         try:
@@ -3719,44 +3839,58 @@ class Orchestrator:
         In Progress is not a dispatchable status in the oompah workflow, so
         these tasks must be fetched separately from normal dispatch candidates.
         """
+        return asyncio.run(self._fetch_in_progress_issues_bounded())
+
+    async def _fetch_in_progress_issues_bounded(self) -> list[Issue]:
+        """Fetch orphan-reconciliation state with effective deadlines.
+
+        This mirrors candidate refreshes: tracker reads run in the executor
+        before their per-project timeout is applied.  The synchronous wrapper
+        above remains for the maintenance-job API.
+        """
         projects = self.project_store.list_all()
         if not projects:
-            return self._fetch_legacy_in_progress()
+            return await asyncio.to_thread(self._fetch_legacy_in_progress)
 
         async def _fetch_all_projects() -> list[Issue]:
             async def _fetch_one(project) -> list[Issue]:
                 project_id = project.id
-                async def _coro():
-                    try:
-                        tracker = self._tracker_for_project(project_id)
-                        issues = tracker.fetch_issues_by_states([IN_PROGRESS])
-                        for issue in issues:
-                            issue.project_id = project_id
-                        return issues
-                    except TrackerNotConfiguredError:
-                        return []
-                    except TrackerStateBranchMissingError as exc:
-                        logger.warning(
-                            "In Progress fetch skipped for project %s: %s",
-                            project.name,
-                            exc,
-                        )
-                        return []
-                    except TrackerTimeoutError as exc:
-                        logger.warning(
-                            "In Progress fetch timed out for project %s: %s",
-                            project.name,
-                            exc,
-                        )
-                        return []
-                    except (TrackerError, ProjectError) as exc:
-                        logger.error(
-                            "In Progress fetch failed for project %s: %s",
-                            project.name,
-                            exc,
-                            extra={"error_class": _error_class_for_tracker_exc(exc)},
-                        )
-                        return []
+                async def _coro() -> list[Issue]:
+                    def _read() -> list[Issue]:
+                        try:
+                            tracker = self._tracker_for_project(project_id)
+                            issues = tracker.fetch_issues_by_states([IN_PROGRESS])
+                            for issue in issues:
+                                issue.project_id = project_id
+                            return issues
+                        except TrackerNotConfiguredError:
+                            return []
+                        except TrackerStateBranchMissingError as exc:
+                            logger.warning(
+                                "In Progress fetch skipped for project %s: %s",
+                                project.name,
+                                exc,
+                            )
+                            return []
+                        except TrackerTimeoutError as exc:
+                            logger.warning(
+                                "In Progress fetch timed out for project %s: %s",
+                                project.name,
+                                exc,
+                            )
+                            return []
+                        except (TrackerError, ProjectError) as exc:
+                            logger.error(
+                                "In Progress fetch failed for project %s: %s",
+                                project.name,
+                                exc,
+                                extra={"error_class": _error_class_for_tracker_exc(exc)},
+                            )
+                            return []
+
+                    return await asyncio.get_running_loop().run_in_executor(
+                        self._refresh_pool, _read
+                    )
 
                 data, _ = await self._run_bounded_refresh(
                     project_id, "in_progress", _coro
@@ -3769,7 +3903,7 @@ class Orchestrator:
                 in_progress.extend(issues)
             return in_progress
 
-        return asyncio.run(_fetch_all_projects())
+        return await _fetch_all_projects()
 
     def _fetch_legacy_in_progress(self) -> list[Issue]:
         """Fetch In Progress from legacy tracker."""
@@ -18592,7 +18726,22 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         if entry.worker_task and not entry.worker_task.done():
             entry.worker_task.cancel()
             try:
-                await entry.worker_task
+                timeout_s = max(self.config.worker_termination_timeout_ms, 0) / 1000
+                if timeout_s == 0:
+                    await entry.worker_task
+                else:
+                    done, _pending = await asyncio.wait(
+                        {entry.worker_task}, timeout=timeout_s
+                    )
+                    if not done:
+                        logger.error(
+                            "Worker did not stop within %dms; continuing shutdown "
+                            "issue_identifier=%s",
+                            self.config.worker_termination_timeout_ms,
+                            entry.identifier,
+                        )
+                    else:
+                        await entry.worker_task
             except (asyncio.CancelledError, Exception):
                 pass
 

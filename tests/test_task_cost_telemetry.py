@@ -763,6 +763,31 @@ class TestTerminateRunningWritesCostRecord:
 
         assert len(fire_calls) == 0
 
+    def test_terminate_does_not_wait_forever_for_cancelled_worker(self, tmp_path):
+        """A cancellation-resistant worker cannot wedge service shutdown."""
+        orch = _make_orchestrator(tmp_path)
+        orch.config.worker_termination_timeout_ms = 10
+
+        async def _ignores_first_cancel():
+            try:
+                await asyncio.sleep(60)
+            except asyncio.CancelledError:
+                await asyncio.sleep(0.1)
+
+        async def _run():
+            task = asyncio.create_task(_ignores_first_cancel())
+            entry = _make_running_entry("stuck-worker")
+            entry.worker_task = task
+            orch.state.running["stuck-worker"] = entry
+            started = asyncio.get_running_loop().time()
+            await orch._terminate_running("stuck-worker", cleanup_workspace=False)
+            return asyncio.get_running_loop().time() - started
+
+        elapsed = asyncio.run(_run())
+
+        assert elapsed < 0.08
+        assert "stuck-worker" not in orch.state.running
+
 
 # ---------------------------------------------------------------------------
 # Acceptance: reconcile-triggered termination writes cost

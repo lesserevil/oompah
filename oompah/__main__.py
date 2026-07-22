@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 import sys
+import threading
 
 logger = logging.getLogger("oompah")
 
@@ -392,7 +393,7 @@ async def _run(
     """
     from oompah.bootstrap import StartupError, setup_services
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
-    from oompah.server import app, set_orchestrator
+    from oompah.server import app, set_api_event_loop, set_orchestrator
     from watchfiles import awatch
 
     try:
@@ -404,6 +405,7 @@ async def _run(
     webhook_forwarder = services.webhook_forwarder
 
     set_orchestrator(orchestrator)
+    set_api_event_loop(asyncio.get_running_loop())
 
     # Start webhook forwarder (runs gh webhook forward per project)
     await webhook_forwarder.start()
@@ -428,8 +430,31 @@ async def _run(
 
     watch_task = asyncio.create_task(_watch_workflow())
 
-    # Start orchestrator
-    orch_task = asyncio.create_task(orchestrator.run())
+    # The scheduler performs git, tracker, and agent lifecycle work.  It must
+    # not share the ASGI loop: a blocking tracker call used to wedge the UI
+    # and prevented health/recovery endpoints from responding.  Keep it on a
+    # dedicated loop in a thread, matching the Granian lifespan path.
+    def _run_orchestrator_thread() -> None:
+        try:
+            asyncio.run(orchestrator.run())
+        except Exception:  # noqa: BLE001 -- thread boundary must be logged
+            logger.exception("Orchestrator thread crashed")
+
+    orch_thread = threading.Thread(
+        target=_run_orchestrator_thread,
+        name="oompah-orchestrator",
+        daemon=True,
+    )
+    orch_thread.start()
+
+    async def _supervise_orchestrator() -> None:
+        while orch_thread.is_alive() and not orchestrator.wants_restart:
+            # Runs on the HTTP loop, so stale-loop detection remains live even
+            # if the scheduler's loop is blocked by a third-party operation.
+            orchestrator.check_and_recover_dispatch_loop()
+            await asyncio.sleep(0.5)
+        if server is not None:
+            server.should_exit = True
 
     # Start HTTP server if port configured
     server = None
@@ -474,20 +499,39 @@ async def _run(
             server = uvicorn.Server(uvi_config)
             server_task = asyncio.create_task(server.serve())
 
+    supervise_task = asyncio.create_task(_supervise_orchestrator())
+
     try:
-        # Wait for orchestrator to finish (normal stop or restart)
-        await orch_task
+        # Uvicorn owns process signals.  When no HTTP port is configured,
+        # retain the scheduler-only mode until it requests a restart or exits.
+        if server_task:
+            await server_task
+        else:
+            await supervise_task
     except asyncio.CancelledError:
         pass
     finally:
         wants_restart = orchestrator.wants_restart
-        await orchestrator.stop()
+        stop_future = orchestrator.stop_threadsafe()
+        if stop_future is not None:
+            try:
+                await asyncio.wait_for(asyncio.wrap_future(stop_future), timeout=5.0)
+            except (asyncio.TimeoutError, Exception) as exc:
+                logger.warning("Timed out stopping orchestrator thread: %s", exc)
+        else:
+            await orchestrator.stop()
         await webhook_forwarder.stop()
         watch_task.cancel()
+        supervise_task.cancel()
         if server:
             server.should_exit = True
         if server_task:
             server_task.cancel()
+        try:
+            await asyncio.to_thread(orch_thread.join, 5.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
+        set_api_event_loop(None)
         return wants_restart
 
 
