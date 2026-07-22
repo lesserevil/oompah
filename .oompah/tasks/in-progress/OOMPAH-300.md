@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:10.495385Z'
-updated_at: '2026-07-22T00:17:31.255770Z'
+updated_at: '2026-07-22T00:28:05.430099Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -196,5 +196,10 @@ author: oompah
 created: 2026-07-22 00:17
 ---
 **Discovery:** tests/test_repo_map_workflow.py (untracked) already covers E2E workflow. Missing pieces: (1) RepoMapResult lacks generation_duration_s, file_count, symbol_count; (2) No repo_map_diagnostics.py module for operator-facing status queries (fresh/stale/generating/unavailable/failed); (3) No test_repo_map_diagnostics.py. Will: enrich RepoMapResult, create diagnostics module, write tests, commit all.
+---
+author: oompah
+created: 2026-07-22 00:28
+---
+**Implementation:** Created three new/modified files: (1) oompah/repo_map_diagnostics.py - new diagnostics module with STATUS_FRESH/STALE/GENERATING/UNAVAILABLE/FAILED/TIMEOUT states, RepoMapDiagnostics dataclass, get_repo_map_diagnostics() function exposing metadata-only snapshots; (2) tests/test_repo_map_diagnostics.py - 52 tests covering all status states, security boundary (no source/credential leakage), and RepoMapResult enrichment; (3) Modified oompah/repo_map_generator.py to add generation_duration_s, file_count, symbol_count to RepoMapResult and is_generating() method to RepoMapGenerator. Also fixed pre-existing test bug in test_repo_map_prompt.py (OOMPAH-298 artefact: token_budget test incorrectly counted SAFETY_INSTRUCTION wrapper tokens).
 ---
 <!-- COMMENTS:END -->
