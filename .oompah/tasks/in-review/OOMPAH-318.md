@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-318
 type: epic
-status: In Progress
+status: In Review
 priority: 1
 title: Add full GitLab forge parity for managed projects
 parent: null
@@ -26,7 +26,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-21T20:33:00.759935Z'
-updated_at: '2026-07-22T07:32:15.200809Z'
+updated_at: '2026-07-22T08:10:55.855962Z'
 work_branch: null
 target_branch: null
 review_url: null
