@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-323
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Implement GitLab Issues tracker with Oompah status governance
 parent: OOMPAH-318
@@ -17,7 +17,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-21T23:25:34.204059Z'
+updated_at: '2026-07-22T00:37:46.302325Z'
 work_branch: null
 target_branch: null
 review_url: null

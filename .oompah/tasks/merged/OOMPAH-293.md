@@ -21,7 +21,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-21T15:13:33.130186Z'
-updated_at: '2026-07-22T00:37:20.583199Z'
+updated_at: '2026-07-22T00:37:46.962902Z'
 work_branch: epic-OOMPAH-293
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/488
@@ -42,3 +42,11 @@ Implement an Oompah-native repository-map capability inspired by Aider’s RepoM
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 00:37
+---
+YOLO: merged PR #488.
+---
+<!-- COMMENTS:END -->

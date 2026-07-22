@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-295
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Add Tree-sitter repository symbol and reference extraction
 parent: OOMPAH-293
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:13:48.374539Z'
-updated_at: '2026-07-22T00:37:12.461462Z'
+updated_at: '2026-07-22T00:37:45.561761Z'
 work_branch: null
 target_branch: null
 review_url: null
