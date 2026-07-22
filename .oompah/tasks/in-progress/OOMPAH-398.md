@@ -12,7 +12,7 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T04:05:32.243916Z'
+updated_at: '2026-07-22T04:15:41.600734Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-07-22 04:05
 ---
 Understanding: Previous CI Fixer agents made no commits. This is a full feature implementation task requiring: (1) new oompah/stalled_task_watchdog.py module with classification logic for NEEDS_HUMAN/NEEDS_CI_FIX/NEEDS_REBASE/NEEDS_ANSWER states; (2) config field OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS (default 1800) in config.py and .env.example; (3) orchestrator integration via _run_maintenance_job in _run_step5b_maintenance; (4) telemetry in _maintenance_status; (5) tests. My approach: implement a pure classification+remediation module following the yolo_watchdog.py pattern, wire it into the maintenance lane, add comprehensive tests.
+---
+author: oompah
+created: 2026-07-22 04:15
+---
+Implementation complete. Added: (1) oompah/stalled_task_watchdog.py — pure classification+remediation module auditing NEEDS_HUMAN, NEEDS_CI_FIX, NEEDS_REBASE, NEEDS_ANSWER states; (2) config.stalled_task_watchdog_interval_seconds (default 1800) in config.py with OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS env var; (3) .env.example entry; (4) _maybe_run_stalled_task_watchdog() + _do_stalled_task_watchdog() wired into _run_step5b_maintenance in orchestrator.py; (5) tests/test_stalled_task_watchdog.py with 74 tests. All 11338 tests pass.
 ---
 <!-- COMMENTS:END -->
