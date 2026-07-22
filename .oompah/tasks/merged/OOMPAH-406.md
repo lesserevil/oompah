@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-406
 type: bug
-status: In Review
+status: Merged
 priority: 2
 title: '[backend:orchestrator] Dispatch loop stall diagnostics follow (all thread
   stacks)'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:35.680434Z'
-updated_at: '2026-07-22T16:04:58.814191Z'
+updated_at: '2026-07-22T16:14:21.715171Z'
 work_branch: OOMPAH-406
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/538
