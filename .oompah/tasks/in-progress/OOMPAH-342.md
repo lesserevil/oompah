@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T00:29:14.500742Z'
-updated_at: '2026-07-22T04:00:59.404479Z'
+updated_at: '2026-07-22T04:01:19.288252Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -136,5 +136,30 @@ author: oompah
 created: 2026-07-22 04:00
 ---
 Understanding: Investigating OOMPAH-342 as Duplicate Investigator. The issue requests wiring GitLabHookManager into the project lifecycle (hook creation on project add, reconcile on startup, remove on deletion, hook health tracking, polling-fallback alerts, event deduplication). Searching all task directories and docs for any existing task that covers the same ground before implementation work begins.
+---
+author: oompah
+created: 2026-07-22 04:01
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: No duplicate confirmed. OOMPAH-342 is a unique, first-of-its-kind task.
+
+2. **Evidence searched and reviewed**:
+   - All .oompah/tasks/ directories (archived 225 tasks, merged, done, in-progress, open, backlog) — no task covering this exact scope
+   - Search patterns: GitLabHookManager, hook health, polling fallback, delivery dedup, project lifecycle, deduplication, gitlab hook manager
+   - OOMPAH-340 (Done): Extended parse_gitlab_webhook for all hook types — a stated dependency, not a duplicate
+   - OOMPAH-341 (Done): Implemented GitLabHookManager class with start()/stop(), reconcile(), remove(), and basic health tracking. Wired into server lifespan and __main__ startup/shutdown — also a dependency, NOT a duplicate. Crucially, 341 does NOT cover: (a) hook creation when a project is dynamically added via API, (b) hook removal when a project is deleted via API, (c) polling-fallback alerts when hooks are unhealthy, (d) event dedup when webhook+polling both deliver same event
+   - plans/gitlab-forge-parity.md lines 81-94: documents these requirements as planned work, not an existing task
+
+3. **Remaining work and key implementation context**:
+   - **Project add hook**: `oompah/server.py` ~line 10114, after `orch.project_store.create(...)`. Call `await services.gitlab_hook_manager.reconcile()` (or per-project variant) for new GitLab projects. Pattern: see `_log_watcher_manager.sync_watchers()` calls nearby.
+   - **Project delete hook**: `oompah/server.py` ~line 10519, `api_delete_project`. Call `await services.gitlab_hook_manager.remove(project)` before/after `project_store.delete()`. Already syncs log watchers same way.
+   - **Project update hook**: `oompah/server.py` patch endpoint, call `reconcile()` if forge_kind/repo_url/access_token/webhook_secret changed.
+   - **Hook health surfacing**: `GitLabHookManager.status` property already returns per-project health info (`healthy`, `last_error`, `hook_id`). Needs to be surfaced via project detail API or a `/api/v1/webhooks/gitlab/status` endpoint.
+   - **Polling-fallback alerts**: When `state.healthy == False`, the polling-based event source should remain active and produce a dashboard alert. The `GitLabHookManager.status` `projects` dict provides the unhealthy flag per project.
+   - **Event dedup**: Needs a seen-event cache (by GitLab event ID or fingerprint) shared between the webhook handler and the polling path to drop duplicate event deliveries.
+   - Key files: `oompah/webhooks.py` (GitLabHookManager at line 1006), `oompah/server.py` (create ~10114, delete ~10519, update endpoint), `oompah/bootstrap.py` (services wired at lines 240, 319)
+
+4. **Recommended next focus**: `feature` — implement the project lifecycle hooks (add/delete/update wiring) and the deduplication layer; surface hook health via API.
 ---
 <!-- COMMENTS:END -->
