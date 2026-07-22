@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T02:09:37.623989Z'
+updated_at: '2026-07-22T02:09:39.973428Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -263,5 +263,10 @@ author: oompah
 created: 2026-07-22 02:09
 ---
 Completion: Delivered atomic round-robin dispatch-time reservation (OOMPAH-346). Added CandidateSelector.reserve_candidate() that atomically selects LRU + stamps under lock. Updated _resolve_dispatch_targets() to use it for round-robin roles. Added 51 new tests (34 unit + 17 orchestrator-level). Full suite: 11238 passed. Branch OOMPAH-346 pushed to origin.
+---
+author: oompah
+created: 2026-07-22 02:09
+---
+Added CandidateSelector.reserve_candidate() for atomic dispatch-time LRU selection with immediate stamping under lock. Updated _resolve_dispatch_targets() to use it for round-robin roles, fixing the all-first-candidate race. 51 new tests cover fairness (N concurrent reserves), failover (preflight/startup), Claude/Codex 5-concurrent regression, priority non-regression, and persistence across service restart. All 11238 tests passing.
 ---
 <!-- COMMENTS:END -->
