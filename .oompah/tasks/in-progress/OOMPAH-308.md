@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:52:58.139774Z'
-updated_at: '2026-07-22T06:22:07.460560Z'
+updated_at: '2026-07-22T06:27:59.595919Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -339,5 +339,10 @@ author: oompah
 created: 2026-07-22 06:22
 ---
 Discovery: Root cause confirmed in oompah/orchestrator.py _create_workspace_for_issue (~line 4952). When a native child routes to the shared epic worktree, the code creates the epic worktree and returns — but never updates issue.work_branch or issue.branch_name to the epic branch. A child with stale work_branch=OOMPAH-286 keeps that stale value, which causes false Done→Merged promotions on the wrong branch. Fix: after resolving parent_epic, call _epic_branch_for_issue(parent_epic), compare with issue.work_branch, and if stale, update in-memory fields and persist via tracker.set_metadata_field (best-effort, both oompah_md and github_issues trackers support this). Test pattern exists in tests/test_epic_strategy.py TestWorkspaceAllocation class.
+---
+author: oompah
+created: 2026-07-22 06:27
+---
+Implementation: Fixed stale work_branch metadata in oompah/orchestrator.py _create_workspace_for_issue. After resolving parent_epic, the code now: (1) calls _epic_branch_for_issue(parent_epic) to get the canonical epic branch name, (2) compares with the child's current work_branch, (3) if different, updates issue.work_branch and issue.branch_name in-memory, (4) persists via tracker.set_metadata_field('oompah.work_branch', epic_branch) best-effort (failure is logged but does not block dispatch). This prevents Done→Merged promotions using stale per-task branch names for shared-epic children.
 ---
 <!-- COMMENTS:END -->
