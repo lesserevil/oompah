@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T06:10:31.555662Z'
+updated_at: '2026-07-22T06:21:51.210372Z'
 work_branch: OOMPAH-403
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/532
@@ -323,5 +323,10 @@ Understanding: CI Failure Fixer role. CI failed on PR #532 (Python 3.13 job). 7 
 - test_transition_gate.py (3 failures, 422 != 403/200)
 
 Branch diff shows only 2 files changed: oompah/orchestrator.py (logger.error→warning) and tests/test_task_cost_telemetry.py (regression test). The failures are in unrelated test files. Plan: (1) run failing tests locally to reproduce, (2) check if failures pre-exist on main, (3) determine if something in our diff is causing them, (4) fix minimally.
+---
+author: oompah
+created: 2026-07-22 06:21
+---
+Discovery: Root cause of 7 CI failures confirmed. Commit dcbef393e ('Preserve structured native task descriptions') added a description validation to api_update_issue() in server.py that returns 422 when trying to promote to a dispatchable status (Open, Needs CI Fix, Needs Rebase) without a description. The failing tests create Issue objects via helper functions (_issue(), _make_issue()) without descriptions, so the 422 validation fires before the actual logic being tested. The fix is minimal: add description='Implementation details' to the Issue factory helpers in the 3 failing test files. These failures pre-exist on main — our orchestrator.py change did not cause them, but they block the PR from merging.
 ---
 <!-- COMMENTS:END -->
