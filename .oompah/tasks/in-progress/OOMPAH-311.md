@@ -8,10 +8,12 @@ title: Diagnose and surface remediation path for existing independently-merged c
 parent: OOMPAH-307
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T05:45:21.816019Z'
+updated_at: '2026-07-22T05:45:44.303557Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -156,5 +158,28 @@ Closest candidates reviewed and REJECTED as duplicates:
 - OOMPAH-219 (Archived): SharedAbsorptionEvidence commit-absorption races — different topic.
 
 Conclusion: OOMPAH-311 is unique. It addresses Gap E from the OOMPAH-307 epic planner analysis: no code path currently detects or reports on children that were already independently merged to main (OOMPAH-286/PR #466 pattern), and no operator remediation path exists for that historical state.
+---
+author: oompah
+created: 2026-07-22 05:45
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate found. OOMPAH-311 is a unique, unimplemented task covering Gap E from epic OOMPAH-307: detecting and surfacing a remediation path for existing shared-epic children that were already independently merged to main (the OOMPAH-286/PR #466 pattern).
+
+2. Evidence and context from epic planner (OOMPAH-307 comment #15):
+   - Gap E: No code path updates or detects children that already independently merged. Children like OOMPAH-286 received work_branch=OOMPAH-286, target_branch=main, PR #466, and status Merged — bypassing the epic branch entirely.
+   - Key files to modify: oompah/orchestrator.py (startup reconciliation or a new diagnostic path), oompah/models.py (possibly new field for 'diagnosed_independent_merge'), oompah/oompah_md_tracker.py (for native tracker data reads).
+   - Related sibling tasks: OOMPAH-308 (stale metadata fix), OOMPAH-309 (protection hardening), OOMPAH-310 (promotion lifecycle). OOMPAH-311 is independent and can proceed in parallel.
+
+3. Implementation scope (from OOMPAH-307 description):
+   - Detect independently-created child PRs/branches by scanning children of shared epics for work_branch != parent_epic.work_branch and status==Merged/pr_url pointing to main.
+   - Surface diagnostics: either a CLI command, operator log message, or dashboard indicator that lists affected children and their independent merge evidence.
+   - Provide a safe remediation path: e.g., re-associate the child's commits to the epic branch, update metadata, or annotate the child as 'independently-merged (no action needed if commits are in main)'. Do NOT rewrite git history.
+   - Tests: detection of OOMPAH-286-style children, diagnostic output format, remediation path execution, no corruption of epic branch on reconcile.
+   - Acceptance: existing independently-merged child data is diagnosed and does NOT corrupt the epic branch.
+
+4. Remaining work: Full implementation. No code has been written yet.
+
+5. Recommended next focus: feature (implement diagnosis and remediation tooling in oompah/orchestrator.py).
 ---
 <!-- COMMENTS:END -->
