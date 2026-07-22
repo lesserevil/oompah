@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-309
 type: task
-status: In Progress
+status: Backlog
 priority: null
 title: Harden shared-epic protection when _resolve_parent_epic fails for a child with
   parent_id set
@@ -11,9 +11,10 @@ children:
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:53:17.046767Z'
-updated_at: '2026-07-22T05:41:52.139534Z'
+updated_at: '2026-07-22T05:42:14.518669Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +22,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 97f521c9-b729-411b-8804-c7b853ca94f6
 oompah.task_costs:
-  total_input_tokens: 39
-  total_output_tokens: 10159
+  total_input_tokens: 66
+  total_output_tokens: 11039
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 39
-      output_tokens: 10159
+      input_tokens: 66
+      output_tokens: 11039
       cost_usd: 0.0
   runs:
   - profile: default
@@ -36,6 +37,12 @@ oompah.task_costs:
     output_tokens: 10159
     cost_usd: 0.0
     recorded_at: '2026-07-22T05:34:48.936290+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 27
+    output_tokens: 880
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T05:42:13.067438+00:00'
 ---
 ## Summary
 
@@ -173,5 +180,31 @@ author: oompah
 created: 2026-07-22 05:41
 ---
 Understanding (Epic Planner): This epic covers a targeted hardening fix in oompah/orchestrator.py. Three call sites fail open when _resolve_parent_epic() returns None for an issue that HAS parent_id set (tracker transient error). The previous duplicate-detector agent identified them precisely: (a) _yolo_epic_strategy_block_reason (~line 11855) returns None instead of blocking, (b) _close_invalid_epic_policy_review (~line 11929) skips the close branch, (c) review handoff (~line 8070) creates a per-child PR instead of skipping. All three fixes live in the same file and follow the same pattern: fail closed when parent_id is set. Will decompose into one implementation child (code + tests in one session) since they're tightly coupled and the change is small.
+---
+author: oompah
+created: 2026-07-22 05:42
+---
+Focus handoff: epic_planner
+
+1. Outcome: Epic decomposed into 1 implementation child task (OOMPAH-404). The scope is intentionally narrow — all three fixes are in the same function group of oompah/orchestrator.py and follow the same pattern (fail-closed when parent_id is set), so one focused feature-agent session covers everything.
+
+2. Relevant files and evidence:
+   - oompah/orchestrator.py: _resolve_parent_epic (line 4835), review-handoff skip (line 8070), _yolo_epic_strategy_block_reason (line 11806/11855), _close_invalid_epic_policy_review (line 11868/11929)
+   - tests/test_epic_strategy.py: existing patterns for patching _resolve_parent_epic (see TestResolveParentEpic class and TestSharedModeDispatchGating)
+   - No existing test covers _yolo_epic_strategy_block_reason or _close_invalid_epic_policy_review directly
+
+3. Remaining work: OOMPAH-404 (the only child) needs a feature agent to implement all three hardening fixes and write the corresponding regression tests.
+
+4. Recommended next focus: feature (backend fix)
+---
+author: oompah
+created: 2026-07-22 05:42
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 19
+- Tokens: 27 in / 880 out [907 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 59s
+- Log: OOMPAH-309__20260722T053615Z.jsonl
 ---
 <!-- COMMENTS:END -->

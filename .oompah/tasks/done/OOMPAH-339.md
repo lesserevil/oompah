@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-339
 type: task
-status: Needs Human
+status: Done
 priority: null
 title: Enforce GitLab status-label authorization and audit/revert safety
 parent: OOMPAH-323
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:47.554460Z'
-updated_at: '2026-07-22T05:41:27.337638Z'
+updated_at: '2026-07-22T05:42:20.090991Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -613,5 +613,16 @@ Implementation: Changes are complete across 6 files. Summary:
 6. tests/test_webhooks.py — 3 new tests: Issue Hook captures status label actor and iid; status label removal captured for revert; rich label objects normalized.
 
 All 366 tests pass.
+---
+author: oompah
+created: 2026-07-22 05:42
+---
+Completion: OOMPAH-339 is done. Committed and pushed to epic-OOMPAH-323.
+
+Delivered:
+- GitLabIssueTracker status-label governance: trusted ledger, untrusted issue tracking, authorized actor validation via GitLab resource_label_events API, candidate suppression, and backfill/canonicalize on poll.
+- server.py: extended status-label guard to gitlab_issues tracker kind; _status_before_label_event reads GitLab's changes.labels.previous; _revert_unauthorized_status_label_change captures prior trusted status before clearing ledger.
+- webhooks.py: parse_gitlab_webhook handles Issue Hook events and normalizes oompah:status:* label mutations to WebhookEvent label_name/label_actor.
+- 366 tests pass (115 GitLab tracker + server webhooks + webhook parser tests).
 ---
 <!-- COMMENTS:END -->
