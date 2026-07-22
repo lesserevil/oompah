@@ -12,7 +12,7 @@ labels:
 - round-robin
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T01:21:53.971898Z'
+updated_at: '2026-07-22T01:23:16.139044Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 66732556-2139-48ba-9a5e-cd380fa3fd61
 oompah.task_costs:
-  total_input_tokens: 228422
-  total_output_tokens: 1404
+  total_input_tokens: 565612
+  total_output_tokens: 3747
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 228422
-      output_tokens: 1404
+      input_tokens: 565612
+      output_tokens: 3747
       cost_usd: 0.0
   runs:
   - profile: default
@@ -35,6 +35,12 @@ oompah.task_costs:
     output_tokens: 1404
     cost_usd: 0.0
     recorded_at: '2026-07-22T00:56:50.618428+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 337190
+    output_tokens: 2343
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T01:23:12.222420+00:00'
 ---
 ## Summary
 
@@ -108,5 +114,25 @@ author: oompah
 created: 2026-07-22 01:21
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 01:23
+---
+Agent completed successfully in 81s (339533 tokens)
+---
+author: oompah
+created: 2026-07-22 01:23
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 8
+- Tokens: 337.2K in / 2.3K out [339.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 21s
+- Log: OOMPAH-346__20260722T012154Z.jsonl
+---
+author: oompah
+created: 2026-07-22 01:23
+---
+Agent completed without landing — no commits found on origin for branch `OOMPAH-346`. Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
