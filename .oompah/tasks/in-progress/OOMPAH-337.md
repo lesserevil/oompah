@@ -10,13 +10,29 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T23:24:30.718256Z'
-updated_at: '2026-07-22T00:38:26.089618Z'
+updated_at: '2026-07-22T00:39:17.958457Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 4409f3eb-14d1-48f2-b689-1c2a48e465b9
+oompah.agent_run_id: 1a4b0b37-2ea1-41d7-950f-ddfb58d5156e
+oompah.task_costs:
+  total_input_tokens: 155284
+  total_output_tokens: 899
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 155284
+      output_tokens: 899
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 155284
+    output_tokens: 899
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T00:38:52.312572+00:00'
 ---
 ## Summary
 
@@ -49,5 +65,30 @@ author: oompah
 created: 2026-07-22 00:38
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 00:38
+---
+Agent completed successfully in 28s (156183 tokens)
+---
+author: oompah
+created: 2026-07-22 00:38
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 4
+- Tokens: 155.3K in / 899 out [156.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 28s
+- Log: OOMPAH-337__20260722T003826Z.jsonl
+---
+author: oompah
+created: 2026-07-22 00:38
+---
+Agent completed without landing — no commits found on origin for branch `epic-OOMPAH-323`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-22 00:39
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
