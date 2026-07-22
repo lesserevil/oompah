@@ -605,6 +605,10 @@ def _parse_gitlab_mr(
         A :class:`WebhookEvent`, or ``None`` when ``object_attributes`` is
         absent or empty.
     """
+    if event_type != "Merge Request Hook":
+        logger.debug("Ignoring non-MR GitLab event in _parse_gitlab_mr: %s", event_type)
+        return None
+
     attrs = payload.get("object_attributes", {})
     if not attrs:
         return None
@@ -685,6 +689,10 @@ def _parse_gitlab_issue(
 ) -> WebhookEvent | None:
     """Parse a GitLab ``Issue Hook`` payload into a :class:`WebhookEvent`.
 
+    Issue Hooks expose status-label mutations in ``changes.labels`` rather
+    than GitHub's separate ``label`` object, so normalize those to the shared
+    labelled / unlabelled event contract used by the authorization guard.
+
     Args:
         event_type: Always ``"Issue Hook"``.
         payload: Parsed JSON body.
@@ -703,13 +711,43 @@ def _parse_gitlab_issue(
 
     user = payload.get("user", {})
     author = user.get("username", "")
-    action = attrs.get("action", "")
     issue_iid = str(attrs.get("iid", "") or "")
     title = attrs.get("title", "") or ""
 
+    # Detect status-label changes.  GitLab versions and hook configurations
+    # represent labels either as plain names or as objects whose display name
+    # is ``title``.  Accept both forms so a status-label change cannot bypass
+    # authorization on instances that send the richer object form.
+    changes = payload.get("changes") or {}
+    label_change = changes.get("labels") or {}
+
+    def _label_name(label: Any) -> str:
+        if isinstance(label, dict):
+            return str(label.get("title") or label.get("name") or "")
+        return str(label)
+
+    previous = {_label_name(lbl) for lbl in label_change.get("previous") or []}
+    current = {_label_name(lbl) for lbl in label_change.get("current") or []}
+    added = sorted(
+        lbl for lbl in current - previous if lbl.startswith("oompah:status:")
+    )
+    removed = sorted(
+        lbl for lbl in previous - current if lbl.startswith("oompah:status:")
+    )
+    status_label = added[0] if added else (removed[0] if removed else "")
+    if added:
+        action = "labeled"
+        resolved_event_type = "issues"
+    elif removed:
+        action = "unlabeled"
+        resolved_event_type = "issues"
+    else:
+        action = attrs.get("action", "")
+        resolved_event_type = event_type
+
     return WebhookEvent(
         provider="gitlab",
-        event_type=event_type,
+        event_type=resolved_event_type,
         action=action,
         repo_slug=repo_slug,
         review_id=issue_iid,
@@ -718,6 +756,8 @@ def _parse_gitlab_issue(
         merged=False,
         raw=payload,
         issue_number=issue_iid,
+        label_name=status_label,
+        label_actor=author,
     )
 
 

@@ -513,6 +513,13 @@ def _github_issues_registry_factory(**kwargs) -> TrackerProtocol:
     return _github_issues_factory(**kwargs)
 
 
+def _gitlab_issues_registry_factory(**kwargs) -> TrackerProtocol:
+    """Lazy-import wrapper so GitLab dependencies are only loaded when needed."""
+    from oompah.gitlab_tracker import _gitlab_issues_factory
+
+    return _gitlab_issues_factory(**kwargs)
+
+
 def _oompah_md_registry_factory(**kwargs) -> TrackerProtocol:
     """Lazy-import wrapper for the native oompah Markdown tracker."""
     from oompah.oompah_md_tracker import _oompah_md_factory
@@ -523,6 +530,8 @@ def _oompah_md_registry_factory(**kwargs) -> TrackerProtocol:
 ADAPTER_REGISTRY: dict[str, TrackerFactory] = {
     "github_issues": _github_issues_registry_factory,
     "github-issues": _github_issues_registry_factory,
+    "gitlab_issues": _gitlab_issues_registry_factory,
+    "gitlab-issues": _gitlab_issues_registry_factory,
     "oompah_md": _oompah_md_registry_factory,
     "oompah.md": _oompah_md_registry_factory,
     "oompah": _oompah_md_registry_factory,
