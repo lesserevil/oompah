@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T01:07:09.425255Z'
-updated_at: '2026-07-22T01:55:12.904501Z'
+updated_at: '2026-07-22T01:55:15.113763Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -165,5 +165,10 @@ Implementation complete:
 3. Reverted a stash of WIP webhook tests (push/issue/note/pipeline/job hook expansion) that tested unimplemented behavior — these need separate implementation work
 4. All 11,325 tests pass
 5. Force-pushed with --force-with-lease
+---
+author: oompah
+created: 2026-07-22 01:55
+---
+Rebased epic-OOMPAH-318 onto origin/main (60 commits behind, 4 GitLab parity commits preserved). Resolved one test conflict (stale assertion from 'Stop auto-sync' main commit). All 11325 tests pass. Force-pushed with --force-with-lease. Filed OOMPAH-361 for the WIP webhook test expansion work.
 ---
 <!-- COMMENTS:END -->
