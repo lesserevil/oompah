@@ -53,6 +53,13 @@ import shlex
 from pathlib import Path
 from typing import Any
 
+from oompah.authority_boundary import (
+    AgentActionPolicy,
+    ProtectedAction,
+    check_action,
+    check_shell_command,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -171,6 +178,7 @@ def _exec_update_project(
     project_id: str | None,
     fields_json: str,
     target_project_id: str | None = None,
+    action_policy: AgentActionPolicy | None = None,
 ) -> str:
     """Update tracker configuration fields for the managed project.
 
@@ -182,7 +190,21 @@ def _exec_update_project(
     ``fields_json`` must be a JSON-encoded object whose keys are a subset
     of ``_PROJECT_UPDATABLE_FIELDS``.  Returns a JSON object with the
     updated tracker fields, or a plain ``error: ...`` string on failure.
+
+    ``action_policy`` is the server-issued :class:`AgentActionPolicy` for
+    this session.  When the policy denies
+    :attr:`ProtectedAction.PROJECT_CONFIG_CHANGE`, the call is rejected with
+    an auditable denial reason before any mutation occurs.
     """
+    # Authority check — must happen before any state inspection or mutation.
+    denial = check_action(
+        action_policy,
+        ProtectedAction.PROJECT_CONFIG_CHANGE,
+        f"update_project project_id={target_project_id or project_id!r}",
+    )
+    if denial is not None:
+        return denial
+
     resolved_project_id = target_project_id or project_id
     if project_store is None or not resolved_project_id:
         return "error: project_store or project_id not available"
@@ -326,11 +348,21 @@ def _exec_oompah_task_command(
     command: str,
     task_tracker: Any,
     project_id: str | None = None,
+    action_policy: AgentActionPolicy | None = None,
 ) -> str | None:
     """Execute a simple ``oompah task ...`` command without local HTTP.
 
     Returns ``None`` when *command* is not an oompah task command, otherwise a
     user-facing command result string.
+
+    ``action_policy`` is the server-issued :class:`AgentActionPolicy` for this
+    session.  Subcommands that mutate task state are checked against the policy
+    before execution.  Status-changing subcommands (``set-status``,
+    ``add-label``, ``remove-label``) require
+    :attr:`ProtectedAction.TASK_STATUS_TRANSITION`.  Task-creation subcommands
+    (``create``, ``child-create``) require
+    :attr:`ProtectedAction.TASK_CREATE_DECOMPOSE`.  ``view``, ``comment``, and
+    ``set-dependency`` are not gated.
     """
     argv, parse_error = _oompah_task_argv(command)
     if parse_error is not None:
@@ -369,6 +401,13 @@ def _exec_oompah_task_command(
             return "Comment posted."
 
         if args.subcommand == "set-status":
+            denial = check_action(
+                action_policy,
+                ProtectedAction.TASK_STATUS_TRANSITION,
+                f"set-status {args.status!r} for {args.identifier!r}",
+            )
+            if denial is not None:
+                return denial
             task_tracker.update_issue(args.identifier, status=args.status)
             if getattr(args, "summary", None):
                 task_tracker.add_comment(
@@ -379,10 +418,24 @@ def _exec_oompah_task_command(
             return f"Status set to: {args.status}"
 
         if args.subcommand == "add-label":
+            denial = check_action(
+                action_policy,
+                ProtectedAction.TASK_STATUS_TRANSITION,
+                f"add-label {args.label!r} to {args.identifier!r}",
+            )
+            if denial is not None:
+                return denial
             task_tracker.add_label(args.identifier, args.label)
             return f"Label added: {args.label}"
 
         if args.subcommand == "remove-label":
+            denial = check_action(
+                action_policy,
+                ProtectedAction.TASK_STATUS_TRANSITION,
+                f"remove-label {args.label!r} from {args.identifier!r}",
+            )
+            if denial is not None:
+                return denial
             task_tracker.remove_label(args.identifier, args.label)
             return f"Label removed: {args.label}"
 
@@ -391,6 +444,13 @@ def _exec_oompah_task_command(
             return f"Dependency set: {args.identifier} depends on {args.depends_on}"
 
         if args.subcommand == "create":
+            denial = check_action(
+                action_policy,
+                ProtectedAction.TASK_CREATE_DECOMPOSE,
+                f"create task {args.title!r}",
+            )
+            if denial is not None:
+                return denial
             issue = task_tracker.create_issue(
                 title=args.title,
                 issue_type=args.issue_type,
@@ -403,6 +463,13 @@ def _exec_oompah_task_command(
             return f"{output}\nURL: {url}" if url else output
 
         if args.subcommand == "child-create":
+            denial = check_action(
+                action_policy,
+                ProtectedAction.TASK_CREATE_DECOMPOSE,
+                f"child-create {args.title!r} under {args.parent_id!r}",
+            )
+            if denial is not None:
+                return denial
             issue = task_tracker.create_issue(
                 title=args.title,
                 issue_type=args.issue_type,
@@ -432,6 +499,7 @@ def build_tool_catalog(
     project_store: Any = None,
     project_id: str | None = None,
     task_tracker: Any = None,
+    action_policy: AgentActionPolicy | None = None,
 ) -> list[Any]:
     """Build the SDK-flavored tool list for one ACP session.
 
@@ -449,6 +517,12 @@ def build_tool_catalog(
     non-HTTP path to manage ProjectStore state without calling back into
     the local oompah server (which would deadlock the same-process
     request handler).
+
+    When ``action_policy`` is supplied (and represents an externally-sourced
+    task), protected actions such as status transitions, task creation, project
+    config changes, git pushes, GitHub delivery, and credential access are
+    blocked with an auditable denial reason.  Operator-sourced sessions
+    (``is_externally_sourced=False``) are not restricted.
     """
     # Lazy imports: keep the SDK out of import paths that don't need it,
     # and avoid pulling api_agent's full surface (which imports _http_post
@@ -537,10 +611,16 @@ def build_tool_catalog(
         {"command": str},
     )
     async def run_command(args: dict[str, Any]) -> dict[str, Any]:
+        cmd = str(args.get("command", ""))
+        # Authority check for shell commands (git push, gh CLI, credentials, …)
+        shell_denial = check_shell_command(action_policy, cmd)
+        if shell_denial is not None:
+            return _wrap_text(shell_denial)
         direct = _exec_oompah_task_command(
-            str(args.get("command", "")),
+            cmd,
             task_tracker,
             current_project_id,
+            action_policy,
         )
         if direct is not None:
             return _wrap_text(direct)
@@ -617,6 +697,7 @@ def build_tool_catalog(
                 project_store,
                 current_project_id,
                 args.get("fields_json", "{}"),
+                action_policy=action_policy,
             )
         )
 
@@ -639,6 +720,7 @@ def build_tool_catalog(
                 current_project_id,
                 args.get("fields_json", "{}"),
                 args.get("project_id"),
+                action_policy=action_policy,
             )
         )
 
@@ -669,6 +751,7 @@ def build_codex_tool_catalog(
     project_store: Any = None,
     project_id: str | None = None,
     task_tracker: Any = None,
+    action_policy: AgentActionPolicy | None = None,
 ) -> list[Any]:
     """Build the OpenAI-Agents-SDK-flavored tool list for a Codex session.
 
@@ -690,6 +773,9 @@ def build_codex_tool_catalog(
 
     When ``project_store`` is supplied, project management tools are added
     for non-HTTP ProjectStore access (see TASK-464.8).
+
+    When ``action_policy`` is supplied, protected actions are enforced the
+    same way as in :func:`build_tool_catalog`.
     """
     # Lazy import: keeps the SDK out of import paths that don't need it.
     # The openai-agents PyPI package imports as ``agents``; we accept
@@ -774,7 +860,13 @@ def build_codex_tool_catalog(
         workspace — ``cd`` to absolute paths outside is refused.
         Project-specific tracker environment overrides are applied when
         configured. Returns stdout, stderr, and exit code."""
-        direct = _exec_oompah_task_command(command, task_tracker, current_project_id)
+        # Authority check for shell commands (git push, gh CLI, credentials, …)
+        shell_denial = check_shell_command(action_policy, command)
+        if shell_denial is not None:
+            return shell_denial
+        direct = _exec_oompah_task_command(
+            command, task_tracker, current_project_id, action_policy
+        )
         if direct is not None:
             return direct
         return _exec_run_command(
@@ -815,7 +907,9 @@ def build_codex_tool_catalog(
         Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id>
         or editing .oompah/projects.json directly — both can deadlock or
         corrupt the running service."""
-        return _exec_update_project(project_store, current_project_id, fields_json)
+        return _exec_update_project(
+            project_store, current_project_id, fields_json, action_policy=action_policy
+        )
 
     @function_tool
     def update_project_by_id(project_id: str, fields_json: str) -> str:
@@ -826,6 +920,7 @@ def build_codex_tool_catalog(
             current_project_id,
             fields_json,
             project_id,
+            action_policy=action_policy,
         )
 
     return [
@@ -855,6 +950,7 @@ def build_opencode_tool_catalog(
     project_store: Any = None,
     project_id: str | None = None,
     task_tracker: Any = None,
+    action_policy: AgentActionPolicy | None = None,
 ) -> list[Any]:
     """Build the OpenCode-SDK-flavored tool list for an OpenCode session.
 
@@ -874,6 +970,9 @@ def build_opencode_tool_catalog(
     ``get_project`` / ``update_project`` for the current project, and
     ``get_project_by_id`` / ``update_project_by_id`` for an explicit target
     project (see TASK-464.8).
+
+    When ``action_policy`` is supplied, protected actions are enforced the
+    same way as in :func:`build_tool_catalog`.
     """
     # Lazy import to keep the SDK out of import paths that don't need it.
     try:
@@ -966,10 +1065,16 @@ def build_opencode_tool_catalog(
         {"command": str},
     )
     async def run_command(args: dict[str, Any]) -> dict[str, Any]:
+        cmd = str(args.get("command", ""))
+        # Authority check for shell commands (git push, gh CLI, credentials, …)
+        shell_denial = check_shell_command(action_policy, cmd)
+        if shell_denial is not None:
+            return _wrap_text(shell_denial)
         direct = _exec_oompah_task_command(
-            str(args.get("command", "")),
+            cmd,
             task_tracker,
             project_id,
+            action_policy,
         )
         if direct is not None:
             return _wrap_text(direct)
@@ -1046,6 +1151,7 @@ def build_opencode_tool_catalog(
                 project_store,
                 project_id,
                 args.get("fields_json", "{}"),
+                action_policy=action_policy,
             )
         )
 
@@ -1068,6 +1174,7 @@ def build_opencode_tool_catalog(
                 project_id,
                 args.get("fields_json", "{}"),
                 args.get("project_id"),
+                action_policy=action_policy,
             )
         )
 
