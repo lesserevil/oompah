@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-398
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Add configurable stalled-task remediation watchdog
 parent: null
@@ -12,12 +12,13 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T03:59:50.765371Z'
+updated_at: '2026-07-22T04:00:39.093406Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 3e3e0961-2158-4402-aa35-2380894daa7a
 ---
 ## Summary
 
@@ -29,3 +30,16 @@ Implement a scheduler-owned watchdog that periodically audits stalled task state
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 04:00
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-22 04:00
+---
+Focus: CI Failure Fixer
+---
+<!-- COMMENTS:END -->
