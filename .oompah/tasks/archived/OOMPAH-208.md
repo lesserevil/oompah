@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-208
 type: bug
-status: Merged
+status: Archived
 priority: 2
 title: Exclude already-landed commits from release delivery targets
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-15T16:17:14.607504Z'
-updated_at: '2026-07-15T16:19:24.308912Z'
+updated_at: '2026-07-22T16:22:00.676798Z'
 work_branch: null
 target_branch: null
 review_url: null
