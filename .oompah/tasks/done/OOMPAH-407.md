@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:37.862938Z'
-updated_at: '2026-07-22T16:08:07.780071Z'
+updated_at: '2026-07-22T16:08:19.074801Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,13 @@ oompah.intake:
   last_validated_at: '2026-07-22T08:37:55.309711+00:00'
 oompah.agent_run_id: d5ac5c3f-826e-4d97-8e5d-d1491afe0761
 oompah.task_costs:
-  total_input_tokens: 2633894
-  total_output_tokens: 17747
+  total_input_tokens: 2633913
+  total_output_tokens: 22653
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 2633894
-      output_tokens: 17747
+      input_tokens: 2633913
+      output_tokens: 22653
       cost_usd: 0.0
   runs:
   - profile: default
@@ -83,6 +83,12 @@ oompah.task_costs:
     output_tokens: 2586
     cost_usd: 0.0
     recorded_at: '2026-07-22T16:05:29.167352+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 19
+    output_tokens: 4906
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T16:08:15.153111+00:00'
 ---
 ## Summary
 
@@ -354,5 +360,35 @@ author: oompah
 created: 2026-07-22 16:08
 ---
 Fixed: changed dispatch-loop stale alert from logger.error to logger.warning in orchestrator.py _arm_dispatch_stale_alert(). ErrorWatcher only auto-files ERROR+ records, so WARNING bypasses it. Dashboard alert severity unchanged. All 36 heartbeat tests and 117 error_watcher tests pass. Commit: 2aaa62d77.
+---
+author: oompah
+created: 2026-07-22 16:08
+---
+Agent completed successfully in 154s (4925 tokens)
+---
+author: oompah
+created: 2026-07-22 16:08
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 27, Tool calls: 16
+- Tokens: 19 in / 4.9K out [4.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 34s
+- Log: OOMPAH-407__20260722T160543Z.jsonl
+---
+author: oompah
+created: 2026-07-22 16:08
+---
+Review handoff deferred: the task branch has unmerged work, but this project is at its open review limit.
+
+Branch: `OOMPAH-407`
+Target branch: `main`
+Unmerged commits: 1 commit
+Open reviews: 3/1
+
+oompah will create the review automatically when review capacity is available.
+
+Recent commits:
+  2aaa62d77 OOMPAH-407: avoid filing stale-loop recovery as an error
 ---
 <!-- COMMENTS:END -->
