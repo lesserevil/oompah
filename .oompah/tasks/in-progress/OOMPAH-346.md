@@ -10,9 +10,10 @@ blocked_by: []
 labels:
 - provider-selection
 - round-robin
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T01:24:01.944133Z'
+updated_at: '2026-07-22T01:26:14.116341Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -144,5 +145,31 @@ author: oompah
 created: 2026-07-22 01:24
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 01:26
+---
+Focus handoff: duplicate_detector
+
+(1) Outcome: No duplicate found. OOMPAH-346 is a unique bug report.
+
+(2) Evidence reviewed:
+- Searched all .oompah/tasks/ directories (archived, done, merged, backlog, needs-ci-fix, needs-rebase) for: round-robin, round_robin, CandidateSelector, provider-selection, provider_selection, concurrent dispatch, atomic reserve, least-recently-used, dispatch target reservation
+- Searched docs/, plans/, README.md, WORKFLOW.md for the same keywords
+- No task in the tracker uses the 'provider-selection' or 'round-robin' labels at all
+- Closest candidates reviewed:
+  - OOMPAH-177 (Archived): ReleaseAddendumQueue with atomic claim — about release addendums, completely different subsystem
+  - OOMPAH-235 (Done): Concurrent native tracker write recovery — about tracker git commits, not provider dispatch
+  - OOMPAH-163 (Archived): dispatch target validation — about branch allowlists, not provider selection strategy
+- CandidateSelector exists in oompah/roles.py (line 604) — confirmed it is a real class with a round_robin strategy; no existing task covers atomizing its dispatch-time usage recording
+
+(3) Remaining work:
+- oompah/roles.py: CandidateSelector.select_candidate() (or equivalent method) must be updated to atomically record usage/reservation under the selector lock at dispatch time rather than after session completion
+- oompah/orchestrator.py: The dispatch target resolution/claiming path (around line 13239 and 15093) must use the new atomic reservation operation
+- Failover: if a reserved candidate fails preflight/startup, the next eligible candidate must be selected without corrupting LRU ordering
+- Tests (per task spec): N concurrent reservations alternate fairly; independent roles retain independent state; orchestrator concurrent-dispatch test; preflight/startup failover tests; five-concurrent Claude/Codex regression test
+- Priority-role behavior and legacy single-provider profile behavior must not change
+
+(4) Recommended next focus: feature (backend — implement atomic dispatch-time CandidateSelector.reserve_candidate() method and integrate into orchestrator dispatch path)
 ---
 <!-- COMMENTS:END -->
