@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:41.720887Z'
-updated_at: '2026-07-22T22:24:20.531326Z'
+updated_at: '2026-07-22T22:24:22.809217Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -339,5 +339,10 @@ Added 431 lines to tests/test_epic_strategy.py on epic-OOMPAH-307 branch:
 4. TestCloseInvalidEpicPolicyReview (8 tests) - full coverage of _close_invalid_epic_policy_review
 
 These methods had ZERO existing tests. The two regressions from OOMPAH-285/286 child dispatch (OOMPAH-308 work_branch correction, OOMPAH-309 fail-closed gate) are now fully covered with regression tests that would have caught the original bugs.
+---
+author: oompah
+created: 2026-07-22 22:24
+---
+Added 16 regression tests in 2 new test classes (TestYoloEpicStrategyBlockReason, TestCloseInvalidEpicPolicyReview) plus a reusable _make_shared_epic_scenario() fixture to tests/test_epic_strategy.py. These cover the OOMPAH-285/286 shared-epic child routing lifecycle for _yolo_epic_strategy_block_reason and _close_invalid_epic_policy_review, which had zero prior test coverage. All 11741 tests pass.
 ---
 <!-- COMMENTS:END -->
