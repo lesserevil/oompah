@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:26.149163Z'
-updated_at: '2026-07-22T06:57:58.304738Z'
+updated_at: '2026-07-22T06:58:00.712814Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -318,5 +318,10 @@ Code/tests:
 - tests/test_server_webhooks.py: added forge_kind='gitlab' to the client_gitlab fixture so token-validation and event-bus tests work correctly with the guard.
 
 Verification: make test passes (11479 passed, 36 skipped). Previously 2 GitLab webhook tests were failing; both now pass.
+---
+author: oompah
+created: 2026-07-22 06:58
+---
+Delivered docs/gitlab-issue-intake.md (full GitLab intake operator guide), updated managed-project-onboarding.md and prompt-injection-security.md for forge-neutral framing, fixed forge-isolation guard in webhooks.py to prevent cross-forge project matching, and updated webhook test fixtures. make test passes.
 ---
 <!-- COMMENTS:END -->
