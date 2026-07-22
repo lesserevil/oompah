@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-407
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 900s (threshold=900s).
   Alert armed, recovery queued.'
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-22T08:36:37.862938Z'
-updated_at: '2026-07-22T15:40:04.686832Z'
+updated_at: '2026-07-22T15:40:24.274713Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,7 +41,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-22T08:37:55.309711+00:00'
-oompah.agent_run_id: 6e991ed1-29c5-4153-9fe6-87e986f42174
+oompah.agent_run_id: 415ed326-3e67-41b1-996e-bc7290c977ce
 oompah.task_costs:
   total_input_tokens: 698487
   total_output_tokens: 3925

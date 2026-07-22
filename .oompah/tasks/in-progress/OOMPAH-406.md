@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-406
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] Dispatch loop stall diagnostics follow (all thread
   stacks)'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:35.680434Z'
-updated_at: '2026-07-22T15:40:03.190032Z'
+updated_at: '2026-07-22T15:40:23.518122Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-22T08:37:52.327186+00:00'
-oompah.agent_run_id: bda752e8-8c83-488f-bce0-a7cb6d500594
+oompah.agent_run_id: ebc23e68-0daa-4752-9fdf-dfd8b773e652
 ---
 ## Summary
 
@@ -127,5 +127,15 @@ Findings:
 4. Source code confirmed: the error is logged at oompah/orchestrator.py:2591 in _dump_stale_dispatch_threads() when the dispatch loop is first declared stale. It uses logger.error() which causes error_watcher to auto-file it.
 
 This is a unique, previously-unreported error pattern. No implementation done — handing off to the appropriate focus.
+---
+author: oompah
+created: 2026-07-22 15:40
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 15:40
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
