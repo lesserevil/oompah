@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-309
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Harden shared-epic protection when _resolve_parent_epic fails for a child with
   parent_id set
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:53:17.046767Z'
-updated_at: '2026-07-22T05:34:52.594805Z'
+updated_at: '2026-07-22T05:36:15.319596Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: d6e2b422-0818-466a-9753-0285a0d8705d
+oompah.agent_run_id: 97f521c9-b729-411b-8804-c7b853ca94f6
 oompah.task_costs:
   total_input_tokens: 39
   total_output_tokens: 10159
@@ -157,5 +157,15 @@ author: oompah
 created: 2026-07-22 05:34
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-22 05:36
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 05:36
+---
+Focus: Epic Planner
 ---
 <!-- COMMENTS:END -->
