@@ -16,7 +16,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-22T07:51:41.833171Z'
+updated_at: '2026-07-22T07:51:44.127024Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -424,5 +424,10 @@ author: oompah
 created: 2026-07-22 07:51
 ---
 Verification: make test passed — 11548 passed, 36 skipped, 0 failures (up from 11479 before this change, adding 69 new tests). Branch pushed to origin/epic-OOMPAH-318 at b74e505da.
+---
+author: oompah
+created: 2026-07-22 07:51
+---
+Added GitLab forge-aware bootstrap readiness checks (check_gitlab_readiness with 9 capability checks), fixed security issue in GitLab webhook handler (unmatched repos now return ignored instead of processing unauthenticated events), added 69 tests (all 11548 pass), and added operator documentation (GitLab token scopes, webhook HTTPS, auto-merge semantics, merge-train non-support, state-branch push, recovery procedures). All acceptance criteria met.
 ---
 <!-- COMMENTS:END -->
