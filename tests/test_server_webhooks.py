@@ -2681,3 +2681,200 @@ class TestValidateStatusLabelActor:
                 42, "Open", frozenset({"oompah", "alice"})  # alice is authorized
             )
         assert result is True
+
+
+# ---------------------------------------------------------------------------
+# GitLab webhook: deduplication
+# ---------------------------------------------------------------------------
+
+
+class TestGitLabWebhookDedup:
+    """Tests for event deduplication in POST /api/v1/webhooks/gitlab."""
+
+    def _mr_payload(self, iid=1, action="open", state="opened"):
+        return {
+            "object_attributes": {
+                "iid": iid,
+                "title": "MR title",
+                "action": action,
+                "state": state,
+                "source_branch": "feat",
+                "target_branch": "main",
+            },
+            "user": {"username": "dev"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+
+    def _post(self, client, payload, event_uuid=None):
+        headers = {
+            "X-Gitlab-Event": "Merge Request Hook",
+            "X-Gitlab-Token": "gl-secret",
+            "Content-Type": "application/json",
+        }
+        if event_uuid:
+            headers["X-Gitlab-Event-UUID"] = event_uuid
+        return client.post(
+            "/api/v1/webhooks/gitlab",
+            content=json.dumps(payload),
+            headers=headers,
+        )
+
+    def test_duplicate_uuid_suppressed(self, client_gitlab):
+        """Second delivery with same X-Gitlab-Event-UUID returns 'deduplicated'."""
+        from oompah.webhooks import GitLabEventDedup
+        from oompah.server import set_gitlab_hook_manager
+
+        client, orch = client_gitlab
+        dedup = GitLabEventDedup()
+        with patch("oompah.server._gitlab_event_dedup", dedup):
+            payload = self._mr_payload()
+            resp1 = self._post(client, payload, event_uuid="uuid-abc-1")
+            assert resp1.status_code == 200
+            assert resp1.json()["action"] == "processed"
+
+            resp2 = self._post(client, payload, event_uuid="uuid-abc-1")
+            assert resp2.status_code == 200
+            assert resp2.json()["action"] == "deduplicated"
+
+    def test_different_uuids_both_processed(self, client_gitlab):
+        """Two deliveries with different UUIDs are both processed."""
+        from oompah.webhooks import GitLabEventDedup
+        client, orch = client_gitlab
+        dedup = GitLabEventDedup()
+        with patch("oompah.server._gitlab_event_dedup", dedup):
+            payload = self._mr_payload()
+            resp1 = self._post(client, payload, event_uuid="uuid-1")
+            resp2 = self._post(client, payload, event_uuid="uuid-2")
+            assert resp1.json()["action"] == "processed"
+            assert resp2.json()["action"] == "processed"
+
+    def test_no_dedup_when_dedup_disabled(self, client_gitlab):
+        """When _gitlab_event_dedup is None, all events pass through."""
+        client, orch = client_gitlab
+        with patch("oompah.server._gitlab_event_dedup", None):
+            payload = self._mr_payload()
+            for _ in range(3):
+                resp = self._post(client, payload)
+                assert resp.json()["action"] == "processed"
+
+    def test_fingerprint_dedup_without_uuid(self, client_gitlab):
+        """Without X-Gitlab-Event-UUID, fingerprint dedup suppresses duplicate."""
+        from oompah.webhooks import GitLabEventDedup
+        client, orch = client_gitlab
+        dedup = GitLabEventDedup()
+        with patch("oompah.server._gitlab_event_dedup", dedup):
+            payload = self._mr_payload(iid=5, action="open")
+            resp1 = self._post(client, payload)  # no UUID header
+            assert resp1.json()["action"] == "processed"
+
+            resp2 = self._post(client, payload)  # same payload, no UUID
+            assert resp2.json()["action"] == "deduplicated"
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/webhooks/gitlab/status
+# ---------------------------------------------------------------------------
+
+
+class TestGitLabWebhookStatusEndpoint:
+    """Tests for GET /api/v1/webhooks/gitlab/status."""
+
+    def test_returns_200_when_manager_not_set(self, client_gitlab):
+        """When manager is not initialised, endpoint returns running=false."""
+        client, _orch = client_gitlab
+        with patch("oompah.server._gitlab_hook_manager", None):
+            resp = client.get("/api/v1/webhooks/gitlab/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["running"] is False
+        assert data["configured"] is False
+
+    def test_returns_manager_status(self, client_gitlab):
+        """When manager is set, endpoint returns its status snapshot."""
+        from unittest.mock import MagicMock
+        client, _orch = client_gitlab
+
+        fake_manager = MagicMock()
+        fake_manager.status = {
+            "running": True,
+            "configured": True,
+            "detail": "",
+            "webhook_url": "https://oompah.example.com/api/v1/webhooks/gitlab",
+            "projects": {
+                "p1": {
+                    "name": "my-proj",
+                    "hook_id": 7,
+                    "healthy": True,
+                    "last_error": "",
+                }
+            },
+        }
+        with patch("oompah.server._gitlab_hook_manager", fake_manager):
+            resp = client.get("/api/v1/webhooks/gitlab/status")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["running"] is True
+        assert data["configured"] is True
+        assert data["projects"]["p1"]["healthy"] is True
+
+
+# ---------------------------------------------------------------------------
+# attach_gitlab_hook_alerts (bootstrap)
+# ---------------------------------------------------------------------------
+
+
+class TestAttachGitlabHookAlerts:
+    """Tests for attach_gitlab_hook_alerts() in oompah.bootstrap."""
+
+    def test_callback_updates_orchestrator_alerts(self):
+        from unittest.mock import MagicMock
+        from oompah.bootstrap import attach_gitlab_hook_alerts
+        from oompah.webhooks import GitLabHookManager
+
+        orch = MagicMock()
+        orch._alerts = []
+        manager = GitLabHookManager()
+        attach_gitlab_hook_alerts(orch, manager)
+
+        # Simulate reconcile with an unhealthy project
+        status = {
+            "configured": True,
+            "projects": {
+                "p1": {"name": "gl-proj", "healthy": False, "last_error": "connection refused"}
+            },
+        }
+        manager._status_callback(status)
+
+        assert len(orch._alerts) == 1
+        assert orch._alerts[0]["source"] == "gitlab_hook_manager:p1"
+
+    def test_callback_clears_stale_alerts_on_recovery(self):
+        from unittest.mock import MagicMock
+        from oompah.bootstrap import attach_gitlab_hook_alerts
+        from oompah.webhooks import GitLabHookManager
+
+        orch = MagicMock()
+        orch._alerts = []
+        manager = GitLabHookManager()
+        attach_gitlab_hook_alerts(orch, manager)
+
+        # First: unhealthy → alert appears
+        bad_status = {
+            "configured": True,
+            "projects": {
+                "p1": {"name": "gl-proj", "healthy": False, "last_error": "err"}
+            },
+        }
+        manager._status_callback(bad_status)
+        assert len(orch._alerts) == 1
+
+        # Then: healthy → alert is cleared
+        good_status = {
+            "configured": True,
+            "projects": {
+                "p1": {"name": "gl-proj", "healthy": True, "last_error": ""}
+            },
+        }
+        manager._status_callback(good_status)
+        assert orch._alerts == []
