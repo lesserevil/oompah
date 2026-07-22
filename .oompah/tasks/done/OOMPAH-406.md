@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:35.680434Z'
-updated_at: '2026-07-22T15:55:31.665310Z'
+updated_at: '2026-07-22T15:55:35.179082Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -196,5 +196,10 @@ Fix: Changed logger.error() → logger.warning() at line 2591. The stale-loop al
 Test: Added test_thread_dump_marker_is_warning_not_error to tests/test_dispatch_loop_heartbeat.py — confirms the log record is at WARNING (not ERROR) level.
 
 Verification: All 11708 tests pass (make test). Specific new test passes in isolation.
+---
+author: oompah
+created: 2026-07-22 15:55
+---
+Fixed: changed logger.error() to logger.warning() in _dump_stale_dispatch_threads() (oompah/orchestrator.py:2591) so dispatch-loop thread dump diagnostics no longer trigger error_watcher. Added regression test test_thread_dump_marker_is_warning_not_error. All 11708 tests pass.
 ---
 <!-- COMMENTS:END -->
