@@ -579,25 +579,19 @@ def validate_gitlab_token(
     return hmac.compare_digest(token_header, secret)
 
 
-def parse_gitlab_webhook(
+def _parse_gitlab_mr(
     event_type: str, payload: dict[str, Any]
 ) -> WebhookEvent | None:
-    """Parse a GitLab webhook payload into a WebhookEvent.
-
-    Only MR-related events are parsed (``Merge Request Hook``). Other
-    event types return ``None``.
+    """Parse a GitLab ``Merge Request Hook`` payload into a :class:`WebhookEvent`.
 
     Args:
-        event_type: Value of the ``X-Gitlab-Event`` header.
+        event_type: Always ``"Merge Request Hook"``.
         payload: Parsed JSON body.
 
     Returns:
-        A ``WebhookEvent`` for MR events, or ``None`` for non-MR events.
+        A :class:`WebhookEvent`, or ``None`` when ``object_attributes`` is
+        absent or empty.
     """
-    if event_type != "Merge Request Hook":
-        logger.debug("Ignoring non-MR GitLab event: %s", event_type)
-        return None
-
     attrs = payload.get("object_attributes", {})
     if not attrs:
         return None
@@ -624,6 +618,290 @@ def parse_gitlab_webhook(
         merged=merged,
         raw=payload,
     )
+
+
+def _parse_gitlab_push(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitLab ``Push Hook`` payload into a :class:`WebhookEvent`.
+
+    Branch deletions (``after`` is all-zeros) and payloads missing a project
+    path are accepted — callers may inspect ``raw`` for details.  Tag pushes
+    (``refs/tags/*``) are returned with the tag name in ``target_branch``.
+
+    Args:
+        event_type: Always ``"Push Hook"``.
+        payload: Parsed JSON body.
+
+    Returns:
+        A :class:`WebhookEvent`, or ``None`` when the project path is missing.
+    """
+    project = payload.get("project", {})
+    repo_slug = project.get("path_with_namespace", "")
+    if not repo_slug:
+        return None
+
+    ref = payload.get("ref", "") or ""
+    if ref.startswith("refs/heads/"):
+        branch = ref[len("refs/heads/"):]
+    elif ref.startswith("refs/tags/"):
+        branch = ref[len("refs/tags/"):]
+    else:
+        branch = ref
+
+    # Prefer user_username (GitLab username) over user_name (display name).
+    author = payload.get("user_username", "") or payload.get("user_name", "")
+
+    return WebhookEvent(
+        provider="gitlab",
+        event_type=event_type,
+        action="pushed",
+        repo_slug=repo_slug,
+        review_id="",
+        source_branch="",
+        target_branch=branch,
+        author=author,
+        title="",
+        merged=False,
+        raw=payload,
+    )
+
+
+def _parse_gitlab_issue(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitLab ``Issue Hook`` payload into a :class:`WebhookEvent`.
+
+    Args:
+        event_type: Always ``"Issue Hook"``.
+        payload: Parsed JSON body.
+
+    Returns:
+        A :class:`WebhookEvent`, or ``None`` when required fields are absent.
+    """
+    attrs = payload.get("object_attributes", {})
+    if not attrs:
+        return None
+
+    project = payload.get("project", {})
+    repo_slug = project.get("path_with_namespace", "")
+    if not repo_slug:
+        return None
+
+    user = payload.get("user", {})
+    author = user.get("username", "")
+    action = attrs.get("action", "")
+    issue_iid = str(attrs.get("iid", "") or "")
+    title = attrs.get("title", "") or ""
+
+    return WebhookEvent(
+        provider="gitlab",
+        event_type=event_type,
+        action=action,
+        repo_slug=repo_slug,
+        review_id=issue_iid,
+        author=author,
+        title=title,
+        merged=False,
+        raw=payload,
+        issue_number=issue_iid,
+    )
+
+
+def _parse_gitlab_note(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitLab ``Note Hook`` (comment) payload into a :class:`WebhookEvent`.
+
+    Note events are fired for comments on MRs, issues, commits, and snippets.
+    When the note is on an issue or MR, ``issue_number`` carries the related
+    IID so downstream consumers can invalidate per-issue caches.
+
+    Args:
+        event_type: Always ``"Note Hook"``.
+        payload: Parsed JSON body.
+
+    Returns:
+        A :class:`WebhookEvent`, or ``None`` when required fields are absent.
+    """
+    attrs = payload.get("object_attributes", {})
+    if not attrs:
+        return None
+
+    project = payload.get("project", {})
+    repo_slug = project.get("path_with_namespace", "")
+    if not repo_slug:
+        return None
+
+    user = payload.get("user", {})
+    author = user.get("username", "")
+    comment_id = str(attrs.get("id", "") or "")
+    action = attrs.get("action", "create")
+
+    # Extract the IID of the related issue or MR so callers can key caches.
+    issue_number = ""
+    issue_obj = payload.get("issue") or {}
+    mr_obj = payload.get("merge_request") or {}
+    if issue_obj:
+        issue_number = str(issue_obj.get("iid", "") or "")
+    elif mr_obj:
+        issue_number = str(mr_obj.get("iid", "") or "")
+
+    return WebhookEvent(
+        provider="gitlab",
+        event_type=event_type,
+        action=action,
+        repo_slug=repo_slug,
+        review_id=issue_number,
+        author=author,
+        title="",
+        merged=False,
+        raw=payload,
+        issue_number=issue_number,
+        comment_id=comment_id,
+    )
+
+
+def _parse_gitlab_pipeline(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitLab ``Pipeline Hook`` payload into a :class:`WebhookEvent`.
+
+    The pipeline status is stored in ``action`` and the pipeline ID in
+    ``review_id``.  The ref (branch or tag name) is stored in both
+    ``source_branch`` and ``target_branch`` for easy consumption.
+
+    Args:
+        event_type: Always ``"Pipeline Hook"``.
+        payload: Parsed JSON body.
+
+    Returns:
+        A :class:`WebhookEvent`, or ``None`` when required fields are absent.
+    """
+    attrs = payload.get("object_attributes", {})
+    if not attrs:
+        return None
+
+    project = payload.get("project", {})
+    repo_slug = project.get("path_with_namespace", "")
+    if not repo_slug:
+        return None
+
+    user = payload.get("user", {})
+    author = user.get("username", "")
+
+    pipeline_id = str(attrs.get("id", "") or "")
+    status = attrs.get("status", "")
+    ref = attrs.get("ref", "") or ""
+
+    return WebhookEvent(
+        provider="gitlab",
+        event_type=event_type,
+        action=status,
+        repo_slug=repo_slug,
+        review_id=pipeline_id,
+        source_branch=ref,
+        target_branch=ref,
+        author=author,
+        title="",
+        merged=False,
+        raw=payload,
+    )
+
+
+def _parse_gitlab_job(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitLab ``Job Hook`` payload into a :class:`WebhookEvent`.
+
+    Job Hook payloads identify the project via ``repository.homepage`` — a
+    URL such as ``https://gitlab.com/group/project`` — from which the
+    ``owner/repo`` slug is extracted.  The job status is stored in ``action``
+    and the job ID in ``review_id``.
+
+    Args:
+        event_type: Always ``"Job Hook"``.
+        payload: Parsed JSON body.
+
+    Returns:
+        A :class:`WebhookEvent`, or ``None`` when the project slug cannot be
+        determined.
+    """
+    from urllib.parse import urlparse  # local import to avoid top-level cost
+
+    repository = payload.get("repository") or {}
+    homepage = repository.get("homepage", "") or ""
+
+    repo_slug = ""
+    if homepage:
+        parsed = urlparse(homepage)
+        repo_slug = parsed.path.lstrip("/")
+
+    if not repo_slug:
+        return None
+
+    user = payload.get("user") or {}
+    # Job Hook user object has ``name`` (display name), not ``username``.
+    author = user.get("name", "")
+
+    job_id = str(payload.get("build_id", "") or "")
+    status = payload.get("build_status", "")
+    ref = payload.get("ref", "") or ""
+
+    return WebhookEvent(
+        provider="gitlab",
+        event_type=event_type,
+        action=status,
+        repo_slug=repo_slug,
+        review_id=job_id,
+        source_branch=ref,
+        target_branch=ref,
+        author=author,
+        title=payload.get("build_name", "") or "",
+        merged=False,
+        raw=payload,
+    )
+
+
+def parse_gitlab_webhook(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitLab webhook payload into a :class:`WebhookEvent`.
+
+    Handles the following hook types (as sent in the ``X-Gitlab-Event``
+    header):
+
+    * ``Merge Request Hook`` — MR opened, closed, merged, or updated.
+    * ``Push Hook`` — branch or tag push.
+    * ``Issue Hook`` — issue lifecycle events (open, close, reopen, update).
+    * ``Note Hook`` — comments on MRs, issues, commits, or snippets.
+    * ``Pipeline Hook`` — CI pipeline status changes.
+    * ``Job Hook`` — CI job status changes.
+
+    Unrecognised event types return ``None`` and are logged at DEBUG level.
+
+    Args:
+        event_type: Value of the ``X-Gitlab-Event`` header.
+        payload: Parsed JSON body.
+
+    Returns:
+        A :class:`WebhookEvent` for handled events, or ``None`` for
+        unrecognised or malformed events.
+    """
+    if event_type == "Merge Request Hook":
+        return _parse_gitlab_mr(event_type, payload)
+    if event_type == "Push Hook":
+        return _parse_gitlab_push(event_type, payload)
+    if event_type == "Issue Hook":
+        return _parse_gitlab_issue(event_type, payload)
+    if event_type == "Note Hook":
+        return _parse_gitlab_note(event_type, payload)
+    if event_type == "Pipeline Hook":
+        return _parse_gitlab_pipeline(event_type, payload)
+    if event_type == "Job Hook":
+        return _parse_gitlab_job(event_type, payload)
+    logger.debug("Ignoring unrecognised GitLab event: %s", event_type)
+    return None
 
 
 # ---------------------------------------------------------------------------

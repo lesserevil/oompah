@@ -12206,13 +12206,14 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         # PR / MR / merge-queue events affect the review board and may close issues.
         _api_cache.invalidate("reviews:all")
         _api_cache.invalidate("issues:all")
-    elif event.event_type == "issues":
+    elif event.event_type in ("issues", "Issue Hook"):
         # Issue state or metadata changed; drop the per-issue detail as well.
+        # Covers GitHub ("issues") and GitLab ("Issue Hook") event types.
         _api_cache.invalidate("issues:all")
         if _project_id and event.issue_number:
             _api_cache.invalidate_prefix(f"detail:{_project_id}:{event.issue_number}")
-    elif event.event_type == "issue_comment":
-        # A comment was created, edited, or deleted on an issue.
+    elif event.event_type in ("issue_comment", "Note Hook"):
+        # A comment was created, edited, or deleted on an issue (GitHub or GitLab).
         _api_cache.invalidate("issues:all")
         if _project_id and event.issue_number:
             _api_cache.invalidate(f"comments:{_project_id}:{event.issue_number}")
@@ -12222,14 +12223,16 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         # We cannot cheaply map project_item_id → issue_number here, so we
         # drop the full issue-list cache and let the next fetch rebuild it.
         _api_cache.invalidate("issues:all")
-    # label events (repository-level label definitions) and push events do
-    # not directly change cached task data; push state is refreshed via the
-    # source-sync thread when the tracked branch advances.
+    # label events (repository-level label definitions), push events,
+    # Pipeline Hook, and Job Hook events do not directly change cached task
+    # data; push state is refreshed via the source-sync thread when the
+    # tracked branch advances.
 
     # Invalidate the release-branch catalog cache when a push event arrives
     # for a tracked branch (e.g. a new release/x.y branch was created or
     # updated on origin).  Best-effort — never block the webhook response.
-    if _project_id and event.event_type == "push" and project:
+    # Covers both GitHub ("push") and GitLab ("Push Hook") event types.
+    if _project_id and event.event_type in ("push", "Push Hook") and project:
         try:
             invalidate_release_branch_catalog(_project_id)
         except Exception:  # pragma: no cover — defensive
@@ -12249,7 +12252,11 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     # this clears the ETag store so the next fetch re-validates against the
     # live API, rebuilding the branch-to-issue index.  Best-effort: any
     # failure is swallowed so it never blocks the webhook response path.
-    if project and event.event_type in ("issues", "pull_request", "Merge Request Hook", "push"):
+    if project and event.event_type in (
+        "issues", "Issue Hook",
+        "pull_request", "Merge Request Hook",
+        "push", "Push Hook",
+    ):
         try:
             tracker = orch._tracker_for_project(project.id)
             inval = getattr(tracker, "invalidate_read_cache", None)
@@ -13035,18 +13042,23 @@ def _do_revert_status_label(tracker, issue_number: str, label_name: str, action:
 def _webhook_advanced_tracked_branch(event, project) -> bool:
     """True when the webhook indicates any of the project's tracked branches advanced on origin.
 
-    Three cases:
-      * ``push`` events on any tracked branch (target_branch matches a branch pattern).
+    Four cases:
+      * ``push`` / ``Push Hook`` events on any tracked branch
+        (target_branch matches a branch pattern).
       * ``pull_request`` events with ``merged=True`` whose base branch is
         a tracked branch.
       * ``merge_group`` events with ``merged=True`` (queue dequeued
         successfully), whose target_branch is a tracked branch.
+      * ``Merge Request Hook`` events with ``merged=True`` whose
+        target_branch is a tracked branch (GitLab equivalent of PR merged).
     """
-    if event.event_type == "push":
+    if event.event_type in ("push", "Push Hook"):
         return project.matches_branch(event.target_branch)
     if event.event_type == "pull_request" and event.merged:
         return project.matches_branch(event.target_branch)
     if event.event_type == "merge_group" and event.merged:
+        return project.matches_branch(event.target_branch)
+    if event.event_type == "Merge Request Hook" and event.merged:
         return project.matches_branch(event.target_branch)
     return False
 
@@ -13055,6 +13067,7 @@ def _webhook_advanced_tracked_branch(event, project) -> bool:
 # lifecycle state.
 _DISPATCH_AFFECTING_ISSUE_ACTIONS: frozenset[str] = frozenset(
     {
+        # GitHub action names
         "opened",
         "closed",
         "reopened",
@@ -13064,6 +13077,12 @@ _DISPATCH_AFFECTING_ISSUE_ACTIONS: frozenset[str] = frozenset(
         "unassigned",
         "transferred",
         "deleted",
+        # GitLab action names (Issue Hook)
+        "open",
+        "close",
+        "reopen",
+        "update",
+        "delete",
     }
 )
 
@@ -13094,14 +13113,15 @@ def _webhook_should_request_refresh(event: "WebhookEvent", project) -> bool:
     if event.event_type in ("pull_request", "merge_group", "Merge Request Hook"):
         return True
     # Comment events may contain orchestrator directives or status updates
-    # that agents post as structured comments.
-    if event.event_type == "issue_comment":
+    # that agents post as structured comments (GitHub and GitLab).
+    if event.event_type in ("issue_comment", "Note Hook"):
         return True
     # Issue events warrant a refresh only for actions that change dispatch
     # eligibility: opened/closed/reopened change the task life-cycle;
     # labeled/unlabeled and assigned/unassigned may gate routing;
     # transferred/deleted remove the task from consideration.
-    if event.event_type == "issues" and event.action in _DISPATCH_AFFECTING_ISSUE_ACTIONS:
+    # Covers both GitHub ("issues") and GitLab ("Issue Hook") event types.
+    if event.event_type in ("issues", "Issue Hook") and event.action in _DISPATCH_AFFECTING_ISSUE_ACTIONS:
         return True
     # Project-field events may update the Oompah Status field which drives
     # task dispatch.  Restrict to the actions that actually change item state.
@@ -13109,13 +13129,15 @@ def _webhook_should_request_refresh(event: "WebhookEvent", project) -> bool:
         return True
     # A push to one of the project's tracked branches means new commits landed
     # and the orchestrator should scan for newly-deferred or un-deferred tasks.
-    if event.event_type == "push" and project and _webhook_advanced_tracked_branch(event, project):
+    # Covers both GitHub ("push") and GitLab ("Push Hook") event types.
+    if event.event_type in ("push", "Push Hook") and project and _webhook_advanced_tracked_branch(event, project):
         return True
     # All other events are not dispatch-relevant:
     # - repository-level label changes (label created/edited/deleted)
     # - push to non-tracked branches
     # - unrecognised projects_v2_item actions (e.g. reordered, archived)
     # - issues with non-status actions (e.g. locked, unlocked, pinned)
+    # - GitLab Pipeline Hook and Job Hook events
     return False
 
 
@@ -13488,8 +13510,10 @@ async def api_webhook_github(request: Request):
 
 @app.post("/api/v1/webhooks/gitlab")
 async def api_webhook_gitlab(request: Request):
-    """Receive GitLab webhook events (Merge Request Hook, etc.).
+    """Receive GitLab webhook events.
 
+    Handles ``Merge Request Hook``, ``Push Hook``, ``Issue Hook``,
+    ``Note Hook``, ``Pipeline Hook``, and ``Job Hook`` event types.
     Validates the ``X-Gitlab-Token`` header against the matched project's
     ``webhook_secret``. GitLab project hooks are public HTTPS endpoints, so a
     matched GitLab project without a configured secret is rejected rather than

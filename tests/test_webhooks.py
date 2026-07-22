@@ -895,11 +895,16 @@ class TestParseGitLabWebhook:
         assert event is not None
         assert event.action == "update"
 
-    def test_non_mr_event_returns_none(self):
+    def test_push_hook_missing_project_returns_none(self):
+        # Push Hook without a project field → cannot determine repo_slug → None
         assert parse_gitlab_webhook("Push Hook", {"ref": "refs/heads/main"}) is None
 
-    def test_pipeline_event_returns_none(self):
+    def test_pipeline_event_missing_project_returns_none(self):
+        # Empty Pipeline Hook (no project) → None
         assert parse_gitlab_webhook("Pipeline Hook", {}) is None
+
+    def test_unknown_event_returns_none(self):
+        assert parse_gitlab_webhook("Confidential Issue Hook", {}) is None
 
     def test_missing_object_attributes_returns_none(self):
         assert parse_gitlab_webhook("Merge Request Hook", {"user": {}}) is None
@@ -909,6 +914,289 @@ class TestParseGitLabWebhook:
         event = parse_gitlab_webhook("Merge Request Hook", payload)
         assert event is not None
         assert event.raw is payload
+
+    # ------------------------------------------------------------------
+    # Push Hook tests
+    # ------------------------------------------------------------------
+
+    def test_push_hook_branch(self):
+        payload = {
+            "ref": "refs/heads/feature-x",
+            "user_username": "tanuki",
+            "user_name": "Tanuki User",
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Push Hook", payload)
+        assert event is not None
+        assert event.provider == "gitlab"
+        assert event.event_type == "Push Hook"
+        assert event.action == "pushed"
+        assert event.repo_slug == "group/project"
+        assert event.target_branch == "feature-x"
+        assert event.author == "tanuki"
+
+    def test_push_hook_main_branch(self):
+        payload = {
+            "ref": "refs/heads/main",
+            "user_username": "tanuki",
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Push Hook", payload)
+        assert event is not None
+        assert event.target_branch == "main"
+        assert event.source_branch == ""
+
+    def test_push_hook_tag(self):
+        payload = {
+            "ref": "refs/tags/v1.2.3",
+            "user_username": "tanuki",
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Push Hook", payload)
+        assert event is not None
+        assert event.target_branch == "v1.2.3"
+
+    def test_push_hook_falls_back_to_user_name(self):
+        payload = {
+            "ref": "refs/heads/main",
+            "user_name": "Display Name",
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Push Hook", payload)
+        assert event is not None
+        assert event.author == "Display Name"
+
+    def test_push_hook_raw_payload_preserved(self):
+        payload = {
+            "ref": "refs/heads/main",
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Push Hook", payload)
+        assert event is not None
+        assert event.raw is payload
+
+    # ------------------------------------------------------------------
+    # Issue Hook tests
+    # ------------------------------------------------------------------
+
+    def test_issue_hook_open(self):
+        payload = {
+            "object_attributes": {
+                "iid": 42,
+                "title": "Bug report",
+                "action": "open",
+                "state": "opened",
+            },
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Issue Hook", payload)
+        assert event is not None
+        assert event.provider == "gitlab"
+        assert event.event_type == "Issue Hook"
+        assert event.action == "open"
+        assert event.repo_slug == "group/project"
+        assert event.issue_number == "42"
+        assert event.review_id == "42"
+        assert event.title == "Bug report"
+        assert event.author == "tanuki"
+
+    def test_issue_hook_close(self):
+        payload = {
+            "object_attributes": {
+                "iid": 10,
+                "title": "Old issue",
+                "action": "close",
+                "state": "closed",
+            },
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Issue Hook", payload)
+        assert event is not None
+        assert event.action == "close"
+        assert event.issue_number == "10"
+
+    def test_issue_hook_missing_project_returns_none(self):
+        payload = {
+            "object_attributes": {"iid": 1, "title": "t", "action": "open"},
+        }
+        event = parse_gitlab_webhook("Issue Hook", payload)
+        assert event is None
+
+    def test_issue_hook_missing_attrs_returns_none(self):
+        payload = {"project": {"path_with_namespace": "group/project"}}
+        event = parse_gitlab_webhook("Issue Hook", payload)
+        assert event is None
+
+    # ------------------------------------------------------------------
+    # Note Hook tests
+    # ------------------------------------------------------------------
+
+    def test_note_hook_on_issue(self):
+        payload = {
+            "object_attributes": {
+                "id": 301,
+                "note": "This is a comment",
+                "noteable_type": "Issue",
+                "action": "create",
+            },
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+            "issue": {"iid": 5},
+        }
+        event = parse_gitlab_webhook("Note Hook", payload)
+        assert event is not None
+        assert event.provider == "gitlab"
+        assert event.event_type == "Note Hook"
+        assert event.action == "create"
+        assert event.repo_slug == "group/project"
+        assert event.comment_id == "301"
+        assert event.issue_number == "5"
+        assert event.review_id == "5"
+        assert event.author == "tanuki"
+
+    def test_note_hook_on_merge_request(self):
+        payload = {
+            "object_attributes": {
+                "id": 999,
+                "note": "LGTM",
+                "noteable_type": "MergeRequest",
+                "action": "create",
+            },
+            "user": {"username": "reviewer"},
+            "project": {"path_with_namespace": "group/project"},
+            "merge_request": {"iid": 7},
+        }
+        event = parse_gitlab_webhook("Note Hook", payload)
+        assert event is not None
+        assert event.comment_id == "999"
+        assert event.issue_number == "7"
+
+    def test_note_hook_no_related_object(self):
+        payload = {
+            "object_attributes": {
+                "id": 100,
+                "note": "standalone",
+                "noteable_type": "Commit",
+                "action": "create",
+            },
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Note Hook", payload)
+        assert event is not None
+        assert event.issue_number == ""
+
+    def test_note_hook_missing_project_returns_none(self):
+        payload = {
+            "object_attributes": {"id": 1, "note": "x", "action": "create"},
+        }
+        assert parse_gitlab_webhook("Note Hook", payload) is None
+
+    def test_note_hook_missing_attrs_returns_none(self):
+        payload = {"project": {"path_with_namespace": "group/project"}}
+        assert parse_gitlab_webhook("Note Hook", payload) is None
+
+    # ------------------------------------------------------------------
+    # Pipeline Hook tests
+    # ------------------------------------------------------------------
+
+    def test_pipeline_hook_success(self):
+        payload = {
+            "object_attributes": {
+                "id": 31,
+                "ref": "main",
+                "status": "success",
+            },
+            "user": {"username": "ci-runner"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Pipeline Hook", payload)
+        assert event is not None
+        assert event.provider == "gitlab"
+        assert event.event_type == "Pipeline Hook"
+        assert event.action == "success"
+        assert event.review_id == "31"
+        assert event.source_branch == "main"
+        assert event.target_branch == "main"
+        assert event.author == "ci-runner"
+
+    def test_pipeline_hook_failed(self):
+        payload = {
+            "object_attributes": {
+                "id": 99,
+                "ref": "feature-branch",
+                "status": "failed",
+            },
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Pipeline Hook", payload)
+        assert event is not None
+        assert event.action == "failed"
+        assert event.review_id == "99"
+
+    def test_pipeline_hook_missing_project_returns_none(self):
+        payload = {
+            "object_attributes": {"id": 1, "ref": "main", "status": "success"},
+        }
+        assert parse_gitlab_webhook("Pipeline Hook", payload) is None
+
+    def test_pipeline_hook_missing_attrs_returns_none(self):
+        payload = {"project": {"path_with_namespace": "group/project"}}
+        assert parse_gitlab_webhook("Pipeline Hook", payload) is None
+
+    # ------------------------------------------------------------------
+    # Job Hook tests
+    # ------------------------------------------------------------------
+
+    def test_job_hook_success(self):
+        payload = {
+            "build_id": 1977,
+            "build_name": "test-job",
+            "build_status": "success",
+            "ref": "main",
+            "user": {"name": "Tanuki User"},
+            "repository": {"homepage": "https://gitlab.com/group/project"},
+        }
+        event = parse_gitlab_webhook("Job Hook", payload)
+        assert event is not None
+        assert event.provider == "gitlab"
+        assert event.event_type == "Job Hook"
+        assert event.action == "success"
+        assert event.review_id == "1977"
+        assert event.repo_slug == "group/project"
+        assert event.source_branch == "main"
+        assert event.target_branch == "main"
+        assert event.author == "Tanuki User"
+        assert event.title == "test-job"
+
+    def test_job_hook_failed(self):
+        payload = {
+            "build_id": 42,
+            "build_name": "deploy",
+            "build_status": "failed",
+            "ref": "main",
+            "user": {"name": "Dev"},
+            "repository": {"homepage": "https://gitlab.com/org/repo"},
+        }
+        event = parse_gitlab_webhook("Job Hook", payload)
+        assert event is not None
+        assert event.action == "failed"
+        assert event.repo_slug == "org/repo"
+
+    def test_job_hook_missing_homepage_returns_none(self):
+        payload = {
+            "build_id": 1,
+            "build_status": "success",
+            "repository": {},
+        }
+        assert parse_gitlab_webhook("Job Hook", payload) is None
+
+    def test_job_hook_missing_repository_returns_none(self):
+        payload = {"build_id": 1, "build_status": "success"}
+        assert parse_gitlab_webhook("Job Hook", payload) is None
 
 
 # ---------------------------------------------------------------------------
