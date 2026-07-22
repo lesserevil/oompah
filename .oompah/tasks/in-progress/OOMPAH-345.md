@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-345
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:server] Update issue API error: Cannot sync state branch ''oompah/state/proj-14849f1b'':
   git fetch origin ''oompah/state/proj-14849f1b'' failed: . Remediation: verify network
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-22T00:38:50.948182Z'
-updated_at: '2026-07-22T00:47:04.991926Z'
+updated_at: '2026-07-22T00:50:38.664857Z'
 work_branch: null
 target_branch: null
 review_url: null
