@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T01:21:49.952576Z'
-updated_at: '2026-07-22T01:25:03.217095Z'
+updated_at: '2026-07-22T01:25:18.008128Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-07-22 01:25
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 01:25
+---
+Understanding: This task requests rebasing the epic branch epic-OOMPAH-325 onto origin/epic-OOMPAH-318 and force-pushing. As a Duplicate Investigator, my first step is to check whether a similar rebase task has already been filed and/or completed for these same branches before taking any action.
 ---
 <!-- COMMENTS:END -->

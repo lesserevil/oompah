@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-359
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Expose epic branch staleness without synchronization churn
 parent: OOMPAH-356
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:53.416699Z'
-updated_at: '2026-07-22T01:24:03.607396Z'
+updated_at: '2026-07-22T01:25:24.117522Z'
 work_branch: null
 target_branch: null
 review_url: null

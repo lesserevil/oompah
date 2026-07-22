@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-357
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Define actionable epic branch synchronization policy
 parent: OOMPAH-356
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:49.686725Z'
-updated_at: '2026-07-22T01:23:49.686725Z'
+updated_at: '2026-07-22T01:25:21.846801Z'
 work_branch: null
 target_branch: null
 review_url: null
