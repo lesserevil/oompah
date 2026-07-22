@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:53:34.544944Z'
-updated_at: '2026-07-22T21:30:46.348271Z'
+updated_at: '2026-07-22T21:33:51.895437Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -179,5 +179,24 @@ author: oompah
 created: 2026-07-22 21:30
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-22 21:33
+---
+Understanding: Acting as Epic Planner for OOMPAH-310. The task is to verify and harden the epic-merge-triggered Merged promotion for shared-epic children so that children are ONLY promoted to Merged after the parent epic branch is confirmed merged to the target branch.
+
+Code audit findings from exploration:
+1. _label_merged_epics (line 10421): Correctly gated by _epic_branch_landed_on_target() before calling _mark_epic_merged. Appears sound.
+2. _open_epic_main_prs (line 5680): Also gated by _epic_branch_landed_on_target(). Appears sound.
+3. _reconcile_merged_epic_children (line 10522): Only fires when epic is already in MERGED state (via _all_merged_epics()). Appears sound.
+4. Deferred Done reviews path (line 8545): Has 'if issue.parent_id and rollup_strategy == shared: continue'. Appears sound.
+5. label_merged_issues path (line 8935): Has 'if rollup_strategy == shared and not helper_issue: continue'. Appears sound.
+
+Existing test coverage in tests/test_epic_strategy.py:
+- TestLabelMergedEpics class: tests _label_merged_epics paths
+- test_merged_epic_reconciles_children_still_done: tests _reconcile_merged_epic_children
+- test_shared_done_child_with_merged_branch_skips_all_checks: tests deferred Done reviews path
+
+Planning approach: Decompose into (1) a code audit + hardening task and (2) a regression tests task, since the scope covers multiple orchestrator.py functions and a 4034-line test file. The audit must confirm no gaps exist; the test task fills in any coverage gaps.
 ---
 <!-- COMMENTS:END -->
