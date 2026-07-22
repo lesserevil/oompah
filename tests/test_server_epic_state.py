@@ -32,6 +32,7 @@ def _make_issue(
         id=identifier,
         identifier=identifier,
         title="Test epic",
+        description="Test issue description for state transition tests.",
         state=state,
         issue_type=issue_type,
     )

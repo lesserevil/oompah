@@ -526,6 +526,7 @@ def test_api_rejects_direct_proposed_to_open_transition():
         id="org/repo#12",
         identifier="org/repo#12",
         title="Proposed task",
+        description="Implementation scope for this proposed task.",
         state=PROPOSED,
     )
     tracker = MagicMock()
