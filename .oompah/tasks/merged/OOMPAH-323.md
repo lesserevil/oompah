@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-323
 type: task
-status: In Progress
+status: Merged
 priority: 0
 title: Implement GitLab Issues tracker with Oompah status governance
 parent: OOMPAH-318
@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-22T16:15:33.554531Z'
+updated_at: '2026-07-22T16:16:49.480546Z'
 work_branch: epic-OOMPAH-323
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/534
