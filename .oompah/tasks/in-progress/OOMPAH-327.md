@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:41.130372Z'
-updated_at: '2026-07-22T05:59:57.092680Z'
+updated_at: '2026-07-22T06:32:33.621313Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -121,5 +121,40 @@ author: oompah
 created: 2026-07-22 05:59
 ---
 Discovery: Located all relevant code. Backend already emits forge_kind, forge_base_url, last_webhook_received_at, has_access_token, access_token_masked, external_issue_intake_enabled in API responses (models.py to_dict/to_safe_dict). GitLab webhook endpoint exists at /api/v1/webhooks/gitlab. Key files to change: (1) oompah/templates/projects.html - add forge selector, GitLab base URL field, conditional MR/PR terminology, hook health display, gitlab_issues tracker option; (2) oompah/acp_tools.py - add forge_kind/forge_base_url to readable/updatable field sets and _project_snapshot(); (3) New tests: tests/test_projects_gitlab_ui.py for UI contracts, updates to tests/test_acp_project_tools.py for forge fields.
+---
+author: oompah
+created: 2026-07-22 06:32
+---
+Implementation: Made the following changes:
+
+**oompah/acp_tools.py** — ACP project tools forge parity:
+- Added forge_kind, forge_base_url, external_issue_intake_enabled to _PROJECT_READABLE_FIELDS
+- Added forge_kind, forge_base_url to _PROJECT_UPDATABLE_FIELDS
+- Added str_attr() helper in _project_snapshot() to safely handle MagicMock/None forge attrs
+- Updated _project_snapshot() to emit forge_kind, forge_base_url, external_issue_intake_enabled
+- Updated tool descriptions in all three catalog builders (Claude, Codex, OpenCode)
+
+**oompah/templates/projects.html** — Projects UI forge parity:
+- Added forge badge display in project card (forge-badge-github / forge-badge-gitlab CSS)
+- Added webhook health display (renderWebhookHealth JS helper, hook-healthy/stale CSS)
+- Added GitLab webhook endpoint hint (/api/v1/webhooks/gitlab) for GitLab projects
+- Conditional MR/PR terminology (Max in-flight MRs vs PRs based on forge_kind)
+- Auto-merge note for GitLab (merge_when_pipeline_succeeds, merge trains not supported)
+- Conditional GL/GH Intake label based on forge_kind
+- Forge selector in Add form with auto-inference from repo URL
+- Conditional GitLab base URL field in Add form (hidden by default, shown for gitlab)
+- Forge selector + base URL field in Edit form
+- gitlab_issues option added to Tracker Kind dropdown
+- forge_kind and forge_base_url included in POST (addProject) and PATCH (saveProject) bodies
+- external_issue_intake_enabled sent alongside github_issue_intake_enabled in PATCH
+
+**tests/test_projects_gitlab_ui.py** — 59 new UI contract tests
+**tests/test_acp_forge_fields.py** — 29 new ACP forge field tests
+**tests/test_acp_project_tools.py** — Updated _make_project() and test_allowed_fields_set_is_correct
+---
+author: oompah
+created: 2026-07-22 06:32
+---
+Verification: make test passes — 11478 passed, 36 skipped, 0 failed. New test coverage: 59 UI contract tests (test_projects_gitlab_ui.py) + 29 ACP forge field tests (test_acp_forge_fields.py). All existing project/ACP/authority tests continue to pass.
 ---
 <!-- COMMENTS:END -->
