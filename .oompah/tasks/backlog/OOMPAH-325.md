@@ -1,13 +1,14 @@
 ---
 id: OOMPAH-325
 type: task
-status: In Progress
+status: Backlog
 priority: 1
 title: Add GitLab project-hook lifecycle and webhook event parity
 parent: OOMPAH-318
 children:
 - OOMPAH-340
 - OOMPAH-341
+- OOMPAH-342
 blocked_by:
 - OOMPAH-319
 labels:
@@ -15,7 +16,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T00:28:44.189820Z'
+updated_at: '2026-07-22T00:29:18.129832Z'
 work_branch: null
 target_branch: null
 review_url: null

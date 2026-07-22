@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:10.495385Z'
-updated_at: '2026-07-22T00:29:01.371720Z'
+updated_at: '2026-07-22T00:29:13.788246Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 2288fa23-d46a-445a-8336-869f3ea8b9c0
 oompah.task_costs:
-  total_input_tokens: 1073343
-  total_output_tokens: 18422
+  total_input_tokens: 1073402
+  total_output_tokens: 53465
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1073343
-      output_tokens: 18422
+      input_tokens: 1073402
+      output_tokens: 53465
       cost_usd: 0.0
   runs:
   - profile: default
@@ -48,6 +48,12 @@ oompah.task_costs:
     output_tokens: 7537
     cost_usd: 0.0
     recorded_at: '2026-07-22T00:06:57.797935+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 59
+    output_tokens: 35043
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T00:29:10.540462+00:00'
 ---
 ## Summary
 
@@ -231,5 +237,20 @@ author: oompah
 created: 2026-07-22 00:29
 ---
 Delivered repo-map observability diagnostics module (repo_map_diagnostics.py with fresh/stale/generating/unavailable/failed/timeout states), enriched RepoMapResult with timing+counts, E2E workflow tests (test_repo_map_workflow.py, test_repo_map_diagnostics.py). All 11415 tests pass.
+---
+author: oompah
+created: 2026-07-22 00:29
+---
+Agent completed successfully in 1305s (35102 tokens)
+---
+author: oompah
+created: 2026-07-22 00:29
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/default]
+- Turns: 109, Tool calls: 68
+- Tokens: 59 in / 35.0K out [35.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 21m 45s
+- Log: OOMPAH-300__20260722T000726Z.jsonl
 ---
 <!-- COMMENTS:END -->
