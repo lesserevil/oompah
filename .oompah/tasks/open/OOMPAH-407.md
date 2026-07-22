@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-407
 type: bug
-status: In Progress
+status: Open
 priority: 2
 title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 900s (threshold=900s).
   Alert armed, recovery queued.'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:37.862938Z'
-updated_at: '2026-07-22T16:04:56.896947Z'
+updated_at: '2026-07-22T16:05:32.286739Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,13 @@ oompah.intake:
   last_validated_at: '2026-07-22T08:37:55.309711+00:00'
 oompah.agent_run_id: d1d06afc-a59f-449e-86cd-2c0998572a69
 oompah.task_costs:
-  total_input_tokens: 2149918
-  total_output_tokens: 15161
+  total_input_tokens: 2633894
+  total_output_tokens: 17747
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 2149918
-      output_tokens: 15161
+      input_tokens: 2633894
+      output_tokens: 17747
       cost_usd: 0.0
   runs:
   - profile: default
@@ -77,6 +77,12 @@ oompah.task_costs:
     output_tokens: 4698
     cost_usd: 0.0
     recorded_at: '2026-07-22T16:00:01.593170+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 483976
+    output_tokens: 2586
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T16:05:29.167352+00:00'
 ---
 ## Summary
 
@@ -298,5 +304,20 @@ author: oompah
 created: 2026-07-22 16:04
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-22 16:05
+---
+Agent completed successfully in 76s (486562 tokens)
+---
+author: oompah
+created: 2026-07-22 16:05
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/default]
+- Turns: 1, Tool calls: 8
+- Tokens: 484.0K in / 2.6K out [486.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 16s
+- Log: OOMPAH-407__20260722T160418Z.jsonl
 ---
 <!-- COMMENTS:END -->
