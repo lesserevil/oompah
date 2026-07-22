@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:41.720887Z'
-updated_at: '2026-07-22T21:47:53.265422Z'
+updated_at: '2026-07-22T21:49:34.126108Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -242,5 +242,22 @@ author: oompah
 created: 2026-07-22 21:47
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-22 21:49
+---
+Understanding: Adding regression tests for OOMPAH-285/286 shared-epic child routing lifecycle.
+
+Scope based on handoff from duplicate_detector:
+1. A reusable pytest fixture for native oompah_md shared-epic parent+child scenario (in tests/test_epic_strategy.py)
+2. Regression tests for OOMPAH-308: stale work_branch correction (partially covered by TestWorkspaceAllocation - already has 4 tests)
+3. Regression tests for OOMPAH-309: fail-closed behavior when _resolve_parent_epic raises - these are for _yolo_epic_strategy_block_reason and _close_invalid_epic_policy_review
+
+Key finding: _yolo_epic_strategy_block_reason and _close_invalid_epic_policy_review have ZERO existing tests. These methods handle the YOLO gate blocking and closing of per-child PRs that violate shared-epic policy.
+
+Plan:
+- Add TestYoloEpicStrategyBlockReason class covering: (a) returns None for unknown branch, (b) blocks shared-epic child PRs, (c) blocks top-level task PRs when require_epic_for_tasks, (d) fail-closed when _resolve_task_for_branch raises
+- Add TestCloseInvalidEpicPolicyReview class covering: (a) closes stale child task PR when shared epic parent resolved, (b) closes stale standalone PR when require_epic_for_tasks, (c) fail-closed when resolve raises
+- Add a shared_epic_fixture() helper function for reusable epic+child setup
 ---
 <!-- COMMENTS:END -->
