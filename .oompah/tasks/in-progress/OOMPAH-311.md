@@ -10,9 +10,11 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:epic_planner
+- needs:feature
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T05:54:57.041880Z'
+updated_at: '2026-07-22T05:55:26.961758Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -268,5 +270,60 @@ Key findings:
    - New method `_reconcile_independently_merged_children()` that calls detection, logs warnings, adds `epic:independently-merged` label via tracker.update_issue(child.identifier, labels=...)
    - Hook into reconcile tick in `startup_cleanup` or the maintenance LANE at lines 3031+
    - 3-5 unit tests: detection logic, label annotation, no-op when already annotated, rollup state unaffected
+---
+author: oompah
+created: 2026-07-22 05:55
+---
+Focus handoff: epic_planner
+
+1. **Outcome**: No decomposition into child tasks needed. OOMPAH-311 is a single, well-scoped feature task that can be fully implemented in one agent session. The implementation scope is clear and the codebase patterns to follow are identified.
+
+2. **Evidence and code context for the feature agent**:
+
+   **Detection logic** — what defines an 'independently-merged child':
+   - `child.parent_id` points to an epic
+   - `canonicalize_status(child.state) == 'Merged'`
+   - `child.work_branch is not None AND child.work_branch != _epic_branch_for_issue(epic)`
+   - i.e., the child has its own branch that was merged to main, not the parent epic's branch
+
+   **Key code locations in `oompah/orchestrator.py`**:
+   - Line 4708: `_epic_branch_for_issue(epic)` — returns the expected branch for an epic (`work_branch` or `epic_branch_name(identifier)`)
+   - Line 4509: `_fetch_epic_children(epic)` — returns list of child Issue objects
+   - Line 4835: `_resolve_parent_epic(issue)` — resolves parent epic from parent_id
+   - Lines 10492-10563: `_reconcile_merged_epic_children()` — pattern to follow for a new sibling reconcile pass
+   - Line 3031+: maintenance LANE tick — where to hook the new reconcile pass
+   - `startup_cleanup()` at line 2369 — alternate hook point for one-time diagnosis on startup
+
+   **Key code in `oompah/models.py`**:
+   - Lines 20-50: `EpicRebaseState` enum with label pattern (`epic:stale`, `epic:rebasing`, etc.)
+   - Use string constant `EPIC_INDEPENDENTLY_MERGED_LABEL = 'epic:independently-merged'` or a new enum value
+
+   **Key code in `oompah/statuses.py`**:
+   - `MERGED`, `ARCHIVED`, `canonicalize_status()`, `epic_rollup_state()` — existing reconcile code already handles Merged children safely; no changes needed here
+
+   **Implementation steps** (one session):
+   a. Add constant `EPIC_INDEPENDENTLY_MERGED_LABEL = 'epic:independently-merged'` to `models.py` (or near the `EpicRebaseState` enum)
+   b. Add `_detect_independently_merged_children(self, epics: list[Issue]) -> list[tuple[Issue, Issue, str]]` method to orchestrator — returns (child, parent_epic, epic_branch) triples
+   c. Add `_reconcile_independently_merged_children(self) -> int` method — calls detection, logs `logger.warning(...)` for each found child, adds the label via `tracker.update_issue(child.identifier, labels=[...existing labels... + EPIC_INDEPENDENTLY_MERGED_LABEL])`, returns count
+   d. Hook into the maintenance LANE tick alongside `_reconcile_merged_epic_children` (see lines 3447-3475)
+   e. Tests: 3-5 tests covering detection, annotation, idempotency (no re-labeling if already annotated), existing `_reconcile_merged_epic_children` not affected
+
+   **Safety constraints**:
+   - Do NOT rewrite git history
+   - Do NOT change the child's `Merged` state (already correct)
+   - Do NOT modify `target_branch` or `work_branch` metadata (the commits are already in main)
+   - Only add the label `epic:independently-merged` and log a warning
+   - Reconcile pass must be idempotent (check if label already present before adding)
+
+   **Tests should be in**: `tests/test_epic_strategy.py` (add new class `TestIndependentlyMergedChildren`) or new file `tests/test_independently_merged.py`. Follow patterns in `tests/test_epic_strategy.py`.
+
+3. **Remaining work**: Full implementation of the detection + annotation feature described above.
+
+4. **Risks**:
+   - `orchestrator.py` is ~17,000 lines; agents must use `grep`/`sed` for navigation, not read the full file
+   - The tracker `update_issue` call for label updates must preserve existing labels (read-modify-write pattern, not blind label replace)
+   - Consider oompah_md_tracker vs github_tracker: both support `labels` in `update_issue`; check if the API is unified
+
+5. **Recommended next focus**: `feature` — implement the detection and annotation pass in `oompah/orchestrator.py`
 ---
 <!-- COMMENTS:END -->

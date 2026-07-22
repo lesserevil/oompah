@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T05:54:52.745071Z'
+updated_at: '2026-07-22T05:55:25.462835Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -259,5 +259,18 @@ author: oompah
 created: 2026-07-22 05:54
 ---
 Implementation: Changed logger.error() → logger.warning() in oompah/orchestrator.py _terminate_running() for the worker-shutdown timeout path. Since error_watcher only captures ERROR+ log records, this prevents spurious bug auto-filing for expected shutdown timeouts. Added regression test test_shutdown_timeout_logs_warning_not_error in tests/test_task_cost_telemetry.py that patches asyncio.wait to force the timeout path and asserts the log record is at WARNING level. All 39 cost telemetry tests + 130 error_watcher tests pass.
+---
+author: oompah
+created: 2026-07-22 05:55
+---
+Verification: All relevant tests pass.
+- tests/test_task_cost_telemetry.py: 39/39 passed (including new regression test)
+- tests/test_error_watcher.py + test_error_watcher_orchestrator.py: 130/130 passed
+The new test test_shutdown_timeout_logs_warning_not_error confirms the shutdown-timeout message is logged at WARNING (not ERROR). The 8 pre-existing failures are unrelated to this change (test_intake_promotion, test_server_epic_state, test_transition_gate).
+---
+author: oompah
+created: 2026-07-22 05:55
+---
+Completion: Fixed OOMPAH-403. Changed logger.error() → logger.warning() in oompah/orchestrator.py _terminate_running() (the worker-shutdown timeout path). error_watcher captures only ERROR+ records, so this change prevents it from auto-filing spurious bug tasks when a worker doesn't stop within the termination timeout — an expected condition during hard kills. Added regression test to prevent recurrence. Branch OOMPAH-403 pushed and up to date.
 ---
 <!-- COMMENTS:END -->
