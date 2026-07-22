@@ -20,7 +20,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T20:34:42.931068Z'
-updated_at: '2026-07-22T08:06:16.929499Z'
+updated_at: '2026-07-22T08:06:27.865357Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,13 +28,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 9b3c8bfa-fcfc-4e91-b88b-a4913ab8815d
 oompah.task_costs:
-  total_input_tokens: 3285933
-  total_output_tokens: 15549
+  total_input_tokens: 3285954
+  total_output_tokens: 21260
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 3285933
-      output_tokens: 15549
+      input_tokens: 3285954
+      output_tokens: 21260
       cost_usd: 0.0
   runs:
   - profile: default
@@ -55,6 +55,12 @@ oompah.task_costs:
     output_tokens: 9920
     cost_usd: 0.0
     recorded_at: '2026-07-22T08:03:39.626594+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 21
+    output_tokens: 5711
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T08:06:25.043129+00:00'
 ---
 ## Summary
 
@@ -257,5 +263,20 @@ author: oompah
 created: 2026-07-22 08:06
 ---
 Added tests/test_gitlab_cross_forge_acceptance.py: 10 offline tests pass (shared GitHub+GitLab provider contract, migration round-trip, self-managed path encoding); 2 credential-gated smoke tests skip when env vars absent. Committed to epic-OOMPAH-318 and pushed.
+---
+author: oompah
+created: 2026-07-22 08:06
+---
+Agent completed successfully in 157s (5732 tokens)
+---
+author: oompah
+created: 2026-07-22 08:06
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 37, Tool calls: 24
+- Tokens: 21 in / 5.7K out [5.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 37s
+- Log: OOMPAH-329__20260722T080351Z.jsonl
 ---
 <!-- COMMENTS:END -->
