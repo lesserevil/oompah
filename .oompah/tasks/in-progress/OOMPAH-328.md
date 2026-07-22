@@ -15,7 +15,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-22T07:39:58.472946Z'
+updated_at: '2026-07-22T07:51:18.882652Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -395,5 +395,28 @@ IMPLEMENTATION NEEDED (no GitLab bootstrap readiness exists):
 - tests/test_docs_gitlab_contract.py: documentation contract tests
 
 ALL changes now being implemented.
+---
+author: oompah
+created: 2026-07-22 07:51
+---
+Implementation: All changes committed and pushed (b74e505da).
+
+SECURITY FIX (oompah/server.py):
+- GitLab webhook endpoint now returns 200 ignored for unregistered repos instead of emitting FORGE_WEBHOOK_RECEIVED events without authentication. Previously, any caller knowing the webhook URL could trigger event-bus emissions for unmatched repos — now the endpoint is fully fail-closed.
+
+NEW CODE (oompah/project_bootstrap/gitlab_readiness.py):
+- check_gitlab_readiness(): validates api_access, label_create, issue_access, mr_access, pipeline_read, state_branch_push, webhook_url, hook_create, polling_fallback
+- dry_run mode: avoids state-mutating calls (probe labels/hooks not created)
+- Short-circuit on API failure; token never appears in error output
+- MINIMUM_TOKEN_SCOPES constant documents 'api' as minimum
+
+TESTS (69 new, all 11548 pass):
+- test_gitlab_bootstrap_readiness.py: 47 tests covering all capabilities
+- test_docs_gitlab_contract.py: 21 documentation contract tests  
+- test_server_webhooks.py: security regression test for webhook fix
+
+DOCS:
+- docs/project-bootstrap.md: full GitLab section (token scopes, webhook HTTPS, auto-merge, merge-train non-support, state-branch push, dry-run, recovery, GitHub compat)
+- docs/operator-runbook.md: GITLAB_TOKEN and OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL table
 ---
 <!-- COMMENTS:END -->
