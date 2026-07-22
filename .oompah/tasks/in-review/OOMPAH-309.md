@@ -14,11 +14,11 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:53:17.046767Z'
-updated_at: '2026-07-22T16:14:41.202288Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-22T16:14:48.363774Z'
+work_branch: epic-OOMPAH-309
+target_branch: epic-OOMPAH-307
+review_url: https://github.com/lesserevil/oompah/pull/540
+review_number: '540'
 merged_at: null
 oompah.agent_run_id: 97f521c9-b729-411b-8804-c7b853ca94f6
 oompah.task_costs:
@@ -43,6 +43,10 @@ oompah.task_costs:
     output_tokens: 880
     cost_usd: 0.0
     recorded_at: '2026-07-22T05:42:13.067438+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/540
+oompah.review_number: '540'
+oompah.work_branch: epic-OOMPAH-309
+oompah.target_branch: epic-OOMPAH-307
 ---
 ## Summary
 
