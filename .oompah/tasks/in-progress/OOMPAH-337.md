@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:30.718256Z'
-updated_at: '2026-07-22T16:06:51.547030Z'
+updated_at: '2026-07-22T16:06:55.519073Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -366,5 +366,15 @@ author: oompah
 created: 2026-07-22 16:06
 ---
 Agent completed without closing this issue (44s (254776 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-22 16:06
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-22 16:06
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
