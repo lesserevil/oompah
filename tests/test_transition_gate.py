@@ -41,6 +41,7 @@ def _issue(state: str = "Proposed") -> Issue:
         id="owner/repo#42",
         identifier="owner/repo#42",
         title="Intake issue",
+        description="Implementation details for this test issue.",
         state=state,
         issue_type="task",
         requestor_login="alice",
