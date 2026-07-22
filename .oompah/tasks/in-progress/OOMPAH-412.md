@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T21:34:07.971835Z'
-updated_at: '2026-07-22T23:31:00.417706Z'
+updated_at: '2026-07-22T23:31:32.588529Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 0ef10ee4-eb47-4e13-a8fa-dac17724bdfe
 oompah.task_costs:
-  total_input_tokens: 23
-  total_output_tokens: 5681
+  total_input_tokens: 181226
+  total_output_tokens: 6702
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 23
-      output_tokens: 5681
+      input_tokens: 181226
+      output_tokens: 6702
       cost_usd: 0.0
   runs:
   - profile: default
@@ -34,6 +34,12 @@ oompah.task_costs:
     output_tokens: 5681
     cost_usd: 0.0
     recorded_at: '2026-07-22T23:30:49.168462+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 181203
+    output_tokens: 1021
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T23:31:29.552220+00:00'
 ---
 ## Summary
 
@@ -168,5 +174,25 @@ author: oompah
 created: 2026-07-22 23:30
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-22 23:31
+---
+Agent completed successfully in 32s (182224 tokens)
+---
+author: oompah
+created: 2026-07-22 23:31
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 1, Tool calls: 3
+- Tokens: 181.2K in / 1.0K out [182.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 32s
+- Log: OOMPAH-412__20260722T233101Z.jsonl
+---
+author: oompah
+created: 2026-07-22 23:31
+---
+Agent completed without landing — no commits found on origin for branch `epic-OOMPAH-310`. Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
