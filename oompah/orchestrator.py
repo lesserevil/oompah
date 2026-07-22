@@ -2475,7 +2475,12 @@ class Orchestrator:
                 ),
             }
         )
-        log = logger.debug if was_armed else logger.error
+        # A stale-loop alert is an operational health signal with an
+        # in-process recovery path, not an unhandled backend failure.  Keep
+        # the dashboard alert at error severity, but log the first occurrence
+        # as a warning so ErrorWatcher (which files ERROR+ records) does not
+        # create a task for a condition the supervisor is already handling.
+        log = logger.debug if was_armed else logger.warning
         log(
             "Dispatch loop stale: no tick completed in %.0fs "
             "(threshold=%.0fs). Alert %s, recovery queued.",

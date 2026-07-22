@@ -35,6 +35,7 @@ from unittest.mock import AsyncMock, MagicMock, patch, call
 import pytest
 
 from oompah.config import ServiceConfig
+from oompah.error_watcher import ErrorWatcher
 from oompah.models import Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.roles import RoleStore
@@ -211,13 +212,25 @@ class TestDispatchStaleAlert:
             f"Expected 1 stale alert, got {len(stale_alerts)}"
         )
 
-    def test_repeated_arm_does_not_repeat_error_log(self, tmp_path, caplog):
-        """One stale incident should not produce an error log flood."""
+    def test_stale_alert_is_warning_not_error_watcher_incident(self, tmp_path, caplog):
+        """Recovery-managed stale alerts must not create error-watcher tasks."""
         orch = _make_orchestrator(tmp_path)
-        with caplog.at_level("ERROR"):
-            orch._arm_dispatch_stale_alert(elapsed_s=300.0)
-            orch._arm_dispatch_stale_alert(elapsed_s=400.0)
-        assert sum("Dispatch loop stale:" in r.message for r in caplog.records) == 1
+        tracker = MagicMock()
+        watcher = ErrorWatcher(tracker)
+        watcher.install_log_handler("oompah")
+        try:
+            with caplog.at_level("WARNING"):
+                orch._arm_dispatch_stale_alert(elapsed_s=300.0)
+                orch._arm_dispatch_stale_alert(elapsed_s=400.0)
+        finally:
+            watcher.uninstall_log_handler("oompah")
+
+        stale_records = [
+            record for record in caplog.records if "Dispatch loop stale:" in record.message
+        ]
+        assert len(stale_records) == 1
+        assert stale_records[0].levelno == logging.WARNING
+        tracker.create_issue.assert_not_called()
 
     def test_clear_removes_alert(self, tmp_path):
         """_clear_dispatch_stale_alert() must remove the alert."""
