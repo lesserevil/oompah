@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-386
 type: bug
-status: Backlog
+status: Archived
 priority: 2
 title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 1035s (threshold=900s).
   Alert armed, recovery queued.'
@@ -12,7 +12,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-22T02:28:42.153416Z'
-updated_at: '2026-07-22T02:37:55.203359Z'
+updated_at: '2026-07-22T04:05:21.302260Z'
 work_branch: null
 target_branch: null
 review_url: null
