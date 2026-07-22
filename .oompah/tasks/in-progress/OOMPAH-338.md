@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:39.407769Z'
-updated_at: '2026-07-22T03:47:09.295871Z'
+updated_at: '2026-07-22T03:51:34.484546Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -166,5 +166,27 @@ Implementation: Added description-based metadata persistence to GitLabIssueTrack
 - set_attachments(): delegates to set_metadata_field(oompah.attachments)
 
 Existing label-based add_parent_child/add_dependency/fetch_children implementations retained (functional, not stubs). No external API calls - all metadata stored in GitLab issue description field as hidden HTML comment block.
+---
+author: oompah
+created: 2026-07-22 03:51
+---
+Verification: All 100 tests pass (0.62s). Full suite passes (11441 tests, up from 11346 before this work). No regressions.
+
+New test coverage (100 tests in tests/test_gitlab_tracker.py, up from 5):
+- TestParseDescriptionMetadata: 7 tests (None, empty, no-block, valid JSON, nested values, invalid JSON, whitespace)
+- TestUpdateDescriptionMetadata: 7 tests (empty desc, append, replace, round-trip, key sorting, text preservation, idempotent update)
+- TestGitLabIdentifier: 8 tests (canonical form, display form, bare number rejection, empty/zero/leading-slash rejection, wrong-project error, URL encoding)
+- TestReadPath: 11 tests (all fetch_* operations, 404 handling, cache invalidation)
+- TestIssueParsing: 6 tests (priority, type, parent, blocked-by labels, closed-state, status-label override)
+- TestCreateAndUpdateIssue: 9 tests (type/priority/status/parent labels, return value, title/priority/state updates)
+- TestLifecycleOperations: 8 tests (close/reopen/archive state_event, archived label, mark_needs_human, is_archived)
+- TestCommentsAndLabels: 3 tests (add_comment, add_label, remove_label)
+- TestParentChildAndFetchChildren: 4 tests (label creation, label-based fetch_children, empty cases)
+- TestDependencies: 2 tests (blocked-by label, invalid blocker error)
+- TestGetAndSetMetadata: 9 tests (empty, write+read round-trip, multiple keys, key update, prefix enforcement, text preservation, prefixed return keys)
+- TestAttachments: 7 tests (empty, single/multiple round-trips, replace, clear, project_root ignored, non-dict filtering)
+- GitLabClient: 5 tests (pagination, 401/403 auth errors, 404/4xx TrackerError, 5xx retry)
+- Registry: 4 tests (project arg, owner+repo, missing project, missing token)
+- Status helpers: 4 tests (slug format, label→status, fallbacks)
 ---
 <!-- COMMENTS:END -->
