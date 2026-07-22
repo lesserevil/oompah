@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:29:14.500742Z'
-updated_at: '2026-07-22T04:26:29.434104Z'
+updated_at: '2026-07-22T04:26:52.167418Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -299,5 +299,21 @@ Implementation: Changes made across 5 files:
 **oompah/__main__.py**: calls set_gitlab_hook_manager() after set_orchestrator()
 
 Tests: 42 new tests in tests/test_webhooks.py, tests/test_server_webhooks.py, and tests/test_server_gitlab_lifecycle.py
+---
+author: oompah
+created: 2026-07-22 04:26
+---
+Verification: Full test suite ran: 11433 passed, 36 skipped, 12 warnings (0 failures). All 42 new tests pass:
+- 10 tests for GitLabEventDedup (fingerprint, UUID key, TTL expiry, different events)
+- 5 tests for build_gitlab_hook_alerts (unconfigured, healthy, unhealthy, multiple projects)
+- 2 tests for GitLabHookManager._status_callback (fires on reconcile, fires on config error)
+- 4 tests for GitLabWebhookDedup (UUID dedup, different UUIDs, no dedup when None, fingerprint dedup)
+- 2 tests for GET /api/v1/webhooks/gitlab/status (manager not set, manager set)
+- 2 tests for attach_gitlab_hook_alerts (updates alerts, clears on recovery)
+- 4 tests for _is_gitlab_project helper
+- 2 tests for set_gitlab_hook_manager
+- 3 tests for lifecycle create (gitlab reconciled, github not, None safe)
+- 4 tests for lifecycle update (access_token, webhook_secret, unrelated field, github)
+- 4 tests for lifecycle delete (gitlab remove called, github not, not found, None safe)
 ---
 <!-- COMMENTS:END -->
