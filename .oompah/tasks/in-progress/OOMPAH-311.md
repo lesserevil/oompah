@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T05:58:16.044147Z'
+updated_at: '2026-07-22T05:58:32.589792Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -360,5 +360,23 @@ author: oompah
 created: 2026-07-22 05:58
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-22 05:58
+---
+Understanding: I am a Software Engineer implementing OOMPAH-311. Based on prior agent work (duplicate_detector and epic_planner phases), the task is to detect and annotate shared-epic child tasks that were independently merged to main (bypassing the epic branch) — the OOMPAH-286/PR #466 pattern.
+
+Plan:
+1. Add EPIC_INDEPENDENTLY_MERGED_LABEL constant to models.py
+2. Add _detect_independently_merged_children() method to orchestrator.py
+3. Add _reconcile_independently_merged_children() method to orchestrator.py
+4. Hook the new reconcile pass into the maintenance LANE tick alongside _reconcile_merged_epic_children
+5. Write 3-5 unit tests covering detection, idempotency, and annotation
+
+Key constraints:
+- Do NOT rewrite git history
+- Do NOT change the child's Merged state
+- Only add the epic:independently-merged label and log a warning
+- Pass must be idempotent (check label already present)
 ---
 <!-- COMMENTS:END -->
