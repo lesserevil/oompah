@@ -12,7 +12,7 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T04:03:34.150825Z'
+updated_at: '2026-07-22T04:05:32.243916Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -123,5 +123,10 @@ author: oompah
 created: 2026-07-22 04:03
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-22 04:05
+---
+Understanding: Previous CI Fixer agents made no commits. This is a full feature implementation task requiring: (1) new oompah/stalled_task_watchdog.py module with classification logic for NEEDS_HUMAN/NEEDS_CI_FIX/NEEDS_REBASE/NEEDS_ANSWER states; (2) config field OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS (default 1800) in config.py and .env.example; (3) orchestrator integration via _run_maintenance_job in _run_step5b_maintenance; (4) telemetry in _maintenance_status; (5) tests. My approach: implement a pure classification+remediation module following the yolo_watchdog.py pattern, wire it into the maintenance lane, add comprehensive tests.
 ---
 <!-- COMMENTS:END -->
