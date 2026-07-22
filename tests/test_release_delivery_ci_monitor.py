@@ -127,8 +127,10 @@ def _make_orchestrator(
     *,
     ci_status: str = "failed",
     repo_url: str = "https://github.com/org/trickle",
+    repo_slug: str = "org/trickle",
     raise_on_create: bool = False,
     existing_remediation_task_ids: set[str] | None = None,
+    scm_instances: list[MagicMock] | None = None,
 ) -> tuple[Any, list[dict], _FakeStore]:
     """Build a minimal fake orchestrator for CI monitor tests.
 
@@ -176,6 +178,8 @@ def _make_orchestrator(
 
     mock_scm = MagicMock()
     mock_scm.get_branch_ci_status.return_value = ci_status
+    if scm_instances is not None:
+        scm_instances.append(mock_scm)
 
     from oompah.orchestrator import Orchestrator
 
@@ -207,7 +211,7 @@ def _make_orchestrator(
         ),
         patch(
             "oompah.orchestrator.extract_repo_slug",
-            return_value="org/trickle",
+            return_value=repo_slug,
         ),
     ):
         Orchestrator._monitor_merged_delivery_ci(orch)
@@ -239,6 +243,55 @@ class TestMonitorMergedDeliveryCi:
         assert task_kwargs["labels"] == ["release-ci-failure", "ci-fix"]
         # Verify idempotency stamp was set
         assert store._deliveries[0].ci_remediation_task_id == "OOMPAH-1"
+
+    def test_gitlab_release_pipeline_failure_creates_one_remediation_task(self):
+        """A failed GitLab release pipeline is checked through the SCM contract.
+
+        The nested project path is intentional: GitLab project namespaces may
+        contain subgroups, so the orchestration layer must pass its normalized
+        slug unchanged to the selected provider rather than assuming GitHub's
+        two-segment ``owner/repo`` shape.
+        """
+        scm_instances: list[MagicMock] = []
+        delivery = _delivery(
+            pr_url="https://gitlab.com/group/subgroup/trickle/-/merge_requests/303",
+        )
+
+        _orch, created, store = _make_orchestrator(
+            [delivery],
+            ci_status="failed",
+            repo_url="https://gitlab.com/group/subgroup/trickle.git",
+            repo_slug="group/subgroup/trickle",
+            scm_instances=scm_instances,
+        )
+
+        assert len(created) == 1
+        assert store._deliveries[0].ci_remediation_task_id == "OOMPAH-1"
+        assert len(scm_instances) == 1
+        scm_instances[0].get_branch_ci_status.assert_called_once_with(
+            "group/subgroup/trickle", "release/0.11"
+        )
+
+    def test_gitlab_release_pipeline_failure_is_idempotent_across_ticks(self):
+        """A repeated GitLab pipeline failure creates only one fix task."""
+        delivery = _delivery(
+            pr_url="https://gitlab.com/group/subgroup/trickle/-/merge_requests/303",
+        )
+        gitlab_kwargs = {
+            "ci_status": "failed",
+            "repo_url": "https://gitlab.com/group/subgroup/trickle.git",
+            "repo_slug": "group/subgroup/trickle",
+        }
+
+        _orch, first_created, first_store = _make_orchestrator(
+            [delivery], **gitlab_kwargs
+        )
+        _orch, second_created, _second_store = _make_orchestrator(
+            [first_store._deliveries[0]], **gitlab_kwargs
+        )
+
+        assert len(first_created) == 1
+        assert second_created == []
 
     def test_ci_passed_no_remediation(self):
         """Passed CI → no remediation task."""
