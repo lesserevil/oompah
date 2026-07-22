@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-324
 type: task
-status: In Progress
+status: Needs Human
 priority: 2
 title: Generalize external issue intake and provenance for GitLab
 parent: OOMPAH-318
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:26.149163Z'
-updated_at: '2026-07-22T06:33:47.657723Z'
+updated_at: '2026-07-22T06:34:48.876004Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 6aca8b57-4d2c-4016-904f-1e15227f65ee
 oompah.task_costs:
-  total_input_tokens: 2232511
-  total_output_tokens: 17014
+  total_input_tokens: 2447277
+  total_output_tokens: 18914
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 2232511
-      output_tokens: 17014
+      input_tokens: 2447277
+      output_tokens: 18914
       cost_usd: 0.0
   runs:
   - profile: default
@@ -53,6 +53,12 @@ oompah.task_costs:
     output_tokens: 2831
     cost_usd: 0.0
     recorded_at: '2026-07-22T06:01:06.884083+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 214766
+    output_tokens: 1900
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T06:34:45.009913+00:00'
 ---
 ## Summary
 
@@ -240,5 +246,25 @@ author: oompah
 created: 2026-07-22 06:33
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-22 06:34
+---
+Agent completed successfully in 59s (216666 tokens)
+---
+author: oompah
+created: 2026-07-22 06:34
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 4
+- Tokens: 214.8K in / 1.9K out [216.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 59s
+- Log: OOMPAH-324__20260722T063347Z.jsonl
+---
+author: oompah
+created: 2026-07-22 06:34
+---
+Agent completed 4 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
