@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-289
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Harden focus triage and other model-only decisions against external instructions
 parent: OOMPAH-285
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:55.684579Z'
-updated_at: '2026-07-21T22:57:48.653804Z'
+updated_at: '2026-07-22T00:03:39.682542Z'
 work_branch: null
 target_branch: null
 review_url: null
