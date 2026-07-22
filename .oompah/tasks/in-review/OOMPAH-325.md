@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-325
 type: task
-status: Done
+status: In Review
 priority: 1
 title: Add GitLab project-hook lifecycle and webhook event parity
 parent: OOMPAH-318
@@ -19,7 +19,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-21T20:34:27.176966Z'
-updated_at: '2026-07-22T08:20:01.047127Z'
+updated_at: '2026-07-22T08:37:56.166814Z'
 work_branch: null
 target_branch: null
 review_url: null
