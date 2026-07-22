@@ -7,10 +7,12 @@ title: Audit and harden all shared-epic Merged promotion paths in orchestrator.p
 parent: OOMPAH-310
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-22T21:34:07.971835Z'
-updated_at: '2026-07-22T23:30:18.974580Z'
+updated_at: '2026-07-22T23:30:40.761482Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,5 +95,33 @@ Candidates reviewed by ID and REJECTED:
 - OOMPAH-413 (Open, sibling): Regression tests depending on OOMPAH-412 audit results — this is a sibling test task, not a duplicate of the audit/hardening work.
 
 Conclusion: OOMPAH-412 is NOT a duplicate. It is a unique, properly decomposed child task of OOMPAH-310 with a specific scope: audit the 6 Merged promotion code paths in orchestrator.py and add hardening guards where gaps are found.
+---
+author: oompah
+created: 2026-07-22 23:30
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate found. OOMPAH-412 is a unique, unimplemented child task of OOMPAH-310 covering the code audit and hardening of 6 Merged promotion paths in oompah/orchestrator.py.
+
+2. Relevant files, commands, evidence, and decisions:
+   - OOMPAH-310 Epic Planner (comment #12) explicitly created OOMPAH-412 for this scope and OOMPAH-413 for regression tests.
+   - Key file: oompah/orchestrator.py — the 6 code paths to audit are:
+     1. _label_merged_epics (~line 10421): gated by _epic_branch_landed_on_target() before _mark_epic_merged
+     2. _open_epic_main_prs (~line 5680): also gated by _epic_branch_landed_on_target()
+     3. _reconcile_merged_epic_children (~line 10522): uses _all_merged_epics() — epic must already be MERGED
+     4. _open_deferred_done_reviews (~line 8545): 'if issue.parent_id and rollup_strategy == shared: continue' guard
+     5. _label_merged_issues (~line 8935): 'if rollup_strategy == shared and not helper_issue: continue' guard
+     6. _mark_epic_merged (~line 10676): core promotion function — verify callers are all gated
+   - Existing test coverage in tests/test_epic_strategy.py: TestLabelMergedEpics, test_merged_epic_reconciles_children_still_done, test_shared_done_child_with_merged_branch_skips_all_checks
+   - OOMPAH-309 (Merged) and OOMPAH-308 (Done) are prerequisites that are already complete.
+
+3. Remaining work and risks:
+   - Feature agent must read all 6 code paths in orchestrator.py, verify each guard is present and fires correctly, and add hardening where gaps exist.
+   - Per the OOMPAH-310 Epic Planner (comment #11), preliminary code review suggests the paths appear correctly gated, but a thorough per-path audit with evidence is required to confirm.
+   - If gaps are found, add guards (check rollup_strategy == 'shared', verify epic is in MERGED state, or require _epic_branch_landed_on_target to return True).
+   - Any code changes need tests to pass via 'make test'.
+   - OOMPAH-413 (regression tests) depends on this task completing first.
+
+4. Recommended next focus: feature (backend audit and hardening of oompah/orchestrator.py promotion paths).
 ---
 <!-- COMMENTS:END -->
