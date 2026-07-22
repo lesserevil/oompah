@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T05:18:51.142416Z'
-updated_at: '2026-07-22T05:22:40.582787Z'
+updated_at: '2026-07-22T05:22:43.283964Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,5 +33,10 @@ author: oompah
 created: 2026-07-22 05:22
 ---
 Implemented and verified: native task creation and description updates now demote H1/H2 headings before embedding them in Summary, preventing structured Markdown from parsing as an empty description. The API now rejects promotion to a dispatchable status when the normalized description is empty. Repaired OOMPAH-308 through OOMPAH-313 via the task API; each now exposes a non-empty parsed description. make test passed.
+---
+author: oompah
+created: 2026-07-22 05:22
+---
+Implemented native structured-description safeguards, repaired the six affected tasks, and passed make test.
 ---
 <!-- COMMENTS:END -->

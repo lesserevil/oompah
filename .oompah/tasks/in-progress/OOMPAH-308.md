@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-308
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fix stale work_branch metadata for native shared-epic children and update to
   epic branch on dispatch
@@ -11,12 +11,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:52:58.139774Z'
-updated_at: '2026-07-22T05:21:05.386508Z'
+updated_at: '2026-07-22T05:22:48.107939Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: e799f04c-9710-4eba-9f27-4c3346b4d348
 ---
 ## Summary
 
@@ -57,3 +58,17 @@ This stale branch is used by _branch_for_issue (lines 7680-7695 in orchestrator.
 - [ ] Define acceptance criteria.
 
 ## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 05:22
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 05:22
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
