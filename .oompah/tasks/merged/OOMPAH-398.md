@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-398
 type: task
-status: In Review
+status: Merged
 priority: 1
 title: Add configurable stalled-task remediation watchdog
 parent: null
@@ -12,7 +12,7 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T04:22:07.314511Z'
+updated_at: '2026-07-22T04:27:31.633295Z'
 work_branch: OOMPAH-398
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/529
