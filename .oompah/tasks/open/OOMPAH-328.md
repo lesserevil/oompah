@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-328
 type: task
-status: In Progress
+status: Open
 priority: 2
 title: Make project bootstrap and operator documentation forge-aware
 parent: OOMPAH-318
@@ -12,9 +12,10 @@ blocked_by:
 - OOMPAH-327
 labels:
 - focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-22T06:37:11.621343Z'
+updated_at: '2026-07-22T06:37:27.885489Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -80,5 +81,28 @@ Discovery: Duplicate investigation complete. OOMPAH-328 is NOT a duplicate.
 
 **Closest task reviewed:**
 - OOMPAH-258 (Merged): covered state-branch bootstrap and docs for GitHub projects. Distinct from OOMPAH-328 which specifically extends bootstrap for GitLab/forge awareness per plans/gitlab-forge-parity.md.
+---
+author: oompah
+created: 2026-07-22 06:37
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: OOMPAH-328 is NOT a duplicate. No existing task covers GitLab forge-aware bootstrap or operator documentation. This is the first task targeting the 'Webhooks, UI, bootstrap, and operations' section of plans/gitlab-forge-parity.md for the bootstrap/docs portion.
+
+2. **Relevant files, evidence, decisions**:
+   - plans/gitlab-forge-parity.md §'Webhooks, UI, bootstrap, and operations' — the plan that scopes this task. Specifically: extend project-creation/bootstrap to validate GitLab token scopes, label creation, webhook URL, hook creation; document minimum token scopes, auto-merge semantics, polling fallback, recovery procedures.
+   - oompah/project_bootstrap/__init__.py — existing bootstrap entry point (GitHub only currently)
+   - docs/operator-runbook.md — existing operator docs to extend for GitLab
+   - docs/managed-project-onboarding.md — existing onboarding docs to extend
+   - Blocker tasks OOMPAH-323, OOMPAH-325, OOMPAH-327 are not yet in .oompah/tasks/ (tracker max is OOMPAH-282). These need to be created or will be auto-created by oompah.
+
+3. **Remaining work**:
+   - Extend project_bootstrap/ to detect forge=gitlab and validate: token API access, label create permission, issue tracker access, MR access, pipeline read, state-branch push, public HTTPS webhook URL, hook creation capability, polling fallback
+   - Bootstrap dry-run fixtures for success and each failure scenario
+   - Documentation: min GitLab token scopes, public webhook deployment, auto-merge semantics, merge-train non-support, recovery procedures, GitHub compatibility
+   - Documentation contract tests
+   - All existing GitHub bootstrap/readiness tests must stay green
+
+4. **Recommended next focus**: feature (implementation of bootstrap validation + docs)
 ---
 <!-- COMMENTS:END -->
