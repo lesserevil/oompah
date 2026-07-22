@@ -3576,6 +3576,29 @@ class TestLabelMergedEpics:
             orch._label_merged_epics()
         tracker.update_issue.assert_not_called()
 
+    def test_label_merged_issues_does_not_promote_shared_child_branch(self, tmp_path):
+        """A child branch landing is not evidence that its rollup landed."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._merged_branches = {"child-1"}
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id=proj.id
+        )
+        child = _make_issue(
+            identifier="child-1",
+            state=IN_REVIEW,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+        )
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [child]
+        tracker.fetch_issue_detail.return_value = epic
+
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            orch._label_merged_issues()
+
+        tracker.update_issue.assert_not_called()
+
     def test_done_epic_is_marked_merged_after_rollup_pr_lands(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
@@ -3657,6 +3680,45 @@ class TestLabelMergedEpics:
             for call in tracker.update_issue.call_args_list
         }
         assert marked == {"epic-1": "Merged", "c1": "Merged"}
+
+    def test_reconcile_is_noop_when_all_children_already_merged(self, tmp_path):
+        """Reconciliation must not re-write an already fully merged rollup."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(identifier="epic-1", issue_type="epic", state=MERGED)
+        child = _make_issue(
+            identifier="c1", state=MERGED, parent_id=epic.identifier
+        )
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = [epic, child]
+
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+        ):
+            orch._reconcile_merged_epic_children()
+
+        tracker.update_issue.assert_not_called()
+
+    def test_reconcile_ignores_done_epic_until_rollup_is_merged(self, tmp_path):
+        """Only a Merged rollup may reconcile a Done shared child to Merged."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(identifier="epic-1", issue_type="epic", state=DONE)
+        child = _make_issue(
+            identifier="c1", state=DONE, parent_id=epic.identifier
+        )
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = [epic, child]
+
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children") as fetch_children,
+        ):
+            orch._reconcile_merged_epic_children()
+
+        fetch_children.assert_not_called()
+        tracker.update_issue.assert_not_called()
 
     @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
     @patch("oompah.orchestrator.detect_provider")
