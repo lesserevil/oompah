@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:41.720887Z'
-updated_at: '2026-07-22T22:23:58.988062Z'
+updated_at: '2026-07-22T22:24:08.487553Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -310,5 +310,20 @@ TestCloseInvalidEpicPolicyReview (8 tests) covering _close_invalid_epic_policy_r
 8. Records success outcome when provider.close_review succeeds
 
 Commit: 447d134fa on epic-OOMPAH-307 branch
+---
+author: oompah
+created: 2026-07-22 22:24
+---
+Verification: All tests pass.
+
+- New tests: 16 (TestYoloEpicStrategyBlockReason: 8, TestCloseInvalidEpicPolicyReview: 8)
+- Existing TestYoloEpicPolicyFailClosed: 2 (from OOMPAH-404, already on branch)
+- Full test_epic_strategy.py: 179 passed
+- Full suite: 11741 passed, 38 skipped, 12 warnings
+
+Tests correctly distinguish:
+- Fail-open path (_resolve_task_for_branch raises → block reason = None)
+- Fail-closed path (parent_id set but _resolve_parent_epic returns None → block reason = 'could not be resolved')
+- Asymmetry in _close_invalid_epic_policy_review (don't close when parent can't be resolved, to avoid destructive action on transient failure)
 ---
 <!-- COMMENTS:END -->
