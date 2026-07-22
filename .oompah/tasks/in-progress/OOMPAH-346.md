@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-346
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Reserve round-robin providers atomically at dispatch time
 parent: null
@@ -14,13 +14,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T02:36:55.509163Z'
+updated_at: '2026-07-22T02:42:43.829844Z'
 work_branch: OOMPAH-346
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/527
 review_number: '527'
 merged_at: null
-oompah.agent_run_id: e055607c-3e53-40c8-a58e-fe3bcdb854be
+oompah.agent_run_id: df8f3ddf-28e0-43ee-959e-f7311f7efa32
 oompah.task_costs:
   total_input_tokens: 962038
   total_output_tokens: 54350
@@ -314,5 +314,15 @@ author: oompah
 created: 2026-07-22 02:36
 ---
 YOLO: CI tests failed on MR #527. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-22 02:42
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-22 02:42
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
