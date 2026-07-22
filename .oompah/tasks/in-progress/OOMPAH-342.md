@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:29:14.500742Z'
-updated_at: '2026-07-22T04:08:38.886904Z'
+updated_at: '2026-07-22T04:26:29.434104Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -270,5 +270,34 @@ Key findings:
 - api_delete_project must get the project BEFORE deletion so remove() can make GitLab API calls
 - Fields triggering reconciliation: forge_kind, repo_url, access_token, webhook_secret, forge_base_url
 - GitLab sends X-Gitlab-Event-UUID header (use as dedup key when present, fingerprint fallback)
+---
+author: oompah
+created: 2026-07-22 04:26
+---
+Implementation: Changes made across 5 files:
+
+**oompah/webhooks.py**:
+- Added GitLabEventDedup class with TTL-based fingerprint cache; prefers X-Gitlab-Event-UUID header, falls back to sha256(event_type|repo|review_id|action|issue_number)
+- Added build_gitlab_hook_alerts() producing orchestrator-compatible alert dicts for unhealthy hooks and unconfigured URL
+- Added _status_callback field and _fire_status_callback() to GitLabHookManager; reconcile() fires it after each run
+
+**oompah/bootstrap.py**:
+- Added attach_gitlab_hook_alerts() mirroring attach_webhook_forwarder_alerts() pattern
+- Calls it during setup_services() to wire hook health into orchestrator alerts
+
+**oompah/server.py**:
+- Added _gitlab_hook_manager and _gitlab_event_dedup globals
+- Added set_gitlab_hook_manager() (initialises dedup instance too)
+- Added _is_gitlab_project() helper
+- Added _GITLAB_HOOK_RECONCILE_FIELDS frozenset (forge_kind, repo_url, forge_base_url, access_token, webhook_secret)
+- api_create_project: calls reconcile() after create for GitLab projects
+- api_update_project: calls reconcile() when hook-relevant fields change and project is GitLab
+- api_delete_project: fetches project BEFORE delete, calls remove() if GitLab
+- api_webhook_gitlab: checks dedup cache (using UUID or fingerprint), returns action='deduplicated' on repeat
+- Added GET /api/v1/webhooks/gitlab/status endpoint
+
+**oompah/__main__.py**: calls set_gitlab_hook_manager() after set_orchestrator()
+
+Tests: 42 new tests in tests/test_webhooks.py, tests/test_server_webhooks.py, and tests/test_server_gitlab_lifecycle.py
 ---
 <!-- COMMENTS:END -->
