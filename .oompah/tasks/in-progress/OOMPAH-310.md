@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T16:53:34.544944Z'
-updated_at: '2026-07-22T16:15:14.655824Z'
+updated_at: '2026-07-22T16:17:38.548442Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,5 +83,26 @@ author: oompah
 created: 2026-07-22 16:15
 ---
 Understanding: Acting as Duplicate Investigator for OOMPAH-310. This task is about verifying that shared-epic children are only promoted to Merged state after the epic itself merges (epic-merge-triggered promotion). I will search the task tracker and codebase for similar issues before any implementation work begins.
+---
+author: oompah
+created: 2026-07-22 16:17
+---
+Discovery: Duplicate screening found NO duplicate for OOMPAH-310.
+
+Search scope: all .oompah/tasks/ folders (archived, merged, done, open, in-progress, backlog), plans/, docs/, README.md, WORKFLOW.md, and the oompah/ source tree.
+
+Keywords searched: shared-epic, shared_epic, epic_merge, epic merge, promote Merged, Merged promotion, promote.*merged, mark_epic_merged, premature Merged, children promotion, epic-merge-triggered.
+
+All candidate tasks reviewed and REJECTED as duplicates:
+- OOMPAH-308 (Done): Fix stale work_branch metadata when child routes to shared epic worktree — different; covers routing-time metadata correction, not the Merged promotion lifecycle.
+- OOMPAH-309 (In Review): Harden shared-epic protection when _resolve_parent_epic fails — different; covers runtime failure-path hardening for dispatch protection, not the Merged promotion trigger.
+- OOMPAH-311 (Done): Diagnose and surface remediation for existing independently-merged child branches — different; covers detection and annotation of already-merged children, not gating Merged promotion on the epic merge event.
+- OOMPAH-312 (Open): UI/dashboard status display — different; covers display labels, not Merged promotion logic.
+- OOMPAH-165 (Archived): Fix shared epic landed detection before main merge — covers a premature landed detection path; was archived; different fix path from OOMPAH-310.
+- OOMPAH-219 (Archived): SharedAbsorptionEvidence — covers commit-absorption races; different topic.
+
+OOMPAH-310 was explicitly created by the OOMPAH-307 epic planner (see OOMPAH-307 comment #15) to address Gap D: the epic-merge-triggered Merged promotion path in orchestrator.py needs verification and hardening. The epic planner noted _epic_rollup_child_strategy at line 8282 guards one path but a second path at ~line 8607 also depends on rollup_strategy being 'shared'. This is a distinct, unique, unimplemented task.
+
+Conclusion: OOMPAH-310 is NOT a duplicate. It needs a feature agent to verify and harden _mark_epic_merged and _reconcile_merged_epic_children so shared-epic children are promoted to Merged ONLY when the parent epic branch is confirmed merged, with proper guards where rollup_strategy or parent_id checks could fail.
 ---
 <!-- COMMENTS:END -->
