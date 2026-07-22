@@ -8,10 +8,12 @@ title: Harden 3 call sites in orchestrator.py to fail-closed when _resolve_paren
 parent: OOMPAH-309
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-22T05:41:51.997877Z'
-updated_at: '2026-07-22T15:34:34.510938Z'
+updated_at: '2026-07-22T15:36:01.873665Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,5 +151,28 @@ author: oompah
 created: 2026-07-22 15:34
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 15:35
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate found. OOMPAH-404 is a fresh, legitimate implementation task.
+
+Candidates reviewed:
+- OOMPAH-309 (In Progress, parent): This is the parent epic of OOMPAH-404 — not a duplicate. OOMPAH-404 was explicitly created by the epic_planner agent on OOMPAH-309 as the sole implementation child.
+- OOMPAH-281 (Open): Self-hosted GitHub Actions runner — completely unrelated.
+- OOMPAH-282 (Backlog): UnicodeEncodeError in state_branch_migration — completely unrelated.
+- OOMPAH-235 (Done): Tracker write recovery — completely unrelated.
+- Full .oompah/tasks/ tree searched (archived, done, merged, open, backlog) with rg patterns: resolve_parent_epic, fail-closed, parent_id, yolo_epic_strategy, close_invalid_epic, harden. Zero matches outside OOMPAH-309 and OOMPAH-404 itself.
+
+2. Relevant files and evidence from prior OOMPAH-309 agents:
+- oompah/orchestrator.py: three bug sites at ~line 8070, ~line 11855, ~line 11929
+- tests/test_epic_strategy.py: existing test patterns for _resolve_parent_epic
+- The description contains exact line numbers, current buggy code, and suggested replacement code for all three sites.
+
+3. Remaining work: Full implementation — three code changes in oompah/orchestrator.py and three new tests in tests/test_epic_strategy.py (exact test names specified in the description).
+
+4. Recommended next focus: feature (backend implementation)
 ---
 <!-- COMMENTS:END -->
