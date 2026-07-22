@@ -549,12 +549,13 @@ class TestFetchCiStatus:
         )
         assert provider._fetch_ci_status("o/r", "deadbeef") == "pending"
 
-    def test_no_statuses_and_no_check_runs_returns_empty(self):
+    def test_no_statuses_and_no_check_runs_are_eligible_to_merge(self):
+        """A clean PR with no configured CI must not remain In Review."""
         provider = self._provider_with_responses(
             {"state": "pending", "total_count": 0},
             {"check_runs": []},
         )
-        assert provider._fetch_ci_status("o/r", "deadbeef") == ""
+        assert provider._fetch_ci_status("o/r", "deadbeef") == "passed"
 
 
 class TestFetchCiStatusCheckRunsForbidden:
