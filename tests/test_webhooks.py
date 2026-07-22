@@ -98,6 +98,31 @@ def _gitlab_mr_payload(
     }
 
 
+def _gitlab_issue_label_payload(
+    *,
+    action: str = "update",
+    iid: int = 7,
+    label: str = "oompah:status:open",
+    actor: str = "tanuki",
+    repo_path: str = "group/project",
+    previous_labels: list[str] | None = None,
+    current_labels: list[str] | None = None,
+) -> dict:
+    """Build a GitLab Issue Hook payload for a status-label mutation."""
+    if previous_labels is None:
+        previous_labels = []
+    if current_labels is None:
+        current_labels = [label]
+    return {
+        "object_attributes": {"iid": iid, "action": action, "title": "Task"},
+        "user": {"username": actor},
+        "project": {"path_with_namespace": repo_path},
+        "changes": {
+            "labels": {"previous": previous_labels, "current": current_labels}
+        },
+    }
+
+
 def _make_project(
     repo_url: str = "https://github.com/org/repo.git",
     project_id: str = "proj-test1",
@@ -897,8 +922,53 @@ class TestParseGitLabWebhook:
         assert event is not None
         assert event.action == "update"
 
-    def test_push_hook_missing_project_returns_none(self):
-        # Push Hook without a project field → cannot determine repo_slug → None
+    def test_issue_label_update_captures_status_label_actor_and_iid(self):
+        """Issue Hook label changes feed the shared status authorization guard."""
+        payload = _gitlab_issue_label_payload(actor="untrusted-user")
+
+        event = parse_gitlab_webhook("Issue Hook", payload)
+
+        assert event is not None
+        assert event.provider == "gitlab"
+        assert event.event_type == "issues"
+        assert event.action == "labeled"
+        assert event.repo_slug == "group/project"
+        assert event.issue_number == "7"
+        assert event.label_name == "oompah:status:open"
+        assert event.label_actor == "untrusted-user"
+
+    def test_issue_status_label_removal_captures_removed_label_for_revert(self):
+        """Removing a status label is subject to the same authorization guard."""
+        payload = _gitlab_issue_label_payload(
+            previous_labels=["task", "oompah:status:open"],
+            current_labels=["task"],
+        )
+
+        event = parse_gitlab_webhook("Issue Hook", payload)
+
+        assert event is not None
+        assert event.action == "unlabeled"
+        assert event.issue_number == "7"
+        assert event.label_name == "oompah:status:open"
+        assert event.label_actor == "tanuki"
+
+    def test_issue_label_objects_are_normalized_for_status_authorization(self):
+        """GitLab may send rich label objects instead of strings."""
+        payload = _gitlab_issue_label_payload(
+            previous_labels=[{"title": "task"}],
+            current_labels=[
+                {"title": "task"},
+                {"title": "oompah:status:open"},
+            ],
+        )
+
+        event = parse_gitlab_webhook("Issue Hook", payload)
+
+        assert event is not None
+        assert event.action == "labeled"
+        assert event.label_name == "oompah:status:open"
+
+    def test_non_mr_event_returns_none(self):
         assert parse_gitlab_webhook("Push Hook", {"ref": "refs/heads/main"}) is None
 
     def test_pipeline_event_missing_project_returns_none(self):
@@ -1498,7 +1568,9 @@ class TestForwarderProcess:
 class TestWebhookForwarderInit:
     """Tests for WebhookForwarder.__init__()."""
 
-    def test_default_webhook_url(self):
+    def test_default_webhook_url(self, monkeypatch):
+        monkeypatch.delenv("OOMPAH_SERVER_PORT", raising=False)
+        monkeypatch.delenv("OOMPAH_WEBHOOK_FORWARD_URL", raising=False)
         fwd = WebhookForwarder()
         assert fwd._webhook_url == "http://localhost:8080/api/v1/webhooks/github"
 

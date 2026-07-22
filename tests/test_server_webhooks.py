@@ -1984,20 +1984,35 @@ class TestStatusLabelActorWebhookPayload:
 class TestUnauthorizedStatusLabelRevert:
     """Unauthorized oompah:status:* label changes trigger revert + comment."""
 
-    def _make_orch_with_tracker_for_revert(self, authorized_logins=None):
+    def _make_orch_with_tracker_for_revert(
+        self,
+        authorized_logins=None,
+        *,
+        tracker_kind="github_issues",
+        repo_url="https://github.com/org/repo.git",
+        tracker_owner="org",
+        tracker_repo="repo",
+        webhook_secret=None,
+        forge_kind=None,
+    ):
         """Build orch with a tracker that supports revert operations."""
         from unittest.mock import MagicMock
+
+        # Default forge_kind based on tracker_kind when not explicitly provided
+        if forge_kind is None:
+            forge_kind = "gitlab" if "gitlab" in (tracker_kind or "") else "github"
 
         project = Project(
             id="proj-gh1",
             name="github-proj",
-            repo_url="https://github.com/org/repo.git",
+            repo_url=repo_url,
             repo_path="/tmp/repos/repo",
-            webhook_secret=None,
-            tracker_kind="github_issues",
+            webhook_secret=webhook_secret,
+            tracker_kind=tracker_kind,
             status_label_authorized_logins=authorized_logins or [],
-            tracker_owner="org",
-            tracker_repo="repo",
+            tracker_owner=tracker_owner,
+            tracker_repo=tracker_repo,
+            forge_kind=forge_kind,
         )
         mock_tracker = MagicMock()
         mock_tracker._set_status_label = MagicMock()
@@ -2064,6 +2079,88 @@ class TestUnauthorizedStatusLabelRevert:
         comment_call_args = mock_tracker.add_comment.call_args
         comment_body = comment_call_args[0][1]
         assert "unauthorized" in comment_body.lower() or "Unauthorized" in comment_body
+
+    def test_gitlab_unauthorized_status_label_triggers_shared_revert(self):
+        """GitLab Issue Hooks enforce the same status-label guard as GitHub."""
+        import time
+        from oompah.server import app, _api_cache
+        from unittest.mock import patch as mpatch
+
+        _gl_secret = "gl-test-secret"
+        orch, mock_tracker, _project = self._make_orch_with_tracker_for_revert(
+            tracker_kind="gitlab_issues",
+            repo_url="https://gitlab.com/group/project.git",
+            tracker_owner="group",
+            tracker_repo="project",
+            webhook_secret=_gl_secret,
+        )
+
+        with mpatch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            payload = {
+                "object_attributes": {
+                    "iid": 7,
+                    "title": "Test issue",
+                    "action": "update",
+                },
+                "user": {"username": "untrusted-user"},
+                "project": {"path_with_namespace": "group/project"},
+                "changes": {
+                    "labels": {
+                        "previous": ["task"],
+                        "current": ["task", "oompah:status:open"],
+                    }
+                },
+            }
+            resp = client.post(
+                "/api/v1/webhooks/gitlab",
+                content=json.dumps(payload),
+                headers={
+                    "X-Gitlab-Event": "Issue Hook",
+                    "X-Gitlab-Token": _gl_secret,
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        for _ in range(100):
+            if mock_tracker.add_comment.called:
+                break
+            time.sleep(0.02)
+
+        assert mock_tracker.add_comment.called
+        mock_tracker.record_untrusted_status_label_change.assert_called_once_with(
+            7,
+            "oompah:status:open",
+            "untrusted-user",
+            "labeled",
+        )
+
+    def test_gitlab_authorized_transition_reads_previous_status_from_hook(self):
+        """GitLab's changes.labels.previous drives the shared intake gate."""
+        from oompah.server import _status_before_label_event
+        from oompah.webhooks import WebhookEvent
+
+        event = WebhookEvent(
+            provider="gitlab",
+            event_type="issues",
+            action="labeled",
+            issue_number="7",
+            label_name="oompah:status:backlog",
+            raw={
+                "changes": {
+                    "labels": {
+                        "previous": [
+                            {"title": "task"},
+                            {"title": "oompah:status:proposed"},
+                        ]
+                    }
+                }
+            },
+        )
+
+        assert _status_before_label_event(object(), event, "Backlog") == "Proposed"
 
     def test_authorized_bot_labeled_does_not_trigger_revert(self):
         """The oompah bot applying a status label is authorized — no revert."""

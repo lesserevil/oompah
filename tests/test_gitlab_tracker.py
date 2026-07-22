@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -1182,3 +1183,281 @@ def test_tracker_lifecycle_operations_use_gitlab_state_events_and_labels(tracker
     # set_metadata_field now works; only raises for bad key prefix
     with pytest.raises(TrackerError, match="oompah"):
         instance.set_metadata_field("group/sub/project#2", "no_prefix_key", "x")
+
+
+# ===========================================================================
+# Status-label authorization and polling safety
+# ===========================================================================
+
+
+class TestStatusLabelAuthorization:
+    """GitLab must provide the same label-authority boundary as GitHub."""
+
+    def _tracker(self, client: FakeClient | None = None) -> GitLabIssueTracker:
+        return GitLabIssueTracker(
+            project="group/sub/project",
+            active_states=["Open", "Needs Human"],
+            terminal_states=["Done", "Archived"],
+            status_label_authorized_logins=["release-manager"],
+            client=client or FakeClient(),
+        )
+
+    def test_internal_status_transition_canonicalizes_to_exactly_one_label(self):
+        client = StatefulFakeClient()
+        client._labels = [
+            "task",
+            "oompah:status:backlog",
+            "oompah:status:open",
+        ]
+        tracker = self._tracker(client)
+
+        tracker.update_issue("group/sub/project#2", state="In Progress")
+
+        assert client._labels == ["task", "oompah:status:in-progress"]
+        assert tracker._trusted_status_ledger == {2: "In Progress"}
+
+    def test_missing_status_label_is_backfilled_and_trusted_without_changing_open_state(
+        self,
+    ):
+        client = StatefulFakeClient()
+        client._labels = ["task"]
+        tracker = self._tracker(client)
+
+        candidates = tracker.fetch_candidate_issues()
+
+        assert [issue.state for issue in candidates] == ["Open"]
+        assert client._labels == ["task", "oompah:status:open"]
+        assert tracker._trusted_status_ledger == {2: "Open"}
+
+    def test_conflicting_labels_are_canonicalized_but_not_trusted_before_audit(self):
+        """A repair must not turn an attacker-selected Open label into trust."""
+        class LabelEventsClient(StatefulFakeClient):
+            def paginated(self, path: str, *, params=None):
+                if path.endswith("/resource_label_events"):
+                    return [
+                        {
+                            "action": "add",
+                            "label": {"name": "oompah:status:open"},
+                            "user": {"username": "untrusted-user"},
+                        }
+                    ]
+                return super().paginated(path, params=params)
+
+        client = LabelEventsClient()
+        client._labels = [
+            "task",
+            "oompah:status:open",
+            "oompah:status:backlog",
+        ]
+        tracker = self._tracker(client)
+
+        assert tracker.fetch_candidate_issues() == []
+        assert client._labels == ["task", "oompah:status:open"]
+        assert tracker._trusted_status_ledger == {}
+        assert tracker._untrusted_status_issues == {2}
+
+    def test_status_label_backfill_failure_preserves_safe_state_fallback(self):
+        class FailedBackfillClient(StatefulFakeClient):
+            def request(self, method: str, path: str, **kwargs):
+                if method == "PUT" and "labels" in kwargs.get("json", {}):
+                    raise TrackerError("GitLab API returned 500")
+                return super().request(method, path, **kwargs)
+
+        client = FailedBackfillClient()
+        client._labels = ["task"]
+        tracker = self._tracker(client)
+
+        candidates = tracker.fetch_candidate_issues()
+
+        assert [issue.state for issue in candidates] == ["Open"]
+        assert client._labels == ["task"]
+        assert tracker._trusted_status_ledger == {}
+
+    def test_authorized_logins_include_bot_and_configured_allowlist(
+        self, monkeypatch
+    ):
+        monkeypatch.setenv("OOMPAH_BOT_LOGIN", "Oompah-Bot")
+        tracker = self._tracker()
+
+        authorized = tracker._authorized_status_label_logins()
+        assert "oompah-bot" in authorized
+        assert "release-manager" in authorized
+
+    def test_trusted_transition_records_status_and_clears_pending_review(self):
+        tracker = self._tracker()
+        tracker._untrusted_status_issues.add(2)
+
+        tracker.record_trusted_status(2, "Open")
+
+        assert tracker._trusted_status_ledger == {2: "Open"}
+        assert tracker._untrusted_status_issues == set()
+
+    def test_untrusted_transition_is_recorded_and_invalidates_trusted_status(self):
+        tracker = self._tracker()
+        tracker.record_trusted_status(2, "Backlog")
+
+        tracker.record_untrusted_status_label_change(
+            2, "oompah:status:open", "untrusted-user", "labeled"
+        )
+
+        assert 2 in tracker._untrusted_status_issues
+        assert 2 not in tracker._trusted_status_ledger
+
+    def test_pending_untrusted_status_change_cannot_become_dispatch_candidate(self):
+        tracker = self._tracker()
+        tracker.record_untrusted_status_label_change(
+            2, "oompah:status:open", "untrusted-user", "labeled"
+        )
+
+        candidates = tracker.fetch_candidate_issues()
+
+        assert [issue.identifier for issue in candidates] == ["group/sub/project#1"]
+
+    def test_polling_rejects_open_label_when_latest_gitlab_event_actor_is_unauthorized(
+        self,
+    ):
+        class LabelEventsClient(FakeClient):
+            def paginated(self, path: str, *, params=None):
+                if path.endswith("/resource_label_events"):
+                    return [
+                        {
+                            "action": "add",
+                            "label": {"name": "oompah:status:open"},
+                            "user": {"username": "untrusted-user"},
+                        }
+                    ]
+                return super().paginated(path, params=params)
+
+        tracker = self._tracker(LabelEventsClient())
+
+        assert tracker.fetch_candidate_issues() == []
+        assert tracker._untrusted_status_issues == {1, 2}
+
+    def test_polling_accepts_open_label_when_latest_gitlab_event_actor_is_authorized(self):
+        class LabelEventsClient(FakeClient):
+            def paginated(self, path: str, *, params=None):
+                if path.endswith("/resource_label_events"):
+                    return [
+                        {
+                            "action": "add",
+                            "label": {"name": "oompah:status:open"},
+                            "user": {"username": "release-manager"},
+                        }
+                    ]
+                return super().paginated(path, params=params)
+
+        tracker = self._tracker(LabelEventsClient())
+
+        assert len(tracker.fetch_candidate_issues()) == 2
+        assert tracker._trusted_status_ledger == {1: "Open", 2: "Open"}
+
+    def test_polling_uses_the_latest_matching_label_event_for_authorization(self):
+        class LabelEventsClient(FakeClient):
+            def paginated(self, path: str, *, params=None):
+                if path.endswith("/resource_label_events"):
+                    return [
+                        {
+                            "action": "add",
+                            "label": {"name": "oompah:status:open"},
+                            "user": {"username": "release-manager"},
+                        },
+                        {
+                            "action": "add",
+                            "label": {"name": "oompah:status:open"},
+                            "user": {"username": "untrusted-user"},
+                        },
+                    ]
+                return super().paginated(path, params=params)
+
+        tracker = self._tracker(LabelEventsClient())
+
+        assert tracker.fetch_candidate_issues() == []
+        assert tracker._untrusted_status_issues == {1, 2}
+
+    def test_label_event_api_error_does_not_block_existing_issue_dispatch(self):
+        class BrokenLabelEventsClient(FakeClient):
+            def paginated(self, path: str, *, params=None):
+                if path.endswith("/resource_label_events"):
+                    raise TrackerError("GitLab API returned 500")
+                return super().paginated(path, params=params)
+
+        tracker = self._tracker(BrokenLabelEventsClient())
+
+        assert len(tracker.fetch_candidate_issues()) == 2
+        assert tracker._untrusted_status_issues == set()
+
+    def test_identifier_for_number_preserves_nested_gitlab_project_path(self):
+        assert self._tracker().identifier_for_number(9).canonical == "group/sub/project#9"
+
+    def test_unauthorized_label_revert_restores_trusted_status_and_audits(self):
+        """A successful GitLab rollback restores the prior canonical status."""
+        from oompah.server import _revert_unauthorized_status_label_change
+        from oompah.webhooks import WebhookEvent
+
+        client = StatefulFakeClient()
+        client._labels = ["task", "oompah:status:open"]
+        tracker = self._tracker(client)
+        tracker.record_trusted_status(2, "Backlog")
+        project = SimpleNamespace(
+            id="proj-gitlab",
+            name="gitlab-project",
+            tracker_owner="group/sub",
+            tracker_repo="project",
+        )
+        orchestrator = SimpleNamespace(_tracker_for_project=lambda _: tracker)
+        event = WebhookEvent(
+            provider="gitlab",
+            event_type="issues",
+            action="labeled",
+            repo_slug="group/sub/project",
+            issue_number="2",
+            label_name="oompah:status:open",
+            label_actor="untrusted-user",
+        )
+
+        _revert_unauthorized_status_label_change(orchestrator, event, project)
+
+        assert client._labels == ["task", "oompah:status:backlog"]
+        assert tracker._trusted_status_ledger == {2: "Backlog"}
+        assert tracker._untrusted_status_issues == set()
+        assert len(client._notes) == 1
+        assert "Unauthorized status change reverted" in client._notes[0]["body"]
+
+    def test_failed_gitlab_label_revert_keeps_candidate_suppressed_and_audits(self):
+        """A failed GitLab API revert must not clear the unresolved-review gate."""
+        from oompah.server import _revert_unauthorized_status_label_change
+        from oompah.webhooks import WebhookEvent
+
+        class FailedRevertClient(StatefulFakeClient):
+            def request(self, method: str, path: str, **kwargs):
+                if method == "PUT" and "labels" in kwargs.get("json", {}):
+                    raise TrackerError("GitLab API returned 500")
+                return super().request(method, path, **kwargs)
+
+        client = FailedRevertClient()
+        client._labels = ["task", "oompah:status:open"]
+        tracker = self._tracker(client)
+        tracker.record_trusted_status(2, "Backlog")
+        project = SimpleNamespace(
+            id="proj-gitlab-failed-revert",
+            name="gitlab-project",
+            tracker_owner="group/sub",
+            tracker_repo="project",
+        )
+        orchestrator = SimpleNamespace(_tracker_for_project=lambda _: tracker)
+        event = WebhookEvent(
+            provider="gitlab",
+            event_type="issues",
+            action="labeled",
+            repo_slug="group/sub/project",
+            issue_number="2",
+            label_name="oompah:status:open",
+            label_actor="untrusted-user",
+        )
+
+        _revert_unauthorized_status_label_change(orchestrator, event, project)
+
+        assert tracker._untrusted_status_issues == {2}
+        assert client._labels == ["task", "oompah:status:open"]
+        assert len(client._notes) == 1
+        assert tracker.fetch_candidate_issues() == []
