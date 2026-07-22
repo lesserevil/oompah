@@ -15,7 +15,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-21T20:34:42.051489Z'
-updated_at: '2026-07-22T07:51:18.882652Z'
+updated_at: '2026-07-22T07:51:26.971663Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -418,5 +418,10 @@ TESTS (69 new, all 11548 pass):
 DOCS:
 - docs/project-bootstrap.md: full GitLab section (token scopes, webhook HTTPS, auto-merge, merge-train non-support, state-branch push, dry-run, recovery, GitHub compat)
 - docs/operator-runbook.md: GITLAB_TOKEN and OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL table
+---
+author: oompah
+created: 2026-07-22 07:51
+---
+Verification: make test passed — 11548 passed, 36 skipped, 0 failures (up from 11479 before this change, adding 69 new tests). Branch pushed to origin/epic-OOMPAH-318 at b74e505da.
 ---
 <!-- COMMENTS:END -->
