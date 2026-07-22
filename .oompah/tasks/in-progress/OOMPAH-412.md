@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-412
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Audit and harden all shared-epic Merged promotion paths in orchestrator.py
 parent: OOMPAH-310
@@ -10,12 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T21:34:07.971835Z'
-updated_at: '2026-07-22T23:27:57.967071Z'
+updated_at: '2026-07-22T23:28:40.005904Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: b0d974b6-310e-47de-90c8-44d65f314e35
 ---
 ## Summary
 
@@ -54,3 +55,16 @@ For each gap found: add the appropriate guard (check rollup_strategy == 'shared'
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 23:28
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 23:28
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
