@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T21:34:25.679338Z'
-updated_at: '2026-07-22T23:58:52.713733Z'
+updated_at: '2026-07-22T23:59:01.071696Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 21d9c5f2-8bb2-4249-a6f5-8ed7f69f9cd4
 oompah.task_costs:
-  total_input_tokens: 1067437
-  total_output_tokens: 6433
+  total_input_tokens: 1067472
+  total_output_tokens: 7362
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1067437
-      output_tokens: 6433
+      input_tokens: 1067472
+      output_tokens: 7362
       cost_usd: 0.0
   runs:
   - profile: default
@@ -41,6 +41,12 @@ oompah.task_costs:
     output_tokens: 4680
     cost_usd: 0.0
     recorded_at: '2026-07-22T23:53:23.461333+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 35
+    output_tokens: 929
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T23:58:58.608023+00:00'
 ---
 ## Summary
 
@@ -188,5 +194,15 @@ author: oompah
 created: 2026-07-22 23:58
 ---
 Added 3 new regression tests (idempotency, Done-epic exclusion, label_merged_issues shared guard) covering all 6 required scenarios. 3 pre-existing tests confirmed. All pass on epic-OOMPAH-310 branch (commit 4e0fe8c07).
+---
+author: oompah
+created: 2026-07-22 23:59
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 15
+- Tokens: 35 in / 929 out [964 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 19s
+- Log: OOMPAH-413__20260722T235341Z.jsonl
 ---
 <!-- COMMENTS:END -->
