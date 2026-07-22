@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-22T22:27:30.568788Z'
+updated_at: '2026-07-22T22:27:33.738688Z'
 work_branch: epic-OOMPAH-323
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/534
@@ -770,5 +770,19 @@ author: oompah
 created: 2026-07-22 22:23
 ---
 YOLO: Merge conflict detected on MR #534. Rebase onto epic-OOMPAH-318 and resolve conflicts.
+---
+author: oompah
+created: 2026-07-22 22:27
+---
+Implementation: Rebased epic-OOMPAH-323 onto origin/epic-OOMPAH-318 (tip: ecd19a872). The branch now has exactly 2 feature commits: OOMPAH-338 (GitLab tracker metadata/tests) and OOMPAH-339 (status-label authorization/audit/revert).
+
+Key conflict resolution in oompah/webhooks.py: upstream OOMPAH-340 had separated Issue Hook parsing into a new _parse_gitlab_issue() function; our OOMPAH-339 had put status-label detection in _parse_gitlab_mr's Issue Hook branch (which became dead code after the split). Fixed by moving the oompah:status:* label governance logic into _parse_gitlab_issue, with resolved_event_type='issues' only when an actual status-label change is present (added/removed), preserving 'Issue Hook' for non-label events so upstream tests remain intact.
+
+Conflict in tests/test_webhooks.py also resolved: kept all 3 new Issue Hook label tests from OOMPAH-339 and replaced upstream's test_push_hook_missing_project_returns_none with test_non_mr_event_returns_none.
+---
+author: oompah
+created: 2026-07-22 22:27
+---
+YOLO: merged PR #534.
 ---
 <!-- COMMENTS:END -->
