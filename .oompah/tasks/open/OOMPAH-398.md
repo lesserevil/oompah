@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-398
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Add configurable stalled-task remediation watchdog
 parent: null
@@ -12,7 +12,7 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T04:02:31.604056Z'
+updated_at: '2026-07-22T04:03:17.205819Z'
 work_branch: null
 target_branch: null
 review_url: null
