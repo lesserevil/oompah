@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-323
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Implement GitLab Issues tracker with Oompah status governance
 parent: OOMPAH-318
@@ -21,7 +21,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T20:34:25.248230Z'
-updated_at: '2026-07-22T15:44:39.544315Z'
+updated_at: '2026-07-22T15:45:02.864450Z'
 work_branch: epic-OOMPAH-323
 target_branch: epic-OOMPAH-318
 review_url: https://github.com/lesserevil/oompah/pull/534
@@ -695,5 +695,10 @@ author: oompah
 created: 2026-07-22 15:44
 ---
 YOLO: Merge conflict detected on MR #534. Rebase onto epic-OOMPAH-318 and resolve conflicts.
+---
+author: oompah
+created: 2026-07-22 15:45
+---
+Discovery: Found 1 failing test (test_registry_contains_only_supported_tracker_kinds) because the uncommitted oompah/tracker.py changes add gitlab_issues/gitlab-issues to ADAPTER_REGISTRY but the test expects only GitHub and oompah_md entries. Plan: update tests/test_tracker_protocol.py to include gitlab entries, incorporate oompah/tracker.py + test update into OOMPAH-338, incorporate test_server_webhooks.py fix into OOMPAH-339, run make test, and force-push.
 ---
 <!-- COMMENTS:END -->
