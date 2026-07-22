@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-398
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Add configurable stalled-task remediation watchdog
 parent: null
@@ -12,7 +12,7 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T04:15:41.600734Z'
+updated_at: '2026-07-22T04:19:59.948966Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,19 @@ author: oompah
 created: 2026-07-22 04:15
 ---
 Implementation complete. Added: (1) oompah/stalled_task_watchdog.py — pure classification+remediation module auditing NEEDS_HUMAN, NEEDS_CI_FIX, NEEDS_REBASE, NEEDS_ANSWER states; (2) config.stalled_task_watchdog_interval_seconds (default 1800) in config.py with OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS env var; (3) .env.example entry; (4) _maybe_run_stalled_task_watchdog() + _do_stalled_task_watchdog() wired into _run_step5b_maintenance in orchestrator.py; (5) tests/test_stalled_task_watchdog.py with 74 tests. All 11338 tests pass.
+---
+author: oompah
+created: 2026-07-22 04:19
+---
+Completion: Stalled-task remediation watchdog implemented and pushed to origin/OOMPAH-398.
+
+Delivered:
+- oompah/stalled_task_watchdog.py: pure classifier auditing NEEDS_HUMAN, NEEDS_CI_FIX, NEEDS_REBASE, NEEDS_ANSWER, and custom Blocked/Stalled states; safe remediations (reopen when accidental stall, CI evidence, conflict resolved); idempotency via sentinel comments; telemetry via WatchdogAuditResult.to_dict()
+- config.py: stalled_task_watchdog_interval_seconds=1800, OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS env var, 60 s minimum clamp
+- orchestrator.py: _maybe_run_stalled_task_watchdog() + _do_stalled_task_watchdog() wired into _run_step5b_maintenance(); telemetry in _maintenance_status
+- .env.example: OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS documented
+- tests/test_stalled_task_watchdog.py: 74 tests; all 11338 project tests pass
+
+Acceptance criteria verified: default 30-minute interval configurable only via env var; no duplicate actions across runs; automated changes explained via comments and maintenance snapshot; genuine human blockers left untouched.
 ---
 <!-- COMMENTS:END -->
