@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-345
 type: bug
-status: In Review
-priority: 2
+status: Needs CI Fix
+priority: 0
 title: '[backend:server] Update issue API error: Cannot sync state branch ''oompah/state/proj-14849f1b'':
   git fetch origin ''oompah/state/proj-14849f1b'' failed: . Remediation: verify network
   access and remote...'
@@ -12,9 +12,10 @@ blocked_by: []
 labels:
 - external:github
 - focus-complete:duplicate_detector
+- ci-fix
 assignee: null
 created_at: '2026-07-22T00:38:50.948182Z'
-updated_at: '2026-07-22T02:08:17.643222Z'
+updated_at: '2026-07-22T02:09:23.859161Z'
 work_branch: OOMPAH-345
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/491
@@ -328,5 +329,10 @@ Run #5 [attempt=5, profile=deep, role=deep -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 26m 44s
 - Log: OOMPAH-345__20260722T014117Z.jsonl
+---
+author: oompah
+created: 2026-07-22 02:09
+---
+YOLO: CI tests failed on MR #491. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
