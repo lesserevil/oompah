@@ -8,6 +8,7 @@ Covers:
 - _monitor_merged_delivery_ci: no remediation on passing CI.
 - _monitor_merged_delivery_ci: no remediation on pending CI.
 - _monitor_merged_delivery_ci: creates remediation task on failed release branch CI.
+- _monitor_merged_delivery_ci: a failed GitLab release pipeline creates one task.
 - _check_and_remediate_delivery_ci: dispatches remediation on CI failure.
 - _dispatch_release_ci_fix_task: stamps ci_remediation_task_id before creating task.
 - _dispatch_release_ci_fix_task: idempotency — already-stamped delivery skipped.
@@ -239,6 +240,37 @@ class TestMonitorMergedDeliveryCi:
         assert task_kwargs["labels"] == ["release-ci-failure", "ci-fix"]
         # Verify idempotency stamp was set
         assert store._deliveries[0].ci_remediation_task_id == "OOMPAH-1"
+
+    def test_gitlab_failed_release_pipeline_creates_one_project_task(self):
+        """GitLab pipeline failures use the neutral SCM contract once per delivery."""
+        d = _delivery(
+            ci_remediation_task_id=None,
+            result_commits=[_RESULT_SHA],
+            pr_url="https://gitlab.com/group/trickle/-/merge_requests/303",
+        )
+
+        _orch, created, store = _make_orchestrator(
+            [d],
+            ci_status="failed",
+            repo_url="https://gitlab.com/group/trickle.git",
+        )
+
+        assert len(created) == 1
+        assert created[0]["initial_status"] == "Needs CI Fix"
+        assert (
+            "https://gitlab.com/group/trickle/-/merge_requests/303"
+            in created[0]["description"]
+        )
+        assert store._deliveries[0].ci_remediation_task_id == "OOMPAH-1"
+
+        # On a later monitor tick the recorded project-local task prevents a
+        # second remediation task for the same failed GitLab pipeline.
+        _orch, retry_created, _retry_store = _make_orchestrator(
+            [store._deliveries[0]],
+            ci_status="failed",
+            repo_url="https://gitlab.com/group/trickle.git",
+        )
+        assert retry_created == []
 
     def test_ci_passed_no_remediation(self):
         """Passed CI → no remediation task."""

@@ -462,11 +462,18 @@ class TestGitLabWebhookEndpoint:
         assert "Invalid token" in resp.json().get("error", "")
         orch.request_refresh.assert_not_called()
 
-    def test_push_event_ignored(self, client_gitlab):
+    def test_push_event_is_processed_and_refreshes_tracked_branch(self, client_gitlab):
+        """A GitLab push to the tracked branch wakes polling immediately."""
         client, orch = client_gitlab
         resp = client.post(
             "/api/v1/webhooks/gitlab",
-            content=json.dumps({"ref": "refs/heads/main"}),
+            content=json.dumps(
+                {
+                    "ref": "refs/heads/main",
+                    "user_username": "tanuki",
+                    "project": {"path_with_namespace": "group/project"},
+                }
+            ),
             headers={
                 "X-Gitlab-Event": "Push Hook",
                 "X-Gitlab-Token": "gl-secret",
@@ -474,8 +481,8 @@ class TestGitLabWebhookEndpoint:
             },
         )
         assert resp.status_code == 200
-        assert resp.json()["action"] == "ignored"
-        orch.request_refresh.assert_not_called()
+        assert resp.json()["action"] == "processed"
+        orch.request_refresh.assert_called_once()
 
     def test_missing_event_header(self, client_gitlab):
         client, _ = client_gitlab

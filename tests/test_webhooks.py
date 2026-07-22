@@ -5,8 +5,8 @@ Covers:
 - GitLab secret token validation
 - GitHub pull_request payload parsing
 - GitHub issues / issue_comment / label / projects_v2_item payload parsing
-- GitLab Merge Request Hook payload parsing
-- Non-PR/MR event rejection
+- GitLab project-hook payload parsing (push, MR, issue, note, pipeline, job)
+- Unknown GitLab event rejection
 - Project matching by repo slug
 - WebhookEvent dataclass fields
 - WebhookForwarder subprocess management
@@ -856,7 +856,7 @@ class TestParseGitHubProjectsV2ItemWebhook:
 
 
 class TestParseGitLabWebhook:
-    """Tests for parse_gitlab_webhook()."""
+    """GitLab Project Hook payloads normalize into forge webhook events."""
 
     def test_mr_open(self):
         payload = _gitlab_mr_payload(action="open")
@@ -893,11 +893,97 @@ class TestParseGitLabWebhook:
         assert event is not None
         assert event.action == "update"
 
-    def test_non_mr_event_returns_none(self):
-        assert parse_gitlab_webhook("Push Hook", {"ref": "refs/heads/main"}) is None
+    @pytest.mark.parametrize(
+        ("event_type", "payload", "expected"),
+        [
+            (
+                "Push Hook",
+                {
+                    "ref": "refs/heads/main",
+                    "user_username": "tanuki",
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "pushed", "target_branch": "main", "author": "tanuki"},
+            ),
+            (
+                "Issue Hook",
+                {
+                    "object_attributes": {
+                        "iid": 11,
+                        "action": "open",
+                        "title": "Track webhook work",
+                    },
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "open", "issue_number": "11", "title": "Track webhook work"},
+            ),
+            (
+                "Note Hook",
+                {
+                    "object_attributes": {
+                        "id": 123,
+                        "action": "create",
+                        "noteable_type": "Issue",
+                        "noteable_iid": 11,
+                    },
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "create", "issue_number": "11", "comment_id": "123"},
+            ),
+            (
+                "Pipeline Hook",
+                {
+                    "object_attributes": {"status": "success", "ref": "main"},
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "success", "target_branch": "main"},
+            ),
+            (
+                "Job Hook",
+                {
+                    "build_status": "failed",
+                    "ref": "main",
+                    "user": {"username": "tanuki"},
+                    "project": {"path_with_namespace": "group/project"},
+                },
+                {"action": "failed", "target_branch": "main"},
+            ),
+        ],
+        ids=("push", "issue", "note", "pipeline", "job"),
+    )
+    def test_supported_project_hook_is_normalized(self, event_type, payload, expected):
+        event = parse_gitlab_webhook(event_type, payload)
 
-    def test_pipeline_event_returns_none(self):
-        assert parse_gitlab_webhook("Pipeline Hook", {}) is None
+        assert event is not None
+        assert event.provider == "gitlab"
+        assert event.event_type == event_type
+        assert event.repo_slug == "group/project"
+        for field, value in expected.items():
+            assert getattr(event, field) == value
+
+    def test_label_update_retains_label_name_for_downstream_invalidation(self):
+        payload = {
+            "object_attributes": {
+                "iid": 11,
+                "action": "update",
+                "title": "Track webhook work",
+            },
+            "changes": {"labels": {"previous": [], "current": ["oompah:status:Open"]}},
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+
+        event = parse_gitlab_webhook("Issue Hook", payload)
+
+        assert event is not None
+        assert event.issue_number == "11"
+        assert event.label_name == "oompah:status:Open"
+
+    def test_unknown_event_returns_none(self):
+        assert parse_gitlab_webhook("Wiki Page Hook", {}) is None
 
     def test_missing_object_attributes_returns_none(self):
         assert parse_gitlab_webhook("Merge Request Hook", {"user": {}}) is None
@@ -1073,7 +1159,9 @@ class TestWebhookForwarderInit:
     """Tests for WebhookForwarder.__init__()."""
 
     def test_default_webhook_url(self):
-        fwd = WebhookForwarder()
+        # Pass the configured default explicitly so this contract does not
+        # depend on a developer's OOMPAH_SERVER_PORT environment variable.
+        fwd = WebhookForwarder(server_port=8080)
         assert fwd._webhook_url == "http://localhost:8080/api/v1/webhooks/github"
 
     def test_default_webhook_url_uses_server_port_arg(self):
