@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T05:42:33.026489Z'
+updated_at: '2026-07-22T05:43:06.405193Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,23 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-22T05:35:18.775008+00:00'
-oompah.agent_run_id: 3a7b4c04-d8d9-4f8b-a9c3-7d0daeaf5c21
+oompah.agent_run_id: c7f5d501-3092-44ef-af2a-1030260d89d4
+oompah.task_costs:
+  total_input_tokens: 40
+  total_output_tokens: 7393
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 40
+      output_tokens: 7393
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 40
+    output_tokens: 7393
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T05:42:56.405887+00:00'
 ---
 ## Summary
 
@@ -135,5 +151,62 @@ Looking at OOMPAH-339's comment history, there were multiple 'terminated' exit e
 3. Filter this specific error class in error_watcher to suppress known-acceptable shutdown noise
 
 Key file: oompah/orchestrator.py ~line 18890-18930 (the _cancel_running_worker or similar method)
+---
+author: oompah
+created: 2026-07-22 05:42
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome:** OOMPAH-403 is NOT a duplicate. No existing task covers the 'Worker did not stop within 10000ms; continuing shutdown' error from backend:orchestrator.
+
+2. **Evidence:**
+   - Searched all 280+ tasks across all states for keywords: stop within, 10000ms, did not stop, Worker, backend:orchestrator, shutdown+worker, worker+shutdown
+   - All searches returned zero results
+   - Confirmed error source: oompah/orchestrator.py line 18906, logger.error() call inside worker cancellation wait block
+   - Code context (lines 18890-18930): orchestrator cancels worker_task on shutdown, waits up to worker_termination_timeout_ms (default 10000ms), logs ERROR if task doesn't finish in time
+
+3. **Key files:**
+   - oompah/orchestrator.py ~line 18890-18930: the worker shutdown block with logger.error() that triggers error_watcher
+   - .env.example: OOMPAH_WORKER_TERMINATION_TIMEOUT_MS if configurable
+   - oompah/error_watcher.py or similar: error classification logic
+
+4. **Root cause options for implementation:**
+   - Option A (preferred): Downgrade logger.error() → logger.warning() for the shutdown timeout case — this is expected behavior during a hard kill of a long-running agent, not an actionable error
+   - Option B: Add a filter in error_watcher to suppress 'Worker did not stop within' as a known-acceptable shutdown event
+   - Option C: Increase worker_termination_timeout_ms default or document OOMPAH_WORKER_TERMINATION_TIMEOUT_MS in .env.example
+
+5. **Remaining work:** Fix the log level or error_watcher filter so this expected shutdown event doesn't get auto-filed as a bug. Add a regression test confirming the fix.
+
+6. **Recommended next focus:** chore (log level fix is a small cleanup) or feature (if error_watcher filter needs design)
+---
+author: oompah
+created: 2026-07-22 05:42
+---
+Agent completed successfully in 442s (7433 tokens)
+---
+author: oompah
+created: 2026-07-22 05:42
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 52, Tool calls: 37
+- Tokens: 40 in / 7.4K out [7.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 22s
+- Log: OOMPAH-403__20260722T053536Z.jsonl
+---
+author: oompah
+created: 2026-07-22 05:43
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-22 05:43
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 05:43
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->

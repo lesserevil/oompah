@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-308
 type: task
-status: In Progress
+status: Needs Human
 priority: null
 title: Fix stale work_branch metadata for native shared-epic children and update to
   epic branch on dispatch
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T16:52:58.139774Z'
-updated_at: '2026-07-22T05:42:10.803656Z'
+updated_at: '2026-07-22T05:42:55.697483Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 8d4c8b28-0c61-457b-9ba1-5cd039491291
 oompah.task_costs:
-  total_input_tokens: 1099789
-  total_output_tokens: 4978
+  total_input_tokens: 1440452
+  total_output_tokens: 6599
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1099789
-      output_tokens: 4978
+      input_tokens: 1440452
+      output_tokens: 6599
       cost_usd: 0.0
   runs:
   - profile: default
@@ -46,6 +46,12 @@ oompah.task_costs:
     output_tokens: 1409
     cost_usd: 0.0
     recorded_at: '2026-07-22T05:41:43.382561+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 340663
+    output_tokens: 1621
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T05:42:52.019059+00:00'
 ---
 ## Summary
 
@@ -233,5 +239,25 @@ author: oompah
 created: 2026-07-22 05:42
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 05:42
+---
+Agent completed successfully in 43s (342284 tokens)
+---
+author: oompah
+created: 2026-07-22 05:42
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Codex/default]
+- Turns: 1, Tool calls: 5
+- Tokens: 340.7K in / 1.6K out [342.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 43s
+- Log: OOMPAH-308__20260722T054210Z.jsonl
+---
+author: oompah
+created: 2026-07-22 05:42
+---
+Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
