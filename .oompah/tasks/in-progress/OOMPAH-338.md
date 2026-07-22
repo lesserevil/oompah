@@ -8,10 +8,11 @@ parent: OOMPAH-323
 children: []
 blocked_by:
 - OOMPAH-337
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:39.407769Z'
-updated_at: '2026-07-22T02:47:58.054874Z'
+updated_at: '2026-07-22T03:07:23.833395Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -86,5 +87,29 @@ author: oompah
 created: 2026-07-22 02:47
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 03:07
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: OOMPAH-338 is NOT a duplicate. No existing task covers the same scope.
+
+2. **Evidence and relevant files**:
+   - Searched all 282 task files in .oompah/tasks/ for: GitLab, gitlab, GitLabIssueTracker, lifecycle, metadata persistence, fetch_children, add_parent_child, add_dependency, set_attachments, get_metadata, TrackerProtocol, issue links — no matches across any task file.
+   - The closest architectural context is plans/gitlab-forge-parity.md, which describes the overall GitLab integration design. OOMPAH-338 implements a specific sub-scope from that plan.
+   - Existing code: oompah/gitlab_tracker.py (541 lines) has stub implementations for: add_parent_child (label-based, not link-based), add_dependency (label-based), fetch_attachments (returns []), set_attachments (no-op), get_metadata (returns {}), set_metadata_field (raises TrackerError). Tests in tests/test_gitlab_tracker.py (167 lines) are basic stubs.
+   - OOMPAH-337 (blocker) is not present in .oompah/tasks/ filesystem (must be a recently created/in-memory task not yet committed to git).
+
+3. **Remaining work**: Implementation of GitLabIssueTracker lifecycle relationships and metadata persistence, specifically:
+   - Priority/type label round-trips in create_issue/update_issue/_issue
+   - Issue link API for parent-child (is_parent_of / is_child_of link types) and blocked-by relationships (blocks/is_blocked_by)
+   - fetch_children using GitLab issue links
+   - Comment-based attachment/metadata round-trips (since GitLab lacks native metadata fields)
+   - fetch_issue_detail enrichment with links/metadata from notes
+   - Archive/reopen behavior testing
+   - Mocked API tests for all of the above
+
+4. **Recommended next focus**: feature — implement the TrackerProtocol relationship and metadata methods in GitLabIssueTracker.
 ---
 <!-- COMMENTS:END -->
