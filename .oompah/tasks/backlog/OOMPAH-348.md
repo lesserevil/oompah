@@ -5,14 +5,18 @@ status: Backlog
 priority: 1
 title: Eliminate Oompah service wedge failure modes
 parent: null
-children: []
+children:
+- OOMPAH-349
+- OOMPAH-350
+- OOMPAH-351
+- OOMPAH-352
 blocked_by: []
 labels:
 - reliability
 - service-wedge
 assignee: null
 created_at: '2026-07-22T00:56:17.834972Z'
-updated_at: '2026-07-22T00:56:17.834972Z'
+updated_at: '2026-07-22T00:56:40.589455Z'
 work_branch: null
 target_branch: null
 review_url: null

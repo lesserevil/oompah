@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-347
 type: task
-status: In Progress
+status: Open
 priority: 0
 title: Rebase epic-OOMPAH-323 onto epic-OOMPAH-318
 parent: OOMPAH-323
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:51:56.983167Z'
-updated_at: '2026-07-22T00:53:21.919830Z'
+updated_at: '2026-07-22T00:56:37.035608Z'
 work_branch: null
 target_branch: null
 review_url: null
