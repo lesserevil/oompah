@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:34:28.175529Z'
-updated_at: '2026-07-22T05:08:06.334006Z'
+updated_at: '2026-07-22T05:08:22.639492Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 56d0d6d5-13ac-429f-8347-2158321d373d
 oompah.task_costs:
-  total_input_tokens: 3777834
-  total_output_tokens: 22866
+  total_input_tokens: 3777901
+  total_output_tokens: 71048
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 3777834
-      output_tokens: 22866
+      input_tokens: 3777901
+      output_tokens: 71048
       cost_usd: 0.0
   runs:
   - profile: default
@@ -78,6 +78,12 @@ oompah.task_costs:
     output_tokens: 2942
     cost_usd: 0.0
     recorded_at: '2026-07-22T04:00:28.644900+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 67
+    output_tokens: 48182
+    cost_usd: 0.0
+    recorded_at: '2026-07-22T05:08:18.766053+00:00'
 ---
 ## Summary
 
@@ -485,5 +491,20 @@ author: oompah
 created: 2026-07-22 05:08
 ---
 Added 51 tests in tests/test_gitlab_review_flows.py covering GitLab fake-provider flows (normal review, failed/pending CI, rebase/conflict, auto-merge rejection, merge outcome, branch protection, release delivery CI remediation idempotency) and GitHub regression tests for same flows. Updated tests/test_release_delivery_ci_monitor.py to support repo_slug and scm_instances parameters. make test passes (11378 passed).
+---
+author: oompah
+created: 2026-07-22 05:08
+---
+Agent completed successfully in 1216s (48249 tokens)
+---
+author: oompah
+created: 2026-07-22 05:08
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 124, Tool calls: 100
+- Tokens: 67 in / 48.2K out [48.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 20m 16s
+- Log: OOMPAH-326__20260722T044805Z.jsonl
 ---
 <!-- COMMENTS:END -->
