@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-348
 type: epic
-status: Backlog
+status: In Progress
 priority: 1
 title: Eliminate Oompah service wedge failure modes
 parent: null
@@ -16,7 +16,7 @@ labels:
 - service-wedge
 assignee: null
 created_at: '2026-07-22T00:56:17.834972Z'
-updated_at: '2026-07-22T00:56:40.589455Z'
+updated_at: '2026-07-22T00:57:03.340204Z'
 work_branch: null
 target_branch: null
 review_url: null
