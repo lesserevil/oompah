@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-346
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Reserve round-robin providers atomically at dispatch time
 parent: null
@@ -12,12 +12,13 @@ labels:
 - round-robin
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T00:50:42.815497Z'
+updated_at: '2026-07-22T00:56:11.208109Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 5a7e9a5a-a07e-43ab-8479-f4968965f8f1
 ---
 ## Summary
 
@@ -50,3 +51,16 @@ Acceptance criteria
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-22 00:56
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-22 00:56
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-345
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:server] Update issue API error: Cannot sync state branch ''oompah/state/proj-14849f1b'':
   git fetch origin ''oompah/state/proj-14849f1b'' failed: . Remediation: verify network
@@ -12,10 +12,9 @@ blocked_by: []
 labels:
 - external:github
 - focus-complete:duplicate_detector
-- needs:feature
 assignee: null
 created_at: '2026-07-22T00:38:50.948182Z'
-updated_at: '2026-07-22T00:53:02.446557Z'
+updated_at: '2026-07-22T00:56:15.547724Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +43,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-22T00:39:02.560010+00:00'
-oompah.agent_run_id: 8b55b10d-2a1b-4777-87e0-70103b776692
+oompah.agent_run_id: 256584a1-d013-4533-99c4-284c5e17836e
 oompah.task_costs:
   total_input_tokens: 18
   total_output_tokens: 5734
@@ -202,5 +201,15 @@ author: oompah
 created: 2026-07-22 00:53
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-22 00:56
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-22 00:56
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
