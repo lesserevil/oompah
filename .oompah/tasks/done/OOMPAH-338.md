@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-338
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Add GitLab tracker lifecycle relationships and metadata persistence
 parent: OOMPAH-323
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:39.407769Z'
-updated_at: '2026-07-22T03:51:34.484546Z'
+updated_at: '2026-07-22T03:51:52.984451Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -188,5 +188,23 @@ New test coverage (100 tests in tests/test_gitlab_tracker.py, up from 5):
 - GitLabClient: 5 tests (pagination, 401/403 auth errors, 404/4xx TrackerError, 5xx retry)
 - Registry: 4 tests (project arg, owner+repo, missing project, missing token)
 - Status helpers: 4 tests (slug format, label→status, fallbacks)
+---
+author: oompah
+created: 2026-07-22 03:51
+---
+Completion: Delivered GitLab tracker lifecycle relationships and metadata persistence.
+
+Acceptance criteria met:
+- get_metadata/set_metadata_field: functional with oompah. prefix enforcement, description-embedded HTML comment block
+- fetch_attachments/set_attachments: full round-trip (store/retrieve list of dicts via metadata)
+- Priority/type label round-trips: verified in create_issue (priority:N, type label) and update_issue (label replacement)
+- Parent-child (add_parent_child + fetch_children): label-based, tested with multi-issue fixture
+- Blocked-by dependency (add_dependency): label-based, tested
+- Archive/reopen state transitions: state_event close/reopen + oompah:status:archived label verified
+- All operations have mocked API tests with no external network calls
+- 100 tests, 100% pass, no regressions in full suite (11441 tests)
+
+Files changed: oompah/gitlab_tracker.py, tests/test_gitlab_tracker.py
+Branch: epic-OOMPAH-323 (pushed)
 ---
 <!-- COMMENTS:END -->
