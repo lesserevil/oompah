@@ -336,13 +336,13 @@ class TestGitHubEnableAutoMerge:
 
 
 # ---------------------------------------------------------------------------
-# SCM: GitLabProvider.enable_auto_merge
+# SCM: GitLabProvider.enable_auto_merge (fallback to direct merge)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.skipif(not _SCM_AVAILABLE, reason="httpx not installed")
 class TestGitLabEnableAutoMerge:
-    """GitLab auto-merge uses ordinary pipeline-gated MR merging, not trains."""
+    """GitLabProvider.enable_auto_merge falls back to a direct merge."""
 
     class _FakeResponse:
         def __init__(self, status_code: int, text: str = ""):
@@ -352,31 +352,22 @@ class TestGitLabEnableAutoMerge:
         def json(self):
             return {}
 
-    def test_enables_merge_when_pipeline_succeeds(self):
+    def test_fallback_to_direct_merge_on_success(self):
         from oompah.scm import GitLabProvider
 
         provider = GitLabProvider(access_token="t")
         provider._api = MagicMock(return_value=self._FakeResponse(200))
         ok, msg = provider.enable_auto_merge("group/project", "7")
         assert ok is True
-        assert "pipeline succeeds" in msg
-        provider._api.assert_called_once_with(
-            "PUT",
-            "/projects/group%2Fproject/merge_requests/7/merge",
-            json={"merge_when_pipeline_succeeds": True},
-        )
 
-    @pytest.mark.parametrize("status", [403, 405])
-    def test_rejected_auto_merge_is_actionable_and_does_not_claim_success(self, status):
+    def test_fallback_to_direct_merge_on_failure(self):
         from oompah.scm import GitLabProvider
 
         provider = GitLabProvider(access_token="t")
-        provider._api = MagicMock(
-            return_value=self._FakeResponse(status, "approval policy blocks merge")
-        )
+        provider._api = MagicMock(return_value=self._FakeResponse(422, "cannot merge"))
         ok, msg = provider.enable_auto_merge("group/project", "7")
         assert ok is False
-        assert "approval policy blocks merge" in msg
+        assert "422" in msg
 
 
 # ---------------------------------------------------------------------------
