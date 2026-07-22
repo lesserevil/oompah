@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-340
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Extend parse_gitlab_webhook and server handler for Push/Issue/Note/Pipeline/Job
   hooks
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:28:20.576396Z'
-updated_at: '2026-07-22T02:47:59.727555Z'
+updated_at: '2026-07-22T03:07:03.823959Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -232,5 +232,39 @@ author: oompah
 created: 2026-07-22 02:47
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-22 03:06
+---
+Completion: OOMPAH-340 is fully implemented and pushed. Summary of work:
+
+## Implementation (commit ca8d091a9 on epic-OOMPAH-325)
+
+### oompah/webhooks.py
+- Refactored inline MR parsing into private _parse_gitlab_mr() helper
+- Added _parse_gitlab_push(): parses Push Hook, strips refs/heads/ and refs/tags/ prefixes, prefers user_username over user_name
+- Added _parse_gitlab_issue(): parses Issue Hook, populates issue_number
+- Added _parse_gitlab_note(): parses Note Hook (comments on MRs, issues, commits, snippets), cross-links via issue_number and comment_id
+- Added _parse_gitlab_pipeline(): parses Pipeline Hook, stores status as action and pipeline ID as review_id
+- Added _parse_gitlab_job(): parses Job Hook, extracts repo_slug from repository.homepage URL
+- Updated parse_gitlab_webhook() to route to appropriate helper; unrecognised event types log at DEBUG and return None
+
+### oompah/server.py
+- _webhook_advanced_tracked_branch: handles Push Hook and MR Hook merged=True
+- _DISPATCH_AFFECTING_ISSUE_ACTIONS: added GitLab action names (open, close, reopen, update, delete)
+- _webhook_should_request_refresh: handles Note Hook (like issue_comment), Issue Hook (like issues), Push Hook (like push)
+- Cache invalidation: Issue Hook invalidates issues:all and per-issue detail; Note Hook invalidates issues:all and per-issue comments; Push Hook invalidates release branch catalog and commit inventory
+
+## Tests
+- 31 tests in TestParseGitLabWebhook covering all 6 hook types + edge cases
+- 19 tests in TestGitLabWebhookEndpoint (10 new)
+- 25 tests in TestWebhookShouldRequestRefresh (10 new)
+- All tests pass
+
+## This run
+- Recovered from stalled agent #5 that had staged 1,607-line deletions reverting all OOMPAH-340 work
+- Discarded the destructive staged changes
+- Rebased epic-OOMPAH-325 onto origin/main (resolved conflict in test_epic_rebase_state.py)
+- Force-pushed the rebased branch to origin
 ---
 <!-- COMMENTS:END -->
