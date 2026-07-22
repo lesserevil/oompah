@@ -3447,6 +3447,64 @@ class TestLabelMergedEpics:
         for call in tracker.update_issue.call_args_list:
             assert call.kwargs.get("status") == "Merged"
 
+    def test_does_not_mark_child_merged_while_its_review_is_open(self, tmp_path):
+        """A landed rollup must not close a child's unresolved PR/MR."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            state="Backlog",
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="c1", state="Needs Rebase", project_id=proj.id
+        )
+        child.work_branch = "epic-c1"
+        orch._reviews_cache = {
+            proj.id: [
+                ReviewRequest(
+                    id="77",
+                    title="c1",
+                    url="https://example.test/pr/77",
+                    author="alice",
+                    state="open",
+                    source_branch="epic-c1",
+                    target_branch="epic-1",
+                    created_at="",
+                    updated_at="",
+                    has_conflicts=True,
+                )
+            ]
+        }
+        orch._merged_branches = {"epic-epic-1"}
+        provider = MagicMock()
+        provider.list_merged_reviews.return_value = [
+            ReviewRequest(
+                id="12",
+                title="epic-1",
+                url="https://example.test/pr/12",
+                author="alice",
+                state="merged",
+                source_branch="epic-epic-1",
+                target_branch="main",
+                created_at="",
+                updated_at="",
+            )
+        ]
+        tracker = MagicMock()
+        with (
+            patch.object(orch, "_all_non_terminal_epics", return_value=[epic]),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+        ):
+            orch._label_merged_epics()
+
+        marked = [call.args[0] for call in tracker.update_issue.call_args_list]
+        assert marked == ["epic-1"]
+
     def test_noop_when_epic_branch_not_merged(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])

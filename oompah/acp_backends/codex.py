@@ -242,6 +242,37 @@ def _get_worktree_git_meta_dir(workspace_path: str) -> str | None:
     return None
 
 
+def _get_worktree_git_write_dirs(workspace_path: str) -> list[str] | None:
+    """Return the narrow git metadata paths a worktree needs to mutate.
+
+    Git writes worktree-local state (such as ``index``) in the gitdir, but
+    operations including ``fetch`` and ``rebase`` also create locks in Git's
+    shared common directory (normally the repository's ``.git`` directory).
+    The latter is declared by the worktree metadata's ``commondir`` file.
+    Both are metadata-only paths; the repository's working files remain out of
+    the Codex sandbox allowlist.
+    """
+    git_meta_dir = _get_worktree_git_meta_dir(workspace_path)
+    if not git_meta_dir:
+        return None
+
+    paths = [git_meta_dir]
+    common_dir_file = os.path.join(git_meta_dir, "commondir")
+    try:
+        with open(common_dir_file) as fh:
+            common_dir = fh.read().strip()
+    except OSError:
+        return paths
+    if not common_dir:
+        return paths
+    if not os.path.isabs(common_dir):
+        common_dir = os.path.normpath(os.path.join(git_meta_dir, common_dir))
+    common_dir = os.path.realpath(common_dir)
+    if os.path.isdir(common_dir) and common_dir != os.path.realpath(git_meta_dir):
+        paths.append(common_dir)
+    return paths
+
+
 class CodexAcpBackendSession(AcpBackendSession):
     """OpenAI-Agents-SDK-driven session handle.
 
@@ -692,8 +723,7 @@ class CodexAcpBackendSession(AcpBackendSession):
         # ``.git/worktrees/<branch>/``.  Add that directory as an additional
         # writable path so ``git add``, ``git commit``, and ``git pull --rebase``
         # work without broadening access to the entire repository.
-        git_meta_dir = _get_worktree_git_meta_dir(self._options.workspace_path)
-        additional_dirs: list[str] | None = [git_meta_dir] if git_meta_dir else None
+        additional_dirs = _get_worktree_git_write_dirs(self._options.workspace_path)
 
         try:
             codex = Codex(env=cli_env)

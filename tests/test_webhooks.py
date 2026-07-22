@@ -22,9 +22,11 @@ import json
 import os
 import tempfile
 
+import httpx
 import pytest
 
 from oompah.webhooks import (
+    GitLabHookManager,
     WebhookEvent,
     WebhookForwarder,
     _ForwarderProcess,
@@ -895,11 +897,16 @@ class TestParseGitLabWebhook:
         assert event is not None
         assert event.action == "update"
 
-    def test_non_mr_event_returns_none(self):
+    def test_push_hook_missing_project_returns_none(self):
+        # Push Hook without a project field → cannot determine repo_slug → None
         assert parse_gitlab_webhook("Push Hook", {"ref": "refs/heads/main"}) is None
 
-    def test_pipeline_event_returns_none(self):
+    def test_pipeline_event_missing_project_returns_none(self):
+        # Empty Pipeline Hook (no project) → None
         assert parse_gitlab_webhook("Pipeline Hook", {}) is None
+
+    def test_unknown_event_returns_none(self):
+        assert parse_gitlab_webhook("Confidential Issue Hook", {}) is None
 
     def test_missing_object_attributes_returns_none(self):
         assert parse_gitlab_webhook("Merge Request Hook", {"user": {}}) is None
@@ -909,6 +916,289 @@ class TestParseGitLabWebhook:
         event = parse_gitlab_webhook("Merge Request Hook", payload)
         assert event is not None
         assert event.raw is payload
+
+    # ------------------------------------------------------------------
+    # Push Hook tests
+    # ------------------------------------------------------------------
+
+    def test_push_hook_branch(self):
+        payload = {
+            "ref": "refs/heads/feature-x",
+            "user_username": "tanuki",
+            "user_name": "Tanuki User",
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Push Hook", payload)
+        assert event is not None
+        assert event.provider == "gitlab"
+        assert event.event_type == "Push Hook"
+        assert event.action == "pushed"
+        assert event.repo_slug == "group/project"
+        assert event.target_branch == "feature-x"
+        assert event.author == "tanuki"
+
+    def test_push_hook_main_branch(self):
+        payload = {
+            "ref": "refs/heads/main",
+            "user_username": "tanuki",
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Push Hook", payload)
+        assert event is not None
+        assert event.target_branch == "main"
+        assert event.source_branch == ""
+
+    def test_push_hook_tag(self):
+        payload = {
+            "ref": "refs/tags/v1.2.3",
+            "user_username": "tanuki",
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Push Hook", payload)
+        assert event is not None
+        assert event.target_branch == "v1.2.3"
+
+    def test_push_hook_falls_back_to_user_name(self):
+        payload = {
+            "ref": "refs/heads/main",
+            "user_name": "Display Name",
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Push Hook", payload)
+        assert event is not None
+        assert event.author == "Display Name"
+
+    def test_push_hook_raw_payload_preserved(self):
+        payload = {
+            "ref": "refs/heads/main",
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Push Hook", payload)
+        assert event is not None
+        assert event.raw is payload
+
+    # ------------------------------------------------------------------
+    # Issue Hook tests
+    # ------------------------------------------------------------------
+
+    def test_issue_hook_open(self):
+        payload = {
+            "object_attributes": {
+                "iid": 42,
+                "title": "Bug report",
+                "action": "open",
+                "state": "opened",
+            },
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Issue Hook", payload)
+        assert event is not None
+        assert event.provider == "gitlab"
+        assert event.event_type == "Issue Hook"
+        assert event.action == "open"
+        assert event.repo_slug == "group/project"
+        assert event.issue_number == "42"
+        assert event.review_id == "42"
+        assert event.title == "Bug report"
+        assert event.author == "tanuki"
+
+    def test_issue_hook_close(self):
+        payload = {
+            "object_attributes": {
+                "iid": 10,
+                "title": "Old issue",
+                "action": "close",
+                "state": "closed",
+            },
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Issue Hook", payload)
+        assert event is not None
+        assert event.action == "close"
+        assert event.issue_number == "10"
+
+    def test_issue_hook_missing_project_returns_none(self):
+        payload = {
+            "object_attributes": {"iid": 1, "title": "t", "action": "open"},
+        }
+        event = parse_gitlab_webhook("Issue Hook", payload)
+        assert event is None
+
+    def test_issue_hook_missing_attrs_returns_none(self):
+        payload = {"project": {"path_with_namespace": "group/project"}}
+        event = parse_gitlab_webhook("Issue Hook", payload)
+        assert event is None
+
+    # ------------------------------------------------------------------
+    # Note Hook tests
+    # ------------------------------------------------------------------
+
+    def test_note_hook_on_issue(self):
+        payload = {
+            "object_attributes": {
+                "id": 301,
+                "note": "This is a comment",
+                "noteable_type": "Issue",
+                "action": "create",
+            },
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+            "issue": {"iid": 5},
+        }
+        event = parse_gitlab_webhook("Note Hook", payload)
+        assert event is not None
+        assert event.provider == "gitlab"
+        assert event.event_type == "Note Hook"
+        assert event.action == "create"
+        assert event.repo_slug == "group/project"
+        assert event.comment_id == "301"
+        assert event.issue_number == "5"
+        assert event.review_id == "5"
+        assert event.author == "tanuki"
+
+    def test_note_hook_on_merge_request(self):
+        payload = {
+            "object_attributes": {
+                "id": 999,
+                "note": "LGTM",
+                "noteable_type": "MergeRequest",
+                "action": "create",
+            },
+            "user": {"username": "reviewer"},
+            "project": {"path_with_namespace": "group/project"},
+            "merge_request": {"iid": 7},
+        }
+        event = parse_gitlab_webhook("Note Hook", payload)
+        assert event is not None
+        assert event.comment_id == "999"
+        assert event.issue_number == "7"
+
+    def test_note_hook_no_related_object(self):
+        payload = {
+            "object_attributes": {
+                "id": 100,
+                "note": "standalone",
+                "noteable_type": "Commit",
+                "action": "create",
+            },
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Note Hook", payload)
+        assert event is not None
+        assert event.issue_number == ""
+
+    def test_note_hook_missing_project_returns_none(self):
+        payload = {
+            "object_attributes": {"id": 1, "note": "x", "action": "create"},
+        }
+        assert parse_gitlab_webhook("Note Hook", payload) is None
+
+    def test_note_hook_missing_attrs_returns_none(self):
+        payload = {"project": {"path_with_namespace": "group/project"}}
+        assert parse_gitlab_webhook("Note Hook", payload) is None
+
+    # ------------------------------------------------------------------
+    # Pipeline Hook tests
+    # ------------------------------------------------------------------
+
+    def test_pipeline_hook_success(self):
+        payload = {
+            "object_attributes": {
+                "id": 31,
+                "ref": "main",
+                "status": "success",
+            },
+            "user": {"username": "ci-runner"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Pipeline Hook", payload)
+        assert event is not None
+        assert event.provider == "gitlab"
+        assert event.event_type == "Pipeline Hook"
+        assert event.action == "success"
+        assert event.review_id == "31"
+        assert event.source_branch == "main"
+        assert event.target_branch == "main"
+        assert event.author == "ci-runner"
+
+    def test_pipeline_hook_failed(self):
+        payload = {
+            "object_attributes": {
+                "id": 99,
+                "ref": "feature-branch",
+                "status": "failed",
+            },
+            "user": {"username": "tanuki"},
+            "project": {"path_with_namespace": "group/project"},
+        }
+        event = parse_gitlab_webhook("Pipeline Hook", payload)
+        assert event is not None
+        assert event.action == "failed"
+        assert event.review_id == "99"
+
+    def test_pipeline_hook_missing_project_returns_none(self):
+        payload = {
+            "object_attributes": {"id": 1, "ref": "main", "status": "success"},
+        }
+        assert parse_gitlab_webhook("Pipeline Hook", payload) is None
+
+    def test_pipeline_hook_missing_attrs_returns_none(self):
+        payload = {"project": {"path_with_namespace": "group/project"}}
+        assert parse_gitlab_webhook("Pipeline Hook", payload) is None
+
+    # ------------------------------------------------------------------
+    # Job Hook tests
+    # ------------------------------------------------------------------
+
+    def test_job_hook_success(self):
+        payload = {
+            "build_id": 1977,
+            "build_name": "test-job",
+            "build_status": "success",
+            "ref": "main",
+            "user": {"name": "Tanuki User"},
+            "repository": {"homepage": "https://gitlab.com/group/project"},
+        }
+        event = parse_gitlab_webhook("Job Hook", payload)
+        assert event is not None
+        assert event.provider == "gitlab"
+        assert event.event_type == "Job Hook"
+        assert event.action == "success"
+        assert event.review_id == "1977"
+        assert event.repo_slug == "group/project"
+        assert event.source_branch == "main"
+        assert event.target_branch == "main"
+        assert event.author == "Tanuki User"
+        assert event.title == "test-job"
+
+    def test_job_hook_failed(self):
+        payload = {
+            "build_id": 42,
+            "build_name": "deploy",
+            "build_status": "failed",
+            "ref": "main",
+            "user": {"name": "Dev"},
+            "repository": {"homepage": "https://gitlab.com/org/repo"},
+        }
+        event = parse_gitlab_webhook("Job Hook", payload)
+        assert event is not None
+        assert event.action == "failed"
+        assert event.repo_slug == "org/repo"
+
+    def test_job_hook_missing_homepage_returns_none(self):
+        payload = {
+            "build_id": 1,
+            "build_status": "success",
+            "repository": {},
+        }
+        assert parse_gitlab_webhook("Job Hook", payload) is None
+
+    def test_job_hook_missing_repository_returns_none(self):
+        payload = {"build_id": 1, "build_status": "success"}
+        assert parse_gitlab_webhook("Job Hook", payload) is None
 
 
 # ---------------------------------------------------------------------------
@@ -1067,6 +1357,120 @@ class _DummyProjectStore:
 
     def list_all(self) -> list[Project]:
         return []
+
+
+class _FakeGitLabClient:
+    """Queued async GitLab API responses with a record of requests."""
+
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    async def request(self, method, url, **kwargs):
+        self.calls.append((method, url, kwargs))
+        status_code, payload = self.responses.pop(0)
+        return httpx.Response(
+            status_code,
+            json=payload,
+            request=httpx.Request(method, url),
+        )
+
+
+class TestGitLabHookManager:
+    """GitLab Project Hooks lifecycle tests."""
+
+    def _project(self, **kwargs):
+        project = _make_project(
+            repo_url="https://gitlab.example.com/group/project.git",
+            webhook_secret="hook-secret",
+            **kwargs,
+        )
+        project.forge_kind = "gitlab"
+        project.forge_base_url = "https://gitlab.example.com"
+        project.access_token = "api-token"
+        return project
+
+    @pytest.mark.asyncio
+    async def test_reconcile_creates_missing_hook_with_secret_and_events(self):
+        project = self._project()
+        client = _FakeGitLabClient([(200, []), (201, {"id": 12})])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            public_url="https://oompah.example.com/",
+            http_client=client,
+        )
+
+        await manager.reconcile()
+
+        assert [call[0] for call in client.calls] == ["GET", "POST"]
+        method, url, kwargs = client.calls[1]
+        assert url == "https://gitlab.example.com/api/v4/projects/group%2Fproject/hooks"
+        assert kwargs["headers"] == {"PRIVATE-TOKEN": "api-token"}
+        assert kwargs["json"] == {
+            "url": "https://oompah.example.com/api/v1/webhooks/gitlab",
+            "push_events": True,
+            "merge_requests_events": True,
+            "issues_events": True,
+            "note_events": True,
+            "pipeline_events": True,
+            "job_events": True,
+            "token": "hook-secret",
+        }
+        assert manager.status["projects"][project.id]["hook_id"] == 12
+        assert manager.status["projects"][project.id]["healthy"] is True
+
+    @pytest.mark.asyncio
+    async def test_reconcile_updates_one_matching_hook_and_removes_duplicates(self):
+        project = self._project()
+        target = "https://oompah.example.com/api/v1/webhooks/gitlab"
+        client = _FakeGitLabClient([
+            (200, [{"id": 3, "url": target}, {"id": 4, "url": target}]),
+            (200, {"id": 3}),
+            (204, None),
+        ])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]), public_url="https://oompah.example.com", http_client=client,
+        )
+
+        await manager.reconcile()
+
+        assert [call[0] for call in client.calls] == ["GET", "PUT", "DELETE"]
+        assert client.calls[1][1].endswith("/hooks/3")
+        assert client.calls[2][1].endswith("/hooks/4")
+
+    @pytest.mark.asyncio
+    async def test_remove_deletes_only_managed_hook(self):
+        project = self._project()
+        target = "https://oompah.example.com/api/v1/webhooks/gitlab"
+        client = _FakeGitLabClient([
+            (200, [{"id": 3, "url": target}, {"id": 9, "url": "https://other.example/hook"}]),
+            (204, None),
+        ])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]), public_url="https://oompah.example.com", http_client=client,
+        )
+
+        await manager.remove(project)
+
+        assert [call[0] for call in client.calls] == ["GET", "DELETE"]
+        assert client.calls[1][1].endswith("/hooks/3")
+
+    @pytest.mark.asyncio
+    async def test_missing_or_non_https_public_url_does_not_call_gitlab(self):
+        project = self._project()
+        client = _FakeGitLabClient([])
+        manager = GitLabHookManager(_FakeProjectStore([project]), http_client=client)
+        await manager.reconcile()
+        assert client.calls == []
+        assert manager.status["configured"] is False
+        assert "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL" in manager.status["detail"]
+
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]), public_url="http://oompah.example.com", http_client=client,
+        )
+        await manager.reconcile()
+        assert client.calls == []
+        assert "HTTPS" in manager.status["detail"]
 
 
 class TestForwarderProcess:
@@ -2379,3 +2783,262 @@ class TestWebhookForwarderStderrCapture:
 
         # Stderr task should have been cancelled and cleared.
         assert fp.stderr_task is None
+
+
+# ---------------------------------------------------------------------------
+# GitLabEventDedup
+# ---------------------------------------------------------------------------
+
+
+class TestGitLabEventDedup:
+    """Tests for GitLabEventDedup fingerprint-based deduplication."""
+
+    def test_import(self):
+        from oompah.webhooks import GitLabEventDedup
+        assert GitLabEventDedup is not None
+
+    def test_first_call_not_duplicate(self):
+        from oompah.webhooks import GitLabEventDedup
+        dedup = GitLabEventDedup()
+        result = dedup.is_duplicate(
+            event_uuid=None,
+            event_type="Merge Request Hook",
+            repo_slug="group/project",
+            review_id="42",
+            action="open",
+        )
+        assert result is False
+
+    def test_second_call_is_duplicate(self):
+        from oompah.webhooks import GitLabEventDedup
+        dedup = GitLabEventDedup()
+        kwargs = dict(
+            event_uuid=None,
+            event_type="Merge Request Hook",
+            repo_slug="group/project",
+            review_id="42",
+            action="open",
+        )
+        dedup.is_duplicate(**kwargs)
+        assert dedup.is_duplicate(**kwargs) is True
+
+    def test_uuid_key_takes_precedence(self):
+        from oompah.webhooks import GitLabEventDedup
+        dedup = GitLabEventDedup()
+        uuid = "abc-123-uuid"
+        # First call with UUID
+        assert dedup.is_duplicate(
+            event_uuid=uuid,
+            event_type="Merge Request Hook",
+            repo_slug="group/project",
+            review_id="1",
+            action="open",
+        ) is False
+        # Second call with same UUID but different fingerprint fields — still dup
+        assert dedup.is_duplicate(
+            event_uuid=uuid,
+            event_type="Push Hook",
+            repo_slug="other/repo",
+            review_id="99",
+            action="close",
+        ) is True
+
+    def test_different_action_not_duplicate(self):
+        from oompah.webhooks import GitLabEventDedup
+        dedup = GitLabEventDedup()
+        dedup.is_duplicate(
+            event_uuid=None,
+            event_type="Merge Request Hook",
+            repo_slug="group/project",
+            review_id="42",
+            action="open",
+        )
+        result = dedup.is_duplicate(
+            event_uuid=None,
+            event_type="Merge Request Hook",
+            repo_slug="group/project",
+            review_id="42",
+            action="close",
+        )
+        assert result is False
+
+    def test_different_repo_not_duplicate(self):
+        from oompah.webhooks import GitLabEventDedup
+        dedup = GitLabEventDedup()
+        dedup.is_duplicate(
+            event_uuid=None,
+            event_type="Merge Request Hook",
+            repo_slug="group/project",
+            review_id="42",
+            action="open",
+        )
+        result = dedup.is_duplicate(
+            event_uuid=None,
+            event_type="Merge Request Hook",
+            repo_slug="group/other",
+            review_id="42",
+            action="open",
+        )
+        assert result is False
+
+    def test_ttl_expiry_allows_reprocessing(self):
+        """After TTL the same event fingerprint is no longer treated as duplicate."""
+        import time
+        from oompah.webhooks import GitLabEventDedup
+        dedup = GitLabEventDedup(ttl_s=0.05)  # 50ms TTL for fast test
+
+        kwargs = dict(
+            event_uuid=None,
+            event_type="Push Hook",
+            repo_slug="group/repo",
+            review_id="",
+            action="push",
+        )
+        dedup.is_duplicate(**kwargs)
+        assert dedup.is_duplicate(**kwargs) is True
+
+        time.sleep(0.1)  # exceed TTL
+        # _prune is called at the start of is_duplicate, so the entry expires
+        result = dedup.is_duplicate(**kwargs)
+        assert result is False
+
+    def test_make_fingerprint_is_deterministic(self):
+        from oompah.webhooks import GitLabEventDedup
+        fp1 = GitLabEventDedup.make_fingerprint("A", "b/c", "1", "open", "")
+        fp2 = GitLabEventDedup.make_fingerprint("A", "b/c", "1", "open", "")
+        assert fp1 == fp2
+
+    def test_make_fingerprint_differs_on_different_inputs(self):
+        from oompah.webhooks import GitLabEventDedup
+        fp1 = GitLabEventDedup.make_fingerprint("A", "b/c", "1", "open", "")
+        fp2 = GitLabEventDedup.make_fingerprint("A", "b/c", "1", "close", "")
+        assert fp1 != fp2
+
+    def test_issue_number_contributes_to_fingerprint(self):
+        from oompah.webhooks import GitLabEventDedup
+        fp1 = GitLabEventDedup.make_fingerprint("Issue Hook", "g/p", "", "open", "5")
+        fp2 = GitLabEventDedup.make_fingerprint("Issue Hook", "g/p", "", "open", "6")
+        assert fp1 != fp2
+
+
+# ---------------------------------------------------------------------------
+# build_gitlab_hook_alerts
+# ---------------------------------------------------------------------------
+
+
+class TestBuildGitlabHookAlerts:
+    """Tests for build_gitlab_hook_alerts()."""
+
+    def test_import(self):
+        from oompah.webhooks import build_gitlab_hook_alerts
+        assert callable(build_gitlab_hook_alerts)
+
+    def test_unconfigured_returns_single_warning(self):
+        from oompah.webhooks import build_gitlab_hook_alerts
+        alerts = build_gitlab_hook_alerts(
+            {"configured": False, "detail": "URL not set", "projects": {}}
+        )
+        assert len(alerts) == 1
+        assert alerts[0]["level"] == "warning"
+        assert alerts[0]["source"] == "gitlab_hook_manager"
+        assert "URL not set" in alerts[0]["message"]
+
+    def test_all_healthy_returns_empty(self):
+        from oompah.webhooks import build_gitlab_hook_alerts
+        alerts = build_gitlab_hook_alerts(
+            {
+                "configured": True,
+                "projects": {
+                    "p1": {"name": "proj-a", "healthy": True, "last_error": ""},
+                },
+            }
+        )
+        assert alerts == []
+
+    def test_unhealthy_project_produces_warning(self):
+        from oompah.webhooks import build_gitlab_hook_alerts
+        alerts = build_gitlab_hook_alerts(
+            {
+                "configured": True,
+                "projects": {
+                    "p1": {
+                        "name": "my-proj",
+                        "healthy": False,
+                        "last_error": "404 Not Found",
+                    }
+                },
+            }
+        )
+        assert len(alerts) == 1
+        alert = alerts[0]
+        assert alert["level"] == "warning"
+        assert alert["source"] == "gitlab_hook_manager:p1"
+        assert "my-proj" in alert["message"]
+        assert "404 Not Found" in alert["message"]
+        assert "Polling fallback" in alert["message"]
+
+    def test_multiple_unhealthy_projects(self):
+        from oompah.webhooks import build_gitlab_hook_alerts
+        alerts = build_gitlab_hook_alerts(
+            {
+                "configured": True,
+                "projects": {
+                    "p1": {"name": "proj-a", "healthy": False, "last_error": "err-a"},
+                    "p2": {"name": "proj-b", "healthy": True, "last_error": ""},
+                    "p3": {"name": "proj-c", "healthy": False, "last_error": "err-c"},
+                },
+            }
+        )
+        assert len(alerts) == 2
+        sources = {a["source"] for a in alerts}
+        assert sources == {"gitlab_hook_manager:p1", "gitlab_hook_manager:p3"}
+
+
+# ---------------------------------------------------------------------------
+# GitLabHookManager: _status_callback wiring
+# ---------------------------------------------------------------------------
+
+
+class TestGitLabHookManagerStatusCallback:
+    """Tests for _status_callback integration on GitLabHookManager."""
+
+    @pytest.mark.asyncio
+    async def test_reconcile_fires_status_callback(self):
+        from oompah.webhooks import GitLabHookManager
+        project = _make_project(
+            repo_url="https://gitlab.example.com/g/p.git",
+            webhook_secret="s",
+        )
+        project.forge_kind = "gitlab"
+        project.forge_base_url = "https://gitlab.example.com"
+        project.access_token = "tok"
+
+        fired: list[dict] = []
+        client = _FakeGitLabClient([(200, []), (201, {"id": 7})])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            public_url="https://oompah.example.com",
+            http_client=client,
+        )
+        manager._status_callback = fired.append
+
+        await manager.reconcile()
+
+        assert len(fired) == 1
+        assert fired[0]["projects"][project.id]["healthy"] is True
+
+    @pytest.mark.asyncio
+    async def test_reconcile_fires_callback_on_configuration_error(self):
+        from oompah.webhooks import GitLabHookManager
+        project = _make_project(repo_url="https://gitlab.example.com/g/p.git")
+        project.forge_kind = "gitlab"
+
+        fired: list[dict] = []
+        manager = GitLabHookManager(_FakeProjectStore([project]))  # no public_url
+        manager._status_callback = fired.append
+
+        await manager.reconcile()
+
+        # Callback is fired even when there's a config error
+        assert len(fired) == 1
+        assert fired[0]["configured"] is False

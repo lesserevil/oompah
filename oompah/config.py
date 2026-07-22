@@ -427,6 +427,10 @@ class ServiceConfig:
     escalate_after_attempts: int = 1  # escalate profile after N failed attempts (stall or max_turns)
     decompose_after_attempts: int = 2
     server_port: int | None = DEFAULT_SERVER_PORT
+    # Public HTTPS base URL used for GitLab Project Hooks.  This is kept in
+    # environment configuration rather than WORKFLOW.md because it is an
+    # operator-facing deployment setting.
+    gitlab_webhook_public_url: str | None = None
     agent_profiles: list[AgentProfile] = field(default_factory=list)
     # Resolved source for the effective agent_profiles list:
     # - "json" (default): .oompah/agent_profiles.json wins; one-shot
@@ -856,6 +860,10 @@ class ServiceConfig:
             escalate_after_attempts=_env_int("OOMPAH_ESCALATE_AFTER_ATTEMPTS", agent.get("escalate_after_attempts"), 1),
             decompose_after_attempts=_env_int("OOMPAH_DECOMPOSE_AFTER_ATTEMPTS", agent.get("decompose_after_attempts"), 2),
             server_port=server_port,
+            gitlab_webhook_public_url=(
+                os.environ.get("OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL", "").strip()
+                or None
+            ),
             agent_profiles=profiles,
             agent_profiles_source=profiles_source,
             budget_limit=_env_float("OOMPAH_BUDGET_LIMIT", agent.get("budget_limit"), 0.0),

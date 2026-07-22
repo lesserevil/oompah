@@ -290,7 +290,9 @@ async def _lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         services.orchestrator,
         services.webhook_forwarder,
     )
+    set_gitlab_hook_manager(services.gitlab_hook_manager)
     await services.webhook_forwarder.start()
+    await services.gitlab_hook_manager.start()
 
     # Workflow file watcher task.
     async def _watch_workflow() -> None:
@@ -373,6 +375,7 @@ async def _lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         else:
             await services.orchestrator.stop()
         await services.webhook_forwarder.stop()
+        await services.gitlab_hook_manager.stop()
         supervise_task.cancel()
         watch_task.cancel()
         try:
@@ -452,6 +455,12 @@ _error_watcher: ErrorWatcher | None = None
 # Project log watcher manager — watches log files for all projects
 _log_watcher_manager: ProjectLogWatcherManager | None = None
 
+# GitLab hook manager — reconciles managed GitLab Project Hooks
+_gitlab_hook_manager: Any = None
+
+# GitLab event dedup cache — filters duplicate webhook deliveries/retries
+_gitlab_event_dedup: Any = None
+
 # Connected WebSocket clients
 _ws_clients: set[WebSocket] = set()
 
@@ -461,6 +470,13 @@ _ws_clients: set[WebSocket] = set()
 _console_manager: Any = None
 
 _NATIVE_TASK_IDENTIFIER_RE = re.compile(r"^TASK-(\d+(?:\.\d+)*)$", re.IGNORECASE)
+
+
+def _is_gitlab_project(project: Any) -> bool:
+    """Return True if the project is backed by a GitLab repository."""
+    forge_kind = str(getattr(project, "forge_kind", "") or "").lower()
+    repo_url = str(getattr(project, "repo_url", "") or "").lower()
+    return forge_kind == "gitlab" or "gitlab" in repo_url
 
 
 def _project_names_by_id(orch) -> dict[str, str]:
@@ -682,6 +698,23 @@ def _get_orchestrator() -> Orchestrator:
     if _orchestrator is None:
         raise RuntimeError("Orchestrator not initialized")
     return _orchestrator
+
+
+def set_gitlab_hook_manager(manager: Any) -> None:
+    """Register the :class:`~oompah.webhooks.GitLabHookManager` for API wiring.
+
+    Must be called after :func:`set_orchestrator` during startup so that
+    :func:`api_create_project`, :func:`api_update_project`, and
+    :func:`api_delete_project` can call :meth:`reconcile` / :meth:`remove`
+    on dynamic project changes.
+
+    Also initialises the per-process :class:`~oompah.webhooks.GitLabEventDedup`
+    cache used to suppress duplicate webhook deliveries.
+    """
+    global _gitlab_hook_manager, _gitlab_event_dedup
+    from oompah.webhooks import GitLabEventDedup
+    _gitlab_hook_manager = manager
+    _gitlab_event_dedup = GitLabEventDedup()
 
 
 def remove_draft_labels_from_epics(tracker) -> int:
@@ -909,6 +942,19 @@ def _cached_state_snapshot_or_unavailable() -> dict[str, Any]:
 # Shared response cache for API endpoints
 _api_cache = TTLCache()
 
+
+# Fields on a Project that, when changed, require GitLab hook reconciliation.
+# Covers: forge identity (forge_kind, repo_url, forge_base_url), credentials
+# (access_token), and the hook secret (webhook_secret).
+_GITLAB_HOOK_RECONCILE_FIELDS = frozenset(
+    {
+        "forge_kind",
+        "repo_url",
+        "forge_base_url",
+        "access_token",
+        "webhook_secret",
+    }
+)
 
 _PROJECT_TRACKER_CACHE_FIELDS = frozenset(
     {
@@ -10157,6 +10203,9 @@ async def api_create_project(request: Request):
         # Sync log watchers in case the new project has a log_path
         if _log_watcher_manager:
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
+        # Reconcile GitLab hooks when a new GitLab project is added.
+        if _gitlab_hook_manager is not None and _is_gitlab_project(project):
+            await _gitlab_hook_manager.reconcile()
         _ensure_tracker_agent_instructions_for_project(project)
         return JSONResponse(project.to_safe_dict(), status_code=201)
     except ProjectError as exc:
@@ -10519,6 +10568,14 @@ async def api_update_project(project_id: str, request: Request):
         # Sync log watchers when project settings change (log_path may have been added/changed/removed)
         if _log_watcher_manager:
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
+        # Reconcile GitLab hooks when hook-relevant fields are updated (e.g.
+        # access_token, webhook_secret, forge_kind, repo_url, forge_base_url).
+        if (
+            _gitlab_hook_manager is not None
+            and set(fields) & _GITLAB_HOOK_RECONCILE_FIELDS
+            and _is_gitlab_project(project)
+        ):
+            await _gitlab_hook_manager.reconcile()
         _ensure_tracker_agent_instructions_for_project(project)
         return JSONResponse(project.to_safe_dict())
     except ProjectError as exc:
@@ -10538,6 +10595,11 @@ async def api_update_project(project_id: str, request: Request):
 async def api_delete_project(project_id: str):
     """Delete a project."""
     orch = _get_orchestrator()
+    # Fetch before deletion so we can remove the managed GitLab hook while we
+    # still have the project's credentials and repo URL.
+    project_to_delete = orch.project_store.get(project_id)
+    if _gitlab_hook_manager is not None and project_to_delete and _is_gitlab_project(project_to_delete):
+        await _gitlab_hook_manager.remove(project_to_delete)
     if orch.project_store.delete(project_id):
         # Stop any log file watcher for this project
         if _log_watcher_manager:
@@ -12206,13 +12268,14 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         # PR / MR / merge-queue events affect the review board and may close issues.
         _api_cache.invalidate("reviews:all")
         _api_cache.invalidate("issues:all")
-    elif event.event_type == "issues":
+    elif event.event_type in ("issues", "Issue Hook"):
         # Issue state or metadata changed; drop the per-issue detail as well.
+        # Covers GitHub ("issues") and GitLab ("Issue Hook") event types.
         _api_cache.invalidate("issues:all")
         if _project_id and event.issue_number:
             _api_cache.invalidate_prefix(f"detail:{_project_id}:{event.issue_number}")
-    elif event.event_type == "issue_comment":
-        # A comment was created, edited, or deleted on an issue.
+    elif event.event_type in ("issue_comment", "Note Hook"):
+        # A comment was created, edited, or deleted on an issue (GitHub or GitLab).
         _api_cache.invalidate("issues:all")
         if _project_id and event.issue_number:
             _api_cache.invalidate(f"comments:{_project_id}:{event.issue_number}")
@@ -12222,14 +12285,16 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         # We cannot cheaply map project_item_id → issue_number here, so we
         # drop the full issue-list cache and let the next fetch rebuild it.
         _api_cache.invalidate("issues:all")
-    # label events (repository-level label definitions) and push events do
-    # not directly change cached task data; push state is refreshed via the
-    # source-sync thread when the tracked branch advances.
+    # label events (repository-level label definitions), push events,
+    # Pipeline Hook, and Job Hook events do not directly change cached task
+    # data; push state is refreshed via the source-sync thread when the
+    # tracked branch advances.
 
     # Invalidate the release-branch catalog cache when a push event arrives
     # for a tracked branch (e.g. a new release/x.y branch was created or
     # updated on origin).  Best-effort — never block the webhook response.
-    if _project_id and event.event_type == "push" and project:
+    # Covers both GitHub ("push") and GitLab ("Push Hook") event types.
+    if _project_id and event.event_type in ("push", "Push Hook") and project:
         try:
             invalidate_release_branch_catalog(_project_id)
         except Exception:  # pragma: no cover — defensive
@@ -12249,7 +12314,11 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     # this clears the ETag store so the next fetch re-validates against the
     # live API, rebuilding the branch-to-issue index.  Best-effort: any
     # failure is swallowed so it never blocks the webhook response path.
-    if project and event.event_type in ("issues", "pull_request", "Merge Request Hook", "push"):
+    if project and event.event_type in (
+        "issues", "Issue Hook",
+        "pull_request", "Merge Request Hook",
+        "push", "Push Hook",
+    ):
         try:
             tracker = orch._tracker_for_project(project.id)
             inval = getattr(tracker, "invalidate_read_cache", None)
@@ -13035,18 +13104,23 @@ def _do_revert_status_label(tracker, issue_number: str, label_name: str, action:
 def _webhook_advanced_tracked_branch(event, project) -> bool:
     """True when the webhook indicates any of the project's tracked branches advanced on origin.
 
-    Three cases:
-      * ``push`` events on any tracked branch (target_branch matches a branch pattern).
+    Four cases:
+      * ``push`` / ``Push Hook`` events on any tracked branch
+        (target_branch matches a branch pattern).
       * ``pull_request`` events with ``merged=True`` whose base branch is
         a tracked branch.
       * ``merge_group`` events with ``merged=True`` (queue dequeued
         successfully), whose target_branch is a tracked branch.
+      * ``Merge Request Hook`` events with ``merged=True`` whose
+        target_branch is a tracked branch (GitLab equivalent of PR merged).
     """
-    if event.event_type == "push":
+    if event.event_type in ("push", "Push Hook"):
         return project.matches_branch(event.target_branch)
     if event.event_type == "pull_request" and event.merged:
         return project.matches_branch(event.target_branch)
     if event.event_type == "merge_group" and event.merged:
+        return project.matches_branch(event.target_branch)
+    if event.event_type == "Merge Request Hook" and event.merged:
         return project.matches_branch(event.target_branch)
     return False
 
@@ -13055,6 +13129,7 @@ def _webhook_advanced_tracked_branch(event, project) -> bool:
 # lifecycle state.
 _DISPATCH_AFFECTING_ISSUE_ACTIONS: frozenset[str] = frozenset(
     {
+        # GitHub action names
         "opened",
         "closed",
         "reopened",
@@ -13064,6 +13139,12 @@ _DISPATCH_AFFECTING_ISSUE_ACTIONS: frozenset[str] = frozenset(
         "unassigned",
         "transferred",
         "deleted",
+        # GitLab action names (Issue Hook)
+        "open",
+        "close",
+        "reopen",
+        "update",
+        "delete",
     }
 )
 
@@ -13094,14 +13175,15 @@ def _webhook_should_request_refresh(event: "WebhookEvent", project) -> bool:
     if event.event_type in ("pull_request", "merge_group", "Merge Request Hook"):
         return True
     # Comment events may contain orchestrator directives or status updates
-    # that agents post as structured comments.
-    if event.event_type == "issue_comment":
+    # that agents post as structured comments (GitHub and GitLab).
+    if event.event_type in ("issue_comment", "Note Hook"):
         return True
     # Issue events warrant a refresh only for actions that change dispatch
     # eligibility: opened/closed/reopened change the task life-cycle;
     # labeled/unlabeled and assigned/unassigned may gate routing;
     # transferred/deleted remove the task from consideration.
-    if event.event_type == "issues" and event.action in _DISPATCH_AFFECTING_ISSUE_ACTIONS:
+    # Covers both GitHub ("issues") and GitLab ("Issue Hook") event types.
+    if event.event_type in ("issues", "Issue Hook") and event.action in _DISPATCH_AFFECTING_ISSUE_ACTIONS:
         return True
     # Project-field events may update the Oompah Status field which drives
     # task dispatch.  Restrict to the actions that actually change item state.
@@ -13109,13 +13191,15 @@ def _webhook_should_request_refresh(event: "WebhookEvent", project) -> bool:
         return True
     # A push to one of the project's tracked branches means new commits landed
     # and the orchestrator should scan for newly-deferred or un-deferred tasks.
-    if event.event_type == "push" and project and _webhook_advanced_tracked_branch(event, project):
+    # Covers both GitHub ("push") and GitLab ("Push Hook") event types.
+    if event.event_type in ("push", "Push Hook") and project and _webhook_advanced_tracked_branch(event, project):
         return True
     # All other events are not dispatch-relevant:
     # - repository-level label changes (label created/edited/deleted)
     # - push to non-tracked branches
     # - unrecognised projects_v2_item actions (e.g. reordered, archived)
     # - issues with non-status actions (e.g. locked, unlocked, pinned)
+    # - GitLab Pipeline Hook and Job Hook events
     return False
 
 
@@ -13486,10 +13570,36 @@ async def api_webhook_github(request: Request):
         )
 
 
+@app.get("/api/v1/webhooks/gitlab/status")
+async def api_gitlab_webhook_status():
+    """Return GitLab hook health for all managed projects.
+
+    When ``GitLabHookManager`` is not initialised (e.g. the server was
+    started without :func:`~oompah.server.set_gitlab_hook_manager` being
+    called), returns a minimal ``{"running": false}`` response so callers
+    can distinguish *not configured* from *no projects*.
+
+    Returns a JSON object with the following fields:
+
+    * ``running`` — whether the manager's background loop is active.
+    * ``configured`` — whether ``OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL`` is set
+      and valid.
+    * ``detail`` — human-readable configuration error, or ``""`` on success.
+    * ``webhook_url`` — the URL registered as the GitLab hook target.
+    * ``projects`` — per-project health map keyed by project ID.  Each
+      entry has ``name``, ``hook_id``, ``healthy``, and ``last_error``.
+    """
+    if _gitlab_hook_manager is None:
+        return JSONResponse({"running": False, "configured": False, "detail": "GitLab hook manager not initialised", "webhook_url": "", "projects": {}})
+    return JSONResponse(_gitlab_hook_manager.status)
+
+
 @app.post("/api/v1/webhooks/gitlab")
 async def api_webhook_gitlab(request: Request):
-    """Receive GitLab webhook events (Merge Request Hook, etc.).
+    """Receive GitLab webhook events.
 
+    Handles ``Merge Request Hook``, ``Push Hook``, ``Issue Hook``,
+    ``Note Hook``, ``Pipeline Hook``, and ``Job Hook`` event types.
     Validates the ``X-Gitlab-Token`` header against the matched project's
     ``webhook_secret``. GitLab project hooks are public HTTPS endpoints, so a
     matched GitLab project without a configured secret is rejected rather than
@@ -13521,6 +13631,36 @@ async def api_webhook_gitlab(request: Request):
             return JSONResponse(
                 {"ok": True, "action": "ignored", "event_type": event_type}
             )
+
+        # Deduplicate events.  GitLab retries webhook delivery on transient
+        # failures; when both a retry and the polling fallback deliver the same
+        # logical event we should process it only once.  The X-Gitlab-Event-UUID
+        # header (present on GitLab ≥15.x) is the most precise key; older
+        # instances fall back to a fingerprint of the logical event identity.
+        if _gitlab_event_dedup is not None:
+            event_uuid = request.headers.get("X-Gitlab-Event-UUID") or None
+            if _gitlab_event_dedup.is_duplicate(
+                event_uuid=event_uuid,
+                event_type=event_type,
+                repo_slug=event.repo_slug,
+                review_id=event.review_id,
+                action=event.action,
+                issue_number=event.issue_number,
+            ):
+                logger.debug(
+                    "GitLab webhook deduplicated: %s %s #%s action=%s",
+                    event_type,
+                    event.repo_slug,
+                    event.review_id,
+                    event.action,
+                )
+                return JSONResponse(
+                    {
+                        "ok": True,
+                        "action": "deduplicated",
+                        "event_type": event_type,
+                    }
+                )
 
         # Find matching project
         orch = _get_orchestrator()

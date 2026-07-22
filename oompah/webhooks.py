@@ -22,17 +22,30 @@ Usage::
         parse_gitlab_webhook,
         WebhookEvent,
         WebhookForwarder,
+        GitLabEventDedup,
+        GitLabHookManager,
+        build_gitlab_hook_alerts,
+        build_webhook_forwarder_alerts,
         check_gh_webhook_available,
     )
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import logging
+import os
+import shutil
+import urllib.parse
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Any
+
+import httpx
+
+from oompah.scm import extract_repo_slug
 
 logger = logging.getLogger(__name__)
 
@@ -579,25 +592,19 @@ def validate_gitlab_token(
     return hmac.compare_digest(token_header, secret)
 
 
-def parse_gitlab_webhook(
+def _parse_gitlab_mr(
     event_type: str, payload: dict[str, Any]
 ) -> WebhookEvent | None:
-    """Parse a GitLab webhook payload into a WebhookEvent.
-
-    Only MR-related events are parsed (``Merge Request Hook``). Other
-    event types return ``None``.
+    """Parse a GitLab ``Merge Request Hook`` payload into a :class:`WebhookEvent`.
 
     Args:
-        event_type: Value of the ``X-Gitlab-Event`` header.
+        event_type: Always ``"Merge Request Hook"``.
         payload: Parsed JSON body.
 
     Returns:
-        A ``WebhookEvent`` for MR events, or ``None`` for non-MR events.
+        A :class:`WebhookEvent`, or ``None`` when ``object_attributes`` is
+        absent or empty.
     """
-    if event_type != "Merge Request Hook":
-        logger.debug("Ignoring non-MR GitLab event: %s", event_type)
-        return None
-
     attrs = payload.get("object_attributes", {})
     if not attrs:
         return None
@@ -624,6 +631,290 @@ def parse_gitlab_webhook(
         merged=merged,
         raw=payload,
     )
+
+
+def _parse_gitlab_push(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitLab ``Push Hook`` payload into a :class:`WebhookEvent`.
+
+    Branch deletions (``after`` is all-zeros) and payloads missing a project
+    path are accepted — callers may inspect ``raw`` for details.  Tag pushes
+    (``refs/tags/*``) are returned with the tag name in ``target_branch``.
+
+    Args:
+        event_type: Always ``"Push Hook"``.
+        payload: Parsed JSON body.
+
+    Returns:
+        A :class:`WebhookEvent`, or ``None`` when the project path is missing.
+    """
+    project = payload.get("project", {})
+    repo_slug = project.get("path_with_namespace", "")
+    if not repo_slug:
+        return None
+
+    ref = payload.get("ref", "") or ""
+    if ref.startswith("refs/heads/"):
+        branch = ref[len("refs/heads/"):]
+    elif ref.startswith("refs/tags/"):
+        branch = ref[len("refs/tags/"):]
+    else:
+        branch = ref
+
+    # Prefer user_username (GitLab username) over user_name (display name).
+    author = payload.get("user_username", "") or payload.get("user_name", "")
+
+    return WebhookEvent(
+        provider="gitlab",
+        event_type=event_type,
+        action="pushed",
+        repo_slug=repo_slug,
+        review_id="",
+        source_branch="",
+        target_branch=branch,
+        author=author,
+        title="",
+        merged=False,
+        raw=payload,
+    )
+
+
+def _parse_gitlab_issue(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitLab ``Issue Hook`` payload into a :class:`WebhookEvent`.
+
+    Args:
+        event_type: Always ``"Issue Hook"``.
+        payload: Parsed JSON body.
+
+    Returns:
+        A :class:`WebhookEvent`, or ``None`` when required fields are absent.
+    """
+    attrs = payload.get("object_attributes", {})
+    if not attrs:
+        return None
+
+    project = payload.get("project", {})
+    repo_slug = project.get("path_with_namespace", "")
+    if not repo_slug:
+        return None
+
+    user = payload.get("user", {})
+    author = user.get("username", "")
+    action = attrs.get("action", "")
+    issue_iid = str(attrs.get("iid", "") or "")
+    title = attrs.get("title", "") or ""
+
+    return WebhookEvent(
+        provider="gitlab",
+        event_type=event_type,
+        action=action,
+        repo_slug=repo_slug,
+        review_id=issue_iid,
+        author=author,
+        title=title,
+        merged=False,
+        raw=payload,
+        issue_number=issue_iid,
+    )
+
+
+def _parse_gitlab_note(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitLab ``Note Hook`` (comment) payload into a :class:`WebhookEvent`.
+
+    Note events are fired for comments on MRs, issues, commits, and snippets.
+    When the note is on an issue or MR, ``issue_number`` carries the related
+    IID so downstream consumers can invalidate per-issue caches.
+
+    Args:
+        event_type: Always ``"Note Hook"``.
+        payload: Parsed JSON body.
+
+    Returns:
+        A :class:`WebhookEvent`, or ``None`` when required fields are absent.
+    """
+    attrs = payload.get("object_attributes", {})
+    if not attrs:
+        return None
+
+    project = payload.get("project", {})
+    repo_slug = project.get("path_with_namespace", "")
+    if not repo_slug:
+        return None
+
+    user = payload.get("user", {})
+    author = user.get("username", "")
+    comment_id = str(attrs.get("id", "") or "")
+    action = attrs.get("action", "create")
+
+    # Extract the IID of the related issue or MR so callers can key caches.
+    issue_number = ""
+    issue_obj = payload.get("issue") or {}
+    mr_obj = payload.get("merge_request") or {}
+    if issue_obj:
+        issue_number = str(issue_obj.get("iid", "") or "")
+    elif mr_obj:
+        issue_number = str(mr_obj.get("iid", "") or "")
+
+    return WebhookEvent(
+        provider="gitlab",
+        event_type=event_type,
+        action=action,
+        repo_slug=repo_slug,
+        review_id=issue_number,
+        author=author,
+        title="",
+        merged=False,
+        raw=payload,
+        issue_number=issue_number,
+        comment_id=comment_id,
+    )
+
+
+def _parse_gitlab_pipeline(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitLab ``Pipeline Hook`` payload into a :class:`WebhookEvent`.
+
+    The pipeline status is stored in ``action`` and the pipeline ID in
+    ``review_id``.  The ref (branch or tag name) is stored in both
+    ``source_branch`` and ``target_branch`` for easy consumption.
+
+    Args:
+        event_type: Always ``"Pipeline Hook"``.
+        payload: Parsed JSON body.
+
+    Returns:
+        A :class:`WebhookEvent`, or ``None`` when required fields are absent.
+    """
+    attrs = payload.get("object_attributes", {})
+    if not attrs:
+        return None
+
+    project = payload.get("project", {})
+    repo_slug = project.get("path_with_namespace", "")
+    if not repo_slug:
+        return None
+
+    user = payload.get("user", {})
+    author = user.get("username", "")
+
+    pipeline_id = str(attrs.get("id", "") or "")
+    status = attrs.get("status", "")
+    ref = attrs.get("ref", "") or ""
+
+    return WebhookEvent(
+        provider="gitlab",
+        event_type=event_type,
+        action=status,
+        repo_slug=repo_slug,
+        review_id=pipeline_id,
+        source_branch=ref,
+        target_branch=ref,
+        author=author,
+        title="",
+        merged=False,
+        raw=payload,
+    )
+
+
+def _parse_gitlab_job(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitLab ``Job Hook`` payload into a :class:`WebhookEvent`.
+
+    Job Hook payloads identify the project via ``repository.homepage`` — a
+    URL such as ``https://gitlab.com/group/project`` — from which the
+    ``owner/repo`` slug is extracted.  The job status is stored in ``action``
+    and the job ID in ``review_id``.
+
+    Args:
+        event_type: Always ``"Job Hook"``.
+        payload: Parsed JSON body.
+
+    Returns:
+        A :class:`WebhookEvent`, or ``None`` when the project slug cannot be
+        determined.
+    """
+    from urllib.parse import urlparse  # local import to avoid top-level cost
+
+    repository = payload.get("repository") or {}
+    homepage = repository.get("homepage", "") or ""
+
+    repo_slug = ""
+    if homepage:
+        parsed = urlparse(homepage)
+        repo_slug = parsed.path.lstrip("/")
+
+    if not repo_slug:
+        return None
+
+    user = payload.get("user") or {}
+    # Job Hook user object has ``name`` (display name), not ``username``.
+    author = user.get("name", "")
+
+    job_id = str(payload.get("build_id", "") or "")
+    status = payload.get("build_status", "")
+    ref = payload.get("ref", "") or ""
+
+    return WebhookEvent(
+        provider="gitlab",
+        event_type=event_type,
+        action=status,
+        repo_slug=repo_slug,
+        review_id=job_id,
+        source_branch=ref,
+        target_branch=ref,
+        author=author,
+        title=payload.get("build_name", "") or "",
+        merged=False,
+        raw=payload,
+    )
+
+
+def parse_gitlab_webhook(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitLab webhook payload into a :class:`WebhookEvent`.
+
+    Handles the following hook types (as sent in the ``X-Gitlab-Event``
+    header):
+
+    * ``Merge Request Hook`` — MR opened, closed, merged, or updated.
+    * ``Push Hook`` — branch or tag push.
+    * ``Issue Hook`` — issue lifecycle events (open, close, reopen, update).
+    * ``Note Hook`` — comments on MRs, issues, commits, or snippets.
+    * ``Pipeline Hook`` — CI pipeline status changes.
+    * ``Job Hook`` — CI job status changes.
+
+    Unrecognised event types return ``None`` and are logged at DEBUG level.
+
+    Args:
+        event_type: Value of the ``X-Gitlab-Event`` header.
+        payload: Parsed JSON body.
+
+    Returns:
+        A :class:`WebhookEvent` for handled events, or ``None`` for
+        unrecognised or malformed events.
+    """
+    if event_type == "Merge Request Hook":
+        return _parse_gitlab_mr(event_type, payload)
+    if event_type == "Push Hook":
+        return _parse_gitlab_push(event_type, payload)
+    if event_type == "Issue Hook":
+        return _parse_gitlab_issue(event_type, payload)
+    if event_type == "Note Hook":
+        return _parse_gitlab_note(event_type, payload)
+    if event_type == "Pipeline Hook":
+        return _parse_gitlab_pipeline(event_type, payload)
+    if event_type == "Job Hook":
+        return _parse_gitlab_job(event_type, payload)
+    logger.debug("Ignoring unrecognised GitLab event: %s", event_type)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -666,14 +957,6 @@ def match_project_by_repo(
 # Webhook Forwarder
 # ---------------------------------------------------------------------------
 
-import asyncio
-import os
-import shutil
-from datetime import datetime, timezone
-
-from oompah.scm import extract_repo_slug
-
-
 _WEBHOOK_FORWARD_DEFAULT_PORT = 8080
 _WEBHOOK_POLL_INTERVAL_S = 5.0  # how often to check process health
 _WEBHOOK_BASE_DELAY_S = 1.0  # initial restart backoff
@@ -704,6 +987,262 @@ _WEBHOOK_DEFAULT_EVENTS = "push,pull_request,issues,issue_comment,label"
 # Stderr tail size kept in memory per project (for surfacing the most
 # recent error to the dashboard / logs without unbounded growth).
 _WEBHOOK_STDERR_TAIL_BYTES = 4096
+
+# GitLab Project Hooks does not expose a separate label event. Label changes
+# are included in Issue and Merge Request Hook payloads, so the seven flags
+# below cover every GitLab event currently normalized by this module.
+_GITLAB_HOOK_EVENT_FLAGS = {
+    "push_events": True,
+    "merge_requests_events": True,
+    "issues_events": True,
+    "note_events": True,
+    "pipeline_events": True,
+    "job_events": True,
+}
+_GITLAB_HOOK_POLL_INTERVAL_S = 300.0
+
+
+@dataclass
+class _GitLabHookState:
+    """Latest reconciliation result for one GitLab managed project."""
+
+    project_id: str
+    project_name: str
+    hook_id: int | None = None
+    healthy: bool = False
+    last_error: str = ""
+
+
+class GitLabHookManager:
+    """Create, reconcile, and remove managed GitLab Project Hooks.
+
+    The manager owns only hooks whose URL is the configured Oompah GitLab
+    receiver.  This prevents it from modifying unrelated hooks configured by
+    an operator or another integration.  Reconciliation updates the hook
+    token and event subscriptions, which also rotates a changed project
+    ``webhook_secret`` without requiring a separate migration operation.
+    """
+
+    def __init__(
+        self,
+        project_store: Any = None,
+        public_url: str | None = None,
+        poll_interval_s: float = _GITLAB_HOOK_POLL_INTERVAL_S,
+        http_client: Any = None,
+    ) -> None:
+        self.project_store = project_store
+        self._public_url = (public_url or "").strip().rstrip("/")
+        self._webhook_url = (
+            f"{self._public_url}/api/v1/webhooks/gitlab" if self._public_url else ""
+        )
+        self._poll_interval_s = poll_interval_s
+        self._http_client = http_client
+        self._states: dict[str, _GitLabHookState] = {}
+        self._task: asyncio.Task | None = None
+        self._started = False
+        self._stopping = False
+        # Optional callback invoked after every reconcile() with the current
+        # status snapshot.  Set by attach_gitlab_hook_alerts() to propagate
+        # hook health into orchestrator dashboard alerts.
+        self._status_callback: Any = None
+
+    @property
+    def is_running(self) -> bool:
+        return self._started and not self._stopping
+
+    @property
+    def status(self) -> dict[str, Any]:
+        error = self._configuration_error()
+        return {
+            "running": self.is_running,
+            "configured": not bool(error),
+            "detail": error,
+            "webhook_url": self._webhook_url,
+            "projects": {
+                pid: {
+                    "name": state.project_name,
+                    "hook_id": state.hook_id,
+                    "healthy": state.healthy,
+                    "last_error": state.last_error,
+                }
+                for pid, state in self._states.items()
+            },
+        }
+
+    def _configuration_error(self) -> str:
+        if not self._public_url:
+            return "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL is not configured"
+        parsed = urllib.parse.urlparse(self._public_url)
+        if parsed.scheme != "https" or not parsed.netloc:
+            return "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL must be a public HTTPS base URL"
+        return ""
+
+    async def start(self) -> None:
+        """Begin periodic hook reconciliation.  Safe to call more than once."""
+        if self._started:
+            return
+        self._started = True
+        self._stopping = False
+        await self.reconcile()
+        self._task = asyncio.create_task(self._run_loop())
+
+    async def stop(self) -> None:
+        """Stop reconciliation and remove hooks managed during this lifetime."""
+        if self._stopping:
+            return
+        self._stopping = True
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+            self._task = None
+        for project in self._gitlab_projects():
+            await self.remove(project)
+        self._started = False
+
+    async def _run_loop(self) -> None:
+        while not self._stopping:
+            try:
+                await asyncio.sleep(self._poll_interval_s)
+                await self.reconcile()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # pragma: no cover - defensive loop boundary
+                logger.exception("GitLabHookManager reconciliation failed")
+
+    def _gitlab_projects(self) -> list[Any]:
+        if self.project_store is None:
+            return []
+        return [
+            project
+            for project in self.project_store.list_all()
+            if self._is_gitlab_project(project)
+        ]
+
+    @staticmethod
+    def _is_gitlab_project(project: Any) -> bool:
+        forge_kind = str(getattr(project, "forge_kind", "") or "").lower()
+        repo_url = str(getattr(project, "repo_url", "") or "").lower()
+        return forge_kind == "gitlab" or "gitlab" in repo_url
+
+    @staticmethod
+    def _project_slug(project: Any) -> str:
+        from oompah.scm import extract_repo_slug
+
+        return extract_repo_slug(str(getattr(project, "repo_url", "") or ""))
+
+    @staticmethod
+    def _api_base_url(project: Any) -> str:
+        base = str(getattr(project, "forge_base_url", "") or "").strip().rstrip("/")
+        if base:
+            return f"{base}/api/v4"
+        repo_url = str(getattr(project, "repo_url", "") or "")
+        parsed = urllib.parse.urlparse(repo_url)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}/api/v4"
+        if repo_url.startswith("git@") and ":" in repo_url:
+            return f"https://{repo_url.split('@', 1)[1].split(':', 1)[0]}/api/v4"
+        return "https://gitlab.com/api/v4"
+
+    def _headers(self, project: Any) -> dict[str, str]:
+        token = str(getattr(project, "access_token", "") or "").strip()
+        return {"PRIVATE-TOKEN": token} if token else {}
+
+    async def _request(self, method: str, project: Any, path: str, **kwargs: Any) -> httpx.Response:
+        url = f"{self._api_base_url(project)}{path}"
+        if self._http_client is not None:
+            return await self._http_client.request(method, url, headers=self._headers(project), **kwargs)
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            return await client.request(method, url, headers=self._headers(project), **kwargs)
+
+    async def reconcile(self) -> None:
+        """Make each current GitLab project's hook match the desired state."""
+        if self._configuration_error():
+            self._fire_status_callback()
+            return
+        projects = self._gitlab_projects()
+        current_ids = {str(project.id) for project in projects}
+        for stale_id in set(self._states) - current_ids:
+            self._states.pop(stale_id, None)
+        for project in projects:
+            await self._reconcile_project(project)
+        self._fire_status_callback()
+
+    def _fire_status_callback(self) -> None:
+        """Invoke the status callback with a fresh snapshot (best-effort)."""
+        cb = self._status_callback
+        if cb is None:
+            return
+        try:
+            cb(self.status)
+        except Exception:  # pragma: no cover — defensive callback boundary
+            logger.exception("GitLabHookManager status callback raised")
+
+    async def _reconcile_project(self, project: Any) -> None:
+        project_id = str(project.id)
+        state = self._states.setdefault(
+            project_id,
+            _GitLabHookState(project_id=project_id, project_name=str(project.name)),
+        )
+        slug = self._project_slug(project)
+        if not slug:
+            state.last_error = "could not determine GitLab project path"
+            state.healthy = False
+            return
+        encoded_slug = urllib.parse.quote(slug, safe="")
+        path = f"/projects/{encoded_slug}/hooks"
+        try:
+            response = await self._request("GET", project, path)
+            response.raise_for_status()
+            hooks = response.json()
+            matching = [hook for hook in hooks if hook.get("url") == self._webhook_url]
+            payload = {"url": self._webhook_url, **_GITLAB_HOOK_EVENT_FLAGS}
+            secret = str(getattr(project, "webhook_secret", "") or "")
+            if secret:
+                payload["token"] = secret
+            if matching:
+                hook = matching[0]
+                hook_id = int(hook["id"])
+                update = await self._request("PUT", project, f"{path}/{hook_id}", json=payload)
+                update.raise_for_status()
+                state.hook_id = hook_id
+                for duplicate in matching[1:]:
+                    await self._request("DELETE", project, f"{path}/{int(duplicate['id'])}")
+            else:
+                created = await self._request("POST", project, path, json=payload)
+                created.raise_for_status()
+                state.hook_id = int(created.json()["id"])
+            state.healthy = True
+            state.last_error = ""
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+            state.healthy = False
+            state.last_error = _truncate_error_detail(str(exc))
+            logger.warning("GitLab hook reconciliation failed for %s: %s", project.name, exc)
+
+    async def remove(self, project: Any) -> None:
+        """Delete only this manager's hook from a GitLab project."""
+        if self._configuration_error():
+            return
+        slug = self._project_slug(project)
+        if not slug:
+            return
+        path = f"/projects/{urllib.parse.quote(slug, safe='')}/hooks"
+        try:
+            response = await self._request("GET", project, path)
+            response.raise_for_status()
+            for hook in response.json():
+                if hook.get("url") == self._webhook_url:
+                    deleted = await self._request("DELETE", project, f"{path}/{int(hook['id'])}")
+                    deleted.raise_for_status()
+            self._states.pop(str(project.id), None)
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+            state = self._states.get(str(project.id))
+            if state:
+                state.healthy = False
+                state.last_error = _truncate_error_detail(str(exc))
+            logger.warning("GitLab hook removal failed for %s: %s", project.name, exc)
 
 
 def _default_webhook_forward_url(server_port: int | str | None = None) -> str:
@@ -843,6 +1382,182 @@ def _truncate_error_detail(detail: str, limit: int = 500) -> str:
     if len(text) <= limit:
         return text
     return text[: max(limit - 1, 0)].rstrip(" ,.;:-") + "..."
+
+
+# ---------------------------------------------------------------------------
+# GitLab event deduplication
+# ---------------------------------------------------------------------------
+
+_GITLAB_DEDUP_TTL_S = 300.0  # 5-minute window matches GitLab's retry window
+
+
+class GitLabEventDedup:
+    """Fingerprint-based deduplication for GitLab webhook events.
+
+    GitLab retries webhook delivery on temporary failures.  When both a
+    retry and the polling fallback deliver the same logical event this
+    cache suppresses the duplicate within a 5-minute window.
+
+    Keys are either the ``X-Gitlab-Event-UUID`` header value (preferred,
+    globally unique per delivery) or a derived fingerprint built from
+    event_type + repo_slug + review_id + action + issue_number.  The
+    UUID-based key is always preferred because it survives content changes
+    in the retry payload; the fingerprint key is used when the header is
+    absent (e.g., older GitLab versions or polling paths that synthesise
+    events).
+
+    Thread-safety: the class is designed for use from a single asyncio
+    event loop (FastAPI's request handlers).  All mutations happen inside
+    ``is_duplicate`` which is not a coroutine and is not awaited, so no
+    concurrent mutation can occur within one loop turn.  If the dedup
+    instance is ever shared across threads, callers must add an
+    ``asyncio.Lock`` or threading lock.
+
+    Args:
+        ttl_s: Seconds after which a seen fingerprint is forgotten.
+    """
+
+    def __init__(self, ttl_s: float = _GITLAB_DEDUP_TTL_S) -> None:
+        self._ttl_s = ttl_s
+        # Maps fingerprint -> first-seen monotonic timestamp.
+        self._seen: dict[str, float] = {}
+
+    def _now(self) -> float:
+        import time
+        return time.monotonic()
+
+    def _prune(self) -> None:
+        """Remove entries older than the TTL."""
+        now = self._now()
+        stale = [k for k, ts in self._seen.items() if now - ts >= self._ttl_s]
+        for k in stale:
+            del self._seen[k]
+
+    @staticmethod
+    def make_fingerprint(
+        event_type: str,
+        repo_slug: str,
+        review_id: str = "",
+        action: str = "",
+        issue_number: str = "",
+    ) -> str:
+        """Return a stable fingerprint for a logical event.
+
+        The fingerprint captures the *logical* event identity: what kind of
+        event happened, on which repository, for which MR/issue, and which
+        action was taken.  It does NOT include mutable fields such as the
+        MR title or description — those can change between retries while the
+        logical identity stays the same.
+        """
+        parts = "|".join(
+            [
+                event_type or "",
+                repo_slug or "",
+                review_id or "",
+                action or "",
+                issue_number or "",
+            ]
+        )
+        return hashlib.sha256(parts.encode()).hexdigest()
+
+    def is_duplicate(
+        self,
+        *,
+        event_uuid: str | None,
+        event_type: str,
+        repo_slug: str,
+        review_id: str = "",
+        action: str = "",
+        issue_number: str = "",
+    ) -> bool:
+        """Return True if this event was already seen within the TTL.
+
+        Records the event as seen on first call.  Subsequent calls within
+        the TTL window return True; calls after the window return False and
+        re-register the event.
+
+        Args:
+            event_uuid: Value of the ``X-Gitlab-Event-UUID`` header, if
+                        present.  Used as the primary dedup key.  When
+                        ``None``, a fingerprint is derived from the other
+                        parameters.
+            event_type: ``X-Gitlab-Event`` header value.
+            repo_slug: ``"group/project"`` path extracted from the payload.
+            review_id: MR/PR IID as a string, if applicable.
+            action: Event action (e.g. ``"open"``, ``"close"``).
+            issue_number: Issue IID as a string, if applicable.
+        """
+        self._prune()
+        key = event_uuid if event_uuid else self.make_fingerprint(
+            event_type, repo_slug, review_id, action, issue_number
+        )
+        now = self._now()
+        if key in self._seen:
+            return True
+        self._seen[key] = now
+        return False
+
+
+# ---------------------------------------------------------------------------
+# GitLab hook health alerts
+# ---------------------------------------------------------------------------
+
+
+def build_gitlab_hook_alerts(status: dict[str, Any]) -> list[dict[str, str]]:
+    """Build dashboard alerts from a :class:`GitLabHookManager` status snapshot.
+
+    Produces one alert per unhealthy project.  A healthy manager with all
+    projects in good standing returns an empty list.
+
+    Args:
+        status: The dict returned by :attr:`GitLabHookManager.status`.
+
+    Returns:
+        A list of alert dicts with ``level``, ``source``, and ``message``
+        keys — the same shape consumed by the orchestrator's ``_alerts``
+        list.
+    """
+    alerts: list[dict[str, str]] = []
+
+    if not status.get("configured"):
+        detail = str(status.get("detail") or "GitLab webhook URL not configured")
+        alerts.append(
+            {
+                "level": "warning",
+                "source": "gitlab_hook_manager",
+                "message": (
+                    f"GitLab hooks not configured: {detail}. "
+                    "Set OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL to enable managed "
+                    "GitLab project hooks. Polling fallback is active."
+                ),
+            }
+        )
+        return alerts
+
+    projects = status.get("projects") or {}
+    if not isinstance(projects, dict):
+        return alerts
+
+    for project_id, project_status in projects.items():
+        if not isinstance(project_status, dict):
+            continue
+        if project_status.get("healthy"):
+            continue
+        error = str(project_status.get("last_error") or "").strip()
+        name = str(project_status.get("name") or project_id)
+        alerts.append(
+            {
+                "level": "warning",
+                "source": f"gitlab_hook_manager:{project_id}",
+                "message": (
+                    f"GitLab hook unhealthy for {name}"
+                    + (f": {error}" if error else "")
+                    + ". Polling fallback is active, but real-time events may be delayed."
+                ),
+            }
+        )
+
+    return alerts
 
 
 def build_webhook_forwarder_alerts(status: dict[str, Any]) -> list[dict[str, str]]:

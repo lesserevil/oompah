@@ -1190,6 +1190,7 @@ class TestCodexCliAdditionalDirectories:
             meta_dir = tmp_path / "meta" / "worktrees" / "BRANCH-42"
             meta_dir.mkdir(parents=True)
             (workspace / ".git").write_text(f"gitdir: {meta_dir}\n")
+            (meta_dir / "commondir").write_text("../..\n")
 
         cap: dict = {}
         _install_fake_cli(
@@ -1230,10 +1231,11 @@ class TestCodexCliAdditionalDirectories:
             "additional_directories not set — git operations will fail "
             "inside workspace-write sandbox"
         )
-        assert len(additional) == 1
+        assert len(additional) == 2
         assert "meta" in additional[0] or "worktrees" in additional[0], (
             f"Expected metadata dir path, got: {additional[0]!r}"
         )
+        assert additional[1] == str(tmp_path / "meta")
 
     def test_no_additional_directories_for_plain_workspace(
         self, monkeypatch, tmp_path
@@ -1287,6 +1289,7 @@ class TestCodexCliAdditionalDirectories:
         meta_dir = tmp_path / "shared-repo" / ".git" / "worktrees" / "MY-TASK"
         meta_dir.mkdir(parents=True)
         (workspace / ".git").write_text(f"gitdir: {meta_dir}\n")
+        (meta_dir / "commondir").write_text("../..\n")
 
         cap: dict = {}
         _install_fake_cli(
@@ -1309,4 +1312,32 @@ class TestCodexCliAdditionalDirectories:
         asyncio.run(run())
         thread_opts = cap.get("thread_options")
         additional = getattr(thread_opts, "additional_directories", None)
+        assert additional == [str(meta_dir), str(tmp_path / "shared-repo" / ".git")]
+
+    def test_omits_missing_or_invalid_common_dir(self, monkeypatch, tmp_path):
+        """A malformed commondir does not grant an arbitrary write path."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        meta_dir = tmp_path / "shared-repo" / ".git" / "worktrees" / "MY-TASK"
+        meta_dir.mkdir(parents=True)
+        (workspace / ".git").write_text(f"gitdir: {meta_dir}\n")
+        (meta_dir / "commondir").write_text("/does/not/exist\n")
+
+        cap: dict = {}
+        _install_fake_cli(
+            monkeypatch,
+            events=[_cli_ev("turn.completed", usage=None)],
+            capture=cap,
+        )
+
+        async def run():
+            opt = AcpBackendOptions(
+                workspace_path=str(workspace), prompt="x", billing_model="subscription"
+            )
+            sess = CodexAcpBackendSession(opt)
+            async for _ in sess.run_turn():
+                pass
+
+        asyncio.run(run())
+        additional = getattr(cap["thread_options"], "additional_directories", None)
         assert additional == [str(meta_dir)]
