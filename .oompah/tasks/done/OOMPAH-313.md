@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-313
 type: task
-status: In Progress
+status: Done
 priority: null
 title: 'Regression tests: OOMPAH-285/286 routing fixture and native shared-epic child
   lifecycle'
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:41.720887Z'
-updated_at: '2026-07-22T22:24:08.487553Z'
+updated_at: '2026-07-22T22:24:20.531326Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -325,5 +325,19 @@ Tests correctly distinguish:
 - Fail-open path (_resolve_task_for_branch raises → block reason = None)
 - Fail-closed path (parent_id set but _resolve_parent_epic returns None → block reason = 'could not be resolved')
 - Asymmetry in _close_invalid_epic_policy_review (don't close when parent can't be resolved, to avoid destructive action on transient failure)
+---
+author: oompah
+created: 2026-07-22 22:24
+---
+Completion: OOMPAH-313 delivered.
+
+Added 431 lines to tests/test_epic_strategy.py on epic-OOMPAH-307 branch:
+
+1. _make_review() helper - minimal ReviewRequest factory for YOLO gate tests
+2. _make_shared_epic_scenario() - reusable native oompah_md shared-epic parent+child fixture (OOMPAH-313 primary deliverable)
+3. TestYoloEpicStrategyBlockReason (8 tests) - full coverage of _yolo_epic_strategy_block_reason
+4. TestCloseInvalidEpicPolicyReview (8 tests) - full coverage of _close_invalid_epic_policy_review
+
+These methods had ZERO existing tests. The two regressions from OOMPAH-285/286 child dispatch (OOMPAH-308 work_branch correction, OOMPAH-309 fail-closed gate) are now fully covered with regression tests that would have caught the original bugs.
 ---
 <!-- COMMENTS:END -->
