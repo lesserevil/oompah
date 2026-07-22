@@ -43,7 +43,7 @@ Deleted-branch fallback via PR commits (OOMPAH-248)
   - Same task with PR commits NOT in main_shas → excluded.
   - No SCM configured → graceful degradation (no item, no error).
   - No review_number → graceful degradation (no item, no SCM call).
-  - scm.get_pr_commits raises → item excluded, no propagation.
+  - scm.get_review_commits raises → item excluded, no propagation.
   - Live work_branch found commits → SCM not consulted (existing path preserved).
   - Mixed deleted + live branches → both appear correctly.
   - Trickle release/0.11 selectable primary candidate after branch cleanup (OOMPAH-248 acceptance).
@@ -1641,7 +1641,7 @@ class TestDeletedBranchFallbackDiscovery:
         """Primary regression (OOMPAH-248): deleted branch + persisted review_number → not_selected.
 
         Before OOMPAH-248, when work_branch ref was gone, the item was silently
-        excluded.  After the fix, scm.get_pr_commits is used as a fallback to
+        excluded.  After the fix, scm.get_review_commits is used as a fallback to
         resolve commits, and the item appears as not_selected (queueable).
         """
         ci = _make_commit_info(self._PR_SHA, "feat: TASK-100 implementation")
@@ -1652,7 +1652,7 @@ class TestDeletedBranchFallbackDiscovery:
         )
 
         scm = MagicMock()
-        scm.get_pr_commits.return_value = [self._PR_SHA]
+        scm.get_review_commits.return_value = [self._PR_SHA]
 
         result = self._run(
             tmp_path,
@@ -1675,7 +1675,7 @@ class TestDeletedBranchFallbackDiscovery:
         assert item.source_commits[0].sha == self._PR_SHA
 
         # Verify SCM was queried with the correct arguments
-        scm.get_pr_commits.assert_called_once_with(self._MANAGED_REPO, self._REVIEW_NUMBER)
+        scm.get_review_commits.assert_called_once_with(self._MANAGED_REPO, self._REVIEW_NUMBER)
 
         # Commit is now item-associated; must NOT be in unassociated list
         assert all(r.sha != self._PR_SHA for r in result.unassociated_commits)
@@ -1683,7 +1683,7 @@ class TestDeletedBranchFallbackDiscovery:
     def test_merged_task_deleted_branch_pr_commits_not_in_main_excluded(self, tmp_path):
         """Merged task with PR commits NOT reachable from main must be excluded.
 
-        scm.get_pr_commits returns a SHA that does not appear in the enumerated
+        scm.get_review_commits returns a SHA that does not appear in the enumerated
         main commits (sha_set).  Only commits already on origin/<default_branch>
         are eligible — the item must be excluded when the intersection is empty.
         """
@@ -1696,7 +1696,7 @@ class TestDeletedBranchFallbackDiscovery:
         )
 
         scm = MagicMock()
-        scm.get_pr_commits.return_value = [self._FOREIGN_SHA]  # not in main_shas
+        scm.get_review_commits.return_value = [self._FOREIGN_SHA]  # not in main_shas
 
         result = self._run(
             tmp_path,
@@ -1758,7 +1758,7 @@ class TestDeletedBranchFallbackDiscovery:
         )
 
         scm = MagicMock()
-        scm.get_pr_commits.return_value = [self._PR_SHA]  # would find commits if called
+        scm.get_review_commits.return_value = [self._PR_SHA]  # would find commits if called
 
         result = self._run(
             tmp_path,
@@ -1773,10 +1773,10 @@ class TestDeletedBranchFallbackDiscovery:
             "and must be excluded."
         )
         # SCM should not be invoked when review_number is absent
-        scm.get_pr_commits.assert_not_called()
+        scm.get_review_commits.assert_not_called()
 
-    def test_scm_get_pr_commits_exception_handled_gracefully(self, tmp_path):
-        """When scm.get_pr_commits raises, the item is excluded without propagating the error.
+    def test_scm_get_review_commits_exception_handled_gracefully(self, tmp_path):
+        """When scm.get_review_commits raises, the item is excluded without propagating the error.
 
         Network or API failures must be caught and logged (at DEBUG level).
         The item is silently excluded — the backlog continues with remaining candidates.
@@ -1789,7 +1789,7 @@ class TestDeletedBranchFallbackDiscovery:
         )
 
         scm = MagicMock()
-        scm.get_pr_commits.side_effect = RuntimeError("GitHub API rate limit exceeded")
+        scm.get_review_commits.side_effect = RuntimeError("GitHub API rate limit exceeded")
 
         # Must not raise
         result = self._run(
@@ -1824,7 +1824,7 @@ class TestDeletedBranchFallbackDiscovery:
         )
 
         scm = MagicMock()
-        scm.get_pr_commits.return_value = []  # Would return empty if called
+        scm.get_review_commits.return_value = []  # Would return empty if called
 
         result = self._run(
             tmp_path,
@@ -1840,8 +1840,8 @@ class TestDeletedBranchFallbackDiscovery:
         assert result.items[0].identifier == "TASK-105"
         assert result.items[0].source_commits[0].sha == _SHA_1
 
-        # SCM's get_pr_commits must NOT have been called (live branch found commits)
-        scm.get_pr_commits.assert_not_called()
+        # SCM's get_review_commits must NOT have been called (live branch found commits)
+        scm.get_review_commits.assert_not_called()
 
     # ------------------------------------------------------------------
     # Work branch missing (None) but review_number present
@@ -1862,7 +1862,7 @@ class TestDeletedBranchFallbackDiscovery:
         )
 
         scm = MagicMock()
-        scm.get_pr_commits.return_value = [self._PR_SHA]
+        scm.get_review_commits.return_value = [self._PR_SHA]
 
         result = self._run(
             tmp_path,
@@ -1906,7 +1906,7 @@ class TestDeletedBranchFallbackDiscovery:
 
         scm = MagicMock()
         # PR fallback returns sha_deleted for review 300; live branch handles 108
-        scm.get_pr_commits.side_effect = lambda repo, rev: (
+        scm.get_review_commits.side_effect = lambda repo, rev: (
             [sha_deleted] if rev == "300" else []
         )
 
@@ -2068,7 +2068,7 @@ class TestTrickleRelease011DeletedBranchRegression:
         tracker = self._make_oompah_tracker(merged_issues=[issue])
 
         scm = MagicMock()
-        scm.get_pr_commits.return_value = [self._COMMIT_TASK_1]
+        scm.get_review_commits.return_value = [self._COMMIT_TASK_1]
 
         result = self._run_backlog_011_with_scm(
             tmp_path,
@@ -2095,7 +2095,7 @@ class TestTrickleRelease011DeletedBranchRegression:
         assert item.source_commits[0].sha == self._COMMIT_TASK_1
 
         # SCM must have been called with the correct managed_repo and review_number
-        scm.get_pr_commits.assert_called_once_with(self._MANAGED_REPO, self._TASK_REVIEW_NUMBER)
+        scm.get_review_commits.assert_called_once_with(self._MANAGED_REPO, self._TASK_REVIEW_NUMBER)
 
         # The commit is now item-associated; must NOT be in unassociated
         unassoc_shas = {r.sha for r in result.unassociated_commits}
@@ -2124,7 +2124,7 @@ class TestTrickleRelease011DeletedBranchRegression:
         tracker = self._make_oompah_tracker(merged_issues=[task_issue, epic_issue])
 
         scm = MagicMock()
-        scm.get_pr_commits.side_effect = lambda repo, review_number: {
+        scm.get_review_commits.side_effect = lambda repo, review_number: {
             self._TASK_REVIEW_NUMBER: [self._COMMIT_TASK_1],
             self._EPIC_REVIEW_NUMBER: [self._COMMIT_EPIC_1],
         }.get(review_number, [])
@@ -2153,7 +2153,7 @@ class TestTrickleRelease011DeletedBranchRegression:
         """Companion: PR commits not reachable from main are still excluded.
 
         Even after adding SCM fallback, commits must be verified against
-        origin/main before inclusion. If scm.get_pr_commits returns a SHA
+        origin/main before inclusion. If scm.get_review_commits returns a SHA
         not in main_shas, the item is still excluded.
         """
         # Main only has this unrelated SHA
@@ -2168,7 +2168,7 @@ class TestTrickleRelease011DeletedBranchRegression:
 
         scm = MagicMock()
         # PR commit is a SHA NOT in main_shas
-        scm.get_pr_commits.return_value = [self._COMMIT_TASK_1]  # not in main
+        scm.get_review_commits.return_value = [self._COMMIT_TASK_1]  # not in main
 
         result = self._run_backlog_011_with_scm(
             tmp_path,
@@ -2188,7 +2188,7 @@ class TestTrickleRelease011DeletedBranchRegression:
     def test_trickle_011_deleted_branch_delivered_by_ancestry_excluded_from_needs_delivery(self, tmp_path):
         """Companion: item discovered via PR fallback but already on release/0.11 is excluded.
 
-        When PR commits are found via scm.get_pr_commits AND those commits are
+        When PR commits are found via scm.get_review_commits AND those commits are
         already in ancestry_set (reachable from release/0.11), the item is
         delivered and must not appear in needs_delivery.
         """
@@ -2202,7 +2202,7 @@ class TestTrickleRelease011DeletedBranchRegression:
         tracker = self._make_oompah_tracker(merged_issues=[issue])
 
         scm = MagicMock()
-        scm.get_pr_commits.return_value = [self._COMMIT_TASK_1]
+        scm.get_review_commits.return_value = [self._COMMIT_TASK_1]
 
         # COMMIT_TASK_1 is already in ancestry_set (on release/0.11 by ancestry)
         result = self._run_backlog_011_with_scm(
@@ -2225,7 +2225,7 @@ class TestTrickleRelease011DeletedBranchRegression:
         """Epic with multiple PR commits and deleted branch appears as a single item row.
 
         OOMPAH-200 (epic) had 2 commits on its PR.  After branch cleanup, both
-        commits must be discovered via scm.get_pr_commits and grouped under one row.
+        commits must be discovered via scm.get_review_commits and grouped under one row.
         """
         ci1 = _make_commit_info(self._COMMIT_EPIC_1, "feat: OOMPAH-200 part 1")
         ci2 = _make_commit_info(self._COMMIT_EPIC_2, "feat: OOMPAH-200 part 2")
@@ -2238,7 +2238,7 @@ class TestTrickleRelease011DeletedBranchRegression:
         tracker = self._make_oompah_tracker(merged_issues=[issue])
 
         scm = MagicMock()
-        scm.get_pr_commits.return_value = [self._COMMIT_EPIC_1, self._COMMIT_EPIC_2]
+        scm.get_review_commits.return_value = [self._COMMIT_EPIC_1, self._COMMIT_EPIC_2]
 
         result = self._run_backlog_011_with_scm(
             tmp_path,

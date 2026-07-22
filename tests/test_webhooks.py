@@ -101,6 +101,7 @@ def _make_project(
     project_id: str = "proj-test1",
     name: str = "test-project",
     webhook_secret: str | None = None,
+    forge_kind: str = "github",
 ) -> Project:
     return Project(
         id=project_id,
@@ -108,6 +109,7 @@ def _make_project(
         repo_url=repo_url,
         repo_path="/tmp/repos/test",
         webhook_secret=webhook_secret,
+        forge_kind=forge_kind,
     )
 
 
@@ -932,10 +934,30 @@ class TestMatchProjectByRepo:
         projects = [_make_project(
             repo_url="https://gitlab.com/group/project.git",
             project_id="proj-gl1",
+            forge_kind="gitlab",
         )]
         matched = match_project_by_repo(projects, "group/project", "gitlab")
         assert matched is not None
         assert matched.id == "proj-gl1"
+
+    def test_does_not_match_identical_slug_on_other_forge(self):
+        projects = [
+            _make_project(
+                repo_url="https://github.com/group/project.git",
+                project_id="proj-gh",
+                forge_kind="github",
+            ),
+            _make_project(
+                repo_url="https://gitlab.com/group/project.git",
+                project_id="proj-gl",
+                forge_kind="gitlab",
+            ),
+        ]
+
+        matched = match_project_by_repo(projects, "group/project", "gitlab")
+
+        assert matched is not None
+        assert matched.id == "proj-gl"
 
     def test_no_match(self):
         projects = [_make_project(repo_url="https://github.com/org/other.git")]

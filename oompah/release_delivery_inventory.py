@@ -820,7 +820,7 @@ def _find_pr_commits_in_main(
         return []
 
     try:
-        pr_commits: list[str] = scm.get_pr_commits(managed_repo, review_number)
+        pr_commits: list[str] = scm.get_review_commits(managed_repo, review_number)
     except Exception as exc:  # noqa: BLE001
         logger.debug(
             "_find_pr_commits_in_main: scm.get_pr_commits failed for %r PR#%s: %s",

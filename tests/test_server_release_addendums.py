@@ -215,7 +215,7 @@ class TestResolveAddendumCommits:
         pr = MagicMock()
         pr.state = "merged"
         scm.find_pr_for_branch.return_value = pr
-        scm.get_pr_commits.return_value = _COMMITS
+        scm.get_review_commits.return_value = _COMMITS
 
         commits = resolve_addendum_commits(issue, project, scm=scm, repo="org/repo")
         assert commits == _COMMITS

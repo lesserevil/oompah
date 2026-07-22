@@ -16,11 +16,56 @@ import time
 import urllib.parse
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from enum import Enum
+from typing import Any, NotRequired, TypedDict
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+class CIStatus(str, Enum):
+    """Forge-neutral CI verdicts returned by :class:`SCMProvider`.
+
+    The enum subclasses ``str`` deliberately: persisted review payloads and
+    existing consumers comparing a status with a string keep their established
+    behaviour while providers gain one finite, documented vocabulary.
+    """
+
+    PASSED = "passed"
+    FAILED = "failed"
+    PENDING = "pending"
+    UNKNOWN = "unknown"
+
+
+# ``CIState`` is the contract name used by forge integrations. Keep the
+# status spelling as a public compatibility alias for existing callers.
+CIState = CIStatus
+
+
+class CapabilityWarning(TypedDict):
+    """A structured explanation for a non-fatal unavailable capability."""
+
+    type: str
+    message: str
+    capability: NotRequired[str]
+
+
+def unavailable_capability_warning(capability: str, message: str | None = None) -> CapabilityWarning:
+    """Build the standard warning emitted when an optional contract feature is absent."""
+    return {
+        "type": "capability_unavailable",
+        "capability": capability,
+        "message": message or f"Provider does not support {capability}.",
+    }
+
+
+def normalize_ci_status(value: str | CIStatus | None) -> CIStatus:
+    """Convert legacy CI values to the contract's complete state set."""
+    try:
+        return CIStatus(value or CIStatus.UNKNOWN)
+    except ValueError:
+        return CIStatus.UNKNOWN
 
 # Branches that must never be auto-deleted as part of post-merge cleanup.
 # Even if such a branch is a PR/MR *head* (e.g. a release->main back-merge),
@@ -80,8 +125,8 @@ class ReviewRequest:
     labels: list[str] = field(default_factory=list)
     draft: bool = False
     reviewers: list[str] = field(default_factory=list)
-    ci_status: str = ""  # passed, failed, pending, ""
-    ci_warnings: list[dict[str, Any]] = field(default_factory=list)
+    ci_status: CIStatus = CIStatus.UNKNOWN
+    ci_warnings: list[CapabilityWarning] = field(default_factory=list)
     additions: int = 0
     deletions: int = 0
     needs_rebase: bool = False
@@ -98,6 +143,15 @@ class ReviewRequest:
     churn_magnet: bool = False
     churn_magnet_files: list[str] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        """Normalize legacy provider strings at the contract boundary.
+
+        Providers historically assigned raw CI strings to this field. Keeping
+        that input accepted avoids a flag day while ensuring consumers always
+        receive one of the four documented verdicts.
+        """
+        self.ci_status = normalize_ci_status(self.ci_status)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -129,7 +183,14 @@ class ReviewRequest:
 
 
 class SCMProvider(ABC):
-    """Base class for source control management providers."""
+    """Forge-neutral source-control contract.
+
+    Required operations return their documented empty/false result on an
+    ordinary remote failure; providers must not leak forge-specific HTTP
+    failures into workflows. Optional operations have safe defaults and expose
+    their absence through :meth:`get_capability_warnings`. Implementations may
+    still log transport failures for operators.
+    """
 
     @abstractmethod
     def list_open_reviews(self, repo: str) -> list[ReviewRequest]:
@@ -139,17 +200,19 @@ class SCMProvider(ABC):
             repo: Repository identifier. Format depends on provider:
                   GitHub: "owner/repo"
                   GitLab: "group/project" or project ID
+        Returns an empty list when the repository is unavailable or cannot be
+        read.  It must not raise for an ordinary provider/API failure.
         """
         ...
 
     @abstractmethod
     def list_merged_branches(self, repo: str) -> set[str]:
-        """Return source branch names of recently merged PRs/MRs."""
+        """Return source branch names of recently merged reviews, or an empty set on failure."""
         ...
 
     @abstractmethod
     def list_merged_reviews(self, repo: str) -> list[ReviewRequest]:
-        """Return recently merged PRs/MRs with source and target branches."""
+        """Return recently merged reviews, or an empty list when unavailable."""
         ...
 
     @abstractmethod
@@ -163,14 +226,15 @@ class SCMProvider(ABC):
         ``"merged"``. Returns ``None`` when no PR/MR for that branch
         exists.
 
-        Used by the epic auto-close gate (oompah-zlz_2-lvcd) to verify
+        Returns ``None`` when the review cannot be found or the provider is
+        unavailable. Used by the epic auto-close gate (oompah-zlz_2-lvcd) to verify
         a child's branch was merged before closing the parent epic.
         """
         ...
 
     @abstractmethod
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
-        """Get a single pull/merge request by ID."""
+        """Get one review, returning ``None`` when it is absent or unreadable."""
         ...
 
     @abstractmethod
@@ -178,7 +242,7 @@ class SCMProvider(ABC):
         self, repo: str, title: str, source_branch: str,
         target_branch: str = "main", description: str = "",
     ) -> ReviewRequest | None:
-        """Create a new pull/merge request."""
+        """Create a review, returning ``None`` when creation is rejected or unavailable."""
         ...
 
     @abstractmethod
@@ -192,7 +256,7 @@ class SCMProvider(ABC):
 
     @abstractmethod
     def needs_rebase(self, repo: str, review_id: str) -> bool:
-        """Check if a PR/MR needs a rebase (is behind target branch)."""
+        """Check whether a review needs rebase; return ``False`` when this cannot be determined."""
         ...
 
     @abstractmethod
@@ -242,7 +306,7 @@ class SCMProvider(ABC):
 
     @abstractmethod
     def is_available(self) -> bool:
-        """Check if the provider is authenticated and reachable."""
+        """Check whether the provider is authenticated and reachable; never raise for a probe failure."""
         ...
 
     @abstractmethod
@@ -252,36 +316,39 @@ class SCMProvider(ABC):
 
     @abstractmethod
     def get_review_files(self, repo: str, review_id: str) -> list[str]:
-        """Return a list of file paths changed by the review.
+        """Return file paths changed by the review.
 
         Args:
             repo: Repository identifier.
             review_id: PR/MR number.
 
         Returns:
-            List of file paths (e.g. ``["src/foo.py", "README.md"]``).
+            List of file paths (e.g. ``["src/foo.py", "README.md"]``), or an
+            empty list when the operation is unavailable or fails.
         """
         ...
 
     @abstractmethod
     def add_review_label(self, repo: str, review_id: str, label: str) -> None:
-        """Add a label to a pull/merge request.
+        """Add a label to a review.
 
         Args:
             repo: Repository identifier.
             review_id: PR/MR number.
             label: Label name to add.
+        Provider/API failures must be logged and treated as non-fatal.
         """
         ...
 
     @abstractmethod
     def remove_review_label(self, repo: str, review_id: str, label: str) -> None:
-        """Remove a label from a pull/merge request.
+        """Remove a label from a review.
 
         Args:
             repo: Repository identifier.
             review_id: PR/MR number.
             label: Label name to remove.
+        Provider/API failures must be logged and treated as non-fatal.
         """
         ...
 
@@ -307,6 +374,36 @@ class SCMProvider(ABC):
         """
         return []
 
+    def get_review_commits(self, repo: str, review_id: str) -> list[str]:
+        """Return review commit SHAs in chronological order.
+
+        This is the forge-neutral spelling for shared workflow consumers.
+        It delegates to ``get_pr_commits`` as a compatibility bridge for
+        existing providers until they can rename their implementation.
+        """
+        return self.get_pr_commits(repo, review_id)
+
+    def get_review_comments(self, repo: str, review_id: str) -> list[dict[str, Any]]:
+        """Return normalized review comments, or an empty list if unavailable.
+
+        Comments are optional because forge APIs expose different comment
+        models. Callers must use :meth:`get_capability_warnings` when they need
+        to distinguish an empty discussion from an unavailable feature.
+        """
+        return []
+
+    def get_capability_warnings(self, capabilities: set[str]) -> list[CapabilityWarning]:
+        """Report unsupported optional capabilities without raising exceptions.
+
+        The base implementation supports the contract's required operations
+        and reports optional review comments as unavailable. Providers should
+        override this when their supported feature set differs.
+        """
+        return [
+            unavailable_capability_warning(capability)
+            for capability in sorted(capabilities & {"review_comments"})
+        ]
+
     def get_branch_head_sha(self, repo: str, branch: str) -> str | None:
         """Return the HEAD commit SHA for *branch*, or ``None``.
 
@@ -327,12 +424,12 @@ class SCMProvider(ABC):
         """
         return None
 
-    def get_branch_ci_status(self, repo: str, branch: str) -> str:
+    def get_branch_ci_status(self, repo: str, branch: str) -> CIStatus:
         """Return the CI status for the HEAD commit of *branch*.
 
         Combines :meth:`get_branch_head_sha` with
         :meth:`get_ci_status_for_sha` to produce a single CI verdict for a
-        branch tip.  Returns ``""`` when the branch HEAD SHA cannot be
+        branch tip.  Returns ``unknown`` when the branch HEAD SHA cannot be
         determined or CI status cannot be fetched.
 
         The default implementation calls
@@ -344,18 +441,17 @@ class SCMProvider(ABC):
             branch: Branch name (without ``refs/heads/`` prefix).
 
         Returns:
-            One of ``"passed"``, ``"failed"``, ``"pending"``, or ``""``
-            (unknown / no CI).
+            One of :class:`CIStatus` (including ``unknown``).
         """
         sha = self.get_branch_head_sha(repo, branch)
         if not sha:
-            return ""
-        return self.get_ci_status_for_sha(repo, sha)
+            return CIStatus.UNKNOWN
+        return normalize_ci_status(self.get_ci_status_for_sha(repo, sha))
 
-    def get_ci_status_for_sha(self, repo: str, sha: str) -> str:
+    def get_ci_status_for_sha(self, repo: str, sha: str) -> CIStatus:
         """Return the CI status for a specific commit SHA.
 
-        The default implementation returns ``""`` so that sub-classes that
+        The default implementation returns ``unknown`` so that sub-classes that
         have not yet implemented this method degrade gracefully.
 
         Args:
@@ -363,10 +459,9 @@ class SCMProvider(ABC):
             sha: Full 40-character commit SHA.
 
         Returns:
-            One of ``"passed"``, ``"failed"``, ``"pending"``, or ``""``
-            (unknown / no CI).
+            One of :class:`CIStatus` (including ``unknown``).
         """
-        return ""
+        return CIStatus.UNKNOWN
 
 
 def _resolve_gh_token() -> str | None:
@@ -1755,23 +1850,24 @@ class GitHubProvider(SCMProvider):
             )
         return None
 
-    def get_ci_status_for_sha(self, repo: str, sha: str) -> str:
+    def get_ci_status_for_sha(self, repo: str, sha: str) -> CIStatus:
         """Return the CI status for a specific commit SHA.
 
         Delegates to :meth:`_fetch_ci_status`.  Returns one of
-        ``"passed"``, ``"failed"``, ``"pending"``, or ``""`` (no CI data).
+        ``"passed"``, ``"failed"``, ``"pending"``, or ``"unknown"``
+        when CI data is unavailable.
 
         Args:
             repo: ``"owner/name"`` slug.
             sha: Full 40-character commit SHA.
 
         Returns:
-            CI status string.
+            A forge-neutral :class:`CIStatus` value.
         """
         try:
-            return self._fetch_ci_status(repo, sha)
+            return normalize_ci_status(self._fetch_ci_status(repo, sha))
         except Exception:  # noqa: BLE001
-            return ""
+            return CIStatus.UNKNOWN
 
 
 class GitLabProvider(SCMProvider):
@@ -2080,7 +2176,6 @@ class GitLabProvider(SCMProvider):
                     )
             r = self._api("PUT", f"/projects/{encoded}/merge_requests/{review_id}/merge",
                           json={
-                              "squash": True,
                               "should_remove_source_branch": remove_source,
                           })
             if r.status_code == 200:
@@ -2138,17 +2233,32 @@ class GitLabProvider(SCMProvider):
             return False
 
     def enable_auto_merge(self, repo: str, review_id: str) -> tuple[bool, str]:
-        """Enable auto-merge for a GitLab MR.
+        """Enable auto-merge for a GitLab MR via merge_when_pipeline_succeeds.
 
         GitLab merge trains differ from GitHub's merge queue and are not
-        adopted in this rollout.  Falls back to a direct merge so that
-        queue-mode projects on GitLab still make progress.
+        adopted in v1.  Uses ``merge_when_pipeline_succeeds`` so the MR
+        is merged automatically once the pipeline passes.  If GitLab
+        rejects the request due to unmet approvals or policy, the MR is
+        retained and an actionable reason is returned.
         """
-        logger.debug(
-            "GitLab enable_auto_merge: falling back to direct merge for %s MR #%s",
-            repo, review_id,
-        )
-        return self.merge_review(repo, review_id)
+        encoded = self._project_path(repo)
+        try:
+            r = self._api(
+                "PUT",
+                f"/projects/{encoded}/merge_requests/{review_id}/merge",
+                json={"merge_when_pipeline_succeeds": True},
+            )
+            if r.status_code == 200:
+                return True, "Auto-merge enabled: will merge when pipeline succeeds"
+            if r.status_code in (401, 403):
+                body = r.text[:300]
+                return False, f"Auto-merge rejected: approvals or policy not satisfied — {body}"
+            if r.status_code == 405:
+                body = r.text[:300]
+                return False, f"Auto-merge not allowed: {body}"
+            return False, f"Auto-merge failed: HTTP {r.status_code} {r.text[:300]}"
+        except httpx.HTTPError as exc:
+            return False, f"Auto-merge failed: {exc}"
 
     def get_review_files(self, repo: str, review_id: str) -> list[str]:
         """Return file paths changed by a GitLab MR via
@@ -2302,6 +2412,213 @@ class GitLabProvider(SCMProvider):
         # GitLab returns newest-first; reverse to oldest-first.
         shas.reverse()
         return shas
+
+    def get_branch_head_sha(self, repo: str, branch: str) -> str | None:
+        """Return the HEAD commit SHA for *branch* via GitLab branches API.
+
+        Uses ``GET /projects/:id/repository/branches/:branch`` to fetch the
+        branch tip SHA from the ``commit.id`` field.  Returns ``None`` on any
+        error, a 404, or a malformed response.
+
+        Args:
+            repo: GitLab project path (e.g. ``"group/sub/project"``).
+            branch: Branch name (without ``refs/heads/`` prefix).
+
+        Returns:
+            Full commit SHA string, or ``None``.
+        """
+        encoded_repo = self._project_path(repo)
+        encoded_branch = urllib.parse.quote(branch, safe="")
+        try:
+            r = self._api(
+                "GET",
+                f"/projects/{encoded_repo}/repository/branches/{encoded_branch}",
+            )
+            if r.status_code != 200:
+                logger.debug(
+                    "GitLab get_branch_head_sha %s/%s: HTTP %d",
+                    repo, branch, r.status_code,
+                )
+                return None
+            data = r.json()
+            sha = data.get("commit", {}).get("id", "")
+            return sha if sha else None
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            logger.debug(
+                "GitLab get_branch_head_sha failed for %s/%s: %s",
+                repo, branch, exc,
+            )
+            return None
+
+    @staticmethod
+    def _normalize_gitlab_status(status: str) -> str:
+        """Map a GitLab pipeline/job status string to a forge-neutral contract string.
+
+        Returns one of ``"passed"``, ``"failed"``, ``"pending"``, or ``""``
+        (for unknown/unrecognised states).
+        """
+        s = (status or "").lower()
+        if s in ("success", "skipped"):
+            return "passed"
+        if s in ("failed", "canceled"):
+            return "failed"
+        if s in ("running", "pending", "created", "waiting_for_resource",
+                 "preparing", "scheduled"):
+            return "pending"
+        return ""
+
+    def _fetch_ci_status_and_warnings(
+        self, repo: str, sha: str
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """Fetch CI status and bounded capability warnings from GitLab pipelines.
+
+        Calls ``GET /projects/:id/pipelines?sha=:sha`` then fetches jobs for
+        each pipeline to produce a single aggregated forge-neutral verdict.
+
+        Aggregation priority: ``failed`` > ``pending`` > ``passed``.  An empty
+        pipeline list yields an empty status (mapped to ``unknown`` by callers).
+
+        Capability failures (HTTP 403, 429, or non-list payloads) are returned
+        as structured warnings rather than silent ``unknown`` so the UI can
+        surface a degraded-state notice.
+
+        Args:
+            repo: GitLab project path.
+            sha: Full commit SHA.
+
+        Returns:
+            ``(status_string, warnings)`` where *status_string* is one of
+            ``"passed"``, ``"failed"``, ``"pending"``, or ``""`` (unknown),
+            and *warnings* is a list of ``CapabilityWarning``-shaped dicts
+            capped at 10 entries.
+        """
+        encoded = self._project_path(repo)
+        try:
+            r = self._api(
+                "GET",
+                f"/projects/{encoded}/pipelines",
+                params={"sha": sha, "per_page": 100},
+            )
+        except httpx.HTTPError as exc:
+            logger.debug("GitLab _fetch_ci_status_and_warnings %s/%s: %s", repo, sha[:7], exc)
+            return "", []
+
+        if r.status_code == 403:
+            return "", [{
+                "type": "gitlab_ci_forbidden",
+                "message": (
+                    "CI check results are unavailable: HTTP 403 from GitLab "
+                    "pipelines API. Grant CI access to your token so oompah "
+                    "can observe CI status."
+                ),
+            }]
+        if r.status_code == 429:
+            return "", [{
+                "type": "gitlab_ci_rate_limited",
+                "message": (
+                    "CI check results are unavailable: HTTP 429 rate limit "
+                    "from GitLab pipelines API. Retry later."
+                ),
+            }]
+        if r.status_code != 200:
+            return "", []
+
+        try:
+            pipelines = r.json()
+        except (json.JSONDecodeError, ValueError):
+            return "", [{
+                "type": "gitlab_ci_malformed_response",
+                "message": "CI response from GitLab pipelines could not be parsed.",
+            }]
+
+        if not isinstance(pipelines, list):
+            return "", [{
+                "type": "gitlab_ci_malformed_response",
+                "message": "CI response from GitLab pipelines was not a list.",
+            }]
+
+        if not pipelines:
+            return "", []
+
+        failed_jobs: list[dict[str, Any]] = []
+        has_pending = False
+        has_passed = False
+
+        for pipeline in pipelines:
+            pipeline_id = str(pipeline.get("id", ""))
+            pipeline_url = pipeline.get("web_url", "")
+            pipeline_status = pipeline.get("status", "")
+
+            # Fetch individual jobs so stale pipeline-level rollups can be
+            # overridden by the live job statuses.
+            jobs: list | None = None
+            try:
+                jobs_r = self._api(
+                    "GET",
+                    f"/projects/{encoded}/pipelines/{pipeline_id}/jobs",
+                )
+                if jobs_r.status_code == 200:
+                    try:
+                        parsed = jobs_r.json()
+                        if isinstance(parsed, list):
+                            jobs = parsed
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+            except httpx.HTTPError:
+                pass
+
+            if jobs:
+                for job in jobs:
+                    normalized = self._normalize_gitlab_status(job.get("status", ""))
+                    if normalized == "failed":
+                        failed_jobs.append({
+                            "job_url": job.get("web_url", ""),
+                            "pipeline_url": pipeline_url,
+                        })
+                    elif normalized == "pending":
+                        has_pending = True
+                    elif normalized == "passed":
+                        has_passed = True
+            else:
+                # No job-level data available; fall back to pipeline status.
+                normalized = self._normalize_gitlab_status(pipeline_status)
+                if normalized == "failed":
+                    failed_jobs.append({"job_url": "", "pipeline_url": pipeline_url})
+                elif normalized == "pending":
+                    has_pending = True
+                elif normalized == "passed":
+                    has_passed = True
+
+        if failed_jobs:
+            # Sort deterministically by job URL (then pipeline URL) so warning
+            # order is stable across multiple runs.
+            failed_jobs.sort(key=lambda w: (w.get("job_url", ""), w.get("pipeline_url", "")))
+            return "failed", failed_jobs[:10]
+        if has_pending:
+            return "pending", []
+        if has_passed:
+            return "passed", []
+        return "", []
+
+    def get_ci_status_for_sha(self, repo: str, sha: str) -> CIStatus:
+        """Return the CI status for a specific commit SHA on GitLab.
+
+        Delegates to :meth:`_fetch_ci_status_and_warnings` and normalises the
+        raw status string to a :class:`CIStatus` enum member.  Returns
+        ``CIStatus.UNKNOWN`` when CI data is unavailable or an error occurs.
+
+        Args:
+            repo: GitLab project path (e.g. ``"group/project"``).
+            sha: Full commit SHA.
+
+        Returns:
+            A forge-neutral :class:`CIStatus` value.
+        """
+        try:
+            status, _warnings = self._fetch_ci_status_and_warnings(repo, sha)
+            return normalize_ci_status(status)
+        except Exception:  # noqa: BLE001
+            return CIStatus.UNKNOWN
 
 
 # -- Helpers --
