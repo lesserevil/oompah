@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T05:41:51.997877Z'
-updated_at: '2026-07-22T16:13:55.941082Z'
+updated_at: '2026-07-22T16:13:58.574373Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -328,5 +328,10 @@ Tests added in tests/test_epic_strategy.py:
 Additional fix: 10 pre-existing tests in test_orchestrator_merged.py, test_yolo_watchdog.py, test_yolo_watchdog_w9m.py used raw MagicMock() without parent_id=None, causing them to trip the new fail-closed gate. Fixed by explicitly setting parent_id=None or fetch_issue_detail.return_value=None.
 
 Full suite: 11709 passed, 38 skipped, 0 failures.
+---
+author: oompah
+created: 2026-07-22 16:13
+---
+Hardened 3 call sites in orchestrator.py to fail-closed when _resolve_parent_epic returns None for a child with parent_id. Added 3 regression tests. Fixed 10 test regressions caused by MagicMock parent_id attributes. All 11709 tests pass.
 ---
 <!-- COMMENTS:END -->
