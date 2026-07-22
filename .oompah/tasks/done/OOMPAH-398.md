@@ -12,7 +12,7 @@ labels:
 - watchdog
 assignee: null
 created_at: '2026-07-22T03:59:50.765371Z'
-updated_at: '2026-07-22T04:19:59.948966Z'
+updated_at: '2026-07-22T04:20:02.292321Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -147,5 +147,10 @@ Delivered:
 - tests/test_stalled_task_watchdog.py: 74 tests; all 11338 project tests pass
 
 Acceptance criteria verified: default 30-minute interval configurable only via env var; no duplicate actions across runs; automated changes explained via comments and maintenance snapshot; genuine human blockers left untouched.
+---
+author: oompah
+created: 2026-07-22 04:20
+---
+Implemented configurable stalled-task remediation watchdog: new oompah/stalled_task_watchdog.py module with classify_stalled_task()/run_watchdog_audit() pure APIs; OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS config (default 1800s); orchestrator integration via _run_step5b_maintenance maintenance lane; 74 new tests; all 11338 project tests passing.
 ---
 <!-- COMMENTS:END -->
