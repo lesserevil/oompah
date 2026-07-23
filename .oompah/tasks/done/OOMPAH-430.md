@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T23:17:00.426678Z'
+updated_at: '2026-07-23T23:17:02.810880Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -354,5 +354,10 @@ Completion: OOMPAH-430 is done.
 - 5 regression tests (from this focus, commit 64ad8706e)
 
 **Acceptance criteria met**: Duplicate detection that finds no duplicate records its completion and handoff exactly once (test_no_commit_handoff_detected_and_not_retried), and the next run begins feature work rather than another duplicate pass (select_focus returns != duplicate_detector).
+---
+author: oompah
+created: 2026-07-23 23:17
+---
+Added 5 regression tests (3 in test_acp_project_tools.py for add-label ACP interception, 2 in test_orchestrator_duplicate_detection.py for no-commit focus completion advancing to feature focus). Closes EXOCOMP-55 regression gap. All 12068 tests pass. Documentation was added in prior docs focus (plans/focus-handoff-mutation-protocol.md).
 ---
 <!-- COMMENTS:END -->
