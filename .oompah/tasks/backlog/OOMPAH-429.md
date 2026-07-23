@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T22:24:40.832138Z'
-updated_at: '2026-07-23T22:24:40.832138Z'
+updated_at: '2026-07-23T22:26:38.457947Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ When a task moved to Needs Human/Done is manually or watchdog reopened to an act
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-23 22:26
+---
+Implemented and verified the immediate-reopen fix: reopening a dispatchable task now clears the scheduler's stale completed/claimed entries, so it can be selected on the next tick rather than waiting for the watchdog. Full test suite passed; committing and deploying next.
+---
+<!-- COMMENTS:END -->
