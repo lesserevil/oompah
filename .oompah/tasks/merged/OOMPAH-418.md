@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-418
 type: epic
-status: In Progress
+status: Merged
 priority: 0
 title: Expose oompah's OpenAPI as a streamable MCP server
 parent: null
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-07-23T20:33:55.338328Z'
+updated_at: '2026-07-23T20:44:07.298080Z'
 work_branch: epic-OOMPAH-418
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/542
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-07-23 20:33
 ---
 YOLO: CI tests failed on MR #542. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-23 20:44
+---
+YOLO: merged PR #542.
 ---
 <!-- COMMENTS:END -->
