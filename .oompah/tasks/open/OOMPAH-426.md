@@ -1,16 +1,18 @@
 ---
 id: OOMPAH-426
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-23T21:24:09.661939Z'
+updated_at: '2026-07-23T21:24:37.331992Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,5 +74,30 @@ Relevant code locations:
 - oompah/orchestrator.py: _yolo_epic_strategy_block_reason (~line 12090), _close_invalid_epic_policy_review (~line 12174), _ensure_review_exists (~line 8138), _create_workspace_for_issue (~line 5000)
 - tests/test_epic_strategy.py: TestYoloEpicStrategyBlockReason, TestCloseInvalidEpicPolicyReview, TestEnsureReviewExistsRespectsEpicStrategy
 - models.py line 26: comment references OOMPAH-286/PR #466 as the known bypass pattern
+---
+author: oompah
+created: 2026-07-23 21:24
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate confirmed. OOMPAH-426 is a unique, fresh regression report of a child-task PR bypassing the shared-epic gate and merging directly to main.
+
+2. Relevant files, commands, evidence, and decisions:
+   - oompah/orchestrator.py: _yolo_epic_strategy_block_reason (~line 12090) — YOLO gate that blocks child PRs; fails-open if _resolve_task_for_branch cannot find the task for the branch. _ensure_review_exists (~line 8138) — prevents per-child PR creation; blocks when parent_id set. _close_invalid_epic_policy_review (~line 12174) — closes stale child PRs. _create_workspace_for_issue (~line 5000) — routes child dispatch to epic worktree.
+   - tests/test_epic_strategy.py: TestYoloEpicStrategyBlockReason (8 tests), TestCloseInvalidEpicPolicyReview (8 tests), TestEnsureReviewExistsRespectsEpicStrategy — existing regression coverage from OOMPAH-313.
+   - Prior epic: OOMPAH-307 (Merged) addressed the OOMPAH-286/PR #466 pattern. All children (OOMPAH-308 through OOMPAH-313) are complete. OOMPAH-426 demonstrates a surviving gap.
+   - Key surviving gap from OOMPAH-313 investigation: _resolve_task_for_branch raises → _yolo_epic_strategy_block_reason returns None (fail-open by design for unrelated PRs). But this can also be triggered when EXOCOMP-57's branch is not in the branch index.
+   - 'branch/work_branch override path' mentioned in description suggests a scenario where issue.work_branch or issue.target_branch is explicitly set to a non-epic branch, bypassing epic dispatch routing.
+
+3. Remaining work and risks:
+   - Reproduce the EXOCOMP-57 scenario: child with parent_id set, work_branch=child-name (not epic branch), target_branch=main, YOLO merges PR to main.
+   - Identify which gate failed: (a) _ensure_review_exists didn't block PR creation, (b) _yolo_epic_strategy_block_reason returned None allowing merge, or (c) _create_workspace_for_issue created own worktree instead of routing to epic.
+   - Fix the gate gap and add regression tests that specifically reproduce EXOCOMP-57 (child PR to main for an open shared-epic project).
+   - Cover PR creation, YOLO merge/reconciliation, and branch/work_branch override paths.
+   - Ensure Needs Human handoff when an existing invalid PR is found (operator action required).
+   - Run make test.
+   - Risk: orchestrator.py is large (~19k lines); use targeted grep to navigate.
+
+4. Recommended next focus: feature (backend fix — implement merge gate enforcement and regression tests for EXOCOMP-57 scenario)
 ---
 <!-- COMMENTS:END -->
