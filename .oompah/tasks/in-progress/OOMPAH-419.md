@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-419
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Define the oompah OpenAPI-to-MCP exposure policy
 parent: OOMPAH-418
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:14:28.374241Z'
+updated_at: '2026-07-23T20:19:31.963654Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: d40fe272-5311-43fd-a306-a040573e3734
+oompah.agent_run_id: 034c06dc-699f-49f6-8470-b9cb218ea35f
 oompah.work_branch: epic-OOMPAH-418
 oompah.task_costs:
   total_input_tokens: 2370412
@@ -292,6 +292,16 @@ Agent dispatched (profile: default)
 ---
 author: oompah
 created: 2026-07-23 20:12
+---
+Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-23 20:19
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-23 20:19
 ---
 Focus: Security Auditor
 ---

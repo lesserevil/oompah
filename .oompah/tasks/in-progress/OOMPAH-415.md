@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -13,13 +13,13 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T20:14:27.524976Z'
+updated_at: '2026-07-23T20:19:37.827877Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 35012f9b-c806-46a3-8c91-8c6716da411d
+oompah.agent_run_id: 1e66c8a2-06ee-4abe-a25d-c869cb035ff8
 oompah.work_branch: epic-OOMPAH-414
 oompah.task_costs:
   total_input_tokens: 8116451
@@ -360,6 +360,16 @@ Agent dispatched (profile: default)
 ---
 author: oompah
 created: 2026-07-23 20:12
+---
+Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-23 20:19
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-23 20:19
 ---
 Focus: Maintenance Engineer
 ---

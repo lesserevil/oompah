@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-416
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-23T20:15:00.725388Z'
+updated_at: '2026-07-23T20:19:44.353079Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: f1b1d884-0873-474c-a54c-ac87f6626978
+oompah.agent_run_id: 3b0198ea-b5dd-476b-a038-52de09df2abc
 oompah.work_branch: epic-OOMPAH-414
 oompah.task_costs:
   total_input_tokens: 21
@@ -136,6 +136,26 @@ Agent dispatched (profile: standard)
 ---
 author: oompah
 created: 2026-07-23 20:14
+---
+Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-23 20:19
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 0, Tool calls: 26
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 10s
+- Log: OOMPAH-416__20260723T201416Z.jsonl
+---
+author: oompah
+created: 2026-07-23 20:19
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-23 20:19
 ---
 Focus: Epic Planner
 ---
