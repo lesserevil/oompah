@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-415
 type: task
-status: Open
-priority: null
+status: Needs CI Fix
+priority: 0
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
 parent: OOMPAH-414
@@ -11,9 +11,10 @@ blocked_by: []
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:docs
+- ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T20:27:50.734161Z'
+updated_at: '2026-07-23T20:34:00.585524Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -372,5 +373,10 @@ author: oompah
 created: 2026-07-23 20:19
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-23 20:34
+---
+YOLO: CI tests failed on MR #543. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->

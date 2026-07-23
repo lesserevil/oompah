@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-416
 type: task
-status: Open
-priority: null
+status: Needs CI Fix
+priority: 0
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
 children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-23T20:27:51.447076Z'
+updated_at: '2026-07-23T20:33:51.745027Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -194,5 +195,10 @@ author: oompah
 created: 2026-07-23 20:26
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-23 20:33
+---
+YOLO: CI tests failed on MR #543. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
