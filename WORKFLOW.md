@@ -60,7 +60,11 @@ Read these carefully — they preserve context and findings from prior work on t
 
 ## oompah Task Reference
 
-You manage this issue via the `oompah task` CLI. **The entries below are shell commands. Run them via the `run_command` tool — do NOT call them as tool names.**
+You manage this issue with `oompah task` commands. **Pass the entries below
+directly to the `run_command` tool — do NOT call them as tool names or wrap
+them in another shell command.** In managed ACP sessions, `run_command`
+intercepts these commands and routes them directly to the task tracker without
+making an HTTP request.
 
 {% if issue.provider_url != "" %}**GitHub Issue:** {{ issue.provider_url }}
 
@@ -103,7 +107,15 @@ The following insights were collected by previous agents working on this project
 
 ## Operating Principles
 
-**No HTTP self-calls to the local oompah server:** NEVER call `http://127.0.0.1:8090` (or any other loopback port) via `curl`, `httpx`, the `oompah task` CLI, or any other HTTP client from inside a `run_command` tool call. The oompah server is the same process that is servicing your MCP tool call — making a synchronous HTTP request back into it will deadlock the server and your task will never complete. Use the MCP tools provided to you instead.
+**No HTTP self-calls to the local oompah server:** NEVER call
+`http://127.0.0.1:8090` (or any other loopback port) via `curl`, `httpx`, a raw
+`oompah task` subprocess, or any other HTTP client. The oompah server is the
+same process that is servicing your tool call, so a synchronous request back
+into it can deadlock the server. The task commands in **oompah Task Reference**
+are safe when passed directly to ACP's `run_command`: ACP intercepts them
+before shell execution and mutates the tracker in-process. If that interceptor
+is unavailable, use the provided tracker MCP tools; never fall back to a raw
+CLI self-call.
 
 **No direct `.oompah/projects.json` edits:** NEVER read from or write to `.oompah/projects.json` directly (e.g. via `cat`, `jq`, `sed`, or `write_file`). That file is managed exclusively by the oompah server's ProjectStore. Bypassing it skips validation, corrupts in-memory state, and may lose concurrent writes. For managed-project cutover tasks, use the `mcp__oompah__list_projects`, `mcp__oompah__get_project`, `mcp__oompah__get_project_by_id`, `mcp__oompah__update_project`, and `mcp__oompah__update_project_by_id` MCP tools instead (they are always available when your worktree belongs to a managed project):
 
