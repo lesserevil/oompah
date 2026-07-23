@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-424
 type: task
-status: In Progress
+status: Needs CI Fix
 priority: 0
 title: 'fix CI on PR #543 (epic-OOMPAH-414)'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T20:43:29.346291Z'
-updated_at: '2026-07-23T20:44:16.947816Z'
+updated_at: '2026-07-23T20:50:23.781595Z'
 work_branch: null
 target_branch: null
 review_url: null

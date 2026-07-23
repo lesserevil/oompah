@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-416
 type: task
-status: In Progress
+status: Needs CI Fix
 priority: 0
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-23T20:39:13.073396Z'
+updated_at: '2026-07-23T20:50:21.999063Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
