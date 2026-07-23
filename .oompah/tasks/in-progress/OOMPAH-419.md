@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-419
 type: task
-status: Done
+status: In Progress
 priority: 1
 title: Define the oompah OpenAPI-to-MCP exposure policy
 parent: OOMPAH-418
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:25:51.827132Z'
+updated_at: '2026-07-23T20:26:08.302932Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ merged_at: null
 oompah.agent_run_id: 034c06dc-699f-49f6-8470-b9cb218ea35f
 oompah.work_branch: epic-OOMPAH-418
 oompah.task_costs:
-  total_input_tokens: 2370412
-  total_output_tokens: 57073
+  total_input_tokens: 2370426
+  total_output_tokens: 62350
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 2370412
-      output_tokens: 57073
+      input_tokens: 2370426
+      output_tokens: 62350
       cost_usd: 0.0
   runs:
   - profile: default
@@ -47,6 +47,12 @@ oompah.task_costs:
     output_tokens: 42330
     cost_usd: 0.0
     recorded_at: '2026-07-23T20:12:00.005426+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 14
+    output_tokens: 5277
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T20:26:03.586077+00:00'
 ---
 ## Summary
 
@@ -349,5 +355,48 @@ author: oompah
 created: 2026-07-23 20:25
 ---
 Implemented oompah/mcp_exposure_policy.py with RouteCategory enum, 80+ route rules, classify_route/is_route_exposed (fail-closed), input validation, and 292 passing tests. All protected operations (orchestrator/restart, webhooks, provider credentials, admin mutations, release delivery) are denied. SAFE_READ and TASK_MUTATION are the only exposed categories. PR #542 opened.
+---
+author: oompah
+created: 2026-07-23 20:26
+---
+Agent completed successfully in 396s (5291 tokens)
+---
+author: oompah
+created: 2026-07-23 20:26
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 27, Tool calls: 13
+- Tokens: 14 in / 5.3K out [5.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 36s
+- Log: OOMPAH-419__20260723T201932Z.jsonl
+---
+author: oompah
+created: 2026-07-23 20:26
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-418` while task is in a terminal state.
+
+Diagnostic:
+  Unpushed commits: 20 commits
+    715711056 OOMPAH-419: Define the oompah OpenAPI-to-MCP exposure policy
+    b5dfbe95f Update oompah task OOMPAH-212
+    fd31edd45 Update oompah task OOMPAH-212
+    45678db65 Update oompah task OOMPAH-212
+    1f7fad649 Update oompah task OOMPAH-212
+    d9978650c Update oompah task OOMPAH-212
+    e1240a88d Update oompah task OOMPAH-212
+    424766afc Update oompah task OOMPAH-212
+    84b0f4669 Update oompah task OOMPAH-212
+    28f2540a4 Update oompah task OOMPAH-212
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-418
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-418
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
