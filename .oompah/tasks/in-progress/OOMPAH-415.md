@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -11,25 +11,24 @@ blocked_by: []
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:docs
-- needs:feature
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T19:50:51.923239Z'
+updated_at: '2026-07-23T19:51:11.763686Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 9977cbe1-45e8-4d86-94b2-5eb8f654c2d2
+oompah.agent_run_id: 206acef9-0240-499c-bdfe-81c27e2d264f
 oompah.work_branch: epic-OOMPAH-414
 oompah.task_costs:
-  total_input_tokens: 21
-  total_output_tokens: 4763
+  total_input_tokens: 43
+  total_output_tokens: 11517
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 21
-      output_tokens: 4763
+      input_tokens: 43
+      output_tokens: 11517
       cost_usd: 0.0
   runs:
   - profile: default
@@ -38,6 +37,12 @@ oompah.task_costs:
     output_tokens: 4763
     cost_usd: 0.0
     recorded_at: '2026-07-23T19:48:26.010330+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 22
+    output_tokens: 6754
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T19:50:58.868823+00:00'
 ---
 ## Summary
 
@@ -198,5 +203,35 @@ Focus handoff: docs
 **Key insight:** The previous `dispatch_loop_stale_factor` search returned no results in the current codebase — verify the exact field/function names at lines ~563 and ~947-949 of config.py and ~2426-2593 of orchestrator.py before implementing.
 
 **Recommended next focus:** feature
+---
+author: oompah
+created: 2026-07-23 19:50
+---
+Agent completed successfully in 145s (6776 tokens)
+---
+author: oompah
+created: 2026-07-23 19:51
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 44, Tool calls: 24
+- Tokens: 22 in / 6.8K out [6.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 25s
+- Log: OOMPAH-415__20260723T194840Z.jsonl
+---
+author: oompah
+created: 2026-07-23 19:51
+---
+Focus handoff from `docs` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-23 19:51
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-23 19:51
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
