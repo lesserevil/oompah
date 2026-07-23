@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-422
 type: bug
-status: Backlog
+status: Done
 priority: 1
 title: Require actionable handoffs for Needs Human transitions
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T20:10:29.633604Z'
-updated_at: '2026-07-23T20:13:10.065617Z'
+updated_at: '2026-07-23T20:13:20.930360Z'
 work_branch: null
 target_branch: null
 review_url: null
