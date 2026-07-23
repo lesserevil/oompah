@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T21:57:33.646708Z'
+updated_at: '2026-07-23T21:59:51.549522Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -204,5 +204,20 @@ author: oompah
 created: 2026-07-23 21:57
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-23 21:59
+---
+Understanding: This is a concrete bug fix task, not an epic requiring decomposition. My role is listed as 'Epic Planner' but this task has clear, unambiguous implementation requirements.
+
+**Root cause confirmed (from previous duplicate_detector agent):**
+1. In \`_yolo_epic_strategy_block_reason\`: The code calls \`_epic_branch_for_issue(issue)\` where issue=child, returning the child's stale work_branch. For EXOCOMP-57 with stale work_branch='EXOCOMP-57', this matches source_branch and incorrectly returns None (allows).
+2. In \`_close_invalid_epic_policy_review\`: Same pattern — compares source_branch against the child's branch instead of the parent epic's branch, so the invalid PR is not closed.
+
+**Plan:**
+- Fix _yolo_epic_strategy_block_reason: replace child-based issue_epic_branch check with direct epic type check (if issue.issue_type == 'epic' → return None), then compare source_branch against parent_epic's branch
+- Fix _close_invalid_epic_policy_review: remove issue_epic_branch = _epic_branch_for_issue(issue) and use parent_epic_branch = _epic_branch_for_issue(parent_epic) directly
+- Add 4 regression tests as specified
+- Run make test
 ---
 <!-- COMMENTS:END -->
