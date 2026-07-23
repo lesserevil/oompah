@@ -9,10 +9,11 @@ parent: OOMPAH-307
 children: []
 blocked_by:
 - OOMPAH-310
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-23T00:06:46.419367Z'
+updated_at: '2026-07-23T00:07:05.958675Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -103,5 +104,34 @@ Current code state: oompah/server.py _effective_display_status() (line 1277) cur
 OOMPAH-307 acceptance criterion explicitly states: 'UI status explains whether a child is complete on the epic branch versus merged to target.'
 
 Conclusion: OOMPAH-312 is NOT a duplicate. It is a unique, unimplemented UI/dashboard task that needs to display child completion status in the epic branch context. Blocker OOMPAH-310 is now Done, so the task is unblocked.
+---
+author: oompah
+created: 2026-07-23 00:07
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: No duplicate found. OOMPAH-312 is a unique, unimplemented UI/dashboard task. All prior investigators across OOMPAH-310, OOMPAH-311, OOMPAH-412, OOMPAH-413 independently confirmed OOMPAH-312 is distinct from their respective tasks.
+
+2. **Relevant files, commands, evidence, and decisions**:
+   - OOMPAH-307 (parent epic) comment #15: explicitly created OOMPAH-312 as 'P3: UI/dashboard: show Done-on-epic-branch vs Merged-to-target status [depends on 310]'. This is the definitive scope definition.
+   - OOMPAH-307 acceptance criteria: 'UI status explains whether a child is complete on the epic branch versus merged to target.'
+   - `oompah/server.py` line 1277: `_effective_display_status()` currently just returns `issue.state` — no differentiation between Done-on-branch vs Merged-to-target.
+   - `tests/test_shared_epic_display_status.py` (107 lines): Existing tests confirm the old epic-worktree-file-reading approach was already retired; the new canonical tracker state approach does NOT yet surface the Done/Merged distinction.
+   - `oompah/templates/dashboard.html`: Dashboard UI to add/modify display labels/badges for epic children.
+   - Blocker OOMPAH-310 is Done (including children OOMPAH-412 and OOMPAH-413). OOMPAH-312 is unblocked.
+
+3. **Remaining work**:
+   - Implement a UI distinction in the dashboard that shows 'Done on branch' for shared-epic children who are Done but whose parent epic has not yet merged to target.
+   - Show 'Merged to target' when the parent epic has merged and children have transitioned to Merged state.
+   - Possible approaches: (a) add a visual badge/label in the dashboard card for epic children showing branch completion context; (b) extend `_effective_display_status()` or add a new helper to return an augmented status string for display; (c) add a new API field (e.g., `display_status_context`) to the card/issue API response and render it in dashboard.html.
+   - Update or extend `tests/test_shared_epic_display_status.py` with tests for the new display logic.
+   - Run `make test` before committing.
+
+4. **Risks**:
+   - The `_effective_display_status()` function was recently simplified to return `issue.state` directly. Any re-introduction of complexity needs to be deliberate and avoid regression of the existing tests in `test_shared_epic_display_status.py`.
+   - Dashboard changes should be scoped to displaying context labels, not changing the canonical state.
+   - The definition of 'Done on branch' needs careful interpretation: a child with state 'Done' whose parent epic is not yet in MERGED state. The `_project_epic_strategy()` check may be needed (only for shared strategy). 
+
+5. **Recommended next focus**: `frontend` — implement the dashboard UI changes and extend tests.
 ---
 <!-- COMMENTS:END -->
