@@ -7564,6 +7564,7 @@ class Orchestrator:
                 "Orphan check: failed to fetch In Progress tasks: %s", exc
             )
 
+        reset_count = 0
         for issue in all_issues:
             if _state_key(issue.state) != "in_progress":
                 continue
@@ -7618,6 +7619,7 @@ class Orchestrator:
                 )
                 with _lock_ctx:
                     tracker.update_issue(issue.identifier, status=status, **updates)
+                reset_count += 1
                 self.state.completed.discard(issue.id)
                 self._orphan_reset_counts[issue.id] = (
                     self._orphan_reset_counts.get(issue.id, 0) + 1
@@ -7633,6 +7635,16 @@ class Orchestrator:
                 logger.debug(
                     "Failed to reset orphaned issue %s: %s", issue.identifier, exc
                 )
+
+        if reset_count:
+            logger.info(
+                "Orphan reset: %d issue(s) returned to Open — posting "
+                "REFRESH_REQUESTED to wake dispatch immediately",
+                reset_count,
+            )
+            self._post_event(
+                DispatchEvent(event_type=DispatchEventType.REFRESH_REQUESTED)
+            )
 
     # ------------------------------------------------------------------
     # Maintenance lane scheduling gate (TASK-466.4)
