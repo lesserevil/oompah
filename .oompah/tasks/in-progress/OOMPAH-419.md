@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:11:22.636435Z'
+updated_at: '2026-07-23T20:11:31.382151Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -204,5 +204,23 @@ Security decisions made:
 - POST/PATCH/DELETE /api/v1/providers → CREDENTIAL_BEARING (key management protection)
 - No token forwarding (loopback-only, no Auth header propagation)
 - Input validation rejects adversarial path strings before pattern matching
+---
+author: oompah
+created: 2026-07-23 20:11
+---
+Verification: 292/292 tests pass
+
+Full test suite: 12045 passed, 1 pre-existing failure (test_scm.py::TestFetchCiStatus::test_legacy_failure_short_circuits — confirmed pre-existing on clean checkout, unrelated to this change).
+
+New tests: tests/test_mcp_exposure_policy.py — 292 cases covering:
+- Route classification for all 8 categories
+- Explicit allow list (SAFE_READ, TASK_MUTATION)
+- Explicit deny list (ORCHESTRATOR_CONTROL, WEBHOOK_INGESTION, CREDENTIAL_BEARING, ADMIN_MUTATION, RELEASE_DELIVERY)
+- Fail-closed for UNKNOWN routes
+- Input validation (adversarial paths, URL encoding, query strings, fragments, whitespace)
+- Method case-insensitivity
+- describe_policy() JSON serialisability
+- iter_exposed_routes() only yields exposed routes
+- Injection resistance: orchestrator/restart cannot be smuggled via issue identifier pattern
 ---
 <!-- COMMENTS:END -->

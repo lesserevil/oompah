@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T20:02:20.737162Z'
+updated_at: '2026-07-23T20:11:32.296214Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -269,5 +269,16 @@ author: oompah
 created: 2026-07-23 20:02
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-23 20:11
+---
+**Understanding (continuation run):** Reviewing previous agents' work. The implementation is complete:
+
+1. docs focus (commit 05ef985f4): Updated docs/tick-latency-diagnostics.md with new config vars table rows and Scenario 3; updated .env.example with commented OOMPAH_DISPATCH_STALE_THRESHOLD_MS=120000 and OOMPAH_DISPATCH_STALE_GRACE_MS=30000.
+
+2. Maintenance Engineer focus (commit bc985154d): Updated oompah/config.py (added dispatch_stale_threshold_ms=120000, dispatch_stale_grace_ms=30000 with env var support); updated oompah/orchestrator.py (is_dispatch_loop_stale(), check_and_recover_dispatch_loop(), _arm_dispatch_stale_alert()); added 4+ new tests to tests/test_dispatch_loop_heartbeat.py.
+
+All 41 dispatch loop heartbeat tests pass. One pre-existing unrelated failure in test_scm.py (test_legacy_failure_short_circuits) that predates our commits.
 ---
 <!-- COMMENTS:END -->
