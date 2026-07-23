@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T22:24:40.832138Z'
-updated_at: '2026-07-23T22:27:55.521621Z'
+updated_at: '2026-07-23T22:27:58.230133Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,5 +33,10 @@ author: oompah
 created: 2026-07-23 22:26
 ---
 Implemented and verified the immediate-reopen fix: reopening a dispatchable task now clears the scheduler's stale completed/claimed entries, so it can be selected on the next tick rather than waiting for the watchdog. Full test suite passed; committing and deploying next.
+---
+author: oompah
+created: 2026-07-23 22:27
+---
+Fixed and deployed in 3e921ab76. Reopening a dispatchable task now removes stale scheduler completed/claimed entries immediately; full test suite passed. Verified EXOCOMP-55 was requeued and is now In Progress.
 ---
 <!-- COMMENTS:END -->
