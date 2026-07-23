@@ -8,10 +8,12 @@ title: Decouple stale-dispatch threshold from full_sync_interval and reduce reco
 parent: OOMPAH-414
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T19:46:13.207922Z'
+updated_at: '2026-07-23T19:48:15.950937Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -77,5 +79,37 @@ author: oompah
 created: 2026-07-23 19:46
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-23 19:48
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-415 is a unique, first-of-its-kind task.
+
+**Investigation scope:**
+- Searched all .oompah/tasks/ states (open, backlog, done, archived, merged) — 280+ tasks total
+- Grep patterns: dispatch_stale, dispatch_loop_stale, stale_factor, dispatch_stale_threshold, stale_dispatch, recovery_latency, full_sync_interval, heartbeat, decouple, grace_period
+- Searched docs/ and plans/ directories including docs/tick-latency-diagnostics.md
+- Verified current code in oompah/config.py and oompah/orchestrator.py
+
+**Findings:**
+- No existing task covers decoupling dispatch_stale_threshold from full_sync_interval
+- No existing task adds dispatch_stale_threshold_ms or dispatch_stale_grace_ms config fields
+- The code in oompah/config.py currently only has dispatch_loop_stale_factor (factor-based formula: full_sync_interval_ms × 3.0 = 15 min threshold)
+- The code in oompah/orchestrator.py uses this factor-based formula in is_dispatch_loop_stale(), check_and_recover_dispatch_loop(), and _arm_dispatch_stale_alert()
+- dispatch_stale_threshold_ms and dispatch_stale_grace_ms do NOT yet exist anywhere in the codebase
+- tests/test_dispatch_loop_heartbeat.py exists and needs extension per the task spec
+
+**Key files for implementation:**
+- oompah/config.py (lines ~563, ~947-949) — add dispatch_stale_threshold_ms and dispatch_stale_grace_ms fields
+- oompah/orchestrator.py (lines ~2426-2593) — update is_dispatch_loop_stale(), check_and_recover_dispatch_loop(), _arm_dispatch_stale_alert()
+- docs/tick-latency-diagnostics.md — add new vars to config table, update 15-min references
+- .env.example — add commented-out OOMPAH_DISPATCH_STALE_THRESHOLD_MS=120000 and OOMPAH_DISPATCH_STALE_GRACE_MS=30000
+- tests/test_dispatch_loop_heartbeat.py — add 4 new test cases
+
+**Remaining work:** Full implementation as described in the task description.
+
+**Recommended next focus:** feature
 ---
 <!-- COMMENTS:END -->
