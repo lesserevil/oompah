@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T21:52:10.665171Z'
+updated_at: '2026-07-23T21:56:52.260969Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -109,5 +109,53 @@ author: oompah
 created: 2026-07-23 21:52
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-23 21:56
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-427 is a unique, confirmed regression.
+
+**Duplicate screening performed:**
+Searched all .oompah/tasks/ files (open, backlog, done, merged, archived) and git log for these patterns: yolo_epic_strategy, epic_strategy_block, close_invalid_epic, work_branch stale, EXOCOMP-57, merge gate bypass, epic_branch_for_issue, issue_epic_branch.
+
+**Closest candidates reviewed and ruled out:**
+
+1. **OOMPAH-308** (merged commit 1e52f6134): "Fix stale work_branch metadata for shared-epic children on dispatch" — Fixes the stale work_branch at DISPATCH TIME in `_create_workspace_for_issue`. Does NOT touch `_yolo_epic_strategy_block_reason` or `_close_invalid_epic_policy_review`. Different fix point.
+
+2. **OOMPAH-309** (merged via epic-OOMPAH-309, commit 8b4521d29): "Harden shared-epic protection when _resolve_parent_epic fails for a child with parent_id set" — Adds fail-closed behavior for when `_resolve_parent_epic` returns None. This is a DIFFERENT failure mode from OOMPAH-427. OOMPAH-427 is about _resolve_parent_epic succeeding but then comparing against the WRONG branch variable.
+
+3. **OOMPAH-413** (commit 4e0fe8c07): "cover shared epic merge promotion gates" — Adds tests for `_label_merged_issues` and `_reconcile_merged_epic_children`. Different functions entirely.
+
+**Bug confirmed present in current code:**
+
+In `_yolo_epic_strategy_block_reason` (orchestrator.py:12131-12133):
+```python
+issue_epic_branch = self._epic_branch_for_issue(issue)  # BUG: issue = child, not parent epic
+if source_branch == issue_epic_branch:
+    return None  # incorrectly allows when child.work_branch is stale (= own identifier)
+```
+`_epic_branch_for_issue` returns `issue.work_branch` if set. For EXOCOMP-57 with stale work_branch='EXOCOMP-57', calling this on the child returns 'EXOCOMP-57' = source_branch → gate incorrectly allows.
+
+Same bug exists in `_close_invalid_epic_policy_review` (orchestrator.py:12235-12238): checks `source_branch != issue_epic_branch` where issue_epic_branch comes from the child, not the parent epic.
+
+**Key files for implementation:**
+- `oompah/orchestrator.py` lines 12090-12160 (`_yolo_epic_strategy_block_reason`)  
+- `oompah/orchestrator.py` lines 12161-~12280 (`_close_invalid_epic_policy_review`)
+- `tests/test_epic_strategy.py` classes `TestYoloEpicStrategyBlockReason` (line 4277) and `TestCloseInvalidEpicPolicyReview` (line 4417)
+- `tests/test_epic_strategy.py` helper `_make_shared_epic_scenario` (line 4244)
+
+**Fix required (per issue description):**
+
+In `_yolo_epic_strategy_block_reason`: restructure so the epic-rollup-PR check compares source_branch against the PARENT EPIC's branch (via `_epic_branch_for_issue(parent_epic)`), not the child's own work_branch. Nested epics (issue_type='epic') should return None directly (they are their own rollup PR).
+
+In `_close_invalid_epic_policy_review`: replace `issue_epic_branch = _epic_branch_for_issue(issue)` check with `parent_epic_branch = _epic_branch_for_issue(parent_epic)`.
+
+**Tests required:** 4 new tests as described in the issue (2 in TestYoloEpicStrategyBlockReason, 2 in TestCloseInvalidEpicPolicyReview).
+
+**Remaining work:** Full implementation of the fix + tests + make test. No ambiguity — the issue description is precise.
+
+**Recommended next focus:** feature (bug fix implementation)
 ---
 <!-- COMMENTS:END -->
