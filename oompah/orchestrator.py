@@ -12127,13 +12127,12 @@ class Orchestrator:
         if not (issue.parent_id or "").strip():
             return None
 
-        try:
-            issue_epic_branch = self._epic_branch_for_issue(issue)
-        except Exception:  # noqa: BLE001
-            issue_epic_branch = ""
-        if source_branch == issue_epic_branch:
-            # This is an epic rollup PR (including nested epics), not a
-            # per-child task PR. The epic landing gate owns its creation.
+        if (issue.issue_type or "") == "epic":
+            # Nested epic: it is its own rollup PR.  The epic landing gate
+            # owns creation of this PR; the per-child task gate must not block
+            # it.  (A regular child task with a stale work_branch equal to its
+            # own identifier must NOT be allowed through here — only true epics
+            # whose source_branch IS the epic rollup branch qualify.)
             return None
 
         parent_epic = self._resolve_parent_epic(issue)
@@ -12149,9 +12148,13 @@ class Orchestrator:
                 "parent epic is reachable"
             )
 
-        target_branch = self._review_target_branch(project, review)
         parent_epic_branch = self._epic_branch_for_issue(parent_epic)
+        if source_branch == parent_epic_branch:
+            # source branch IS the epic rollup branch — this is the legitimate
+            # epic rollup PR, not a per-child task PR.  Allow it through.
+            return None
 
+        target_branch = self._review_target_branch(project, review)
         return (
             f"shared epic workflow: child task {issue.identifier} must land "
             f"via {parent_epic_branch}, not per-child PR "
@@ -12231,12 +12234,8 @@ class Orchestrator:
                     issue.parent_id,
                 )
                 return False
-            try:
-                issue_epic_branch = self._epic_branch_for_issue(issue)
-            except Exception:  # noqa: BLE001 - branch mismatch is enough
-                issue_epic_branch = ""
-            if source_branch != issue_epic_branch:
-                parent_epic_branch = self._epic_branch_for_issue(parent_epic)
+            parent_epic_branch = self._epic_branch_for_issue(parent_epic)
+            if source_branch != parent_epic_branch:
                 close_comment = (
                     "Closing stale child task PR. This project uses shared "
                     "epic branches, so child task work must land through "
