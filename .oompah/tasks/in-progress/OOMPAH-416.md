@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-23T20:36:10.812715Z'
+updated_at: '2026-07-23T20:39:13.073396Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -210,5 +210,16 @@ author: oompah
 created: 2026-07-23 20:36
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-23 20:39
+---
+Understanding (CI Failure Fixer): Found 4 failing tests on MR #543 (epic-OOMPAH-414 branch). Root causes:
+
+1. tests/test_epic_strategy.py (2 tests) + tests/test_yolo_watchdog.py (1 test): The OOMPAH-415 commit added _mark_needs_human() helper that uses hasattr() duck-typing. With MagicMock, hasattr() always returns True, so tracker.mark_needs_human() is called instead of tracker.update_issue(). Tests still assert tracker.update_issue was called.
+
+2. tests/test_scm.py::test_legacy_failure_short_circuits: When legacy combined-status is 'failure' (total_count=1) but check_runs is empty [], the code falls through to 'return passed, warnings' instead of honoring the legacy failure. The legacy_failure flag should gate this return.
+
+Fix plan: (a) update epic_strategy+yolo_watchdog test assertions to use tracker.mark_needs_human; (b) fix scm.py empty-runs path to check legacy_failure before returning passed.
 ---
 <!-- COMMENTS:END -->
