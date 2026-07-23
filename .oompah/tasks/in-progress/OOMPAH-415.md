@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: Done
+status: In Progress
 priority: null
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -13,22 +13,22 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T20:12:34.757885Z'
+updated_at: '2026-07-23T20:12:52.452037Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: f65db203-6f0a-43e7-812f-9c94c8bab38a
+oompah.agent_run_id: 35012f9b-c806-46a3-8c91-8c6716da411d
 oompah.work_branch: epic-OOMPAH-414
 oompah.task_costs:
-  total_input_tokens: 8116427
-  total_output_tokens: 27439
+  total_input_tokens: 8116451
+  total_output_tokens: 32211
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 8116427
-      output_tokens: 27439
+      input_tokens: 8116451
+      output_tokens: 32211
       cost_usd: 0.0
   runs:
   - profile: default
@@ -49,6 +49,12 @@ oompah.task_costs:
     output_tokens: 15922
     cost_usd: 0.0
     recorded_at: '2026-07-23T20:02:01.506263+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 24
+    output_tokens: 4772
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T20:12:42.001702+00:00'
 ---
 ## Summary
 
@@ -314,5 +320,47 @@ author: oompah
 created: 2026-07-23 20:12
 ---
 Decoupled stale-dispatch threshold from full_sync_interval. Added dispatch_stale_threshold_ms (default 120s) and dispatch_stale_grace_ms (default 30s) to config.py with env var support. Updated orchestrator.py is_dispatch_loop_stale(), check_and_recover_dispatch_loop(), and _arm_dispatch_stale_alert() to use new fields. Backward compat preserved (threshold=0 falls back to factor formula). Docs and .env.example updated. All 41 heartbeat tests pass.
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Agent completed successfully in 623s (4796 tokens)
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
+- Turns: 46, Tool calls: 29
+- Tokens: 24 in / 4.8K out [4.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 23s
+- Log: OOMPAH-415__20260723T200220Z.jsonl
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Close refused by orchestrator: branch `epic-OOMPAH-414` has 2 commits not on `main` and no open PR targets `main` from this branch.
+
+Diagnostic:
+  Unmerged commits: 2
+    bc985154d OOMPAH-415: decouple dispatch stale recovery timing
+    05ef985f4 OOMPAH-415: Document OOMPAH_DISPATCH_STALE_THRESHOLD_MS and OOMPAH_DISPATCH_STALE_GRACE_MS
+  Open PRs from this branch: 0
+  Merged PRs from this branch: 0
+
+Required: open a PR before closing.
+  gh pr create --base main --head epic-OOMPAH-414 --title "OOMPAH-415: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery latency" --body "..."
+
+Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
