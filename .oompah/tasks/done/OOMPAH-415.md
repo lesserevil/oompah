@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T21:06:18.393932Z'
+updated_at: '2026-07-23T21:06:30.168272Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -23,13 +23,13 @@ merged_at: null
 oompah.agent_run_id: 80fabb0a-e869-4a28-a80e-3aecff62e2e6
 oompah.work_branch: epic-OOMPAH-414
 oompah.task_costs:
-  total_input_tokens: 8116451
-  total_output_tokens: 32211
+  total_input_tokens: 8116511
+  total_output_tokens: 45757
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 8116451
-      output_tokens: 32211
+      input_tokens: 8116511
+      output_tokens: 45757
       cost_usd: 0.0
   runs:
   - profile: default
@@ -56,6 +56,12 @@ oompah.task_costs:
     output_tokens: 4772
     cost_usd: 0.0
     recorded_at: '2026-07-23T20:12:42.001702+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 60
+    output_tokens: 13546
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T21:06:27.409042+00:00'
 ---
 ## Summary
 
@@ -425,5 +431,20 @@ author: oompah
 created: 2026-07-23 21:06
 ---
 PR #543 merged. Decoupled stale-dispatch threshold from full_sync_interval. Added dispatch_stale_threshold_ms (default 120s) and dispatch_stale_grace_ms (default 30s) to config.py with env var support. Updated orchestrator.py, docs, .env.example, and tests. CI fixes applied and PR merged to main.
+---
+author: oompah
+created: 2026-07-23 21:06
+---
+Agent completed successfully in 863s (13606 tokens)
+---
+author: oompah
+created: 2026-07-23 21:06
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude/default]
+- Turns: 103, Tool calls: 63
+- Tokens: 60 in / 13.5K out [13.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 14m 23s
+- Log: OOMPAH-415__20260723T205206Z.jsonl
 ---
 <!-- COMMENTS:END -->
