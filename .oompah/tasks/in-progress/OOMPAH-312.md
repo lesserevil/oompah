@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-23T00:03:59.325067Z'
+updated_at: '2026-07-23T00:04:13.217371Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,5 +75,10 @@ author: oompah
 created: 2026-07-23 00:03
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-23 00:04
+---
+Understanding: Investigating OOMPAH-312 as Duplicate Investigator. This task asks for the UI/dashboard to show child completion status in an epic branch context, distinguishing 'Done on branch' vs 'Merged to target'. Blocked by OOMPAH-310. I will search for similar tasks to determine if this is a duplicate before any implementation work begins.
 ---
 <!-- COMMENTS:END -->
