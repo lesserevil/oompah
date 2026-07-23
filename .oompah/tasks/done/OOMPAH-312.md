@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-23T00:18:34.833535Z'
+updated_at: '2026-07-23T00:18:37.308535Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -279,5 +279,10 @@ Deliverables:
 - Full test suite: 11751 passed
 
 Pushed to branch epic-OOMPAH-307, up to date with origin.
+---
+author: oompah
+created: 2026-07-23 00:18
+---
+Added _child_display_context() helper and display_status_context API field; rendered 'on branch'/'to target' context badges on kanban cards and detail panel children list; 10 new tests added; all 11751 tests pass.
 ---
 <!-- COMMENTS:END -->
