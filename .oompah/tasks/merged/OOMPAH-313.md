@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-313
 type: task
-status: Done
+status: Merged
 priority: null
 title: 'Regression tests: OOMPAH-285/286 routing fixture and native shared-epic child
   lifecycle'
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:41.720887Z'
-updated_at: '2026-07-22T22:24:37.349938Z'
+updated_at: '2026-07-23T00:20:06.008948Z'
 work_branch: null
 target_branch: null
 review_url: null
