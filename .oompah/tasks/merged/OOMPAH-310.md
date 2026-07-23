@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-310
 type: task
-status: Done
+status: Merged
 priority: null
 title: Verify and harden epic-merge-triggered Merged promotion for shared-epic children
 parent: OOMPAH-307
@@ -16,7 +16,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:53:34.544944Z'
-updated_at: '2026-07-23T00:19:51.985936Z'
+updated_at: '2026-07-23T00:19:59.036984Z'
 work_branch: null
 target_branch: null
 review_url: null
