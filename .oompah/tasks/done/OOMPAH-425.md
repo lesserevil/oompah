@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T20:45:34.887827Z'
-updated_at: '2026-07-23T20:49:35.149609Z'
+updated_at: '2026-07-23T20:49:37.697307Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,5 +33,10 @@ author: oompah
 created: 2026-07-23 20:48
 ---
 Implemented auto concurrency mode: configuration value 0 recalculates a conservative CPU/memory-based effective cap at every scheduler tick, never terminates agents when capacity drops, and exposes configured/effective limits in the runtime snapshot. Added regression coverage and ran make test successfully. Host .env has been set to 0 and will be applied on restart.
+---
+author: oompah
+created: 2026-07-23 20:49
+---
+Added auto concurrency mode and enabled it locally with max concurrency set to 0.
 ---
 <!-- COMMENTS:END -->
