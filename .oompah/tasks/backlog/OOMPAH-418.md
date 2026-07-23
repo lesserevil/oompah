@@ -5,12 +5,15 @@ status: Backlog
 priority: 1
 title: Expose oompah's OpenAPI as a streamable MCP server
 parent: null
-children: []
+children:
+- OOMPAH-419
+- OOMPAH-420
+- OOMPAH-421
 blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-07-23T19:41:39.116461Z'
+updated_at: '2026-07-23T19:41:56.296654Z'
 work_branch: null
 target_branch: null
 review_url: null
