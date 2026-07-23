@@ -7,12 +7,13 @@ title: Prevent scheduler stalls from delaying task dispatch
 parent: null
 children:
 - OOMPAH-415
+- OOMPAH-416
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-23T19:34:14.805045Z'
+updated_at: '2026-07-23T19:34:31.056925Z'
 work_branch: null
 target_branch: null
 review_url: null
