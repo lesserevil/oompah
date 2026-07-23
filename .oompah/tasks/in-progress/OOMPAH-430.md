@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T22:35:24.947841Z'
+updated_at: '2026-07-23T22:35:37.080850Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-23 22:35
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-23 22:35
+---
+Understanding: Investigating OOMPAH-430 as Duplicate Investigator. The issue requests a supported mutation path for focus agents to record completion labels and handoff comments. EXOCOMP-55 is cited as the motivating incident where duplicate screening completed but couldn't persist its handoff (no MCP mutation tools in agent environment, loopback CLI prohibited). Will search for any prior tasks covering this same problem before handoff to implementation focus.
 ---
 <!-- COMMENTS:END -->
