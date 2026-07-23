@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T20:11:32.296214Z'
+updated_at: '2026-07-23T20:12:32.150967Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -280,5 +280,34 @@ created: 2026-07-23 20:11
 2. Maintenance Engineer focus (commit bc985154d): Updated oompah/config.py (added dispatch_stale_threshold_ms=120000, dispatch_stale_grace_ms=30000 with env var support); updated oompah/orchestrator.py (is_dispatch_loop_stale(), check_and_recover_dispatch_loop(), _arm_dispatch_stale_alert()); added 4+ new tests to tests/test_dispatch_loop_heartbeat.py.
 
 All 41 dispatch loop heartbeat tests pass. One pre-existing unrelated failure in test_scm.py (test_legacy_failure_short_circuits) that predates our commits.
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+**Verification:** All 41 tests in tests/test_dispatch_loop_heartbeat.py pass, including the 4 new test cases:
+- test_zero_threshold_falls_back_to_factor_formula (backward compat)
+- test_new_threshold_and_grace_defaults (config defaults)
+- test_new_threshold_and_grace_from_env (env var parsing)
+- test_recovery_fires_before_legacy_fifteen_minute_threshold (recovery within 2 min vs old 15 min)
+- test_attempts_recovery_after_grace_period (grace_ms honored)
+- test_does_not_recover_before_grace_period (no premature recovery)
+
+The only failing test is test_scm.py::TestFetchCiStatus::test_legacy_failure_short_circuits which is a pre-existing failure unrelated to this task (commit edf4bc481 from before this branch).
+
+Branch epic-OOMPAH-414 is pushed and up to date.
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+**Completion:** OOMPAH-415 is fully implemented and verified.
+
+**Delivered:**
+- oompah/config.py: Added dispatch_stale_threshold_ms=120000 (OOMPAH_DISPATCH_STALE_THRESHOLD_MS) and dispatch_stale_grace_ms=30000 (OOMPAH_DISPATCH_STALE_GRACE_MS). Backward compat: threshold=0 falls back to full_sync_interval_ms × dispatch_loop_stale_factor.
+- oompah/orchestrator.py: Updated is_dispatch_loop_stale(), check_and_recover_dispatch_loop(), and _arm_dispatch_stale_alert() to use the new fields.
+- tests/test_dispatch_loop_heartbeat.py: Added 6+ new test cases covering threshold behavior, grace period, recovery timing, env var parsing, and backward compat.
+- docs/tick-latency-diagnostics.md: Added new config vars to table + Scenario 3 for dispatch loop stall detection.
+- .env.example: Added commented-out OOMPAH_DISPATCH_STALE_THRESHOLD_MS=120000 and OOMPAH_DISPATCH_STALE_GRACE_MS=30000.
+
+**Acceptance criteria met:** Stall detection fires at 2 minutes (default) instead of 15-20 minutes. Threshold is independently tunable via env var without touching full_sync_interval_ms.
 ---
 <!-- COMMENTS:END -->

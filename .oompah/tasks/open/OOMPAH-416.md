@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-416
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
@@ -12,7 +12,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-23T20:11:54.939835Z'
+updated_at: '2026-07-23T20:12:15.474032Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -20,6 +20,22 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 412acd21-b294-4461-abca-f4c1f82de8fd
 oompah.work_branch: epic-OOMPAH-414
+oompah.task_costs:
+  total_input_tokens: 21
+  total_output_tokens: 4995
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 21
+      output_tokens: 4995
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 21
+    output_tokens: 4995
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T20:12:11.469410+00:00'
 ---
 ## Summary
 
@@ -93,5 +109,25 @@ Focus handoff: duplicate_detector
 5. **Remaining work:** Full implementation per task description. _post_event() is already thread-safe.
 
 6. **Recommended next focus:** feature
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Agent completed successfully in 602s (5016 tokens)
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 47, Tool calls: 32
+- Tokens: 21 in / 5.0K out [5.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 2s
+- Log: OOMPAH-416__20260723T200212Z.jsonl
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->

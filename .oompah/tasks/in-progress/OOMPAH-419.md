@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-419
 type: task
-status: Done
+status: In Progress
 priority: 1
 title: Define the oompah OpenAPI-to-MCP exposure policy
 parent: OOMPAH-418
@@ -11,22 +11,22 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:11:49.244613Z'
+updated_at: '2026-07-23T20:12:23.242863Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: cb22144c-aa8c-41ae-9cfc-f7f91faff654
+oompah.agent_run_id: d40fe272-5311-43fd-a306-a040573e3734
 oompah.work_branch: epic-OOMPAH-418
 oompah.task_costs:
-  total_input_tokens: 2370375
-  total_output_tokens: 14743
+  total_input_tokens: 2370412
+  total_output_tokens: 57073
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 2370375
-      output_tokens: 14743
+      input_tokens: 2370412
+      output_tokens: 57073
       cost_usd: 0.0
   runs:
   - profile: default
@@ -41,6 +41,12 @@ oompah.task_costs:
     output_tokens: 9644
     cost_usd: 0.0
     recorded_at: '2026-07-23T19:52:47.700260+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 37
+    output_tokens: 42330
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T20:12:00.005426+00:00'
 ---
 ## Summary
 
@@ -247,5 +253,46 @@ author: oompah
 created: 2026-07-23 20:11
 ---
 Implemented oompah/mcp_exposure_policy.py with RouteCategory enum, 80+ route rules, classify_route/is_route_exposed functions (fail-closed), input validation against adversarial paths, and 292 passing unit tests. All protected operations (orchestrator/restart, webhooks, provider credentials, admin mutations, release delivery) are denied. SAFE_READ and TASK_MUTATION are the only exposed categories. Plans doc added for OOMPAH-420 gateway implementer.
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Agent completed successfully in 1144s (42367 tokens)
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 71, Tool calls: 43
+- Tokens: 37 in / 42.3K out [42.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 19m 4s
+- Log: OOMPAH-419__20260723T195259Z.jsonl
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Close refused by orchestrator: branch `epic-OOMPAH-418` has 1 commit not on `main` and no open PR targets `main` from this branch.
+
+Diagnostic:
+  Unmerged commits: 1
+    913a2c6d3 OOMPAH-419: Define the oompah OpenAPI-to-MCP exposure policy
+  Open PRs from this branch: 0
+  Merged PRs from this branch: 0
+
+Required: open a PR before closing.
+  gh pr create --base main --head epic-OOMPAH-418 --title "OOMPAH-419: Define the oompah OpenAPI-to-MCP exposure policy" --body "..."
+
+Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
