@@ -142,7 +142,35 @@ each tick.
 - On repos with many worktrees, `worktree_cleanup_batch_size` limits how many
   worktrees are cleaned per tick, preventing single-tick cleanup storms.
 
-### Scenario 3: Running agent in Project A; eligible task in Project B not dispatching
+### Scenario 3: Dispatch loop stalls — no ticks firing for 2+ minutes
+
+oompah monitors its own dispatch loop heartbeat. If no tick fires for longer
+than `dispatch_stale_threshold_ms` (default: 120 000 ms = **2 minutes**), the
+loop is declared stale. After an additional `dispatch_stale_grace_ms`
+(default: 30 000 ms = **30 seconds**) of continued silence, the recovery path
+fires: the dispatch loop is restarted and an alert is logged.
+
+Symptoms in logs:
+```
+WARNING: dispatch loop stale — last heartbeat 127s ago (threshold 120s); arming recovery in 30s
+WARNING: dispatch loop recovery triggered — restarting dispatch after 157s stall
+```
+
+**Common causes**:
+- An unhandled exception in the tick body silently swallowed the loop coroutine
+- Event-loop saturation from a long-running synchronous call in the main thread
+- Host sleep/suspend that paused the Python process
+
+**Tuning**:
+- Decrease `OOMPAH_DISPATCH_STALE_THRESHOLD_MS` to catch faster stalls (minimum
+  practical value: ~30 000 ms to avoid false positives during normal tick jitter).
+- Decrease `OOMPAH_DISPATCH_STALE_GRACE_MS` to trigger recovery sooner once
+  staleness is confirmed.
+- Set `OOMPAH_DISPATCH_STALE_THRESHOLD_MS=0` to revert to the legacy formula
+  (`full_sync_interval_ms × dispatch_loop_stale_factor`), which defaulted to a
+  900-second (15-minute) threshold before this feature was introduced.
+
+### Scenario 4: Running agent in Project A; eligible task in Project B not dispatching
 
 Symptoms:
 ```
@@ -168,6 +196,8 @@ via `/api/v1/state` → `running`/`retrying` for any reject reason.
 | `project_refresh_max_concurrent`| 4       | Max parallel refreshes per project                       |
 | `project_stale_cache_ttl_ms`    | 300000  | How long stale cached data is valid (ms)                 |
 | `full_sync_interval_ms`         | 300000  | Minimum interval between repo self-heal runs (ms)        |
+| `dispatch_stale_threshold_ms`   | 120000  | How long the dispatch loop can be silent before it is considered stale and recovery is armed (ms). Set to `0` to fall back to the legacy `dispatch_loop_stale_factor`-based formula (full_sync_interval_ms × factor). |
+| `dispatch_stale_grace_ms`       | 30000   | Additional wait after staleness is detected before recovery actually fires (ms). Prevents spurious recoveries during brief pauses. |
 | `worktree_cleanup_batch_size`   | 25      | Worktrees cleaned per maintenance pass                   |
 | `maintenance_startup_delay_seconds` | 60  | Grace period before maintenance jobs start               |
 
