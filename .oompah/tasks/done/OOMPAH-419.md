@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-419
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Define the oompah OpenAPI-to-MCP exposure policy
 parent: OOMPAH-418
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:25:17.488889Z'
+updated_at: '2026-07-23T20:25:49.383607Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -323,5 +323,26 @@ Security properties confirmed:
 8. **Method case-insensitivity** — method arg normalized to uppercase; tests verify 'get', 'GET', 'Get' all work correctly.
 
 No new vulnerabilities found. Implementation is ready to unblock OOMPAH-420 (gateway). Creating PR now.
+---
+author: oompah
+created: 2026-07-23 20:25
+---
+Completion: OOMPAH-419 delivered — PR #542 open
+
+Deliverables:
+- oompah/mcp_exposure_policy.py: policy module (RouteCategory enum, 80+ rule table, classify_route, is_route_exposed, input validation, service-discovery constants)
+- tests/test_mcp_exposure_policy.py: 292 passing unit tests
+- plans/mcp-openapi-exposure-policy.md: design doc + gateway integration guide for OOMPAH-420
+- PR #542: https://github.com/lesserevil/oompah/pull/542
+
+Acceptance criteria met:
+✅ Policy represented in code (mcp_exposure_policy.py)
+✅ Defaults fail-closed for protected APIs (UNKNOWN → denied)
+✅ Tests cover allowed operations (SAFE_READ, TASK_MUTATION)
+✅ Tests cover denied operations (all 6 other categories + injection resistance)
+✅ orchestrator/restart, webhooks, provider credentials all explicitly denied
+✅ Token propagation: loopback-only, no forwarding
+
+Security audit complete — no vulnerabilities found. Ready to unblock OOMPAH-420.
 ---
 <!-- COMMENTS:END -->
