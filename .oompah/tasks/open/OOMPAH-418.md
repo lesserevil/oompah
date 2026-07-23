@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-418
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Expose oompah's OpenAPI as a streamable MCP server
 parent: null
@@ -13,7 +13,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-07-23T20:12:56.034686Z'
+updated_at: '2026-07-23T20:14:50.408775Z'
 work_branch: null
 target_branch: null
 review_url: null
