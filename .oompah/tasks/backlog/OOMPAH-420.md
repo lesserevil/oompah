@@ -6,11 +6,12 @@ priority: 1
 title: Implement an embedded oompah OpenAPI MCP gateway
 parent: OOMPAH-418
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-419
 labels: []
 assignee: null
 created_at: '2026-07-23T19:41:55.025847Z'
-updated_at: '2026-07-23T19:41:55.025847Z'
+updated_at: '2026-07-23T19:42:04.678951Z'
 work_branch: null
 target_branch: null
 review_url: null

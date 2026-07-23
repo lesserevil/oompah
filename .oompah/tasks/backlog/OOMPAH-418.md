@@ -13,7 +13,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-07-23T19:41:56.296654Z'
+updated_at: '2026-07-23T19:42:06.787935Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Integrate the oapi2mcp OpenAPI-to-MCP gateway pattern into oompah so MCP clients
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-23 19:42
+---
+Created from the operator request to expose oompah's own FastAPI /openapi.json as a first-party streamable MCP server, using the oapi2mcp gateway pattern. Children are sequenced: exposure/security policy (OOMPAH-419), embedded gateway implementation (OOMPAH-420), then integration tests and operator docs (OOMPAH-421).
+---
+<!-- COMMENTS:END -->

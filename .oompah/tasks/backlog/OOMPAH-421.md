@@ -6,11 +6,12 @@ priority: 2
 title: Add OpenAPI MCP integration tests and operator documentation
 parent: OOMPAH-418
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-420
 labels: []
 assignee: null
 created_at: '2026-07-23T19:41:56.160094Z'
-updated_at: '2026-07-23T19:41:56.160094Z'
+updated_at: '2026-07-23T19:42:05.829323Z'
 work_branch: null
 target_branch: null
 review_url: null
