@@ -1283,6 +1283,31 @@ def _effective_display_status(orch, issue) -> str:
     return issue.state
 
 
+def _child_display_context(issue) -> str | None:
+    """Return a display context hint for shared-epic child issues.
+
+    All projects use the shared-epic strategy (flat/stacked removed in
+    OOMPAH-167).  For child tasks (those with a parent_id), the canonical
+    state carries the context:
+
+    * ``Done``   → ``"done_on_branch"``   – work is complete on the epic branch
+      but the epic has not yet landed on the target branch.
+    * ``Merged`` → ``"merged_to_target"`` – the epic merged and the child's
+      commit is now on the target branch.
+
+    Returns ``None`` for non-child issues or states that don't need extra
+    context (Open, In Progress, etc.).
+    """
+    if not (issue.parent_id or "").strip():
+        return None
+    state = canonicalize_status(issue.state)
+    if state == DONE:
+        return "done_on_branch"
+    if state == MERGED:
+        return "merged_to_target"
+    return None
+
+
 def _manual_needs_human_comment(
     identifier: str,
     issue,
@@ -1560,6 +1585,9 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             "target_branch": getattr(issue, "target_branch", None),
             "work_branch": getattr(issue, "work_branch", None),
             "merged_at": getattr(issue, "merged_at", None),
+            # UI context badge for shared-epic children: distinguishes
+            # "done on epic branch" (Done) from "merged to target" (Merged).
+            "display_status_context": _child_display_context(issue),
             **_issue_display_fields(issue, project_names),
         }
         if intake_summary is not None:
@@ -8017,6 +8045,9 @@ async def api_issue_full_detail(identifier: str, request: Request):
                     "priority": c.priority,
                     "issue_type": c.issue_type,
                     "project_id": c.project_id or project_id,
+                    # UI context: "done_on_branch" or "merged_to_target" for
+                    # shared-epic children; None for other states.
+                    "display_status_context": _child_display_context(c),
                 }
                 for c in children
             ]

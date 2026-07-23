@@ -1,7 +1,11 @@
-"""Tests for _effective_display_status.
+"""Tests for _effective_display_status and _child_display_context.
 
 The board now displays the canonical tracker state directly. It no longer
 reads task files from epic-scoped worktrees.
+
+_child_display_context adds UI context badges for shared-epic children:
+- "done_on_branch"   for Done children  (work complete on epic branch)
+- "merged_to_target" for Merged children (epic landed on target branch)
 """
 
 from __future__ import annotations
@@ -9,7 +13,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from oompah.models import Issue
-from oompah.server import _effective_display_status
+from oompah.server import _child_display_context, _effective_display_status
 
 
 def _issue(**kw) -> Issue:
@@ -105,3 +109,68 @@ def test_lookup_error_falls_back_to_main():
     orch = _orch(raises=True)
     assert _effective_display_status(orch, issue) == "Open"
     orch.project_store.read_task_status_in_epic_worktree.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Tests for _child_display_context — UI badge context for epic children
+# ---------------------------------------------------------------------------
+
+
+def test_child_done_returns_done_on_branch():
+    """Done child → 'done_on_branch': work complete on epic branch, not yet merged."""
+    issue = _issue(identifier="TASK-706.1", parent_id="TASK-706", state="Done")
+    assert _child_display_context(issue) == "done_on_branch"
+
+
+def test_child_merged_returns_merged_to_target():
+    """Merged child → 'merged_to_target': epic landed, child is on target branch."""
+    issue = _issue(identifier="TASK-706.2", parent_id="TASK-706", state="Merged")
+    assert _child_display_context(issue) == "merged_to_target"
+
+
+def test_child_open_returns_none():
+    """Open child → no display context badge needed."""
+    issue = _issue(identifier="TASK-706.3", parent_id="TASK-706", state="Open")
+    assert _child_display_context(issue) is None
+
+
+def test_child_in_progress_returns_none():
+    """In Progress child → no display context badge needed."""
+    issue = _issue(identifier="TASK-706.4", parent_id="TASK-706", state="In Progress")
+    assert _child_display_context(issue) is None
+
+
+def test_child_backlog_returns_none():
+    """Backlog child → no display context badge needed."""
+    issue = _issue(identifier="TASK-706.5", parent_id="TASK-706", state="Backlog")
+    assert _child_display_context(issue) is None
+
+
+def test_non_child_done_returns_none():
+    """Non-child (no parent_id) Done issue → no display context (not an epic child)."""
+    issue = _issue(identifier="TASK-258", parent_id=None, state="Done")
+    assert _child_display_context(issue) is None
+
+
+def test_non_child_merged_returns_none():
+    """Non-child (no parent_id) Merged issue → no display context."""
+    issue = _issue(identifier="TASK-259", parent_id=None, state="Merged")
+    assert _child_display_context(issue) is None
+
+
+def test_child_empty_parent_id_returns_none():
+    """Empty-string parent_id should be treated as no parent."""
+    issue = _issue(identifier="TASK-260", parent_id="", state="Done")
+    assert _child_display_context(issue) is None
+
+
+def test_done_alias_recognized():
+    """Status aliases for Done (e.g. 'closed') are canonicalized correctly."""
+    issue = _issue(identifier="TASK-706.6", parent_id="TASK-706", state="closed")
+    assert _child_display_context(issue) == "done_on_branch"
+
+
+def test_merged_alias_recognized():
+    """Status aliases for Merged are canonicalized correctly."""
+    issue = _issue(identifier="TASK-706.7", parent_id="TASK-706", state="merged")
+    assert _child_display_context(issue) == "merged_to_target"
