@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-23T19:23:35.065344Z'
+updated_at: '2026-07-23T19:23:37.420840Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,5 +33,10 @@ author: oompah
 created: 2026-07-23 19:23
 ---
 Operational recovery completed: restarted the stale scheduler at 19:21 UTC. Its first fresh tick found 43 Exocomp candidates but no ready work because EXOCOMP-7 and EXOCOMP-41 were still orphaned In Progress during selection. Maintenance reset both to Open after selection; I posted /api/v1/refresh, and the scheduler dispatched both at 19:22:57–19:22:59 UTC. Permanent investigation remains: heartbeat recovery waits 15 minutes (300s full-sync × factor 3), and orphan resets should request a prompt dispatch refresh.
+---
+author: oompah
+created: 2026-07-23 19:23
+---
+Scheduler recovered and Exocomp roots dispatched; permanent stale-loop recovery improvement remains in progress.
 ---
 <!-- COMMENTS:END -->
