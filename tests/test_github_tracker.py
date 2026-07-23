@@ -2818,6 +2818,17 @@ class TestGitHubIssueTrackerMutations:
         assert "comments" in last_call[0][1]
         assert "Action required." in last_call[1]["json"]["body"]
 
+    def test_mark_needs_human_rejects_non_actionable_comment(self):
+        tracker = self._make_tracker()
+
+        with patch.object(tracker._client._http, "request") as request:
+            with pytest.raises(TrackerError, match="actionable human instructions"):
+                tracker.mark_needs_human(
+                    "example-org/oompah-tasks#50", "The agent stopped."
+                )
+
+        request.assert_not_called()
+
     # ------------------------------------------------------------------
     # add_comment
     # ------------------------------------------------------------------

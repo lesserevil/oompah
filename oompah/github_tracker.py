@@ -70,6 +70,7 @@ from oompah.tracker import (
     TrackerError,
     TrackerTimeoutError,
     normalize_priority_int,
+    validate_needs_human_comment,
 )
 
 logger = logging.getLogger(__name__)
@@ -2122,8 +2123,9 @@ class GitHubIssueTracker:
         self, identifier: str, comment: str, author: str = "oompah"
     ) -> None:
         """Move an issue to Needs Human and post the actionable comment."""
+        handoff = validate_needs_human_comment(comment)
         self.update_issue(identifier, status=NEEDS_HUMAN)
-        self.add_comment(identifier, comment, author=author)
+        self.add_comment(identifier, handoff, author=author)
 
     # ------------------------------------------------------------------
     # Comments

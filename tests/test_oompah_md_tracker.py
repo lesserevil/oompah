@@ -1131,16 +1131,28 @@ class TestOompahMarkdownTrackerWaitingStatuses:
         assert candidates == []
 
     def test_mark_needs_human_transitions_task_and_adds_comment(self, tmp_path):
-        """mark_needs_human convenience method must update status and add a comment."""
+        """Needs Human ends with an actionable human handoff comment."""
         tracker = _tracker(tmp_path)
         issue = tracker.create_issue("In progress task", initial_status=IN_PROGRESS)
 
-        tracker.mark_needs_human(issue.identifier, "Needs owner decision on approach.")
+        tracker.mark_needs_human(
+            issue.identifier,
+            "Required: choose an implementation approach and move the task back to Open.",
+        )
 
         refreshed = tracker.fetch_issue_detail(issue.identifier)
         assert refreshed.state == NEEDS_HUMAN
         comments = tracker.fetch_comments(issue.identifier)
-        assert any("Needs owner decision" in c["text"] for c in comments)
+        assert "Required: choose an implementation approach" in comments[-1]["text"]
+
+    def test_mark_needs_human_rejects_non_actionable_comment(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("In progress task", initial_status=IN_PROGRESS)
+
+        with pytest.raises(TrackerError, match="actionable human instructions"):
+            tracker.mark_needs_human(issue.identifier, "The agent stopped.")
+
+        assert tracker.fetch_issue_detail(issue.identifier).state == IN_PROGRESS
 
     def test_needs_answer_task_can_return_to_in_progress(self, tmp_path):
         """A task blocked on an answer can be recovered to In Progress."""

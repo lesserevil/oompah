@@ -4575,8 +4575,7 @@ class TestCloseInvalidEpicPolicyReview:
                 tick=1,
             )
         assert result is True
-        tracker.update_issue.assert_called_once_with("child-1", status=NEEDS_HUMAN)
-        tracker.add_comment.assert_called_once()
+        tracker.mark_needs_human.assert_called_once()
 
     def test_records_failure_when_provider_close_fails(self, tmp_path):
         """When ``provider.close_review`` fails, returns True and records the failure.

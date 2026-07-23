@@ -4826,8 +4826,8 @@ class Orchestrator:
             return
         try:
             tracker = self._tracker_for_project(project_id)
-            tracker.update_issue(issue.identifier, status=NEEDS_HUMAN)
-            tracker.add_comment(
+            self._mark_needs_human(
+                tracker,
                 issue.identifier,
                 "This project requires implementation tasks to be attached to "
                 "an epic before oompah can dispatch, create, or merge task PRs. "
@@ -9721,8 +9721,7 @@ class Orchestrator:
             "or archive the task."
         )
         try:
-            tracker.update_issue(issue.identifier, status=NEEDS_HUMAN)
-            tracker.add_comment(issue.identifier, comment, author="oompah")
+            self._mark_needs_human(tracker, issue.identifier, comment)
             logger.warning(
                 "Marked %s Needs Human during stale In Review reconciliation: %s",
                 issue.identifier,
@@ -12261,11 +12260,10 @@ class Orchestrator:
         comment = task_comment_prefix.format(review_id=review_id) + reason
         try:
             if current_status == IN_REVIEW:
-                tracker.update_issue(issue.identifier, status=NEEDS_HUMAN)
-                tracker.add_comment(
+                self._mark_needs_human(
+                    tracker,
                     issue.identifier,
                     comment + needs_human_tail,
-                    author="oompah",
                 )
             elif current_status == DONE:
                 tracker.add_comment(

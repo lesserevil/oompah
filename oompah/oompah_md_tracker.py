@@ -48,6 +48,7 @@ from oompah.tracker import (
     format_comment_timestamp,
     normalize_priority_int,
     parse_tracker_comments,
+    validate_needs_human_comment,
 )
 
 logger = logging.getLogger(__name__)
@@ -708,8 +709,9 @@ class OompahMarkdownTracker:
         comment: str,
         author: str = "oompah",
     ) -> None:
+        handoff = validate_needs_human_comment(comment)
         self.update_issue(identifier, status="Needs Human")
-        self.add_comment(identifier, comment, author=author)
+        self.add_comment(identifier, handoff, author=author)
 
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
         comment_text = str(text or "").strip()

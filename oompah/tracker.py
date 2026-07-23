@@ -12,6 +12,12 @@ from typing import Callable, Protocol, runtime_checkable
 from oompah.models import Issue
 
 _SAFE_CHARS = re.compile(r"[^A-Za-z0-9._-]")
+_NEEDS_HUMAN_ACTION_RE = re.compile(
+    r"(?:\?|\b(?:human action required|required|please|you (?:must|need to|should)|"
+    r"(?:review|confirm|provide|answer|choose|approve|decide|inspect|resolve|add|"
+    r"move|close|retry|run|restore|archive|update)\b))",
+    re.IGNORECASE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +67,26 @@ class TrackerAuthError(TrackerError):
 
 class TrackerNotConfiguredError(TrackerError):
     """Raised when a tracker backend is not configured for a project."""
+
+
+def validate_needs_human_comment(comment: str) -> str:
+    """Return a valid Needs Human handoff or raise ``TrackerError``.
+
+    A task in Needs Human is intentionally undispatchable, so its final
+    comment must tell a human what to do next or ask a question they can
+    answer.  Keeping this check at the tracker boundary makes every adapter
+    enforce the same handoff contract.
+    """
+    text = str(comment or "").strip()
+    if not text:
+        raise TrackerError(
+            "Needs Human requires a final comment with human instructions or a question"
+        )
+    if not _NEEDS_HUMAN_ACTION_RE.search(text):
+        raise TrackerError(
+            "Needs Human comment must include actionable human instructions or a question"
+        )
+    return text
 
 
 class StateBranchMissingError(TrackerError):
