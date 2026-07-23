@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-430
 type: task
-status: Done
+status: Open
 priority: null
 title: Provide focus agents a supported tracker-handoff mutation path
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T23:17:02.810880Z'
+updated_at: '2026-07-23T23:17:18.186979Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 147662d2-a41a-4b8d-9b39-9eb0a2b3a141
 oompah.task_costs:
-  total_input_tokens: 2342719
-  total_output_tokens: 29501
+  total_input_tokens: 2342765
+  total_output_tokens: 50124
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 2342719
-      output_tokens: 29501
+      input_tokens: 2342765
+      output_tokens: 50124
       cost_usd: 0.0
   runs:
   - profile: default
@@ -53,6 +53,12 @@ oompah.task_costs:
     output_tokens: 1963
     cost_usd: 0.0
     recorded_at: '2026-07-23T22:58:52.296826+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 46
+    output_tokens: 20623
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T23:17:14.346407+00:00'
 ---
 ## Summary
 
@@ -359,5 +365,38 @@ author: oompah
 created: 2026-07-23 23:17
 ---
 Added 5 regression tests (3 in test_acp_project_tools.py for add-label ACP interception, 2 in test_orchestrator_duplicate_detection.py for no-commit focus completion advancing to feature focus). Closes EXOCOMP-55 regression gap. All 12068 tests pass. Documentation was added in prior docs focus (plans/focus-handoff-mutation-protocol.md).
+---
+author: oompah
+created: 2026-07-23 23:17
+---
+Agent completed successfully in 680s (20669 tokens)
+---
+author: oompah
+created: 2026-07-23 23:17
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 88, Tool calls: 53
+- Tokens: 46 in / 20.6K out [20.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 20s
+- Log: OOMPAH-430__20260723T230558Z.jsonl
+---
+author: oompah
+created: 2026-07-23 23:17
+---
+Close refused by orchestrator: branch `OOMPAH-430` has 3 commits not on `main` and no open PR targets `main` from this branch.
+
+Diagnostic:
+  Unmerged commits: 3
+    64ad8706e OOMPAH-430: Add regression tests for focus-agent tracker handoff mutation path
+    c8a7891a8 OOMPAH-430: Add focus-handoff-mutation-protocol plan doc
+    952009627 OOMPAH-430: clarify supported tracker command routing
+  Open PRs from this branch: 0
+  Merged PRs from this branch: 0
+
+Required: open a PR before closing.
+  gh pr create --base main --head OOMPAH-430 --title "OOMPAH-430: Provide focus agents a supported tracker-handoff mutation path" --body "..."
+
+Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
 ---
 <!-- COMMENTS:END -->
