@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-307
 type: bug
-status: Done
+status: In Review
 priority: 1
 title: Keep shared-epic child work and merge state on the epic branch
 parent: null
@@ -19,11 +19,11 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-21T16:27:57.025790Z'
-updated_at: '2026-07-23T00:18:52.253289Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-23T00:19:06.156488Z'
+work_branch: epic-OOMPAH-307
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/541
+review_number: '541'
 merged_at: null
 oompah.agent_run_id: 33020a3a-c101-471d-b89e-29be042ac8f7
 oompah.task_costs:
@@ -54,6 +54,10 @@ oompah.task_costs:
     output_tokens: 2768
     cost_usd: 0.0
     recorded_at: '2026-07-21T16:55:37.496646+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/541
+oompah.review_number: '541'
+oompah.work_branch: epic-OOMPAH-307
+oompah.target_branch: main
 ---
 ## Summary
 
