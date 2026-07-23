@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-413
 type: task
-status: Done
+status: Merged
 priority: null
 title: Add regression tests for shared-epic Merged promotion gates in test_epic_strategy.py
 parent: OOMPAH-310
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T21:34:25.679338Z'
-updated_at: '2026-07-22T23:59:01.071696Z'
+updated_at: '2026-07-23T00:25:01.670465Z'
 work_branch: null
 target_branch: null
 review_url: null
