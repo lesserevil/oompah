@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-427
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fix YOLO merge gate bypass for child tasks with stale work_branch (EXOCOMP-57
   regression)
@@ -10,16 +10,15 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
-- needs:feature
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T21:57:19.339606Z'
+updated_at: '2026-07-23T21:57:33.646708Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 367c1889-499c-4811-84b8-25cc3a2fcf52
+oompah.agent_run_id: a5fd0f7a-1874-4fcb-895a-eb4b8feea282
 oompah.work_branch: epic-OOMPAH-426
 oompah.task_costs:
   total_input_tokens: 41
@@ -195,5 +194,15 @@ author: oompah
 created: 2026-07-23 21:57
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-23 21:57
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-23 21:57
+---
+Focus: Epic Planner
 ---
 <!-- COMMENTS:END -->
