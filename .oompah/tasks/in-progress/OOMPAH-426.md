@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-426
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-23T21:26:53.782752Z'
+updated_at: '2026-07-23T21:27:08.745349Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: f3e82276-d1cd-4248-93e3-11856ee411e2
+oompah.agent_run_id: 253ce0a7-8fd3-49ec-b846-7a07a833082a
 oompah.task_costs:
   total_input_tokens: 366487
   total_output_tokens: 25395
@@ -170,5 +170,15 @@ author: oompah
 created: 2026-07-23 21:26
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-426`. No stronger profile is configured; retrying with 'deep' in 10s (1/3).
+---
+author: oompah
+created: 2026-07-23 21:27
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-23 21:27
+---
+Focus: Epic Planner
 ---
 <!-- COMMENTS:END -->
