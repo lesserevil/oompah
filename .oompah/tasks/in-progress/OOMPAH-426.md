@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-426
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
@@ -10,12 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-23T21:15:59.630196Z'
+updated_at: '2026-07-23T21:16:28.840965Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 9b589287-01b3-4ddc-8498-b37e946c13ba
 ---
 ## Summary
 
@@ -27,3 +28,11 @@ Bug observed on EXOCOMP-57: although it is a child of still-open epic EXOCOMP-9 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-23 21:16
+---
+Agent dispatched (profile: default)
+---
+<!-- COMMENTS:END -->
