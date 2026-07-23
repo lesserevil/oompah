@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-427
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fix YOLO merge gate bypass for child tasks with stale work_branch (EXOCOMP-57
   regression)
@@ -11,12 +11,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T21:51:48.259093Z'
-work_branch: null
+updated_at: '2026-07-23T21:52:10.665171Z'
+work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 367c1889-499c-4811-84b8-25cc3a2fcf52
+oompah.work_branch: epic-OOMPAH-426
 ---
 ## Summary
 
@@ -96,3 +98,16 @@ Add to \`TestCloseInvalidEpicPolicyReview\`:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-23 21:52
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-23 21:52
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

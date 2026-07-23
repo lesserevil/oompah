@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-426
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-23T21:34:31.983872Z'
+updated_at: '2026-07-23T21:52:15.117932Z'
 work_branch: null
 target_branch: null
 review_url: null
