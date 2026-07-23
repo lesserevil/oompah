@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-414
 type: task
-status: Open
-priority: null
+status: Needs CI Fix
+priority: 0
 title: Prevent scheduler stalls from delaying task dispatch
 parent: null
 children:
@@ -14,9 +14,10 @@ labels:
 - focus-complete:duplicate_detector
 - focus-complete:epic_planner
 - epic:stale
+- ci-fix
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-23T20:34:06.121556Z'
+updated_at: '2026-07-23T20:35:44.154175Z'
 work_branch: epic-OOMPAH-414
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/543
@@ -184,5 +185,10 @@ author: oompah
 created: 2026-07-23 19:35
 ---
 Focus handoff from `epic_planner` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-23 20:35
+---
+YOLO: CI tests failed on MR #543. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->

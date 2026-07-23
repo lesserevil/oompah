@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -14,13 +14,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T20:34:00.585524Z'
+updated_at: '2026-07-23T20:35:40.324378Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 1e66c8a2-06ee-4abe-a25d-c869cb035ff8
+oompah.agent_run_id: 84d14f69-b08f-4ea4-a4d6-fcfef406ebef
 oompah.work_branch: epic-OOMPAH-414
 oompah.task_costs:
   total_input_tokens: 8116451
@@ -378,5 +378,15 @@ author: oompah
 created: 2026-07-23 20:34
 ---
 YOLO: CI tests failed on MR #543. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-23 20:35
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-23 20:35
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
