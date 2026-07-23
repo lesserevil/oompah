@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-429
 type: bug
-status: Backlog
+status: Done
 priority: 1
 title: Clear scheduler completion state when an operator reopens a task
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T22:24:40.832138Z'
-updated_at: '2026-07-23T22:26:38.457947Z'
+updated_at: '2026-07-23T22:27:55.521621Z'
 work_branch: null
 target_branch: null
 review_url: null
