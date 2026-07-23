@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-426
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
@@ -12,13 +12,29 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-23T21:24:37.331992Z'
+updated_at: '2026-07-23T21:24:55.932044Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 9b589287-01b3-4ddc-8498-b37e946c13ba
+oompah.task_costs:
+  total_input_tokens: 51
+  total_output_tokens: 21301
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 51
+      output_tokens: 21301
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 51
+    output_tokens: 21301
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T21:24:46.606259+00:00'
 ---
 ## Summary
 
@@ -99,5 +115,25 @@ Focus handoff: duplicate_detector
    - Risk: orchestrator.py is large (~19k lines); use targeted grep to navigate.
 
 4. Recommended next focus: feature (backend fix — implement merge gate enforcement and regression tests for EXOCOMP-57 scenario)
+---
+author: oompah
+created: 2026-07-23 21:24
+---
+Agent completed successfully in 499s (21352 tokens)
+---
+author: oompah
+created: 2026-07-23 21:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 123, Tool calls: 82
+- Tokens: 51 in / 21.3K out [21.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 19s
+- Log: OOMPAH-426__20260723T211633Z.jsonl
+---
+author: oompah
+created: 2026-07-23 21:24
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
