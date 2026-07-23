@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-416
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
@@ -9,16 +9,15 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
-- needs:feature
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-23T20:12:15.474032Z'
+updated_at: '2026-07-23T20:14:16.196392Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 412acd21-b294-4461-abca-f4c1f82de8fd
+oompah.agent_run_id: f1b1d884-0873-474c-a54c-ac87f6626978
 oompah.work_branch: epic-OOMPAH-414
 oompah.task_costs:
   total_input_tokens: 21
@@ -129,5 +128,15 @@ author: oompah
 created: 2026-07-23 20:12
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-23 20:14
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-23 20:14
+---
+Focus: Epic Planner
 ---
 <!-- COMMENTS:END -->
