@@ -12,11 +12,11 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T23:17:54.413647Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-23T23:17:59.242062Z'
+work_branch: OOMPAH-430
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/549
+review_number: '549'
 merged_at: null
 oompah.agent_run_id: 2479c992-f6a4-46aa-9d63-a9bc590d23b8
 oompah.task_costs:
@@ -59,6 +59,10 @@ oompah.task_costs:
     output_tokens: 20623
     cost_usd: 0.0
     recorded_at: '2026-07-23T23:17:14.346407+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/549
+oompah.review_number: '549'
+oompah.work_branch: OOMPAH-430
+oompah.target_branch: main
 ---
 ## Summary
 
