@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-430
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Provide focus agents a supported tracker-handoff mutation path
 parent: null
@@ -12,13 +12,13 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T23:17:18.186979Z'
+updated_at: '2026-07-23T23:17:30.964575Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 147662d2-a41a-4b8d-9b39-9eb0a2b3a141
+oompah.agent_run_id: 2479c992-f6a4-46aa-9d63-a9bc590d23b8
 oompah.task_costs:
   total_input_tokens: 2342765
   total_output_tokens: 50124
@@ -398,5 +398,15 @@ Required: open a PR before closing.
   gh pr create --base main --head OOMPAH-430 --title "OOMPAH-430: Provide focus agents a supported tracker-handoff mutation path" --body "..."
 
 Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
+---
+author: oompah
+created: 2026-07-23 23:17
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-23 23:17
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
