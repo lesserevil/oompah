@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-427
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Fix YOLO merge gate bypass for child tasks with stale work_branch (EXOCOMP-57
   regression)
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T21:33:43.808978Z'
+updated_at: '2026-07-23T21:51:48.259093Z'
 work_branch: null
 target_branch: null
 review_url: null
