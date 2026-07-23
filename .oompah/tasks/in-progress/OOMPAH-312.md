@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-23T00:12:02.618722Z'
+updated_at: '2026-07-23T00:18:00.485524Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -234,5 +234,32 @@ Plan:
 4. Add CSS for .branch-context-badge, .branch-context-done, .branch-context-merged
 5. Render badge on kanban cards and in detail panel children list
 6. Extend tests/test_shared_epic_display_status.py with _child_display_context tests
+---
+author: oompah
+created: 2026-07-23 00:18
+---
+Implementation complete.
+
+Changes:
+1. oompah/server.py — added _child_display_context(issue) helper:
+   - Returns 'done_on_branch' for children (parent_id set) in Done state
+   - Returns 'merged_to_target' for children in Merged state
+   - Returns None for all other cases (non-children, other states)
+   - Added display_status_context field to _fetch_and_serialize_issues() board payload
+   - Added display_status_context field to api_issue_full_detail() children list
+
+2. oompah/templates/dashboard.html — added UI context badges:
+   - New CSS: .branch-context-badge, .branch-context-done (green), .branch-context-merged (purple)
+   - Kanban card: shows 'on branch' or 'to target' badge alongside epic-badge and merged-badge
+   - Detail panel children list: shows context badge alongside state pill for Done/Merged children
+   - Both badges have aria-label and title attributes for accessibility
+
+3. tests/test_shared_epic_display_status.py — added 10 new tests for _child_display_context:
+   - Tests for Done → done_on_branch, Merged → merged_to_target
+   - Tests for non-children returning None
+   - Tests for non-terminal states returning None
+   - Tests for status alias canonicalization (e.g. 'closed' → done_on_branch, 'merged' → merged_to_target)
+
+Verification: 11751 passed, 38 skipped — all tests pass.
 ---
 <!-- COMMENTS:END -->
