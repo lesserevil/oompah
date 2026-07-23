@@ -1074,6 +1074,8 @@ class GitHubProvider(SCMProvider):
                 # unknown leaves an otherwise clean YOLO PR in In Review
                 # forever. Unknown remains reserved for failed or unavailable
                 # CI observation.
+                if legacy_failure:
+                    return "failed", warnings
                 return "passed", warnings
             elif cr.status_code == 403:
                 # The token lacks Checks access (common with fine-grained PATs

@@ -1,7 +1,7 @@
 # oompah OpenAPI-to-MCP Exposure Policy
 
-**Status**: Implemented in `oompah/mcp_exposure_policy.py` (OOMPAH-419)  
-**Gateway implementation**: OOMPAH-420  
+**Status**: Implemented in `oompah/mcp_exposure_policy.py` (OOMPAH-419)
+**Gateway implementation**: OOMPAH-420
 **Integration tests + docs**: OOMPAH-421
 
 ## Overview

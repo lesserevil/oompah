@@ -1222,8 +1222,11 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         result = orch._ensure_review_exists(entry, "proj-1")
 
         assert result is False
-        tracker.update_issue.assert_called_once_with("task-1", status=NEEDS_HUMAN)
-        tracker.add_comment.assert_called_once()
+        tracker.mark_needs_human.assert_called_once()
+        args, kwargs = tracker.mark_needs_human.call_args
+        assert args[0] == "task-1"
+        assert "requires implementation tasks" in args[1]
+        assert kwargs == {"author": "oompah"}
 
     def test_require_epic_parent_blocks_unresolved_parent_review(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
@@ -1252,8 +1255,11 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             result = orch._ensure_review_exists(entry, "proj-1")
 
         assert result is False
-        tracker.update_issue.assert_called_once_with("task-1", status=NEEDS_HUMAN)
-        tracker.add_comment.assert_called_once()
+        tracker.mark_needs_human.assert_called_once()
+        args, kwargs = tracker.mark_needs_human.call_args
+        assert args[0] == "task-1"
+        assert "requires implementation tasks" in args[1]
+        assert kwargs == {"author": "oompah"}
 
     def test_flat_creates_pr_targeting_main(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")
