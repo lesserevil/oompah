@@ -11,13 +11,29 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-23T19:30:02.384122Z'
+updated_at: '2026-07-23T19:30:27.958506Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 35bad346-1e06-492a-b5c7-5afcc8431bb8
+oompah.agent_run_id: 28e0109e-70af-4e36-a8db-f4dbcd7ab473
+oompah.task_costs:
+  total_input_tokens: 1908857
+  total_output_tokens: 9597
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 1908857
+      output_tokens: 9597
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 1908857
+    output_tokens: 9597
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T19:30:17.272684+00:00'
 ---
 ## Summary
 
@@ -70,5 +86,35 @@ Focus handoff: duplicate_detector
 2. Evidence: Full canonical records reviewed for OOMPAH-348, OOMPAH-349, OOMPAH-350, OOMPAH-352, OOMPAH-406, and OOMPAH-407, plus the earlier dispatch-heartbeat implementation commit. The OOMPAH-348 family bounds tracker reads, isolates the scheduler from HTTP, and captures stall diagnostics. OOMPAH-406/407 suppress error-watcher auto-filing. None makes stale recovery prompt, keeps maintenance from starving dispatch, or requests a new dispatch pass after orphan resets.
 3. Relevant context: oompah/orchestrator.py contains stale-loop supervision, tick phase/maintenance ordering, and orphan reset behavior; tests/test_dispatch_loop_heartbeat.py contains existing stale recovery coverage; docs/tick-latency-diagnostics.md describes long-tick observability. No source changes were made in this focus.
 4. Remaining work/risks: inspect the July 23 diagnostic artifact to identify the blocking phase; bound or decouple maintenance from dispatch; wake dispatch when orphan maintenance makes tasks eligible; choose an independently prompt and observable stale threshold; add regression coverage for the observed stall/recovery and clean Exocomp dispatch; run make test. Recommended next focus: feature (backend scheduler implementation).
+---
+author: oompah
+created: 2026-07-23 19:30
+---
+Agent completed successfully in 268s (1918454 tokens)
+---
+author: oompah
+created: 2026-07-23 19:30
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 24
+- Tokens: 1.9M in / 9.6K out [1.9M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 28s
+- Log: OOMPAH-414__20260723T192550Z.jsonl
+---
+author: oompah
+created: 2026-07-23 19:30
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-23 19:30
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-23 19:30
+---
+Focus: Epic Planner
 ---
 <!-- COMMENTS:END -->
