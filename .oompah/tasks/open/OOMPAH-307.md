@@ -19,7 +19,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-21T16:27:57.025790Z'
-updated_at: '2026-07-23T00:09:01.641224Z'
+updated_at: '2026-07-23T00:14:01.219891Z'
 work_branch: null
 target_branch: null
 review_url: null
