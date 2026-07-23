@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-213
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Execute queued release delivery ledger entries
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-16T20:45:48.746194Z'
-updated_at: '2026-07-16T20:48:23.231570Z'
+updated_at: '2026-07-23T20:48:48.276566Z'
 work_branch: null
 target_branch: null
 review_url: null
