@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:19:31.963654Z'
+updated_at: '2026-07-23T20:25:17.488889Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -304,5 +304,24 @@ author: oompah
 created: 2026-07-23 20:19
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-23 20:25
+---
+Security Audit: Implementation verified
+
+Conducted a security review of oompah/mcp_exposure_policy.py and tests/test_mcp_exposure_policy.py. All 292 tests pass.
+
+Security properties confirmed:
+1. **Fail-closed default** — UNKNOWN routes return False from is_route_exposed(); newly-added routes are denied until explicitly classified.
+2. **Input validation** — _is_valid_openapi_path() rejects %-encoding, query strings, fragments, null bytes, and whitespace before any pattern matching. Prevents adversarial strings from accidentally matching broad rules.
+3. **No credential exposure** — CREDENTIAL_BEARING category (provider CRUD, key management) is explicitly denied. GET /api/v1/providers is SAFE_READ (list only, no key material).
+4. **Orchestrator control denied** — POST /api/v1/orchestrator/restart is in ORCHESTRATOR_CONTROL; explicitly tested including injection-resistance (cannot be smuggled via issue-identifier single-segment pattern).
+5. **Webhook ingestion denied** — HMAC bypass prevention; POST /api/v1/webhooks/{github,gitlab} are WEBHOOK_INGESTION (denied).
+6. **Rule ordering correct** — Specific deny rules precede broad allow rules; RELEASE_DELIVERY paths appear before TASK_MUTATION POST /api/v1/issues/{identifier}/* catch-all.
+7. **No token propagation** — loopback-only architecture documented in describe_policy(); no Authorization headers forwarded.
+8. **Method case-insensitivity** — method arg normalized to uppercase; tests verify 'get', 'GET', 'Get' all work correctly.
+
+No new vulnerabilities found. Implementation is ready to unblock OOMPAH-420 (gateway). Creating PR now.
 ---
 <!-- COMMENTS:END -->
