@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-426
 type: bug
-status: In Review
+status: In Progress
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
@@ -13,11 +13,11 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-23T22:10:22.517413Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-23T22:10:31.023938Z'
+work_branch: epic-OOMPAH-426
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/544
+review_number: '544'
 merged_at: null
 oompah.agent_run_id: 253ce0a7-8fd3-49ec-b846-7a07a833082a
 oompah.task_costs:
@@ -48,6 +48,10 @@ oompah.task_costs:
     output_tokens: 1969
     cost_usd: 0.0
     recorded_at: '2026-07-23T21:34:30.406048+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/544
+oompah.review_number: '544'
+oompah.work_branch: epic-OOMPAH-426
+oompah.target_branch: main
 ---
 ## Summary
 

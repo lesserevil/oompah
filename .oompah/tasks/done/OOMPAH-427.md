@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-427
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Fix YOLO merge gate bypass for child tasks with stale work_branch (EXOCOMP-57
   regression)
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T22:09:58.209566Z'
+updated_at: '2026-07-23T22:10:35.768034Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -310,5 +310,10 @@ author: oompah
 created: 2026-07-23 22:09
 ---
 Resuming as Epic Planner (dispatch #3). Implementation is complete and all tests pass from the previous agent run. The close was refused because no PR was open from branch epic-OOMPAH-426 to main. Creating the required PR now to unblock the close.
+---
+author: oompah
+created: 2026-07-23 22:10
+---
+Completion: PR #544 created from epic-OOMPAH-426 to main (https://github.com/lesserevil/oompah/pull/544). Implementation was done by the previous agent and verified with make test (12063 passed). Closing the task now.
 ---
 <!-- COMMENTS:END -->
