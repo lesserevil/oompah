@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: Needs CI Fix
+status: Open
 priority: 0
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T20:50:21.287878Z'
+updated_at: '2026-07-23T20:50:40.826704Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -388,5 +388,17 @@ author: oompah
 created: 2026-07-23 20:35
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-23 20:50
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #1)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
