@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-414
 type: task
-status: In Review
+status: Needs Rebase
 priority: 0
 title: Prevent scheduler stalls from delaying task dispatch
 parent: null
@@ -18,7 +18,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-23T21:03:48.986551Z'
+updated_at: '2026-07-23T21:03:59.374621Z'
 work_branch: epic-OOMPAH-414
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/543
@@ -194,6 +194,11 @@ YOLO: CI tests failed on MR #543. Fix the failing tests so this MR can merge. Do
 ---
 author: oompah
 created: 2026-07-23 20:44
+---
+YOLO: Merge conflict detected on MR #543. Rebase onto main and resolve conflicts.
+---
+author: oompah
+created: 2026-07-23 21:03
 ---
 YOLO: Merge conflict detected on MR #543. Rebase onto main and resolve conflicts.
 ---
