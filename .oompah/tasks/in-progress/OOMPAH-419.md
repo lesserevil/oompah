@@ -7,10 +7,12 @@ title: Define the oompah OpenAPI-to-MCP exposure policy
 parent: OOMPAH-418
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:security
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T19:48:46.241345Z'
+updated_at: '2026-07-23T19:52:29.587425Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -86,5 +88,15 @@ author: oompah
 created: 2026-07-23 19:48
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-23 19:52
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: Duplicate screening found no duplicate for OOMPAH-419.
+2. Evidence: A canonical-state search for OpenAPI, MCP, tool exposure, and service discovery found only parent epic OOMPAH-418 and siblings OOMPAH-420/OOMPAH-421. Full descriptions and comments confirm intentional decomposition: OOMPAH-419 owns exposure/authentication/fail-closed policy and focused policy tests; OOMPAH-420 owns the embedded gateway/lifecycle/discovery implementation and is blocked by OOMPAH-419; OOMPAH-421 owns end-to-end coverage and operator docs and is blocked by OOMPAH-420. Commands used: git grep against oompah/state/proj-14849f1b and git show of tasks 418-421. The code worktree remains clean.
+3. Remaining work/risks: Implement the policy contract and allowed/denied unit coverage without absorbing OOMPAH-420 gateway construction or OOMPAH-421 end-to-end/docs scope. Keep protected operations fail-closed.
+4. Recommended next focus: security.
 ---
 <!-- COMMENTS:END -->
