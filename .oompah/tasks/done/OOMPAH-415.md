@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T20:12:32.150967Z'
+updated_at: '2026-07-23T20:12:34.757885Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -309,5 +309,10 @@ created: 2026-07-23 20:12
 - .env.example: Added commented-out OOMPAH_DISPATCH_STALE_THRESHOLD_MS=120000 and OOMPAH_DISPATCH_STALE_GRACE_MS=30000.
 
 **Acceptance criteria met:** Stall detection fires at 2 minutes (default) instead of 15-20 minutes. Threshold is independently tunable via env var without touching full_sync_interval_ms.
+---
+author: oompah
+created: 2026-07-23 20:12
+---
+Decoupled stale-dispatch threshold from full_sync_interval. Added dispatch_stale_threshold_ms (default 120s) and dispatch_stale_grace_ms (default 30s) to config.py with env var support. Updated orchestrator.py is_dispatch_loop_stale(), check_and_recover_dispatch_loop(), and _arm_dispatch_stale_alert() to use new fields. Backward compat preserved (threshold=0 falls back to factor formula). Docs and .env.example updated. All 41 heartbeat tests pass.
 ---
 <!-- COMMENTS:END -->
