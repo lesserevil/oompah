@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: Open
+status: In Progress
 priority: 0
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -14,13 +14,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T20:50:40.826704Z'
+updated_at: '2026-07-23T20:52:06.570623Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 84d14f69-b08f-4ea4-a4d6-fcfef406ebef
+oompah.agent_run_id: 80fabb0a-e869-4a28-a80e-3aecff62e2e6
 oompah.work_branch: epic-OOMPAH-414
 oompah.task_costs:
   total_input_tokens: 8116451
@@ -400,5 +400,15 @@ created: 2026-07-23 20:50
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-23 20:52
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-23 20:52
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-416
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
@@ -12,13 +12,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-23T20:50:21.999063Z'
+updated_at: '2026-07-23T20:52:09.681618Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 84d0bb89-ccf7-43de-b2c7-693d0be4cbe9
+oompah.agent_run_id: fff6ee95-7903-4f89-9b24-8051cba6ecd4
 oompah.work_branch: epic-OOMPAH-414
 oompah.task_costs:
   total_input_tokens: 409032
@@ -221,5 +221,15 @@ Understanding (CI Failure Fixer): Found 4 failing tests on MR #543 (epic-OOMPAH-
 2. tests/test_scm.py::test_legacy_failure_short_circuits: When legacy combined-status is 'failure' (total_count=1) but check_runs is empty [], the code falls through to 'return passed, warnings' instead of honoring the legacy failure. The legacy_failure flag should gate this return.
 
 Fix plan: (a) update epic_strategy+yolo_watchdog test assertions to use tracker.mark_needs_human; (b) fix scm.py empty-runs path to check legacy_failure before returning passed.
+---
+author: oompah
+created: 2026-07-23 20:52
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-23 20:52
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
