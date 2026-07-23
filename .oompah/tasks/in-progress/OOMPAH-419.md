@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T19:56:26.585112Z'
+updated_at: '2026-07-23T20:11:22.636435Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -177,5 +177,32 @@ RELEASE_DELIVERY (9 routes): release-delivery trigger/retry/archive/refresh, rel
 Policy: only SAFE_READ and TASK_MUTATION are exposed. All others are denied. UNKNOWN defaults to denied (fail-closed).
 
 Security note: orchestrator/restart is the highest-risk route — any MCP exposure of this would allow an agent to restart the oompah service.
+---
+author: oompah
+created: 2026-07-23 20:11
+---
+Implementation: oompah/mcp_exposure_policy.py
+
+Added three files:
+
+1. oompah/mcp_exposure_policy.py — The policy module:
+   - RouteCategory enum (8 categories)
+   - EXPOSED_CATEGORIES = {SAFE_READ, TASK_MUTATION} (only these two)
+   - classify_route(method, path) -> RouteCategory using an ordered 80+ rule table
+   - is_route_exposed(method, path) -> bool (fail-closed: UNKNOWN = False)
+   - _is_valid_openapi_path() input validation (rejects %encoding, ?, #, whitespace)
+   - Service-discovery constants: MCP_ENDPOINT_PATH=/api/mcp/v1, MCP_DISCOVERY_PATH=/.well-known/mcp
+   - describe_policy() and iter_exposed_routes() utility functions
+
+2. tests/test_mcp_exposure_policy.py — 292 unit tests covering all route categories, injection resistance, fail-closed behavior.
+
+3. plans/mcp-openapi-exposure-policy.md — Gateway integration guide for OOMPAH-420.
+
+Security decisions made:
+- POST /api/v1/orchestrator/restart → ORCHESTRATOR_CONTROL (denied, explicitly tested)
+- POST /api/v1/webhooks/{github,gitlab} → WEBHOOK_INGESTION (HMAC bypass prevention)
+- POST/PATCH/DELETE /api/v1/providers → CREDENTIAL_BEARING (key management protection)
+- No token forwarding (loopback-only, no Auth header propagation)
+- Input validation rejects adversarial path strings before pattern matching
 ---
 <!-- COMMENTS:END -->
