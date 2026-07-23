@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-414
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Prevent scheduler stalls from delaying task dispatch
 parent: null
@@ -15,7 +15,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-23T19:35:29.113525Z'
+updated_at: '2026-07-23T19:46:12.202228Z'
 work_branch: null
 target_branch: null
 review_url: null

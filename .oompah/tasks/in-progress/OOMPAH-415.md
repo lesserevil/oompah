@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -11,12 +11,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T19:43:40.255864Z'
-work_branch: null
+updated_at: '2026-07-23T19:46:13.207922Z'
+work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: e232f41a-aee9-4691-8748-2decd365d585
+oompah.work_branch: epic-OOMPAH-414
 ---
 ## Summary
 
@@ -64,3 +66,16 @@ A stall is detected and recovery triggered within 2 minutes (default) instead of
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-23 19:46
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-23 19:46
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

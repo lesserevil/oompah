@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-419
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Define the oompah OpenAPI-to-MCP exposure policy
 parent: OOMPAH-418
@@ -10,12 +10,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T19:43:37.136921Z'
-work_branch: null
+updated_at: '2026-07-23T19:46:09.971827Z'
+work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 88115688-15dc-4012-8654-b515794440d4
+oompah.work_branch: epic-OOMPAH-418
 ---
 ## Summary
 
@@ -27,3 +29,16 @@ Design and implement the explicit MCP tool-exposure policy for oompah's generate
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-23 19:46
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-23 19:46
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
