@@ -13,22 +13,22 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T19:51:11.763686Z'
+updated_at: '2026-07-23T20:02:20.737162Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 206acef9-0240-499c-bdfe-81c27e2d264f
+oompah.agent_run_id: f65db203-6f0a-43e7-812f-9c94c8bab38a
 oompah.work_branch: epic-OOMPAH-414
 oompah.task_costs:
-  total_input_tokens: 43
-  total_output_tokens: 11517
+  total_input_tokens: 8116427
+  total_output_tokens: 27439
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 43
-      output_tokens: 11517
+      input_tokens: 8116427
+      output_tokens: 27439
       cost_usd: 0.0
   runs:
   - profile: default
@@ -43,6 +43,12 @@ oompah.task_costs:
     output_tokens: 6754
     cost_usd: 0.0
     recorded_at: '2026-07-23T19:50:58.868823+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 8116384
+    output_tokens: 15922
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T20:02:01.506263+00:00'
 ---
 ## Summary
 
@@ -231,6 +237,36 @@ Agent dispatched (profile: standard)
 ---
 author: oompah
 created: 2026-07-23 19:51
+---
+Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-23 20:02
+---
+Agent completed successfully in 654s (8132306 tokens)
+---
+author: oompah
+created: 2026-07-23 20:02
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 1, Tool calls: 22
+- Tokens: 8.1M in / 15.9K out [8.1M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 54s
+- Log: OOMPAH-415__20260723T195112Z.jsonl
+---
+author: oompah
+created: 2026-07-23 20:02
+---
+Agent completed without closing this issue (654s (8132306 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-23 20:02
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-23 20:02
 ---
 Focus: Maintenance Engineer
 ---

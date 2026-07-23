@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-416
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
@@ -10,12 +10,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-23T19:43:41.347403Z'
-work_branch: null
+updated_at: '2026-07-23T20:02:12.452811Z'
+work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 412acd21-b294-4461-abca-f4c1f82de8fd
+oompah.work_branch: epic-OOMPAH-414
 ---
 ## Summary
 
@@ -50,3 +52,16 @@ After orphan resets, the dispatch loop wakes within milliseconds (via REFRESH_RE
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-23 20:02
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-23 20:02
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
