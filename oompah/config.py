@@ -559,13 +559,13 @@ class ServiceConfig:
     worker_termination_timeout_ms: int = 10000
 
     # Dispatch-loop heartbeat staleness detection (lesserevil/oompah#305).
-    # If the dispatch loop has not completed a tick for longer than
-    # (full_sync_interval_ms × dispatch_loop_stale_factor) milliseconds,
-    # it is considered stale: a dashboard alert is raised and automatic
-    # recovery is attempted. A factor of 3.0 means the loop is flagged
-    # stale after 3 missed full-sync intervals (15 minutes by default).
-    # Set to 0 to disable stale-loop detection entirely.
-    # Configurable via OOMPAH_DISPATCH_LOOP_STALE_FACTOR.
+    # The threshold and recovery grace are independent of the full-sync
+    # cadence. Set dispatch_stale_threshold_ms to 0 to use the legacy
+    # (full_sync_interval_ms × dispatch_loop_stale_factor) formula instead.
+    # In that compatibility mode, a non-positive factor disables detection.
+    # These settings are environment-only.
+    dispatch_stale_threshold_ms: int = 120000
+    dispatch_stale_grace_ms: int = 30000
     dispatch_loop_stale_factor: float = 3.0
 
     # -----------------------------------------------------------------------
@@ -943,6 +943,12 @@ class ServiceConfig:
             ),
             worker_termination_timeout_ms=_env_int(
                 "OOMPAH_WORKER_TERMINATION_TIMEOUT_MS", None, 10000
+            ),
+            dispatch_stale_threshold_ms=_env_int(
+                "OOMPAH_DISPATCH_STALE_THRESHOLD_MS", None, 120000
+            ),
+            dispatch_stale_grace_ms=_env_int(
+                "OOMPAH_DISPATCH_STALE_GRACE_MS", None, 30000
             ),
             dispatch_loop_stale_factor=_env_float(
                 "OOMPAH_DISPATCH_LOOP_STALE_FACTOR",

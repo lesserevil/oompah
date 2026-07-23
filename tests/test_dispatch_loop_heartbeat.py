@@ -4,8 +4,8 @@ orchestrator dispatch loop stops ticking.
 Coverage:
   (1) is_dispatch_loop_stale() returns False before first tick
   (2) is_dispatch_loop_stale() returns False when tick is recent
-  (3) is_dispatch_loop_stale() returns True when tick is old
-  (4) dispatch_loop_stale_factor=0 disables detection
+  (3) is_dispatch_loop_stale() uses the independent stale threshold
+  (4) threshold=0 falls back to the factor-based formula
   (5) _arm_dispatch_stale_alert() surfaces an error-level alert in get_snapshot()
   (6) _clear_dispatch_stale_alert() removes the alert
   (7) check_and_recover_dispatch_loop() arms the alert when stale
@@ -49,10 +49,14 @@ from oompah.roles import RoleStore
 def _make_config(
     full_sync_interval_ms: int = 300_000,
     dispatch_loop_stale_factor: float = 3.0,
+    dispatch_stale_threshold_ms: int = 0,
+    dispatch_stale_grace_ms: int = 30_000,
 ) -> ServiceConfig:
     cfg = ServiceConfig()
     cfg.full_sync_interval_ms = full_sync_interval_ms
     cfg.dispatch_loop_stale_factor = dispatch_loop_stale_factor
+    cfg.dispatch_stale_threshold_ms = dispatch_stale_threshold_ms
+    cfg.dispatch_stale_grace_ms = dispatch_stale_grace_ms
     return cfg
 
 
@@ -60,6 +64,8 @@ def _make_orchestrator(
     tmp_path,
     full_sync_interval_ms: int = 300_000,
     dispatch_loop_stale_factor: float = 3.0,
+    dispatch_stale_threshold_ms: int = 0,
+    dispatch_stale_grace_ms: int = 30_000,
 ) -> Orchestrator:
     project_store = MagicMock()
     project_store.list_all.return_value = []
@@ -68,6 +74,8 @@ def _make_orchestrator(
     cfg = _make_config(
         full_sync_interval_ms=full_sync_interval_ms,
         dispatch_loop_stale_factor=dispatch_loop_stale_factor,
+        dispatch_stale_threshold_ms=dispatch_stale_threshold_ms,
+        dispatch_stale_grace_ms=dispatch_stale_grace_ms,
     )
     orch = Orchestrator(
         config=cfg,
@@ -125,12 +133,29 @@ class TestIsDispatchLoopStale:
         assert orch.is_dispatch_loop_stale() is False
 
     def test_true_when_tick_is_old(self, tmp_path):
-        """A tick older than (factor × full_sync_interval_ms) is stale."""
+        """The independent threshold wins over the legacy factor formula."""
         orch = _make_orchestrator(
-            tmp_path, full_sync_interval_ms=60_000, dispatch_loop_stale_factor=2.0
+            tmp_path,
+            full_sync_interval_ms=60_000,
+            dispatch_loop_stale_factor=10.0,
+            dispatch_stale_threshold_ms=120_000,
         )
-        # Simulate a tick that completed 130 seconds ago (threshold = 120s)
+        # Direct threshold is 120s; the legacy formula would be 600s.
         orch._last_full_sync = time.monotonic() - 130.0
+        assert orch.is_dispatch_loop_stale() is True
+
+    def test_zero_threshold_falls_back_to_factor_formula(self, tmp_path):
+        """A zero direct threshold preserves the legacy factor-based formula."""
+        orch = _make_orchestrator(
+            tmp_path,
+            full_sync_interval_ms=60_000,
+            dispatch_loop_stale_factor=2.0,
+            dispatch_stale_threshold_ms=0,
+        )
+        orch._last_full_sync = time.monotonic() - 119.0
+        assert orch.is_dispatch_loop_stale() is False
+
+        orch._last_full_sync = time.monotonic() - 121.0
         assert orch.is_dispatch_loop_stale() is True
 
     def test_false_exactly_at_threshold(self, tmp_path):
@@ -157,9 +182,12 @@ class TestIsDispatchLoopStale:
         assert orch.is_dispatch_loop_stale() is False
 
     def test_disabled_when_factor_is_zero(self, tmp_path):
-        """dispatch_loop_stale_factor=0 disables stale detection entirely."""
+        """A zero legacy factor disables detection in compatibility mode."""
         orch = _make_orchestrator(
-            tmp_path, full_sync_interval_ms=60_000, dispatch_loop_stale_factor=0.0
+            tmp_path,
+            full_sync_interval_ms=60_000,
+            dispatch_loop_stale_factor=0.0,
+            dispatch_stale_threshold_ms=0,
         )
         # Even with an ancient last tick, detection is disabled
         orch._last_full_sync = time.monotonic() - 9999.0
@@ -191,7 +219,9 @@ class TestDispatchLoopStaleSeconds:
 class TestDispatchStaleAlert:
     def test_arm_adds_error_alert(self, tmp_path):
         """_arm_dispatch_stale_alert() must add an error-level alert."""
-        orch = _make_orchestrator(tmp_path)
+        orch = _make_orchestrator(
+            tmp_path, dispatch_stale_threshold_ms=120_000
+        )
         orch._arm_dispatch_stale_alert(elapsed_s=400.0)
 
         sources = [a["source"] for a in orch._alerts]
@@ -200,6 +230,7 @@ class TestDispatchStaleAlert:
         )
         alert = next(a for a in orch._alerts if a["source"] == "dispatch_loop_stale")
         assert alert["level"] == "error"
+        assert "(threshold: 120s)" in alert["message"]
 
     def test_arm_is_idempotent(self, tmp_path):
         """Calling _arm_dispatch_stale_alert() twice should not duplicate."""
@@ -410,13 +441,14 @@ class TestCheckAndRecoverDispatchLoop:
 
     def test_attempts_recovery_after_grace_period(self, tmp_path):
         """After grace period of continued staleness, recovery should be triggered."""
-        # full_sync_interval_ms=1000ms (1s), factor=1.0 → stale after 1s
-        # grace=1s: detected 2s ago → should attempt recovery
         orch = _make_orchestrator(
-            tmp_path, full_sync_interval_ms=1_000, dispatch_loop_stale_factor=1.0
+            tmp_path,
+            full_sync_interval_ms=60_000,
+            dispatch_loop_stale_factor=10.0,
+            dispatch_stale_threshold_ms=1_000,
+            dispatch_stale_grace_ms=1_000,
         )
-        orch._last_full_sync = time.monotonic() - 5.0  # stale (5s > 1s threshold)
-        # Simulates detection having first occurred 2s ago (> grace period of 1s)
+        orch._last_full_sync = time.monotonic() - 5.0
         orch._dispatch_stale_detected_at = time.monotonic() - 2.0
 
         orch.check_and_recover_dispatch_loop()
@@ -425,12 +457,33 @@ class TestCheckAndRecoverDispatchLoop:
             "Expected wants_restart after grace period elapsed"
         )
 
+    def test_recovery_fires_before_legacy_fifteen_minute_threshold(self, tmp_path):
+        """Default threshold plus grace recovers well before the legacy 15 minutes."""
+        orch = _make_orchestrator(
+            tmp_path,
+            full_sync_interval_ms=300_000,
+            dispatch_loop_stale_factor=3.0,
+            dispatch_stale_threshold_ms=120_000,
+            dispatch_stale_grace_ms=30_000,
+        )
+        orch._last_full_sync = time.monotonic() - 151.0
+        orch._dispatch_stale_detected_at = time.monotonic() - 31.0
+
+        orch.check_and_recover_dispatch_loop()
+
+        assert orch.wants_restart is True
+        assert orch.dispatch_loop_stale_seconds() < 900
+
     def test_does_not_recover_before_grace_period(self, tmp_path):
         """Before the grace period, only the alert should be armed (no restart)."""
         orch = _make_orchestrator(
-            tmp_path, full_sync_interval_ms=60_000, dispatch_loop_stale_factor=1.0
+            tmp_path,
+            full_sync_interval_ms=60_000,
+            dispatch_loop_stale_factor=10.0,
+            dispatch_stale_threshold_ms=1_000,
+            dispatch_stale_grace_ms=2_000,
         )
-        orch._last_full_sync = time.monotonic() - 65.0  # stale
+        orch._last_full_sync = time.monotonic() - 5.0
         # Detected only 0.1s ago — well within grace period
         orch._dispatch_stale_detected_at = time.monotonic() - 0.1
 
@@ -706,11 +759,26 @@ class TestPostRecoveryDispatch:
 
 
 # ---------------------------------------------------------------------------
-# Config: dispatch_loop_stale_factor loaded from ServiceConfig
+# Config: dispatch-loop staleness settings loaded from ServiceConfig
 # ---------------------------------------------------------------------------
 
 
 class TestConfigField:
+    def test_new_threshold_and_grace_defaults(self):
+        cfg = ServiceConfig()
+        assert cfg.dispatch_stale_threshold_ms == 120_000
+        assert cfg.dispatch_stale_grace_ms == 30_000
+
+    def test_new_threshold_and_grace_from_env(self, monkeypatch):
+        from oompah.models import WorkflowDefinition
+
+        monkeypatch.setenv("OOMPAH_DISPATCH_STALE_THRESHOLD_MS", "45_000")
+        monkeypatch.setenv("OOMPAH_DISPATCH_STALE_GRACE_MS", "5_000")
+        wf = WorkflowDefinition(config={}, prompt_template="")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.dispatch_stale_threshold_ms == 45_000
+        assert cfg.dispatch_stale_grace_ms == 5_000
+
     def test_default_factor_is_3(self):
         """dispatch_loop_stale_factor defaults to 3.0."""
         cfg = ServiceConfig()

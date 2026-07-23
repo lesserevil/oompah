@@ -196,8 +196,8 @@ via `/api/v1/state` → `running`/`retrying` for any reject reason.
 | `project_refresh_max_concurrent`| 4       | Max parallel refreshes per project                       |
 | `project_stale_cache_ttl_ms`    | 300000  | How long stale cached data is valid (ms)                 |
 | `full_sync_interval_ms`         | 300000  | Minimum interval between repo self-heal runs (ms)        |
-| `dispatch_stale_threshold_ms`   | 120000  | How long the dispatch loop can be silent before it is considered stale and recovery is armed (ms). Set to `0` to fall back to the legacy `dispatch_loop_stale_factor`-based formula (full_sync_interval_ms × factor). |
-| `dispatch_stale_grace_ms`       | 30000   | Additional wait after staleness is detected before recovery actually fires (ms). Prevents spurious recoveries during brief pauses. |
+| `OOMPAH_DISPATCH_STALE_THRESHOLD_MS` | 120000 | How long the dispatch loop can be silent before it is considered stale and recovery is armed (ms). Set to `0` to fall back to the legacy `dispatch_loop_stale_factor`-based formula (full_sync_interval_ms × factor). |
+| `OOMPAH_DISPATCH_STALE_GRACE_MS` | 30000  | Additional wait after staleness is detected before recovery actually fires (ms). Prevents spurious recoveries during brief pauses. |
 | `worktree_cleanup_batch_size`   | 25      | Worktrees cleaned per maintenance pass                   |
 | `maintenance_startup_delay_seconds` | 60  | Grace period before maintenance jobs start               |
 

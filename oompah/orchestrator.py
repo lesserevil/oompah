@@ -2446,18 +2446,21 @@ class Orchestrator:
         The loop is considered stale when:
         - At least one tick has completed (``_last_full_sync != 0.0``), AND
         - The elapsed time since the last tick exceeds
-          ``full_sync_interval_ms × dispatch_loop_stale_factor``.
+          ``dispatch_stale_threshold_ms``.
 
         Returns False before the first tick so a slow-starting service does
-        not falsely alarm, and also returns False when
-        ``dispatch_loop_stale_factor == 0`` (detection disabled).
+        not falsely alarm. When ``dispatch_stale_threshold_ms == 0``, the
+        legacy ``full_sync_interval_ms × dispatch_loop_stale_factor`` formula
+        is used; a non-positive factor disables detection in that mode.
         """
-        factor = self.config.dispatch_loop_stale_factor
-        if factor <= 0:
-            return False
         if self._last_full_sync == 0.0:
             return False
-        threshold_ms = self.config.full_sync_interval_ms * factor
+        threshold_ms = self.config.dispatch_stale_threshold_ms
+        if threshold_ms == 0:
+            factor = self.config.dispatch_loop_stale_factor
+            if factor <= 0:
+                return False
+            threshold_ms = self.config.full_sync_interval_ms * factor
         elapsed_ms = (time.monotonic() - self._last_full_sync) * 1000
         return elapsed_ms >= threshold_ms
 
@@ -2478,6 +2481,12 @@ class Orchestrator:
         """
         source = "dispatch_loop_stale"
         was_armed = any(a.get("source") == source for a in self._alerts)
+        threshold_ms = self.config.dispatch_stale_threshold_ms
+        if threshold_ms == 0:
+            threshold_ms = (
+                self.config.full_sync_interval_ms
+                * self.config.dispatch_loop_stale_factor
+            )
         self._alerts = [a for a in self._alerts if a.get("source") != source]
         self._alerts.append(
             {
@@ -2487,7 +2496,7 @@ class Orchestrator:
                 "message": (
                     f"The dispatch loop has not completed a tick in "
                     f"{elapsed_s:.0f}s "
-                    f"(threshold: {self.config.full_sync_interval_ms / 1000 * self.config.dispatch_loop_stale_factor:.0f}s). "
+                    f"(threshold: {threshold_ms / 1000:.0f}s). "
                     "Open issues will not be dispatched until the loop recovers. "
                     "Automatic recovery has been attempted."
                 ),
@@ -2503,7 +2512,7 @@ class Orchestrator:
             "Dispatch loop stale: no tick completed in %.0fs "
             "(threshold=%.0fs). Alert %s, recovery queued.",
             elapsed_s,
-            self.config.full_sync_interval_ms / 1000 * self.config.dispatch_loop_stale_factor,
+            threshold_ms / 1000,
             "refreshed" if was_armed else "armed",
         )
 
@@ -2579,8 +2588,8 @@ class Orchestrator:
 
         - If not stale: clear any existing stale alert and reset detection state.
         - If stale and first detection: record detection time, arm alert.
-        - If stale and past grace period (1× full_sync_interval_ms of
-          continued staleness): attempt ``recover_stale_dispatch_loop()``.
+        - If stale and past ``dispatch_stale_grace_ms`` of continued
+          staleness: attempt ``recover_stale_dispatch_loop()``.
         """
         if not self.is_dispatch_loop_stale():
             self._clear_dispatch_stale_alert()
@@ -2598,7 +2607,7 @@ class Orchestrator:
         self._arm_dispatch_stale_alert(elapsed_s)
 
         # After a grace period of continued staleness, trigger recovery.
-        grace_s = self.config.full_sync_interval_ms / 1000.0
+        grace_s = self.config.dispatch_stale_grace_ms / 1000.0
         time_since_detection = time.monotonic() - self._dispatch_stale_detected_at
         if time_since_detection >= grace_s:
             self.recover_stale_dispatch_loop()
