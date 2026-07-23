@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-430
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Provide focus agents a supported tracker-handoff mutation path
 parent: null
@@ -9,9 +9,11 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:docs
+- needs:feature
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T22:58:25.657444Z'
+updated_at: '2026-07-23T22:58:45.903696Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -239,5 +241,26 @@ Implementation: Wrote plans/focus-handoff-mutation-protocol.md documenting:
 6. The two regression gaps that need test coverage
 
 All 12064 tests pass. Changes pushed to OOMPAH-430 branch.
+---
+author: oompah
+created: 2026-07-23 22:58
+---
+Focus handoff: docs
+
+1. **Outcome**: Documentation complete. Created plans/focus-handoff-mutation-protocol.md (200 lines) documenting the focus agent handoff mechanism, approved mutation interface, required handoff sequence, _handoff_completed_focus recovery behavior, and the remaining test regression gaps.
+
+2. **Files and evidence**:
+   - New: plans/focus-handoff-mutation-protocol.md (pushed, commit c8a7891a8)
+   - Code documented: oompah/acp_tools.py:_exec_oompah_task_command (lines 364–470+), oompah/orchestrator.py:_handoff_completed_focus (line 15067), oompah/focus.py:select_focus + _completed_focus_names
+   - Existing tests referenced: tests/test_acp_project_tools.py, tests/test_orchestrator_duplicate_detection.py
+   - No code was changed — documentation only
+
+3. **Remaining work**:
+   a) tests/test_acp_project_tools.py: Add TestExecOompahTaskCommand test for add-label subcommand (routes to tracker.add_label, returns 'Label added: <label>'; also test via build_tool_catalog run_command handler; compound-command rejection)
+   b) tests/test_orchestrator_duplicate_detection.py: Add end-to-end regression test: simulate _on_worker_exit('normal') for a duplicate_detector RunningEntry whose issue has focus-complete:duplicate_detector label + handoff comment → assert _handoff_completed_focus returns True, issue reopened, select_focus picks non-duplicate_detector focus (e.g. 'feature')
+   
+   The regression gap specification is fully documented in the plans doc under 'Regression gaps (coverage needed)'.
+
+4. **Recommended next focus**: feature (add the two regression tests described above; no new implementation required)
 ---
 <!-- COMMENTS:END -->
