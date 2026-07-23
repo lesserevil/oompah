@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-23T19:41:55.025847Z'
-updated_at: '2026-07-23T20:44:53.847743Z'
+updated_at: '2026-07-23T20:45:09.999965Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-07-23 20:44
 ---
 Understanding: Duplicate-screen OOMPAH-420 before implementation by searching task records and repository design docs for OpenAPI/FastMCP gateway work, then reading the closest candidates (especially OOMPAH-419 and OOMPAH-421) in full. This focus will only archive if the same implementation is already owned elsewhere; otherwise it will hand off for feature implementation.
+---
+author: oompah
+created: 2026-07-23 20:45
+---
+Discovery: Duplicate screening found no duplicate. Repository search for oapi2mcp/OpenAPI MCP/FastMCP/streamable HTTP/discovery found plans/mcp-openapi-exposure-policy.md, which explicitly assigns gateway construction to OOMPAH-420. Full tracker review confirms OOMPAH-418 is the parent epic; OOMPAH-419 delivered only the fail-closed route exposure policy and focused tests; OOMPAH-421 owns downstream integration tests and operator docs. None owns OOMPAH-420's FastMCP app, local API forwarding, lifecycle/cleanup, dependency packaging, or discovery implementation.
 ---
 <!-- COMMENTS:END -->
