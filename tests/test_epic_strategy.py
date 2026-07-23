@@ -4413,6 +4413,73 @@ class TestYoloEpicStrategyBlockReason:
         assert reason is not None
         assert "could not be resolved" in reason
 
+    def test_blocks_child_with_stale_own_work_branch_exocomp57(self, tmp_path):
+        """OOMPAH-427 regression: child with stale work_branch matching its own identifier
+        must be blocked, not allowed through as a fake 'epic rollup PR'.
+
+        EXOCOMP-57 (child of EXOCOMP-9) had work_branch='EXOCOMP-57' (stale, never
+        corrected to the epic branch).  The old code called
+        _epic_branch_for_issue(child), which returned 'EXOCOMP-57' == source_branch,
+        and incorrectly returned None (allowed).  The fix compares source_branch
+        against the PARENT EPIC's branch, so the gate correctly blocks.
+        """
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+        parent_epic = _make_issue(
+            identifier="EXOCOMP-9",
+            issue_type="epic",
+            project_id="proj-1",
+        )
+        child = _make_issue(
+            identifier="EXOCOMP-57",
+            parent_id="EXOCOMP-9",
+            project_id="proj-1",
+            work_branch="EXOCOMP-57",  # stale — was never corrected to epic branch
+        )
+        tracker = MagicMock()
+        review = _make_review(source_branch="EXOCOMP-57", target_branch="main")
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=child),
+            patch.object(orch, "_resolve_parent_epic", return_value=parent_epic),
+        ):
+            reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
+        assert reason is not None, (
+            "Gate must BLOCK a child task whose stale work_branch equals its own "
+            "identifier — it is NOT an epic rollup PR"
+        )
+        assert "shared epic workflow" in reason
+        assert "EXOCOMP-57" in reason
+
+    def test_allows_nested_epic_rollup_pr_with_parent_id(self, tmp_path):
+        """OOMPAH-427: a NESTED epic (issue_type='epic', parent_id set) must be allowed.
+
+        A nested epic is its own rollup PR: its source_branch IS the epic rollup
+        branch for that nested epic.  The per-child task gate must pass it through
+        unchanged; the epic landing gate owns its creation.
+        """
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+        nested_epic = _make_issue(
+            identifier="nested-epic-1",
+            issue_type="epic",  # IS an epic itself
+            parent_id="parent-epic-1",  # but also has a parent
+            project_id="proj-1",
+            work_branch="epic-nested-epic-1",
+        )
+        tracker = MagicMock()
+        review = _make_review(
+            source_branch="epic-nested-epic-1", target_branch="main"
+        )
+        with patch.object(orch, "_resolve_task_for_branch", return_value=nested_epic):
+            reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
+        assert reason is None, (
+            "Gate must ALLOW a nested epic rollup PR (issue_type='epic' with parent_id)"
+        )
+
 
 class TestCloseInvalidEpicPolicyReview:
     """Regression tests for ``_close_invalid_epic_policy_review`` (OOMPAH-309/OOMPAH-285).
@@ -4639,3 +4706,97 @@ class TestCloseInvalidEpicPolicyReview:
         assert result is True
         mock_record.assert_called_once()
         assert mock_record.call_args.args[3] == "success"
+
+    def test_closes_child_pr_with_stale_own_work_branch_exocomp57(self, tmp_path):
+        """OOMPAH-427 regression: stale child PR (work_branch==own identifier) must be
+        closed and the child task transitioned to Needs Human.
+
+        EXOCOMP-57 had work_branch='EXOCOMP-57' (stale).  The old code compared
+        source_branch against _epic_branch_for_issue(child), which returned 'EXOCOMP-57',
+        so source_branch != issue_epic_branch was False and the PR was NOT closed.
+        The fix uses the PARENT EPIC's branch for comparison, so the PR is correctly
+        identified as a stale child PR and closed.
+        """
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+        parent_epic = _make_issue(
+            identifier="EXOCOMP-9",
+            issue_type="epic",
+            project_id="proj-1",
+        )
+        child = _make_issue(
+            identifier="EXOCOMP-57",
+            parent_id="EXOCOMP-9",
+            project_id="proj-1",
+            work_branch="EXOCOMP-57",  # stale — equals own identifier
+        )
+        tracker = MagicMock()
+        provider = self._make_provider(close_success=True)
+        review = _make_review(source_branch="EXOCOMP-57", target_branch="main")
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=child),
+            patch.object(orch, "_resolve_parent_epic", return_value=parent_epic),
+        ):
+            result = orch._close_invalid_epic_policy_review(
+                proj,
+                provider,
+                "org/repo",
+                tracker,
+                review,
+                "shared epic workflow: child task EXOCOMP-57 must land via epic-EXOCOMP-9",
+                tick=1,
+            )
+        assert result is True, (
+            "Must close the stale child PR whose source_branch matches its own "
+            "stale work_branch, not the parent epic branch"
+        )
+        provider.close_review.assert_called_once()
+
+    def test_does_not_close_epic_rollup_pr_whose_source_matches_parent_epic_branch(
+        self, tmp_path
+    ):
+        """OOMPAH-427: a valid epic rollup PR (source_branch == parent_epic_branch)
+        must NOT be closed by _close_invalid_epic_policy_review.
+
+        When the source branch matches the PARENT EPIC's branch (not the child's stale
+        branch), this is the legitimate rollup PR and must be left open.
+        """
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+        parent_epic = _make_issue(
+            identifier="EXOCOMP-9",
+            issue_type="epic",
+            project_id="proj-1",
+        )
+        child = _make_issue(
+            identifier="EXOCOMP-57",
+            parent_id="EXOCOMP-9",
+            project_id="proj-1",
+            work_branch="epic-EXOCOMP-9",  # corrected to epic branch
+        )
+        tracker = MagicMock()
+        provider = self._make_provider(close_success=True)
+        # source_branch == parent_epic's branch → valid rollup PR
+        review = _make_review(source_branch="epic-EXOCOMP-9", target_branch="main")
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=child),
+            patch.object(orch, "_resolve_parent_epic", return_value=parent_epic),
+        ):
+            result = orch._close_invalid_epic_policy_review(
+                proj,
+                provider,
+                "org/repo",
+                tracker,
+                review,
+                "some reason that should not trigger a close",
+                tick=1,
+            )
+        assert result is False, (
+            "Must NOT close a PR whose source_branch matches the parent epic branch — "
+            "that is the legitimate epic rollup PR"
+        )
+        provider.close_review.assert_not_called()
