@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-427
 type: task
-status: Done
+status: Merged
 priority: null
 title: Fix YOLO merge gate bypass for child tasks with stale work_branch (EXOCOMP-57
   regression)
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T22:10:48.146982Z'
+updated_at: '2026-07-23T22:16:45.704873Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
