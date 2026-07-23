@@ -5,13 +5,14 @@ status: In Progress
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
-children: []
+children:
+- OOMPAH-427
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-23T21:30:22.547654Z'
+updated_at: '2026-07-23T21:33:43.949206Z'
 work_branch: null
 target_branch: null
 review_url: null
