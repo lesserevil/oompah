@@ -8,10 +8,12 @@ title: Fix YOLO merge gate bypass for child tasks with stale work_branch (EXOCOM
 parent: OOMPAH-426
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T21:56:52.260969Z'
+updated_at: '2026-07-23T21:57:02.583475Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
