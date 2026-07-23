@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T23:05:58.315009Z'
+updated_at: '2026-07-23T23:06:13.254607Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -287,5 +287,15 @@ author: oompah
 created: 2026-07-23 23:05
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-23 23:06
+---
+Understanding: I am the Software Engineer focus agent dispatched to complete OOMPAH-430. Prior focus agents (duplicate_detector and docs/Technical Writer) have completed their work. The Technical Writer created plans/focus-handoff-mutation-protocol.md documenting the approved mutation interface. My job is to add the two missing regression tests identified in previous focus phases:
+
+1. tests/test_acp_project_tools.py: Add test for add-label subcommand via _exec_oompah_task_command (routes to tracker.add_label, returns 'Label added: <label>')
+2. tests/test_orchestrator_duplicate_detection.py: Add end-to-end regression test: no-commit duplicate_detector completes → _on_worker_exit → _handoff_completed_focus → select_focus picks non-duplicate_detector focus
+
+I will explore the existing tests and code before implementing.
 ---
 <!-- COMMENTS:END -->
