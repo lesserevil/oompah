@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-430
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Provide focus agents a supported tracker-handoff mutation path
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T23:16:45.772873Z'
+updated_at: '2026-07-23T23:17:00.426678Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -336,5 +336,23 @@ New tests verified individually:
 - tests/test_orchestrator_duplicate_detection.py::TestNoCommitFocusCompletionAdvancesToFeature — 2 new tests both passed
 
 Commit: 64ad8706e pushed to origin/OOMPAH-430.
+---
+author: oompah
+created: 2026-07-23 23:16
+---
+Completion: OOMPAH-430 is done.
+
+**What was delivered** (this Software Engineer focus):
+- 5 new regression tests closing the two gaps from EXOCOMP-55:
+
+1. tests/test_acp_project_tools.py: TestExecOompahTaskCommand — add-label routes in-process (test_add_label_routes_directly_to_tracker), compound add-label is rejected (test_compound_add_label_command_returns_error_instead_of_subprocess)
+2. tests/test_acp_project_tools.py: TestBuildToolCatalogProjectTools — run_command interceptor works end-to-end for add-label (test_run_command_tool_intercepts_oompah_task_add_label)
+3. tests/test_orchestrator_duplicate_detection.py: TestNoCommitFocusCompletionAdvancesToFeature — no-commit handoff advances to non-duplicate_detector focus (test_no_commit_handoff_detected_and_not_retried), needs:feature label routes to feature (test_no_commit_handoff_with_needs_feature_routes_to_feature)
+
+**Prior focus work included in this branch**:
+- plans/focus-handoff-mutation-protocol.md (from docs focus, commit c8a7891a8)
+- 5 regression tests (from this focus, commit 64ad8706e)
+
+**Acceptance criteria met**: Duplicate detection that finds no duplicate records its completion and handoff exactly once (test_no_commit_handoff_detected_and_not_retried), and the next run begins feature work rather than another duplicate pass (select_focus returns != duplicate_detector).
 ---
 <!-- COMMENTS:END -->
