@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:43:07.092752Z'
+updated_at: '2026-07-23T20:43:28.337447Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -439,5 +439,20 @@ author: oompah
 created: 2026-07-23 20:43
 ---
 Understanding (continuation): reconcile the rebased epic branch with PR #542, re-verify the OpenAPI-to-MCP security policy against the current /api/v1 route inventory, fix only the CI regressions blocking this already-complete policy work, run the full suite, then push and close the task.
+---
+author: oompah
+created: 2026-07-23 20:43
+---
+Discovery (continuation): the 292 policy tests pass, and an AST audit of oompah/server.py found all 90 current /api/v1 operations explicitly classified with zero UNKNOWN routes. PR #542 failed on four current-main regressions: three stale assertions after tracker.mark_needs_human became atomic, plus a real fail-open in GitHub CI evaluation where an explicit legacy failure was treated as passed when check-runs were empty.
+---
+author: oompah
+created: 2026-07-23 20:43
+---
+Implementation (continuation): preserved the MCP exposure feature unchanged; updated three stale tests to assert the atomic mark_needs_human tracker call, restored fail-closed CI behavior so a legacy failure remains failed when no modern check-run can override it, removed the now-unused test import, and cleaned two Markdown trailing spaces.
+---
+author: oompah
+created: 2026-07-23 20:43
+---
+Verification (continuation): affected slice passes 296/296; full suite passes 12047 tests with 38 skipped and 12 warnings in 233.32s via .venv/bin/pytest tests/ -q. The prescribed make test target was attempted first but its system uv wrapper failed before pytest with a DBus transient-scope error. git diff --check passes.
 ---
 <!-- COMMENTS:END -->
