@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-423
 type: bug
-status: Backlog
+status: Done
 priority: 2
 title: Keep normal epic branch drift out of alerts
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T20:25:33.664332Z'
-updated_at: '2026-07-23T20:25:33.664332Z'
+updated_at: '2026-07-23T20:27:17.393874Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ Demote policy-compliant epic branch staleness (an unfinished epic behind its tar
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-23 20:27
+---
+Demoted ordinary epic branch drift from the alert stream while preserving it in epic rebase/branch-health state. Failed rebases continue to emit actionable alerts. Added regression coverage and ran make test successfully.
+---
+<!-- COMMENTS:END -->
