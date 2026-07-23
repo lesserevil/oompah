@@ -274,6 +274,7 @@ class TestTickTimingsStorage:
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
+        orch._refresh_effective_concurrency = MagicMock(return_value=10)
         return orch
 
     def test_last_tick_timings_empty_before_first_tick(self, tmp_path):
@@ -592,6 +593,7 @@ class TestTickTimingsSnapshot:
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
+        orch._refresh_effective_concurrency = MagicMock(return_value=10)
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
             asyncio.run(orch._tick())
@@ -601,6 +603,7 @@ class TestTickTimingsSnapshot:
         assert snap["tick_timings"] != {}
         assert "total_ms" in snap["tick_timings"]
         assert "dispatch_substeps" in snap["tick_timings"]
+        orch._refresh_effective_concurrency.assert_called_once()
 
     def test_snapshot_tick_timings_is_a_copy(self, tmp_path):
         """Modifying get_snapshot()['tick_timings'] does not corrupt _last_tick_timings."""

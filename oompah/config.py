@@ -415,6 +415,7 @@ class ServiceConfig:
     hooks_after_run: str | None = None
     hooks_before_remove: str | None = None
     hooks_timeout_ms: int = 60000
+    # Zero enables automatic sizing from live CPU and available-memory capacity.
     max_concurrent_agents: int = 10
     max_turns: int = 20
     max_retry_backoff_ms: int = 300000

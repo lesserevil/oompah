@@ -135,6 +135,23 @@ _DISPATCH_DUPLICATE_SUPPRESSION_SCORE = 0.75
 
 logger = logging.getLogger(__name__)
 
+# Auto-concurrency is deliberately conservative: an agent may run tests,
+# compilers, or browser tooling in addition to the model client itself.
+_AUTO_CONCURRENCY_CPU_THREADS_PER_AGENT = 4
+_AUTO_CONCURRENCY_MEMORY_BYTES_PER_AGENT = 4 * 1024**3
+
+
+def _available_memory_bytes() -> int | None:
+    """Return Linux ``MemAvailable`` bytes, or ``None`` when unavailable."""
+    try:
+        with open("/proc/meminfo", encoding="utf-8") as meminfo:
+            for line in meminfo:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) * 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
 
 _AGENT_LOG_STEM_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -2948,6 +2965,11 @@ class Orchestrator:
         """
         t0 = time.monotonic()
 
+        # A configured zero means "size to this host". Refresh the effective
+        # limit every scheduler tick so memory pressure and CPU availability
+        # can influence new dispatches without interrupting running agents.
+        self._refresh_effective_concurrency()
+
         # -1. Process any commands queued by the API process via the IPC layer.
         # Must run before profile swap so a "reload_profiles" command is
         # visible in step 0. Non-blocking: drains the SQLite command queue
@@ -4062,6 +4084,35 @@ class Orchestrator:
 
     def _available_slots(self) -> int:
         return max(self.state.max_concurrent_agents - len(self.state.running), 0)
+
+    def _auto_concurrency_limit(self) -> int:
+        """Derive a conservative agent limit from current host capacity."""
+        cpu_count = os.cpu_count() or 1
+        cpu_limit = max(cpu_count // _AUTO_CONCURRENCY_CPU_THREADS_PER_AGENT, 1)
+        available_memory = _available_memory_bytes()
+        if available_memory is None:
+            return cpu_limit
+        memory_limit = max(
+            available_memory // _AUTO_CONCURRENCY_MEMORY_BYTES_PER_AGENT,
+            1,
+        )
+        return min(cpu_limit, memory_limit)
+
+    def _refresh_effective_concurrency(self) -> int:
+        """Refresh the cap used for new dispatches without stopping agents.
+
+        Positive configuration values remain fixed.  Zero enables automatic
+        sizing.  Lowering the effective cap below the running count simply
+        makes ``_available_slots`` return zero; it never terminates an agent.
+        """
+        configured_limit = self.config.max_concurrent_agents
+        effective_limit = (
+            self._auto_concurrency_limit()
+            if configured_limit == 0
+            else configured_limit
+        )
+        self.state.max_concurrent_agents = effective_limit
+        return effective_limit
 
     def _per_state_available(self, state: str) -> bool:
         normalized = _state_key(state)
@@ -19367,6 +19418,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "paused": self._paused,
             "config": {
                 "default_first_dispatch": self.config.default_first_dispatch,
+            },
+            "concurrency": {
+                "mode": "auto" if self.config.max_concurrent_agents == 0 else "fixed",
+                "configured_max": self.config.max_concurrent_agents,
+                "effective_max": self.state.max_concurrent_agents,
             },
             "counts": {
                 "running": len(running_rows),

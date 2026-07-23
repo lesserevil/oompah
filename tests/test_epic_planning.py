@@ -160,7 +160,7 @@ class TestShouldDispatchEpic:
     def test_skips_epic_when_no_slots(self, tmp_path):
         """No dispatch when all slots are occupied."""
         config = _make_config()
-        config.max_concurrent_agents = 0
+        config.max_concurrent_agents = 1
         project_store = MagicMock()
         project_store.list_all.return_value = []
         orch = Orchestrator(
@@ -169,6 +169,7 @@ class TestShouldDispatchEpic:
             project_store=project_store,
             state_path=str(tmp_path / "state.json"),
         )
+        orch.state.max_concurrent_agents = 0
         epic = _make_epic()
         assert orch._should_dispatch_epic(epic) is False
 
@@ -469,7 +470,7 @@ class TestEpicPlanningInTick:
         """Epics should not be dispatched if no slots available."""
         project = _make_project()
         config = _make_config()
-        config.max_concurrent_agents = 0
+        config.max_concurrent_agents = 1
         project_store = MagicMock()
         project_store.list_all.return_value = [project]
         project_store.get.side_effect = lambda pid: project if pid == project.id else None
@@ -479,6 +480,9 @@ class TestEpicPlanningInTick:
             project_store=project_store,
             state_path=str(tmp_path / "state.json"),
         )
+        orch._refresh_effective_concurrency = lambda: setattr(
+            orch.state, "max_concurrent_agents", 0
+        ) or 0
 
         epic = _make_epic(project_id=project.id)
 
