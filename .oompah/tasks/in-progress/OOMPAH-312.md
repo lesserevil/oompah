@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-23T00:08:15.979731Z'
+updated_at: '2026-07-23T00:12:02.618722Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -215,5 +215,24 @@ author: oompah
 created: 2026-07-23 00:08
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-23 00:12
+---
+Understanding: Implementing UI/dashboard epic child completion context badges.
+
+Key findings:
+- _effective_display_status() already returns canonical tracker state (no change needed)
+- _project_epic_strategy() always returns 'shared' (OOMPAH-167 removed flat/stacked) — all projects are shared-epic
+- The distinction is already in the canonical state: 'Done' = done on epic branch, 'Merged' = merged to target
+- The serialized board entry and detail panel children data need a new 'display_status_context' field
+
+Plan:
+1. Add _child_display_context(issue) helper that returns 'done_on_branch'/'merged_to_target'/None based on parent_id and canonical state
+2. Add 'display_status_context' to the board serialization in _fetch_and_serialize_issues()  
+3. Add 'display_status_context' to children in api_issue_full_detail()
+4. Add CSS for .branch-context-badge, .branch-context-done, .branch-context-merged
+5. Render badge on kanban cards and in detail panel children list
+6. Extend tests/test_shared_epic_display_status.py with _child_display_context tests
 ---
 <!-- COMMENTS:END -->
