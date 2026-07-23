@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:33:47.535873Z'
+updated_at: '2026-07-23T20:43:07.092752Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -434,5 +434,10 @@ author: oompah
 created: 2026-07-23 20:33
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-23 20:43
+---
+Understanding (continuation): reconcile the rebased epic branch with PR #542, re-verify the OpenAPI-to-MCP security policy against the current /api/v1 route inventory, fix only the CI regressions blocking this already-complete policy work, run the full suite, then push and close the task.
 ---
 <!-- COMMENTS:END -->
