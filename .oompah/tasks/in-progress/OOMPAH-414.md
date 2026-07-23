@@ -7,10 +7,11 @@ title: Prevent scheduler stalls from delaying task dispatch
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-23T19:25:50.453539Z'
+updated_at: '2026-07-23T19:30:02.384122Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +50,25 @@ author: oompah
 created: 2026-07-23 19:25
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-23 19:30
+---
+Understanding: Duplicate screening for the 2026-07-23 scheduler stall. I will compare the full canonical records of earlier stale-loop, scheduler-wedge, diagnostics, and maintenance tasks against this incident. This focus will not implement code; it will either archive a confirmed duplicate or hand the unique gap to a backend implementation focus.
+---
+author: oompah
+created: 2026-07-23 19:30
+---
+Discovery: No duplicate confirmed. OOMPAH-348/349/350/352 delivered bounded tracker refreshes, scheduler/API loop isolation, and first-stall diagnostics, but did not shorten the full_sync_interval × factor stale-recovery window or wake dispatch after maintenance reopens orphaned work. OOMPAH-406/407 only changed stale diagnostic/alert logging from ERROR to WARNING to prevent error-watcher noise; they did not address dispatch latency or maintenance starvation. The July 23 recurrence after those changes is a distinct reliability gap.
+---
+author: oompah
+created: 2026-07-23 19:30
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate found; OOMPAH-414 is a distinct post-hardening scheduler reliability gap.
+2. Evidence: Full canonical records reviewed for OOMPAH-348, OOMPAH-349, OOMPAH-350, OOMPAH-352, OOMPAH-406, and OOMPAH-407, plus the earlier dispatch-heartbeat implementation commit. The OOMPAH-348 family bounds tracker reads, isolates the scheduler from HTTP, and captures stall diagnostics. OOMPAH-406/407 suppress error-watcher auto-filing. None makes stale recovery prompt, keeps maintenance from starving dispatch, or requests a new dispatch pass after orphan resets.
+3. Relevant context: oompah/orchestrator.py contains stale-loop supervision, tick phase/maintenance ordering, and orphan reset behavior; tests/test_dispatch_loop_heartbeat.py contains existing stale recovery coverage; docs/tick-latency-diagnostics.md describes long-tick observability. No source changes were made in this focus.
+4. Remaining work/risks: inspect the July 23 diagnostic artifact to identify the blocking phase; bound or decouple maintenance from dispatch; wake dispatch when orphan maintenance makes tasks eligible; choose an independently prompt and observable stale threshold; add regression coverage for the observed stall/recovery and clean Exocomp dispatch; run make test. Recommended next focus: feature (backend scheduler implementation).
 ---
 <!-- COMMENTS:END -->
