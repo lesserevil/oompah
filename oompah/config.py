@@ -501,8 +501,7 @@ class ServiceConfig:
     # merge-base with its target branch (usually main) is behind by
     # this many commits OR any of those intervening commits touch
     # files the epic also modifies, the branch is considered stale.
-    # A staleness alert is surfaced via the dashboard and the
-    # orchestrator can dispatch a rebase agent. Set to 0 to disable.
+    # Staleness is exposed as epic branch-health state. Set to 0 to disable.
     # Configurable via OOMPAH_EPIC_STALENESS_THRESHOLD_COMMITS or
     # agent.epic_staleness_threshold_commits in WORKFLOW.md.
     epic_staleness_threshold_commits: int = 5

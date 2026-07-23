@@ -460,7 +460,7 @@ class TestSnapshot:
 
 
 class TestEpicStaleAlert:
-    def test_includes_detail_action_and_message(self, tmp_path):
+    def test_normal_staleness_does_not_create_an_alert(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         issue = _make_issue("TASK-465")
         result = StalenessResult(
@@ -472,49 +472,7 @@ class TestEpicStaleAlert:
 
         orch._arm_epic_stale_alert(issue, _make_project(), result)
 
-        alerts = [
-            a for a in orch._alerts
-            if a.get("source") == "epic_stale:TASK-465"
-        ]
-        assert len(alerts) == 1
-        alert = alerts[0]
-        assert alert["title"] == "Epic TASK-465 on oompah is 6 commits behind main"
-        assert "threshold: 5" in alert["detail"]
-        assert "Overlapping files: oompah/orchestrator.py" in alert["detail"]
-        assert "observation only" in alert["action"]
-        assert alert["message"] == f"{alert['title']}. {alert['action']}"
-        assert alert["epic_identifier"] == "TASK-465"
-        assert alert["project_id"] == "proj-1"
-        assert alert["project_name"] == "oompah"
-        assert alert["target_branch"] == "main"
-        assert alert["commits_behind"] == 6
-
-    def test_uses_resolved_target_branch(self, tmp_path):
-        orch = _make_orchestrator(tmp_path)
-        issue = _make_issue("TASK-465")
-        result = StalenessResult(
-            stale=True,
-            commits_behind=6,
-            shared_files=(),
-            threshold=5,
-        )
-
-        orch._arm_epic_stale_alert(
-            issue,
-            _make_project(),
-            result,
-            target_branch="epic-TASK-4",
-        )
-
-        alert = next(
-            a for a in orch._alerts
-            if a.get("source") == "epic_stale:TASK-465"
-        )
-        assert (
-            alert["title"]
-            == "Epic TASK-465 on oompah is 6 commits behind epic-TASK-4"
-        )
-        assert alert["target_branch"] == "epic-TASK-4"
+        assert not orch._alerts
 
     def test_failed_rebase_state_explains_failed_run(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
@@ -540,6 +498,7 @@ class TestEpicStaleAlert:
         assert "last rebase run failed" in alert["action"]
         assert "finish or retry the rebase" in alert["action"]
         assert alert["message"] == f"{alert['title']}. {alert['action']}"
+        assert alert["synchronization_policy"] == "action_required"
 
 # ---------------------------------------------------------------------------
 # Proactive rebase dispatch

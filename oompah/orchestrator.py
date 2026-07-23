@@ -3458,8 +3458,8 @@ class Orchestrator:
                                   child issue states.
           ``epic_auto_close``   — auto-close epics whose children are terminal.
           ``epic_open_prs``     — open epic→main PRs for stacked/shared epics.
-          ``epic_staleness``    — arm/clear observational staleness alerts and
-                                  update branch-state metadata. It never
+          ``epic_staleness``    — update informational branch-state metadata.
+                                  It never
                                   schedules synchronization by itself.
           ``epic_prune_rebase`` — drop ghost rebase-state entries for closed
                                   epics.
@@ -5293,7 +5293,7 @@ class Orchestrator:
     # ------------------------------------------------------------------
 
     def _check_epic_staleness(self, candidates: list[Issue]) -> int:
-        """Check staleness of epic branches and arm/clear alerts.
+        """Check staleness of epic branches and update branch-health state.
 
         For each active epic, compares the epic branch's merge-base
         with the target branch (usually ``main``). Triggers when:
@@ -5303,9 +5303,9 @@ class Orchestrator:
         2. Any of the intervening commits on main touch files that the
            epic branch also modifies.
 
-        Surfaces staleness via the alert system
-        (``source='epic_stale:<epic_identifier>'``) so the dashboard
-        can show which epics need rebasing.
+        Normal drift is exposed through ``epic_rebase_states`` for epic
+        health views, not through the operator alert stream. An alert is
+        emitted only if an explicitly requested rebase has failed.
 
         Also transitions ``_epic_rebase_states``: stale → STALE,
         rebase-succeeded → REBASED, stuck-rebasing → FAILED.
@@ -5425,9 +5425,11 @@ class Orchestrator:
         *,
         target_branch: str | None = None,
     ) -> None:
-        """Add (or replace) an ``epic_stale`` alert for one epic.
+        """Add an ``epic_stale`` alert only for a failed rebase.
 
-        The alert is keyed on ``source='epic_stale:<epic_identifier>'``.
+        A stale unfinished epic is normal operating state and remains visible
+        in ``epic_rebase_states``.  It does not warrant an alert until an
+        actionable rebase has failed.
         """
         source = f"epic_stale:{epic.identifier}"
         target_branch = target_branch or project.default_branch or "main"
@@ -5437,6 +5439,10 @@ class Orchestrator:
             a for a in self._alerts if a.get("source") != source
         ]
 
+        rebase_state = self._get_epic_rebase_state(epic.identifier)
+        if rebase_state != EpicRebaseState.FAILED:
+            return
+
         shared_files_hint = ""
         if result.shared_files:
             files = ", ".join(result.shared_files[:10])
@@ -5445,9 +5451,8 @@ class Orchestrator:
             shared_files_hint = f"\n\nOverlapping files: {files}"
 
         title = (
-            f"Epic {epic.identifier} on {project.name} "
-            f"is {result.commits_behind} commits behind "
-            f"{target_branch}"
+            f"Epic rebase failed for {epic.identifier} on {project.name} "
+            f"({result.commits_behind} commits behind {target_branch})"
         )
         detail = (
             f"The epic branch for {epic.identifier} is "
@@ -5455,26 +5460,12 @@ class Orchestrator:
             f"the target branch (threshold: "
             f"{result.threshold}).{shared_files_hint}"
         )
-        rebase_state = self._get_epic_rebase_state(epic.identifier)
-        if rebase_state == EpicRebaseState.FAILED:
-            action = (
-                "Oompah already filed a rebase task for this epic, but the "
-                "last rebase run failed. Open the epic's rebase child task "
-                "and finish or retry the rebase; this alert clears after "
-                "the epic branch catches up."
-            )
-        elif rebase_state == EpicRebaseState.REBASING:
-            action = (
-                "Oompah has a rebase task in flight or queued for this epic. "
-                "This alert clears after the epic branch catches up."
-            )
-        else:
-            action = (
-                "This is observation only. Oompah will not merge or rebase "
-                "an unfinished epic branch just because its target advanced. "
-                "A rebase is scheduled only for an explicit operator request, "
-                "a merge-blocking PR conflict, or PR preparation."
-            )
+        action = (
+            "Oompah already filed a rebase task for this epic, but the "
+            "last rebase run failed. Open the epic's rebase child task "
+            "and finish or retry the rebase; this alert clears after "
+            "the epic branch catches up."
+        )
 
         self._alerts.append(
             {
@@ -5489,12 +5480,12 @@ class Orchestrator:
                 "project_name": project.name,
                 "target_branch": target_branch,
                 "commits_behind": result.commits_behind,
-                "synchronization_policy": "observed_only",
-                "synchronization_reason": "main_advanced",
+                "synchronization_policy": "action_required",
+                "synchronization_reason": "rebase_failed",
             }
         )
         logger.info(
-            "Armed epic_stale alert for %s: %d commits behind, "
+            "Armed failed-rebase alert for %s: %d commits behind, "
             "%d overlapping files",
             epic.identifier,
             result.commits_behind,
