@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T19:52:59.350915Z'
+updated_at: '2026-07-23T19:54:02.331715Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -133,5 +133,24 @@ author: oompah
 created: 2026-07-23 19:52
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-23 19:54
+---
+Security Auditor: Understanding + Plan
+
+This task defines the OpenAPI-to-MCP exposure policy for OOMPAH-418 (expose oompah's FastAPI OpenAPI as an MCP server). My scope is OOMPAH-419 only — the policy module and its unit tests — not the gateway implementation (OOMPAH-420).
+
+Attack vectors I'm evaluating:
+1. Unsafe mutation exposure: POST/PUT/DELETE operations for admin, credential, webhook, restart APIs exposed as MCP tools without protection
+2. Token/credential leakage: forwarding Authorization headers into server responses or logs
+3. Prompt injection via MCP tool descriptions: attacker-controlled tool names or descriptions
+4. Fail-open defaults: any unclassified route being treated as safe
+5. Privilege escalation: an agent using MCP tools to reconfigure the server or trigger deploys
+
+Plan:
+- Audit oompah's server.py to categorize all /api/v1/* routes
+- Implement oompah/mcp_exposure_policy.py with: allow-list (safe GETs), deny-list (mutating/admin/webhook/restart), fail-closed default
+- Add tests in tests/test_mcp_exposure_policy.py covering: allowed ops return True, denied ops return False, unknown ops fail closed
 ---
 <!-- COMMENTS:END -->
