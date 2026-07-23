@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-430
 type: task
-status: In Progress
+status: In Review
 priority: null
 title: Provide focus agents a supported tracker-handoff mutation path
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T23:17:30.964575Z'
+updated_at: '2026-07-23T23:17:54.413647Z'
 work_branch: null
 target_branch: null
 review_url: null
