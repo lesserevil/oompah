@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T19:48:40.280243Z'
+updated_at: '2026-07-23T19:49:21.031444Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -156,5 +156,10 @@ author: oompah
 created: 2026-07-23 19:48
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-23 19:49
+---
+**Understanding:** As Technical Writer focus, my job is to update docs/tick-latency-diagnostics.md and .env.example with the two new configuration variables (OOMPAH_DISPATCH_STALE_THRESHOLD_MS and OOMPAH_DISPATCH_STALE_GRACE_MS). The feature code hasn't been implemented yet (no commits on this branch), but I can write accurate documentation based on the spec: threshold=120000ms (2 min), grace=30000ms (30s). I'll then hand off to the feature agent for code implementation.
 ---
 <!-- COMMENTS:END -->
