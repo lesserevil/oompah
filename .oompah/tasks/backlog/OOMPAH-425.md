@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T20:45:34.887827Z'
-updated_at: '2026-07-23T20:45:34.887827Z'
+updated_at: '2026-07-23T20:48:48.053781Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ Support OOMPAH_MAX_CONCURRENT_AGENTS=0 as automatic capacity mode. Recalculate t
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-23 20:48
+---
+Implemented auto concurrency mode: configuration value 0 recalculates a conservative CPU/memory-based effective cap at every scheduler tick, never terminates agents when capacity drops, and exposes configured/effective limits in the runtime snapshot. Added regression coverage and ran make test successfully. Host .env has been set to 0 and will be applied on restart.
+---
+<!-- COMMENTS:END -->
