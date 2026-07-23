@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T23:16:22.451421Z'
+updated_at: '2026-07-23T23:16:45.772873Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -324,5 +324,17 @@ Implementation: Added 5 missing regression tests across two test files.
 5. test_no_commit_handoff_with_needs_feature_routes_to_feature — verifies needs:feature label causes select_focus (using BUILTIN_FOCI) to pick the feature focus
 
 All 12068 tests pass (39 skipped for optional SDK dependencies).
+---
+author: oompah
+created: 2026-07-23 23:16
+---
+Verification: All 12068 tests pass (39 skipped for optional SDK dependencies). make test completed in 229.94s with no failures.
+
+New tests verified individually:
+- tests/test_acp_project_tools.py::TestExecOompahTaskCommand — 7 passed (5 existing + 2 new)
+- tests/test_acp_project_tools.py::TestBuildToolCatalogProjectTools — all pass including new test_run_command_tool_intercepts_oompah_task_add_label
+- tests/test_orchestrator_duplicate_detection.py::TestNoCommitFocusCompletionAdvancesToFeature — 2 new tests both passed
+
+Commit: 64ad8706e pushed to origin/OOMPAH-430.
 ---
 <!-- COMMENTS:END -->
