@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-23T00:04:13.217371Z'
+updated_at: '2026-07-23T00:06:46.419367Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -80,5 +80,28 @@ author: oompah
 created: 2026-07-23 00:04
 ---
 Understanding: Investigating OOMPAH-312 as Duplicate Investigator. This task asks for the UI/dashboard to show child completion status in an epic branch context, distinguishing 'Done on branch' vs 'Merged to target'. Blocked by OOMPAH-310. I will search for similar tasks to determine if this is a duplicate before any implementation work begins.
+---
+author: oompah
+created: 2026-07-23 00:06
+---
+Discovery: Duplicate screening found NO duplicate for OOMPAH-312.
+
+Search scope: All .oompah/tasks/ folders (archived, merged, done, open, backlog), plans/, docs/, README.md, WORKFLOW.md. CLI queries for OOMPAH-310, OOMPAH-311, OOMPAH-307, OOMPAH-412, OOMPAH-413.
+
+Keywords searched: dashboard, UI, child completion, epic branch context, Done on branch, Merged to target, shared-epic, status display, child status, display status, effective_display_status.
+
+Candidates reviewed and REJECTED as duplicates:
+- OOMPAH-307 (Open): Parent epic for shared-epic child routing. OOMPAH-312 was explicitly created as P3 child of OOMPAH-307 ('UI/dashboard: show Done-on-epic-branch vs Merged-to-target status [depends on 310]'). Not a duplicate — it is the parent.
+- OOMPAH-310 (Done): 'Verify and harden epic-merge-triggered Merged promotion for shared-epic children' — different; covers backend Merged promotion logic/guards. OOMPAH-310's own investigator confirmed OOMPAH-312 is distinct ('covers display labels, not Merged promotion logic').
+- OOMPAH-311 (Done): 'Diagnose and surface remediation path for existing independently-merged child branches/PRs' — different; covers detection/annotation of already-merged children. OOMPAH-311's own investigator confirmed OOMPAH-312 is distinct ('covers display labels, not remediation').
+- OOMPAH-412 (Done): Audit and harden shared-epic Merged promotion paths — backend-only; OOMPAH-412 investigator also confirmed OOMPAH-312 is distinct ('display labels').
+- OOMPAH-413 (Done): Regression tests for promotion gates — test-only, not UI display.
+- OOMPAH-313 (Done): Routing fixture and native lifecycle regression tests — different scope.
+
+Current code state: oompah/server.py _effective_display_status() (line 1277) currently just returns issue.state — no differentiation between 'Done on epic branch' and 'Merged to target'. The test file tests/test_shared_epic_display_status.py (107 lines) documents that the old epic-worktree-file-reading approach was retired; the new approach (canonical tracker state) does not yet surface the 'Done on branch' vs 'Merged to target' UI distinction OOMPAH-312 requires.
+
+OOMPAH-307 acceptance criterion explicitly states: 'UI status explains whether a child is complete on the epic branch versus merged to target.'
+
+Conclusion: OOMPAH-312 is NOT a duplicate. It is a unique, unimplemented UI/dashboard task that needs to display child completion status in the epic branch context. Blocker OOMPAH-310 is now Done, so the task is unblocked.
 ---
 <!-- COMMENTS:END -->
