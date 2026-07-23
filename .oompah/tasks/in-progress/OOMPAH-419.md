@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T19:54:02.331715Z'
+updated_at: '2026-07-23T19:56:26.585112Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -152,5 +152,30 @@ Plan:
 - Audit oompah's server.py to categorize all /api/v1/* routes
 - Implement oompah/mcp_exposure_policy.py with: allow-list (safe GETs), deny-list (mutating/admin/webhook/restart), fail-closed default
 - Add tests in tests/test_mcp_exposure_policy.py covering: allowed ops return True, denied ops return False, unknown ops fail closed
+---
+author: oompah
+created: 2026-07-23 19:56
+---
+Discovery: API route audit complete
+
+Audited oompah/server.py for all @app.{method} routes. Categories identified:
+
+SAFE_READ (35 GET routes): /api/v1/state, /api/v1/issues, issue detail/comments/attachments/picks, project read endpoints, agent-profiles, roles, foci, budget, reviews, providers read, console transcript, etc.
+
+TASK_MUTATION (6 routes): POST/PATCH /api/v1/issues, POST labels/remove labels/dependencies/comments.
+
+ADMIN_MUTATION (20+ routes): project create/update/delete/pause/resume, state-branch migrate/validate, bootstrap apply, template apply, agent-profile CRUD, role update, focus CRUD, console backend management, POST /refresh, POST /errors, review rebase/retry, attachments upload/delete, issue intake actions.
+
+CREDENTIAL_BEARING (5 routes): POST/PATCH/DELETE /api/v1/providers, POST /providers/{id}/test, POST /providers/fetch-models, POST /providers/{id}/auto-populate-contexts.
+
+ORCHESTRATOR_CONTROL (4 routes): POST /api/v1/orchestrator/pause, /resume, /restart, /dispatch/{id}.
+
+WEBHOOK_INGESTION (2 routes): POST /api/v1/webhooks/github, /api/v1/webhooks/gitlab.
+
+RELEASE_DELIVERY (9 routes): release-delivery trigger/retry/archive/refresh, release-addendums create/retry/archive, release-picks update/apply-all.
+
+Policy: only SAFE_READ and TASK_MUTATION are exposed. All others are denied. UNKNOWN defaults to denied (fail-closed).
+
+Security note: orchestrator/restart is the highest-risk route — any MCP exposure of this would allow an agent to restart the oompah service.
 ---
 <!-- COMMENTS:END -->
