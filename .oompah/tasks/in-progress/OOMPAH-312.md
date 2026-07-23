@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-23T00:07:25.428651Z'
+updated_at: '2026-07-23T00:07:59.803449Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 483a558f-4890-4555-864f-da8d4d0fed4e
 oompah.task_costs:
-  total_input_tokens: 29
-  total_output_tokens: 8880
+  total_input_tokens: 100583
+  total_output_tokens: 10028
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 29
-      output_tokens: 8880
+      input_tokens: 100583
+      output_tokens: 10028
       cost_usd: 0.0
   runs:
   - profile: default
@@ -36,6 +36,12 @@ oompah.task_costs:
     output_tokens: 8880
     cost_usd: 0.0
     recorded_at: '2026-07-23T00:07:14.286776+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 100554
+    output_tokens: 1148
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T00:07:57.029558+00:00'
 ---
 ## Summary
 
@@ -179,5 +185,25 @@ author: oompah
 created: 2026-07-23 00:07
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-23 00:07
+---
+Agent completed successfully in 34s (101702 tokens)
+---
+author: oompah
+created: 2026-07-23 00:07
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 2
+- Tokens: 100.6K in / 1.1K out [101.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 34s
+- Log: OOMPAH-312__20260723T000725Z.jsonl
+---
+author: oompah
+created: 2026-07-23 00:07
+---
+Agent completed without closing this issue (34s (101702 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
