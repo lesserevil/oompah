@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:11:31.382151Z'
+updated_at: '2026-07-23T20:11:39.715535Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -222,5 +222,25 @@ New tests: tests/test_mcp_exposure_policy.py — 292 cases covering:
 - describe_policy() JSON serialisability
 - iter_exposed_routes() only yields exposed routes
 - Injection resistance: orchestrator/restart cannot be smuggled via issue identifier pattern
+---
+author: oompah
+created: 2026-07-23 20:11
+---
+Completion: OOMPAH-419 delivered
+
+Deliverables:
+- oompah/mcp_exposure_policy.py: policy module (RouteCategory enum, rule table, classify_route, is_route_exposed, input validation, service-discovery constants)
+- tests/test_mcp_exposure_policy.py: 292 passing unit tests
+- plans/mcp-openapi-exposure-policy.md: design doc + gateway integration guide for OOMPAH-420
+
+Acceptance criteria met:
+✅ Policy is represented in code (mcp_exposure_policy.py)
+✅ Defaults fail-closed for protected APIs (UNKNOWN → denied)
+✅ Tests cover allowed operations (SAFE_READ, TASK_MUTATION)
+✅ Tests cover denied operations (all 6 other categories + injection resistance)
+✅ orchestrator/restart, webhooks, provider credentials all explicitly denied
+✅ Token propagation documented: loopback-only, no forwarding
+
+Ready for OOMPAH-420 (gateway implementation) to unblock.
 ---
 <!-- COMMENTS:END -->
