@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T22:06:25.837950Z'
+updated_at: '2026-07-23T22:06:49.506716Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -236,5 +236,10 @@ Implementation complete. Two fixes in oompah/orchestrator.py:
 - test_allows_nested_epic_rollup_pr_with_parent_id (nested epic still allowed)
 - test_closes_child_pr_with_stale_own_work_branch_exocomp57 (close path regression)
 - test_does_not_close_epic_rollup_pr_whose_source_matches_parent_epic_branch (valid rollup not closed)
+---
+author: oompah
+created: 2026-07-23 22:06
+---
+Verification: make test passed — 12063 passed, 38 skipped. All 20 tests in TestYoloEpicStrategyBlockReason and TestCloseInvalidEpicPolicyReview pass including all 4 new regression tests.
 ---
 <!-- COMMENTS:END -->
