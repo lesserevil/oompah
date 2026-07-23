@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-416
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
@@ -12,13 +12,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-23T20:33:51.745027Z'
+updated_at: '2026-07-23T20:36:10.812715Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 152d122b-7dde-48b5-a74b-0f87519877d5
+oompah.agent_run_id: 84d0bb89-ccf7-43de-b2c7-693d0be4cbe9
 oompah.work_branch: epic-OOMPAH-414
 oompah.task_costs:
   total_input_tokens: 409032
@@ -200,5 +200,15 @@ author: oompah
 created: 2026-07-23 20:33
 ---
 YOLO: CI tests failed on MR #543. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-23 20:36
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-23 20:36
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
