@@ -7236,6 +7236,13 @@ async def api_update_issue(identifier: str, request: Request):
         if new_status is not None:
             terminal = {_state_key(s) for s in orch.config.tracker_terminal_states}
             status_norm = _state_key(new_status)
+            # A manual or watchdog reopen must become dispatchable immediately.
+            # Otherwise an issue previously deferred into ``completed`` remains
+            # invisible until the periodic watchdog sweep clears that stale
+            # in-memory entry (EXOCOMP-55).
+            if is_dispatchable_status(new_status) and existing_issue is not None:
+                orch.state.completed.discard(existing_issue.id)
+                orch.state.claimed.discard(existing_issue.id)
             if status_norm != "in_progress":
                 for issue_id, entry in list(orch.state.running.items()):
                     if entry.identifier == identifier:

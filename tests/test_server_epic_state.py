@@ -235,6 +235,28 @@ class TestUpdateIssueNeedsHumanComment:
         assert "move the task back to Open" in comment
 
 
+class TestReopenClearsSchedulerCompletionState:
+    def test_reopen_removes_completed_and_claimed_entries(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        issue = _make_issue(identifier="task-1", issue_type="task", state="Needs Human")
+        mock_tracker.fetch_issue_detail.return_value = issue
+        mock_orch.state.completed.add(issue.id)
+        mock_orch.state.claimed.add(issue.id)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.patch(
+                "/api/v1/issues/task-1",
+                json={"status": "Open", "project_id": "proj-1"},
+            )
+
+        assert resp.status_code == 200
+        assert issue.id not in mock_orch.state.completed
+        assert issue.id not in mock_orch.state.claimed
+
+
 # ---------------------------------------------------------------------------
 # PATCH /api/v1/issues — Epic state verification
 # ---------------------------------------------------------------------------
