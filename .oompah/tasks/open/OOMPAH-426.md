@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-426
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-23T21:25:00.633046Z'
+updated_at: '2026-07-23T21:26:53.782752Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: f3e82276-d1cd-4248-93e3-11856ee411e2
 oompah.task_costs:
-  total_input_tokens: 51
-  total_output_tokens: 21301
+  total_input_tokens: 366487
+  total_output_tokens: 25395
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 51
-      output_tokens: 21301
+      input_tokens: 366487
+      output_tokens: 25395
       cost_usd: 0.0
   runs:
   - profile: default
@@ -34,6 +34,12 @@ oompah.task_costs:
     output_tokens: 21301
     cost_usd: 0.0
     recorded_at: '2026-07-23T21:24:46.606259+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 366436
+    output_tokens: 4094
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T21:26:49.077715+00:00'
 ---
 ## Summary
 
@@ -144,5 +150,25 @@ author: oompah
 created: 2026-07-23 21:24
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-23 21:26
+---
+Agent completed successfully in 111s (370530 tokens)
+---
+author: oompah
+created: 2026-07-23 21:26
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/default]
+- Turns: 1, Tool calls: 5
+- Tokens: 366.4K in / 4.1K out [370.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 51s
+- Log: OOMPAH-426__20260723T212500Z.jsonl
+---
+author: oompah
+created: 2026-07-23 21:26
+---
+Agent completed without landing — no commits found on origin for branch `OOMPAH-426`. No stronger profile is configured; retrying with 'deep' in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
