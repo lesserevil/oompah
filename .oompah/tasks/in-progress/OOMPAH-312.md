@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-312
 type: task
-status: Open
+status: In Progress
 priority: null
 title: 'UI/dashboard: show child completion status in epic branch context (Done on
   branch vs Merged to target)'
@@ -12,12 +12,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-22T05:20:56.280729Z'
+updated_at: '2026-07-23T00:03:59.325067Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: edc56fc0-920f-4aeb-98cf-7276923fddf2
 ---
 ## Summary
 
@@ -62,3 +63,17 @@ The _effective_display_status function (tests in tests/test_shared_epic_display_
 - [ ] Define acceptance criteria.
 
 ## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-23 00:03
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-23 00:03
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
