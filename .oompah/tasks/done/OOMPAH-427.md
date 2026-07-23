@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T22:10:35.768034Z'
+updated_at: '2026-07-23T22:10:38.929232Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -315,5 +315,10 @@ author: oompah
 created: 2026-07-23 22:10
 ---
 Completion: PR #544 created from epic-OOMPAH-426 to main (https://github.com/lesserevil/oompah/pull/544). Implementation was done by the previous agent and verified with make test (12063 passed). Closing the task now.
+---
+author: oompah
+created: 2026-07-23 22:10
+---
+Fixed YOLO merge gate bypass (EXOCOMP-57 regression): restructured _yolo_epic_strategy_block_reason to compare source_branch against the parent epic's branch (not the child's stale work_branch), and fixed _close_invalid_epic_policy_review similarly. Added 4 regression tests. All 12063 tests pass. PR #544 open for review.
 ---
 <!-- COMMENTS:END -->
