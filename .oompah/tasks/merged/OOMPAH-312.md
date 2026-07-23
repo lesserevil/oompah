@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-312
 type: task
-status: Done
+status: Merged
 priority: null
 title: 'UI/dashboard: show child completion status in epic branch context (Done on
   branch vs Merged to target)'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-23T00:18:49.143812Z'
+updated_at: '2026-07-23T00:20:03.762490Z'
 work_branch: null
 target_branch: null
 review_url: null
