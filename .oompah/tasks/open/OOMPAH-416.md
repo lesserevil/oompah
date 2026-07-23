@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-416
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-23T20:14:16.196392Z'
+updated_at: '2026-07-23T20:15:00.725388Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
