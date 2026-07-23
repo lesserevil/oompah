@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-23T21:16:32.196957Z'
+updated_at: '2026-07-23T21:23:50.860510Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-23 21:16
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-23 21:23
+---
+Understanding: Investigating OOMPAH-426 as Duplicate Investigator. The bug describes EXOCOMP-57, a child of still-open epic EXOCOMP-9 in a shared-epic project, which opened and YOLO-merged PR #1 directly from EXOCOMP-57 to main, bypassing the epic branch gate.
 ---
 <!-- COMMENTS:END -->
