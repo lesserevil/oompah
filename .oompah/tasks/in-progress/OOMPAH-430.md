@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T22:35:37.080850Z'
+updated_at: '2026-07-23T22:43:11.109782Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,24 @@ author: oompah
 created: 2026-07-23 22:35
 ---
 Understanding: Investigating OOMPAH-430 as Duplicate Investigator. The issue requests a supported mutation path for focus agents to record completion labels and handoff comments. EXOCOMP-55 is cited as the motivating incident where duplicate screening completed but couldn't persist its handoff (no MCP mutation tools in agent environment, loopback CLI prohibited). Will search for any prior tasks covering this same problem before handoff to implementation focus.
+---
+author: oompah
+created: 2026-07-23 22:43
+---
+Discovery: No duplicate found. Searched all .oompah/tasks/ states (archived, done, merged, open, backlog), plans/, and docs/ for: focus handoff, mutation path, loopback CLI, EXOCOMP, MCP mutation, tracker handoff, agent mutation, focus complete, duplicate_detector handoff.
+
+Closest candidates reviewed and ruled out:
+
+1. OOMPAH-217 (Merged): 'Handoff cleared duplicate investigations to normal-focus agents' — implements _handoff_completed_focus and the two-stage duplicate investigation protocol. Does NOT provide an approved mutation interface for agents; it only adds server-side detection of completed focus. Scope is distinct.
+
+2. OOMPAH-219 (Merged): Fixed bugs in _handoff_completed_focus (entry.id → entry.identifier) and added TestFocusHandoff tests. Does NOT add a no-commit focus completion regression test that covers the full pipeline through _on_worker_exit.
+
+3. OOMPAH-419 (Merged): Defined the OpenAPI-to-MCP exposure policy (mcp_exposure_policy.py), exposing TASK_MUTATION routes. Scope is the policy definition only. The gateway implementation (OOMPAH-420) and integration tests (OOMPAH-421) are NOT yet committed (git log shows no commits for those identifiers).
+
+Key gaps that OOMPAH-430 addresses (not covered by any prior task):
+a) No test in test_acp_project_tools.py for add-label through _exec_oompah_task_command — the approved no-HTTP mutation path for focus agents adding focus-complete labels
+b) No end-to-end regression test: duplicate_detector runs (no commits), posts handoff comment + adds label, _on_worker_exit is called, select_focus picks a feature focus (not duplicate_detector again)
+
+Evidence: test_orchestrator_duplicate_detection.py::TestFocusHandoff tests _handoff_completed_focus in isolation but does not cover the full _on_worker_exit → _handoff_completed_focus → select_focus pipeline for a no-commit focus completion. test_acp_project_tools.py::TestExecOompahTaskCommand covers comment and set-status but not add-label.
 ---
 <!-- COMMENTS:END -->
