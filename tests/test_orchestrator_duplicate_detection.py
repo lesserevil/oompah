@@ -707,6 +707,139 @@ class TestEndToEndDispatchFlow:
         )
 
 
+class TestNoCommitFocusCompletionAdvancesToFeature:
+    """Regression for EXOCOMP-55: a no-commit duplicate_detector run that
+    correctly records its handoff comment and completion label must not be
+    re-dispatched as another duplicate_detector pass.
+
+    Acceptance (from issue OOMPAH-430): duplicate detection that finds no
+    duplicate records its completion and handoff exactly once, and the next
+    run begins feature work rather than another duplicate pass.
+    """
+
+    def _make_orchestrator(self):
+        from oompah.orchestrator import Orchestrator
+        from oompah.config import ServiceConfig
+
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.config = ServiceConfig()
+        orch.tracker = MagicMock()
+        orch.state = MagicMock()
+        orch.state.reopen_counts = {}
+        orch.state.reopen_focus_names = {}
+        orch.state.stall_counts = {}
+        orch._post_comment = MagicMock()
+        return orch
+
+    def _make_entry(self, issue):
+        from datetime import datetime, timezone
+        from oompah.models import RunningEntry
+
+        return RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            focus_name="duplicate_detector",
+        )
+
+    def test_no_commit_handoff_detected_and_not_retried(self):
+        """When duplicate_detector posts a handoff comment and adds the
+        focus-complete label (no git commits), _handoff_completed_focus must
+        return True, the issue must be reopened for a fresh dispatch, and
+        select_focus on the resulting issue must pick a focus other than
+        duplicate_detector — preventing the completed phase from repeating."""
+        from oompah.focus import select_focus
+
+        orch = self._make_orchestrator()
+        orch.tracker.fetch_comments.return_value = [
+            {"text": "Focus handoff: duplicate_detector\nNo duplicate found."}
+        ]
+
+        issue = _make_issue(
+            identifier="OOMPAH-430",
+            title="Provide focus agents a supported tracker-handoff mutation path",
+            state="In Progress",
+            issue_type="task",
+            labels=["focus-complete:duplicate_detector"],
+        )
+        entry = self._make_entry(issue)
+
+        # Simulate the orchestrator processing _on_worker_exit for a normal exit.
+        result = orch._handoff_completed_focus(entry, issue, None)
+
+        # Handoff must be recognised — True means _on_worker_exit will NOT
+        # treat this as an unclosed issue requiring re-dispatch to the same focus.
+        assert result is True
+
+        # The issue must be opened for the next applicable focus.
+        orch.tracker.update_issue.assert_called_once_with(entry.identifier, status="Open")
+        assert issue.state == "Open"
+
+        # The completion label must be preserved so select_focus can skip it
+        # on every subsequent dispatch, including after a service restart.
+        assert "focus-complete:duplicate_detector" in issue.labels
+
+        # No extra label add_label call should have been made: the label was
+        # already present before _handoff_completed_focus ran.
+        orch.tracker.add_label.assert_not_called()
+
+        # The next focus selected for the reopened issue must NOT be
+        # duplicate_detector — that would repeat the completed phase.
+        focus = select_focus(issue)
+        assert focus.name != "duplicate_detector", (
+            f"Expected a non-duplicate_detector focus after handoff, "
+            f"got {focus.name!r}"
+        )
+
+    def test_no_commit_handoff_with_needs_feature_routes_to_feature(self):
+        """When the handoff comment requests a feature focus via needs:feature
+        label, select_focus must pick feature — not duplicate_detector.
+
+        Uses BUILTIN_FOCI to ensure the feature focus is active regardless of
+        the local .oompah/foci.json configuration (which may mark it inactive).
+        """
+        from oompah.focus import select_focus, BUILTIN_FOCI
+
+        orch = self._make_orchestrator()
+        orch.tracker.fetch_comments.return_value = [
+            {
+                "text": (
+                    "Focus handoff: duplicate_detector\n"
+                    "No duplicate found. OOMPAH-430 is unique.\n"
+                    "Recommended next focus: feature"
+                )
+            }
+        ]
+
+        issue = _make_issue(
+            identifier="OOMPAH-430",
+            title="Implement new feature for tracker handoff",
+            state="In Progress",
+            issue_type="task",
+            labels=["focus-complete:duplicate_detector", "needs:feature"],
+        )
+        entry = self._make_entry(issue)
+
+        result = orch._handoff_completed_focus(entry, issue, None)
+
+        assert result is True
+        # Issue must be reopened.
+        assert issue.state == "Open"
+        # No extra label should be added (focus-complete label was already present).
+        orch.tracker.add_label.assert_not_called()
+
+        # With needs:feature label, select_focus must pick feature.
+        # Use BUILTIN_FOCI to ensure the feature focus is active in this
+        # environment (the local foci.json may mark it inactive).
+        focus = select_focus(issue, foci=BUILTIN_FOCI)
+        assert focus.name == "feature", (
+            f"Expected feature focus due to needs:feature label, got {focus.name!r}"
+        )
+
+
 class TestDispatchResponsivenessLimits:
     """Dispatch loops should bound work per tick under large candidate sets."""
 
