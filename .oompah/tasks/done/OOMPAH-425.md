@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-425
 type: feature
-status: Backlog
+status: Done
 priority: 1
 title: Auto-scale agent concurrency when configured as zero
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T20:45:34.887827Z'
-updated_at: '2026-07-23T20:48:48.053781Z'
+updated_at: '2026-07-23T20:49:35.149609Z'
 work_branch: null
 target_branch: null
 review_url: null
