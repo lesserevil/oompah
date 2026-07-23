@@ -493,6 +493,39 @@ class TestExecOompahTaskCommand:
         assert "hello" in result
         tracker.fetch_issue_detail.assert_called_once_with("owner/repo#240")
 
+    def test_add_label_routes_directly_to_tracker(self):
+        """add-label subcommand routes to tracker.add_label without subprocess."""
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+
+        result = _exec_oompah_task_command(
+            "oompah task add-label owner/repo#240 focus-complete:duplicate_detector",
+            tracker,
+            "proj",
+        )
+
+        assert result == "Label added: focus-complete:duplicate_detector"
+        tracker.add_label.assert_called_once_with(
+            "owner/repo#240",
+            "focus-complete:duplicate_detector",
+        )
+
+    def test_compound_add_label_command_returns_error_instead_of_subprocess(self):
+        """Compound add-label commands must be rejected — not shell-executed."""
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+
+        result = _exec_oompah_task_command(
+            "oompah task add-label owner/repo#240 focus-complete:dup && echo done",
+            tracker,
+            "proj",
+        )
+
+        assert result.startswith("Error:")
+        tracker.add_label.assert_not_called()
+
     def test_compound_task_command_returns_error_instead_of_subprocess(self):
         from oompah.acp_tools import _exec_oompah_task_command
 
@@ -607,6 +640,35 @@ class TestBuildToolCatalogProjectTools:
             "owner/repo#240",
             "Working",
             author="oompah",
+        )
+
+    def test_run_command_tool_intercepts_oompah_task_add_label(self, tmp_path):
+        """ACP run_command routes add-label directly through tracker without HTTP."""
+        import asyncio
+        from oompah.acp_tools import build_tool_catalog
+
+        tracker = MagicMock()
+        cat = build_tool_catalog(
+            str(tmp_path),
+            project_id="proj-test",
+            task_tracker=tracker,
+        )
+        tool = next(t for t in cat if t.name == "run_command")
+
+        result = asyncio.run(
+            tool.handler({
+                "command": (
+                    "oompah task add-label owner/repo#240 "
+                    "focus-complete:duplicate_detector"
+                )
+            })
+        )
+        text = result["content"][0]["text"]
+
+        assert text == "Label added: focus-complete:duplicate_detector"
+        tracker.add_label.assert_called_once_with(
+            "owner/repo#240",
+            "focus-complete:duplicate_detector",
         )
 
     def test_list_projects_tool_returns_data_with_store(self, tmp_path):
