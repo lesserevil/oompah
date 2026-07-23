@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T20:25:33.664332Z'
-updated_at: '2026-07-23T20:27:17.393874Z'
+updated_at: '2026-07-23T20:27:20.401215Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,5 +33,10 @@ author: oompah
 created: 2026-07-23 20:27
 ---
 Demoted ordinary epic branch drift from the alert stream while preserving it in epic rebase/branch-health state. Failed rebases continue to emit actionable alerts. Added regression coverage and ran make test successfully.
+---
+author: oompah
+created: 2026-07-23 20:27
+---
+Removed normal drift alerts; retained actionable failed-rebase alerts.
 ---
 <!-- COMMENTS:END -->

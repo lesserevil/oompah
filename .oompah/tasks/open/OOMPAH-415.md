@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T20:19:37.827877Z'
+updated_at: '2026-07-23T20:27:50.734161Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
