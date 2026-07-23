@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T21:06:15.930968Z'
+updated_at: '2026-07-23T21:06:18.393932Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -420,5 +420,10 @@ author: oompah
 created: 2026-07-23 21:06
 ---
 **Completion (CI Failure Fixer):** PR #543 has been merged successfully at 2026-07-23T21:05:39Z.\n\n**Status:** All CI failures have been resolved. The previous CI fixer agent corrected 4 test failures:\n- tests/test_epic_strategy.py: updated to use mark_needs_human() instead of update_issue()\n- tests/test_yolo_watchdog.py: updated to use mark_needs_human() instead of update_issue()\n- tests/test_scm.py: fixed legacy failure short-circuit in scm.py\n\n**Merged commits on main:**\n- OOMPAH-415: Document OOMPAH_DISPATCH_STALE_THRESHOLD_MS and OOMPAH_DISPATCH_STALE_GRACE_MS\n- OOMPAH-415: decouple dispatch stale recovery timing (adds dispatch_stale_threshold_ms=120000, dispatch_stale_grace_ms=30000)\n- OOMPAH-415: fix CI regressions\n\nAll acceptance criteria met: stall detection fires at 2 minutes (default) instead of 15-20 minutes. Threshold is independently tunable.
+---
+author: oompah
+created: 2026-07-23 21:06
+---
+PR #543 merged. Decoupled stale-dispatch threshold from full_sync_interval. Added dispatch_stale_threshold_ms (default 120s) and dispatch_stale_grace_ms (default 30s) to config.py with env var support. Updated orchestrator.py, docs, .env.example, and tests. CI fixes applied and PR merged to main.
 ---
 <!-- COMMENTS:END -->
