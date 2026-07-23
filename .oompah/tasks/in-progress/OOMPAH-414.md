@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-414
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Prevent scheduler stalls from delaying task dispatch
 parent: null
@@ -18,7 +18,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-23T20:45:46.039761Z'
+updated_at: '2026-07-23T20:47:09.072661Z'
 work_branch: epic-OOMPAH-414
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/543
