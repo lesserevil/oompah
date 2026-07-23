@@ -12,9 +12,10 @@ children:
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-23T19:34:55.574621Z'
+updated_at: '2026-07-23T19:35:11.998448Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -132,5 +133,25 @@ Understanding: Epic planner focus for OOMPAH-414. The July 23 stall exposed two 
 Key files: oompah/orchestrator.py (stale detection, check_and_recover_dispatch_loop, _reset_orphaned_in_progress), oompah/config.py (dispatch_loop_stale_factor, full_sync_interval_ms), tests/test_dispatch_loop_heartbeat.py, docs/tick-latency-diagnostics.md.
 
 Plan: decompose into 3 child tasks—(1) lower stale threshold independently, (2) wake dispatch after orphan resets, (3) regression tests + make test verification.
+---
+author: oompah
+created: 2026-07-23 19:35
+---
+Focus handoff: epic_planner
+
+1. Outcome: Epic decomposed into 3 child tasks (OOMPAH-415, OOMPAH-416, OOMPAH-417) covering the full scope of the July 23 scheduler stall fix. OOMPAH-414 status set to Backlog.
+
+2. Relevant context:
+   - Key files: oompah/orchestrator.py (is_dispatch_loop_stale, check_and_recover_dispatch_loop, _reset_orphaned_in_progress), oompah/config.py (dispatch_loop_stale_factor, full_sync_interval_ms), tests/test_dispatch_loop_heartbeat.py, docs/tick-latency-diagnostics.md
+   - _post_event() is already thread-safe (uses loop.call_soon_threadsafe from background threads), so adding a REFRESH_REQUESTED call in _reset_orphaned_in_progress() is safe
+   - Steps 5b/5c of _tick() run fire-and-forget — they do not block dispatch; step 5a (watchdog) is awaited but via run_in_executor so the event loop stays unblocked
+   - Current stale detection threshold: full_sync_interval_ms (300s) × dispatch_loop_stale_factor (3.0) = 15 min; grace period = 300s = 5 min; total ~20 min
+
+3. Child tasks created:
+   - OOMPAH-415: Decouple stale-dispatch threshold — add OOMPAH_DISPATCH_STALE_THRESHOLD_MS (default 120s) and OOMPAH_DISPATCH_STALE_GRACE_MS (default 30s); update is_dispatch_loop_stale() and check_and_recover_dispatch_loop()
+   - OOMPAH-416: Post REFRESH_REQUESTED after orphan resets — modify _reset_orphaned_in_progress() to wake dispatch when ≥1 orphan is reset
+   - OOMPAH-417: Regression tests (depends on OOMPAH-415 and OOMPAH-416) — integrated test covering stall→recovery→orphan-reset→dispatch path; run make test
+
+4. No remaining risks for the planner. Implementation agents can pick up OOMPAH-415 and OOMPAH-416 in parallel; OOMPAH-417 should follow.
 ---
 <!-- COMMENTS:END -->
