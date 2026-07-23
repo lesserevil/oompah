@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-424
 type: task
-status: In Progress
+status: Done
 priority: 0
 title: 'fix CI on PR #543 (epic-OOMPAH-414)'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T20:43:29.346291Z'
-updated_at: '2026-07-23T21:13:18.829408Z'
+updated_at: '2026-07-23T21:15:39.405282Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -101,5 +101,30 @@ author: oompah
 created: 2026-07-23 21:13
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-23 21:15
+---
+Understanding: Continued the existing CI recovery for PR #543. I reviewed the prior source-branch work, the failed Actions run, the merged PR state, and planned to make no additional changes unless a failure remained reproducible.
+---
+author: oompah
+created: 2026-07-23 21:15
+---
+Discovery: Actions run 30042082551 failed four tests: two epic-strategy expectations and one watchdog expectation still asserted direct update_issue calls after mark_needs_human was introduced; the SCM test expected a legacy failure to override a newer successful check suite. PR #542 corrected these concurrent regressions before epic-OOMPAH-414 was refreshed.
+---
+author: oompah
+created: 2026-07-23 21:15
+---
+Implementation: No further code change was needed. Commit bab9d7fb5 on epic-OOMPAH-414 intentionally retriggered CI after the regression fixes reached the branch; PR #543 then merged as c563be791.
+---
+author: oompah
+created: 2026-07-23 21:15
+---
+Verification: The four exact failed tests pass locally (4 passed in 0.62s). GitHub Actions run 30044796707 passed on Python 3.11, 3.12, and 3.13. Full make test could not bootstrap because the host Snap uv failed to create a transient systemd scope, but the complete CI matrix is green.
+---
+author: oompah
+created: 2026-07-23 21:15
+---
+Completion: PR #543 is merged, its CI matrix is fully green, the source branch was deleted after merge, and this worktree is clean and up to date with origin/main. No additional code or follow-up task is required.
 ---
 <!-- COMMENTS:END -->
