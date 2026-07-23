@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-427
 type: task
-status: Done
+status: In Progress
 priority: null
 title: Fix YOLO merge gate bypass for child tasks with stale work_branch (EXOCOMP-57
   regression)
@@ -12,22 +12,22 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T22:07:20.669969Z'
+updated_at: '2026-07-23T22:07:42.278838Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: a5fd0f7a-1874-4fcb-895a-eb4b8feea282
+oompah.agent_run_id: 288d4cb0-f8bc-4201-a4e7-23085d296f71
 oompah.work_branch: epic-OOMPAH-426
 oompah.task_costs:
-  total_input_tokens: 41
-  total_output_tokens: 13525
+  total_input_tokens: 76
+  total_output_tokens: 31242
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 41
-      output_tokens: 13525
+      input_tokens: 76
+      output_tokens: 31242
       cost_usd: 0.0
   runs:
   - profile: default
@@ -36,6 +36,12 @@ oompah.task_costs:
     output_tokens: 13525
     cost_usd: 0.0
     recorded_at: '2026-07-23T21:57:12.178855+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 35
+    output_tokens: 17717
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T22:07:30.680227+00:00'
 ---
 ## Summary
 
@@ -258,5 +264,46 @@ author: oompah
 created: 2026-07-23 22:07
 ---
 Fixed YOLO merge gate bypass: replaced child-based issue_epic_branch check with parent epic branch comparison in _yolo_epic_strategy_block_reason and _close_invalid_epic_policy_review. Added 4 regression tests. All 12063 tests pass.
+---
+author: oompah
+created: 2026-07-23 22:07
+---
+Agent completed successfully in 599s (17752 tokens)
+---
+author: oompah
+created: 2026-07-23 22:07
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 64, Tool calls: 38
+- Tokens: 35 in / 17.7K out [17.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 59s
+- Log: OOMPAH-427__20260723T215733Z.jsonl
+---
+author: oompah
+created: 2026-07-23 22:07
+---
+Close refused by orchestrator: branch `epic-OOMPAH-426` has 1 commit not on `main` and no open PR targets `main` from this branch.
+
+Diagnostic:
+  Unmerged commits: 1
+    0574d9ecf OOMPAH-427: Fix YOLO merge gate bypass for child tasks with stale work_branch
+  Open PRs from this branch: 0
+  Merged PRs from this branch: 0
+
+Required: open a PR before closing.
+  gh pr create --base main --head epic-OOMPAH-426 --title "OOMPAH-427: Fix YOLO merge gate bypass for child tasks with stale work_branch (EXOCOMP-57 regression)" --body "..."
+
+Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
+---
+author: oompah
+created: 2026-07-23 22:07
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-23 22:07
+---
+Focus: Epic Planner
 ---
 <!-- COMMENTS:END -->
