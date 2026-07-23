@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T22:52:08.149367Z'
+updated_at: '2026-07-23T22:58:25.657444Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -225,5 +225,19 @@ Key findings:
    - tests/test_orchestrator_duplicate_detection.py: no end-to-end test of no-commit duplicate_detector completion → _on_worker_exit → _handoff_completed_focus → select_focus picks feature (not duplicate_detector again)
 
 Plan: Write plans/focus-handoff-mutation-protocol.md explaining the architecture, then hand off to feature for the tests.
+---
+author: oompah
+created: 2026-07-23 22:58
+---
+Implementation: Wrote plans/focus-handoff-mutation-protocol.md documenting:
+
+1. The approved mutation interface for focus agents (ACP run_command interceptor via _exec_oompah_task_command in oompah/acp_tools.py)
+2. All intercepted subcommands: comment, set-status, add-label, remove-label, view, set-dependency, create, child-create
+3. The required handoff sequence (comment first, then add-label)
+4. The _handoff_completed_focus recovery behavior: comment is the durable evidence; label-without-comment triggers re-dispatch; comment-without-label triggers label backfill
+5. How select_focus excludes completed focuses via _completed_focus_names()
+6. The two regression gaps that need test coverage
+
+All 12064 tests pass. Changes pushed to OOMPAH-430 branch.
 ---
 <!-- COMMENTS:END -->
