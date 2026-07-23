@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-427
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Fix YOLO merge gate bypass for child tasks with stale work_branch (EXOCOMP-57
   regression)
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T22:06:49.506716Z'
+updated_at: '2026-07-23T22:07:18.295666Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -241,5 +241,17 @@ author: oompah
 created: 2026-07-23 22:06
 ---
 Verification: make test passed — 12063 passed, 38 skipped. All 20 tests in TestYoloEpicStrategyBlockReason and TestCloseInvalidEpicPolicyReview pass including all 4 new regression tests.
+---
+author: oompah
+created: 2026-07-23 22:07
+---
+Completion: Fixed the EXOCOMP-57 YOLO merge gate bypass regression.
+
+**Delivered:**
+- oompah/orchestrator.py: Fixed _yolo_epic_strategy_block_reason and _close_invalid_epic_policy_review to compare source_branch against the PARENT EPIC's branch (not the child's stale work_branch)
+- tests/test_epic_strategy.py: Added 4 regression tests covering the EXOCOMP-57 scenario and nested epic rollup PRs
+- All 6 acceptance criteria met: gate blocks stale child PRs, close helper fires with Needs Human, nested epics allowed, valid rollup PRs allowed, all existing tests pass, make test passes (12063 passed)
+
+Branch: epic-OOMPAH-426 pushed to origin.
 ---
 <!-- COMMENTS:END -->
