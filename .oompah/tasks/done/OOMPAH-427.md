@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T22:10:38.929232Z'
+updated_at: '2026-07-23T22:10:48.146982Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ merged_at: null
 oompah.agent_run_id: 288d4cb0-f8bc-4201-a4e7-23085d296f71
 oompah.work_branch: epic-OOMPAH-426
 oompah.task_costs:
-  total_input_tokens: 76
-  total_output_tokens: 31242
+  total_input_tokens: 115
+  total_output_tokens: 32023
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 76
-      output_tokens: 31242
+      input_tokens: 115
+      output_tokens: 32023
       cost_usd: 0.0
   runs:
   - profile: default
@@ -42,6 +42,12 @@ oompah.task_costs:
     output_tokens: 17717
     cost_usd: 0.0
     recorded_at: '2026-07-23T22:07:30.680227+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 39
+    output_tokens: 781
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T22:10:46.567531+00:00'
 ---
 ## Summary
 
@@ -320,5 +326,15 @@ author: oompah
 created: 2026-07-23 22:10
 ---
 Fixed YOLO merge gate bypass (EXOCOMP-57 regression): restructured _yolo_epic_strategy_block_reason to compare source_branch against the parent epic's branch (not the child's stale work_branch), and fixed _close_invalid_epic_policy_review similarly. Added 4 regression tests. All 12063 tests pass. PR #544 open for review.
+---
+author: oompah
+created: 2026-07-23 22:10
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 16
+- Tokens: 39 in / 781 out [820 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 7s
+- Log: OOMPAH-427__20260723T220742Z.jsonl
 ---
 <!-- COMMENTS:END -->
