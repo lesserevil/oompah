@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-23T00:18:37.308535Z'
+updated_at: '2026-07-23T00:18:49.143812Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 5fa31ec0-21bc-42c3-a64f-c8089592dbbb
 oompah.task_costs:
-  total_input_tokens: 100583
-  total_output_tokens: 10028
+  total_input_tokens: 100660
+  total_output_tokens: 29067
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 100583
-      output_tokens: 10028
+      input_tokens: 100660
+      output_tokens: 29067
       cost_usd: 0.0
   runs:
   - profile: default
@@ -42,6 +42,12 @@ oompah.task_costs:
     output_tokens: 1148
     cost_usd: 0.0
     recorded_at: '2026-07-23T00:07:57.029558+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 77
+    output_tokens: 19039
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T00:18:46.431860+00:00'
 ---
 ## Summary
 
@@ -284,5 +290,20 @@ author: oompah
 created: 2026-07-23 00:18
 ---
 Added _child_display_context() helper and display_status_context API field; rendered 'on branch'/'to target' context badges on kanban cards and detail panel children list; 10 new tests added; all 11751 tests pass.
+---
+author: oompah
+created: 2026-07-23 00:18
+---
+Agent completed successfully in 632s (19116 tokens)
+---
+author: oompah
+created: 2026-07-23 00:18
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
+- Turns: 115, Tool calls: 79
+- Tokens: 77 in / 19.0K out [19.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 32s
+- Log: OOMPAH-312__20260723T000816Z.jsonl
 ---
 <!-- COMMENTS:END -->
