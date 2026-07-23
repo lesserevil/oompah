@@ -1,19 +1,20 @@
 ---
 id: OOMPAH-414
 type: task
-status: In Progress
+status: Backlog
 priority: null
 title: Prevent scheduler stalls from delaying task dispatch
 parent: null
 children:
 - OOMPAH-415
 - OOMPAH-416
+- OOMPAH-417
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-23T19:34:31.056925Z'
+updated_at: '2026-07-23T19:34:55.574621Z'
 work_branch: null
 target_branch: null
 review_url: null
