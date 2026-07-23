@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-419
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Define the oompah OpenAPI-to-MCP exposure policy
 parent: OOMPAH-418
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:26:08.302932Z'
+updated_at: '2026-07-23T20:27:05.298044Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
