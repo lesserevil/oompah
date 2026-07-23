@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -10,9 +10,11 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:docs
+- needs:feature
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T19:50:32.819826Z'
+updated_at: '2026-07-23T19:50:51.923239Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -175,5 +177,26 @@ created: 2026-07-23 19:50
 - Added commented-out OOMPAH_DISPATCH_STALE_THRESHOLD_MS=120000 and OOMPAH_DISPATCH_STALE_GRACE_MS=30000 with multi-line explanatory comments describing the two-phase detection model and legacy formula fallback.
 
 No code was changed — documentation only. The feature implementation (oompah/config.py, oompah/orchestrator.py, tests/test_dispatch_loop_heartbeat.py) still needs to be done.
+---
+author: oompah
+created: 2026-07-23 19:50
+---
+Focus handoff: docs
+
+**Outcome:** Documentation complete. Both target files updated and committed (epic-OOMPAH-414 @ 05ef985f4).
+
+**Files changed:**
+- `docs/tick-latency-diagnostics.md` — new table rows for `dispatch_stale_threshold_ms` (120000 ms default) and `dispatch_stale_grace_ms` (30000 ms default); new Scenario 3 covering stall detection with log examples, causes, and tuning guidance.
+- `.env.example` — commented-out OOMPAH_DISPATCH_STALE_THRESHOLD_MS=120000 and OOMPAH_DISPATCH_STALE_GRACE_MS=30000 with explanatory comments.
+
+**Remaining work:**
+- `oompah/config.py`: Add `dispatch_stale_threshold_ms` (default 120000, env OOMPAH_DISPATCH_STALE_THRESHOLD_MS) and `dispatch_stale_grace_ms` (default 30000, env OOMPAH_DISPATCH_STALE_GRACE_MS). Backward-compat: threshold=0 falls back to `full_sync_interval_ms × dispatch_loop_stale_factor`.
+- `oompah/orchestrator.py`: Update `is_dispatch_loop_stale()`, `check_and_recover_dispatch_loop()`, `_arm_dispatch_stale_alert()`, and `_full_sync_due()` docstring to use the new fields.
+- `tests/test_dispatch_loop_heartbeat.py`: Add 4 test cases (threshold override, grace override, fires before 15 min, backward compat with threshold=0).
+- Run `make test` before committing.
+
+**Key insight:** The previous `dispatch_loop_stale_factor` search returned no results in the current codebase — verify the exact field/function names at lines ~563 and ~947-949 of config.py and ~2426-2593 of orchestrator.py before implementing.
+
+**Recommended next focus:** feature
 ---
 <!-- COMMENTS:END -->
