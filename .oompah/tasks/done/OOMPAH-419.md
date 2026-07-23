@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:25:49.383607Z'
+updated_at: '2026-07-23T20:25:51.827132Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -344,5 +344,10 @@ Acceptance criteria met:
 ✅ Token propagation: loopback-only, no forwarding
 
 Security audit complete — no vulnerabilities found. Ready to unblock OOMPAH-420.
+---
+author: oompah
+created: 2026-07-23 20:25
+---
+Implemented oompah/mcp_exposure_policy.py with RouteCategory enum, 80+ route rules, classify_route/is_route_exposed (fail-closed), input validation, and 292 passing tests. All protected operations (orchestrator/restart, webhooks, provider credentials, admin mutations, release delivery) are denied. SAFE_READ and TASK_MUTATION are the only exposed categories. PR #542 opened.
 ---
 <!-- COMMENTS:END -->
