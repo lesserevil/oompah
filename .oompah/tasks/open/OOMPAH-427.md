@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-427
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Fix YOLO merge gate bypass for child tasks with stale work_branch (EXOCOMP-57
   regression)
@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T21:57:02.583475Z'
+updated_at: '2026-07-23T21:57:19.339606Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -21,6 +21,22 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 367c1889-499c-4811-84b8-25cc3a2fcf52
 oompah.work_branch: epic-OOMPAH-426
+oompah.task_costs:
+  total_input_tokens: 41
+  total_output_tokens: 13525
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 41
+      output_tokens: 13525
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 41
+    output_tokens: 13525
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T21:57:12.178855+00:00'
 ---
 ## Summary
 
@@ -159,5 +175,25 @@ In `_close_invalid_epic_policy_review`: replace `issue_epic_branch = _epic_branc
 **Remaining work:** Full implementation of the fix + tests + make test. No ambiguity — the issue description is precise.
 
 **Recommended next focus:** feature (bug fix implementation)
+---
+author: oompah
+created: 2026-07-23 21:57
+---
+Agent completed successfully in 305s (13566 tokens)
+---
+author: oompah
+created: 2026-07-23 21:57
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 86, Tool calls: 61
+- Tokens: 41 in / 13.5K out [13.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 5s
+- Log: OOMPAH-427__20260723T215210Z.jsonl
+---
+author: oompah
+created: 2026-07-23 21:57
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
