@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-311
 type: task
-status: Done
+status: Merged
 priority: null
 title: Diagnose and surface remediation path for existing independently-merged child
   branches/PRs
@@ -13,7 +13,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:53:58.500869Z'
-updated_at: '2026-07-22T06:14:49.616724Z'
+updated_at: '2026-07-23T00:20:01.413471Z'
 work_branch: null
 target_branch: null
 review_url: null
