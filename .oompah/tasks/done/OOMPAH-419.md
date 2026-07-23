@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:44:14.629598Z'
+updated_at: '2026-07-23T20:44:27.992264Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -459,5 +459,20 @@ author: oompah
 created: 2026-07-23 20:44
 ---
 Completion: delivered the explicit fail-closed OpenAPI-to-MCP exposure policy in oompah/mcp_exposure_policy.py, 292 focused policy tests, and the OOMPAH-420 integration design in plans/mcp-openapi-exposure-policy.md. Security audit confirms protected admin, credential, webhook, orchestrator/restart, release-delivery, malformed, and unknown operations are denied; safe reads and core task mutations are the only exposed categories. PR #542 now points to a clean, synchronized branch at a975649d5; local full suite passes 12047 tests.
+---
+author: oompah
+created: 2026-07-23 20:44
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/default]
+- Turns: 0, Tool calls: 36
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 40s
+- Log: OOMPAH-419__20260723T203347Z.jsonl
+---
+author: oompah
+created: 2026-07-23 20:44
+---
+Defined and security-audited the fail-closed OpenAPI-to-MCP exposure policy, covered all current API operations with allowed/denied tests, documented endpoint/discovery/token behavior, fixed blocking CI regressions, and pushed PR #542.
 ---
 <!-- COMMENTS:END -->
