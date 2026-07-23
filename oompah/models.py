@@ -22,6 +22,12 @@ logger = logging.getLogger(__name__)
 # dispatch loop can skip redundant rebase agent dispatches.
 # ---------------------------------------------------------------------------
 
+# Label applied to child tasks that were merged to main independently (i.e.
+# they bypassed the parent epic's branch entirely, e.g. OOMPAH-286/PR #466).
+# Applied by _reconcile_independently_merged_children() as a purely metadata
+# annotation — no git history is rewritten.
+EPIC_INDEPENDENTLY_MERGED_LABEL: str = "epic:independently-merged"
+
 
 class EpicRebaseState(str, Enum):
     """Possible outcomes of a proactive rebase for an epic branch."""

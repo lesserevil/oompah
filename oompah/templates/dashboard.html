@@ -435,6 +435,25 @@
       font-family: 'SF Mono', 'Fira Code', monospace;
     }
 
+    /* Branch-context badge for shared-epic children:
+       distinguishes "Done on branch" from "Merged to target". */
+    .branch-context-badge {
+      font-size: 0.6rem;
+      font-weight: 600;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      white-space: nowrap;
+    }
+    .branch-context-done {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--green, #3fb950);
+    }
+    .branch-context-merged {
+      background: rgba(136, 87, 229, 0.2);
+      color: var(--purple, #bc8cff);
+    }
+
     /* External tracker link (GitHub issue URL) on cards */
     .tracker-link {
       font-size: 0.65rem;
@@ -3716,6 +3735,14 @@ function createCard(issue) {
     ? ' <span class="merged-badge">merged</span>'
     : '';
 
+  // Build branch-context badge for shared-epic children (Done on branch / Merged to target)
+  let branchContextHtml = '';
+  if (issue.display_status_context === 'done_on_branch') {
+    branchContextHtml = ' <span class="branch-context-badge branch-context-done" aria-label="Completed on epic branch" title="Work is complete on the epic branch — not yet merged to target">on branch</span>';
+  } else if (issue.display_status_context === 'merged_to_target') {
+    branchContextHtml = ' <span class="branch-context-badge branch-context-merged" aria-label="Merged to target branch" title="Epic merged — this child is now on the target branch">to target</span>';
+  }
+
   // Build tracker link (GitHub issue URL) for GitHub-backed issues
   const trackerLinkHtml = issue.url
     ? ` <a class="tracker-link" href="${esc(issue.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open in GitHub" aria-label="Open GitHub issue">&#8599;</a>`
@@ -3735,6 +3762,7 @@ function createCard(issue) {
         ${cardIdentifierHtml}${trackerLinkHtml}
         ${epicBadgeHtml}
         ${mergedBadgeHtml}
+        ${branchContextHtml}
       </span>
       <span class="priority-badge ${pClass}">P${issue.priority ?? 4}</span>
     </div>
@@ -5159,12 +5187,20 @@ async function openDetailPanel(identifier) {
       <div class="detail-field">
         <div class="detail-field-label">Children (${detail.children.length})</div>
         <ul class="detail-children-list">
-          ${detail.children.map(c => `
+          ${detail.children.map(c => {
+            const ctxBadge = c.display_status_context === 'done_on_branch'
+              ? '<span class="branch-context-badge branch-context-done" title="Completed on epic branch — not yet merged to target">on branch</span>'
+              : c.display_status_context === 'merged_to_target'
+              ? '<span class="branch-context-badge branch-context-merged" title="Epic merged — now on target branch">to target</span>'
+              : '';
+            return `
             <li onclick="openDetailPanel('${esc(c.identifier)}')">
               <span>${esc(displayIdentifierFor(c.identifier, c.project_id || detail.project_id, c.project_name || detail.project_name, c.display_identifier))} ${esc(c.title)}</span>
-              <span class="detail-child-state">${esc(c.state)}</span>
-            </li>
-          `).join('')}
+              <span style="display:inline-flex;align-items:center;gap:0.25rem;">
+                <span class="detail-child-state">${esc(c.state)}</span>${ctxBadge}
+              </span>
+            </li>`;
+          }).join('')}
         </ul>
       </div>
     `;

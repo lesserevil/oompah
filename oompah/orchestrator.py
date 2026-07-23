@@ -45,6 +45,7 @@ from oompah.models import (
     AgentProfile,
     AgentTotals,
     BlockerRef,
+    EPIC_INDEPENDENTLY_MERGED_LABEL,
     EpicRebaseState,
     EpicRebaseStateEntry,
     Issue,
@@ -4959,6 +4960,34 @@ class Orchestrator:
 
         parent_epic = self._resolve_parent_epic(issue)
         if parent_epic is not None:
+            # Correct stale work_branch metadata on the child before
+            # dispatching to the epic worktree.  A child may carry a
+            # per-task branch name (e.g. "OOMPAH-286") from an earlier
+            # dispatch run.  That stale value breaks Done→Merged promotion
+            # and branch-index lookups because they use work_branch to
+            # identify the delivery branch.  Always align the child's
+            # work_branch with the parent epic's branch so that subsequent
+            # orchestrator passes see a consistent, correct branch name.
+            epic_branch = self._epic_branch_for_issue(parent_epic)
+            current_child_branch = (
+                getattr(issue, "work_branch", None) or ""
+            ).strip()
+            if current_child_branch != epic_branch:
+                issue.work_branch = epic_branch
+                issue.branch_name = epic_branch
+                # Persist best-effort so the change survives across
+                # orchestrator restarts.  Failures must not block dispatch.
+                try:
+                    tracker = self._tracker_for_issue(issue)
+                    tracker.set_metadata_field(
+                        issue.identifier, "oompah.work_branch", epic_branch
+                    )
+                except Exception as _exc:  # noqa: BLE001
+                    logger.warning(
+                        "Failed to update work_branch for shared-epic child %s: %s",
+                        issue.identifier,
+                        _exc,
+                    )
             wp = self.project_store.create_epic_worktree(
                 issue.project_id,
                 parent_epic.identifier,
@@ -8078,19 +8107,18 @@ class Orchestrator:
         if entry.issue and entry.issue.parent_id:
             parent_epic = self._resolve_parent_epic(entry.issue)
 
-        # Shared workflow: children of a real epic commit to the shared epic
-        # branch, and the only PR is the epic→main PR.  A task can have a
-        # parent that is not an epic, though; those tasks still use per-task
-        # worktrees and must get their own review instead of being stranded.
+        # A child must never receive a standalone PR.  Parent resolution can
+        # fail transiently, so parent_id is the authoritative fail-closed
+        # signal here; the epic rollup remains the only review path.
         if (
             entry.issue is not None
             and (entry.issue.parent_id or "").strip()
-            and parent_epic is not None
         ):
             logger.debug(
-                "Skip per-child review for %s: child shares branch with epic %s",
+                "Skip per-child review for %s: child has parent %s (epic=%s)",
                 entry.identifier,
-                parent_epic.identifier,
+                entry.issue.parent_id,
+                parent_epic.identifier if parent_epic else "unresolved",
             )
             return True
 
@@ -8455,6 +8483,7 @@ class Orchestrator:
         sweeps = [
             ("label_merged_epics", self._label_merged_epics),
             ("reconcile_merged_epic_children", self._reconcile_merged_epic_children),
+            ("reconcile_independently_merged_children", self._reconcile_independently_merged_children),
             ("label_merged_issues", self._label_merged_issues),
             ("reconcile_in_review_pr_outcomes", self._reconcile_in_review_pr_outcomes),
             ("reconcile_terminal_open_reviews", self._reconcile_terminal_open_reviews),
@@ -10523,6 +10552,135 @@ class Orchestrator:
                 epic_branch = epic.identifier
             self._mark_epic_merged(epic, epic_branch=epic_branch)
 
+    def _detect_independently_merged_children(
+        self,
+        epics: list[Issue],
+    ) -> list[tuple[Issue, Issue, str]]:
+        """Return (child, parent_epic, epic_branch) triples for children that
+        bypassed their parent epic's branch and were merged to main directly.
+
+        A child is flagged when ALL of these are true:
+
+        * ``child.parent_id`` points to a shared epic in ``epics``
+        * ``canonicalize_status(child.state) == MERGED``
+        * ``child.work_branch`` is set AND differs from the expected epic branch
+
+        This covers the OOMPAH-286/PR #466 pattern where a task received its
+        own branch (e.g. ``OOMPAH-286``) and merged straight to main instead of
+        going through the parent epic's branch (e.g. ``epic-OOMPAH-285``).
+
+        Returns an empty list when no independently-merged children exist.
+        """
+        epic_by_id: dict[str, tuple[Issue, str]] = {}
+        for epic in epics:
+            try:
+                epic_branch = self._epic_branch_for_issue(epic)
+            except Exception:  # noqa: BLE001 - best effort
+                epic_branch = epic.identifier
+            for key in (epic.id, epic.identifier):
+                if key:
+                    epic_by_id[str(key).strip()] = (epic, epic_branch)
+
+        out: list[tuple[Issue, Issue, str]] = []
+        for _epic_key, (epic, epic_branch) in list(epic_by_id.items()):
+            # Avoid processing the same epic twice when both id and identifier
+            # are present.
+            if (epic, epic_branch) in [(t[1], t[2]) for t in out]:
+                continue
+            try:
+                children = self._fetch_epic_children(epic)
+            except Exception:  # noqa: BLE001
+                children = []
+            for child in children:
+                if canonicalize_status(child.state) != MERGED:
+                    continue
+                child_branch = (child.work_branch or "").strip()
+                if not child_branch:
+                    continue
+                if child_branch == epic_branch:
+                    continue
+                out.append((child, epic, epic_branch))
+        # De-duplicate by child identifier in case we iterated the same child
+        # via both id and identifier keys.
+        seen: set[str] = set()
+        deduped: list[tuple[Issue, Issue, str]] = []
+        for child, epic, epic_branch in out:
+            key = child.identifier or child.id or ""
+            if key not in seen:
+                seen.add(key)
+                deduped.append((child, epic, epic_branch))
+        return deduped
+
+    def _reconcile_independently_merged_children(self) -> int:
+        """Detect and annotate children that bypassed their parent epic's branch.
+
+        For each independently-merged child (see
+        :meth:`_detect_independently_merged_children`), this method:
+
+        * Logs a ``WARNING`` so operators see the anomaly in service logs.
+        * Adds the ``epic:independently-merged`` label to the child task via
+          ``update_issue(..., add_label=...)`` — a read-modify-write that
+          preserves all existing labels.
+        * Is **idempotent**: children that already carry the label are skipped.
+        * Does **not** rewrite git history, change the child's ``Merged`` state,
+          or modify ``work_branch`` / ``target_branch`` metadata.
+
+        Returns the count of children newly annotated in this pass.
+        """
+        # Gather all non-terminal epics (potential parents) plus already-merged
+        # epics whose children might have independently merged.
+        all_epics = self._all_non_terminal_epics() + self._all_merged_epics()
+        # De-duplicate by identifier to avoid double-processing.
+        seen_epic_ids: set[str] = set()
+        unique_epics: list[Issue] = []
+        for epic in all_epics:
+            key = epic.identifier or epic.id or ""
+            if key not in seen_epic_ids:
+                seen_epic_ids.add(key)
+                unique_epics.append(epic)
+
+        candidates = self._detect_independently_merged_children(unique_epics)
+        annotated = 0
+        for child, parent_epic, epic_branch in candidates:
+            if self._job_deadline_exceeded("merged_labels"):
+                break
+            existing_labels = {
+                str(label).strip().lower() for label in (child.labels or [])
+            }
+            if EPIC_INDEPENDENTLY_MERGED_LABEL.lower() in existing_labels:
+                # Already annotated — idempotent skip.
+                continue
+            logger.warning(
+                "Child %s (branch=%s) was merged to main independently, "
+                "bypassing parent epic %s (expected branch=%s). "
+                "Annotating with '%s' label.",
+                child.identifier,
+                child.work_branch,
+                parent_epic.identifier,
+                epic_branch,
+                EPIC_INDEPENDENTLY_MERGED_LABEL,
+            )
+            try:
+                tracker = self._tracker_for_issue(child)
+                tracker.update_issue(
+                    child.identifier,
+                    add_label=EPIC_INDEPENDENTLY_MERGED_LABEL,
+                )
+                annotated += 1
+            except TrackerError as exc:
+                logger.debug(
+                    "Failed to annotate independently-merged child %s: %s",
+                    child.identifier,
+                    exc,
+                )
+        if annotated:
+            logger.info(
+                "Annotated %d independently-merged epic child(ren) with '%s'",
+                annotated,
+                EPIC_INDEPENDENTLY_MERGED_LABEL,
+            )
+        return annotated
+
     def _mark_epic_merged(self, epic: Issue, *, epic_branch: str | None = None) -> None:
         """Mark ``epic`` and all its non-terminal children ``Merged``.
 
@@ -11918,7 +12076,16 @@ class Orchestrator:
 
         parent_epic = self._resolve_parent_epic(issue)
         if parent_epic is None:
-            return None
+            # A tracker failure is indistinguishable from no parent to the
+            # resolver. Since this issue still names a parent, fail closed
+            # rather than allowing a stale child PR to merge standalone.
+            target_branch = self._review_target_branch(project, review)
+            return (
+                f"shared epic workflow: child task {issue.identifier} has "
+                f"parent {issue.parent_id} but it could not be resolved; "
+                f"blocking PR {source_branch}->{target_branch} until "
+                "parent epic is reachable"
+            )
 
         target_branch = self._review_target_branch(project, review)
         parent_epic_branch = self._epic_branch_for_issue(parent_epic)
@@ -11991,29 +12158,39 @@ class Orchestrator:
             and (issue.parent_id or "").strip()
         ):
             parent_epic = self._resolve_parent_epic(issue)
-            if parent_epic is not None:
-                try:
-                    issue_epic_branch = self._epic_branch_for_issue(issue)
-                except Exception:  # noqa: BLE001 - branch mismatch is enough
-                    issue_epic_branch = ""
-                if source_branch != issue_epic_branch:
-                    parent_epic_branch = self._epic_branch_for_issue(parent_epic)
-                    close_comment = (
-                        "Closing stale child task PR. This project uses shared "
-                        "epic branches, so child task work must land through "
-                        f"the parent epic rollup PR from {parent_epic_branch} "
-                        "instead of a direct task PR.\n\n"
-                        f"{reason}"
-                    )
-                    task_comment_prefix = (
-                        "Closed stale child PR #{review_id} because this "
-                        "project uses shared epic branches. "
-                    )
-                    needs_human_tail = (
-                        " The task was moved to Needs Human so the work can "
-                        "be moved to the shared epic branch or the stale PR "
-                        "can be inspected."
-                    )
+            if parent_epic is None:
+                # The merge gate blocks this PR until the parent is reachable.
+                # Do not close it: a transient tracker failure must not
+                # destructively close a potentially valid child PR.
+                logger.warning(
+                    "YOLO epic-policy close deferred for %s: parent %s "
+                    "could not be resolved",
+                    issue.identifier,
+                    issue.parent_id,
+                )
+                return False
+            try:
+                issue_epic_branch = self._epic_branch_for_issue(issue)
+            except Exception:  # noqa: BLE001 - branch mismatch is enough
+                issue_epic_branch = ""
+            if source_branch != issue_epic_branch:
+                parent_epic_branch = self._epic_branch_for_issue(parent_epic)
+                close_comment = (
+                    "Closing stale child task PR. This project uses shared "
+                    "epic branches, so child task work must land through "
+                    f"the parent epic rollup PR from {parent_epic_branch} "
+                    "instead of a direct task PR.\n\n"
+                    f"{reason}"
+                )
+                task_comment_prefix = (
+                    "Closed stale child PR #{review_id} because this "
+                    "project uses shared epic branches. "
+                )
+                needs_human_tail = (
+                    " The task was moved to Needs Human so the work can "
+                    "be moved to the shared epic branch or the stale PR "
+                    "can be inspected."
+                )
 
         if not close_comment:
             return False
