@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-417
 type: task
-status: In Progress
+status: Merged
 priority: null
 title: 'Regression tests: stall-to-recovery path and orphan-reset dispatch integration'
 parent: OOMPAH-414
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-23T19:34:44.997439Z'
-updated_at: '2026-07-23T21:08:06.270410Z'
+updated_at: '2026-07-23T21:08:18.781976Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
