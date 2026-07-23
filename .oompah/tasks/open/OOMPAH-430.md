@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-430
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Provide focus agents a supported tracker-handoff mutation path
 parent: null
@@ -12,13 +12,29 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T22:43:29.125452Z'
+updated_at: '2026-07-23T22:43:47.774053Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 07e1562f-a79b-4a1f-b5fd-6c5bbec9d3ee
+oompah.task_costs:
+  total_input_tokens: 77
+  total_output_tokens: 18389
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 77
+      output_tokens: 18389
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 77
+    output_tokens: 18389
+    cost_usd: 0.0
+    recorded_at: '2026-07-23T22:43:43.956769+00:00'
 ---
 ## Summary
 
@@ -86,5 +102,25 @@ Focus handoff: duplicate_detector
    - Risk: the scenario where an agent environment has NO ACP interceptor (EXOCOMP-55 case with a different agent harness) may need OOMPAH-420 gateway implementation — but that is a separate, larger task already tracked.
 
 4. **Recommended next focus**: feature (add the two missing regression tests; verify the existing code path already works for add-label; no new implementation required for the mutation interface itself)
+---
+author: oompah
+created: 2026-07-23 22:43
+---
+Agent completed successfully in 501s (18466 tokens)
+---
+author: oompah
+created: 2026-07-23 22:43
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 102, Tool calls: 74
+- Tokens: 77 in / 18.4K out [18.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 21s
+- Log: OOMPAH-430__20260723T223525Z.jsonl
+---
+author: oompah
+created: 2026-07-23 22:43
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
