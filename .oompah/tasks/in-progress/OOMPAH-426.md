@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-23T21:27:08.745349Z'
+updated_at: '2026-07-23T21:30:22.547654Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -180,5 +180,23 @@ author: oompah
 created: 2026-07-23 21:27
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-23 21:30
+---
+Understanding (Epic Planner): This is a regression bug where EXOCOMP-57 (child of still-open epic EXOCOMP-9) bypassed the shared-epic gate and had its PR merged directly to main.
+
+Root cause identified from code analysis:
+
+**Bug in `_yolo_epic_strategy_block_reason` (~line 12090 of orchestrator.py):**
+When the YOLO gate resolves the source_branch to an issue, it calls `_epic_branch_for_issue(issue)` on the CHILD task. If the child has a stale `work_branch` equal to its own identifier (e.g. 'EXOCOMP-57'), `_epic_branch_for_issue` returns that stale value. The next check `if source_branch == issue_epic_branch` then matches (EXOCOMP-57 == EXOCOMP-57), causing the function to RETURN NONE (allow merge), mistaking the child task PR for an epic rollup PR. This is the primary failure gate.
+
+**Parallel bug in `_close_invalid_epic_policy_review` (~line 12161):**
+This function also calls `_epic_branch_for_issue(issue)` on the CHILD task to decide whether to close the invalid PR. Same stale work_branch causes `source_branch == issue_epic_branch`, so `source_branch != issue_epic_branch` is False and the close is SKIPPED.
+
+**Fix required:**
+Both functions must add: 'exempt as epic rollup PR only when the issue itself is an epic (issue_type == epic).' Non-epic child tasks should never be exempted through this path.
+
+Plan: Decompose into 2 concrete child tasks — (1) fix YOLO gate + close/Needs Human path, (2) fix PR creation gate + reconciliation path + run make test.
 ---
 <!-- COMMENTS:END -->
