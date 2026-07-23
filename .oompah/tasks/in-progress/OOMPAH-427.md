@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T21:59:51.549522Z'
+updated_at: '2026-07-23T22:06:25.837950Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -219,5 +219,22 @@ Understanding: This is a concrete bug fix task, not an epic requiring decomposit
 - Fix _close_invalid_epic_policy_review: remove issue_epic_branch = _epic_branch_for_issue(issue) and use parent_epic_branch = _epic_branch_for_issue(parent_epic) directly
 - Add 4 regression tests as specified
 - Run make test
+---
+author: oompah
+created: 2026-07-23 22:06
+---
+Implementation complete. Two fixes in oompah/orchestrator.py:
+
+1. **_yolo_epic_strategy_block_reason**: Replaced the buggy child-based check (which called _epic_branch_for_issue(issue) where issue=child, returning the child's stale work_branch) with:
+   - A direct epic type check: if issue.issue_type == 'epic' → return None (nested epic rollup PR, allow)
+   - A comparison against parent_epic's branch: if source_branch == parent_epic_branch → return None (valid rollup PR)
+   
+2. **_close_invalid_epic_policy_review**: Removed the 3-line block that computed issue_epic_branch from the child and compared against it. Now directly uses parent_epic_branch = _epic_branch_for_issue(parent_epic) for the comparison.
+
+4 new regression tests added to tests/test_epic_strategy.py:
+- test_blocks_child_with_stale_own_work_branch_exocomp57 (EXOCOMP-57 direct regression)
+- test_allows_nested_epic_rollup_pr_with_parent_id (nested epic still allowed)
+- test_closes_child_pr_with_stale_own_work_branch_exocomp57 (close path regression)
+- test_does_not_close_epic_rollup_pr_whose_source_matches_parent_epic_branch (valid rollup not closed)
 ---
 <!-- COMMENTS:END -->
