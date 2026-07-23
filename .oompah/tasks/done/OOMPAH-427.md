@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T22:07:18.295666Z'
+updated_at: '2026-07-23T22:07:20.669969Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -253,5 +253,10 @@ Completion: Fixed the EXOCOMP-57 YOLO merge gate bypass regression.
 - All 6 acceptance criteria met: gate blocks stale child PRs, close helper fires with Needs Human, nested epics allowed, valid rollup PRs allowed, all existing tests pass, make test passes (12063 passed)
 
 Branch: epic-OOMPAH-426 pushed to origin.
+---
+author: oompah
+created: 2026-07-23 22:07
+---
+Fixed YOLO merge gate bypass: replaced child-based issue_epic_branch check with parent epic branch comparison in _yolo_epic_strategy_block_reason and _close_invalid_epic_policy_review. Added 4 regression tests. All 12063 tests pass.
 ---
 <!-- COMMENTS:END -->
