@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T23:09:12.907657Z'
+updated_at: '2026-07-23T23:16:22.451421Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -308,5 +308,21 @@ Discovery: Found the two regression gaps identified by prior focus agents.
 2. tests/test_orchestrator_duplicate_detection.py: TestFocusHandoff has tests for _handoff_completed_focus in isolation but does not call select_focus on the resulting issue to verify the next focus is NOT duplicate_detector. Tests needed: (a) no-commit duplicate_detector with comment+label advances to non-duplicate_detector focus, (b) needs:feature label causes select_focus to pick feature.
 
 Beginning implementation now.
+---
+author: oompah
+created: 2026-07-23 23:16
+---
+Implementation: Added 5 missing regression tests across two test files.
+
+**tests/test_acp_project_tools.py** (3 new tests in TestExecOompahTaskCommand and TestBuildToolCatalogProjectTools):
+1. TestExecOompahTaskCommand.test_add_label_routes_directly_to_tracker — verifies oompah task add-label routes to tracker.add_label() without subprocess/HTTP
+2. TestExecOompahTaskCommand.test_compound_add_label_command_returns_error_instead_of_subprocess — verifies compound add-label commands are rejected
+3. TestBuildToolCatalogProjectTools.test_run_command_tool_intercepts_oompah_task_add_label — verifies the ACP run_command tool handler also intercepts add-label via build_tool_catalog
+
+**tests/test_orchestrator_duplicate_detection.py** (1 new class, 2 tests: TestNoCommitFocusCompletionAdvancesToFeature):
+4. test_no_commit_handoff_detected_and_not_retried — verifies that a no-commit duplicate_detector run (handoff comment + focus-complete label) causes _handoff_completed_focus to return True, reopens the issue, and select_focus picks a non-duplicate_detector focus (closes EXOCOMP-55 regression gap)
+5. test_no_commit_handoff_with_needs_feature_routes_to_feature — verifies needs:feature label causes select_focus (using BUILTIN_FOCI) to pick the feature focus
+
+All 12068 tests pass (39 skipped for optional SDK dependencies).
 ---
 <!-- COMMENTS:END -->
