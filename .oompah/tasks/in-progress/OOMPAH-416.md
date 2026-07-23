@@ -7,10 +7,12 @@ title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-23T20:02:12.452811Z'
+updated_at: '2026-07-23T20:11:54.939835Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -63,5 +65,33 @@ author: oompah
 created: 2026-07-23 20:02
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-23 20:11
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome:** No duplicate found. OOMPAH-416 is a unique, first-of-its-kind task.
+
+2. **Investigation scope:**
+   - Searched all .oompah/tasks/ states (open, backlog, done, merged, archived) — 280+ tasks total
+   - Grep patterns: orphan, REFRESH_REQUESTED, reset_orphaned, dispatch wake, _post_event, DispatchEventType, dispatch loop, heartbeat, full_sync
+   - Reviewed docs/ and plans/ directories
+   - Verified parent epic OOMPAH-414 and sibling tasks OOMPAH-415, OOMPAH-417
+
+3. **Closest candidates reviewed and ruled out:**
+   - OOMPAH-348 (Done): Scheduler wedge fixes — tracker timeouts, HTTP isolation, shutdown bounding. Did NOT add any orphan-reset dispatch wake.
+   - OOMPAH-349/350/351/352 (Done): Children of OOMPAH-348 — tracker timeouts, event loop isolation, shutdown bounds, diagnostics. None touch _reset_orphaned_in_progress().
+   - OOMPAH-406/407 (not found locally, referenced in epic): Changed stale diagnostic logging from ERROR to WARNING. Different scope entirely — logging, not dispatch wake.
+   - OOMPAH-415 (In Progress, sibling): Decouples stale-dispatch threshold from full_sync_interval. Distinct from orphan-reset dispatch waking.
+   - OOMPAH-417 (Open, sibling): Regression tests — depends on OOMPAH-415 and OOMPAH-416 being implemented first.
+
+4. **Relevant files for implementation (identified by prior epic planner agent):**
+   - oompah/orchestrator.py — _reset_orphaned_in_progress() method (add any_reset tracking + self._post_event(DispatchEvent(DispatchEventType.REFRESH_REQUESTED)))
+   - tests/test_dispatch_loop_heartbeat.py or tests/test_orphan_reset_dispatch_wake.py — new tests
+
+5. **Remaining work:** Full implementation per task description. _post_event() is already thread-safe.
+
+6. **Recommended next focus:** feature
 ---
 <!-- COMMENTS:END -->
