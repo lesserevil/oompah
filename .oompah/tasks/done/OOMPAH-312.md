@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-312
 type: task
-status: In Progress
+status: Done
 priority: null
 title: 'UI/dashboard: show child completion status in epic branch context (Done on
   branch vs Merged to target)'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T16:54:16.661153Z'
-updated_at: '2026-07-23T00:18:00.485524Z'
+updated_at: '2026-07-23T00:18:34.833535Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -261,5 +261,23 @@ Changes:
    - Tests for status alias canonicalization (e.g. 'closed' → done_on_branch, 'merged' → merged_to_target)
 
 Verification: 11751 passed, 38 skipped — all tests pass.
+---
+author: oompah
+created: 2026-07-23 00:18
+---
+Completion: OOMPAH-312 delivered.
+
+Implemented UI/dashboard epic child completion status context badges, distinguishing 'Done on branch' from 'Merged to target' for shared-epic children.
+
+Deliverables:
+- _child_display_context() backend helper in oompah/server.py (lines ~1287-1314)
+- display_status_context field in board serialization and detail panel API
+- 'on branch' (green) and 'to target' (purple) CSS badges in dashboard.html
+- Badges appear on kanban cards and in the epic detail panel children list
+- Accessible: aria-label and title attributes on all badges
+- 10 new unit tests in tests/test_shared_epic_display_status.py (19 total passing)
+- Full test suite: 11751 passed
+
+Pushed to branch epic-OOMPAH-307, up to date with origin.
 ---
 <!-- COMMENTS:END -->
