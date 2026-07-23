@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-414
 type: task
-status: Open
+status: In Review
 priority: null
 title: Prevent scheduler stalls from delaying task dispatch
 parent: null
@@ -16,7 +16,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-23T20:25:46.723264Z'
+updated_at: '2026-07-23T20:26:18.534852Z'
 work_branch: null
 target_branch: null
 review_url: null
