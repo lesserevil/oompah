@@ -8,10 +8,12 @@ parent: OOMPAH-418
 children: []
 blocked_by:
 - OOMPAH-419
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-23T19:41:55.025847Z'
-updated_at: '2026-07-23T20:45:09.999965Z'
+updated_at: '2026-07-23T20:45:25.832747Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -51,5 +53,15 @@ author: oompah
 created: 2026-07-23 20:45
 ---
 Discovery: Duplicate screening found no duplicate. Repository search for oapi2mcp/OpenAPI MCP/FastMCP/streamable HTTP/discovery found plans/mcp-openapi-exposure-policy.md, which explicitly assigns gateway construction to OOMPAH-420. Full tracker review confirms OOMPAH-418 is the parent epic; OOMPAH-419 delivered only the fail-closed route exposure policy and focused tests; OOMPAH-421 owns downstream integration tests and operator docs. None owns OOMPAH-420's FastMCP app, local API forwarding, lifecycle/cleanup, dependency packaging, or discovery implementation.
+---
+author: oompah
+created: 2026-07-23 20:45
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate confirmed; OOMPAH-420 remains necessary and distinct.
+2. Evidence: Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for oapi2mcp, OpenAPI MCP, MCP gateway, FastMCP, streamable HTTP, and discovery terms. Reviewed OOMPAH-418, OOMPAH-419, OOMPAH-420, and OOMPAH-421 in full with oompah task view. plans/mcp-openapi-exposure-policy.md identifies OOMPAH-419 as the implemented policy, OOMPAH-420 as gateway implementation, and OOMPAH-421 as integration tests/docs. The current worktree is clean.
+3. Remaining work/risks: Implement the embedded gateway using oompah/mcp_exposure_policy.py; safely forward approved operations to the local API; mount streamable HTTP and discovery metadata with correct lifespan/client cleanup; add optional dependencies and code-level unit tests. Preserve scope for OOMPAH-421's end-to-end coverage/operator docs. Verify compatibility with the installed FastMCP API and server startup lifecycle.
+4. Recommended next focus: feature.
 ---
 <!-- COMMENTS:END -->
