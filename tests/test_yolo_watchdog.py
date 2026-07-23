@@ -24,7 +24,6 @@ from oompah.config import ServiceConfig
 from oompah.models import Issue
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
-from oompah.statuses import NEEDS_HUMAN
 from oompah.yolo_watchdog import (
     CoverageRecord,
     D1_RECURRENCE_THRESHOLD,
@@ -624,14 +623,11 @@ class TestYoloEpicStrategyGate:
             "224",
             comment=ANY,
         )
-        tracker.update_issue.assert_called_once_with(
-            "TASK-733",
-            status=NEEDS_HUMAN,
-        )
-        tracker.add_comment.assert_called_once()
-        comment_args = tracker.add_comment.call_args.args
+        tracker.mark_needs_human.assert_called_once()
+        comment_args = tracker.mark_needs_human.call_args.args
         assert comment_args[0] == "TASK-733"
         assert "Closed stale standalone PR #224" in comment_args[1]
+        assert tracker.mark_needs_human.call_args.kwargs == {"author": "oompah"}
         records = list(orch._yolo_action_history)
         assert len(records) == 1
         assert records[0].action_type == "close_invalid_review"
