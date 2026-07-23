@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-419
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Define the oompah OpenAPI-to-MCP exposure policy
 parent: OOMPAH-418
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:43:28.337447Z'
+updated_at: '2026-07-23T20:44:14.629598Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -454,5 +454,10 @@ author: oompah
 created: 2026-07-23 20:43
 ---
 Verification (continuation): affected slice passes 296/296; full suite passes 12047 tests with 38 skipped and 12 warnings in 233.32s via .venv/bin/pytest tests/ -q. The prescribed make test target was attempted first but its system uv wrapper failed before pytest with a DBus transient-scope error. git diff --check passes.
+---
+author: oompah
+created: 2026-07-23 20:44
+---
+Completion: delivered the explicit fail-closed OpenAPI-to-MCP exposure policy in oompah/mcp_exposure_policy.py, 292 focused policy tests, and the OOMPAH-420 integration design in plans/mcp-openapi-exposure-policy.md. Security audit confirms protected admin, credential, webhook, orchestrator/restart, release-delivery, malformed, and unknown operations are denied; safe reads and core task mutations are the only exposed categories. PR #542 now points to a clean, synchronized branch at a975649d5; local full suite passes 12047 tests.
 ---
 <!-- COMMENTS:END -->
