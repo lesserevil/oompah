@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T19:34:14.691327Z'
+updated_at: '2026-07-23T19:43:40.255864Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-416
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-23T19:34:30.939292Z'
+updated_at: '2026-07-23T19:43:41.347403Z'
 work_branch: null
 target_branch: null
 review_url: null

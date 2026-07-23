@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-419
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Define the oompah OpenAPI-to-MCP exposure policy
 parent: OOMPAH-418
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T19:41:54.055851Z'
+updated_at: '2026-07-23T19:43:37.136921Z'
 work_branch: null
 target_branch: null
 review_url: null

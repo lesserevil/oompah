@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-421
 type: task
-status: Backlog
+status: Open
 priority: 2
 title: Add OpenAPI MCP integration tests and operator documentation
 parent: OOMPAH-418
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-23T19:41:56.160094Z'
-updated_at: '2026-07-23T19:42:05.829323Z'
+updated_at: '2026-07-23T19:43:39.211747Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-420
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Implement an embedded oompah OpenAPI MCP gateway
 parent: OOMPAH-418
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-23T19:41:55.025847Z'
-updated_at: '2026-07-23T19:42:04.678951Z'
+updated_at: '2026-07-23T19:43:38.146553Z'
 work_branch: null
 target_branch: null
 review_url: null

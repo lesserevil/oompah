@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-417
 type: task
-status: Backlog
+status: Open
 priority: null
 title: 'Regression tests: stall-to-recovery path and orphan-reset dispatch integration'
 parent: OOMPAH-414
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-23T19:34:44.997439Z'
-updated_at: '2026-07-23T19:34:52.436154Z'
+updated_at: '2026-07-23T19:43:42.506387Z'
 work_branch: null
 target_branch: null
 review_url: null
