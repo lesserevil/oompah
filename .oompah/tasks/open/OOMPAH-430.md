@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-430
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Provide focus agents a supported tracker-handoff mutation path
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T22:26:45.549947Z'
+updated_at: '2026-07-23T22:34:08.089214Z'
 work_branch: null
 target_branch: null
 review_url: null
