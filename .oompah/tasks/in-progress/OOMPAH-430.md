@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T23:06:13.254607Z'
+updated_at: '2026-07-23T23:09:12.907657Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -297,5 +297,16 @@ Understanding: I am the Software Engineer focus agent dispatched to complete OOM
 2. tests/test_orchestrator_duplicate_detection.py: Add end-to-end regression test: no-commit duplicate_detector completes → _on_worker_exit → _handoff_completed_focus → select_focus picks non-duplicate_detector focus
 
 I will explore the existing tests and code before implementing.
+---
+author: oompah
+created: 2026-07-23 23:09
+---
+Discovery: Found the two regression gaps identified by prior focus agents.
+
+1. tests/test_acp_project_tools.py: TestExecOompahTaskCommand has tests for comment, set-status, view, and compound-command rejection — but NOT for add-label. The _exec_oompah_task_command function at acp_tools.py:437-445 routes add-label to tracker.add_label(identifier, label) and returns 'Label added: <label>'. Tests needed: (a) direct _exec_oompah_task_command routing, (b) via build_tool_catalog run_command handler, (c) compound-command rejection for add-label.
+
+2. tests/test_orchestrator_duplicate_detection.py: TestFocusHandoff has tests for _handoff_completed_focus in isolation but does not call select_focus on the resulting issue to verify the next focus is NOT duplicate_detector. Tests needed: (a) no-commit duplicate_detector with comment+label advances to non-duplicate_detector focus, (b) needs:feature label causes select_focus to pick feature.
+
+Beginning implementation now.
 ---
 <!-- COMMENTS:END -->
