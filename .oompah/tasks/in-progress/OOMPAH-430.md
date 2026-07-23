@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T22:50:05.079260Z'
+updated_at: '2026-07-23T22:52:08.149367Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -207,5 +207,23 @@ Understanding: I am the third Technical Writer agent dispatched for this task. P
 As Technical Writer, I will: (1) explore the existing code and test files to understand what mutation path documentation is needed, (2) determine if any plans/ or docs/ documentation is missing or incomplete regarding the focus-agent handoff protocol and mutation interface, (3) either write that documentation or, if the remaining work is purely test implementation, perform a proper focus handoff to 'feature'.
 
 The prior agents appear to have read files but not produced any documentation or handoff comment. I will determine the correct path and complete this phase.
+---
+author: oompah
+created: 2026-07-23 22:52
+---
+Discovery: Assessed the current state after reading all relevant code and docs.
+
+Key findings:
+1. The approved mutation interface (ACP run_command interceptor via _exec_oompah_task_command) already exists and handles: view, comment, set-status, add-label, remove-label, set-dependency, create, child-create. The add-label path is implemented at acp_tools.py:437-445.
+
+2. WORKFLOW.md already documents the interception: 'The task commands in oompah Task Reference are safe when passed directly to ACP's run_command: ACP intercepts them before shell execution and mutates the tracker in-process.'
+
+3. Missing documentation: There is no plans/ doc that explains (a) the internal mechanism of _exec_oompah_task_command, (b) the _handoff_completed_focus recovery behavior (comment-as-durable-evidence, label backfill), or (c) the regression gap from EXOCOMP-55. This design doc is what focus agents and future contributors need.
+
+4. Missing tests (not my job as Technical Writer, will hand off):
+   - tests/test_acp_project_tools.py: no test for add-label via _exec_oompah_task_command
+   - tests/test_orchestrator_duplicate_detection.py: no end-to-end test of no-commit duplicate_detector completion → _on_worker_exit → _handoff_completed_focus → select_focus picks feature (not duplicate_detector again)
+
+Plan: Write plans/focus-handoff-mutation-protocol.md explaining the architecture, then hand off to feature for the tests.
 ---
 <!-- COMMENTS:END -->
