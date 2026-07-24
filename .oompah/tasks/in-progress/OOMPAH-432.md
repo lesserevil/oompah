@@ -11,9 +11,11 @@ children: []
 blocked_by: []
 labels:
 - external:github
+- focus-complete:duplicate_detector
+- needs:chore
 assignee: null
 created_at: '2026-07-23T22:58:15.387967Z'
-updated_at: '2026-07-24T00:51:01.990562Z'
+updated_at: '2026-07-24T00:54:16.343779Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,5 +110,32 @@ author: oompah
 created: 2026-07-24 00:50
 ---
 Understanding: This issue reports that the `backend:orchestrator` dispatch loop became stale while 4 agents were active. The system skipped auto-restart to avoid killing in-flight work and logged this as an error, which `error_watcher` auto-filed as a task. My role is Duplicate Investigator — I will search existing tasks for the same root cause before any implementation work proceeds.
+---
+author: oompah
+created: 2026-07-24 00:54
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-432 is a unique, non-duplicated bug.
+
+**Evidence reviewed:**
+- Searched all .oompah/tasks/ (archived, done, merged, open, backlog) directories for: 'dispatch loop stale', 'Dispatch loop stale', 'skipping auto-restart', 'in-flight work', 'ac6326253c85b77b' (fingerprint), 'backend:orchestrator', 'recover_stale', 'dispatch_stale'
+- No match found for the exact error message or fingerprint in any existing task
+- Reviewed 200+ tasks across all states
+
+**Root cause identified (oompah/orchestrator.py):**
+- Method `recover_stale_dispatch_loop()` (line ~2527) contains the exact error message at lines 2551-2553
+- When the dispatch loop is stale AND there are active agents, it calls `logger.error(...)` which triggers ErrorWatcher auto-filing
+- The adjacent method `_arm_dispatch_stale_alert()` (line ~2477) already has explicit logic to use `logger.warning` instead of `logger.error` *specifically* to avoid ErrorWatcher filing — but `recover_stale_dispatch_loop()` was not updated with the same treatment
+
+**Closest reviewed tasks (all confirmed distinct):**
+- OOMPAH-265 (Merged): push-race TrackerError reaching error_watcher — different root cause (git push race), different module (oompah_md_tracker.py)
+- OOMPAH-268 (Merged): git index.lock contention error_watcher filing — different root cause (git lock), same error_watcher pattern but different code path
+- OOMPAH-177 (Archived): dispatch loop / ReleaseAddendumQueue — related to orchestrator dispatch loop but about addendum queue implementation, not stale-loop logging level
+- OOMPAH-282 (Backlog): state_branch_migration UnicodeEncodeError — different module and error
+
+**Remaining work:** Fix `recover_stale_dispatch_loop()` in oompah/orchestrator.py to downgrade the log level from `logger.error` to `logger.warning` for the 'skipping auto-restart' branch (agents active). This is already the intended behavior per the comment in `_arm_dispatch_stale_alert()`. Add a regression test. The fix prevents ErrorWatcher from auto-filing this operational decision as a bug.
+
+**Recommended next focus:** chore (one-line log-level fix in oompah/orchestrator.py recover_stale_dispatch_loop + regression test)
 ---
 <!-- COMMENTS:END -->
