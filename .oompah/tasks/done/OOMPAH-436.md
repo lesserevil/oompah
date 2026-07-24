@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T02:29:45.093119Z'
-updated_at: '2026-07-24T02:34:03.214307Z'
+updated_at: '2026-07-24T02:34:05.701664Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,5 +33,10 @@ author: oompah
 created: 2026-07-24 02:31
 ---
 Implemented explicit network MCP mode. OOMPAH_MCP_ALLOW_NETWORK=true disables FastMCP's exact Host-header allow-list only when requested; the default remains loopback-only. Added configuration reference, policy documentation, and tests for both modes. Focused suite passed (296 tests) and required full make test passed; committing and deploying next.
+---
+author: oompah
+created: 2026-07-24 02:34
+---
+Implemented and deployed in 8fc368e6d. OOMPAH_MCP_ALLOW_NETWORK=true is active; an MCP initialize request using non-loopback Host 192.0.2.10:8090 returned HTTP 200. Default remains loopback-only.
 ---
 <!-- COMMENTS:END -->
