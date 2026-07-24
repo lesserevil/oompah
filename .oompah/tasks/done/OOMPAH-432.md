@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:15.387967Z'
-updated_at: '2026-07-24T01:07:58.523202Z'
+updated_at: '2026-07-24T01:08:20.766922Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,13 +45,13 @@ oompah.intake:
   last_validated_at: '2026-07-23T22:58:20.414521+00:00'
 oompah.agent_run_id: 290e4076-ecb4-4eab-8279-5eb430e0abe4
 oompah.task_costs:
-  total_input_tokens: 44
-  total_output_tokens: 9442
+  total_input_tokens: 72
+  total_output_tokens: 15997
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 44
-      output_tokens: 9442
+      input_tokens: 72
+      output_tokens: 15997
       cost_usd: 0.0
   runs:
   - profile: default
@@ -60,6 +60,12 @@ oompah.task_costs:
     output_tokens: 9442
     cost_usd: 0.0
     recorded_at: '2026-07-24T00:54:24.272042+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 28
+    output_tokens: 6555
+    cost_usd: 0.0
+    recorded_at: '2026-07-24T01:08:19.302687+00:00'
 ---
 ## Summary
 
@@ -212,5 +218,15 @@ author: oompah
 created: 2026-07-24 01:07
 ---
 Downgraded logger.error to logger.warning in recover_stale_dispatch_loop() for the agents-active branch. Prevents error_watcher from auto-filing this operational decision as a bug. Added regression test. All 12069 tests pass.
+---
+author: oompah
+created: 2026-07-24 01:08
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 25
+- Tokens: 28 in / 6.6K out [6.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 49s
+- Log: OOMPAH-432__20260724T010034Z.jsonl
 ---
 <!-- COMMENTS:END -->
