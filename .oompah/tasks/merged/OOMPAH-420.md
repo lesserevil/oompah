@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:55.025847Z'
-updated_at: '2026-07-24T01:53:35.932276Z'
+updated_at: '2026-07-24T01:53:54.565446Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-07-24 01:53
 ---
 Understanding: OOMPAH-420 requires new behavior (a FastMCP gateway module, live mounts, discovery metadata, dependencies, and tests), while this run is constrained to behavior-preserving refactoring only. I will verify the branch still lacks those artifacts and, if confirmed, record a refactor-focus handoff to needs:feature without making or committing feature changes.
+---
+author: oompah
+created: 2026-07-24 01:53
+---
+Discovery: Verified a clean worktree and searched oompah/, tests/, pyproject.toml, plans/, docs/, README.md, and WORKFLOW.md. MCP endpoint/discovery references exist only in plans/mcp-openapi-exposure-policy.md, oompah/mcp_exposure_policy.py constants, and policy tests. There is no FastMCP import/application, /api/mcp/v1 server mount, /.well-known/mcp route implementation, forwarding client, gateway lifecycle, or gateway tests. This is feature implementation, not a behavior-preserving refactor.
 ---
 <!-- COMMENTS:END -->
