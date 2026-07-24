@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T22:58:16.587989Z'
-updated_at: '2026-07-24T01:08:50.230000Z'
+updated_at: '2026-07-24T01:12:01.608622Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,5 +108,10 @@ author: oompah
 created: 2026-07-24 01:08
 ---
 Understanding: duplicate-screening only. I will search native tasks and project docs for the exact stale dispatch-loop warning and related orchestrator watchdog behavior, then read each plausible candidate's full description/comments before deciding whether this task is a confirmed duplicate or needs implementation handoff.
+---
+author: oompah
+created: 2026-07-24 01:12
+---
+Discovery: no clear duplicate confirmed. Exact message/fingerprint d26b340507ad3c3b has no prior task. Full records reviewed: OOMPAH-406 changed the stale thread-dump header from ERROR to WARNING; OOMPAH-407 changed the initial stale-alert arm from ERROR to WARNING; OOMPAH-415 changed stale threshold/grace timing; OOMPAH-414 explicitly identifies 406/407 as logging-noise fixes. Current source is a third, unchanged logger.error in recover_stale_dispatch_loop() when running_count > 0 (oompah/orchestrator.py:2544-2556), introduced by the original heartbeat feature. It is the same subsystem but a distinct unhandled branch not resolved or tested by the reviewed tasks.
 ---
 <!-- COMMENTS:END -->
