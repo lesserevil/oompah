@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-439
 type: task
-status: Done
+status: Merged
 priority: null
 title: Restrict Epic Planner routing to epics or explicit handoffs
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T15:59:50.769146Z'
-updated_at: '2026-07-24T16:01:34.850480Z'
+updated_at: '2026-07-24T16:01:52.338486Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-07-24 16:00
 ---
 Understanding: screening whether this Epic Planner routing fix duplicates prior work. I will search task history and project docs for Epic Planner eligibility, needs:epic_planner handoffs, and Feature Developer focus routing; inspect plausible tasks in full; then archive only if the same underlying work is already covered, otherwise hand off to implementation without code changes.
+---
+author: oompah
+created: 2026-07-24 16:01
+---
+Deployed routing guard: Epic Planner now only selects true epics, unless explicitly requested with needs:epic_planner. Reactivated the local Feature Developer focus and added regression coverage for false-positive planning keywords, explicit handoffs, and ordinary epic routing. make test passed (12,314 tests). Commit 9af39f31f pushed to main.
 ---
 <!-- COMMENTS:END -->
