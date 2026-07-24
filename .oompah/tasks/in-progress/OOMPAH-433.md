@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:16.587989Z'
-updated_at: '2026-07-24T01:13:22.277252Z'
+updated_at: '2026-07-24T01:13:43.888118Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -175,5 +175,10 @@ author: oompah
 created: 2026-07-24 01:13
 ---
 Understanding: The active-agent branch of stale dispatch-loop recovery is an expected safety deferral, but it is logged at ERROR and therefore auto-filed by error_watcher. I will inspect the recovery and watcher contracts, downgrade/handle only this expected branch while retaining an actionable operator message, add regression coverage including preservation of genuine error reporting, run Makefile quality gates, then commit and push.
+---
+author: oompah
+created: 2026-07-24 01:13
+---
+Discovery: recover_stale_dispatch_loop() correctly refuses to restart while state.running is non-empty, but that expected safety branch alone uses logger.error at oompah/orchestrator.py, so ErrorWatcher's ERROR-level handler treats the deferral as an unhandled backend fault. Existing adjacent stale-alert and thread-dump branches already preserve dashboard error visibility while logging recovery-managed conditions at WARNING; the active-agent branch should follow that contract.
 ---
 <!-- COMMENTS:END -->
