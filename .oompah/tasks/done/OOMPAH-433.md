@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:16.587989Z'
-updated_at: '2026-07-24T01:21:52.784529Z'
+updated_at: '2026-07-24T01:22:06.043868Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -200,5 +200,20 @@ author: oompah
 created: 2026-07-24 01:21
 ---
 Completion: Resolved as a concurrently merged duplicate of OOMPAH-432. The active-agent stale-loop safety deferral now logs at WARNING, retains its actionable manual-restart text and dashboard error alert, does not trigger ErrorWatcher, and has regression coverage. OOMPAH-433 was rebased to merged main and pushed; the worktree is clean and branch is up to date with origin/OOMPAH-433.
+---
+author: oompah
+created: 2026-07-24 01:22
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/default]
+- Turns: 0, Tool calls: 29
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 13s
+- Log: OOMPAH-433__20260724T011253Z.jsonl
+---
+author: oompah
+created: 2026-07-24 01:22
+---
+Resolved by concurrently merged OOMPAH-432: stale dispatch-loop restart deferrals with active agents now log at WARNING instead of ERROR, preserving dashboard/operator visibility without triggering error_watcher. Regression suites pass and OOMPAH-433 branch is synchronized and pushed.
 ---
 <!-- COMMENTS:END -->
