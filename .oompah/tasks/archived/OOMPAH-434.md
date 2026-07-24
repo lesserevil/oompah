@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T23:05:43.083575Z'
-updated_at: '2026-07-24T01:23:54.530599Z'
+updated_at: '2026-07-24T01:23:56.807544Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -121,5 +121,10 @@ Discovery: OOMPAH-434 is a confirmed duplicate of OOMPAH-432.
 **Fix status:** OOMPAH-432 was **already Merged** (PR #551, 2026-07-24 01:17). The fix is present in the codebase — `oompah/orchestrator.py` lines 2552–2557 already use `logger.warning()` with a comment explaining the rationale. A regression test `test_skips_restart_logs_warning_not_error_with_active_agents` was added in `tests/test_dispatch_loop_heartbeat.py`.
 
 **Action:** Archiving OOMPAH-434 as duplicate-of:OOMPAH-432. No further implementation needed.
+---
+author: oompah
+created: 2026-07-24 01:23
+---
+duplicate-of:OOMPAH-432
 ---
 <!-- COMMENTS:END -->
