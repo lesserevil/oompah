@@ -18,6 +18,8 @@ Coverage:
  (14) check_and_recover_dispatch_loop() attempts recovery after grace period
  (15) dispatch_loop_stale_seconds() returns correct elapsed time
  (16) After recovery+restart a fresh Open issue can be dispatched
+ (17) recover_stale_dispatch_loop() logs at WARNING (not ERROR) when agents active
+      — regression for OOMPAH-432: error_watcher must not auto-file this as a bug
 """
 
 from __future__ import annotations
@@ -349,6 +351,51 @@ class TestRecoverStaleDispatchLoop:
         orch = _make_orchestrator(tmp_path)
         orch.recover_stale_dispatch_loop()
         assert orch._stopping is True
+
+    def test_skips_restart_logs_warning_not_error_with_active_agents(
+        self, tmp_path, caplog
+    ):
+        """Regression for OOMPAH-432: skipping auto-restart must log at WARNING.
+
+        When agents are running, recover_stale_dispatch_loop() previously used
+        logger.error(), which triggered error_watcher to auto-file this
+        operational decision as a bug task. The fix downgrades to logger.warning()
+        so error_watcher is not triggered — matching the explicit intent already
+        documented in _arm_dispatch_stale_alert().
+        """
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue("TASK-88", state="In Progress")
+        _add_running_entry(orch, issue)
+
+        # Install ErrorWatcher to verify it does not fire create_issue
+        tracker = MagicMock()
+        watcher = ErrorWatcher(tracker)
+        watcher.install_log_handler("oompah")
+        try:
+            with caplog.at_level(logging.WARNING, logger="oompah.orchestrator"):
+                result = orch.recover_stale_dispatch_loop()
+        finally:
+            watcher.uninstall_log_handler("oompah")
+
+        assert result is False  # skipped, agents are active
+
+        # The "skipping auto-restart" message must be present
+        skipping_records = [
+            r for r in caplog.records if "skipping auto-restart" in r.getMessage()
+        ]
+        assert len(skipping_records) == 1, (
+            f"Expected exactly one 'skipping auto-restart' log record, "
+            f"got: {skipping_records}"
+        )
+
+        # It must be WARNING, not ERROR — this is the bug regression
+        assert skipping_records[0].levelno == logging.WARNING, (
+            f"Expected WARNING level for 'skipping auto-restart' message, "
+            f"got: {logging.getLevelName(skipping_records[0].levelno)}"
+        )
+
+        # ErrorWatcher must not have created a task for this operational log
+        tracker.create_issue.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
