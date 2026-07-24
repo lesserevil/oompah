@@ -1,9 +1,9 @@
 ---
-id: OOMPAH-432
+id: OOMPAH-433
 type: bug
-status: Backlog
+status: Open
 priority: 2
-title: "[backend:orchestrator] Dispatch loop stale but 4 agent(s) are active \u2014\
+title: "[backend:orchestrator] Dispatch loop stale but 3 agent(s) are active \u2014\
   \ skipping auto-restart to avoid killing in-flight work. Restart manually when agents\
   \ complete."
 parent: null
@@ -12,23 +12,23 @@ blocked_by: []
 labels:
 - external:github
 assignee: null
-created_at: '2026-07-23T22:58:15.387967Z'
-updated_at: '2026-07-23T22:58:43.662428Z'
+created_at: '2026-07-23T22:58:16.587989Z'
+updated_at: '2026-07-24T00:48:24.507174Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.external.github:
-  id: lesserevil/oompah#546
+  id: lesserevil/oompah#547
   owner: lesserevil
   repo: oompah
-  number: '546'
-  url: https://github.com/lesserevil/oompah/issues/546
+  number: '547'
+  url: https://github.com/lesserevil/oompah/issues/547
   requestor_login: NVShawn
   imported_comment_ids: []
   last_synced_status: Backlog
-  last_synced_at: '2026-07-23T22:58:42.258062+00:00'
+  last_synced_at: '2026-07-23T22:58:44.318817+00:00'
 oompah.intake:
   missing_fields: []
   scope: small
@@ -41,7 +41,7 @@ oompah.intake:
   decomposition_status: not_needed
   proposal_fingerprint: null
   last_validator_result: pass
-  last_validated_at: '2026-07-23T22:58:20.414521+00:00'
+  last_validated_at: '2026-07-23T22:58:23.463584+00:00'
 ---
 ## Summary
 
@@ -49,7 +49,7 @@ oompah.intake:
 
 Oompah detected a backend error from `backend:orchestrator`:
 
-> Dispatch loop stale but 4 agent(s) are active — skipping auto-restart to avoid killing in-flight work. Restart manually when agents complete.
+> Dispatch loop stale but 3 agent(s) are active — skipping auto-restart to avoid killing in-flight work. Restart manually when agents complete.
 
 ### Desired Behavior
 
@@ -65,7 +65,7 @@ The operation in `backend:orchestrator` should complete successfully, or degrade
 
 An error occurs in `backend:orchestrator` and is recorded by oompah's `error_watcher`:
 
-> Dispatch loop stale but 4 agent(s) are active — skipping auto-restart to avoid killing in-flight work. Restart manually when agents complete.
+> Dispatch loop stale but 3 agent(s) are active — skipping auto-restart to avoid killing in-flight work. Restart manually when agents complete.
 
 ### Acceptance Criteria
 
@@ -78,16 +78,16 @@ An error occurs in `backend:orchestrator` and is recorded by oompah's `error_wat
 - source_project: global
 - tracker: github_issues:lesserevil/oompah
 - tracker_kind: github_issues
-- fingerprint: ac6326253c85b77b
-- dedup_fingerprint: ac6326253c85b77b
+- fingerprint: d26b340507ad3c3b
+- dedup_fingerprint: d26b340507ad3c3b
 - tracker_owner: lesserevil
 - tracker_repo: oompah
 
 ## External GitHub Issue
 
-- URL: https://github.com/lesserevil/oompah/issues/546
+- URL: https://github.com/lesserevil/oompah/issues/547
 - Requestor: @NVShawn
-- Reference: lesserevil/oompah#546
+- Reference: lesserevil/oompah#547
 
 ## Notes
 
