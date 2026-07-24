@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T22:58:16.587989Z'
-updated_at: '2026-07-24T01:08:32.946817Z'
+updated_at: '2026-07-24T01:08:50.230000Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -103,5 +103,10 @@ author: oompah
 created: 2026-07-24 01:08
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-24 01:08
+---
+Understanding: duplicate-screening only. I will search native tasks and project docs for the exact stale dispatch-loop warning and related orchestrator watchdog behavior, then read each plausible candidate's full description/comments before deciding whether this task is a confirmed duplicate or needs implementation handoff.
 ---
 <!-- COMMENTS:END -->
