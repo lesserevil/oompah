@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-431
 type: bug
-status: In Progress
+status: Open
 priority: 2
 title: "[backend:orchestrator] Dispatch loop stale but 5 agent(s) are active \u2014\
   \ skipping auto-restart to avoid killing in-flight work. Restart manually when agents\
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T22:56:01.792159Z'
-updated_at: '2026-07-24T00:50:02.539999Z'
+updated_at: '2026-07-24T00:50:41.505438Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -103,5 +103,10 @@ author: oompah
 created: 2026-07-24 00:50
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-24 00:50
+---
+Understanding: Screening this auto-filed backend:orchestrator stale-dispatch warning for duplicates. I will search native task history/docs by exact warning and watchdog concepts, read full candidate task descriptions/comments, then either archive as a confirmed duplicate or hand off with evidence; no implementation in this focus.
 ---
 <!-- COMMENTS:END -->
