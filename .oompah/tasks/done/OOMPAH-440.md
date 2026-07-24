@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-440
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Count claimed shared-epic children in branch serialization
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T16:07:22.198190Z'
-updated_at: '2026-07-24T16:07:23.712535Z'
+updated_at: '2026-07-24T16:09:51.257128Z'
 work_branch: null
 target_branch: null
 review_url: null
