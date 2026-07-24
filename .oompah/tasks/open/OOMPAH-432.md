@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-432
 type: bug
-status: In Progress
+status: Open
 priority: 2
 title: "[backend:orchestrator] Dispatch loop stale but 4 agent(s) are active \u2014\
   \ skipping auto-restart to avoid killing in-flight work. Restart manually when agents\
@@ -15,7 +15,7 @@ labels:
 - needs:chore
 assignee: null
 created_at: '2026-07-23T22:58:15.387967Z'
-updated_at: '2026-07-24T00:54:16.343779Z'
+updated_at: '2026-07-24T00:54:27.828175Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,6 +45,22 @@ oompah.intake:
   last_validator_result: pass
   last_validated_at: '2026-07-23T22:58:20.414521+00:00'
 oompah.agent_run_id: 94537a01-4d27-452e-984a-212830fdf785
+oompah.task_costs:
+  total_input_tokens: 44
+  total_output_tokens: 9442
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 44
+      output_tokens: 9442
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 44
+    output_tokens: 9442
+    cost_usd: 0.0
+    recorded_at: '2026-07-24T00:54:24.272042+00:00'
 ---
 ## Summary
 
@@ -137,5 +153,25 @@ Focus handoff: duplicate_detector
 **Remaining work:** Fix `recover_stale_dispatch_loop()` in oompah/orchestrator.py to downgrade the log level from `logger.error` to `logger.warning` for the 'skipping auto-restart' branch (agents active). This is already the intended behavior per the comment in `_arm_dispatch_stale_alert()`. Add a regression test. The fix prevents ErrorWatcher from auto-filing this operational decision as a bug.
 
 **Recommended next focus:** chore (one-line log-level fix in oompah/orchestrator.py recover_stale_dispatch_loop + regression test)
+---
+author: oompah
+created: 2026-07-24 00:54
+---
+Agent completed successfully in 230s (9486 tokens)
+---
+author: oompah
+created: 2026-07-24 00:54
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 84, Tool calls: 61
+- Tokens: 44 in / 9.4K out [9.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 50s
+- Log: OOMPAH-432__20260724T005036Z.jsonl
+---
+author: oompah
+created: 2026-07-24 00:54
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
