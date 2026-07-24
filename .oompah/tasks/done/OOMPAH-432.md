@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:15.387967Z'
-updated_at: '2026-07-24T01:07:56.314715Z'
+updated_at: '2026-07-24T01:07:58.523202Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -207,5 +207,10 @@ author: oompah
 created: 2026-07-24 01:07
 ---
 Completion: Fixed OOMPAH-432 by downgrading logger.error() to logger.warning() in recover_stale_dispatch_loop() (oompah/orchestrator.py) for the 'agents active, skipping auto-restart' branch. This prevents error_watcher from auto-filing routine operational decisions as bug tasks. Added regression test (17) in tests/test_dispatch_loop_heartbeat.py. All 12069 tests pass. Branch OOMPAH-432 pushed to origin.
+---
+author: oompah
+created: 2026-07-24 01:07
+---
+Downgraded logger.error to logger.warning in recover_stale_dispatch_loop() for the agents-active branch. Prevents error_watcher from auto-filing this operational decision as a bug. Added regression test. All 12069 tests pass.
 ---
 <!-- COMMENTS:END -->
