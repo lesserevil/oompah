@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-437
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Promote YOLO decomposition children after application
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T02:42:07.784157Z'
-updated_at: '2026-07-24T02:44:33.265233Z'
+updated_at: '2026-07-24T02:44:47.215825Z'
 work_branch: null
 target_branch: null
 review_url: null
