@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-219
 type: task
-status: Merged
+status: Archived
 priority: 0
 title: Detect shared-worktree commits that absorb another task's changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-17T18:24:58.199363Z'
-updated_at: '2026-07-17T19:47:23.223568Z'
+updated_at: '2026-07-24T20:20:48.638544Z'
 work_branch: OOMPAH-219
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/424
