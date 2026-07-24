@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:16.587989Z'
-updated_at: '2026-07-24T01:24:25.781741Z'
+updated_at: '2026-07-24T01:32:07.915955Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,6 +30,7 @@ oompah.external.github:
   imported_comment_ids: []
   last_synced_status: In Progress
   last_synced_at: '2026-07-24T01:13:19.516620+00:00'
+  last_github_state: closed
 oompah.intake:
   missing_fields: []
   scope: small
