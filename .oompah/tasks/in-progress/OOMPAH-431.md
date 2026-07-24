@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T22:56:01.792159Z'
-updated_at: '2026-07-24T00:54:36.919196Z'
+updated_at: '2026-07-24T00:54:51.309000Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,5 +118,10 @@ author: oompah
 created: 2026-07-24 00:54
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-24 00:54
+---
+Understanding: Duplicate-only screening of the backend:orchestrator stale dispatch-loop warning. I will search native task history and docs for the exact message, fingerprint, and watchdog/restart concepts, inspect full records for plausible matches, and either archive a confirmed duplicate or hand off for implementation with evidence; I will not change code in this focus.
 ---
 <!-- COMMENTS:END -->
