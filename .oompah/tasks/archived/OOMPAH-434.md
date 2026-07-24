@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T23:05:43.083575Z'
-updated_at: '2026-07-24T01:23:56.807544Z'
+updated_at: '2026-07-24T01:24:05.556980Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,6 +43,22 @@ oompah.intake:
   last_validator_result: pass
   last_validated_at: '2026-07-23T23:05:49.654022+00:00'
 oompah.agent_run_id: e8e31b13-bbf6-4c54-908e-5ca517f38736
+oompah.task_costs:
+  total_input_tokens: 14
+  total_output_tokens: 3854
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 14
+      output_tokens: 3854
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 14
+    output_tokens: 3854
+    cost_usd: 0.0
+    recorded_at: '2026-07-24T01:24:02.174481+00:00'
 ---
 ## Summary
 
@@ -126,5 +142,20 @@ author: oompah
 created: 2026-07-24 01:23
 ---
 duplicate-of:OOMPAH-432
+---
+author: oompah
+created: 2026-07-24 01:24
+---
+Agent completed successfully in 112s (3868 tokens)
+---
+author: oompah
+created: 2026-07-24 01:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 26, Tool calls: 16
+- Tokens: 14 in / 3.9K out [3.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 52s
+- Log: OOMPAH-434__20260724T012225Z.jsonl
 ---
 <!-- COMMENTS:END -->
