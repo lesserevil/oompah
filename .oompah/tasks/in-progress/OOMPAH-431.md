@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-431
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: "[backend:orchestrator] Dispatch loop stale but 5 agent(s) are active \u2014\
   \ skipping auto-restart to avoid killing in-flight work. Restart manually when agents\
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T22:56:01.792159Z'
-updated_at: '2026-07-24T00:48:22.429846Z'
+updated_at: '2026-07-24T00:50:02.539999Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,6 +42,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-23T22:58:09.885700+00:00'
+oompah.agent_run_id: 75eb27a6-8178-4682-9ac5-a2bf1e0bf9ef
 ---
 ## Summary
 
@@ -91,4 +92,16 @@ An error occurs in `backend:orchestrator` and is recorded by oompah's `error_wat
 
 ## Notes
 
-
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-24 00:50
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-24 00:50
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
