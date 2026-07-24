@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:16.587989Z'
-updated_at: '2026-07-24T01:12:53.420895Z'
+updated_at: '2026-07-24T01:13:05.646898Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -170,5 +170,10 @@ author: oompah
 created: 2026-07-24 01:12
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-24 01:13
+---
+Understanding: The active-agent branch of stale dispatch-loop recovery is an expected safety deferral, but it is logged at ERROR and therefore auto-filed by error_watcher. I will inspect the recovery and watcher contracts, downgrade/handle only this expected branch while retaining an actionable operator message, add regression coverage including preservation of genuine error reporting, run Makefile quality gates, then commit and push.
 ---
 <!-- COMMENTS:END -->
