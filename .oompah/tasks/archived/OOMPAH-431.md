@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-431
 type: bug
-status: In Progress
+status: Archived
 priority: 2
 title: "[backend:orchestrator] Dispatch loop stale but 5 agent(s) are active \u2014\
   \ skipping auto-restart to avoid killing in-flight work. Restart manually when agents\
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T22:56:01.792159Z'
-updated_at: '2026-07-24T00:56:04.025114Z'
+updated_at: '2026-07-24T00:56:15.939077Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-07-24 00:56
 ---
 Discovery: Confirmed duplicate of OOMPAH-407 (https://github.com/lesserevil/oompah/issues/536). Both reports come from the same dispatch-loop stale recovery pipeline and the same root cause: a recovery-managed operational condition is logged at ERROR, causing ErrorWatcher to auto-file a task. OOMPAH-407's merged commit 2aaa62d77 established that stale-loop recovery signals belong at WARNING so ErrorWatcher is not triggered, but changed only _arm_dispatch_stale_alert(); oompah/orchestrator.py:2550 still logs ERROR in recover_stale_dispatch_loop() when agents are active, producing this new message. OOMPAH-415 was also reviewed and is distinct threshold/grace tuning work. No code changes made in this duplicate focus.
+---
+author: oompah
+created: 2026-07-24 00:56
+---
+Completion: Duplicate screening complete. OOMPAH-431 is the active-agent branch of the same stale-loop ERROR-log classification defect already owned and fixed under OOMPAH-407; archive as duplicate-of:OOMPAH-407. No implementation, tests, commit, or push are appropriate for this duplicate-only focus.
 ---
 <!-- COMMENTS:END -->
