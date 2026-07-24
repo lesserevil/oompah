@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:15.387967Z'
-updated_at: '2026-07-24T01:01:10.477862Z'
+updated_at: '2026-07-24T01:06:40.926039Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -192,5 +192,10 @@ author: oompah
 created: 2026-07-24 01:01
 ---
 Discovery: Confirmed root cause in oompah/orchestrator.py recover_stale_dispatch_loop() (~line 2549). When running_count > 0, it calls logger.error() which triggers ErrorWatcher to auto-file this bug. The adjacent _arm_dispatch_stale_alert() method (line ~2514) explicitly uses logger.warning for the same reason — its comment says: 'log the first occurrence as a warning so ErrorWatcher (which files ERROR+ records) does not create a task for a condition the supervisor is already handling.' The recover_stale_dispatch_loop() was not given the same treatment. Fix: change logger.error to logger.warning in the running_count > 0 branch.
+---
+author: oompah
+created: 2026-07-24 01:06
+---
+Implementation: In oompah/orchestrator.py recover_stale_dispatch_loop(), changed logger.error() to logger.warning() in the running_count > 0 branch. Updated the comment to explain the rationale (matching the existing explanation in _arm_dispatch_stale_alert()). Added regression test test_skips_restart_logs_warning_not_error_with_active_agents in tests/test_dispatch_loop_heartbeat.py that verifies: (1) the 'skipping auto-restart' message is logged at WARNING level, (2) ErrorWatcher.create_issue is NOT called. This directly prevents error_watcher from auto-filing this operational decision as a bug.
 ---
 <!-- COMMENTS:END -->
