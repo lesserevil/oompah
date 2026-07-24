@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T16:07:22.198190Z'
-updated_at: '2026-07-24T16:09:51.257128Z'
+updated_at: '2026-07-24T16:09:55.156629Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ The shared-epic dispatch gate documents that it serializes running and claimed c
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-24 16:09
+---
+Deployed shared-epic claim serialization. Claimed siblings now count as in-flight before their worker is registered, closing the event-driven dispatch race; P0 behavior is unchanged. Added same-epic and different-epic claim regression coverage; make test passed (12,316 tests). Commit 0e5fb0632 pushed to main.
+---
+<!-- COMMENTS:END -->
