@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:15.387967Z'
-updated_at: '2026-07-24T01:00:33.601127Z'
+updated_at: '2026-07-24T01:00:46.410661Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -182,5 +182,10 @@ author: oompah
 created: 2026-07-24 01:00
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-24 01:00
+---
+Understanding (Maintenance Engineer): The duplicate_detector agent identified the root cause in oompah/orchestrator.py. The method recover_stale_dispatch_loop() uses logger.error() when the dispatch loop is stale but active agents prevent auto-restart. This triggers error_watcher to auto-file a bug. The fix is a one-line log-level downgrade from logger.error to logger.warning in that specific branch, plus a regression test. Proceeding with the fix now.
 ---
 <!-- COMMENTS:END -->
