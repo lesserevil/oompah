@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T22:58:15.387967Z'
-updated_at: '2026-07-24T00:50:36.272295Z'
+updated_at: '2026-07-24T00:50:49.356928Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -103,5 +103,10 @@ author: oompah
 created: 2026-07-24 00:50
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-24 00:50
+---
+Understanding: This issue reports that the `backend:orchestrator` dispatch loop became stale while 4 agents were active. The system skipped auto-restart to avoid killing in-flight work and logged this as an error, which `error_watcher` auto-filed as a task. My role is Duplicate Investigator — I will search existing tasks for the same root cause before any implementation work proceeds.
 ---
 <!-- COMMENTS:END -->
