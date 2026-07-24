@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-434
 type: bug
-status: In Progress
+status: Archived
 priority: 2
 title: "[backend:orchestrator] Dispatch loop stale but 2 agent(s) are active \u2014\
   \ skipping auto-restart to avoid killing in-flight work. Restart manually when agents\
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T23:05:43.083575Z'
-updated_at: '2026-07-24T01:22:49.718783Z'
+updated_at: '2026-07-24T01:23:54.530599Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,5 +108,18 @@ author: oompah
 created: 2026-07-24 01:22
 ---
 Understanding: Investigating OOMPAH-434 as Duplicate Investigator. The issue reports an error message 'Dispatch loop stale but 2 agent(s) are active — skipping auto-restart to avoid killing in-flight work. Restart manually when agents complete.' auto-filed by error_watcher. My role is to determine if this is a duplicate of an existing task before any implementation work begins. Searching task history for similar dispatch loop staleness errors now.
+---
+author: oompah
+created: 2026-07-24 01:23
+---
+Discovery: OOMPAH-434 is a confirmed duplicate of OOMPAH-432.
+
+**Root cause:** Both issues report the same error from `recover_stale_dispatch_loop()` in `oompah/orchestrator.py`. The method called `logger.error()` when the dispatch loop was stale but active agents prevented auto-restart, causing `error_watcher` to auto-file a bug task.
+
+**Why dedup missed it:** OOMPAH-432 reported '4 agent(s) are active'; OOMPAH-434 reports '2 agent(s) are active'. The agent count is embedded in the log message, producing a different fingerprint (`ac6326253c85b77b` vs `554dbfb5f815ad48`), which bypassed the dedup guard.
+
+**Fix status:** OOMPAH-432 was **already Merged** (PR #551, 2026-07-24 01:17). The fix is present in the codebase — `oompah/orchestrator.py` lines 2552–2557 already use `logger.warning()` with a comment explaining the rationale. A regression test `test_skips_restart_logs_warning_not_error_with_active_agents` was added in `tests/test_dispatch_loop_heartbeat.py`.
+
+**Action:** Archiving OOMPAH-434 as duplicate-of:OOMPAH-432. No further implementation needed.
 ---
 <!-- COMMENTS:END -->
