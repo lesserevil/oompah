@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T23:37:21.005014Z'
-updated_at: '2026-07-24T01:24:40.025135Z'
+updated_at: '2026-07-24T01:25:40.270747Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,5 +108,10 @@ author: oompah
 created: 2026-07-24 01:24
 ---
 Understanding: Screening this auto-filed backend:orchestrator stale-dispatch warning for duplicates. I will search existing tasks by the exact message and related dispatch-loop/active-agent terms, then read each plausible candidate's full description and comments before deciding whether to archive this task or hand it off for implementation.
+---
+author: oompah
+created: 2026-07-24 01:25
+---
+Discovery: Confirmed duplicate of OOMPAH-432 (https://github.com/lesserevil/oompah/issues/546). OOMPAH-432 reports the identical backend:orchestrator message and code path; only the runtime agent count differs (4 versus 1), which explains the different error_watcher fingerprint. Its full comments identify recover_stale_dispatch_loop() as the source, and merged commit 72561463b changed that active-agent branch from logger.error to logger.warning and added a regression proving ErrorWatcher does not create an issue. OOMPAH-435 was filed shortly after the original ERROR occurrence, so no separate implementation is needed.
 ---
 <!-- COMMENTS:END -->
