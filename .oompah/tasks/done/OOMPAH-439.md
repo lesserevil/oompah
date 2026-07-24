@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T15:59:50.769146Z'
-updated_at: '2026-07-24T16:02:02.848900Z'
+updated_at: '2026-07-24T16:02:12.062959Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,6 +47,11 @@ Understanding: screening whether this Epic Planner routing fix duplicates prior 
 ---
 author: oompah
 created: 2026-07-24 16:01
+---
+Deployed routing guard: Epic Planner now only selects true epics, unless explicitly requested with needs:epic_planner. Reactivated the local Feature Developer focus and added regression coverage for false-positive planning keywords, explicit handoffs, and ordinary epic routing. make test passed (12,314 tests). Commit 9af39f31f pushed to main.
+---
+author: oompah
+created: 2026-07-24 16:02
 ---
 Deployed routing guard: Epic Planner now only selects true epics, unless explicitly requested with needs:epic_planner. Reactivated the local Feature Developer focus and added regression coverage for false-positive planning keywords, explicit handoffs, and ordinary epic routing. make test passed (12,314 tests). Commit 9af39f31f pushed to main.
 ---
