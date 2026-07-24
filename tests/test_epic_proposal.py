@@ -21,7 +21,7 @@ from oompah.intake_schema import (
 from oompah.issue_validator import ScopeClassification, validate_issue
 from oompah.models import Issue
 from oompah.orchestrator import Orchestrator
-from oompah.statuses import BACKLOG, DECOMPOSED, PROPOSED
+from oompah.statuses import BACKLOG, DECOMPOSED, OPEN, PROPOSED
 
 
 def _oversized_description() -> str:
@@ -404,6 +404,53 @@ def test_apply_same_proposal_does_not_duplicate_child_tasks():
     assert second.child_identifiers == first.child_identifiers
 
 
+def test_apply_yolo_proposal_opens_children_only_after_complete_decomposition():
+    source = _source_issue()
+    tracker = FakeTracker([source])
+    ensure_epic_proposal(tracker, source, requestor="alice")
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    readiness.decomposition_status = DecompositionStatus.ACCEPTED
+    tracker.set_metadata_field(source.identifier, "oompah.intake", intake_to_raw(readiness))
+
+    result = apply_epic_proposal(tracker, source, promote_children_to_open=True)
+
+    assert all(
+        tracker.issues[child_id].state == OPEN for child_id in result.child_identifiers
+    )
+    assert all(
+        tracker.issues[child_id].parent_id == result.epic_identifier
+        for child_id in result.child_identifiers
+    )
+
+    update_count = len(tracker.update_calls)
+    repeated = apply_epic_proposal(tracker, source, promote_children_to_open=True)
+
+    assert repeated.duplicate_suppressed is True
+    assert len(tracker.update_calls) == update_count
+
+
+def test_apply_yolo_proposal_does_not_open_partially_linked_children():
+    source = _source_issue()
+    tracker = FakeTracker([source])
+    ensure_epic_proposal(tracker, source, requestor="alice")
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    readiness.decomposition_status = DecompositionStatus.ACCEPTED
+    tracker.set_metadata_field(source.identifier, "oompah.intake", intake_to_raw(readiness))
+
+    def fail_parent_link(child_id: str, parent_id: str) -> None:
+        tracker.issues[child_id].parent_id = None
+        raise RuntimeError(f"failed to link {child_id} to {parent_id}")
+
+    tracker.add_parent_child = fail_parent_link  # type: ignore[method-assign]
+
+    result = apply_epic_proposal(tracker, source, promote_children_to_open=True)
+
+    assert result.created_child_count > 0
+    assert all(
+        tracker.issues[child_id].state == PROPOSED for child_id in result.child_identifiers
+    )
+
+
 def test_process_epic_proposal_applies_approval_found_by_polling_comments():
     source = _source_issue(requestor_login="alice")
     tracker = FakeTracker([source])
@@ -463,6 +510,9 @@ def test_process_epic_proposal_auto_decomposes_yolo_project_without_approval():
     readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
     assert readiness.requestor_approved is False
     assert readiness.decomposition_status == DecompositionStatus.ACCEPTED
+    assert all(
+        tracker.issues[child_id].state == OPEN for child_id in result.child_identifiers
+    )
 
     assert len(tracker.comments) == 1
     assert tracker.comments[0][1].startswith("Applied decomposition proposal")

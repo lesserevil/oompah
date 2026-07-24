@@ -35,7 +35,7 @@ from oompah.intake_promotion import (
 )
 from oompah.issue_validator import ScopeClassification, ValidationResult, validate_issue
 from oompah.models import Issue
-from oompah.statuses import DECOMPOSED, PROPOSED
+from oompah.statuses import DECOMPOSED, OPEN, PROPOSED, canonicalize_status
 
 logger = logging.getLogger(__name__)
 
@@ -871,6 +871,36 @@ def _all_applied_issue_ids_exist(tracker: Any, proposal: EpicProposal) -> bool:
     return all(_issue_exists(tracker, child_id) for child_id in proposal.child_identifiers)
 
 
+def _promote_decomposition_children_to_open(
+    tracker: Any,
+    proposal: EpicProposal,
+) -> bool:
+    """Promote fully-applied decomposition children from Proposed to Open.
+
+    The application loop deliberately creates every child in ``Proposed`` so
+    the scheduler cannot dispatch a partially-created decomposition.  YOLO
+    projects call this only after the complete proposal has been persisted.
+    Verify the parent link before changing any status; an interrupted or
+    partially-linked application must remain non-dispatchable for retry.
+    """
+    epic_identifier = proposal.epic_identifier
+    child_identifiers = proposal.child_identifiers
+    if not epic_identifier or len(child_identifiers) != len(proposal.children):
+        return False
+
+    children: list[Issue] = []
+    for child_identifier in child_identifiers:
+        child = tracker.fetch_issue_detail(child_identifier)
+        if child is None or child.parent_id != epic_identifier:
+            return False
+        children.append(child)
+
+    for child in children:
+        if canonicalize_status(child.state) == PROPOSED:
+            tracker.update_issue(child.identifier, status=OPEN)
+    return True
+
+
 def _should_reuse_source_as_epic(tracker: Any, source: Issue) -> bool:
     """Return true when the source issue should become the epic itself."""
     try:
@@ -887,6 +917,7 @@ def apply_epic_proposal(
     *,
     require_accepted: bool = True,
     author: str = "oompah",
+    promote_children_to_open: bool = False,
 ) -> EpicProposalApplyResult:
     """Apply an accepted proposal by creating/updating the epic and children."""
     proposal = load_epic_proposal(tracker, source.identifier)
@@ -901,6 +932,8 @@ def apply_epic_proposal(
         )
 
     if _all_applied_issue_ids_exist(tracker, proposal):
+        if promote_children_to_open:
+            _promote_decomposition_children_to_open(tracker, proposal)
         return EpicProposalApplyResult(
             proposal=proposal,
             epic_identifier=proposal.epic_identifier,
@@ -1021,6 +1054,9 @@ def apply_epic_proposal(
             source.identifier,
             exc,
         )
+
+    if promote_children_to_open:
+        _promote_decomposition_children_to_open(tracker, proposal)
 
     return EpicProposalApplyResult(
         proposal=proposal,
@@ -1213,6 +1249,7 @@ def process_epic_proposal_issue(
             issue,
             require_accepted=False,
             author=author,
+            promote_children_to_open=True,
         )
 
     record_approval_from_existing_comments(
