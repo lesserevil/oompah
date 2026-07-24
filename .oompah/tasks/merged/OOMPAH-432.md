@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-432
 type: bug
-status: In Review
+status: Merged
 priority: 2
 title: "[backend:orchestrator] Dispatch loop stale but 4 agent(s) are active \u2014\
   \ skipping auto-restart to avoid killing in-flight work. Restart manually when agents\
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:15.387967Z'
-updated_at: '2026-07-24T01:13:23.803081Z'
+updated_at: '2026-07-24T01:16:29.604260Z'
 work_branch: OOMPAH-432
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/551
@@ -232,5 +232,10 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 49s
 - Log: OOMPAH-432__20260724T010034Z.jsonl
+---
+author: oompah
+created: 2026-07-24 01:16
+---
+YOLO: merged PR #551.
 ---
 <!-- COMMENTS:END -->
