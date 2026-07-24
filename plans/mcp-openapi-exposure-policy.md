@@ -35,14 +35,20 @@ required before any route becomes an MCP tool.
 
 ### 3. Authentication / token propagation
 
-The embedded MCP gateway communicates with oompah's own API over **loopback
-only** (`http://127.0.0.1:<port>`). It does **not**:
+The embedded MCP gateway communicates with oompah's own API in-process. By
+default, its HTTP transport accepts **loopback only** (`127.0.0.1` and
+`localhost`). Operators may explicitly set `OOMPAH_MCP_ALLOW_NETWORK=true` to
+accept MCP clients on any reachable interface; this disables FastMCP's
+Host-header allow-list, so the surrounding network boundary must be trusted.
+It does **not**:
 - Forward `Authorization` headers from MCP clients to the oompah HTTP API.
 - Return credential material from oompah API responses to MCP clients.
 - Accept inbound authentication material from MCP clients.
 
 MCP clients connecting to the gateway endpoint (`/api/mcp/v1`) must not be
-trusted with oompah's provider API keys or other credentials.
+trusted with oompah's provider API keys or other credentials. Network mode
+also exposes the approved task-mutation tools, so it should only be enabled
+for a trusted network or behind an authenticating reverse proxy.
 
 ### 4. Service-discovery paths
 

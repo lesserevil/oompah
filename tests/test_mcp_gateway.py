@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
+from oompah.mcp_gateway import mcp_transport_security_settings
 from oompah.mcp_exposure_policy import MCP_DISCOVERY_PATH, MCP_ENDPOINT_PATH
 from oompah.server import app
 
@@ -41,6 +42,23 @@ def test_mcp_discovery_advertises_the_mounted_streamable_http_endpoint():
         "discovery_path": MCP_DISCOVERY_PATH,
         "authentication": "none; local service access only",
     }
+
+
+def test_mcp_defaults_to_loopback_host_protection(monkeypatch):
+    monkeypatch.delenv("OOMPAH_MCP_ALLOW_NETWORK", raising=False)
+
+    settings = mcp_transport_security_settings()
+
+    assert settings.enable_dns_rebinding_protection is True
+    assert "127.0.0.1:*" in settings.allowed_hosts
+
+
+def test_mcp_can_be_explicitly_enabled_for_network_hosts(monkeypatch):
+    monkeypatch.setenv("OOMPAH_MCP_ALLOW_NETWORK", "true")
+
+    settings = mcp_transport_security_settings()
+
+    assert settings.enable_dns_rebinding_protection is False
 
 
 def test_mcp_client_can_initialize_list_allowed_tools_and_call_state():

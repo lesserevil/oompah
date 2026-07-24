@@ -9,6 +9,7 @@ an explicit policy classification.
 from __future__ import annotations
 
 import re
+import os
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import quote
@@ -26,6 +27,31 @@ from oompah.mcp_exposure_policy import (
 
 _PATH_PARAMETER_RE = re.compile(r"\{([^}:]+)(?::[^}]+)?\}")
 _TOOL_NAME_RE = re.compile(r"[^a-zA-Z0-9_]")
+_MCP_ALLOW_NETWORK_ENV = "OOMPAH_MCP_ALLOW_NETWORK"
+
+
+def mcp_network_access_enabled() -> bool:
+    """Return whether the operator explicitly enabled network MCP access."""
+    return os.environ.get(_MCP_ALLOW_NETWORK_ENV, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def mcp_transport_security_settings() -> TransportSecuritySettings:
+    """Build transport protection for the configured MCP exposure scope.
+
+    FastMCP's DNS-rebinding check validates exact Host headers.  That is right
+    for the default local endpoint, but cannot enumerate every interface or
+    DNS name when an operator explicitly exposes MCP on the network.
+    """
+    if mcp_network_access_enabled():
+        return TransportSecuritySettings(enable_dns_rebinding_protection=False)
+    return TransportSecuritySettings(
+        allowed_hosts=["127.0.0.1", "127.0.0.1:*", "localhost", "localhost:*"]
+    )
 
 
 def _tool_name(method: str, path: str, operation: dict[str, Any]) -> str:
@@ -73,9 +99,7 @@ def build_mcp_gateway(api_app: FastAPI) -> FastMCP:
         streamable_http_path="/",
         stateless_http=True,
         json_response=True,
-        transport_security=TransportSecuritySettings(
-            allowed_hosts=["127.0.0.1", "127.0.0.1:*", "localhost", "localhost:*"]
-        ),
+        transport_security=mcp_transport_security_settings(),
     )
     schema = api_app.openapi()
     names: set[str] = set()
