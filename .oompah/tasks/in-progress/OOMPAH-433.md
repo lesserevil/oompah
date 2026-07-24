@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:16.587989Z'
-updated_at: '2026-07-24T01:13:43.888118Z'
+updated_at: '2026-07-24T01:14:06.336655Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -180,5 +180,10 @@ author: oompah
 created: 2026-07-24 01:13
 ---
 Discovery: recover_stale_dispatch_loop() correctly refuses to restart while state.running is non-empty, but that expected safety branch alone uses logger.error at oompah/orchestrator.py, so ErrorWatcher's ERROR-level handler treats the deferral as an unhandled backend fault. Existing adjacent stale-alert and thread-dump branches already preserve dashboard error visibility while logging recovery-managed conditions at WARNING; the active-agent branch should follow that contract.
+---
+author: oompah
+created: 2026-07-24 01:14
+---
+Implementation: Changed the active-agent stale-loop restart deferral from ERROR to WARNING while keeping the existing actionable manual-restart message and dashboard alert severity. Added a heartbeat regression test that installs ErrorWatcher, proves the deferral is not reported, and proves an unrelated ERROR is still forwarded.
 ---
 <!-- COMMENTS:END -->
