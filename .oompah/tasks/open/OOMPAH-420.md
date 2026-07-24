@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-420
 type: feature
-status: Merged
+status: Open
 priority: 1
 title: Implement an embedded oompah OpenAPI MCP gateway
 parent: OOMPAH-418
@@ -10,9 +10,10 @@ blocked_by:
 - OOMPAH-419
 labels:
 - focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-23T19:41:55.025847Z'
-updated_at: '2026-07-23T20:47:00.729392Z'
+updated_at: '2026-07-24T01:51:54.436355Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -129,5 +130,15 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 19s
 - Log: OOMPAH-420__20260723T204542Z.jsonl
+---
+author: oompah
+created: 2026-07-24 01:51
+---
+Correction: this task was marked Merged incorrectly. The only commit on shared branch epic-OOMPAH-418 implements OOMPAH-419's exposure policy; source/history inspection confirms there is no FastMCP gateway module, no server mount for /api/mcp/v1, and no /.well-known/mcp route. Implement the first-party gateway now: build tools from /openapi.json filtered through mcp_exposure_policy, mount streamable HTTP at /api/mcp/v1, serve discovery metadata, add dependencies/lifecycle cleanup, and add tests proving initialize/list-tools, an allowed call, and protected-route exclusion. Do not mark complete until the live routes exist.
+---
+author: oompah
+created: 2026-07-24 01:51
+---
+Reopened: false merge detected; gateway endpoint and discovery route are absent from source and live server.
 ---
 <!-- COMMENTS:END -->
