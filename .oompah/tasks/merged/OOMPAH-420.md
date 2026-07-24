@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-420
 type: feature
-status: In Progress
+status: Merged
 priority: 1
 title: Implement an embedded oompah OpenAPI MCP gateway
 parent: OOMPAH-418
@@ -13,7 +13,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-23T19:41:55.025847Z'
-updated_at: '2026-07-24T01:55:05.375206Z'
+updated_at: '2026-07-24T01:55:20.087327Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -190,5 +190,10 @@ author: oompah
 created: 2026-07-24 01:55
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-24 01:55
+---
+Understanding: I am implementing the embedded oompah OpenAPI MCP gateway as a feature agent. Plan: (1) Explore existing code (mcp_exposure_policy.py, server.py, pyproject.toml); (2) Build FastMCP streamable-HTTP app filtered by the exposure policy; (3) Add /.well-known/mcp discovery route; (4) Mount at /api/mcp/v1 in server lifecycle with proper lifespan/cleanup; (5) Add optional deps to pyproject.toml; (6) Write unit tests for initialize/list-tools, allowed call, and protected-route exclusion; (7) Run make test and commit.
 ---
 <!-- COMMENTS:END -->
