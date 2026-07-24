@@ -4192,12 +4192,22 @@ class Orchestrator:
         """
         if not parent_id:
             return 0
-        n = 0
+        in_flight_ids: set[str] = set()
         for entry in self.state.running.values():
             other = entry.issue
             if other and (other.parent_id or "") == parent_id:
-                n += 1
-        return n
+                in_flight_ids.add(other.id)
+        # A dispatch adds the claim before it writes In Progress and creates
+        # the RunningEntry. Include that interval so another event-driven
+        # scheduling pass cannot start a second writer on the same branch.
+        claimed_issues = getattr(self.state, "claimed_issues", {})
+        for issue_id, claimed_issue in claimed_issues.items():
+            if (
+                issue_id in self.state.claimed
+                and (claimed_issue.parent_id or "") == parent_id
+            ):
+                in_flight_ids.add(issue_id)
+        return len(in_flight_ids)
 
     def _shared_epic_child_done(self, issue: Issue) -> bool:
         """Return True when the tracker says a shared-epic child is terminal."""
@@ -15406,6 +15416,7 @@ class Orchestrator:
             profile_name,
         )
         self.state.claimed.add(issue.id)
+        self.state.claimed_issues[issue.id] = issue
 
         # Race protection: the candidate fetch that produced ``issue`` may
         # have predated a state change (e.g. user closing the task via the

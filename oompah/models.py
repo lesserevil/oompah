@@ -1373,6 +1373,10 @@ class OrchestratorState:
     max_concurrent_agents: int = 10
     running: dict[str, RunningEntry] = field(default_factory=dict)
     claimed: set[str] = field(default_factory=set)
+    # Issue snapshots for claims that have passed admission but have not yet
+    # registered a RunningEntry. Dispatch gates use this to serialize shared
+    # epic branches during that narrow claim-to-worker-start window.
+    claimed_issues: dict[str, Issue] = field(default_factory=dict)
     retry_attempts: dict[str, RetryEntry] = field(default_factory=dict)
     completed: set[str] = field(default_factory=set)
     stall_counts: dict[str, int] = field(default_factory=dict)  # issue_id → stall count

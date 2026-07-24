@@ -592,6 +592,35 @@ class TestSharedModeDispatchGating:
         orch._reviews_cache = {}
         assert orch._should_dispatch(child) is True
 
+    def test_rejects_when_sibling_claimed_in_shared_mode(self, tmp_path):
+        """A sibling claimed before worker registration still owns the branch."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        claimed_sibling = _make_issue(
+            identifier="task-claimed", parent_id="epic-1", state="open"
+        )
+        orch.state.claimed.add(claimed_sibling.id)
+        orch.state.claimed_issues[claimed_sibling.id] = claimed_sibling
+        child = _make_issue(identifier="task-2", parent_id="epic-1", state="open")
+        orch._reviews_cache = {}
+
+        assert orch._should_dispatch(child) is False
+        reason, _count = orch.state.reject_streak[child.id]
+        assert "shared_epic_busy=epic-1" in reason
+
+    def test_claimed_sibling_from_different_epic_does_not_block(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        claimed_sibling = _make_issue(
+            identifier="task-claimed", parent_id="epic-2", state="open"
+        )
+        orch.state.claimed.add(claimed_sibling.id)
+        orch.state.claimed_issues[claimed_sibling.id] = claimed_sibling
+        child = _make_issue(identifier="task-1", parent_id="epic-1", state="open")
+        orch._reviews_cache = {}
+
+        assert orch._should_dispatch(child) is True
+
     def test_rejects_top_level_task_when_project_requires_epic_parent(
         self, tmp_path
     ):
