@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-432
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: "[backend:orchestrator] Dispatch loop stale but 4 agent(s) are active \u2014\
   \ skipping auto-restart to avoid killing in-flight work. Restart manually when agents\
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:15.387967Z'
-updated_at: '2026-07-24T01:06:40.926039Z'
+updated_at: '2026-07-24T01:07:56.314715Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -197,5 +197,15 @@ author: oompah
 created: 2026-07-24 01:06
 ---
 Implementation: In oompah/orchestrator.py recover_stale_dispatch_loop(), changed logger.error() to logger.warning() in the running_count > 0 branch. Updated the comment to explain the rationale (matching the existing explanation in _arm_dispatch_stale_alert()). Added regression test test_skips_restart_logs_warning_not_error_with_active_agents in tests/test_dispatch_loop_heartbeat.py that verifies: (1) the 'skipping auto-restart' message is logged at WARNING level, (2) ErrorWatcher.create_issue is NOT called. This directly prevents error_watcher from auto-filing this operational decision as a bug.
+---
+author: oompah
+created: 2026-07-24 01:07
+---
+Verification: Ran make test — 12069 passed, 39 skipped, 0 failed. Ran tests/test_dispatch_loop_heartbeat.py in isolation — 42 passed (including new regression test test_skips_restart_logs_warning_not_error_with_active_agents). No regressions.
+---
+author: oompah
+created: 2026-07-24 01:07
+---
+Completion: Fixed OOMPAH-432 by downgrading logger.error() to logger.warning() in recover_stale_dispatch_loop() (oompah/orchestrator.py) for the 'agents active, skipping auto-restart' branch. This prevents error_watcher from auto-filing routine operational decisions as bug tasks. Added regression test (17) in tests/test_dispatch_loop_heartbeat.py. All 12069 tests pass. Branch OOMPAH-432 pushed to origin.
 ---
 <!-- COMMENTS:END -->
