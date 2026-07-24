@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T22:56:01.792159Z'
-updated_at: '2026-07-24T00:54:51.309000Z'
+updated_at: '2026-07-24T00:56:04.025114Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -123,5 +123,10 @@ author: oompah
 created: 2026-07-24 00:54
 ---
 Understanding: Duplicate-only screening of the backend:orchestrator stale dispatch-loop warning. I will search native task history and docs for the exact message, fingerprint, and watchdog/restart concepts, inspect full records for plausible matches, and either archive a confirmed duplicate or hand off for implementation with evidence; I will not change code in this focus.
+---
+author: oompah
+created: 2026-07-24 00:56
+---
+Discovery: Confirmed duplicate of OOMPAH-407 (https://github.com/lesserevil/oompah/issues/536). Both reports come from the same dispatch-loop stale recovery pipeline and the same root cause: a recovery-managed operational condition is logged at ERROR, causing ErrorWatcher to auto-file a task. OOMPAH-407's merged commit 2aaa62d77 established that stale-loop recovery signals belong at WARNING so ErrorWatcher is not triggered, but changed only _arm_dispatch_stale_alert(); oompah/orchestrator.py:2550 still logs ERROR in recover_stale_dispatch_loop() when agents are active, producing this new message. OOMPAH-415 was also reviewed and is distinct threshold/grace tuning work. No code changes made in this duplicate focus.
 ---
 <!-- COMMENTS:END -->
