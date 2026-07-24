@@ -2545,9 +2545,11 @@ class Orchestrator:
 
         if running_count > 0:
             # There are active agents in flight. The stale loop is a problem
-            # but killing those agents is worse. Log loudly and arm the alert;
-            # the operator must intervene or wait for agents to finish.
-            logger.error(
+            # but killing those agents is worse. Log as a warning (not error)
+            # so ErrorWatcher does not auto-file this operational decision as a
+            # bug — the dashboard alert already surfaces the condition at error
+            # severity for the operator.
+            logger.warning(
                 "Dispatch loop stale but %d agent(s) are active — "
                 "skipping auto-restart to avoid killing in-flight work. "
                 "Restart manually when agents complete.",
