@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:16.587989Z'
-updated_at: '2026-07-24T01:20:18.072054Z'
+updated_at: '2026-07-24T01:21:45.106037Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -190,5 +190,15 @@ author: oompah
 created: 2026-07-24 01:20
 ---
 Verification: Focused tests pass (tests/test_dispatch_loop_heartbeat.py: 42 passed). Full suite completed with 12,296 passed, 7 skipped, and one environment-only failure because the sandbox cannot write the default /home/shedwards/.oompah/agent-logs path; rerunning that sole test with OOMPAH_AGENT_LOG_DIR=/tmp/oompah-433-agent-logs passed. git diff --check passes. The prescribed make test could not bootstrap because the installed Snap uv failed to create a transient DBus scope, so pytest was run directly with the project's available Python environment.
+---
+author: oompah
+created: 2026-07-24 01:21
+---
+Verification update after rebase: origin/main now contains the concurrent OOMPAH-432 fix (commit 72561463b, merged by 2e045a2c6), which implements the same WARNING downgrade and ErrorWatcher regression coverage. On that merged code, dispatch-heartbeat plus error-watcher suites pass: 159 passed. Earlier full-suite run was 12,296 passed/7 skipped with one sandbox path failure that passed when rerun with a writable OOMPAH_AGENT_LOG_DIR.
+---
+author: oompah
+created: 2026-07-24 01:21
+---
+Completion: Resolved as a concurrently merged duplicate of OOMPAH-432. The active-agent stale-loop safety deferral now logs at WARNING, retains its actionable manual-restart text and dashboard error alert, does not trigger ErrorWatcher, and has regression coverage. OOMPAH-433 was rebased to merged main and pushed; the worktree is clean and branch is up to date with origin/OOMPAH-433.
 ---
 <!-- COMMENTS:END -->
