@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-438
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Wake dispatch after a task becomes dispatchable
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T15:53:33.753602Z'
-updated_at: '2026-07-24T15:53:34.839989Z'
+updated_at: '2026-07-24T15:55:02.505463Z'
 work_branch: null
 target_branch: null
 review_url: null
