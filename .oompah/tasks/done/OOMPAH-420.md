@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-420
 type: feature
-status: Merged
+status: Done
 priority: 1
 title: Implement an embedded oompah OpenAPI MCP gateway
 parent: OOMPAH-418
@@ -13,7 +13,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-23T19:41:55.025847Z'
-updated_at: '2026-07-24T02:01:04.185896Z'
+updated_at: '2026-07-24T02:03:55.573822Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
