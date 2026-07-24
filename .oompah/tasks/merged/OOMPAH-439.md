@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-439
 type: task
-status: Done
+status: Merged
 priority: null
 title: Restrict Epic Planner routing to epics or explicit handoffs
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T15:59:50.769146Z'
-updated_at: '2026-07-24T16:02:12.062959Z'
+updated_at: '2026-07-24T16:03:14.679119Z'
 work_branch: null
 target_branch: null
 review_url: null
