@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-433
 type: bug
-status: Done
+status: Merged
 priority: 2
 title: "[backend:orchestrator] Dispatch loop stale but 3 agent(s) are active \u2014\
   \ skipping auto-restart to avoid killing in-flight work. Restart manually when agents\
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:16.587989Z'
-updated_at: '2026-07-24T01:22:06.043868Z'
+updated_at: '2026-07-24T01:24:25.781741Z'
 work_branch: null
 target_branch: null
 review_url: null
