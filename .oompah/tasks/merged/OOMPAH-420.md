@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:55.025847Z'
-updated_at: '2026-07-24T01:53:54.565446Z'
+updated_at: '2026-07-24T01:54:03.410902Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -159,5 +159,15 @@ author: oompah
 created: 2026-07-24 01:53
 ---
 Discovery: Verified a clean worktree and searched oompah/, tests/, pyproject.toml, plans/, docs/, README.md, and WORKFLOW.md. MCP endpoint/discovery references exist only in plans/mcp-openapi-exposure-policy.md, oompah/mcp_exposure_policy.py constants, and policy tests. There is no FastMCP import/application, /api/mcp/v1 server mount, /.well-known/mcp route implementation, forwarding client, gateway lifecycle, or gateway tests. This is feature implementation, not a behavior-preserving refactor.
+---
+author: oompah
+created: 2026-07-24 01:54
+---
+Focus handoff: refactor
+
+1. Outcome: No refactoring was appropriate or performed; the required gateway does not yet exist and every acceptance item requires new behavior.
+2. Evidence: git status is clean. Repository search found only plans/mcp-openapi-exposure-policy.md, oompah/mcp_exposure_policy.py, and tests/test_mcp_exposure_policy.py; no FastMCP gateway, live endpoint/discovery mount, forwarding client, lifecycle integration, dependency addition, or gateway protocol tests exist.
+3. Remaining work/risks: Implement the first-party FastMCP streamable-HTTP app from the filtered OpenAPI schema, safe local-ASGI forwarding, /api/mcp/v1 and /.well-known/mcp routes, lifespan/client cleanup, optional dependencies, and tests for initialize/list-tools, an allowed call, protected-route exclusion, and healthy startup. Preserve OOMPAH-421's downstream operator-doc/E2E scope.
+4. Recommended next focus: feature.
 ---
 <!-- COMMENTS:END -->
