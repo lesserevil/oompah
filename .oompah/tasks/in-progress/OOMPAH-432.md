@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-432
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: "[backend:orchestrator] Dispatch loop stale but 4 agent(s) are active \u2014\
   \ skipping auto-restart to avoid killing in-flight work. Restart manually when agents\
@@ -12,10 +12,9 @@ blocked_by: []
 labels:
 - external:github
 - focus-complete:duplicate_detector
-- needs:chore
 assignee: null
 created_at: '2026-07-23T22:58:15.387967Z'
-updated_at: '2026-07-24T00:54:27.828175Z'
+updated_at: '2026-07-24T01:00:33.601127Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +43,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-23T22:58:20.414521+00:00'
-oompah.agent_run_id: 94537a01-4d27-452e-984a-212830fdf785
+oompah.agent_run_id: 290e4076-ecb4-4eab-8279-5eb430e0abe4
 oompah.task_costs:
   total_input_tokens: 44
   total_output_tokens: 9442
@@ -173,5 +172,15 @@ author: oompah
 created: 2026-07-24 00:54
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-24 01:00
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-24 01:00
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
