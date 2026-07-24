@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T22:58:16.587989Z'
-updated_at: '2026-07-24T01:12:01.608622Z'
+updated_at: '2026-07-24T01:12:17.275248Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,15 @@ author: oompah
 created: 2026-07-24 01:12
 ---
 Discovery: no clear duplicate confirmed. Exact message/fingerprint d26b340507ad3c3b has no prior task. Full records reviewed: OOMPAH-406 changed the stale thread-dump header from ERROR to WARNING; OOMPAH-407 changed the initial stale-alert arm from ERROR to WARNING; OOMPAH-415 changed stale threshold/grace timing; OOMPAH-414 explicitly identifies 406/407 as logging-noise fixes. Current source is a third, unchanged logger.error in recover_stale_dispatch_loop() when running_count > 0 (oompah/orchestrator.py:2544-2556), introduced by the original heartbeat feature. It is the same subsystem but a distinct unhandled branch not resolved or tested by the reviewed tasks.
+---
+author: oompah
+created: 2026-07-24 01:12
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate found. OOMPAH-433 is a related follow-on to OOMPAH-406/OOMPAH-407, not scope already covered by either merged task.
+2. Evidence: searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for the exact message, fingerprint, stale-loop recovery, and active-agent restart guard. Read full canonical records for OOMPAH-406, OOMPAH-407, OOMPAH-414, OOMPAH-415, and OOMPAH-256. OOMPAH-406 handles _dump_stale_dispatch_threads(); OOMPAH-407 handles _arm_dispatch_stale_alert(); OOMPAH-415 handles threshold/grace timing. The current ERROR remains at oompah/orchestrator.py:2550 in recover_stale_dispatch_loop() when active agents prevent restart. tests/test_dispatch_loop_heartbeat.py::test_skips_restart_when_agents_are_running verifies restart suppression but not log severity or ErrorWatcher behavior.
+3. Remaining work/risks: implement graceful logging for this expected safety branch while preserving dashboard/operator visibility and the no-kill behavior; add a regression test using ErrorWatcher, analogous to OOMPAH-407's test, and verify unrelated ERROR records still file normally. Run the relevant heartbeat/error-watcher tests and make test.
+4. Recommended next focus: feature (backend bug implementation). No source changes were made during duplicate screening.
 ---
 <!-- COMMENTS:END -->
