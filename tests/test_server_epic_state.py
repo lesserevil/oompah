@@ -256,6 +256,42 @@ class TestReopenClearsSchedulerCompletionState:
         assert issue.id not in mock_orch.state.completed
         assert issue.id not in mock_orch.state.claimed
 
+    def test_open_transition_requests_immediate_dispatch_refresh(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.fetch_issue_detail.return_value = _make_issue(
+            identifier="task-1", issue_type="task", state="Backlog"
+        )
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.patch(
+                "/api/v1/issues/task-1",
+                json={"status": "Open", "project_id": "proj-1"},
+            )
+
+        assert resp.status_code == 200
+        mock_orch.request_refresh.assert_called_once()
+
+    def test_non_dispatchable_transition_does_not_request_refresh(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.fetch_issue_detail.return_value = _make_issue(
+            identifier="task-1", issue_type="task", state="Open"
+        )
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.patch(
+                "/api/v1/issues/task-1",
+                json={"status": "Backlog", "project_id": "proj-1"},
+            )
+
+        assert resp.status_code == 200
+        mock_orch.request_refresh.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # PATCH /api/v1/issues — Epic state verification

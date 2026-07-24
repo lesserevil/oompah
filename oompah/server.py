@@ -7300,6 +7300,19 @@ async def api_update_issue(identifier: str, request: Request):
 
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        # A status transition into a dispatchable state must wake the
+        # event-driven scheduler.  Without this, a task moved from Backlog or
+        # Needs Human to Open waits for the long safety-net poll even when
+        # capacity is immediately available.
+        if (
+            new_status is not None
+            and is_dispatchable_status(new_status)
+            and (
+                existing_issue is None
+                or not is_dispatchable_status(existing_issue.state)
+            )
+        ):
+            orch.request_refresh()
         await broadcast_issues()
         return JSONResponse({"ok": True})
     except Exception as exc:
