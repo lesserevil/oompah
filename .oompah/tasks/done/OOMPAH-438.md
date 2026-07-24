@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T15:53:33.753602Z'
-updated_at: '2026-07-24T15:55:02.505463Z'
+updated_at: '2026-07-24T15:55:07.347529Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ PATCH /api/v1/issues currently updates a task to Open but does not call orchestr
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-24 15:55
+---
+Fixed and deployed immediate scheduler wake-up after a task transitions into Open. Added API regression coverage for dispatchable and non-dispatchable transitions; make test passed (12,312 tests). Commit 609e0ea26 pushed to main.
+---
+<!-- COMMENTS:END -->
