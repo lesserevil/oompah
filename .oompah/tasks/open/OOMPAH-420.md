@@ -14,7 +14,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-23T19:41:55.025847Z'
-updated_at: '2026-07-24T01:54:13.013584Z'
+updated_at: '2026-07-24T01:54:23.792113Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -171,5 +171,15 @@ Focus handoff: refactor
 2. Evidence: git status is clean. Repository search found only plans/mcp-openapi-exposure-policy.md, oompah/mcp_exposure_policy.py, and tests/test_mcp_exposure_policy.py; no FastMCP gateway, live endpoint/discovery mount, forwarding client, lifecycle integration, dependency addition, or gateway protocol tests exist.
 3. Remaining work/risks: Implement the first-party FastMCP streamable-HTTP app from the filtered OpenAPI schema, safe local-ASGI forwarding, /api/mcp/v1 and /.well-known/mcp routes, lifespan/client cleanup, optional dependencies, and tests for initialize/list-tools, an allowed call, protected-route exclusion, and healthy startup. Preserve OOMPAH-421's downstream operator-doc/E2E scope.
 4. Recommended next focus: feature.
+---
+author: oompah
+created: 2026-07-24 01:54
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 0, Tool calls: 10
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 10s
+- Log: OOMPAH-420__20260724T015316Z.jsonl
 ---
 <!-- COMMENTS:END -->
