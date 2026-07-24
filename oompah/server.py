@@ -93,6 +93,8 @@ from oompah.github_intake_bridge import (
 )
 from oompah.issue_validator import validate_issue
 from oompah.models import AgentProfile
+from oompah.mcp_gateway import build_mcp_gateway, discovery_document
+from oompah.mcp_exposure_policy import MCP_DISCOVERY_PATH, MCP_ENDPOINT_PATH
 from oompah.projects import ProjectError, ProjectStore
 from oompah.tracker import normalize_priority_int
 from oompah.providers import ProviderStore
@@ -220,7 +222,7 @@ _GRANIAN_RESTART_SENTINEL = ".oompah-granian-restart"
 
 
 @contextlib.asynccontextmanager
-async def _lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
+async def _service_lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
     """ASGI lifespan context manager.
 
     No-op (uvicorn / tests): ``OOMPAH_EMBED_ORCHESTRATOR`` not set → yield.
@@ -380,6 +382,27 @@ async def _lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         except (_asyncio.CancelledError, _asyncio.TimeoutError):
             pass
         _api_event_loop = None
+
+
+@contextlib.asynccontextmanager
+async def _lifespan(app: "FastAPI"):
+    """Run the service and embedded MCP lifecycles together.
+
+    Mounted Starlette applications do not receive lifespan events from their
+    parent automatically. FastMCP needs those events to initialise its
+    streamable-HTTP session manager.
+    """
+    async with _mcp_gateway_app.router.lifespan_context(_mcp_gateway_app):
+        try:
+            async with _service_lifespan(app):
+                yield
+        finally:
+            # FastMCP's manager is deliberately single-run. Reset its guard
+            # after the enclosing Starlette lifespan exits so an in-process
+            # ASGI lifecycle restart (notably TestClient) can initialise the
+            # same mounted application again. Its task group and sessions are
+            # already cleared by ``run()`` before this point.
+            _mcp_gateway.session_manager._has_started = False
 
 
 app = FastAPI(title="oompah", version="0.1.0", lifespan=_lifespan)
@@ -13793,3 +13816,17 @@ def _esc(s: str) -> str:
         .replace(">", "&gt;")
         .replace('"', "&quot;")
     )
+
+
+# Build after every FastAPI route above has been registered.  The gateway
+# reads app.openapi() once and fail-closes anything the exposure policy does
+# not explicitly approve.
+@app.get(MCP_DISCOVERY_PATH, include_in_schema=False)
+async def mcp_discovery() -> JSONResponse:
+    """Return credential-free discovery metadata for the embedded MCP server."""
+    return JSONResponse(discovery_document())
+
+
+_mcp_gateway = build_mcp_gateway(app)
+_mcp_gateway_app = _mcp_gateway.streamable_http_app()
+app.mount(MCP_ENDPOINT_PATH, _mcp_gateway_app)
