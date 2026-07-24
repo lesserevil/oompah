@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-23T23:37:21.005014Z'
-updated_at: '2026-07-24T01:25:47.659773Z'
+updated_at: '2026-07-24T01:26:00.892377Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,20 @@ author: oompah
 created: 2026-07-24 01:25
 ---
 Discovery: Confirmed duplicate of OOMPAH-432 (https://github.com/lesserevil/oompah/issues/546). OOMPAH-432 reports the identical backend:orchestrator message and code path; only the runtime agent count differs (4 versus 1), which explains the different error_watcher fingerprint. Its full comments identify recover_stale_dispatch_loop() as the source, and merged commit 72561463b changed that active-agent branch from logger.error to logger.warning and added a regression proving ErrorWatcher does not create an issue. OOMPAH-435 was filed shortly after the original ERROR occurrence, so no separate implementation is needed.
+---
+author: oompah
+created: 2026-07-24 01:26
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 0, Tool calls: 11
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 36s
+- Log: OOMPAH-435__20260724T012425Z.jsonl
+---
+author: oompah
+created: 2026-07-24 01:26
+---
+duplicate-of:OOMPAH-432
 ---
 <!-- COMMENTS:END -->
