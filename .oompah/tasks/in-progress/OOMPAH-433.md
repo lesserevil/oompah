@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:16.587989Z'
-updated_at: '2026-07-24T01:14:06.336655Z'
+updated_at: '2026-07-24T01:20:18.072054Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +185,10 @@ author: oompah
 created: 2026-07-24 01:14
 ---
 Implementation: Changed the active-agent stale-loop restart deferral from ERROR to WARNING while keeping the existing actionable manual-restart message and dashboard alert severity. Added a heartbeat regression test that installs ErrorWatcher, proves the deferral is not reported, and proves an unrelated ERROR is still forwarded.
+---
+author: oompah
+created: 2026-07-24 01:20
+---
+Verification: Focused tests pass (tests/test_dispatch_loop_heartbeat.py: 42 passed). Full suite completed with 12,296 passed, 7 skipped, and one environment-only failure because the sandbox cannot write the default /home/shedwards/.oompah/agent-logs path; rerunning that sole test with OOMPAH_AGENT_LOG_DIR=/tmp/oompah-433-agent-logs passed. git diff --check passes. The prescribed make test could not bootstrap because the installed Snap uv failed to create a transient DBus scope, so pytest was run directly with the project's available Python environment.
 ---
 <!-- COMMENTS:END -->
