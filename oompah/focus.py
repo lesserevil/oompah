@@ -591,6 +591,18 @@ def score_focus(focus: Focus, issue: Issue) -> int:
     """Score how well a focus matches an issue. Higher = better fit."""
     score = 0
 
+    # Epic planning creates new tasks, so accidental routing is costly.  Rich
+    # implementation descriptions routinely mention plans, milestones, and
+    # child tasks; those keywords must not turn ordinary work into an epic.
+    # The only exception is an explicit operator/agent handoff.
+    if focus.name.strip().lower() == "epic_planner":
+        explicit_handoff = any(
+            str(label).strip().lower() == "needs:epic_planner"
+            for label in (issue.labels or [])
+        )
+        if (issue.issue_type or "").strip().lower() != "epic" and not explicit_handoff:
+            return 0
+
     # Handoff label: "needs:<focus_name>" is an explicit routing directive
     # and takes highest priority (score 200)
     if issue.labels:

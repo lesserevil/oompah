@@ -626,9 +626,43 @@ class TestEpicPlannerFocus:
             Focus(name="feature", role="Feature Dev", description="",
                   keywords=["feature", "add"], status="active"),
         ]
-        issue = _make_issue(title="Epic: redesign user onboarding")
+        issue = _make_issue(title="Epic: redesign user onboarding", issue_type="epic")
         focus = select_focus(issue, foci)
         assert focus.name == "epic_planner"
+
+    def test_epic_planner_does_not_match_non_epic_planning_keywords(self):
+        planner = Focus(
+            name="epic_planner",
+            role="Epic Planner",
+            description="",
+            keywords=["plan", "milestones", "tasks"],
+            issue_types=["epic"],
+            status="active",
+        )
+        issue = _make_issue(
+            title="Implement coordinator task orchestration",
+            description="Plan: milestone 2. Testing tasks and acceptance criteria.",
+            issue_type="feature",
+        )
+
+        assert score_focus(planner, issue) == 0
+
+    def test_epic_planner_allows_explicit_handoff_for_non_epic(self):
+        planner = Focus(
+            name="epic_planner",
+            role="Epic Planner",
+            description="",
+            keywords=["plan"],
+            issue_types=["epic"],
+            status="active",
+        )
+        issue = _make_issue(
+            title="Plan implementation slices",
+            issue_type="feature",
+            labels=["needs:epic_planner"],
+        )
+
+        assert select_focus(issue, [planner]).name == "epic_planner"
 
     def test_epic_planner_selected_for_planning_keywords(self):
         """epic_planner should score for issues that mention planning/breakdown."""
