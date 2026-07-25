@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T18:05:19.321190Z'
+updated_at: '2026-07-25T18:05:43.732075Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -146,5 +146,10 @@ author: oompah
 created: 2026-07-25 18:05
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-25 18:05
+---
+Understanding: I will implement backend lifecycle safeguards in the epic rollup/reconciliation paths. The gate must require every actionable child to be workflow-complete and must treat recorded child branch/commit evidence as satisfied only when contained by the epic branch or landed target. After a parent merge, children lacking containment will remain recoverable with an actionable explanation rather than being promoted blindly. I will preserve existing absorption and independent-merge handling, add regressions for incomplete, stranded, late, and valid shared-branch children, run make test, deploy with the project Makefile, commit, push, and close the task.
 ---
 <!-- COMMENTS:END -->
