@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T01:59:58.245991Z'
-updated_at: '2026-07-25T02:05:18.290616Z'
+updated_at: '2026-07-25T02:05:28.161736Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: d25afac9-9e17-4b58-a4a1-bbf07ebc739d
 oompah.task_costs:
-  total_input_tokens: 27
-  total_output_tokens: 8263
+  total_input_tokens: 40
+  total_output_tokens: 8423
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 27
-      output_tokens: 8263
+      input_tokens: 40
+      output_tokens: 8423
       cost_usd: 0.0
   runs:
   - profile: default
@@ -34,6 +34,12 @@ oompah.task_costs:
     output_tokens: 8263
     cost_usd: 0.0
     recorded_at: '2026-07-25T02:04:19.304118+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 13
+    output_tokens: 160
+    cost_usd: 0.0
+    recorded_at: '2026-07-25T02:05:25.564774+00:00'
 ---
 ## Summary
 
@@ -137,5 +143,20 @@ author: oompah
 created: 2026-07-25 02:05
 ---
 Implemented and deployed the shared-epic review-gate fix. Branch-to-task resolution now preserves the project context before resolving a child task's parent, preventing valid epic rollup PRs from falling back to the legacy tracker. Added a regression test covering EXOCOMP-29 / epic-EXOCOMP-4 style resolution and the YOLO gate. Targeted test suite passed (187 tests); full make test completed.
+---
+author: oompah
+created: 2026-07-25 02:05
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 0, Tool calls: 4
+- Tokens: 13 in / 160 out [173 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 38s
+- Log: OOMPAH-441__20260725T020452Z.jsonl
+---
+author: oompah
+created: 2026-07-25 02:05
+---
+Preserved project context during review branch resolution; deployed with regression coverage.
 ---
 <!-- COMMENTS:END -->
