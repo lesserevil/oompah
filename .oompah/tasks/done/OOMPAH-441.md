@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-441
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Resolve shared epic parent lookup for review gates
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T01:59:58.245991Z'
-updated_at: '2026-07-25T02:05:15.642090Z'
+updated_at: '2026-07-25T02:05:18.290616Z'
 work_branch: null
 target_branch: null
 review_url: null
