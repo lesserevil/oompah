@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T19:55:15.601730Z'
-updated_at: '2026-07-25T20:02:11.981562Z'
+updated_at: '2026-07-25T20:02:26.411526Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,5 +119,10 @@ author: oompah
 created: 2026-07-25 20:02
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-25 20:02
+---
+Understanding: Documentation focus will assess whether this internal merged-epic reconciliation idempotency fix changes any public/operator contract or existing architecture documentation. I will search docs, plans, README, and WORKFLOW for the relevant reconciliation and Needs Human behavior, verify terminology against the implementation, and either make documentation-only updates or record that none are warranted before handing off to the backend feature focus.
 ---
 <!-- COMMENTS:END -->
