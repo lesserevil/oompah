@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-444
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Deduplicate post-merge Needs Human recovery instructions
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T19:55:15.601730Z'
-updated_at: '2026-07-25T20:02:26.411526Z'
+updated_at: '2026-07-25T20:02:44.693449Z'
 work_branch: null
 target_branch: null
 review_url: null
