@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T18:18:30.352456Z'
+updated_at: '2026-07-25T18:19:18.827604Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -186,5 +186,10 @@ author: oompah
 created: 2026-07-25 18:11
 ---
 Discovery correction: The lifecycle has three inconsistent gates. _open_epic_main_prs checks canonical child states but never checks a child recorded branch/review evidence. _yolo_epic_strategy_block_reason allows the legitimate epic branch without revalidating children immediately before enqueue/direct merge. _mark_epic_merged marks every non-terminal child Merged unless a separate review is visibly open; _reconcile_merged_epic_children repeats that promotion after restarts. Existing work_branch, review metadata/cache, provider merged-review data, and local git ancestry are sufficient to distinguish shared-branch/landed work from stranded child branches. The fix will centralize that decision and reopen/label stranded Done children with an actionable comment.
+---
+author: oompah
+created: 2026-07-25 18:19
+---
+Implementation: Added a shared epic-rollup readiness gate used by both PR creation and the YOLO pre-merge path. It requires actionable children to be Done/Merged/Archived and validates recorded child work branches/reviews through shared-branch identity, local git ancestry, or a merged review targeting the epic branch/final target. Stranded Done children are reopened with epic:stranded-child and an actionable recovery comment. Post-merge reconciliation now promotes only Done children with positive containment evidence, preserves incomplete children, removes the recovery label after a verified landing, and retains maintenance-child handling. Regression tests cover incomplete children, stranded branches, target-landed reviews, late post-parent completion, integrated branches, and valid shared branches.
 ---
 <!-- COMMENTS:END -->
