@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:43:41.961323Z'
+updated_at: '2026-07-25T02:49:14.723329Z'
 work_branch: OOMPAH-442
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/553
@@ -276,5 +276,10 @@ author: oompah
 created: 2026-07-25 02:43
 ---
 Discovery: 3 tests in TestLifespanCleanAbort fail because commit 3aa8dd5e1 ('Expose OpenAPI through embedded MCP gateway') added _mcp_gateway_app.router.lifespan_context (which uses anyio.create_task_group) as the outer context in _lifespan(). When _service_lifespan catches StartupError and calls os._exit(1) — mocked in tests to raise SystemExit(1) — the SystemExit propagates through anyio's TaskGroup which wraps it in BaseExceptionGroup('unhandled errors in a TaskGroup', [SystemExit(1)]). Tests expect bare SystemExit but get BaseExceptionGroup. Fix: catch SystemExit inside the MCP gateway context block in _lifespan() before it propagates to anyio's task group teardown, then re-raise after the block exits cleanly. In production os._exit(1) kills the process immediately so this path never runs.
+---
+author: oompah
+created: 2026-07-25 02:49
+---
+Implementation: Fixed oompah/server.py _lifespan(). The 3 TestLifespanCleanAbort CI failures were caused by commit 3aa8dd5e1 ('Expose OpenAPI through embedded MCP gateway') adding _mcp_gateway_app.router.lifespan_context (anyio TaskGroup) as outer context in _lifespan(). When tests mock os._exit to raise SystemExit, anyio's TaskGroup wrapped it in BaseExceptionGroup. Fix: added except SystemExit inside the MCP gateway context block to defer the exit until after anyio's TaskGroup exits cleanly, then re-raise. In production os._exit(1) kills the process immediately and this handler is never reached. Commit 7dbf87f2b pushed to OOMPAH-442.
 ---
 <!-- COMMENTS:END -->
