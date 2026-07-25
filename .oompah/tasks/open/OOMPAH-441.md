@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-441
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Resolve shared epic parent lookup for review gates
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-25T01:59:58.245991Z'
-updated_at: '2026-07-25T02:01:17.652883Z'
+updated_at: '2026-07-25T02:03:57.535785Z'
 work_branch: null
 target_branch: null
 review_url: null
