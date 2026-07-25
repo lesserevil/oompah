@@ -7,10 +7,12 @@ title: Require child landing evidence before epic merge and rollup
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T17:57:07.719264Z'
+updated_at: '2026-07-25T17:57:19.241828Z'
 work_branch: null
 target_branch: null
 review_url: null
