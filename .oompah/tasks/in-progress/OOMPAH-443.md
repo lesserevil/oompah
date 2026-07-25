@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-443
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Require child landing evidence before epic merge and rollup
 parent: null
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T18:05:04.768921Z'
+updated_at: '2026-07-25T18:05:19.321190Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 25d0d144-8484-442d-9f45-b0f4b7bd552b
+oompah.agent_run_id: d0b8c120-7753-4af7-837d-03eb44a8d859
 oompah.task_costs:
   total_input_tokens: 811917
   total_output_tokens: 7220
@@ -136,5 +136,15 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 28s
 - Log: OOMPAH-443__20260725T175737Z.jsonl
+---
+author: oompah
+created: 2026-07-25 18:05
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-25 18:05
+---
+Focus: DevOps Engineer
 ---
 <!-- COMMENTS:END -->
