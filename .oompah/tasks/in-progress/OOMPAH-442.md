@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:14:32.219092Z'
+updated_at: '2026-07-25T02:15:43.783464Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -211,5 +211,10 @@ author: oompah
 created: 2026-07-25 02:14
 ---
 Understanding: ACP workspace allocation is falling back to a per-task worktree while retaining a shared epic branch when parent-epic resolution fails. I will trace that resolution path, add a regression test for an existing/checked-out epic branch collision, implement a narrow routing or graceful-handling fix, and verify unrelated worktree errors still propagate.
+---
+author: oompah
+created: 2026-07-25 02:15
+---
+Discovery: _create_workspace_for_issue (oompah/orchestrator.py) falls through to ProjectStore.create_worktree whenever _resolve_parent_epic returns None. For EXOCOMP-29, persisted work_branch=epic-EXOCOMP-4 and parent_id=EXOCOMP-4 already prove the intended shared workspace, but fallback pairs that branch with /EXOCOMP-29; git then fails because the branch exists/is checked out in the canonical epic worktree. The fix will fail closed onto the canonical shared epic workspace only when declared parent and persisted canonical epic branch agree; ordinary unresolved-parent tasks remain on the existing path and unrelated ProjectError failures continue to propagate.
 ---
 <!-- COMMENTS:END -->
