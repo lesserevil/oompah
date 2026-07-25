@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-442
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: '[backend:orchestrator] ACP worker failed issue_id=EXOCOMP-29'
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:35:04.767850Z'
+updated_at: '2026-07-25T02:40:06.427910Z'
 work_branch: OOMPAH-442
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/553
@@ -42,7 +42,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-25T02:09:59.615495+00:00'
-oompah.agent_run_id: 36de1203-5cfd-4670-96d1-dc825cbedd97
+oompah.agent_run_id: faa10f74-72dc-4964-9e0b-3326c3a62cdb
 oompah.task_costs:
   total_input_tokens: 1380036
   total_output_tokens: 4700
@@ -256,5 +256,15 @@ author: oompah
 created: 2026-07-25 02:35
 ---
 YOLO: CI tests failed on MR #553. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-25 02:40
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-25 02:40
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
