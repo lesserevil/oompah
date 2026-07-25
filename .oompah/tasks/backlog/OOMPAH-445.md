@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-445
 type: task
-status: In Progress
+status: Backlog
 priority: null
 title: Keep shared-epic prompt branch aligned with allocated workspace
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-25T20:24:30.180505Z'
-updated_at: '2026-07-25T20:24:39.939045Z'
+updated_at: '2026-07-25T20:26:55.090077Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ Bug observed while recovering EXOCOMP-115: the child already had correct work_br
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-25 20:26
+---
+Manual repair is in progress in the main checkout. Holding this task out of scheduler dispatch until the regression suite and commit complete so a second agent cannot race the same files.
+---
+<!-- COMMENTS:END -->
