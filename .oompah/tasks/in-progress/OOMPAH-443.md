@@ -10,12 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T17:52:23.701392Z'
+updated_at: '2026-07-25T17:55:11.510582Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: a135f03e-ec50-4f61-a391-359377eae9f4
 ---
 ## Summary
 
@@ -27,3 +28,16 @@ Fix the shared-epic lifecycle regression exposed by exocomp: epic PRs merged whi
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-25 17:55
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-25 17:55
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
