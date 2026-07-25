@@ -5066,6 +5066,45 @@ class Orchestrator:
             )
             return wp, parent_epic
 
+        # Parent lookup can fail transiently even though a previous successful
+        # dispatch already persisted the shared epic branch on the child.  Do
+        # not pair that branch with a per-task worktree: Git rejects the
+        # operation when the epic branch is already attached to its canonical
+        # shared worktree.  The declared parent plus an exact canonical branch
+        # match is sufficient evidence to safely reuse that shared workspace.
+        #
+        # Keep the fallback deliberately narrow.  An unresolved parent with no
+        # matching branch metadata remains a normal per-task allocation, so
+        # unrelated worktree failures keep their existing error handling.
+        parent_id = (issue.parent_id or "").strip()
+        persisted_branch = (
+            str(getattr(issue, "work_branch", "") or "").strip()
+            or str(getattr(issue, "branch_name", "") or "").strip()
+        )
+        if parent_id:
+            expected_epic_branch = self.project_store.epic_branch_name(parent_id)
+            if persisted_branch == expected_epic_branch:
+                logger.warning(
+                    "Parent epic %s for %s could not be resolved; reusing "
+                    "canonical shared epic workspace from persisted branch %s",
+                    parent_id,
+                    issue.identifier,
+                    persisted_branch,
+                )
+                wp = self.project_store.create_epic_worktree(
+                    issue.project_id,
+                    parent_id,
+                )
+                inferred_parent = Issue(
+                    id=parent_id,
+                    identifier=parent_id,
+                    title=parent_id,
+                    issue_type="epic",
+                    project_id=issue.project_id,
+                    work_branch=expected_epic_branch,
+                )
+                return wp, inferred_parent
+
         # For GitHub-backed tasks, generate a GitHub-safe branch name
         # (oompah/<project-slug>/gh-<number>) and persist Work Branch +
         # Target Branch metadata to the issue before creating the worktree

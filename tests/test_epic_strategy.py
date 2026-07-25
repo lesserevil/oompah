@@ -1219,6 +1219,65 @@ class TestWorkspaceAllocation:
         # No unnecessary write to tracker
         tracker.set_metadata_field.assert_not_called()
 
+    @pytest.mark.parametrize(
+        "collision",
+        [
+            "fatal: a branch named 'epic-EXOCOMP-4' already exists",
+            "fatal: 'epic-EXOCOMP-4' is already used by worktree at '/wt/epic-EXOCOMP-4'",
+        ],
+    )
+    def test_unresolved_parent_reuses_persisted_canonical_epic_workspace(
+        self, tmp_path, collision, caplog
+    ):
+        """OOMPAH-442: never attach an epic branch at a child worktree path."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.create_epic_worktree.return_value = "/wt/epic-EXOCOMP-4"
+        orch.project_store.create_worktree.side_effect = ProjectError(collision)
+        child = _make_issue(
+            identifier="EXOCOMP-29",
+            parent_id="EXOCOMP-4",
+            project_id="proj-1",
+            work_branch="epic-EXOCOMP-4",
+        )
+
+        with patch.object(orch, "_resolve_parent_epic", return_value=None):
+            wp, inferred_epic = orch._create_workspace_for_issue(child)
+
+        assert wp == "/wt/epic-EXOCOMP-4"
+        assert inferred_epic is not None
+        assert inferred_epic.identifier == "EXOCOMP-4"
+        assert inferred_epic.work_branch == "epic-EXOCOMP-4"
+        orch.project_store.create_epic_worktree.assert_called_once_with(
+            "proj-1",
+            "EXOCOMP-4",
+        )
+        orch.project_store.create_worktree.assert_not_called()
+        assert "reusing canonical shared epic workspace" in caplog.text
+
+    def test_unresolved_parent_with_noncanonical_branch_preserves_error_reporting(
+        self, tmp_path
+    ):
+        """Unrelated per-task worktree failures must still reach the worker."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        error = ProjectError("unrelated worktree failure")
+        orch.project_store.create_worktree.side_effect = error
+        child = _make_issue(
+            identifier="TASK-9",
+            parent_id="PARENT-1",
+            project_id="proj-1",
+            work_branch="TASK-9",
+        )
+
+        with (
+            patch.object(orch, "_resolve_parent_epic", return_value=None),
+            pytest.raises(ProjectError, match="unrelated worktree failure"),
+        ):
+            orch._create_workspace_for_issue(child)
+
+        orch.project_store.create_epic_worktree.assert_not_called()
+
     def test_shared_mode_sets_work_branch_when_previously_absent(self, tmp_path):
         """Child with no prior work_branch gets it set to the epic branch."""
         proj = _make_project_record(epic_strategy="shared")
