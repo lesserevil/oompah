@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:16:40.599572Z'
+updated_at: '2026-07-25T02:21:55.253630Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -216,5 +216,10 @@ author: oompah
 created: 2026-07-25 02:15
 ---
 Discovery: _create_workspace_for_issue (oompah/orchestrator.py) falls through to ProjectStore.create_worktree whenever _resolve_parent_epic returns None. For EXOCOMP-29, persisted work_branch=epic-EXOCOMP-4 and parent_id=EXOCOMP-4 already prove the intended shared workspace, but fallback pairs that branch with /EXOCOMP-29; git then fails because the branch exists/is checked out in the canonical epic worktree. The fix will fail closed onto the canonical shared epic workspace only when declared parent and persisted canonical epic branch agree; ordinary unresolved-parent tasks remain on the existing path and unrelated ProjectError failures continue to propagate.
+---
+author: oompah
+created: 2026-07-25 02:21
+---
+Implementation: Added a narrow workspace-allocation recovery in oompah/orchestrator.py. If parent resolution is temporarily unavailable but parent_id and the persisted work/branch name exactly match the canonical epic branch, allocation reuses create_epic_worktree and returns inferred epic context instead of trying to attach the shared branch at the child's path. Added regressions for both Git 'already exists' and 'already used by worktree' collision forms, plus a control proving noncanonical/unrelated ProjectError failures still propagate.
 ---
 <!-- COMMENTS:END -->
