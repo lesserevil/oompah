@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-442
 type: bug
-status: In Progress
+status: Done
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=EXOCOMP-29'
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:23:13.683971Z'
+updated_at: '2026-07-25T02:23:45.691125Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -226,5 +226,10 @@ author: oompah
 created: 2026-07-25 02:23
 ---
 Verification: tests/test_epic_strategy.py: 190 passed; tests/test_error_watcher.py: 117 passed; synthetic-default ACP test passes when OOMPAH_AGENT_LOG_DIR is writable. Full suite: 12,309 passed, 7 skipped, 4 environment-only failures (one read-only ~/.oompah/agent-logs path and three existing MCP lifespan/SystemExit exception-group failures). make test could not initialize because snap uv cannot create a transient systemd scope. git diff --check passed. make check-secrets found only the pre-existing explicit test fixture glpat-REDACTED-for-testing in tests/test_gitlab_bootstrap_readiness.py, unrelated to this change.
+---
+author: oompah
+created: 2026-07-25 02:23
+---
+Completion: Delivered commit c8f61a1f0 on branch OOMPAH-442 and pushed it to origin. ACP workspace allocation now recovers transient parent lookup failures by reusing the canonical epic worktree only when parent_id and persisted epic branch agree, preventing the EXOCOMP-29 per-task-path/shared-branch collision while preserving reporting for unrelated failures. Regression and error-watcher suites pass; branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
