@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:21:55.253630Z'
+updated_at: '2026-07-25T02:23:13.683971Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -221,5 +221,10 @@ author: oompah
 created: 2026-07-25 02:21
 ---
 Implementation: Added a narrow workspace-allocation recovery in oompah/orchestrator.py. If parent resolution is temporarily unavailable but parent_id and the persisted work/branch name exactly match the canonical epic branch, allocation reuses create_epic_worktree and returns inferred epic context instead of trying to attach the shared branch at the child's path. Added regressions for both Git 'already exists' and 'already used by worktree' collision forms, plus a control proving noncanonical/unrelated ProjectError failures still propagate.
+---
+author: oompah
+created: 2026-07-25 02:23
+---
+Verification: tests/test_epic_strategy.py: 190 passed; tests/test_error_watcher.py: 117 passed; synthetic-default ACP test passes when OOMPAH_AGENT_LOG_DIR is writable. Full suite: 12,309 passed, 7 skipped, 4 environment-only failures (one read-only ~/.oompah/agent-logs path and three existing MCP lifespan/SystemExit exception-group failures). make test could not initialize because snap uv cannot create a transient systemd scope. git diff --check passed. make check-secrets found only the pre-existing explicit test fixture glpat-REDACTED-for-testing in tests/test_gitlab_bootstrap_readiness.py, unrelated to this change.
 ---
 <!-- COMMENTS:END -->
