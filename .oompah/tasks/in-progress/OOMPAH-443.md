@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T18:10:43.551029Z'
+updated_at: '2026-07-25T18:11:08.593761Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -176,5 +176,10 @@ author: oompah
 created: 2026-07-25 18:10
 ---
 Understanding (attempt #2): Previous runs terminated before completing implementation. I will now implement the full fix: (1) add child workflow-completeness gate before opening epic rollup PRs, (2) add containment evidence gate (child work_branch commits must be contained in the epic branch), (3) guard post-parent-merge child promotion in _mark_epic_merged with containment check - surface recoverable state instead of blindly promoting, (4) add regression tests for all four scenarios, (5) run make test, commit, push, and close. Starting now.
+---
+author: oompah
+created: 2026-07-25 18:11
+---
+Discovery: The lifecycle has three inconsistent gates.  checks canonical child states but never checks a child's recorded branch/review evidence.  explicitly allows the legitimate epic branch without revalidating children immediately before enqueue/direct merge.  marks every non-terminal child Merged unless a separate review is visibly open;  repeats that promotion after restarts. Existing , review metadata/cache, provider merged-review data, and local git ancestry are sufficient to distinguish shared-branch/landed work from stranded child branches. The fix will centralize that decision and reopen/label stranded Done children with an actionable comment.
 ---
 <!-- COMMENTS:END -->
