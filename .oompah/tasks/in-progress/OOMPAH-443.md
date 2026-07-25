@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T17:55:11.510582Z'
+updated_at: '2026-07-25T17:55:26.454902Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-25 17:55
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-25 17:55
+---
+Understanding: Duplicate screening will determine whether an existing task already covers the shared-epic regression: gating epic rollup on child workflow completion and commit/landing containment, plus safe post-merge child reconciliation. I will search task history and relevant docs, read full candidate task state/comments, and will not implement during this focus.
 ---
 <!-- COMMENTS:END -->
