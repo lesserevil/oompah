@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T18:25:03.391199Z'
+updated_at: '2026-07-25T18:25:17.666983Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -217,5 +217,10 @@ author: oompah
 created: 2026-07-25 18:25
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-25 18:25
+---
+Understanding (attempt #4): Previous agents terminated before completing. I will implement the full fix in one session: (1) add child workflow-completeness gate before opening epic rollup PRs in _open_epic_main_prs, (2) add containment evidence gate for YOLO pre-merge path in _yolo_epic_strategy_block_reason, (3) guard post-parent-merge child promotion in _mark_epic_merged with containment check - surface recoverable state (epic:stranded-child label + actionable comment) instead of blindly promoting, (4) add regression tests for all four scenarios (incomplete children, stranded branches, late completion, valid shared-branch children), (5) run make test, commit, push, and close.
 ---
 <!-- COMMENTS:END -->
