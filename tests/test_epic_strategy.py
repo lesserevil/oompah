@@ -1181,12 +1181,14 @@ class TestWorkspaceAllocation:
             project_id="proj-1",
             work_branch="epic-epic-1",  # already correct
         )
+        child.branch_name = "child-1"  # stale prompt value from task parsing
 
         with patch.object(orch, "_tracker_for_issue", return_value=tracker):
             wp, epic_ret = orch._create_workspace_for_issue(child)
 
         assert wp == "/wt/epic-1"
         assert child.work_branch == "epic-epic-1"
+        assert child.branch_name == "epic-epic-1"
 
         # No unnecessary write to tracker
         tracker.set_metadata_field.assert_not_called()
@@ -1220,6 +1222,8 @@ class TestWorkspaceAllocation:
         assert inferred_epic is not None
         assert inferred_epic.identifier == "EXOCOMP-4"
         assert inferred_epic.work_branch == "epic-EXOCOMP-4"
+        assert child.work_branch == "epic-EXOCOMP-4"
+        assert child.branch_name == "epic-EXOCOMP-4"
         orch.project_store.create_epic_worktree.assert_called_once_with(
             "proj-1",
             "EXOCOMP-4",

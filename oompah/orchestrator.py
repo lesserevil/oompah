@@ -5266,9 +5266,15 @@ class Orchestrator:
             current_child_branch = (
                 getattr(issue, "work_branch", None) or ""
             ).strip()
+            # ``branch_name`` is the value exposed to the prompt template.
+            # It can retain the task identifier even after work_branch was
+            # repaired and persisted by an earlier dispatch.  Always align
+            # the in-memory prompt value with the workspace we are about to
+            # hand to the agent; otherwise an ACP client may restore/switch
+            # the shared worktree back to the stale per-task branch.
+            issue.branch_name = epic_branch
             if current_child_branch != epic_branch:
                 issue.work_branch = epic_branch
-                issue.branch_name = epic_branch
                 # Persist best-effort so the change survives across
                 # orchestrator restarts.  Failures must not block dispatch.
                 try:
@@ -5306,6 +5312,8 @@ class Orchestrator:
         if parent_id:
             expected_epic_branch = self.project_store.epic_branch_name(parent_id)
             if persisted_branch == expected_epic_branch:
+                issue.work_branch = expected_epic_branch
+                issue.branch_name = expected_epic_branch
                 logger.warning(
                     "Parent epic %s for %s could not be resolved; reusing "
                     "canonical shared epic workspace from persisted branch %s",
