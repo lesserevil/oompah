@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:58:57.190098Z'
+updated_at: '2026-07-25T02:59:00.926463Z'
 work_branch: OOMPAH-442
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/553
@@ -286,5 +286,15 @@ author: oompah
 created: 2026-07-25 02:49
 ---
 Verification: All 12,303 tests pass locally (12,303 passed, 7 skipped, 0 failed). The 3 previously failing TestLifespanCleanAbort tests now pass. New CI run 30141105951 is in_progress on branch OOMPAH-442 after pushing commit 7dbf87f2b.
+---
+author: oompah
+created: 2026-07-25 02:59
+---
+Completion: CI run 30141105951 passed all 3 matrix jobs (Python 3.11, 3.12, 3.13 — all success). Fixed oompah/server.py _lifespan() to catch SystemExit inside the MCP gateway context before anyio's TaskGroup wraps it in BaseExceptionGroup. The root cause was that commit 3aa8dd5e1 introduced _mcp_gateway_app.router.lifespan_context (with an anyio TaskGroup) as the outer context in _lifespan(), but the lifespan abort tests written in 668a56eb0 weren't updated to account for the new wrapping behavior. Fix is minimal (12 lines) and doesn't affect production code paths since os._exit(1) terminates the process immediately in real operation. PR #553 is ready to merge.
+---
+author: oompah
+created: 2026-07-25 02:59
+---
+YOLO: merged PR #553.
 ---
 <!-- COMMENTS:END -->
