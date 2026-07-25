@@ -4736,17 +4736,239 @@ class Orchestrator:
         """True when every actionable child has reached the epic-review phase."""
         if not children:
             return False
-        actionable = [
-            canonicalize_status(child.state)
-            for child in children
-            if canonicalize_status(child.state) not in {PROPOSED, DECOMPOSED}
-        ]
-        if not actionable:
-            return False
         return all(
-            status in _EPIC_REVIEW_READY_CHILD_STATES
-            for status in actionable
+            canonicalize_status(child.state) in _EPIC_REVIEW_READY_CHILD_STATES
+            for child in children
         )
+
+    def _epic_rollup_children_block_reason(
+        self,
+        epic: Issue,
+        children: list[Issue] | tuple[Issue, ...] | None = None,
+    ) -> str | None:
+        """Return why ``epic`` is not safe to land yet.
+
+        A shared child task is ready only after it is ``Done`` on the epic
+        branch.  A nested epic is ready only after it is ``Merged`` into that
+        branch.  ``Merged`` is deliberately *not* accepted for a normal child:
+        before its parent lands, that state is evidence of an independently
+        merged or falsely promoted task, not proof that the epic contains it.
+        """
+        if children is None:
+            try:
+                children = self._fetch_epic_children(epic)
+            except Exception as exc:  # noqa: BLE001 - merge gates fail closed
+                return (
+                    f"child state for epic {epic.identifier} is unreachable "
+                    f"({exc}); refusing to merge without landing evidence"
+                )
+        if not children:
+            return (
+                f"epic {epic.identifier} has no child landing evidence; "
+                "refusing to merge an empty or unresolved rollup"
+            )
+
+        expected_branch = self._epic_branch_for_issue(epic)
+        incomplete: list[str] = []
+        stranded: list[str] = []
+        for child in children:
+            status = canonicalize_status(child.state)
+            if status == ARCHIVED:
+                continue
+            required_status = MERGED if _is_epic_issue(child) else DONE
+            if status != required_status:
+                incomplete.append(
+                    f"{child.identifier}={status or 'unknown'}"
+                    f" (requires {required_status})"
+                )
+                continue
+            landing_reason = self._child_landing_evidence_block_reason(
+                epic,
+                child,
+                expected_work_branch=expected_branch,
+                container_branches=(expected_branch,),
+            )
+            if landing_reason:
+                stranded.append(landing_reason)
+
+        if incomplete:
+            return (
+                f"epic {epic.identifier} still has incomplete or unverified "
+                f"children: {', '.join(incomplete[:8])}"
+            )
+        if stranded:
+            return (
+                f"epic {epic.identifier} has completed children without "
+                f"landing evidence on {expected_branch}: "
+                f"{'; '.join(stranded[:8])}"
+            )
+        return None
+
+    @staticmethod
+    def _resolve_git_branch_refs(repo_path: str, branch: str) -> tuple[str, ...]:
+        """Return available local refs for ``branch`` without fetching.
+
+        Managed repositories are fetched elsewhere in the scheduling tick.
+        Inspect both remote-tracking and local refs: the former catches pushed
+        child work while the latter lets a freshly-updated epic branch pass the
+        pre-push rollup gate.
+        """
+        if not branch:
+            return ()
+        candidates = (
+            f"refs/remotes/origin/{branch}",
+            f"refs/heads/{branch}",
+        )
+        found: list[str] = []
+        for ref in candidates:
+            try:
+                result = subprocess.run(
+                    ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return tuple(found)
+            if result.returncode == 0:
+                found.append(ref)
+        return tuple(found)
+
+    def _child_landing_evidence_block_reason(
+        self,
+        epic: Issue,
+        child: Issue,
+        *,
+        expected_work_branch: str,
+        container_branches: tuple[str, ...],
+    ) -> str | None:
+        """Return why available Git evidence does not contain ``child`` work.
+
+        A child's recorded work branch is not the only evidence: interrupted
+        or raced agents may have pushed a branch named after the child while
+        the tracker still records the shared epic branch.  Compare both names
+        with ``git cherry`` so cherry-picked and squash-equivalent patches
+        count as landed, not only direct commit ancestry.
+
+        Missing Git evidence is tolerated when tracker metadata names the
+        expected shared branch. A recorded different branch fails closed even
+        if its ref is no longer available, because there is then no affirmative
+        evidence that the work entered the epic.
+        """
+        if _is_epic_issue(child):
+            # A nested epic reaches Merged only after its own review lands into
+            # this parent branch; that reviewed transition is its evidence.
+            return None
+
+        recorded_branch = (child.work_branch or "").strip()
+        project = (
+            self.project_store.get(epic.project_id)
+            if (epic.project_id or "").strip()
+            else None
+        )
+        repo_path = getattr(project, "repo_path", None) if project else None
+        usable_repo = (
+            isinstance(repo_path, (str, os.PathLike))
+            and os.path.isdir(os.fspath(repo_path))
+            and os.path.exists(os.path.join(os.fspath(repo_path), ".git"))
+        )
+
+        if not usable_repo:
+            if recorded_branch and recorded_branch != expected_work_branch:
+                return (
+                    f"{child.identifier} records {recorded_branch}, expected "
+                    f"{expected_work_branch}, and Git containment is unavailable"
+                )
+            return None
+
+        repo_path = os.fspath(repo_path)
+        container_refs = [
+            ref
+            for branch in dict.fromkeys(container_branches)
+            for ref in self._resolve_git_branch_refs(repo_path, branch)
+        ]
+        candidate_branches = list(
+            dict.fromkeys(
+                branch
+                for branch in (recorded_branch, child.identifier)
+                if branch and branch not in container_branches
+            )
+        )
+
+        found_candidate = False
+        for candidate_branch in candidate_branches:
+            candidate_refs = self._resolve_git_branch_refs(
+                repo_path, candidate_branch
+            )
+            if not candidate_refs:
+                if (
+                    candidate_branch == recorded_branch
+                    and recorded_branch != expected_work_branch
+                ):
+                    return (
+                        f"{child.identifier} records {recorded_branch}, expected "
+                        f"{expected_work_branch}, but that branch cannot be verified"
+                    )
+                continue
+            found_candidate = True
+            if not container_refs:
+                return (
+                    f"{child.identifier} has branch {candidate_branch}, but none "
+                    f"of {', '.join(container_branches)} can be verified"
+                )
+
+            for candidate_ref in candidate_refs:
+                comparisons: list[tuple[str, list[str]]] = []
+                for container_ref in container_refs:
+                    try:
+                        result = subprocess.run(
+                            ["git", "cherry", container_ref, candidate_ref],
+                            cwd=repo_path,
+                            capture_output=True,
+                            text=True,
+                            timeout=15,
+                            check=False,
+                        )
+                    except (OSError, subprocess.TimeoutExpired) as exc:
+                        return (
+                            f"{child.identifier} branch {candidate_branch} "
+                            f"containment check failed: {exc}"
+                        )
+                    if result.returncode != 0:
+                        continue
+                    unique_commits = [
+                        line[2:].strip()
+                        for line in result.stdout.splitlines()
+                        if line.startswith("+ ")
+                    ]
+                    if not unique_commits:
+                        break
+                    comparisons.append((container_ref, unique_commits))
+                else:
+                    if not comparisons:
+                        return (
+                            f"{child.identifier} branch {candidate_branch} could "
+                            "not be compared with the rollup branch"
+                        )
+                    shortest = min(comparisons, key=lambda item: len(item[1]))
+                    return (
+                        f"{child.identifier} branch {candidate_branch} has "
+                        f"{len(shortest[1])} unlanded commit(s), including "
+                        f"{shortest[1][0][:12]}"
+                    )
+
+        if (
+            recorded_branch
+            and recorded_branch != expected_work_branch
+            and not found_candidate
+        ):
+            return (
+                f"{child.identifier} records {recorded_branch}, expected "
+                f"{expected_work_branch}, without verifiable containment"
+            )
+        return None
 
     def _is_mature_epic_review_issue(
         self,
@@ -5722,36 +5944,15 @@ class Orchestrator:
             if not children:
                 continue  # not a rollup parent / nothing to roll up yet
 
-            # All children must be in a terminal state. open / in_progress /
-            # deferred / blocked all DELAY the push (per the acceptance
-            # criteria). This intentionally treats deferred or blocked as
-            # incomplete — operator action required to advance them.
-            #
-            # Judge each child from the EPIC BRANCH (where shared children
-            # record their status), not the default branch the tracker reads —
-            # the latter only catches up once this very PR lands, so reading
-            # it would deadlock the gate. See _epic_child_effective_state.
-            child_states = [
-                self._epic_child_effective_state(issue, c) for c in children
-            ]
-            # Ignore pre-implementation wrapper states the same way
-            # epic_rollup_state does, then require every actionable child to
-            # be terminal. Child epics that are already Merged may only have
-            # landed into this parent epic branch; they still make the parent
-            # ready for its own PR rather than proving the parent landed.
-            child_statuses = [
-                canonicalize_status(status)
-                for status in child_states
-                if canonicalize_status(status) not in {PROPOSED, DECOMPOSED}
-            ]
-            if not child_statuses:
-                continue
-            if any(
-                status not in {DONE, MERGED, ARCHIVED}
-                for status in child_statuses
-            ):
-                continue
-            if all(status == ARCHIVED for status in child_statuses):
+            rollup_block_reason = self._epic_rollup_children_block_reason(
+                issue, children
+            )
+            if rollup_block_reason:
+                logger.info(
+                    "Deferred epic PR for %s: %s",
+                    issue.identifier,
+                    rollup_block_reason,
+                )
                 continue
 
             pending_dependency = self._pending_epic_rollup_dependency(issue)
@@ -10540,8 +10741,8 @@ class Orchestrator:
             )
 
     def _label_merged_epics(self) -> None:
-        """When an epic→main PR has merged, mark the epic AND all its
-        children ``Merged``.
+        """When an epic→main PR has merged, mark the epic and only children
+        with valid shared-branch completion evidence ``Merged``.
 
         An epic lands as a single ``epic-<id>`` → main PR; the children
         have no individual merged branch, and the epic itself sits in a
@@ -10549,9 +10750,9 @@ class Orchestrator:
         :meth:`_label_merged_issues`. We detect the merged epic branch
         directly and roll ``Merged`` down to every child (when the epic
         merges, the epic and the tasks its branch contained all become
-        Merged). Idempotent: already-terminal epics drop out of
-        :meth:`_all_non_terminal_epics` and already-merged children are
-        skipped.
+        Merged). Incomplete or mismatched children are escalated instead of
+        being erased by rollup. Idempotent: already-terminal epics drop out of
+        :meth:`_all_non_terminal_epics`.
         """
         provider_cache: dict[str, tuple[Any | None, str]] = {}
         for epic in self._all_non_terminal_epics():
@@ -10641,11 +10842,11 @@ class Orchestrator:
         return out
 
     def _reconcile_merged_epic_children(self) -> None:
-        """Ensure children of already-merged epics are also terminal.
+        """Reconcile children of already-merged epics from landing evidence.
 
         A restart or stale review-cache race can mark the epic ``Merged`` before
-        every child is swept. Since the epic is the authoritative rollup, any
-        non-archived child under it should become ``Merged`` as well.
+        every child is swept. Done children on the shared branch become
+        ``Merged``; incomplete or mismatched children are escalated.
         """
         for epic in self._all_merged_epics():
             if self._job_deadline_exceeded("merged_labels"):
@@ -10795,7 +10996,7 @@ class Orchestrator:
         return annotated
 
     def _mark_epic_merged(self, epic: Issue, *, epic_branch: str | None = None) -> None:
-        """Mark ``epic`` and all its non-terminal children ``Merged``.
+        """Mark ``epic`` and children proven complete on its branch ``Merged``.
 
         Shared by :meth:`_label_merged_epics` (driven by the async
         ``_merged_branches`` set) and :meth:`_open_epic_main_prs` (driven by
@@ -10808,6 +11009,20 @@ class Orchestrator:
                 epic_branch = self._epic_branch_for_issue(epic)
             except Exception:  # noqa: BLE001
                 epic_branch = epic.identifier
+        project = (
+            self.project_store.get(epic.project_id)
+            if (epic.project_id or "").strip()
+            else None
+        )
+        try:
+            landed_target = (
+                self._resolve_epic_target_branch(epic, project)
+                if project is not None
+                else ""
+            )
+        except Exception:  # noqa: BLE001 - metadata checks still apply
+            landed_target = ""
+        containment_targets = (landed_target,) if landed_target else (epic_branch,)
 
         tracker = self._tracker_for_issue(epic)
         try:
@@ -10829,6 +11044,52 @@ class Orchestrator:
             if self._job_deadline_exceeded("merged_labels"):
                 return
             if canonicalize_status(child.state) in (MERGED, ARCHIVED):
+                continue
+            child_status = canonicalize_status(child.state)
+            child_branch = (child.work_branch or "").strip()
+            landing_reason = None
+            if child_status == DONE:
+                landing_reason = self._child_landing_evidence_block_reason(
+                    epic,
+                    child,
+                    expected_work_branch=epic_branch,
+                    container_branches=containment_targets,
+                )
+            if child_status != DONE or landing_reason:
+                evidence_detail = (
+                    f" Git evidence: {landing_reason}."
+                    if landing_reason
+                    else ""
+                )
+                instruction = (
+                    f"The parent epic {epic.identifier} merged from "
+                    f"{epic_branch}, but this task was {child_status or 'unknown'} "
+                    f"with work branch {child_branch or 'unset'}. Its work is not "
+                    f"proven to be in the merged epic.{evidence_detail} "
+                    "Inspect the task's agent "
+                    "history and remote branches, recover any missing commits "
+                    "through a new recovery epic or approved follow-up PR, then "
+                    "move this task to Done only after the recovered work is "
+                    "verified on the target branch."
+                )
+                logger.warning(
+                    "Epic child %s lacks landing evidence after epic %s merged; "
+                    "moving it to Needs Human",
+                    child.identifier,
+                    epic.identifier,
+                )
+                try:
+                    self._mark_needs_human(
+                        tracker,
+                        child.identifier,
+                        instruction,
+                    )
+                except Exception as exc:  # noqa: BLE001 - reconciliation is best effort
+                    logger.debug(
+                        "Failed to mark child %s Needs Human: %s",
+                        child.identifier,
+                        exc,
+                    )
                 continue
             # A child can have its own PR/MR while its parent epic's rollup
             # has already landed.  The parent landing is not evidence that
@@ -12113,6 +12374,18 @@ class Orchestrator:
         merge conflict reopens the EPIC task rather than being treated as an
         orphan PR.
         """
+        # Resolve an explicit epic branch to the epic before consulting the
+        # work-branch index. Every shared child has the same work_branch, so
+        # the one-to-one index can otherwise return an arbitrary child and
+        # hide the rollup from the final merge gate.
+        if project_id is not None and source_branch.startswith("epic-"):
+            epic_identifier = source_branch[len("epic-"):]
+            epic_issue = tracker.fetch_issue_detail(epic_identifier)
+            if epic_issue is not None and _is_epic_issue(epic_issue):
+                if project_id is not None and not epic_issue.project_id:
+                    epic_issue.project_id = project_id
+                return epic_issue
+
         # --- GitHub-backed path: consult the per-project branch index first ---
         if project_id is not None:
             if project_id not in self._branch_indexes:
@@ -12177,6 +12450,8 @@ class Orchestrator:
             return None
         if issue is None:
             return None
+        if _is_epic_issue(issue):
+            return self._epic_rollup_children_block_reason(issue)
         if self._issue_requires_parent_epic(issue, project.id):
             target_branch = self._review_target_branch(project, review)
             return (
@@ -12185,14 +12460,6 @@ class Orchestrator:
                 "be merged as standalone task work"
             )
         if not (issue.parent_id or "").strip():
-            return None
-
-        if (issue.issue_type or "") == "epic":
-            # Nested epic: it is its own rollup PR.  The epic landing gate
-            # owns creation of this PR; the per-child task gate must not block
-            # it.  (A regular child task with a stale work_branch equal to its
-            # own identifier must NOT be allowed through here — only true epics
-            # whose source_branch IS the epic rollup branch qualify.)
             return None
 
         parent_epic = self._resolve_parent_epic(issue)
@@ -12211,8 +12478,10 @@ class Orchestrator:
         parent_epic_branch = self._epic_branch_for_issue(parent_epic)
         if source_branch == parent_epic_branch:
             # source branch IS the epic rollup branch — this is the legitimate
-            # epic rollup PR, not a per-child task PR.  Allow it through.
-            return None
+            # epic rollup PR, not a per-child task PR. Re-check all children
+            # at merge time because a PR may have been opened before a late
+            # decomposition or task reopen.
+            return self._epic_rollup_children_block_reason(parent_epic)
 
         target_branch = self._review_target_branch(project, review)
         return (

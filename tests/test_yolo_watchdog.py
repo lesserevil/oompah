@@ -696,12 +696,19 @@ class TestYoloEpicStrategyGate:
         mock_slug.return_value = "org/repo"
 
         orch = _make_orchestrator(tmp_path, projects=[project])
-        self._install_tracker(
+        tracker = self._install_tracker(
             orch,
             project,
             child=_make_issue("TASK-472.9", issue_type="epic", parent_id="TASK-472"),
             parent=_make_issue("TASK-472", issue_type="epic"),
         )
+        tracker.fetch_children.return_value = [
+            _make_issue(
+                "TASK-472.9.1",
+                parent_id="TASK-472.9",
+                state="Done",
+            )
+        ]
         orch._reviews_cache = {
             project.id: [
                 _make_review(

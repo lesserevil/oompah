@@ -408,20 +408,13 @@ class TestResolveParentEpic:
 
 
 class TestResolveTaskForBranchProjectContext:
-    def test_preserves_project_context_for_shared_epic_parent_lookup(self, tmp_path):
-        """A PR-resolved task must keep its tracker context for its parent.
-
-        Native tracker task records may omit ``project_id``.  The YOLO shared
-        epic gate resolves those records from a project tracker, then resolves
-        their parent.  Without this context the parent lookup incorrectly uses
-        the legacy default tracker and blocks a valid epic rollup PR.
-        """
+    def test_explicit_epic_branch_resolves_epic_before_shared_child(self, tmp_path):
+        """A shared work-branch index must not hide its owning epic."""
         project = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[project])
-        child = _make_issue(identifier="EXOCOMP-29", parent_id="EXOCOMP-4")
         parent = _make_issue(identifier="EXOCOMP-4", issue_type="epic")
         project_tracker = MagicMock()
-        project_tracker.fetch_issue_detail.side_effect = [child, parent]
+        project_tracker.fetch_issue_detail.return_value = parent
 
         with patch.object(
             orch,
@@ -434,29 +427,8 @@ class TestResolveTaskForBranchProjectContext:
                 project_id=project.id,
             )
 
-        assert resolved is child
+        assert resolved is parent
         assert resolved.project_id == project.id
-        with patch.object(orch, "_tracker_for_project", return_value=project_tracker):
-            assert orch._resolve_parent_epic(resolved) is parent
-
-        # Exercise the production review gate too: the valid epic rollup PR
-        # must not be blocked merely because its child record omitted the
-        # project ID returned by the native tracker.
-        gated_child = _make_issue(identifier="EXOCOMP-29", parent_id="EXOCOMP-4")
-        project_tracker.fetch_issue_detail.side_effect = [gated_child, parent]
-        review = ReviewRequest(
-            id="10",
-            title="M4 rollup",
-            url="https://github.com/NVShawn/exocomp/pull/10",
-            author="oompah",
-            state="open",
-            source_branch="epic-EXOCOMP-4",
-            target_branch="main",
-            created_at="",
-            updated_at="",
-        )
-        with patch.object(orch, "_tracker_for_project", return_value=project_tracker):
-            assert orch._yolo_epic_strategy_block_reason(project, project_tracker, review) is None
 
 
 class TestEpicRollupChildStrategy:
@@ -1854,6 +1826,92 @@ class TestOpenEpicMainPrs:
 
         assert orch._has_epic_landing_ref(proj, "TASK-738") is False
 
+    def test_rollup_detects_child_named_branch_hidden_by_shared_metadata(
+        self,
+        tmp_path,
+    ):
+        """A raced child branch must block even when work_branch says epic."""
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        proj.repo_path = str(repo)
+        subprocess.run(
+            ["git", "init", "-q", "--initial-branch=main"],
+            cwd=repo,
+            check=True,
+        )
+        (repo / "base.txt").write_text("base\n")
+        subprocess.run(["git", "add", "base.txt"], cwd=repo, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=oompah",
+                "-c",
+                "user.email=lesserevil@users.noreply.github.com",
+                "commit",
+                "-q",
+                "-m",
+                "base",
+            ],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(["git", "branch", "epic-EXOCOMP-4"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "checkout", "-q", "-b", "EXOCOMP-33"],
+            cwd=repo,
+            check=True,
+        )
+        (repo / "faults.ex").write_text("fault injection\n")
+        subprocess.run(["git", "add", "faults.ex"], cwd=repo, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=oompah",
+                "-c",
+                "user.email=lesserevil@users.noreply.github.com",
+                "commit",
+                "-q",
+                "-m",
+                "EXOCOMP-33: add fault injection",
+            ],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "checkout", "-q", "epic-EXOCOMP-4"],
+            cwd=repo,
+            check=True,
+        )
+
+        epic = _make_issue(
+            identifier="EXOCOMP-4",
+            issue_type="epic",
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="EXOCOMP-33",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="epic-EXOCOMP-4",
+        )
+
+        reason = orch._epic_rollup_children_block_reason(epic, [child])
+
+        assert reason is not None
+        assert "EXOCOMP-33 branch EXOCOMP-33 has 1 unlanded commit" in reason
+
+        subprocess.run(
+            ["git", "cherry-pick", "EXOCOMP-33"],
+            cwd=repo,
+            capture_output=True,
+            check=True,
+        )
+        assert orch._epic_rollup_children_block_reason(epic, [child]) is None
+
     def test_declared_epic_without_landing_ref_opens_no_pr(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="shared")
         orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
@@ -2229,12 +2287,8 @@ class TestOpenEpicMainPrs:
         push.assert_not_called()
         provider.create_review.assert_not_called()
 
-    def test_shared_all_children_already_merged_opens_pr(self, tmp_path):
-        """Merged children can mean they landed into this epic branch.
-
-        The parent itself is only Merged once its own branch lands into the
-        resolved target.
-        """
+    def test_shared_normal_children_already_merged_blocks_pr(self, tmp_path):
+        """A normal child cannot be Merged before its shared parent lands."""
         orch, proj = self._setup(tmp_path, strategy="shared")
         orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
         orch.project_store.read_task_status_in_epic_worktree.return_value = None
@@ -2258,9 +2312,9 @@ class TestOpenEpicMainPrs:
             patch.object(orch, "_sync_epic_review_child_states"),
         ):
             opened = orch._open_epic_main_prs([epic])
-        assert opened == 1
-        provider.create_review.assert_called_once()
-        push.assert_called_once()
+        assert opened == 0
+        provider.create_review.assert_not_called()
+        push.assert_not_called()
 
     def test_idempotent_when_pr_already_exists(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="stacked")
@@ -3825,6 +3879,83 @@ class TestLabelMergedEpics:
 
         marked = [call.args[0] for call in tracker.update_issue.call_args_list]
         assert marked == ["epic-1"]
+        tracker.mark_needs_human.assert_called_once()
+        identifier, instruction = tracker.mark_needs_human.call_args.args
+        assert identifier == "c1"
+        assert "Inspect the task's agent history and remote branches" in instruction
+        assert tracker.mark_needs_human.call_args.kwargs["author"] == "oompah"
+
+    def test_landed_epic_does_not_promote_open_child(self, tmp_path):
+        """Late/incomplete work must remain visible after a parent lands."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="EXOCOMP-4",
+            issue_type="epic",
+            state="Done",
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="EXOCOMP-31",
+            state="Open",
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="epic-EXOCOMP-4",
+        )
+        tracker = MagicMock()
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
+
+        tracker.update_issue.assert_called_once_with("EXOCOMP-4", status="Merged")
+        tracker.mark_needs_human.assert_called_once()
+        assert tracker.mark_needs_human.call_args.args[0] == "EXOCOMP-31"
+        assert "not proven to be in the merged epic" in (
+            tracker.mark_needs_human.call_args.args[1]
+        )
+
+    def test_landed_epic_does_not_promote_stranded_done_child(self, tmp_path):
+        """A Done child with unlanded commits remains recoverable."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="EXOCOMP-4",
+            issue_type="epic",
+            state=DONE,
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="EXOCOMP-33",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="epic-EXOCOMP-4",
+        )
+        tracker = MagicMock()
+        evidence = (
+            "EXOCOMP-33 branch EXOCOMP-33 has 1 unlanded commit, "
+            "including abc123"
+        )
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_child_landing_evidence_block_reason",
+                return_value=evidence,
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
+
+        tracker.update_issue.assert_called_once_with("EXOCOMP-4", status=MERGED)
+        tracker.mark_needs_human.assert_called_once()
+        instruction = tracker.mark_needs_human.call_args.args[1]
+        assert evidence in instruction
+        assert "recover any missing commits" in instruction
 
     def test_noop_when_epic_branch_not_merged(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
@@ -4189,7 +4320,7 @@ class TestNestedEpicMergeChain:
             title="Top epic A",
         )
         child_epic_B = _make_issue(
-            identifier="epic-B", issue_type="epic", state="closed"
+            identifier="epic-B", issue_type="epic", state="merged"
         )
         provider = MagicMock()
         provider.create_review.return_value = MagicMock(id="66")
@@ -4494,13 +4625,47 @@ class TestYoloEpicStrategyBlockReason:
         orch, proj, epic, child, tracker = _make_shared_epic_scenario(tmp_path)
         # work_branch corrected to epic branch by OOMPAH-308
         child.work_branch = "epic-epic-1"
+        child.state = DONE
         review = _make_review(source_branch="epic-epic-1", target_branch="main")
         with (
             patch.object(orch, "_resolve_task_for_branch", return_value=child),
             patch.object(orch, "_resolve_parent_epic", return_value=epic),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
         ):
             reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
         assert reason is None
+
+    def test_blocks_epic_rollup_pr_when_a_child_is_still_open(self, tmp_path):
+        """The final YOLO gate must re-check children after the PR opens."""
+        orch, proj, epic, child, tracker = _make_shared_epic_scenario(tmp_path)
+        child.state = "Open"
+        child.work_branch = "epic-epic-1"
+        review = _make_review(source_branch="epic-epic-1", target_branch="main")
+
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=epic),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+        ):
+            reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
+
+        assert reason is not None
+        assert "child-1=Open" in reason
+
+    def test_blocks_epic_rollup_pr_for_falsely_merged_normal_child(self, tmp_path):
+        """A normal child cannot prove parent-branch landing via Merged state."""
+        orch, proj, epic, child, tracker = _make_shared_epic_scenario(tmp_path)
+        child.state = "Merged"
+        child.work_branch = "epic-epic-1"
+        review = _make_review(source_branch="epic-epic-1", target_branch="main")
+
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=epic),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+        ):
+            reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
+
+        assert reason is not None
+        assert "requires Done" in reason
 
     def test_returns_none_when_issue_has_no_parent_and_no_policy(self, tmp_path):
         """Top-level tasks without ``require_epic_for_tasks`` are not blocked."""
@@ -4614,7 +4779,17 @@ class TestYoloEpicStrategyBlockReason:
         review = _make_review(
             source_branch="epic-nested-epic-1", target_branch="main"
         )
-        with patch.object(orch, "_resolve_task_for_branch", return_value=nested_epic):
+        child = _make_issue(
+            identifier="nested-child",
+            parent_id="nested-epic-1",
+            project_id="proj-1",
+            state=DONE,
+            work_branch="epic-nested-epic-1",
+        )
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=nested_epic),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+        ):
             reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
         assert reason is None, (
             "Gate must ALLOW a nested epic rollup PR (issue_type='epic' with parent_id)"
