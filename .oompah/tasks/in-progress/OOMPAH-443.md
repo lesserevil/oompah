@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T18:10:32.969277Z'
+updated_at: '2026-07-25T18:10:43.551029Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -171,5 +171,10 @@ author: oompah
 created: 2026-07-25 18:10
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-25 18:10
+---
+Understanding (attempt #2): Previous runs terminated before completing implementation. I will now implement the full fix: (1) add child workflow-completeness gate before opening epic rollup PRs, (2) add containment evidence gate (child work_branch commits must be contained in the epic branch), (3) guard post-parent-merge child promotion in _mark_epic_merged with containment check - surface recoverable state instead of blindly promoting, (4) add regression tests for all four scenarios, (5) run make test, commit, push, and close. Starting now.
 ---
 <!-- COMMENTS:END -->
