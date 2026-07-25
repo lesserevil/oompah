@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-25T20:24:30.180505Z'
-updated_at: '2026-07-25T20:38:45.692668Z'
+updated_at: '2026-07-25T20:38:48.143198Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,5 +33,10 @@ author: oompah
 created: 2026-07-25 20:26
 ---
 Manual repair is in progress in the main checkout. Holding this task out of scheduler dispatch until the regression suite and commit complete so a second agent cannot race the same files.
+---
+author: oompah
+created: 2026-07-25 20:38
+---
+Fixed shared-epic dispatch so the prompt branch is always aligned with the canonical allocated epic workspace, including unresolved-parent recovery; added regression coverage; full suite passed (12,320 passed, 7 skipped); pushed as 7a7da7704.
 ---
 <!-- COMMENTS:END -->
