@@ -12,13 +12,29 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-25T19:55:15.601730Z'
-updated_at: '2026-07-25T20:01:40.517373Z'
+updated_at: '2026-07-25T20:01:54.026562Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 04bb9aa7-8e4d-4808-8b79-47b7a7314b2a
+oompah.task_costs:
+  total_input_tokens: 35
+  total_output_tokens: 8475
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 35
+      output_tokens: 8475
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 35
+    output_tokens: 8475
+    cost_usd: 0.0
+    recorded_at: '2026-07-25T20:01:50.314231+00:00'
 ---
 ## Summary
 
@@ -74,5 +90,25 @@ Focus handoff: duplicate_detector
 4. **Root cause confirmed:** In oompah/orchestrator.py at line 11082, the merged-epic reconciliation unconditionally calls `_mark_needs_human(tracker, child.identifier, instruction)` on every scheduler tick for children that remain Needs Human without landing evidence. The `_mark_needs_human` helper (line 14807) does not check whether the task is already in Needs Human state or whether the same instruction was previously posted. Fix needs to: (a) check child_status == NEEDS_HUMAN before calling, (b) compare the normalized instruction against the task's last comment, and (c) only call if status changed or instruction changed. Tests should go in tests/test_epic_strategy.py.
 
 5. **Recommended next focus:** feature (backend fix in oompah/orchestrator.py)
+---
+author: oompah
+created: 2026-07-25 20:01
+---
+Agent completed successfully in 180s (8510 tokens)
+---
+author: oompah
+created: 2026-07-25 20:01
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 73, Tool calls: 57
+- Tokens: 35 in / 8.5K out [8.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 0s
+- Log: OOMPAH-444__20260725T195851Z.jsonl
+---
+author: oompah
+created: 2026-07-25 20:01
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
