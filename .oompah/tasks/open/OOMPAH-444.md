@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-444
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Deduplicate post-merge Needs Human recovery instructions
 parent: null
@@ -10,12 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-25T19:55:15.601730Z'
-updated_at: '2026-07-25T19:55:24.066568Z'
+updated_at: '2026-07-25T19:58:51.843721Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 04bb9aa7-8e4d-4808-8b79-47b7a7314b2a
 ---
 ## Summary
 
@@ -33,5 +34,15 @@ author: oompah
 created: 2026-07-25 19:55
 ---
 Reproduced in exocomp: merged-epic reconciliation appended the identical landing-evidence recovery instruction on each tick while the child remained Needs Human. Implementing durable tracker-comment dedup keyed by normalized instruction, with changed-instruction coverage.
+---
+author: oompah
+created: 2026-07-25 19:58
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-25 19:58
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
