@@ -407,6 +407,58 @@ class TestResolveParentEpic:
             assert orch._resolve_parent_epic(child) is None
 
 
+class TestResolveTaskForBranchProjectContext:
+    def test_preserves_project_context_for_shared_epic_parent_lookup(self, tmp_path):
+        """A PR-resolved task must keep its tracker context for its parent.
+
+        Native tracker task records may omit ``project_id``.  The YOLO shared
+        epic gate resolves those records from a project tracker, then resolves
+        their parent.  Without this context the parent lookup incorrectly uses
+        the legacy default tracker and blocks a valid epic rollup PR.
+        """
+        project = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[project])
+        child = _make_issue(identifier="EXOCOMP-29", parent_id="EXOCOMP-4")
+        parent = _make_issue(identifier="EXOCOMP-4", issue_type="epic")
+        project_tracker = MagicMock()
+        project_tracker.fetch_issue_detail.side_effect = [child, parent]
+
+        with patch.object(
+            orch,
+            "_build_branch_index",
+            return_value={"epic-EXOCOMP-4": "EXOCOMP-29"},
+        ):
+            resolved = orch._resolve_task_for_branch(
+                project_tracker,
+                "epic-EXOCOMP-4",
+                project_id=project.id,
+            )
+
+        assert resolved is child
+        assert resolved.project_id == project.id
+        with patch.object(orch, "_tracker_for_project", return_value=project_tracker):
+            assert orch._resolve_parent_epic(resolved) is parent
+
+        # Exercise the production review gate too: the valid epic rollup PR
+        # must not be blocked merely because its child record omitted the
+        # project ID returned by the native tracker.
+        gated_child = _make_issue(identifier="EXOCOMP-29", parent_id="EXOCOMP-4")
+        project_tracker.fetch_issue_detail.side_effect = [gated_child, parent]
+        review = ReviewRequest(
+            id="10",
+            title="M4 rollup",
+            url="https://github.com/NVShawn/exocomp/pull/10",
+            author="oompah",
+            state="open",
+            source_branch="epic-EXOCOMP-4",
+            target_branch="main",
+            created_at="",
+            updated_at="",
+        )
+        with patch.object(orch, "_tracker_for_project", return_value=project_tracker):
+            assert orch._yolo_epic_strategy_block_reason(project, project_tracker, review) is None
+
+
 class TestEpicRollupChildStrategy:
     """_epic_rollup_child_strategy: always returns 'shared' for epic children."""
 

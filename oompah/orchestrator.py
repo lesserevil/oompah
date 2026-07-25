@@ -12091,12 +12091,21 @@ class Orchestrator:
                 identifier = branch_index[lookup_key]
                 issue = tracker.fetch_issue_detail(identifier)
                 if issue is not None:
+                    # Tracker records do not all persist their project ID.
+                    # This resolver already knows which project tracker
+                    # produced the record; retain that context so downstream
+                    # parent/dependency lookups do not accidentally fall back
+                    # to the legacy default tracker.
+                    if not issue.project_id:
+                        issue.project_id = project_id
                     return issue
 
         # --- Native fallback path: branch name == identifier ---
         issue = tracker.fetch_issue_detail(source_branch)
         if issue is None and source_branch.startswith("epic-"):
             issue = tracker.fetch_issue_detail(source_branch[len("epic-"):])
+        if issue is not None and project_id is not None and not issue.project_id:
+            issue.project_id = project_id
         return issue
 
     def _yolo_epic_strategy_block_reason(
