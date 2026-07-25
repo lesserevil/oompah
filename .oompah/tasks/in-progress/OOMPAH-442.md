@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-442
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=EXOCOMP-29'
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:13:56.758905Z'
+updated_at: '2026-07-25T02:14:22.248391Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,7 +41,7 @@ oompah.intake:
   proposal_fingerprint: null
   last_validator_result: pass
   last_validated_at: '2026-07-25T02:09:59.615495+00:00'
-oompah.agent_run_id: 86a5e1cc-7d4b-4f95-a027-086a8d136caf
+oompah.agent_run_id: 36de1203-5cfd-4670-96d1-dc825cbedd97
 oompah.task_costs:
   total_input_tokens: 1380036
   total_output_tokens: 4700
@@ -196,5 +196,15 @@ author: oompah
 created: 2026-07-25 02:13
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-25 02:14
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-25 02:14
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
