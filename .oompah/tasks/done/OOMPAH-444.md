@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T19:55:15.601730Z'
-updated_at: '2026-07-25T20:02:44.693449Z'
+updated_at: '2026-07-25T20:02:57.776532Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -124,5 +124,20 @@ author: oompah
 created: 2026-07-25 20:02
 ---
 Understanding: Documentation focus will assess whether this internal merged-epic reconciliation idempotency fix changes any public/operator contract or existing architecture documentation. I will search docs, plans, README, and WORKFLOW for the relevant reconciliation and Needs Human behavior, verify terminology against the implementation, and either make documentation-only updates or record that none are warranted before handing off to the backend feature focus.
+---
+author: oompah
+created: 2026-07-25 20:02
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 0, Tool calls: 10
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 47s
+- Log: OOMPAH-444__20260725T200212Z.jsonl
+---
+author: oompah
+created: 2026-07-25 20:02
+---
+Implemented in fb890bff4. Landed-epic reconciliation now suppresses an unchanged Needs Human recovery instruction after normalizing tracker whitespace, while changed landing evidence still produces a fresh actionable handoff. Added regressions for repeated ticks and changed work branches. Full make test: 12,320 passed, 7 skipped. Repository check-secrets remains blocked only by the pre-existing safe test fixture glpat-REDACTED-for-testing; the changed diff was manually checked and contains no secret material.
 ---
 <!-- COMMENTS:END -->
