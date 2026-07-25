@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-443
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Require child landing evidence before epic merge and rollup
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T18:11:18.477224Z'
+updated_at: '2026-07-25T18:18:30.352456Z'
 work_branch: null
 target_branch: null
 review_url: null
