@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T17:56:45.534881Z'
+updated_at: '2026-07-25T17:57:07.719264Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,15 @@ author: oompah
 created: 2026-07-25 17:56
 ---
 Discovery: Duplicate screening found no confirmed duplicate. Closest full-history candidates: OOMPAH-165 guards the parent epic's Merged transition and validates the epic PR target, but does not validate each child's workflow state or landing evidence; OOMPAH-219 persists evidence for uncommitted shared-worktree changes later absorbed by another commit, but does not handle child commits stranded on separate branches or post-parent-merge promotion; OOMPAH-168 simplified orchestration to shared-only behavior without adding these containment gates. OOMPAH-443 is distinct follow-up regression work.
+---
+author: oompah
+created: 2026-07-25 17:57
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate confirmed; OOMPAH-443 is a distinct regression and requires implementation.
+2. Evidence: Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for shared-epic, rollup, landing/containment, and child-Merged terms. Read full task histories for OOMPAH-165, OOMPAH-219, OOMPAH-168, and OOMPAH-28. Closest tasks are OOMPAH-165 (parent epic landing/target correctness), OOMPAH-219 (uncommitted shared-worktree absorption evidence), and OOMPAH-168 (shared-only strategy cleanup), all materially narrower/different. Relevant current code: oompah/orchestrator.py::_shared_epic_child_done, _reconcile_epic_rollup_statuses, _open_epic_main_prs, _label_merged_issues, _label_merged_epics; oompah/landing_gate.py::check_landing_gate. Relevant tests include tests/test_epic_strategy.py, tests/test_orchestrator_merged.py, tests/test_landing_gate.py, tests/test_shared_absorption.py, and tests/test_independently_merged.py.
+3. Remaining work/risks: Implement pre-rollup child workflow and containment gates plus evidence-aware post-parent-merge reconciliation. Cover incomplete children, committed work stranded on separate child branches, children completing after parent merge, and valid shared-branch children. Preserve the distinct OOMPAH-165 parent landing guard and OOMPAH-219 absorption recovery. Run make test and deploy per task scope.
+4. Recommended next focus: feature (backend orchestration lifecycle implementation and regression tests). No code was changed and no tests were run during duplicate screening.
 ---
 <!-- COMMENTS:END -->
