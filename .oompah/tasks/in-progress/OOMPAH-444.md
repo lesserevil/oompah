@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-444
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Deduplicate post-merge Needs Human recovery instructions
 parent: null
@@ -9,16 +9,15 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
-- needs:feature
 assignee: null
 created_at: '2026-07-25T19:55:15.601730Z'
-updated_at: '2026-07-25T20:01:54.026562Z'
+updated_at: '2026-07-25T20:02:11.981562Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 04bb9aa7-8e4d-4808-8b79-47b7a7314b2a
+oompah.agent_run_id: 9c329385-8175-44c8-9078-42e5a5468f83
 oompah.task_costs:
   total_input_tokens: 35
   total_output_tokens: 8475
@@ -110,5 +109,15 @@ author: oompah
 created: 2026-07-25 20:01
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-25 20:02
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-25 20:02
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
