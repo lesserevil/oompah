@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-25T19:55:15.601730Z'
-updated_at: '2026-07-25T19:58:51.843721Z'
+updated_at: '2026-07-25T19:59:06.091519Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-07-25 19:58
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-25 19:59
+---
+Understanding: As Duplicate Investigator, I am screening OOMPAH-444 ('Deduplicate post-merge Needs Human recovery instructions') for duplicates before any implementation begins. The issue describes merged-epic reconciliation calling mark_needs_human on every scheduler tick for a child already in Needs Human state, appending the same recovery instruction repeatedly (observed on EXOCOMP-66). I will search for similar tasks in the tracker and codebase before concluding.
 ---
 <!-- COMMENTS:END -->
