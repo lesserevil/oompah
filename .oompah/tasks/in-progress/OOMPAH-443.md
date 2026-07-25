@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T18:11:08.593761Z'
+updated_at: '2026-07-25T18:11:18.477224Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -181,5 +181,10 @@ author: oompah
 created: 2026-07-25 18:11
 ---
 Discovery: The lifecycle has three inconsistent gates.  checks canonical child states but never checks a child's recorded branch/review evidence.  explicitly allows the legitimate epic branch without revalidating children immediately before enqueue/direct merge.  marks every non-terminal child Merged unless a separate review is visibly open;  repeats that promotion after restarts. Existing , review metadata/cache, provider merged-review data, and local git ancestry are sufficient to distinguish shared-branch/landed work from stranded child branches. The fix will centralize that decision and reopen/label stranded Done children with an actionable comment.
+---
+author: oompah
+created: 2026-07-25 18:11
+---
+Discovery correction: The lifecycle has three inconsistent gates. _open_epic_main_prs checks canonical child states but never checks a child recorded branch/review evidence. _yolo_epic_strategy_block_reason allows the legitimate epic branch without revalidating children immediately before enqueue/direct merge. _mark_epic_merged marks every non-terminal child Merged unless a separate review is visibly open; _reconcile_merged_epic_children repeats that promotion after restarts. Existing work_branch, review metadata/cache, provider merged-review data, and local git ancestry are sufficient to distinguish shared-branch/landed work from stranded child branches. The fix will centralize that decision and reopen/label stranded Done children with an actionable comment.
 ---
 <!-- COMMENTS:END -->
