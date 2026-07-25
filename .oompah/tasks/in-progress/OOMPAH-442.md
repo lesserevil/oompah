@@ -9,9 +9,10 @@ children: []
 blocked_by: []
 labels:
 - external:github
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:11:33.482304Z'
+updated_at: '2026-07-25T02:13:46.298221Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -144,5 +145,20 @@ author: oompah
 created: 2026-07-25 02:11
 ---
 Understanding: duplicate-screening the ACP worktree creation failure where epic branch epic-EXOCOMP-4 could not be created or checked out for EXOCOMP-29. I will search task history by exact commands, exception signature, issue/branch names, and worktree recovery terminology, then inspect full candidate task state before deciding duplicate versus implementation handoff.
+---
+author: oompah
+created: 2026-07-25 02:13
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No clear duplicate confirmed. OOMPAH-442 is a new workspace-allocation regression and should proceed to backend bug implementation.
+
+2. Evidence: Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for the exact ACP message, EXOCOMP-29, epic-EXOCOMP-4, _create_worktree_locked, _git_worktree_add_with_recovery, git worktree exit 255/128, branch-already-used, and shared-epic routing. Reviewed OOMPAH-307, OOMPAH-308, OOMPAH-309, OOMPAH-426, OOMPAH-427, OOMPAH-428, OOMPAH-440, and OOMPAH-441 in full. OOMPAH-307/308 established that a resolved shared-epic child must use create_epic_worktree and corrected stale work_branch metadata; they are merged, and OOMPAH-426's prior screening treats a fresh recurrence after those fixes as a regression, not a duplicate. OOMPAH-441 concerns the same EXOCOMP-29/epic-EXOCOMP-4 pair but fixed project-context preservation in review/YOLO branch resolution, not ACP workspace creation. OOMPAH-440 serializes claimed siblings and is a dispatch-concurrency gate, not recovery from placing an epic branch at a per-task worktree path.
+
+3. Relevant code/root-cause lead: oompah/orchestrator.py _create_workspace_for_issue routes to create_epic_worktree only when _resolve_parent_epic succeeds; otherwise it falls through to ProjectStore.create_worktree. The captured commands show the per-task path /worktrees/exocomp/EXOCOMP-29 being paired with branch epic-EXOCOMP-4, which then cannot be newly created or attached because that shared branch already exists/is checked out. Inspect project-context/parent resolution at ACP workspace allocation and why the fallback retains the epic branch name. Relevant recovery code is oompah/projects.py _create_worktree_locked and _git_worktree_add_with_recovery.
+
+4. Remaining work/risks: Reproduce the EXOCOMP-29 shape with an epic branch already attached to its canonical shared worktree; ensure a child with a valid parent always selects/reuses create_epic_worktree, or fails gracefully with an actionable non-error-watcher outcome when parent resolution is genuinely unavailable. Add a regression test for the exact per-task-path + epic-branch collision and preserve reporting of genuinely unrelated worktree failures. The captured traceback truncates stderr, so tests should cover both 'already exists' and 'already used by worktree' variants.
+
+5. Recommended next focus: feature (backend bug fix with tests).
 ---
 <!-- COMMENTS:END -->
