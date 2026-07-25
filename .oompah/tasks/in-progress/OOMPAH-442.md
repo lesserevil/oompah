@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-442
 type: bug
-status: Backlog
+status: In Progress
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=EXOCOMP-29'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:10:46.194556Z'
+updated_at: '2026-07-25T02:11:11.376190Z'
 work_branch: null
 target_branch: null
 review_url: null
