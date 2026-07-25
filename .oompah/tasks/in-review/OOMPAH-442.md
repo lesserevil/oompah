@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-442
 type: bug
-status: Done
+status: In Review
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=EXOCOMP-29'
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:23:59.001621Z'
+updated_at: '2026-07-25T02:24:52.019660Z'
 work_branch: null
 target_branch: null
 review_url: null
