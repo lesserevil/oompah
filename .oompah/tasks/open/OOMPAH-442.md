@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-442
 type: bug
-status: In Progress
+status: Open
 priority: 2
 title: '[backend:orchestrator] ACP worker failed issue_id=EXOCOMP-29'
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:13:46.298221Z'
+updated_at: '2026-07-25T02:13:56.758905Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,6 +42,22 @@ oompah.intake:
   last_validator_result: pass
   last_validated_at: '2026-07-25T02:09:59.615495+00:00'
 oompah.agent_run_id: 86a5e1cc-7d4b-4f95-a027-086a8d136caf
+oompah.task_costs:
+  total_input_tokens: 1380036
+  total_output_tokens: 4700
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 1380036
+      output_tokens: 4700
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 1380036
+    output_tokens: 4700
+    cost_usd: 0.0
+    recorded_at: '2026-07-25T02:13:53.062775+00:00'
 ---
 ## Summary
 
@@ -160,5 +176,25 @@ Focus handoff: duplicate_detector
 4. Remaining work/risks: Reproduce the EXOCOMP-29 shape with an epic branch already attached to its canonical shared worktree; ensure a child with a valid parent always selects/reuses create_epic_worktree, or fails gracefully with an actionable non-error-watcher outcome when parent resolution is genuinely unavailable. Add a regression test for the exact per-task-path + epic-branch collision and preserve reporting of genuinely unrelated worktree failures. The captured traceback truncates stderr, so tests should cover both 'already exists' and 'already used by worktree' variants.
 
 5. Recommended next focus: feature (backend bug fix with tests).
+---
+author: oompah
+created: 2026-07-25 02:13
+---
+Agent completed successfully in 159s (1384736 tokens)
+---
+author: oompah
+created: 2026-07-25 02:13
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 45
+- Tokens: 1.4M in / 4.7K out [1.4M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 39s
+- Log: OOMPAH-442__20260725T021115Z.jsonl
+---
+author: oompah
+created: 2026-07-25 02:13
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
