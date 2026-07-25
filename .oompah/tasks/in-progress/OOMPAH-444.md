@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-444
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Deduplicate post-merge Needs Human recovery instructions
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-25T19:55:15.601730Z'
-updated_at: '2026-07-25T19:55:15.601730Z'
+updated_at: '2026-07-25T19:55:24.066568Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ The merged-epic reconciliation pass currently calls mark_needs_human on every sc
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-25 19:55
+---
+Reproduced in exocomp: merged-epic reconciliation appended the identical landing-evidence recovery instruction on each tick while the child remained Needs Human. Implementing durable tracker-comment dedup keyed by normalized instruction, with changed-instruction coverage.
+---
+<!-- COMMENTS:END -->
