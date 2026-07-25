@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-443
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Require child landing evidence before epic merge and rollup
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T17:52:13.750962Z'
+updated_at: '2026-07-25T17:52:23.701392Z'
 work_branch: null
 target_branch: null
 review_url: null
