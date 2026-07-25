@@ -392,10 +392,20 @@ async def _lifespan(app: "FastAPI"):
     parent automatically. FastMCP needs those events to initialise its
     streamable-HTTP session manager.
     """
+    # In production _service_lifespan calls os._exit(1) on StartupError, which
+    # kills the process immediately and never raises.  In tests, os._exit is
+    # mocked to raise SystemExit so the test can assert the call happened.
+    # If SystemExit propagates uncaught through _mcp_gateway_app's anyio
+    # TaskGroup it gets rewrapped in a BaseExceptionGroup, breaking the tests.
+    # Catch it here — inside the MCP gateway context — so anyio sees a clean
+    # exit, then re-raise after the gateway's context has exited.
+    _deferred_exit: SystemExit | None = None
     async with _mcp_gateway_app.router.lifespan_context(_mcp_gateway_app):
         try:
             async with _service_lifespan(app):
                 yield
+        except SystemExit as exc:  # only reached in tests (mocked os._exit)
+            _deferred_exit = exc
         finally:
             # FastMCP's manager is deliberately single-run. Reset its guard
             # after the enclosing Starlette lifespan exits so an in-process
@@ -403,6 +413,8 @@ async def _lifespan(app: "FastAPI"):
             # same mounted application again. Its task group and sessions are
             # already cleared by ``run()`` before this point.
             _mcp_gateway.session_manager._has_started = False
+    if _deferred_exit is not None:
+        raise _deferred_exit
 
 
 app = FastAPI(title="oompah", version="0.1.0", lifespan=_lifespan)
