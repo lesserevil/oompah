@@ -11078,6 +11078,20 @@ class Orchestrator:
                     child.identifier,
                     epic.identifier,
                 )
+                if (
+                    child_status == NEEDS_HUMAN
+                    and self._tracker_comment_matches(
+                        tracker,
+                        child.identifier,
+                        instruction,
+                    )
+                ):
+                    logger.debug(
+                        "Epic child %s already has the current landing-evidence "
+                        "recovery instruction; suppressing duplicate comment",
+                        child.identifier,
+                    )
+                    continue
                 try:
                     self._mark_needs_human(
                         tracker,
@@ -14818,6 +14832,39 @@ class Orchestrator:
             return
         tracker.update_issue(identifier, status=NEEDS_HUMAN)
         tracker.add_comment(identifier, comment, author=author)
+
+    @staticmethod
+    def _tracker_comment_matches(tracker, identifier: str, expected: str) -> bool:
+        """Return whether a tracker already contains ``expected`` as a comment.
+
+        Normalizing whitespace keeps the comparison stable across tracker
+        adapters that wrap long Markdown lines differently.  A read failure is
+        treated as no match so the safety transition remains fail-open: it is
+        preferable to repeat an actionable handoff once than to suppress the
+        only recovery instruction.
+        """
+        fetch_comments = getattr(tracker, "fetch_comments", None)
+        if not callable(fetch_comments):
+            return False
+        try:
+            comments = fetch_comments(identifier)
+        except Exception:  # noqa: BLE001 - comment de-dup is best effort
+            return False
+
+        normalized_expected = " ".join(str(expected or "").split())
+        if not normalized_expected:
+            return False
+        for comment in comments or []:
+            if isinstance(comment, dict):
+                text = comment.get("text") or comment.get("body") or ""
+            else:
+                text = (
+                    getattr(comment, "text", "")
+                    or getattr(comment, "body", "")
+                )
+            if " ".join(str(text or "").split()) == normalized_expected:
+                return True
+        return False
 
     # ------------------------------------------------------------------
     # Per-task cost telemetry

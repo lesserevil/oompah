@@ -3917,6 +3917,81 @@ class TestLabelMergedEpics:
             tracker.mark_needs_human.call_args.args[1]
         )
 
+    def test_landed_epic_deduplicates_unchanged_recovery_instruction(self, tmp_path):
+        """Repeated reconciliation ticks must not repeat the same handoff."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="EXOCOMP-4",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="EXOCOMP-31",
+            state=NEEDS_HUMAN,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="epic-EXOCOMP-4",
+        )
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = []
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
+            instruction = tracker.mark_needs_human.call_args.args[1]
+            tracker.fetch_comments.return_value = [
+                {
+                    "text": instruction.replace(
+                        "Inspect the task's agent history",
+                        "Inspect the task's\nagent history",
+                    )
+                }
+            ]
+            orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
+
+        tracker.mark_needs_human.assert_called_once()
+        assert tracker.fetch_comments.call_count == 2
+
+    def test_landed_epic_posts_changed_recovery_instruction_once(self, tmp_path):
+        """Changed landing evidence must produce a fresh actionable handoff."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="EXOCOMP-4",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="EXOCOMP-31",
+            state=NEEDS_HUMAN,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="epic-EXOCOMP-4",
+        )
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = []
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
+            previous_instruction = tracker.mark_needs_human.call_args.args[1]
+            tracker.mark_needs_human.reset_mock()
+            tracker.fetch_comments.return_value = [{"text": previous_instruction}]
+            child.work_branch = "EXOCOMP-31-recovery"
+            orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
+
+        tracker.mark_needs_human.assert_called_once()
+        changed_instruction = tracker.mark_needs_human.call_args.args[1]
+        assert "EXOCOMP-31-recovery" in changed_instruction
+        assert changed_instruction != previous_instruction
+
     def test_landed_epic_does_not_promote_stranded_done_child(self, tmp_path):
         """A Done child with unlanded commits remains recoverable."""
         proj = _make_project_record(epic_strategy="shared")
