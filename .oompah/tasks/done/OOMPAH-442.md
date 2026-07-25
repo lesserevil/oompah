@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:23:45.691125Z'
+updated_at: '2026-07-25T02:23:59.001621Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -231,5 +231,20 @@ author: oompah
 created: 2026-07-25 02:23
 ---
 Completion: Delivered commit c8f61a1f0 on branch OOMPAH-442 and pushed it to origin. ACP workspace allocation now recovers transient parent lookup failures by reusing the canonical epic worktree only when parent_id and persisted epic branch agree, preventing the EXOCOMP-29 per-task-path/shared-branch collision while preserving reporting for unrelated failures. Regression and error-watcher suites pass; branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-07-25 02:23
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 0, Tool calls: 45
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 37s
+- Log: OOMPAH-442__20260725T021422Z.jsonl
+---
+author: oompah
+created: 2026-07-25 02:23
+---
+Fixed ACP workspace allocation for unresolved shared-epic children by safely reusing the canonical epic worktree when persisted metadata proves the parent branch; added collision and error-reporting regressions. Pushed c8f61a1f0.
 ---
 <!-- COMMENTS:END -->
