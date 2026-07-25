@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T18:28:56.568732Z'
+updated_at: '2026-07-25T18:29:02.024060Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -227,5 +227,15 @@ author: oompah
 created: 2026-07-25 18:28
 ---
 Implemented and deployed commit e1f30f456. Epic rollup creation and the final YOLO merge gate now require current child completion; normal children must be Done and nested epics Merged. Available Git evidence checks both recorded and child-named local/remote branches with patch-equivalence, so stranded commits block landing while cherry-picked/squashed patches pass. Post-merge reconciliation now preserves incomplete or uncontained children in Needs Human with explicit recovery instructions. Verification: focused epic lifecycle suite 222 passed; full make test 12,318 passed, 7 skipped. Service restarted on PID 2345993 and the managed oompah repo is at e1f30f456.
+---
+author: oompah
+created: 2026-07-25 18:29
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-25 18:29
+---
+Focus: DevOps Engineer
 ---
 <!-- COMMENTS:END -->
