@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T18:01:35.126489Z'
+updated_at: '2026-07-25T18:03:26.238004Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -106,5 +106,19 @@ author: oompah
 created: 2026-07-25 17:57
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-25 18:03
+---
+Understanding: I've been dispatched as DevOps Engineer but the core work is backend Python implementation in oompah/orchestrator.py. The task has two parts: (1) implementation of containment gates and (2) running tests/deploy. I'll implement the feature and run tests.
+
+Root cause identified: `_mark_epic_merged` blindly promotes all non-terminal children to Merged when an epic's PR lands, without verifying each child's committed work is actually contained in the epic branch that merged. Similarly, `_open_epic_main_prs` verifies children are workflow-complete but does NOT verify each child's work_branch commits are contained in the epic branch.
+
+Fix plan:
+1. Add `EPIC_STRANDED_CHILD_LABEL = 'epic:stranded-child'` constant to models.py
+2. Add `_child_work_contained_by_branch(project, child_branch, container_branch)` helper
+3. Modify `_open_epic_main_prs`: after terminal-state gate, check each child's work_branch against epic_branch using git; skip epic PR if any child has stranded commits
+4. Modify `_mark_epic_merged`: before promoting child to Merged, check if child work_branch is contained in target_branch; if not, add epic:stranded-child label and skip promotion with warning log
+5. Add regression tests covering all four scenarios (incomplete children, stranded branches, late completion, valid shared children)
 ---
 <!-- COMMENTS:END -->
