@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:59:21.068584Z'
+updated_at: '2026-07-25T03:00:12.944519Z'
 work_branch: OOMPAH-442
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/553
@@ -29,6 +29,7 @@ oompah.external.github:
   imported_comment_ids: []
   last_synced_status: Merged
   last_synced_at: '2026-07-25T02:59:20.327064+00:00'
+  last_github_state: closed
 oompah.intake:
   missing_fields: []
   scope: small
