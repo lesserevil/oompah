@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-443
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Require child landing evidence before epic merge and rollup
 parent: null
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T18:25:17.666983Z'
+updated_at: '2026-07-25T18:28:56.568732Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 798f4668-615d-43a7-a135-0f896657bcdf
+oompah.agent_run_id: 2eda7798-7daf-41d4-a74e-869e3a665cb0
 oompah.task_costs:
   total_input_tokens: 812016
   total_output_tokens: 10572
@@ -222,5 +222,10 @@ author: oompah
 created: 2026-07-25 18:25
 ---
 Understanding (attempt #4): Previous agents terminated before completing. I will implement the full fix in one session: (1) add child workflow-completeness gate before opening epic rollup PRs in _open_epic_main_prs, (2) add containment evidence gate for YOLO pre-merge path in _yolo_epic_strategy_block_reason, (3) guard post-parent-merge child promotion in _mark_epic_merged with containment check - surface recoverable state (epic:stranded-child label + actionable comment) instead of blindly promoting, (4) add regression tests for all four scenarios (incomplete children, stranded branches, late completion, valid shared-branch children), (5) run make test, commit, push, and close.
+---
+author: oompah
+created: 2026-07-25 18:28
+---
+Implemented and deployed commit e1f30f456. Epic rollup creation and the final YOLO merge gate now require current child completion; normal children must be Done and nested epics Merged. Available Git evidence checks both recorded and child-named local/remote branches with patch-equivalence, so stranded commits block landing while cherry-picked/squashed patches pass. Post-merge reconciliation now preserves incomplete or uncontained children in Needs Human with explicit recovery instructions. Verification: focused epic lifecycle suite 222 passed; full make test 12,318 passed, 7 skipped. Service restarted on PID 2345993 and the managed oompah repo is at e1f30f456.
 ---
 <!-- COMMENTS:END -->
