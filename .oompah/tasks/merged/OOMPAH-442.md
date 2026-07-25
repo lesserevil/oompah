@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-442
 type: bug
-status: In Progress
+status: Merged
 priority: 0
 title: '[backend:orchestrator] ACP worker failed issue_id=EXOCOMP-29'
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:49:28.025019Z'
+updated_at: '2026-07-25T02:58:57.190098Z'
 work_branch: OOMPAH-442
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/553
