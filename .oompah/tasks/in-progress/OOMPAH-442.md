@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:49:14.723329Z'
+updated_at: '2026-07-25T02:49:28.025019Z'
 work_branch: OOMPAH-442
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/553
@@ -281,5 +281,10 @@ author: oompah
 created: 2026-07-25 02:49
 ---
 Implementation: Fixed oompah/server.py _lifespan(). The 3 TestLifespanCleanAbort CI failures were caused by commit 3aa8dd5e1 ('Expose OpenAPI through embedded MCP gateway') adding _mcp_gateway_app.router.lifespan_context (anyio TaskGroup) as outer context in _lifespan(). When tests mock os._exit to raise SystemExit, anyio's TaskGroup wrapped it in BaseExceptionGroup. Fix: added except SystemExit inside the MCP gateway context block to defer the exit until after anyio's TaskGroup exits cleanly, then re-raise. In production os._exit(1) kills the process immediately and this handler is never reached. Commit 7dbf87f2b pushed to OOMPAH-442.
+---
+author: oompah
+created: 2026-07-25 02:49
+---
+Verification: All 12,303 tests pass locally (12,303 passed, 7 skipped, 0 failed). The 3 previously failing TestLifespanCleanAbort tests now pass. New CI run 30141105951 is in_progress on branch OOMPAH-442 after pushing commit 7dbf87f2b.
 ---
 <!-- COMMENTS:END -->
