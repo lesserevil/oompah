@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:14:22.248391Z'
+updated_at: '2026-07-25T02:14:32.219092Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -206,5 +206,10 @@ author: oompah
 created: 2026-07-25 02:14
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-25 02:14
+---
+Understanding: ACP workspace allocation is falling back to a per-task worktree while retaining a shared epic branch when parent-epic resolution fails. I will trace that resolution path, add a regression test for an existing/checked-out epic branch collision, implement a narrow routing or graceful-handling fix, and verify unrelated worktree errors still propagate.
 ---
 <!-- COMMENTS:END -->
