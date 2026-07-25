@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T18:19:18.827604Z'
+updated_at: '2026-07-25T18:20:04.981093Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 5e3991c0-149f-44cb-9445-d27d6397dfce
 oompah.task_costs:
-  total_input_tokens: 811917
-  total_output_tokens: 7220
+  total_input_tokens: 812016
+  total_output_tokens: 10572
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 811917
-      output_tokens: 7220
+      input_tokens: 812016
+      output_tokens: 10572
       cost_usd: 0.0
   runs:
   - profile: default
@@ -40,6 +40,12 @@ oompah.task_costs:
     output_tokens: 2862
     cost_usd: 0.0
     recorded_at: '2026-07-25T18:05:03.188400+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 99
+    output_tokens: 3352
+    cost_usd: 0.0
+    recorded_at: '2026-07-25T18:20:03.451230+00:00'
 ---
 ## Summary
 
@@ -191,5 +197,15 @@ author: oompah
 created: 2026-07-25 18:19
 ---
 Implementation: Added a shared epic-rollup readiness gate used by both PR creation and the YOLO pre-merge path. It requires actionable children to be Done/Merged/Archived and validates recorded child work branches/reviews through shared-branch identity, local git ancestry, or a merged review targeting the epic branch/final target. Stranded Done children are reopened with epic:stranded-child and an actionable recovery comment. Post-merge reconciliation now promotes only Done children with positive containment evidence, preserves incomplete children, removes the recovery label after a verified landing, and retains maintenance-child handling. Regression tests cover incomplete children, stranded branches, target-landed reviews, late post-parent completion, integrated branches, and valid shared branches.
+---
+author: oompah
+created: 2026-07-25 18:20
+---
+Run #3 [attempt=3, profile=standard, role=standard -> Claude/default]
+- Turns: 0, Tool calls: 60
+- Tokens: 99 in / 3.4K out [3.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 32s
+- Log: OOMPAH-443__20260725T181033Z.jsonl
 ---
 <!-- COMMENTS:END -->
