@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T17:55:26.454902Z'
+updated_at: '2026-07-25T17:56:45.534881Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-07-25 17:55
 ---
 Understanding: Duplicate screening will determine whether an existing task already covers the shared-epic regression: gating epic rollup on child workflow completion and commit/landing containment, plus safe post-merge child reconciliation. I will search task history and relevant docs, read full candidate task state/comments, and will not implement during this focus.
+---
+author: oompah
+created: 2026-07-25 17:56
+---
+Discovery: Duplicate screening found no confirmed duplicate. Closest full-history candidates: OOMPAH-165 guards the parent epic's Merged transition and validates the epic PR target, but does not validate each child's workflow state or landing evidence; OOMPAH-219 persists evidence for uncommitted shared-worktree changes later absorbed by another commit, but does not handle child commits stranded on separate branches or post-parent-merge promotion; OOMPAH-168 simplified orchestration to shared-only behavior without adding these containment gates. OOMPAH-443 is distinct follow-up regression work.
 ---
 <!-- COMMENTS:END -->
