@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:40:23.232936Z'
+updated_at: '2026-07-25T02:43:41.961323Z'
 work_branch: OOMPAH-442
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/553
@@ -271,5 +271,10 @@ author: oompah
 created: 2026-07-25 02:40
 ---
 Understanding: CI Failure Fixer role. The previous agent implemented a fix for ACP workspace allocation (commit c8f61a1f0) on branch OOMPAH-442, but CI tests failed on MR #553. My job is to identify the exact failures from CI logs, reproduce locally, and make minimal fixes. Starting by checking git state and pulling CI logs from GitHub Actions.
+---
+author: oompah
+created: 2026-07-25 02:43
+---
+Discovery: 3 tests in TestLifespanCleanAbort fail because commit 3aa8dd5e1 ('Expose OpenAPI through embedded MCP gateway') added _mcp_gateway_app.router.lifespan_context (which uses anyio.create_task_group) as the outer context in _lifespan(). When _service_lifespan catches StartupError and calls os._exit(1) — mocked in tests to raise SystemExit(1) — the SystemExit propagates through anyio's TaskGroup which wraps it in BaseExceptionGroup('unhandled errors in a TaskGroup', [SystemExit(1)]). Tests expect bare SystemExit but get BaseExceptionGroup. Fix: catch SystemExit inside the MCP gateway context block in _lifespan() before it propagates to anyio's task group teardown, then re-raise after the block exits cleanly. In production os._exit(1) kills the process immediately so this path never runs.
 ---
 <!-- COMMENTS:END -->
