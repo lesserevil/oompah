@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-442
 type: bug
-status: In Review
-priority: 2
+status: Needs CI Fix
+priority: 0
 title: '[backend:orchestrator] ACP worker failed issue_id=EXOCOMP-29'
 parent: null
 children: []
@@ -10,9 +10,10 @@ blocked_by: []
 labels:
 - external:github
 - focus-complete:duplicate_detector
+- ci-fix
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T02:30:21.386035Z'
+updated_at: '2026-07-25T02:35:04.767850Z'
 work_branch: OOMPAH-442
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/553
@@ -250,5 +251,10 @@ author: oompah
 created: 2026-07-25 02:23
 ---
 Fixed ACP workspace allocation for unresolved shared-epic children by safely reusing the canonical epic worktree when persisted metadata proves the parent branch; added collision and error-reporting regressions. Pushed c8f61a1f0.
+---
+author: oompah
+created: 2026-07-25 02:35
+---
+YOLO: CI tests failed on MR #553. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
