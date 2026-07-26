@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-07-26T03:42:14.430492Z'
+updated_at: '2026-07-26T03:42:27.611440Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -166,5 +166,20 @@ author: oompah
 created: 2026-07-26 03:42
 ---
 Completion: Delivered and pushed commit 31cd81494. CLI agents now run in dedicated POSIX sessions, bounded stop escalates SIGTERM to SIGKILL across the process group with non-POSIX fallback, and forced orchestrator termination independently stops the registered CLI session before removing runtime/claim/worktree state. Regression coverage includes spawned descendants, cancellation-resistant workers, configured bounds, graceful exit, SIGKILL escalation, fallback, cleanup ordering, and observable shutdown failures. make test: 12,099 passed, 39 skipped, 0 failed. Branch OOMPAH-446 is clean and exactly matches origin/OOMPAH-446.
+---
+author: oompah
+created: 2026-07-26 03:42
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 0, Tool calls: 129
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 26m 31s
+- Log: OOMPAH-446__20260726T031558Z.jsonl
+---
+author: oompah
+created: 2026-07-26 03:42
+---
+CLI agents now run in dedicated POSIX sessions and forced termination performs bounded process-group SIGTERM/SIGKILL shutdown before clearing runtime state. Added descendant/cancellation/failure regression coverage; make test passed 12,099 tests; pushed commit 31cd81494.
 ---
 <!-- COMMENTS:END -->
