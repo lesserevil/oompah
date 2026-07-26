@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-447
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Do not reopen merged epic siblings for a later shared-branch PR
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-26T04:02:02.297716Z'
-updated_at: '2026-07-26T04:04:22.785380Z'
+updated_at: '2026-07-26T04:07:08.521935Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,29 @@ author: oompah
 created: 2026-07-26 04:04
 ---
 Understanding: Investigating OOMPAH-447 as Duplicate Investigator. The issue reports that _reconcile_terminal_open_reviews uses work_branch equality alone to match open PRs to issues, causing unrelated Merged siblings (EXOCOMP-41/42/43/44 and parent EXOCOMP-6) to be demoted to 'In Review' when a later follow-up PR reuses the shared epic branch. Searching now for candidate duplicates before any implementation begins.
+---
+author: oompah
+created: 2026-07-26 04:07
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-447 is a unique issue.
+
+**Evidence reviewed:**
+- Searched all `.oompah/tasks/` subdirectories (archived, merged, done, backlog, open) for: reconcile_terminal, false_merged, shared branch, work_branch, sibling, demote, In Review demotion, terminal review, EXOCOMP, _open_review_branch_for_issue
+- Inspected OOMPAH-219 (Archived): 'Detect shared-worktree commits that absorb another task's changes' — covers the _reconcile_shared_absorption path for Needs Human tasks that had uncommitted changes absorbed by a later commit. Different mechanism from OOMPAH-447 (which is about _reconcile_terminal_open_reviews demoting Merged siblings via branch-equality matching of an open PR). Not a duplicate.
+- Inspected OOMPAH-165 (Archived): 'shared/stacked epic state bug' — about epic landing target-awareness and preventing premature Merged rollup when all children are merged but epic branch not yet landed. Different.
+- Inspected OOMPAH-235 (Done): 'Recover native tracker writes after concurrent default-branch advancement' — push race rebase logic, unrelated.
+- Plans dir: no plan document for false-Merged terminal review reconciliation.
+
+**Relevant source code:** `oompah/orchestrator.py`:
+- `_reconcile_terminal_open_reviews()` (~line 9401): iterates Merged issues and calls `_open_review_branch_for_issue()` to find a matching open PR
+- `_open_review_branch_for_issue()` (~line 9545): matches by work_branch, branch_name, epic_branch_name, or issue identifier — does NOT validate review_number or review title. If EXOCOMP-41/42/43/44 all share `epic-EXOCOMP-6` as work_branch, a new open PR on that branch matches all of them.
+
+**Remaining work:**
+- Add review ownership validation in `_open_review_branch_for_issue` or `_reconcile_terminal_open_reviews`: for a shared epic branch, only demote if (a) issue.review_number matches, or (b) the review title identifies this exact issue, or (c) source branch is the standalone issue branch (not a shared epic branch). Log and skip ambiguous shared-branch matches.
+- Add regression tests per issue description: Merged epic + multiple Merged children sharing epic-EPIC-1; a later open PR titled for only one child; verify only the identified owner is demoted; TASK-4 does not match TASK-41.
+
+**Recommended next focus:** feature (backend implementation in oompah/orchestrator.py + tests)
 ---
 <!-- COMMENTS:END -->
