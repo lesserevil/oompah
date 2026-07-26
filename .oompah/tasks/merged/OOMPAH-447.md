@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-447
 type: bug
-status: In Review
+status: Merged
 priority: 1
 title: Do not reopen merged epic siblings for a later shared-branch PR
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:02:02.297716Z'
-updated_at: '2026-07-26T04:18:44.915796Z'
+updated_at: '2026-07-26T04:20:58.938692Z'
 work_branch: null
 target_branch: null
 review_url: null
