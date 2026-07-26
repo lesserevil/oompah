@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-358
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Gate epic rebase scheduling on actionable conditions
 parent: OOMPAH-356
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:51.390755Z'
-updated_at: '2026-07-22T01:30:12.460844Z'
+updated_at: '2026-07-26T00:27:54.006927Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,5 +34,10 @@ author: oompah
 created: 2026-07-22 01:30
 ---
 Removed periodic proactive rebase scheduling; staleness detection no longer creates branch-mutating work.
+---
+author: oompah
+created: 2026-07-26 00:27
+---
+Delivery reconciled: removal of periodic proactive rebase scheduling is present on origin/main in commit 2ba37886b. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->
