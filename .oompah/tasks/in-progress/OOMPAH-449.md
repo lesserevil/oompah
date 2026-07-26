@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-449
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Do not merge a newly updated PR before its CI checks register
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T04:35:24.362802Z'
+updated_at: '2026-07-26T18:16:19.470611Z'
 work_branch: null
 target_branch: null
 review_url: null
