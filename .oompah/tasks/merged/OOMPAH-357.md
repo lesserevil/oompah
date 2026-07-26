@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-357
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Define actionable epic branch synchronization policy
 parent: OOMPAH-356
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:49.686725Z'
-updated_at: '2026-07-26T00:27:45.601290Z'
+updated_at: '2026-07-26T00:27:47.843501Z'
 work_branch: null
 target_branch: null
 review_url: null
