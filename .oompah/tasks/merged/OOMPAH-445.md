@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-445
 type: task
-status: Done
+status: Merged
 priority: null
 title: Keep shared-epic prompt branch aligned with allocated workspace
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-25T20:24:30.180505Z'
-updated_at: '2026-07-26T00:29:20.886720Z'
+updated_at: '2026-07-26T00:29:23.161720Z'
 work_branch: null
 target_branch: null
 review_url: null
