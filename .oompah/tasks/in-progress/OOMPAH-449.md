@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:26:10.786796Z'
+updated_at: '2026-07-26T18:34:18.977485Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -199,5 +199,31 @@ Files to change:
 - oompah/scm.py: Add _ci_active_repos class cache, update _fetch_ci_status_and_warnings
 - tests/test_scm.py: Update test_no_statuses_and_no_check_runs_are_eligible_to_merge, add new tests
 - tests/test_ci_sync_race.py: Add regression sequence for PR #555 timestamp ordering
+---
+author: oompah
+created: 2026-07-26 18:34
+---
+Implementation: Fixed the post-synchronize CI race condition.
+
+Changes made:
+
+**oompah/scm.py** (`GitHubProvider`):
+- Added class-level `_ci_active_repos: set[str]` and `_ci_active_repos_lock` cache to track repos that have had non-empty CI check-runs observed during the process lifetime.
+- In `_fetch_ci_status_and_warnings`: when non-empty check-runs are found, add the repo to `_ci_active_repos`. When both APIs return empty results (no checks registered yet), check if the repo is in `_ci_active_repos`: if yes, return `'pending'` (fail-closed) instead of `'passed'`.
+- Repos NOT in `_ci_active_repos` (never seen with checks) still return `'passed'` for empty check sets, preserving no-CI YOLO behavior.
+
+**tests/test_scm.py**:
+- Updated `test_no_statuses_and_no_check_runs_are_eligible_to_merge` to properly isolate `_ci_active_repos` state.
+- Added `test_known_ci_repo_empty_checks_returns_pending`: CI-active repo + empty checks → 'pending'.
+- Added `test_non_empty_check_runs_register_repo_as_ci_active`: seeing checks marks the repo.
+
+**tests/test_ci_sync_race.py** (new):
+- Full regression sequence for PR #555 timeline (old SHA failed → synchronize → empty → pending → passed).
+- No-CI repo: empty checks → 'passed' → YOLO merges (preserved behavior).
+- Stale prior-SHA verdict: new SHA evaluated independently (no inheritance).
+- YOLO gate: `pending` blocks merge, `passed` allows merge.
+- Full sequence test: no premature merge across all 4 phases.
+
+Why the fix works: the YOLO gate checks `ci_ok = review.ci_status in ('passed', '', None)`. 'pending' is not in this set, so YOLO cannot merge during the empty check window.
 ---
 <!-- COMMENTS:END -->
