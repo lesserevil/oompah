@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:38:05.133469Z'
+updated_at: '2026-07-26T18:47:39.462570Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -327,5 +327,15 @@ author: oompah
 created: 2026-07-26 18:38
 ---
 Discovery correction: The pushed implementation has a cold-start gap and does not yet meet the acceptance criteria. The ci-active repository set only knows about check-runs observed during the current process; immediately after a service restart, a synchronized CI-enabled PR can still receive empty status/check-run responses and be classified passed. Conversely, never observed is not a positive no-CI classification. I am replacing this with a bounded per-PR head-SHA registration observation in list_open_reviews: a newly created or changed head fails closed while its exact SHA is within a configurable grace period; a head with no checks becomes no-CI eligible only after that bounded observation. Head changes reset the observation, preventing prior-SHA reuse.
+---
+author: oompah
+created: 2026-07-26 18:47
+---
+Implementation: Replaced the process-lifetime ci-active repository heuristic with a bounded, class-level CI observation keyed by repository and PR number, storing the exact head SHA and first successful empty-check observation. list_open_reviews now requests an internal empty-set signal, returns pending for the configurable 60-second registration window, resets the window whenever head.sha changes, and returns passed only after that exact SHA remains check-free for the full window. Closed PR observations are pruned. Added OOMPAH_CI_REGISTRATION_GRACE_SECONDS to .env.example and rewrote regression coverage around real list_open_reviews plus direct and merge-queue YOLO gates.
+---
+author: oompah
+created: 2026-07-26 18:47
+---
+Verification: Focused SCM and CI-race suite passed: 294 passed in 0.67s. Full make test gate passed: 12111 passed, 39 skipped, 13 warnings in 238.97s. The host uv snap launcher could not create its systemd transient scope, so make test was run with a process-local uv-run shim targeting the existing project .venv; the repository and dependencies were not modified by the workaround. git diff --check also passes.
 ---
 <!-- COMMENTS:END -->
