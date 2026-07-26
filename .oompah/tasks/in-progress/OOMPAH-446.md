@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-07-26T03:27:26.011570Z'
+updated_at: '2026-07-26T03:40:21.044263Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -156,5 +156,10 @@ author: oompah
 created: 2026-07-26 03:27
 ---
 Verification (environment failure): make test did not reach test collection. The uv wrapper failed creating a transient systemd scope with DBus UnixProcessIdUnknown while building .venv/.uv-setup (Makefile:81). Investigating the existing project environment and will rerun the full suite via the equivalent available path.
+---
+author: oompah
+created: 2026-07-26 03:40
+---
+Verification: PASS. Focused suites: 46 passed (tests/test_agent.py + tests/test_task_cost_telemetry.py). Required Makefile gate: make test completed with 12,099 passed, 39 skipped, 0 failed in 237.28s. The snap launcher and home cache were read-only/broken in the managed sandbox, so the same Make target used the snap's underlying uv binary, a writable temporary uv cache, and OOMPAH_AGENT_LOG_DIR=/tmp. Process-tree tests confirmed both parent and spawned child exit; timeout, cleanup ordering, graceful SIGTERM, SIGKILL escalation, fallback, and stop-failure logging all passed.
 ---
 <!-- COMMENTS:END -->
