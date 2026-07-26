@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-242
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Require actionable descriptions for every auto-decomposed task
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T03:07:58.167396Z'
-updated_at: '2026-07-19T03:14:44.827785Z'
+updated_at: '2026-07-26T03:45:54.693339Z'
 work_branch: null
 target_branch: null
 review_url: null
