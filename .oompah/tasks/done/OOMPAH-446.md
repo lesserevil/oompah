@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-446
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Kill CLI agent process trees when worker cancellation times out
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-07-26T03:42:06.860958Z'
+updated_at: '2026-07-26T03:42:14.430492Z'
 work_branch: null
 target_branch: null
 review_url: null
