@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-438
 type: task
-status: Done
+status: Merged
 priority: null
 title: Wake dispatch after a task becomes dispatchable
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T15:53:33.753602Z'
-updated_at: '2026-07-26T00:29:08.593329Z'
+updated_at: '2026-07-26T00:29:12.881957Z'
 work_branch: null
 target_branch: null
 review_url: null
