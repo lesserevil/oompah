@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-07-26T03:27:08.045932Z'
+updated_at: '2026-07-26T03:27:26.011570Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -151,5 +151,10 @@ author: oompah
 created: 2026-07-26 03:27
 ---
 Implementation: CLI AgentSession now launches with a dedicated POSIX session, serializes concurrent stop calls, sends SIGTERM to the process group, polls parent/group liveness, and escalates to SIGKILL within a caller-supplied bound; non-POSIX uses terminate/kill. Orchestrator now registers live CLI controllers, starts session shutdown alongside worker cancellation, suppresses the forced-exit race, logs stop failures/timeouts, and removes runtime/session/claim/worktree state only after shutdown was attempted. Added agent unit/integration tests and orchestrator regression coverage with a cancellation-resistant worker and spawned child.
+---
+author: oompah
+created: 2026-07-26 03:27
+---
+Verification (environment failure): make test did not reach test collection. The uv wrapper failed creating a transient systemd scope with DBus UnixProcessIdUnknown while building .venv/.uv-setup (Makefile:81). Investigating the existing project environment and will rerun the full suite via the equivalent available path.
 ---
 <!-- COMMENTS:END -->
