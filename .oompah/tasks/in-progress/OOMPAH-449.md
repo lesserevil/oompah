@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:37:55.817540Z'
+updated_at: '2026-07-26T18:38:05.133469Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -322,5 +322,10 @@ author: oompah
 created: 2026-07-26 18:37
 ---
 Discovery: The pushed implementation has a cold-start gap and does not yet meet the acceptance criteria.  only knows about check-runs observed during the current process; immediately after a service restart, a synchronized CI-enabled PR can still receive empty status/check-run responses and be classified . Conversely,  is not a positive no-CI classification. I am replacing this with a bounded per-PR head-SHA registration observation in : a newly created or changed head fails closed while its exact SHA is within a configurable grace period; a head with no checks becomes no-CI eligible only after that bounded observation. Head changes reset the observation, preventing prior-SHA reuse.
+---
+author: oompah
+created: 2026-07-26 18:38
+---
+Discovery correction: The pushed implementation has a cold-start gap and does not yet meet the acceptance criteria. The ci-active repository set only knows about check-runs observed during the current process; immediately after a service restart, a synchronized CI-enabled PR can still receive empty status/check-run responses and be classified passed. Conversely, never observed is not a positive no-CI classification. I am replacing this with a bounded per-PR head-SHA registration observation in list_open_reviews: a newly created or changed head fails closed while its exact SHA is within a configurable grace period; a head with no checks becomes no-CI eligible only after that bounded observation. Head changes reset the observation, preventing prior-SHA reuse.
 ---
 <!-- COMMENTS:END -->
