@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-248
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Fix Release Delivery discovery when merged task branches were deleted
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T18:24:37.584983Z'
-updated_at: '2026-07-19T19:14:10.422606Z'
+updated_at: '2026-07-26T19:21:25.721108Z'
 work_branch: OOMPAH-248
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/446
