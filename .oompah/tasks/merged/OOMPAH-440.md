@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-440
 type: task
-status: Done
+status: Merged
 priority: null
 title: Count claimed shared-epic children in branch serialization
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T16:07:22.198190Z'
-updated_at: '2026-07-24T16:09:55.156629Z'
+updated_at: '2026-07-26T00:29:17.519190Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,5 +33,10 @@ author: oompah
 created: 2026-07-24 16:09
 ---
 Deployed shared-epic claim serialization. Claimed siblings now count as in-flight before their worker is registered, closing the event-driven dispatch race; P0 behavior is unchanged. Added same-epic and different-epic claim regression coverage; make test passed (12,316 tests). Commit 0e5fb0632 pushed to main.
+---
+author: oompah
+created: 2026-07-26 00:29
+---
+Delivery reconciled: shared-epic claim serialization before worker startup is present on origin/main in commit 0e5fb0632. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->

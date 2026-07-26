@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T15:53:33.753602Z'
-updated_at: '2026-07-26T00:29:12.881957Z'
+updated_at: '2026-07-26T00:29:15.311404Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-26 00:29
 ---
 Delivery reconciled: immediate scheduler wake-up on dispatchable transitions is present on origin/main in commit 609e0ea26. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
+---
+author: oompah
+created: 2026-07-26 00:29
+---
+Verified delivered on origin/main in 609e0ea26 and reconciled stale Done state.
 ---
 <!-- COMMENTS:END -->
