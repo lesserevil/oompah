@@ -524,6 +524,112 @@ class TestReconcileStaleInReviewTasks:
             work_branch,
         )
 
+    def test_shared_follow_up_repairs_only_exact_named_terminal_child(
+        self, tmp_path
+    ):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        project.epic_strategy = "shared"
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        shared_branch = "epic-EPIC-1"
+        orch._reviews_cache = {
+            project.id: [
+                ReviewRequest(
+                    id="17",
+                    title="TASK-41: publish follow-up evidence",
+                    url="https://github.com/org/repo/pull/17",
+                    author="alice",
+                    state="open",
+                    source_branch=shared_branch,
+                    target_branch="main",
+                    created_at="2026-01-01",
+                    updated_at="2026-01-01",
+                )
+            ]
+        }
+        orch._count_review_branch_ahead = MagicMock(return_value=(1, [], ""))
+
+        epic = _make_issue(
+            "EPIC-1",
+            state=MERGED,
+            issue_type="epic",
+            project_id=project.id,
+        )
+        unrelated_child = _make_issue(
+            "TASK-4",
+            state=MERGED,
+            parent_id="EPIC-1",
+            project_id=project.id,
+        )
+        review_owner = _make_issue(
+            "TASK-41",
+            state=MERGED,
+            parent_id="EPIC-1",
+            project_id=project.id,
+        )
+        for issue in (epic, unrelated_child, review_owner):
+            issue.work_branch = shared_branch
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            epic,
+            unrelated_child,
+            review_owner,
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_terminal_open_reviews()
+
+        mock_tracker.update_issue.assert_called_once_with(
+            "TASK-41", status=IN_REVIEW
+        )
+        orch._count_review_branch_ahead.assert_called_once_with(
+            project,
+            "main",
+            shared_branch,
+        )
+
+    def test_shared_follow_up_can_use_persisted_review_number(self, tmp_path):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        project.epic_strategy = "shared"
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        shared_branch = "epic-EPIC-1"
+        orch._reviews_cache = {
+            project.id: [
+                ReviewRequest(
+                    id="23",
+                    title="Publish follow-up evidence",
+                    url="https://github.com/org/repo/pull/23",
+                    author="alice",
+                    state="open",
+                    source_branch=shared_branch,
+                    target_branch="main",
+                    created_at="2026-01-01",
+                    updated_at="2026-01-01",
+                )
+            ]
+        }
+        orch._count_review_branch_ahead = MagicMock(return_value=(1, [], ""))
+
+        issue = _make_issue(
+            "TASK-41",
+            state=MERGED,
+            parent_id="EPIC-1",
+            project_id=project.id,
+        )
+        issue.work_branch = shared_branch
+        issue.review_number = "23"
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [issue]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_terminal_open_reviews()
+
+        mock_tracker.update_issue.assert_called_once_with(
+            "TASK-41", status=IN_REVIEW
+        )
+
     @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
     @patch("oompah.orchestrator.detect_provider")
     def test_false_merged_repair_skips_stale_cached_open_review(
