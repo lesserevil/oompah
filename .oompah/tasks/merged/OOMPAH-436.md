@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T02:29:45.093119Z'
-updated_at: '2026-07-26T00:29:03.400951Z'
+updated_at: '2026-07-26T00:29:06.268373Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-07-26 00:29
 ---
 Delivery reconciled: configured network access to the embedded MCP endpoint is present on origin/main in commit 8fc368e6d. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
+---
+author: oompah
+created: 2026-07-26 00:29
+---
+Verified delivered on origin/main in 8fc368e6d and reconciled stale Done state.
 ---
 <!-- COMMENTS:END -->
