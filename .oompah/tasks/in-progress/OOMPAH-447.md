@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-447
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Do not reopen merged epic siblings for a later shared-branch PR
 parent: null
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:02:02.297716Z'
-updated_at: '2026-07-26T04:07:20.816181Z'
+updated_at: '2026-07-26T04:07:39.815407Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: a8c8219a-1068-46be-85c1-792605dc3425
+oompah.agent_run_id: a857be39-6727-4b70-953b-debcf4298e58
 oompah.task_costs:
   total_input_tokens: 38
   total_output_tokens: 7083
@@ -125,5 +125,15 @@ author: oompah
 created: 2026-07-26 04:07
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-26 04:07
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-26 04:07
+---
+Focus: DevOps Engineer
 ---
 <!-- COMMENTS:END -->
