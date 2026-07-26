@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-449
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Do not merge a newly updated PR before its CI checks register
 parent: null
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:35:10.519088Z'
+updated_at: '2026-07-26T18:35:21.993956Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 7733e9ad-c0f9-4698-812b-bfce031b2447
+oompah.agent_run_id: 0ba8b49d-c198-488a-a9f5-0eaa9016b551
 oompah.task_costs:
   total_input_tokens: 103
   total_output_tokens: 33427
@@ -302,5 +302,15 @@ Required: open a PR before closing.
   gh pr create --base main --head OOMPAH-449 --title "OOMPAH-449: Do not merge a newly updated PR before its CI checks register" --body "..."
 
 Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
+---
+author: oompah
+created: 2026-07-26 18:35
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-26 18:35
+---
+Focus: DevOps Engineer
 ---
 <!-- COMMENTS:END -->
