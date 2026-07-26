@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-251
 type: task
-status: Merged
+status: Archived
 priority: 0
 title: Make Release Delivery candidate discovery bounded for Trickle-scale history
 parent: null
@@ -14,7 +14,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-07-19T22:01:10.371010Z'
-updated_at: '2026-07-19T23:18:03.505118Z'
+updated_at: '2026-07-26T23:33:31.153248Z'
 work_branch: OOMPAH-251
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/449
