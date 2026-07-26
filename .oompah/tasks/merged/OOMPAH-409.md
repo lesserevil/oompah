@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-409
 type: task
-status: Done
+status: Merged
 priority: null
 title: Allow Codex conflict resolvers to write shared git metadata
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T15:36:41.250138Z'
-updated_at: '2026-07-26T00:28:21.374087Z'
+updated_at: '2026-07-26T00:28:23.662385Z'
 work_branch: null
 target_branch: null
 review_url: null
