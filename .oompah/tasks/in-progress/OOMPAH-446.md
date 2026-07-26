@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-07-26T03:15:57.810920Z'
+updated_at: '2026-07-26T03:16:21.263023Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -136,5 +136,10 @@ author: oompah
 created: 2026-07-26 03:15
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-26 03:16
+---
+Understanding: I will make CLI subprocess shutdown process-tree aware by creating a dedicated POSIX session, terminating its process group with bounded SIGTERM/SIGKILL escalation and a safe fallback, then ensure orchestrator forced termination invokes session shutdown before clearing runtime state. I will add agent and orchestrator regression tests for descendants, cancellation-resistant workers, failure observability, and unchanged graceful completion; then run make test, commit, push, and close the task.
 ---
 <!-- COMMENTS:END -->
