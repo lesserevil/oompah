@@ -10,12 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-26T04:02:02.297716Z'
-updated_at: '2026-07-26T04:02:11.184799Z'
+updated_at: '2026-07-26T04:04:11.158032Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: a8c8219a-1068-46be-85c1-792605dc3425
 ---
 ## Summary
 
@@ -48,5 +49,15 @@ author: oompah
 created: 2026-07-26 04:02
 ---
 Reproduced live with exocomp PR #17: shared branch epic-EXOCOMP-6 caused unrelated terminal siblings EXOCOMP-41/42/43/44 and parent EXOCOMP-6 to be demoted. Implementing exact review ownership checks in terminal/open-review reconciliation with focused regression tests.
+---
+author: oompah
+created: 2026-07-26 04:04
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-26 04:04
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
