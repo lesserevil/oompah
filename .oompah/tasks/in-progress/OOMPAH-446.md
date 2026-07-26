@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-07-26T03:16:21.263023Z'
+updated_at: '2026-07-26T03:22:53.377460Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -141,5 +141,10 @@ author: oompah
 created: 2026-07-26 03:16
 ---
 Understanding: I will make CLI subprocess shutdown process-tree aware by creating a dedicated POSIX session, terminating its process group with bounded SIGTERM/SIGKILL escalation and a safe fallback, then ensure orchestrator forced termination invokes session shutdown before clearing runtime state. I will add agent and orchestrator regression tests for descendants, cancellation-resistant workers, failure observability, and unchanged graceful completion; then run make test, commit, push, and close the task.
+---
+author: oompah
+created: 2026-07-26 03:22
+---
+Discovery: AgentSession.start in oompah/agent.py launches bash without a dedicated session, and stop() terminates/kills only the direct asyncio subprocess. The CLI worker keeps the live AgentSession only in a local variable; RunningEntry stores dashboard metadata, so _terminate_running cannot stop the process independently. It also pops state.running before cancelling, letting a resistant worker outlive accounting. I will register active CLI sessions on the orchestrator, mark forced terminations to suppress the worker-exit race, run worker cancellation and session shutdown concurrently within OOMPAH_WORKER_TERMINATION_TIMEOUT_MS, and pop/clean only afterward.
 ---
 <!-- COMMENTS:END -->
