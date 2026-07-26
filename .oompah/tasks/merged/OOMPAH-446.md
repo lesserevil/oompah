@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-446
 type: task
-status: In Review
+status: Merged
 priority: null
 title: Kill CLI agent process trees when worker cancellation times out
 parent: null
@@ -11,11 +11,11 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-07-26T03:45:08.958448Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-26T03:45:20.483829Z'
+work_branch: OOMPAH-446
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/554
+review_number: '554'
 merged_at: null
 oompah.agent_run_id: 2541193c-8043-4992-bf40-a2f8602f559c
 oompah.task_costs:
@@ -34,6 +34,10 @@ oompah.task_costs:
     output_tokens: 7347
     cost_usd: 0.0
     recorded_at: '2026-07-26T03:15:46.441706+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/554
+oompah.review_number: '554'
+oompah.work_branch: OOMPAH-446
+oompah.target_branch: main
 ---
 ## Summary
 
