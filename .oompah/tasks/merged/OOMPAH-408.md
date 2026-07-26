@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-408
 type: task
-status: Done
+status: Merged
 priority: null
 title: Redispatch conflicted open PR resolver tasks
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T15:25:36.632395Z'
-updated_at: '2026-07-22T15:28:48.903630Z'
+updated_at: '2026-07-26T00:28:17.728995Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-22 15:28
 ---
 Prevented premature Merged state for epic children with open reviews; regression test added and make test passed.
+---
+author: oompah
+created: 2026-07-26 00:28
+---
+Delivery reconciled: protection for epic children that still own open reviews is present on origin/main in commit 8668849cc. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->
