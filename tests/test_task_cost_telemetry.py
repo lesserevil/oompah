@@ -11,12 +11,17 @@ Covers:
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import os
+import shlex
+import signal
 import threading
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
+from oompah.agent import AgentSession
 from oompah.config import ServiceConfig
 from oompah.models import AgentProfile, Issue, LiveSession, ModelProvider, RunningEntry
 from oompah.orchestrator import Orchestrator
@@ -126,6 +131,14 @@ def _make_profile(
         cost_per_1k_input=0.001,  # fallback rates
         cost_per_1k_output=0.002,
     )
+
+
+def _pid_exists(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
 
 
 def _make_orchestrator(tmp_path, providers=None):
@@ -787,6 +800,108 @@ class TestTerminateRunningWritesCostRecord:
 
         assert elapsed < 0.08
         assert "stuck-worker" not in orch.state.running
+
+    @pytest.mark.skipif(os.name != "posix", reason="requires POSIX process groups")
+    def test_terminate_kills_cli_tree_when_worker_resists_cancel(self, tmp_path):
+        """Forced termination independently kills the CLI parent and child."""
+        orch = _make_orchestrator(tmp_path)
+        orch.config.worker_termination_timeout_ms = 100
+        pid_file = tmp_path / "child.pid"
+        command = (
+            f"sleep 60 & echo $! > {shlex.quote(str(pid_file))}; "
+            "wait"
+        )
+
+        async def _run():
+            session = AgentSession(command, str(tmp_path))
+            await session.start()
+            parent_pid = int(session.pid)
+            child_pid = None
+            task = None
+
+            try:
+                for _ in range(100):
+                    if pid_file.exists():
+                        child_pid = int(pid_file.read_text().strip())
+                        break
+                    await asyncio.sleep(0.01)
+                assert child_pid is not None
+
+                async def _ignores_first_cancel():
+                    try:
+                        await asyncio.sleep(60)
+                    except asyncio.CancelledError:
+                        await asyncio.sleep(1)
+
+                task = asyncio.create_task(_ignores_first_cancel())
+                entry = _make_running_entry("stuck-cli")
+                entry.worker_task = task
+                orch.state.running["stuck-cli"] = entry
+                orch.state.claimed.add("stuck-cli")
+                orch._cli_agent_sessions["stuck-cli"] = session
+
+                started = asyncio.get_running_loop().time()
+                await orch._terminate_running(
+                    "stuck-cli",
+                    cleanup_workspace=False,
+                )
+                elapsed = asyncio.get_running_loop().time() - started
+
+                return elapsed, parent_pid, child_pid
+            finally:
+                if task is not None and not task.done():
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+                if session._process and session._process.returncode is None:
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(parent_pid, signal.SIGKILL)
+                    await session._process.wait()
+
+        elapsed, parent_pid, child_pid = asyncio.run(_run())
+
+        assert elapsed < 0.2
+        assert "stuck-cli" not in orch.state.running
+        assert "stuck-cli" not in orch.state.claimed
+        assert "stuck-cli" not in orch._cli_agent_sessions
+        assert not _pid_exists(parent_pid)
+        assert not _pid_exists(child_pid)
+
+    def test_session_shutdown_failure_is_observable_and_does_not_block_cleanup(
+        self,
+        tmp_path,
+        caplog,
+    ):
+        """A stop failure is logged while runtime and worktree cleanup continue."""
+        orch, _entry = self._make_orchestrator_with_running(tmp_path)
+        orch.state.claimed.add("test-001")
+        cleanup = MagicMock()
+        orch.workspace_mgr.remove_workspace = cleanup
+
+        async def _fail_while_entry_is_visible(*, timeout_s):
+            assert timeout_s > 0
+            assert "test-001" in orch.state.running
+            cleanup.assert_not_called()
+            raise RuntimeError("stop exploded")
+
+        cli_session = MagicMock()
+        cli_session.stop = AsyncMock(side_effect=_fail_while_entry_is_visible)
+        orch._cli_agent_sessions["test-001"] = cli_session
+
+        with caplog.at_level("WARNING", logger="oompah.orchestrator"):
+            asyncio.run(
+                orch._terminate_running(
+                    "test-001",
+                    cleanup_workspace=True,
+                )
+            )
+
+        assert "CLI agent session shutdown failed" in caplog.text
+        assert "stop exploded" in caplog.text
+        assert "test-001" not in orch.state.running
+        assert "test-001" not in orch.state.claimed
+        assert "test-001" not in orch._cli_agent_sessions
+        cleanup.assert_called_once_with("test-001")
 
     def test_shutdown_timeout_logs_warning_not_error(self, tmp_path):
         """Worker-shutdown timeout must log at WARNING, not ERROR.
