@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-449
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Do not merge a newly updated PR before its CI checks register
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:34:43.290206Z'
+updated_at: '2026-07-26T18:34:56.327116Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -244,5 +244,21 @@ All 10 new tests pass:
   - No-CI repo (ci_status='passed') merges immediately
   - Passed CI triggers merge
   - Full PR #555 sequence: no premature merge across 4 phases
+---
+author: oompah
+created: 2026-07-26 18:34
+---
+Completion: OOMPAH-449 delivered.
+
+Root cause: GitHubProvider._fetch_ci_status_and_warnings returned 'passed' when both /commits/{sha}/status and /commits/{sha}/check-runs returned empty results. GitHub Actions workflows typically register 3-6 seconds after a push, creating a window where a newly-synchronized PR SHA had no checks but was treated as passing CI.
+
+Fix: Added class-level _ci_active_repos tracking to GitHubProvider. Repos that have had non-empty check-runs at any point in the process lifetime are marked CI-active. For CI-active repos, empty check sets return 'pending' (fail-closed) instead of 'passed'. No-CI repos (never seen with checks) retain the 'passed' behavior.
+
+Files changed:
+- oompah/scm.py: _ci_active_repos cache + fail-closed logic (21 lines added)
+- tests/test_scm.py: 3 tests updated/added
+- tests/test_ci_sync_race.py: 10-test regression suite (new file)
+
+All 12113 tests pass. Branch pushed to origin/OOMPAH-449.
 ---
 <!-- COMMENTS:END -->
