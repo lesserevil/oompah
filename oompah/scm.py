@@ -556,6 +556,24 @@ class GitHubProvider(SCMProvider):
     # Configurable via OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS env var.
     _PR_DETAIL_CACHE_TTL_SECONDS: float = _read_pr_detail_cache_ttl()
 
+    # Repos known to use CI — populated whenever we observe a non-empty
+    # check-runs response for any SHA in that repo.  Shared at the class
+    # level for the same reason as ``_pr_detail_cache``: the orchestrator
+    # creates a new ``GitHubProvider`` instance on every tick, so an
+    # instance-level set would be vacuous.
+    #
+    # When a repo is in this set and ``_fetch_ci_status_and_warnings``
+    # encounters an empty check-runs response, it returns ``"pending"``
+    # instead of ``"passed"``.  This fail-closed behaviour prevents YOLO
+    # from merging a PR in the post-push race window where CI checks have
+    # not yet registered for a newly-synchronised head SHA.  (OOMPAH-449)
+    #
+    # Repos NOT in this set (never observed with checks) retain the old
+    # ``"passed"`` verdict for empty check sets, preserving no-CI YOLO
+    # behaviour.
+    _ci_active_repos: set[str] = set()
+    _ci_active_repos_lock: threading.Lock = threading.Lock()
+
     def __init__(self, access_token: str | None = None) -> None:
         # When an explicit token is provided (e.g. from project config), skip
         # the env/CLI fallback so per-project auth wins over the global default.
@@ -1058,6 +1076,11 @@ class GitHubProvider(SCMProvider):
                 if legacy_pending:
                     return "pending", warnings
                 if runs:
+                    # Non-empty check-runs observed — mark this repo as
+                    # CI-active so future empty-check results fail closed.
+                    # (OOMPAH-449)
+                    with self._ci_active_repos_lock:
+                        self._ci_active_repos.add(repo)
                     conclusions = {r.get("conclusion") or r.get("status", "") for r in runs}
                     if "failure" in conclusions or "timed_out" in conclusions:
                         return "failed", warnings
@@ -1069,13 +1092,31 @@ class GitHubProvider(SCMProvider):
                         return "passed", warnings
                     return "pending", warnings
                 # Both CI APIs were read successfully and neither reports a
-                # check for this commit. This is a valid "no CI configured"
-                # result, not an unavailable CI result: treating it as
-                # unknown leaves an otherwise clean YOLO PR in In Review
-                # forever. Unknown remains reserved for failed or unavailable
-                # CI observation.
+                # check for this commit.
+                #
+                # Fail-closed for repos known to use CI (OOMPAH-449): when
+                # this repo has previously had check-runs, an empty result for
+                # a new SHA means checks have not registered yet (post-push
+                # race window after a synchronize webhook).  Returning
+                # "pending" prevents YOLO from merging before CI has a chance
+                # to queue.
+                #
+                # For repos never seen with CI checks, treat empty as "no CI
+                # configured" and return "passed" so legitimate no-CI YOLO
+                # merging is preserved.
                 if legacy_failure:
                     return "failed", warnings
+                with self._ci_active_repos_lock:
+                    repo_has_ci = repo in self._ci_active_repos
+                if repo_has_ci:
+                    logger.debug(
+                        "GitHub CI: empty check set for known-CI repo %s/%s "
+                        "— returning pending (post-synchronize race guard, "
+                        "OOMPAH-449)",
+                        repo,
+                        sha[:7],
+                    )
+                    return "pending", warnings
                 return "passed", warnings
             elif cr.status_code == 403:
                 # The token lacks Checks access (common with fine-grained PATs

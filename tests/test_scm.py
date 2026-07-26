@@ -550,12 +550,74 @@ class TestFetchCiStatus:
         assert provider._fetch_ci_status("o/r", "deadbeef") == "pending"
 
     def test_no_statuses_and_no_check_runs_are_eligible_to_merge(self):
-        """A clean PR with no configured CI must not remain In Review."""
+        """A clean PR with no configured CI must not remain In Review.
+
+        When the repo has never had CI checks (not in _ci_active_repos),
+        empty status + empty check-runs → 'passed' so no-CI YOLO merging
+        is preserved. (OOMPAH-449: only CI-active repos fail-closed)
+        """
         provider = self._provider_with_responses(
             {"state": "pending", "total_count": 0},
             {"check_runs": []},
         )
+        # Ensure this repo is NOT in the CI-active set (clean test isolation)
+        from oompah.scm import GitHubProvider
+        with GitHubProvider._ci_active_repos_lock:
+            GitHubProvider._ci_active_repos.discard("o/r")
         assert provider._fetch_ci_status("o/r", "deadbeef") == "passed"
+
+    def test_known_ci_repo_empty_checks_returns_pending(self):
+        """When a repo is known to use CI, empty check-runs → 'pending'.
+
+        Regression for OOMPAH-449: after a synchronize webhook, CI checks
+        may not have registered yet.  A known-CI repo must fail-closed
+        (return 'pending') until checks actually appear and pass.
+        """
+        from oompah.scm import GitHubProvider
+        provider = self._provider_with_responses(
+            {"state": "pending", "total_count": 0},
+            {"check_runs": []},
+        )
+        # Simulate repo being known to use CI (checks seen for a previous SHA)
+        with GitHubProvider._ci_active_repos_lock:
+            GitHubProvider._ci_active_repos.add("o/r")
+        try:
+            assert provider._fetch_ci_status("o/r", "deadbeef") == "pending"
+        finally:
+            with GitHubProvider._ci_active_repos_lock:
+                GitHubProvider._ci_active_repos.discard("o/r")
+
+    def test_non_empty_check_runs_register_repo_as_ci_active(self):
+        """Seeing non-empty check-runs marks the repo as CI-active.
+
+        Once marked, a subsequent empty-check response for that repo
+        must return 'pending' (fail-closed) rather than 'passed'.
+        (OOMPAH-449)
+        """
+        from oompah.scm import GitHubProvider
+        # Start with a clean state
+        with GitHubProvider._ci_active_repos_lock:
+            GitHubProvider._ci_active_repos.discard("o/r-ci")
+        # First fetch: non-empty check-runs (CI is registered and passing)
+        provider1 = self._provider_with_responses(
+            {"state": "pending", "total_count": 0},
+            {"check_runs": [{"conclusion": "success", "status": "completed"}]},
+        )
+        assert provider1._fetch_ci_status("o/r-ci", "sha1") == "passed"
+        # After this call, the repo should be in _ci_active_repos
+        with GitHubProvider._ci_active_repos_lock:
+            assert "o/r-ci" in GitHubProvider._ci_active_repos
+        # Second fetch (new SHA after synchronize): empty check-runs
+        # → must return 'pending', not 'passed'
+        provider2 = self._provider_with_responses(
+            {"state": "pending", "total_count": 0},
+            {"check_runs": []},
+        )
+        try:
+            assert provider2._fetch_ci_status("o/r-ci", "sha2-new") == "pending"
+        finally:
+            with GitHubProvider._ci_active_repos_lock:
+                GitHubProvider._ci_active_repos.discard("o/r-ci")
 
 
 class TestFetchCiStatusCheckRunsForbidden:
