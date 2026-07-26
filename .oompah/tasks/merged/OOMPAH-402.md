@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-402
 type: task
-status: Done
+status: Merged
 priority: null
 title: Advance focus after completed agent handoffs
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T05:27:02.143073Z'
-updated_at: '2026-07-22T05:31:30.954315Z'
+updated_at: '2026-07-26T00:28:13.227399Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-22 05:31
 ---
 Fixed handoff retry loops and test-focus preemption; added regression coverage; make test passed.
+---
+author: oompah
+created: 2026-07-26 00:28
+---
+Delivery reconciled: focus advancement from durable handoff comments is present on origin/main in commit de48457e8. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->
