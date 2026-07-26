@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-26T04:02:02.297716Z'
-updated_at: '2026-07-26T04:04:11.158032Z'
+updated_at: '2026-07-26T04:04:22.785380Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-07-26 04:04
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-26 04:04
+---
+Understanding: Investigating OOMPAH-447 as Duplicate Investigator. The issue reports that _reconcile_terminal_open_reviews uses work_branch equality alone to match open PRs to issues, causing unrelated Merged siblings (EXOCOMP-41/42/43/44 and parent EXOCOMP-6) to be demoted to 'In Review' when a later follow-up PR reuses the shared epic branch. Searching now for candidate duplicates before any implementation begins.
 ---
 <!-- COMMENTS:END -->
