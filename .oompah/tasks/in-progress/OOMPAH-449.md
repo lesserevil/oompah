@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:34:18.977485Z'
+updated_at: '2026-07-26T18:34:43.290206Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -225,5 +225,24 @@ Changes made:
 - Full sequence test: no premature merge across all 4 phases.
 
 Why the fix works: the YOLO gate checks `ci_ok = review.ci_status in ('passed', '', None)`. 'pending' is not in this set, so YOLO cannot merge during the empty check window.
+---
+author: oompah
+created: 2026-07-26 18:34
+---
+Verification: make test passed — 12113 passed, 39 skipped, 12 warnings in 250s.
+
+All 10 new tests pass:
+- TestCISyncRaceGuard (6 tests): direct unit tests for the race guard
+  - No-CI repo empty checks → 'passed' (preserved behavior)
+  - Known-CI repo empty checks → 'pending' (fail-closed)
+  - Non-empty checks mark repo as CI-active
+  - PR #555 sequence: empty window returns pending
+  - Stale prior-SHA verdict not inherited
+  - Legacy failure + empty checks still fails
+- TestYoloGateCiSyncRace (4 tests): orchestrator-level YOLO gate
+  - pending CI blocks merge
+  - No-CI repo (ci_status='passed') merges immediately
+  - Passed CI triggers merge
+  - Full PR #555 sequence: no premature merge across 4 phases
 ---
 <!-- COMMENTS:END -->
