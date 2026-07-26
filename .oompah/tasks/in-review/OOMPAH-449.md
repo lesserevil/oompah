@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-449
 type: task
-status: In Progress
+status: In Review
 priority: null
 title: Do not merge a newly updated PR before its CI checks register
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:47:39.462570Z'
+updated_at: '2026-07-26T18:48:24.625325Z'
 work_branch: null
 target_branch: null
 review_url: null
