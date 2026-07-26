@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-422
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Require actionable handoffs for Needs Human transitions
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T20:10:29.633604Z'
-updated_at: '2026-07-23T20:13:23.624491Z'
+updated_at: '2026-07-26T00:28:42.434203Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-23 20:13
 ---
 Enforced actionable final handoffs for Needs Human and verified the suite.
+---
+author: oompah
+created: 2026-07-26 00:28
+---
+Delivery reconciled: actionable Needs Human handoff enforcement is present on origin/main in commit 296895829. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->
