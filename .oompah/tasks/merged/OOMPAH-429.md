@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-429
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Clear scheduler completion state when an operator reopens a task
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T22:24:40.832138Z'
-updated_at: '2026-07-23T22:27:58.230133Z'
+updated_at: '2026-07-26T00:28:58.868466Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-23 22:27
 ---
 Fixed and deployed in 3e921ab76. Reopening a dispatchable task now removes stale scheduler completed/claimed entries immediately; full test suite passed. Verified EXOCOMP-55 was requeued and is now In Progress.
+---
+author: oompah
+created: 2026-07-26 00:28
+---
+Delivery reconciled: scheduler completion-state clearing on reopen is present on origin/main in commit 3e921ab76. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->
