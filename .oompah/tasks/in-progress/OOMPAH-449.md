@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:21:07.565805Z'
+updated_at: '2026-07-26T18:21:21.194525Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -164,5 +164,18 @@ author: oompah
 created: 2026-07-26 18:21
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-26 18:21
+---
+Understanding: Implementing the CI check race condition fix. The bug: after a PR synchronize webhook, oompah queries GitHub's check-run/status APIs too quickly, gets empty results (checks not yet registered), which maps to 'passed', allowing YOLO to merge before CI runs.
+
+My plan:
+1. Read oompah/scm.py and oompah/orchestrator.py to understand current CI verdict logic
+2. Implement fail-closed behavior: empty check set for a recently-synchronized SHA = 'pending', not 'passed', when the repo has CI history
+3. Track head-SHA and synchronize timestamps to detect the race window
+4. Invalidate prior-head CI verdicts on synchronize
+5. Add regression tests for the PR #555 race sequence
+6. Run make test and push
 ---
 <!-- COMMENTS:END -->
