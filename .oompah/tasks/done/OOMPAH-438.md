@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T15:53:33.753602Z'
-updated_at: '2026-07-24T15:55:07.347529Z'
+updated_at: '2026-07-26T00:29:08.593329Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,5 +33,10 @@ author: oompah
 created: 2026-07-24 15:55
 ---
 Fixed and deployed immediate scheduler wake-up after a task transitions into Open. Added API regression coverage for dispatchable and non-dispatchable transitions; make test passed (12,312 tests). Commit 609e0ea26 pushed to main.
+---
+author: oompah
+created: 2026-07-26 00:29
+---
+Delivery reconciled: immediate scheduler wake-up on dispatchable transitions is present on origin/main in commit 609e0ea26. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->
