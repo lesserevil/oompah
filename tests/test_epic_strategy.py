@@ -1844,6 +1844,21 @@ class TestOpenEpicMainPrs:
             cwd=repo,
             check=True,
         )
+        subprocess.run(
+            ["git", "config", "user.name", "oompah"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "config",
+                "user.email",
+                "lesserevil@users.noreply.github.com",
+            ],
+            cwd=repo,
+            check=True,
+        )
         (repo / "base.txt").write_text("base\n")
         subprocess.run(["git", "add", "base.txt"], cwd=repo, check=True)
         subprocess.run(

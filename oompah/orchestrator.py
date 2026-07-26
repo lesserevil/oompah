@@ -9464,6 +9464,20 @@ class Orchestrator:
                 if not branch:
                     continue
                 review = branch_to_review[branch]
+                if not self._terminal_issue_owns_open_review(
+                    issue,
+                    review,
+                    branch,
+                ):
+                    logger.info(
+                        "Skipping false-Merged repair for %s: open review #%s "
+                        "on shared branch %s does not explicitly identify this "
+                        "terminal issue",
+                        issue.identifier,
+                        getattr(review, "id", "?"),
+                        branch,
+                    )
+                    continue
                 if provider is not None and slug:
                     try:
                         current_review = provider.find_pr_for_branch(slug, branch)
@@ -9541,6 +9555,41 @@ class Orchestrator:
                         issue.identifier,
                         exc,
                     )
+
+    @staticmethod
+    def _terminal_issue_owns_open_review(
+        issue: Issue,
+        review: ReviewRequest | Any,
+        branch: str,
+    ) -> bool:
+        """Return whether an open review can repair this terminal issue.
+
+        Standalone task branches belong to one task, so matching the branch is
+        sufficient.  Shared epic branches are different: a later follow-up PR
+        can reuse the branch after the epic and its siblings have already
+        merged.  In that case branch equality alone must not reopen every
+        terminal sibling.  Require persisted review metadata or an exact issue
+        identifier in the current review title.
+        """
+        review_id = str(getattr(review, "id", "") or "").strip()
+        issue_review_id = str(getattr(issue, "review_number", "") or "").strip()
+        if review_id and issue_review_id and review_id == issue_review_id:
+            return True
+
+        identifier = str(issue.identifier or "").strip()
+        title = str(getattr(review, "title", "") or "")
+        if identifier and re.search(
+            rf"(?<![A-Za-z0-9_-]){re.escape(identifier)}(?![A-Za-z0-9_-])",
+            title,
+        ):
+            return True
+
+        issue_type = str(issue.issue_type or "").strip().lower()
+        shared_epic_branch = issue_type == "epic" or (
+            bool(str(issue.parent_id or "").strip())
+            and branch != identifier
+        )
+        return not shared_epic_branch
 
     def _open_review_branch_for_issue(
         self,
