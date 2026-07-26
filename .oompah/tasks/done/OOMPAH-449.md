@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-449
 type: task
-status: In Review
+status: Done
 priority: null
 title: Do not merge a newly updated PR before its CI checks register
 parent: null
@@ -11,11 +11,11 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:48:24.625325Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-26T18:48:38.240629Z'
+work_branch: OOMPAH-449
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/556
+review_number: '556'
 merged_at: null
 oompah.agent_run_id: 0ba8b49d-c198-488a-a9f5-0eaa9016b551
 oompah.task_costs:
@@ -46,6 +46,10 @@ oompah.task_costs:
     output_tokens: 28659
     cost_usd: 0.0
     recorded_at: '2026-07-26T18:35:06.772616+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/556
+oompah.review_number: '556'
+oompah.work_branch: OOMPAH-449
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -337,5 +341,10 @@ author: oompah
 created: 2026-07-26 18:47
 ---
 Verification: Focused SCM and CI-race suite passed: 294 passed in 0.67s. Full make test gate passed: 12111 passed, 39 skipped, 13 warnings in 238.97s. The host uv snap launcher could not create its systemd transient scope, so make test was run with a process-local uv-run shim targeting the existing project .venv; the repository and dependencies were not modified by the workaround. git diff --check also passes.
+---
+author: oompah
+created: 2026-07-26 18:48
+---
+Completion: Delivered and pushed the head-SHA-aware bounded CI registration guard in commits bc3f6e876 and 26272e5c7. PR #556 is open against main: https://github.com/lesserevil/oompah/pull/556. Empty checks for a new/synchronized exact SHA now block both merge and enqueue; registered pending checks remain blocked; passed checks resume delivery; a truly check-free SHA becomes no-CI eligible after the configured grace. Full make test passed with 12111 passed and 39 skipped. Branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
