@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-236
 type: task
-status: Merged
+status: Archived
 priority: 0
 title: Replace Release Delivery commit pagination with an item-centric release backlog
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-19T00:33:24.455215Z'
-updated_at: '2026-07-19T01:41:58.013820Z'
+updated_at: '2026-07-26T04:04:45.629453Z'
 work_branch: OOMPAH-236
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/443
