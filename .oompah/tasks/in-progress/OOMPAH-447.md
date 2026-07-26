@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:02:02.297716Z'
-updated_at: '2026-07-26T04:07:39.815407Z'
+updated_at: '2026-07-26T04:07:57.156390Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -135,5 +135,10 @@ author: oompah
 created: 2026-07-26 04:07
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-26 04:07
+---
+Understanding: As DevOps Engineer, I'm picking up from the duplicate_detector handoff. Root cause confirmed: _reconcile_terminal_open_reviews() in oompah/orchestrator.py uses work_branch equality alone to match open PRs to issues, causing all Merged siblings sharing a shared epic branch (e.g., epic-EXOCOMP-6) to be incorrectly demoted when a follow-up PR reuses that branch. Plan: (1) read the relevant orchestrator code around lines 9401 and 9545, (2) implement ownership validation (review_number match, exact title identifier match, or standalone task branch), (3) add regression tests for shared-branch epic scenarios, (4) run make test. The implementation is Python backend work which I can complete in this session.
 ---
 <!-- COMMENTS:END -->
