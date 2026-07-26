@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-411
 type: task
-status: Done
+status: Merged
 priority: null
 title: Unblock clean GitHub PRs with no CI checks
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T21:26:04.166626Z'
-updated_at: '2026-07-26T00:28:34.162836Z'
+updated_at: '2026-07-26T00:28:36.626713Z'
 work_branch: null
 target_branch: null
 review_url: null
