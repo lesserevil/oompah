@@ -10,6 +10,7 @@ from oompah.scm import (
     ReviewRequest,
     SCMProvider,
     _is_protected_branch,
+    _read_ci_registration_grace_seconds,
     _read_pr_detail_cache_ttl,
     _truncate,
     detect_provider,
@@ -315,6 +316,28 @@ class TestReadPrDetailCacheTtl:
             assert _read_pr_detail_cache_ttl() == 60.0
 
 
+class TestReadCiRegistrationGrace:
+    """CI registration grace is tunable but always remains fail-closed."""
+
+    def test_default_when_env_unset(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("OOMPAH_CI_REGISTRATION_GRACE_SECONDS", None)
+            assert _read_ci_registration_grace_seconds() == 60.0
+
+    def test_reads_positive_value(self):
+        with mock.patch.dict(
+            os.environ, {"OOMPAH_CI_REGISTRATION_GRACE_SECONDS": "12.5"}
+        ):
+            assert _read_ci_registration_grace_seconds() == 12.5
+
+    def test_invalid_values_fall_back_to_default(self):
+        for value in ("bad", "0", "-1"):
+            with mock.patch.dict(
+                os.environ, {"OOMPAH_CI_REGISTRATION_GRACE_SECONDS": value}
+            ):
+                assert _read_ci_registration_grace_seconds() == 60.0
+
+
 class TestExtractRepoSlug:
     def test_https_github(self):
         assert extract_repo_slug("https://github.com/org/repo.git") == "org/repo"
@@ -550,12 +573,30 @@ class TestFetchCiStatus:
         assert provider._fetch_ci_status("o/r", "deadbeef") == "pending"
 
     def test_no_statuses_and_no_check_runs_are_eligible_to_merge(self):
-        """A clean PR with no configured CI must not remain In Review."""
+        """A clean PR with no configured CI must not remain In Review.
+
+        Direct SHA callers retain the historical no-CI verdict. PR listing
+        requests an internal empty-set signal and applies the bounded
+        registration observation separately. (OOMPAH-449)
+        """
         provider = self._provider_with_responses(
             {"state": "pending", "total_count": 0},
             {"check_runs": []},
         )
         assert provider._fetch_ci_status("o/r", "deadbeef") == "passed"
+
+    def test_empty_check_status_can_be_deferred_to_pr_observer(self):
+        """PR listing can request an unambiguous empty-check signal."""
+        provider = self._provider_with_responses(
+            {"state": "pending", "total_count": 0},
+            {"check_runs": []},
+        )
+        status, _warnings = provider._fetch_ci_status_and_warnings(
+            "o/r",
+            "deadbeef",
+            empty_check_status=GitHubProvider._EMPTY_CHECK_SET,
+        )
+        assert status == GitHubProvider._EMPTY_CHECK_SET
 
 
 class TestFetchCiStatusCheckRunsForbidden:

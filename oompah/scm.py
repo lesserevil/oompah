@@ -520,6 +520,26 @@ def _read_pr_detail_cache_ttl() -> float:
     return value
 
 
+def _read_ci_registration_grace_seconds() -> float:
+    """Read the bounded wait for CI checks to register on a PR head.
+
+    GitHub may return successful, empty status and check-run responses for
+    several seconds after a PR is created or synchronized.  The grace period
+    lets :meth:`GitHubProvider.list_open_reviews` distinguish that transient
+    state from a PR whose exact head SHA genuinely has no CI.
+    """
+    raw = os.environ.get("OOMPAH_CI_REGISTRATION_GRACE_SECONDS")
+    if raw is None:
+        return 60.0
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return 60.0
+    if value <= 0:
+        return 60.0
+    return value
+
+
 class GitHubProvider(SCMProvider):
     """GitHub implementation using the REST API via httpx."""
 
@@ -555,6 +575,23 @@ class GitHubProvider(SCMProvider):
     # time; tests override by assigning to the class attribute.
     # Configurable via OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS env var.
     _PR_DETAIL_CACHE_TTL_SECONDS: float = _read_pr_detail_cache_ttl()
+
+    # Bounded empty-CI observations keyed by (repo, PR number).
+    #
+    # Value: (head_sha, first_empty_observation_monotonic)
+    #
+    # The orchestrator creates a new provider each tick, so this state must be
+    # shared across instances.  A changed head SHA replaces the entry and
+    # starts a fresh registration window, which prevents a synchronized PR
+    # from inheriting the previous head's no-CI verdict.  If the exact SHA
+    # remains check-free for the full grace period it is positively classified
+    # as no-CI and may retain normal YOLO behavior.  (OOMPAH-449)
+    _ci_head_observations: dict[tuple[str, str], tuple[str, float]] = {}
+    _ci_head_observations_lock: threading.Lock = threading.Lock()
+    _CI_REGISTRATION_GRACE_SECONDS: float = (
+        _read_ci_registration_grace_seconds()
+    )
+    _EMPTY_CHECK_SET = "__empty_check_set__"
 
     def __init__(self, access_token: str | None = None) -> None:
         # When an explicit token is provided (e.g. from project config), skip
@@ -985,7 +1022,11 @@ class GitHubProvider(SCMProvider):
             return None
 
     def _fetch_ci_status_and_warnings(
-        self, repo: str, sha: str
+        self,
+        repo: str,
+        sha: str,
+        *,
+        empty_check_status: str = "passed",
     ) -> tuple[str, list[dict[str, Any]]]:
         """Fetch combined CI status and operator-facing CI warnings.
 
@@ -1069,14 +1110,13 @@ class GitHubProvider(SCMProvider):
                         return "passed", warnings
                     return "pending", warnings
                 # Both CI APIs were read successfully and neither reports a
-                # check for this commit. This is a valid "no CI configured"
-                # result, not an unavailable CI result: treating it as
-                # unknown leaves an otherwise clean YOLO PR in In Review
-                # forever. Unknown remains reserved for failed or unavailable
-                # CI observation.
+                # check for this exact commit. Direct callers retain the
+                # historical no-CI verdict. list_open_reviews requests the
+                # internal empty-set signal so it can apply a bounded,
+                # head-SHA-aware registration grace period. (OOMPAH-449)
                 if legacy_failure:
                     return "failed", warnings
-                return "passed", warnings
+                return empty_check_status, warnings
             elif cr.status_code == 403:
                 # The token lacks Checks access (common with fine-grained PATs
                 # that were not granted the Checks permission). Fall back to
@@ -1097,6 +1137,9 @@ class GitHubProvider(SCMProvider):
                     if wf_status:
                         return wf_status, wf_warnings
                     # wf_status == "" (no workflow runs found) — fall through
+                    # to the established unknown/degraded verdict. Unlike a
+                    # successful empty check-runs response, a 403 means we
+                    # cannot positively establish that this SHA has no checks.
                 else:
                     # Neither check-runs nor workflow-runs are accessible.
                     # Surface a degraded-capability warning so the UI can
@@ -1128,6 +1171,52 @@ class GitHubProvider(SCMProvider):
         status, _warnings = self._fetch_ci_status_and_warnings(repo, sha)
         return status
 
+    @classmethod
+    def _ci_status_for_empty_review_head(
+        cls,
+        repo: str,
+        review_id: str,
+        head_sha: str,
+    ) -> str:
+        """Classify an exact PR head with a successful empty CI response.
+
+        The first empty observation starts a bounded registration window.
+        Repeated empty responses remain pending until the window expires, at
+        which point the exact SHA is positively classified as no-CI. A head
+        change always replaces the observation and starts a new window.
+        """
+        key = (repo, review_id)
+        now = time.monotonic()
+        with cls._ci_head_observations_lock:
+            observation = cls._ci_head_observations.get(key)
+            if observation is None or observation[0] != head_sha:
+                cls._ci_head_observations[key] = (head_sha, now)
+                first_observed = now
+            else:
+                first_observed = observation[1]
+
+        elapsed = max(0.0, now - first_observed)
+        if elapsed < cls._CI_REGISTRATION_GRACE_SECONDS:
+            logger.debug(
+                "GitHub CI: empty check set for %s PR #%s head %s "
+                "(observed %.1fs/%.1fs) — waiting for checks to register",
+                repo,
+                review_id,
+                head_sha[:7],
+                elapsed,
+                cls._CI_REGISTRATION_GRACE_SECONDS,
+            )
+            return "pending"
+        logger.debug(
+            "GitHub CI: PR %s#%s head %s remained check-free for %.1fs "
+            "— classifying this SHA as no-CI",
+            repo,
+            review_id,
+            head_sha[:7],
+            elapsed,
+        )
+        return "passed"
+
     def list_open_reviews(self, repo: str) -> list[ReviewRequest]:
         try:
             r = self._api("GET", f"/repos/{repo}/pulls", params={
@@ -1151,7 +1240,17 @@ class GitHubProvider(SCMProvider):
         ci_statuses: dict[str, str] = {}
         ci_warnings: dict[str, list[dict[str, Any]]] = {}
         for pr_num, sha in sha_map.items():
-            status, warnings = self._fetch_ci_status_and_warnings(repo, sha)
+            status, warnings = self._fetch_ci_status_and_warnings(
+                repo,
+                sha,
+                empty_check_status=self._EMPTY_CHECK_SET,
+            )
+            if status == self._EMPTY_CHECK_SET:
+                status = self._ci_status_for_empty_review_head(
+                    repo,
+                    pr_num,
+                    sha,
+                )
             ci_statuses[pr_num] = status
             ci_warnings[pr_num] = warnings
 
@@ -1347,6 +1446,13 @@ class GitHubProvider(SCMProvider):
             ]
             for key in stale:
                 self._pr_detail_cache.pop(key, None)
+        with self._ci_head_observations_lock:
+            stale_ci = [
+                key for key in self._ci_head_observations
+                if key[0] == repo and key[1] not in seen_pr_nums
+            ]
+            for key in stale_ci:
+                self._ci_head_observations.pop(key, None)
 
         return results
 
