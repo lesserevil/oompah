@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:36.177730Z'
-updated_at: '2026-07-22T01:15:58.094706Z'
+updated_at: '2026-07-26T00:27:20.508979Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-07-22 01:15
 ---
 Moved the default scheduler onto a dedicated thread and retained HTTP-loop supervision.
+---
+author: oompah
+created: 2026-07-26 00:27
+---
+Delivery reconciled: scheduler event-loop isolation is present on origin/main in commit 6dd2cdfcf. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->
