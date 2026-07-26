@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import signal
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -13,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 # Max line size for safe buffering (10 MB)
 MAX_LINE_SIZE = 10 * 1024 * 1024
+DEFAULT_STOP_TIMEOUT_S = 5.0
+STOP_POLL_INTERVAL_S = 0.02
 
 
 class AgentError(Exception):
@@ -93,6 +97,7 @@ class AgentSession:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                start_new_session=(os.name == "posix"),
             )
         except FileNotFoundError:
             raise AgentError(
@@ -366,17 +371,92 @@ class AgentSession:
             payload={"message": summary, "method": method},
         )
 
-    async def stop(self) -> None:
-        """Terminate the agent subprocess."""
-        if self._process:
+    async def stop(self, timeout_s: float = DEFAULT_STOP_TIMEOUT_S) -> None:
+        """Terminate the agent subprocess and all of its descendants."""
+        process = self._process
+        if process is None:
+            return
+
+        pid = process.pid
+        use_process_group = (
+            os.name == "posix" and pid is not None and hasattr(os, "killpg")
+        )
+
+        def _tree_is_running() -> bool:
+            parent_running = process.returncode is None
+            if not use_process_group:
+                return parent_running
             try:
-                if self._process.returncode is None:
-                    self._process.terminate()
-                    try:
-                        await asyncio.wait_for(self._process.wait(), timeout=5.0)
-                    except asyncio.TimeoutError:
-                        self._process.kill()
-                        await self._process.wait()
+                os.killpg(pid, 0)
+            except ProcessLookupError:
+                return parent_running
+            except PermissionError:
+                return True
+            return True
+
+        def _signal_tree(sig: signal.Signals, *, force: bool = False) -> None:
+            if use_process_group:
+                try:
+                    os.killpg(pid, sig)
+                    return
+                except ProcessLookupError:
+                    return
+                except OSError as exc:
+                    logger.warning(
+                        "Failed to signal agent process group pgid=%s signal=%s: %s; "
+                        "falling back to the immediate process",
+                        pid,
+                        sig.name,
+                        exc,
+                    )
+            try:
+                if force:
+                    process.kill()
+                else:
+                    process.terminate()
             except ProcessLookupError:
                 pass
-            logger.info("Agent process stopped pid=%s", self.pid)
+
+        async def _wait_until(deadline: float) -> bool:
+            while _tree_is_running():
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    return False
+                await asyncio.sleep(min(STOP_POLL_INTERVAL_S, remaining))
+            return True
+
+        timeout_s = max(float(timeout_s), 0.0)
+        if not _tree_is_running():
+            logger.info("Agent process stopped pid=%s", pid)
+            return
+
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        deadline = started + timeout_s
+        term_deadline = started + (timeout_s * 0.8)
+
+        try:
+            _signal_tree(signal.SIGTERM)
+            stopped = await _wait_until(term_deadline)
+            if not stopped:
+                _signal_tree(
+                    getattr(signal, "SIGKILL", signal.SIGTERM),
+                    force=True,
+                )
+                stopped = await _wait_until(deadline)
+            if not stopped:
+                logger.warning(
+                    "Agent process tree did not exit within %.3fs pid=%s",
+                    timeout_s,
+                    pid,
+                )
+        except asyncio.CancelledError:
+            # A caller enforcing its own deadline may cancel stop(). Make the
+            # cancellation itself a hard-stop request before propagating it.
+            _signal_tree(
+                getattr(signal, "SIGKILL", signal.SIGTERM),
+                force=True,
+            )
+            raise
+
+        logger.info("Agent process stopped pid=%s", pid)

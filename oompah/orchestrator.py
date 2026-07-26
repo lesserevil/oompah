@@ -965,6 +965,13 @@ class Orchestrator:
         #   {"ts": float, "comment_id": str|None, "text_preview": str,
         #    "status": "queued"|"fallback"}
         self._agent_comment_delivery_log: dict[str, list[dict]] = {}
+        # Live CLI AgentSession controllers, separate from the serializable
+        # LiveSession telemetry stored on RunningEntry. Forced termination uses
+        # these to stop a process tree even when its worker ignores cancellation.
+        self._cli_agent_sessions: dict[str, AgentSession] = {}
+        # Prevent a cancelled worker's finally block from racing the forced
+        # termination path and reporting a normal exit before shutdown finishes.
+        self._terminating_worker_ids: set[str] = set()
 
     # --- Bounded per-project refresh helpers (TASK-467.2) ---
 
@@ -17174,6 +17181,7 @@ class Orchestrator:
                 turn_timeout_ms=self.config.turn_timeout_ms,
             )
             await session.start()
+            self._cli_agent_sessions[issue.id] = session
 
             try:
                 await session.initialize()
@@ -17345,7 +17353,11 @@ class Orchestrator:
                         )
 
             finally:
-                await session.stop()
+                try:
+                    await session.stop()
+                finally:
+                    if self._cli_agent_sessions.get(issue.id) is session:
+                        self._cli_agent_sessions.pop(issue.id, None)
 
         except (WorkspaceError, AgentError, PromptError) as exc:
             exit_reason = "abnormal"
@@ -17926,6 +17938,13 @@ class Orchestrator:
         self, issue_id: str, reason: str, error: str | None
     ) -> None:
         """Handle worker completion."""
+        if issue_id in self._terminating_worker_ids:
+            logger.debug(
+                "Ignoring worker exit while forced termination is in progress "
+                "issue_id=%s",
+                issue_id,
+            )
+            return
         entry = self.state.running.pop(issue_id, None)
         if not entry:
             return
@@ -19666,73 +19685,130 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
     async def _terminate_running(self, issue_id: str, cleanup_workspace: bool) -> None:
         """Terminate a running worker and optionally clean its workspace."""
-        entry = self.state.running.pop(issue_id, None)
+        entry = self.state.running.get(issue_id)
         if not entry:
             return
 
-        # Cancel the worker task
-        if entry.worker_task and not entry.worker_task.done():
-            entry.worker_task.cancel()
-            try:
-                timeout_s = max(self.config.worker_termination_timeout_ms, 0) / 1000
+        self._terminating_worker_ids.add(issue_id)
+        try:
+            timeout_s = max(self.config.worker_termination_timeout_ms, 0) / 1000
+            waitables: set[asyncio.Future] = set()
+            worker_task = entry.worker_task
+            if worker_task and not worker_task.done():
+                worker_task.cancel()
+                waitables.add(worker_task)
+
+            session_stop_task: asyncio.Task | None = None
+            cli_session = self._cli_agent_sessions.get(issue_id)
+            if cli_session is not None:
+                session_timeout_s = timeout_s if timeout_s > 0 else 5.0
+                session_stop_task = asyncio.create_task(
+                    cli_session.stop(timeout_s=session_timeout_s),
+                    name=f"stop-cli-{entry.identifier}",
+                )
+                waitables.add(session_stop_task)
+
+            if waitables:
                 if timeout_s == 0:
-                    await entry.worker_task
+                    done, _pending = await asyncio.wait(waitables)
                 else:
                     done, _pending = await asyncio.wait(
-                        {entry.worker_task}, timeout=timeout_s
+                        waitables,
+                        timeout=timeout_s,
                     )
-                    if not done:
-                        logger.warning(
-                            "Worker did not stop within %dms; continuing shutdown "
-                            "issue_identifier=%s",
-                            self.config.worker_termination_timeout_ms,
-                            entry.identifier,
+
+                if worker_task in waitables and worker_task not in done:
+                    logger.warning(
+                        "Worker did not stop within %dms; continuing shutdown "
+                        "issue_identifier=%s",
+                        self.config.worker_termination_timeout_ms,
+                        entry.identifier,
+                    )
+                if (
+                    session_stop_task in waitables
+                    and session_stop_task not in done
+                ):
+                    logger.warning(
+                        "CLI agent session did not stop within %dms; forcing shutdown "
+                        "issue_identifier=%s",
+                        self.config.worker_termination_timeout_ms,
+                        entry.identifier,
+                    )
+                    session_stop_task.cancel()
+                    # Give AgentSession.stop() one scheduling point to turn its
+                    # cancellation into an immediate process-group SIGKILL.
+                    await asyncio.sleep(0)
+
+                for completed in done:
+                    try:
+                        completed.result()
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as exc:
+                        if completed is session_stop_task:
+                            logger.warning(
+                                "CLI agent session shutdown failed "
+                                "issue_identifier=%s error=%s",
+                                entry.identifier,
+                                exc,
+                            )
+
+            if (
+                cli_session is not None
+                and self._cli_agent_sessions.get(issue_id) is cli_session
+            ):
+                self._cli_agent_sessions.pop(issue_id, None)
+
+            # Keep the runtime visible until worker/session termination has been
+            # attempted, and do not remove a replacement entry with the same ID.
+            if self.state.running.get(issue_id) is not entry:
+                return
+            self.state.running.pop(issue_id, None)
+
+            # Add runtime to totals
+            elapsed = (datetime.now(timezone.utc) - entry.started_at).total_seconds()
+            self.state.agent_totals.seconds_running += elapsed
+            if entry.session:
+                self.state.agent_totals.input_tokens += entry.session.input_tokens
+                self.state.agent_totals.output_tokens += entry.session.output_tokens
+                self.state.agent_totals.total_tokens += entry.session.total_tokens
+
+            # Write per-task cost telemetry before dropping the runtime entry
+            # (fire-and-forget, never blocks termination)
+            self._fire_task_cost_record(entry)
+
+            # Write per-agent telemetry comment for this terminated run too
+            # so the operator sees every attempt — including manual kills —
+            # in task comments. Exit reason is "terminated" to
+            # distinguish from natural exits. See task oompah-zlz_2-y3fy.
+            self._fire_telemetry_comment(entry, "terminated", elapsed)
+
+            self.state.claimed.discard(issue_id)
+
+            if cleanup_workspace:
+                project_id = entry.issue.project_id if entry.issue else None
+                try:
+                    if project_id:
+                        self.project_store.remove_worktree(
+                            project_id, entry.identifier
                         )
                     else:
-                        await entry.worker_task
-            except (asyncio.CancelledError, Exception):
-                pass
+                        self.workspace_mgr.remove_workspace(entry.identifier)
+                except Exception as exc:
+                    logger.warning(
+                        "Workspace cleanup failed issue_identifier=%s error=%s",
+                        entry.identifier,
+                        exc,
+                    )
 
-        # Add runtime to totals
-        elapsed = (datetime.now(timezone.utc) - entry.started_at).total_seconds()
-        self.state.agent_totals.seconds_running += elapsed
-        if entry.session:
-            self.state.agent_totals.input_tokens += entry.session.input_tokens
-            self.state.agent_totals.output_tokens += entry.session.output_tokens
-            self.state.agent_totals.total_tokens += entry.session.total_tokens
-
-        # Write per-task cost telemetry before dropping the runtime entry
-        # (fire-and-forget, never blocks termination)
-        self._fire_task_cost_record(entry)
-
-        # Write per-agent telemetry comment for this terminated run too
-        # so the operator sees every attempt — including manual kills —
-        # in task comments. Exit reason is "terminated" to
-        # distinguish from natural exits. See task oompah-zlz_2-y3fy.
-        self._fire_telemetry_comment(entry, "terminated", elapsed)
-
-        self.state.claimed.discard(issue_id)
-
-        if cleanup_workspace:
-            project_id = entry.issue.project_id if entry.issue else None
-            try:
-                if project_id:
-                    self.project_store.remove_worktree(project_id, entry.identifier)
-                else:
-                    self.workspace_mgr.remove_workspace(entry.identifier)
-            except Exception as exc:
-                logger.warning(
-                    "Workspace cleanup failed issue_identifier=%s error=%s",
-                    entry.identifier,
-                    exc,
-                )
-
-        logger.info(
-            "Terminated running issue_id=%s issue_identifier=%s cleanup=%s",
-            issue_id,
-            entry.identifier,
-            cleanup_workspace,
-        )
+            logger.info(
+                "Terminated running issue_id=%s issue_identifier=%s cleanup=%s",
+                issue_id,
+                entry.identifier,
+                cleanup_workspace,
+            )
+        finally:
+            self._terminating_worker_ids.discard(issue_id)
 
     def _tracker_read_stats_snapshot(self) -> dict[str, Any]:
         stats: dict[str, Any] = {}
