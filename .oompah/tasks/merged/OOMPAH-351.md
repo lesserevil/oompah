@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-351
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Bound worker termination and service shutdown
 parent: OOMPAH-348
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:37.758720Z'
-updated_at: '2026-07-22T01:16:03.879435Z'
+updated_at: '2026-07-26T00:27:29.086199Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-07-22 01:16
 ---
 Bounded cancelled-worker waits with a documented configurable timeout and regression test.
+---
+author: oompah
+created: 2026-07-26 00:27
+---
+Delivery reconciled: bounded worker termination and shutdown is present on origin/main in commit 6dd2cdfcf. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->
