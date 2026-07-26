@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-359
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Expose epic branch staleness without synchronization churn
 parent: OOMPAH-356
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:53.416699Z'
-updated_at: '2026-07-26T00:27:57.605933Z'
+updated_at: '2026-07-26T00:28:00.132246Z'
 work_branch: null
 target_branch: null
 review_url: null
