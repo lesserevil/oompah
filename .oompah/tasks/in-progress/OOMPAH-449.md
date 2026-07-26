@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:21:21.194525Z'
+updated_at: '2026-07-26T18:26:10.786796Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -177,5 +177,27 @@ My plan:
 4. Invalidate prior-head CI verdicts on synchronize
 5. Add regression tests for the PR #555 race sequence
 6. Run make test and push
+---
+author: oompah
+created: 2026-07-26 18:26
+---
+Discovery: Found the root cause in oompah/scm.py GitHubProvider._fetch_ci_status_and_warnings (lines ~987-1130).
+
+Root cause:
+- When both `/commits/{sha}/status` (total_count=0) and `/commits/{sha}/check-runs` (empty array) return empty results, the function returns `'passed', warnings`
+- The YOLO gate at orchestrator.py:~11530 allows merge when `ci_ok = review.ci_status in ('passed', '', None)`
+- After a synchronize webhook, GitHub Actions workflows typically register 3-6 seconds after the push - within this window, oompah polls and gets empty results → returns 'passed' → YOLO merges immediately
+
+Fix approach:
+- Add class-level `_ci_active_repos` set to `GitHubProvider`
+- When non-empty check-runs are found for any SHA in a repo: mark that repo as 'CI-active'
+- When empty check-runs are found for a CI-active repo: return 'pending' (fail-closed) instead of 'passed'
+- When empty check-runs for a non-CI repo (never seen checks): return 'passed' (preserves no-CI repo behavior)
+- CI status is always fetched per-SHA, so there's no stale verdict from prior heads to worry about
+
+Files to change:
+- oompah/scm.py: Add _ci_active_repos class cache, update _fetch_ci_status_and_warnings
+- tests/test_scm.py: Update test_no_statuses_and_no_check_runs_are_eligible_to_merge, add new tests
+- tests/test_ci_sync_race.py: Add regression sequence for PR #555 timestamp ordering
 ---
 <!-- COMMENTS:END -->
