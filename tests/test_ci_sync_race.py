@@ -1,476 +1,277 @@
-"""Regression tests for OOMPAH-449: post-synchronize CI check race.
+"""Regression coverage for OOMPAH-449's post-synchronize CI race.
 
-Timeline reproduced from PR #555 (2026-07-26):
+PR #555 received a new head at T+0. GitHub returned successful but empty
+status and check-run responses at T+3, registered the workflow at T+4, and
+started jobs at T+6. Oompah merged at T+7 even though CI did not finish until
+roughly T+382.
 
-  T+0s  PR #555 receives new head ed815c908 via synchronize webhook.
-  T+3s  Oompah queries combined status + check-runs — both APIs return
-        empty (workflow not registered yet).
-  T+4s  GitHub creates the workflow run.
-  T+6s  Workflow jobs start.
-  T+7s  YOLO merged the PR.  ← BUG: CI had not finished.
-  T+6m  CI matrix completes.
-
-Root cause: GitHubProvider._fetch_ci_status_and_warnings returned "passed"
-for empty check sets, and the YOLO gate accepted "passed".
-
-Fix: repos known to use CI (have had non-empty check-runs at any point in
-the process lifetime) fail-closed: empty check sets → "pending".  Repos
-never seen with checks keep the old "passed" behaviour.
-
-Test matrix
------------
-1. Known-CI repo: old SHA failed → synchronize → new SHA empty → pending
-   → checks register (pending) → checks pass — no merge during empty window,
-   merge eligible after "passed".
-2. No-CI repo: empty checks always → "passed" → YOLO merges immediately.
-3. Stale prior-SHA verdict: after synchronize, the new SHA's CI is
-   evaluated independently — no old-SHA result is inherited.
+These tests exercise the real GitHub review-listing path and the YOLO gate.
+They deliberately create a new GitHubProvider on every observation because
+the orchestrator does that on every tick.
 """
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from copy import deepcopy
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from oompah.scm import GitHubProvider, ReviewRequest
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_project(
-    project_id: str = "proj-1",
-    repo_url: str = "https://github.com/org/repo",
-    yolo: bool = True,
-    merge_queue_enabled: bool = False,
-):
-    p = MagicMock()
-    p.id = project_id
-    p.name = "test-project"
-    p.repo_url = repo_url
-    p.yolo = yolo
-    p.default_branch = "main"
-    p.merge_queue_enabled = merge_queue_enabled
-    p.churn_magnet_gate_enabled = False
-    p.access_token = None
-    return p
-
-
-def _make_review(
-    review_id: str = "555",
-    ci_status: str = "passed",
-    source_branch: str = "OOMPAH-447",
-    target_branch: str = "main",
-    has_conflicts: bool = False,
-    needs_rebase: bool = False,
-    auto_merge_enabled: bool = False,
-    draft: bool = False,
-) -> ReviewRequest:
-    return ReviewRequest(
-        id=review_id,
-        title=f"PR #{review_id}",
-        url=f"https://github.com/org/repo/pull/{review_id}",
-        author="alice",
-        state="open",
-        source_branch=source_branch,
-        target_branch=target_branch,
-        created_at="2026-07-26T04:26:36Z",
-        updated_at="2026-07-26T04:26:37Z",
-        ci_status=ci_status,
-        has_conflicts=has_conflicts,
-        needs_rebase=needs_rebase,
-        auto_merge_enabled=auto_merge_enabled,
-        draft=draft,
-    )
-
-
-def _ci_fetch_side_effect(responses: list[tuple[str, list[dict]]]):
-    """Build a fake _fetch_ci_status_and_warnings that returns a sequence.
-
-    ``responses`` is a list of (status, warnings) tuples returned in order.
-    """
-    it = iter(responses)
-
-    def _fake(repo, sha):
-        return next(it)
-
-    return _fake
-
-
-# ---------------------------------------------------------------------------
-# Unit tests: _fetch_ci_status_and_warnings race guard (OOMPAH-449)
-# ---------------------------------------------------------------------------
+from oompah.scm import CIStatus, GitHubProvider, ReviewRequest
 
 
 class FakeResponse:
     def __init__(self, payload, status_code=200):
         self._payload = payload
         self.status_code = status_code
+        self.text = ""
 
     def json(self):
         return self._payload
 
 
-class TestCISyncRaceGuard:
-    """Direct unit tests for the post-synchronize empty-check guard."""
+class FakeGitHubReviews:
+    """Mutable GitHub API fixture for one PR and multiple head SHAs."""
 
-    def _provider(self, status_payload, checkruns_payload):
-        provider = GitHubProvider(access_token="t")
+    repo = "org/repo"
 
-        def fake_api(method, path, **kwargs):
-            if path.endswith("/status"):
-                return FakeResponse(status_payload)
-            if path.endswith("/check-runs"):
-                return FakeResponse(checkruns_payload)
-            raise AssertionError(f"unexpected API call: {path}")
+    def __init__(self):
+        self.pr: dict | None = {
+            "number": 555,
+            "title": "OOMPAH-447",
+            "html_url": "https://github.com/org/repo/pull/555",
+            "user": {"login": "oompah"},
+            "head": {"ref": "OOMPAH-447", "sha": "old-sha"},
+            "base": {"ref": "main"},
+            "created_at": "2026-07-26T04:20:00Z",
+            "updated_at": "2026-07-26T04:26:37Z",
+            "body": "",
+            "labels": [],
+            "requested_reviewers": [],
+            "draft": False,
+            "additions": 1,
+            "deletions": 0,
+            "auto_merge": None,
+            "mergeable": True,
+            "mergeable_state": "clean",
+        }
+        self.checks_by_sha: dict[str, list[dict]] = {}
+        self.requested_ci_shas: list[str] = []
 
-        provider._api = fake_api
+    def provider(self) -> GitHubProvider:
+        provider = GitHubProvider(access_token="token")
+        provider._api = self.api
+        provider._graphql = lambda query, variables=None: FakeResponse(
+            {"data": {"repository": {"mergeQueue": None}}}
+        )
         return provider
 
-    def _clean_ci_active(self, repo):
-        """Remove repo from _ci_active_repos for test isolation."""
-        with GitHubProvider._ci_active_repos_lock:
-            GitHubProvider._ci_active_repos.discard(repo)
-
-    def _mark_ci_active(self, repo):
-        """Directly mark repo as CI-active (simulates prior check-runs seen)."""
-        with GitHubProvider._ci_active_repos_lock:
-            GitHubProvider._ci_active_repos.add(repo)
-
-    def _is_ci_active(self, repo) -> bool:
-        with GitHubProvider._ci_active_repos_lock:
-            return repo in GitHubProvider._ci_active_repos
-
-    # -- No-CI repos must still merge immediately --------------------------
-
-    def test_no_ci_repo_empty_checks_passes(self):
-        """Repo never seen with CI → empty checks → 'passed' (no-CI YOLO preserved)."""
-        self._clean_ci_active("o/no-ci")
-        provider = self._provider(
-            {"state": "pending", "total_count": 0},
-            {"check_runs": []},
-        )
-        status, _ = provider._fetch_ci_status_and_warnings("o/no-ci", "abc1")
-        assert status == "passed"
-        # And the repo was NOT marked CI-active (no checks seen)
-        assert not self._is_ci_active("o/no-ci")
-
-    # -- Known-CI repos fail closed ----------------------------------------
-
-    def test_known_ci_repo_empty_checks_returns_pending(self):
-        """Repo known to use CI → empty checks on new SHA → 'pending'."""
-        repo = "o/known-ci"
-        self._mark_ci_active(repo)
-        try:
-            provider = self._provider(
-                {"state": "pending", "total_count": 0},
-                {"check_runs": []},
+    def api(self, method, path, **kwargs):
+        if path == f"/repos/{self.repo}/pulls":
+            return FakeResponse([deepcopy(self.pr)] if self.pr else [])
+        if path.endswith("/status") and "/commits/" in path:
+            return FakeResponse({"state": "pending", "total_count": 0})
+        if path.endswith("/check-runs"):
+            sha = path.split("/commits/", 1)[1].split("/", 1)[0]
+            self.requested_ci_shas.append(sha)
+            return FakeResponse(
+                {"check_runs": deepcopy(self.checks_by_sha.get(sha, []))}
             )
-            status, _ = provider._fetch_ci_status_and_warnings(repo, "newsha123")
-            assert status == "pending", (
-                "fail-closed: known-CI repo must not synthesize 'passed' "
-                "before checks register"
-            )
-        finally:
-            self._clean_ci_active(repo)
+        if path == f"/repos/{self.repo}/pulls/555" and self.pr:
+            return FakeResponse(deepcopy(self.pr))
+        raise AssertionError(f"unexpected GitHub API call: {method} {path}")
 
-    # -- Seeing checks marks the repo as CI-active -------------------------
+    def set_head(self, sha: str, checks: list[dict]) -> None:
+        assert self.pr is not None
+        self.pr["head"]["sha"] = sha
+        self.pr["updated_at"] = "2026-07-26T04:26:37Z"
+        self.checks_by_sha[sha] = checks
 
-    def test_non_empty_checks_mark_repo_ci_active(self):
-        """Observing check-runs for a repo registers it as CI-active."""
-        repo = "o/new-ci-repo"
-        self._clean_ci_active(repo)
-        provider = self._provider(
-            {"state": "pending", "total_count": 0},
-            {"check_runs": [{"conclusion": "success", "status": "completed"}]},
-        )
-        try:
-            status, _ = provider._fetch_ci_status_and_warnings(repo, "sha-ok")
-            assert status == "passed"
-            assert self._is_ci_active(repo), (
-                "after observing non-empty check-runs, repo must be in _ci_active_repos"
-            )
-        finally:
-            self._clean_ci_active(repo)
-
-    # -- Full PR #555 sequence (old-SHA-failed → synchronize → empty → pending → passed)
-
-    def test_pr555_sequence_empty_window_returns_pending(self):
-        """Reproduce the PR #555 race:
-
-        1. Old SHA: CI failed (would normally retry)
-        2. Synchronize → new SHA.  Empty check-runs response (race window).
-        3. New SHA: checks register as pending.
-        4. New SHA: all checks pass.
-
-        Assert: step 2 returns 'pending' (not 'passed') so YOLO cannot merge.
-        Assert: step 4 returns 'passed' so YOLO can merge normally.
-        """
-        repo = "org/repo"
-        old_sha = "ed815c900"  # approximate PR #555 timeline
-        new_sha = "ed815c908"
-
-        # Make repo CI-active (simulates prior successful CI runs)
-        self._mark_ci_active(repo)
-        try:
-            # Step 2 — empty check-runs immediately after synchronize
-            p_empty = self._provider(
-                {"state": "pending", "total_count": 0},
-                {"check_runs": []},
-            )
-            status_empty, _ = p_empty._fetch_ci_status_and_warnings(repo, new_sha)
-            assert status_empty == "pending", (
-                f"Expected 'pending' during empty check window, got {status_empty!r}. "
-                "YOLO must not merge during the post-synchronize race."
-            )
-
-            # Step 3 — checks have registered but are still running
-            p_pending = self._provider(
-                {"state": "pending", "total_count": 0},
-                {"check_runs": [
-                    {"conclusion": None, "status": "in_progress"},
-                    {"conclusion": None, "status": "queued"},
-                ]},
-            )
-            status_pending, _ = p_pending._fetch_ci_status_and_warnings(repo, new_sha)
-            assert status_pending == "pending"
-
-            # Step 4 — all checks passed
-            p_passed = self._provider(
-                {"state": "pending", "total_count": 0},
-                {"check_runs": [
-                    {"conclusion": "success", "status": "completed"},
-                    {"conclusion": "success", "status": "completed"},
-                ]},
-            )
-            status_passed, _ = p_passed._fetch_ci_status_and_warnings(repo, new_sha)
-            assert status_passed == "passed", (
-                "Once checks pass, 'passed' must be returned so YOLO can merge."
-            )
-        finally:
-            self._clean_ci_active(repo)
-
-    def test_stale_prior_sha_verdict_not_inherited(self):
-        """New SHA's CI verdict is independent from the old SHA's verdict.
-
-        Scenario: old SHA had 'failed' CI. After synchronize, the new SHA
-        gets empty checks (CI not yet registered). The new SHA must NOT
-        inherit the old SHA's 'failed' state — it gets 'pending' (fail-closed)
-        because the repo is CI-active.
-        """
-        repo = "org/repo-stale"
-        old_sha = "oldsha"
-        new_sha = "newsha"
-        self._mark_ci_active(repo)
-        try:
-            # Old SHA: failed
-            p_old = self._provider(
-                {"state": "pending", "total_count": 0},
-                {"check_runs": [{"conclusion": "failure", "status": "completed"}]},
-            )
-            old_status, _ = p_old._fetch_ci_status_and_warnings(repo, old_sha)
-            assert old_status == "failed"
-
-            # New SHA: empty checks (different provider with empty payload)
-            p_new = self._provider(
-                {"state": "pending", "total_count": 0},
-                {"check_runs": []},
-            )
-            new_status, _ = p_new._fetch_ci_status_and_warnings(repo, new_sha)
-            # Must be pending (fail-closed), NOT 'failed' (no inheritance) or
-            # 'passed' (no race bypass)
-            assert new_status == "pending", (
-                f"New SHA must get independent verdict; got {new_status!r}. "
-                "Neither inherit old-SHA 'failed' nor bypass to 'passed'."
-            )
-        finally:
-            self._clean_ci_active(repo)
-
-    def test_legacy_failure_plus_empty_checks_still_fails_for_known_ci(self):
-        """When there's a legacy failure and empty modern checks, fail wins.
-
-        The legacy_failure path takes precedence over the CI-active guard,
-        so repos with stale legacy failures still return 'failed'.
-        """
-        repo = "org/legacy-fail-repo"
-        self._mark_ci_active(repo)
-        try:
-            provider = self._provider(
-                {"state": "failure", "total_count": 1},  # legacy failure
-                {"check_runs": []},  # no modern checks
-            )
-            status, _ = provider._fetch_ci_status_and_warnings(repo, "sha")
-            assert status == "failed"
-        finally:
-            self._clean_ci_active(repo)
+    def reviews_at(self, monotonic_time: float) -> list[ReviewRequest]:
+        with patch("oompah.scm.time.monotonic", return_value=monotonic_time):
+            return self.provider().list_open_reviews(self.repo)
 
 
-# ---------------------------------------------------------------------------
-# Integration-level test: YOLO gate respects pending CI
-# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def isolate_github_class_caches():
+    original_grace = GitHubProvider._CI_REGISTRATION_GRACE_SECONDS
+    GitHubProvider._CI_REGISTRATION_GRACE_SECONDS = 60.0
+    with GitHubProvider._ci_head_observations_lock:
+        GitHubProvider._ci_head_observations.clear()
+    with GitHubProvider._pr_detail_cache_lock:
+        GitHubProvider._pr_detail_cache.clear()
+    yield
+    GitHubProvider._CI_REGISTRATION_GRACE_SECONDS = original_grace
+    with GitHubProvider._ci_head_observations_lock:
+        GitHubProvider._ci_head_observations.clear()
+    with GitHubProvider._pr_detail_cache_lock:
+        GitHubProvider._pr_detail_cache.clear()
 
 
-class TestYoloGateCiSyncRace:
-    """YOLO must not merge/enqueue a PR whose CI is 'pending'.
+def _make_project(merge_queue_enabled: bool = False):
+    project = MagicMock()
+    project.id = "proj-1"
+    project.name = "test-project"
+    project.repo_url = "https://github.com/org/repo"
+    project.yolo = True
+    project.default_branch = "main"
+    project.merge_queue_enabled = merge_queue_enabled
+    project.churn_magnet_gate_enabled = False
+    project.access_token = None
+    return project
 
-    These tests verify the YOLO gate in _yolo_review_actions_sync correctly
-    refuses to merge when ci_status='pending' (the post-synchronize state).
-    """
 
-    def _make_orch(self, tmp_path, projects):
-        from oompah.config import ServiceConfig
-        from oompah.orchestrator import Orchestrator
-        from oompah.roles import RoleStore
+def _run_yolo(tmp_path, review: ReviewRequest, *, merge_queue_enabled=False):
+    from oompah.config import ServiceConfig
+    from oompah.orchestrator import Orchestrator
+    from oompah.roles import RoleStore
 
-        project_store = MagicMock()
-        project_store.list_all.return_value = list(projects)
-        project_store.get.side_effect = lambda pid: next(
-            (p for p in projects if p.id == pid), None
-        )
-        project_store.epic_branch_name = MagicMock(side_effect=lambda i: f"epic-{i}")
-        role_store = RoleStore(path=str(tmp_path / "roles.json"))
-        return Orchestrator(
-            config=ServiceConfig(),
-            workflow_path="WORKFLOW.md",
-            project_store=project_store,
-            role_store=role_store,
-            state_path=str(tmp_path / "state.json"),
-        )
+    project = _make_project(merge_queue_enabled)
+    project_store = MagicMock()
+    project_store.list_all.return_value = [project]
+    project_store.get.return_value = project
+    project_store.epic_branch_name.side_effect = lambda issue_id: f"epic-{issue_id}"
+    orchestrator = Orchestrator(
+        config=ServiceConfig(),
+        workflow_path="WORKFLOW.md",
+        project_store=project_store,
+        role_store=RoleStore(path=str(tmp_path / "roles.json")),
+        state_path=str(tmp_path / "state.json"),
+    )
+    orchestrator._reviews_cache = {project.id: [review]}
+    orchestrator._yolo_epic_strategy_block_reason = MagicMock(return_value=None)
+    orchestrator._tracker_for_project = MagicMock(return_value=MagicMock())
 
-    def test_pending_ci_blocks_merge(self, tmp_path):
-        """ci_status='pending' must prevent merge/enqueue (the race window)."""
-        project = _make_project()
-        orch = self._make_orch(tmp_path, [project])
+    provider = MagicMock()
+    provider.merge_review.return_value = (True, "merged")
+    provider.enable_auto_merge.return_value = (True, "queued")
+    with (
+        patch("oompah.orchestrator.detect_provider", return_value=provider),
+        patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+    ):
+        orchestrator._yolo_review_actions_sync()
+    return provider
 
-        provider = MagicMock()
-        provider.merge_review = MagicMock(return_value=(True, "merged"))
-        provider.enable_auto_merge = MagicMock(return_value=(True, "queued"))
 
-        # Simulate post-synchronize state: pending CI (checks registered but running)
-        review = _make_review(ci_status="pending", has_conflicts=False, needs_rebase=False)
-        orch._reviews_cache = {project.id: [review]}
-        orch._yolo_epic_strategy_block_reason = MagicMock(return_value=None)
-        orch._tracker_for_project = MagicMock(return_value=MagicMock())
+def _completed(conclusion: str) -> list[dict]:
+    return [{"status": "completed", "conclusion": conclusion}]
 
-        with (
-            MagicMock() as mock_detect,
-            MagicMock() as mock_slug,
-        ):
-            import unittest.mock as mock_module
-            with (
-                mock_module.patch("oompah.orchestrator.detect_provider", return_value=provider),
-                mock_module.patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
-            ):
-                orch._yolo_review_actions_sync()
 
-        # Neither merge nor enqueue should have been called
-        provider.merge_review.assert_not_called()
-        provider.enable_auto_merge.assert_not_called()
+@pytest.mark.parametrize("merge_queue_enabled", [False, True])
+def test_pr555_sequence_blocks_empty_window_then_delivers(
+    tmp_path,
+    merge_queue_enabled,
+):
+    """Old failed SHA, synchronize, empty, pending, passed ordering."""
+    forge = FakeGitHubReviews()
 
-    def test_no_ci_repo_passes_and_merges(self, tmp_path):
-        """Repos not in _ci_active_repos get ci_status='passed' → YOLO merges.
+    forge.set_head("old-sha", _completed("failure"))
+    old_review = forge.reviews_at(0.0)[0]
+    assert old_review.ci_status == CIStatus.FAILED
 
-        _fetch_ci_status_and_warnings returns 'passed' for repos never seen
-        with CI checks (no-CI repos).  The ReviewRequest stores 'passed' and
-        the YOLO gate allows the merge.  This confirms no-CI YOLO behavior is
-        preserved end-to-end (OOMPAH-449 acceptance criterion #4).
-        """
-        project = _make_project()
-        orch = self._make_orch(tmp_path, [project])
+    # T+3: synchronize changed the authoritative head, but GitHub has not
+    # registered the replacement workflow yet.
+    forge.set_head("ed815c908", [])
+    empty_review = forge.reviews_at(3.0)[0]
+    assert empty_review.ci_status == CIStatus.PENDING
+    empty_gate = _run_yolo(
+        tmp_path,
+        empty_review,
+        merge_queue_enabled=merge_queue_enabled,
+    )
+    empty_gate.merge_review.assert_not_called()
+    empty_gate.enable_auto_merge.assert_not_called()
 
-        provider = MagicMock()
-        provider.merge_review = MagicMock(return_value=(True, "merged"))
+    # T+4 through T+6: checks now exist, but are not complete.
+    forge.checks_by_sha["ed815c908"] = [
+        {"status": "queued", "conclusion": None},
+        {"status": "in_progress", "conclusion": None},
+    ]
+    pending_review = forge.reviews_at(6.0)[0]
+    assert pending_review.ci_status == CIStatus.PENDING
+    pending_gate = _run_yolo(
+        tmp_path,
+        pending_review,
+        merge_queue_enabled=merge_queue_enabled,
+    )
+    pending_gate.merge_review.assert_not_called()
+    pending_gate.enable_auto_merge.assert_not_called()
 
-        # No-CI repos get ci_status='passed' from _fetch_ci_status_and_warnings
-        review = _make_review(ci_status="passed", has_conflicts=False, needs_rebase=False)
-        orch._reviews_cache = {project.id: [review]}
-        orch._yolo_epic_strategy_block_reason = MagicMock(return_value=None)
-        orch._tracker_for_project = MagicMock(return_value=MagicMock())
+    # T+382: the replacement matrix has passed for the current head.
+    forge.checks_by_sha["ed815c908"] = _completed("success")
+    passed_review = forge.reviews_at(382.0)[0]
+    assert passed_review.ci_status == CIStatus.PASSED
+    passed_gate = _run_yolo(
+        tmp_path,
+        passed_review,
+        merge_queue_enabled=merge_queue_enabled,
+    )
+    if merge_queue_enabled:
+        passed_gate.enable_auto_merge.assert_called_once_with("org/repo", "555")
+        passed_gate.merge_review.assert_not_called()
+    else:
+        passed_gate.merge_review.assert_called_once_with("org/repo", "555")
+        passed_gate.enable_auto_merge.assert_not_called()
 
-        import unittest.mock as mock_module
-        with (
-            mock_module.patch("oompah.orchestrator.detect_provider", return_value=provider),
-            mock_module.patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
-        ):
-            orch._yolo_review_actions_sync()
+    assert forge.requested_ci_shas == [
+        "old-sha",
+        "ed815c908",
+        "ed815c908",
+        "ed815c908",
+    ]
 
-        # A no-CI repo with 'passed' status should merge immediately
-        provider.merge_review.assert_called_once()
 
-    def test_passed_ci_triggers_merge(self, tmp_path):
-        """After CI checks pass, YOLO merges normally."""
-        project = _make_project()
-        orch = self._make_orch(tmp_path, [project])
+def test_true_no_ci_head_becomes_mergeable_after_bounded_observation(tmp_path):
+    """A check-free SHA is positively classified no-CI after the grace."""
+    forge = FakeGitHubReviews()
+    forge.set_head("no-ci-sha", [])
 
-        provider = MagicMock()
-        provider.merge_review = MagicMock(return_value=(True, "merged"))
+    assert forge.reviews_at(100.0)[0].ci_status == CIStatus.PENDING
+    assert forge.reviews_at(159.9)[0].ci_status == CIStatus.PENDING
+    no_ci_review = forge.reviews_at(160.0)[0]
+    assert no_ci_review.ci_status == CIStatus.PASSED
 
-        review = _make_review(ci_status="passed", has_conflicts=False, needs_rebase=False)
-        orch._reviews_cache = {project.id: [review]}
-        orch._yolo_epic_strategy_block_reason = MagicMock(return_value=None)
-        orch._tracker_for_project = MagicMock(return_value=MagicMock())
+    provider = _run_yolo(tmp_path, no_ci_review)
+    provider.merge_review.assert_called_once_with("org/repo", "555")
 
-        import unittest.mock as mock_module
-        with (
-            mock_module.patch("oompah.orchestrator.detect_provider", return_value=provider),
-            mock_module.patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
-        ):
-            orch._yolo_review_actions_sync()
 
-        provider.merge_review.assert_called_once()
+def test_synchronize_invalidates_prior_head_no_ci_verdict():
+    """A new head cannot inherit the previous SHA's elapsed grace."""
+    forge = FakeGitHubReviews()
+    forge.set_head("old-no-ci", [])
 
-    def test_full_pr555_sequence_no_premature_merge(self, tmp_path):
-        """Full regression sequence for PR #555.
+    assert forge.reviews_at(0.0)[0].ci_status == CIStatus.PENDING
+    assert forge.reviews_at(60.0)[0].ci_status == CIStatus.PASSED
 
-        Phase 1 (old SHA, failed CI): YOLO retries CI, no merge.
-        Phase 2 (new SHA, empty checks post-synchronize): no merge.
-        Phase 3 (new SHA, checks pending): no merge.
-        Phase 4 (new SHA, checks passed): merge fires.
-        """
-        project = _make_project()
-        orch = self._make_orch(tmp_path, [project])
+    forge.set_head("new-no-ci", [])
+    new_review = forge.reviews_at(61.0)[0]
+    assert new_review.ci_status == CIStatus.PENDING
+    with GitHubProvider._ci_head_observations_lock:
+        assert GitHubProvider._ci_head_observations[
+            ("org/repo", "555")
+        ][0] == "new-no-ci"
 
-        provider = MagicMock()
-        provider.merge_review = MagicMock(return_value=(True, "merged"))
-        orch._tracker_for_project = MagicMock(return_value=MagicMock())
-        orch._yolo_epic_strategy_block_reason = MagicMock(return_value=None)
-        orch._yolo_retry_ci = MagicMock()  # suppress real tracker calls
 
-        import unittest.mock as mock_module
+def test_observation_survives_provider_recreation():
+    """Provider-per-tick construction cannot reset the registration guard."""
+    forge = FakeGitHubReviews()
+    forge.set_head("same-sha", [])
 
-        def _run_yolo(ci_status: str):
-            review = _make_review(
-                ci_status=ci_status, has_conflicts=False, needs_rebase=False
-            )
-            orch._reviews_cache = {project.id: [review]}
-            with (
-                mock_module.patch(
-                    "oompah.orchestrator.detect_provider", return_value=provider
-                ),
-                mock_module.patch(
-                    "oompah.orchestrator.extract_repo_slug", return_value="org/repo"
-                ),
-            ):
-                orch._yolo_review_actions_sync()
+    first_provider_review = forge.reviews_at(10.0)[0]
+    second_provider_review = forge.reviews_at(69.0)[0]
+    classified_review = forge.reviews_at(70.0)[0]
 
-        # Phase 1: old SHA failed — YOLO should retry CI, not merge
-        _run_yolo("failed")
-        provider.merge_review.assert_not_called()
-        orch._yolo_retry_ci.assert_called_once()
+    assert first_provider_review.ci_status == CIStatus.PENDING
+    assert second_provider_review.ci_status == CIStatus.PENDING
+    assert classified_review.ci_status == CIStatus.PASSED
 
-        # Phase 2: new SHA, empty checks (post-synchronize race window)
-        # ci_status='pending' (as returned by _fetch_ci_status_and_warnings
-        # for a known-CI repo with empty checks after our fix)
-        _run_yolo("pending")
-        provider.merge_review.assert_not_called()
 
-        # Phase 3: checks registered but still running
-        _run_yolo("pending")
-        provider.merge_review.assert_not_called()
+def test_closed_review_prunes_ci_head_observation():
+    forge = FakeGitHubReviews()
+    forge.set_head("open-sha", [])
+    forge.reviews_at(0.0)
+    assert ("org/repo", "555") in GitHubProvider._ci_head_observations
 
-        # Phase 4: checks passed — merge should fire
-        _run_yolo("passed")
-        provider.merge_review.assert_called_once()
+    forge.pr = None
+    assert forge.reviews_at(1.0) == []
+    assert ("org/repo", "555") not in GitHubProvider._ci_head_observations
