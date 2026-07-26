@@ -7,10 +7,12 @@ title: Kill CLI agent process trees when worker cancellation times out
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-07-26T03:12:57.990633Z'
+updated_at: '2026-07-26T03:15:37.145744Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,5 +59,37 @@ author: oompah
 created: 2026-07-26 03:12
 ---
 Understanding (Duplicate Investigator): Investigating OOMPAH-446 which describes a bug where CLI agent process trees survive after oompah records the run as terminated. The issue references OOMPAH-351 as a regression and requests changes to orchestrator.py and agent.py for POSIX process group management. My task is to confirm whether this is a duplicate of any existing task before implementation work begins. Searching now for similar tasks.
+---
+author: oompah
+created: 2026-07-26 03:15
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-446 is NOT a duplicate of any existing task.
+
+**Evidence searched:**
+- All .oompah/tasks/ states (archived, backlog, done, merged, open) — 280+ tasks scanned
+- Patterns: process.group, SIGKILL, SIGTERM, CLIAgent, _terminate_running, process.tree, orphan, setsid, setpgrp, agent.stop, subprocess.kill, worker.cancel
+- Reviewed OOMPAH-351 (Merged) in full — the task explicitly referenced in the description
+- Reviewed tasks OOMPAH-350 (scheduler isolation), OOMPAH-352 (stall diagnostics), and tasks 440–445 which are all recent merged tasks in unrelated areas
+
+**Closest related task — confirmed distinct:**
+- **OOMPAH-351** (Merged): 'Bound worker termination and service shutdown'. This task added OOMPAH_WORKER_TERMINATION_TIMEOUT_MS, bounded worker-cancel waits, and a forced-termination path. However, the delivered implementation only bounds the WAIT time for worker cancellation; it does NOT: (1) create a POSIX process group/session for CLIAgent subprocesses, (2) send SIGTERM/SIGKILL to the entire process tree, or (3) ensure the subprocess and all its descendants die independently of the worker coroutine's response to cancellation. OOMPAH-446 is a regression fix that addresses the remaining gap.
+
+**Root cause (confirmed from description):** `Orchestrator._terminate_running` pops the runtime entry after a bounded worker-task wait (OOMPAH-351's contribution), but when the worker ignores cancellation it does not independently stop the session. `CLIAgent.stop` terminates only the immediate subprocess and does not establish or kill a POSIX process group. A process tree rooted at a `codex exec` child can therefore outlive oompah's accounting of it by 90+ minutes.
+
+**Relevant files for implementation:**
+- `oompah/orchestrator.py`: `_terminate_running` method — needs to call CLIAgent.stop (with process group kill) even when worker task ignores cancellation
+- `oompah/agent.py`: `CLIAgent.stop` / subprocess launch — needs `start_new_session=True` or `os.setsid()` + `os.killpg(SIGTERM)` + `os.killpg(SIGKILL)` with a safe non-POSIX fallback
+- `tests/test_orchestrator_terminated.py` or equivalent — regression tests per description
+
+**Remaining work:** Full implementation as described in the task:
+1. Modify CLIAgent subprocess launch to use `start_new_session=True` (creates a new POSIX session/process group)
+2. Modify CLIAgent.stop to send SIGTERM to entire process group, wait briefly, then SIGKILL entire group; safe non-POSIX fallback when os.killpg unavailable
+3. Modify `Orchestrator._terminate_running` to invoke CLIAgent.stop independently after the worker-cancel timeout, BEFORE popping the runtime entry
+4. Tests: cancellation-resistant worker + subprocess with a child; assert returns within bound, process and descendants gone, runtime entry cleared, normal graceful path unchanged
+5. Run make test
+
+**Recommended next focus:** feature (backend implementation in orchestrator.py and agent.py)
 ---
 <!-- COMMENTS:END -->
