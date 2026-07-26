@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-07-26T03:40:21.044263Z'
+updated_at: '2026-07-26T03:42:06.860958Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -161,5 +161,10 @@ author: oompah
 created: 2026-07-26 03:40
 ---
 Verification: PASS. Focused suites: 46 passed (tests/test_agent.py + tests/test_task_cost_telemetry.py). Required Makefile gate: make test completed with 12,099 passed, 39 skipped, 0 failed in 237.28s. The snap launcher and home cache were read-only/broken in the managed sandbox, so the same Make target used the snap's underlying uv binary, a writable temporary uv cache, and OOMPAH_AGENT_LOG_DIR=/tmp. Process-tree tests confirmed both parent and spawned child exit; timeout, cleanup ordering, graceful SIGTERM, SIGKILL escalation, fallback, and stop-failure logging all passed.
+---
+author: oompah
+created: 2026-07-26 03:42
+---
+Completion: Delivered and pushed commit 31cd81494. CLI agents now run in dedicated POSIX sessions, bounded stop escalates SIGTERM to SIGKILL across the process group with non-POSIX fallback, and forced orchestrator termination independently stops the registered CLI session before removing runtime/claim/worktree state. Regression coverage includes spawned descendants, cancellation-resistant workers, configured bounds, graceful exit, SIGKILL escalation, fallback, cleanup ordering, and observable shutdown failures. make test: 12,099 passed, 39 skipped, 0 failed. Branch OOMPAH-446 is clean and exactly matches origin/OOMPAH-446.
 ---
 <!-- COMMENTS:END -->
