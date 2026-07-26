@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-07-26T03:12:45.967631Z'
+updated_at: '2026-07-26T03:12:57.990633Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-07-26 03:12
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-26 03:12
+---
+Understanding (Duplicate Investigator): Investigating OOMPAH-446 which describes a bug where CLI agent process trees survive after oompah records the run as terminated. The issue references OOMPAH-351 as a regression and requests changes to orchestrator.py and agent.py for POSIX process group management. My task is to confirm whether this is a duplicate of any existing task before implementation work begins. Searching now for similar tasks.
 ---
 <!-- COMMENTS:END -->
