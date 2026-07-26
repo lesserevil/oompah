@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-250
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Use the selected project's tracker for Release Delivery backlog discovery
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T21:11:24.255407Z'
-updated_at: '2026-07-19T22:01:15.691955Z'
+updated_at: '2026-07-26T22:31:14.851386Z'
 work_branch: OOMPAH-250
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/448
