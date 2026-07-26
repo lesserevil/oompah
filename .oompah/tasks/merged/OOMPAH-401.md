@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-401
 type: task
-status: Done
+status: Merged
 priority: null
 title: Preserve structured Markdown descriptions in native tasks
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T05:18:51.142416Z'
-updated_at: '2026-07-22T05:22:43.283964Z'
+updated_at: '2026-07-26T00:28:06.098683Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-22 05:22
 ---
 Implemented native structured-description safeguards, repaired the six affected tasks, and passed make test.
+---
+author: oompah
+created: 2026-07-26 00:28
+---
+Delivery reconciled: structured native task description preservation and validation is present on origin/main in commit dcbef393e. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->
