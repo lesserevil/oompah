@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:16:36.524338Z'
+updated_at: '2026-07-26T18:17:39.780790Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,5 +60,31 @@ author: oompah
 created: 2026-07-26 18:16
 ---
 Understanding: Investigating OOMPAH-449 as Duplicate Investigator. The issue describes a race condition where YOLO merge fires before CI checks register for a newly synchronized PR head SHA. After a synchronize webhook, oompah queries GitHub's status/check-run APIs and gets empty results (checks haven't registered yet), which currently maps to 'passed', allowing premature merge. My plan: search existing tasks for similar problems around CI check racing, empty check sets, YOLO gate, synchronize webhooks, and head SHA verdicts. Will check any candidates thoroughly before handing off to an implementation agent.
+---
+author: oompah
+created: 2026-07-26 18:17
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-449 is a genuinely new issue.
+
+**Evidence reviewed:**
+- Searched all task states (open, backlog, archived, merged) for: synchronize, YOLO merge, empty check, CI race, head SHA, check register, fail closed, grace period, post-push race, zero checks, bypass CI, premature merge, prior-head verdict.
+- Closest candidate: **OOMPAH-210** (Archived) — also touches `_fetch_ci_status_and_warnings` in `oompah/scm.py`, but covers a completely different root cause: HTTP 403 from check-runs API silently falling through, not empty check sets being treated as passed post-synchronize.
+- No other task mentions: (1) empty check set returning 'passed', (2) CI checks not yet registered for a new head SHA, (3) grace period / bounded observation state, (4) invalidating prior-head verdicts on synchronize webhook, or (5) PR #555's specific race window.
+
+**Relevant files (per description):**
+- `oompah/scm.py` — `GitHubProvider._fetch_ci_status_and_warnings`, `list_open_reviews`
+- `oompah/orchestrator.py` — YOLO merge gate, webhook/cache refresh paths
+- `tests/` — regression tests for the race sequence (old SHA failed → synchronize → empty → pending → passed)
+
+**Remaining work:**
+1. Make empty check set fail-closed for recently synchronized PR heads when repo is known to use CI
+2. Preserve legitimate YOLO merging for no-CI repos
+3. Invalidate prior-head CI verdict on synchronize
+4. Add regression tests per the acceptance criteria
+5. Run `make test`
+
+**Recommended next focus:** `feature` (backend CI gate fix in `oompah/scm.py` and `oompah/orchestrator.py`)
 ---
 <!-- COMMENTS:END -->
