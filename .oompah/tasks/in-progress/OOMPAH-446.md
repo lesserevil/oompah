@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-07-26T03:22:53.377460Z'
+updated_at: '2026-07-26T03:27:08.045932Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -146,5 +146,10 @@ author: oompah
 created: 2026-07-26 03:22
 ---
 Discovery: AgentSession.start in oompah/agent.py launches bash without a dedicated session, and stop() terminates/kills only the direct asyncio subprocess. The CLI worker keeps the live AgentSession only in a local variable; RunningEntry stores dashboard metadata, so _terminate_running cannot stop the process independently. It also pops state.running before cancelling, letting a resistant worker outlive accounting. I will register active CLI sessions on the orchestrator, mark forced terminations to suppress the worker-exit race, run worker cancellation and session shutdown concurrently within OOMPAH_WORKER_TERMINATION_TIMEOUT_MS, and pop/clean only afterward.
+---
+author: oompah
+created: 2026-07-26 03:27
+---
+Implementation: CLI AgentSession now launches with a dedicated POSIX session, serializes concurrent stop calls, sends SIGTERM to the process group, polls parent/group liveness, and escalates to SIGKILL within a caller-supplied bound; non-POSIX uses terminate/kill. Orchestrator now registers live CLI controllers, starts session shutdown alongside worker cancellation, suppresses the forced-exit race, logs stop failures/timeouts, and removes runtime/session/claim/worktree state only after shutdown was attempted. Added agent unit/integration tests and orchestrator regression coverage with a cancellation-resistant worker and spawned child.
 ---
 <!-- COMMENTS:END -->
