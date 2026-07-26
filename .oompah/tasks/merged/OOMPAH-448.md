@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-448
 type: task
-status: In Review
+status: Merged
 priority: 0
 title: 'fix CI on PR #555 (OOMPAH-447-manual)'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-26T04:20:53.082551Z'
-updated_at: '2026-07-26T04:27:05.397383Z'
+updated_at: '2026-07-26T04:31:01.824518Z'
 work_branch: null
 target_branch: null
 review_url: null
