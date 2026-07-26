@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:34:56.327116Z'
+updated_at: '2026-07-26T18:34:58.574353Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -260,5 +260,10 @@ Files changed:
 - tests/test_ci_sync_race.py: 10-test regression suite (new file)
 
 All 12113 tests pass. Branch pushed to origin/OOMPAH-449.
+---
+author: oompah
+created: 2026-07-26 18:34
+---
+Fixed post-synchronize CI check race: GitHubProvider now tracks CI-active repos and fails closed (returns 'pending' instead of 'passed') when empty check sets are observed for repos known to use CI. All 12113 tests pass. Regression test suite added in tests/test_ci_sync_race.py.
 ---
 <!-- COMMENTS:END -->
