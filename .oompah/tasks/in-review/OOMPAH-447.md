@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-447
 type: bug
-status: Merged
+status: In Review
 priority: 1
 title: Do not reopen merged epic siblings for a later shared-branch PR
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:02:02.297716Z'
-updated_at: '2026-07-26T04:20:58.938692Z'
+updated_at: '2026-07-26T04:27:07.253119Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -161,5 +161,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 4s
 - Log: OOMPAH-447__20260726T040740Z.jsonl
+---
+author: oompah
+created: 2026-07-26 04:27
+---
+PR #555 CI exposed a pre-existing clean-runner identity defect in an epic-rollup fixture. Fixed on the same branch in ed815c908; full make test passes (12,329 passed, 7 skipped). Replacement CI is running.
 ---
 <!-- COMMENTS:END -->
