@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-26T04:20:53.082551Z'
-updated_at: '2026-07-26T04:25:55.770676Z'
+updated_at: '2026-07-26T04:26:06.664376Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-07-26 04:25
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-26 04:26
+---
+Understanding: Task is to fix CI failures on PR #555 (branch OOMPAH-447-manual). I will check out that branch, examine CI logs, reproduce failures locally, and make minimal fixes. I will NOT create a new branch or PR — fixes go directly to OOMPAH-447-manual.
 ---
 <!-- COMMENTS:END -->
