@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-349
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Make project tracker refresh timeouts real
 parent: OOMPAH-348
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:34.088413Z'
-updated_at: '2026-07-22T01:15:54.479247Z'
+updated_at: '2026-07-26T00:27:15.725142Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-07-22 01:15
 ---
 Implemented bounded, isolated candidate and in-progress refreshes with stale-cache fallback and regression tests.
+---
+author: oompah
+created: 2026-07-26 00:27
+---
+Delivery reconciled: bounded tracker refresh deadlines and stale-cache fallback is present on origin/main in commit 6dd2cdfcf. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->
