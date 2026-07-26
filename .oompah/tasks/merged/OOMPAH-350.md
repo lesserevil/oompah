@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-350
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Isolate scheduler execution from the HTTP event loop
 parent: OOMPAH-348
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:36.177730Z'
-updated_at: '2026-07-26T00:27:20.508979Z'
+updated_at: '2026-07-26T00:27:22.786311Z'
 work_branch: null
 target_branch: null
 review_url: null
