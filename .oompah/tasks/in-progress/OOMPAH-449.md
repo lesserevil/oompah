@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-449
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Do not merge a newly updated PR before its CI checks register
 parent: null
@@ -11,13 +11,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:20:53.025814Z'
+updated_at: '2026-07-26T18:21:07.565805Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 6532914d-8229-4f1f-b6b9-08860f353193
+oompah.agent_run_id: 7733e9ad-c0f9-4698-812b-bfce031b2447
 oompah.task_costs:
   total_input_tokens: 42
   total_output_tokens: 4768
@@ -154,5 +154,15 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 22s
 - Log: OOMPAH-449__20260726T181810Z.jsonl
+---
+author: oompah
+created: 2026-07-26 18:21
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-26 18:21
+---
+Focus: DevOps Engineer
 ---
 <!-- COMMENTS:END -->
