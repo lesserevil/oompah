@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-447
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Do not reopen merged epic siblings for a later shared-branch PR
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-26T04:02:02.297716Z'
-updated_at: '2026-07-26T04:02:02.297716Z'
+updated_at: '2026-07-26T04:02:11.184799Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,3 +42,11 @@ Acceptance Criteria
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-26 04:02
+---
+Reproduced live with exocomp PR #17: shared branch epic-EXOCOMP-6 caused unrelated terminal siblings EXOCOMP-41/42/43/44 and parent EXOCOMP-6 to be demoted. Implementing exact review ownership checks in terminal/open-review reconciliation with focused regression tests.
+---
+<!-- COMMENTS:END -->
