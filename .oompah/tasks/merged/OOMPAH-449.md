@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-449
 type: task
-status: Done
+status: Merged
 priority: null
 title: Do not merge a newly updated PR before its CI checks register
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:48:45.159281Z'
+updated_at: '2026-07-26T18:59:09.039633Z'
 work_branch: OOMPAH-449
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/556
@@ -361,5 +361,10 @@ author: oompah
 created: 2026-07-26 18:48
 ---
 Implemented a head-SHA-aware bounded CI registration guard, added regression coverage for PR #555 and no-CI behavior, passed the full 12111-test suite, pushed the branch, and opened PR #556.
+---
+author: oompah
+created: 2026-07-26 18:59
+---
+YOLO: merged PR #556.
 ---
 <!-- COMMENTS:END -->
