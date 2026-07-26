@@ -7,10 +7,12 @@ title: Do not merge a newly updated PR before its CI checks register
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:17:39.780790Z'
+updated_at: '2026-07-26T18:17:48.251287Z'
 work_branch: null
 target_branch: null
 review_url: null
