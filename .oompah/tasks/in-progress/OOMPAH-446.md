@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-446
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Kill CLI agent process trees when worker cancellation times out
 parent: null
@@ -10,12 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-07-26T03:12:30.119065Z'
+updated_at: '2026-07-26T03:12:45.967631Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 75f13b97-0f60-41db-9bb3-5be189508954
 ---
 ## Summary
 
@@ -40,3 +41,16 @@ Acceptance criteria
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-26 03:12
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-26 03:12
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
