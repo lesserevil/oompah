@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T22:24:40.832138Z'
-updated_at: '2026-07-26T00:28:58.868466Z'
+updated_at: '2026-07-26T00:29:01.200379Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-07-26 00:28
 ---
 Delivery reconciled: scheduler completion-state clearing on reopen is present on origin/main in commit 3e921ab76. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
+---
+author: oompah
+created: 2026-07-26 00:29
+---
+Verified delivered on origin/main in 3e921ab76 and reconciled stale Done state.
 ---
 <!-- COMMENTS:END -->

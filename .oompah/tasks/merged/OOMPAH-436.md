@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-436
 type: task
-status: Done
+status: Merged
 priority: null
 title: Allow network-addressable access to the embedded MCP endpoint
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T02:29:45.093119Z'
-updated_at: '2026-07-24T02:34:05.701664Z'
+updated_at: '2026-07-26T00:29:03.400951Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-24 02:34
 ---
 Implemented and deployed in 8fc368e6d. OOMPAH_MCP_ALLOW_NETWORK=true is active; an MCP initialize request using non-loopback Host 192.0.2.10:8090 returned HTTP 200. Default remains loopback-only.
+---
+author: oompah
+created: 2026-07-26 00:29
+---
+Delivery reconciled: configured network access to the embedded MCP endpoint is present on origin/main in commit 8fc368e6d. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->
