@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-449
 type: task
-status: Done
+status: Open
 priority: null
 title: Do not merge a newly updated PR before its CI checks register
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:34:58.574353Z'
+updated_at: '2026-07-26T18:35:10.519088Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 7733e9ad-c0f9-4698-812b-bfce031b2447
 oompah.task_costs:
-  total_input_tokens: 42
-  total_output_tokens: 4768
+  total_input_tokens: 103
+  total_output_tokens: 33427
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 42
-      output_tokens: 4768
+      input_tokens: 103
+      output_tokens: 33427
       cost_usd: 0.0
   runs:
   - profile: default
@@ -40,6 +40,12 @@ oompah.task_costs:
     output_tokens: 934
     cost_usd: 0.0
     recorded_at: '2026-07-26T18:20:29.009962+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 61
+    output_tokens: 28659
+    cost_usd: 0.0
+    recorded_at: '2026-07-26T18:35:06.772616+00:00'
 ---
 ## Summary
 
@@ -265,5 +271,36 @@ author: oompah
 created: 2026-07-26 18:34
 ---
 Fixed post-synchronize CI check race: GitHubProvider now tracks CI-active repos and fails closed (returns 'pending' instead of 'passed') when empty check sets are observed for repos known to use CI. All 12113 tests pass. Regression test suite added in tests/test_ci_sync_race.py.
+---
+author: oompah
+created: 2026-07-26 18:35
+---
+Agent completed successfully in 841s (28720 tokens)
+---
+author: oompah
+created: 2026-07-26 18:35
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 104, Tool calls: 64
+- Tokens: 61 in / 28.7K out [28.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 14m 1s
+- Log: OOMPAH-449__20260726T182107Z.jsonl
+---
+author: oompah
+created: 2026-07-26 18:35
+---
+Close refused by orchestrator: branch `OOMPAH-449` has 1 commit not on `main` and no open PR targets `main` from this branch.
+
+Diagnostic:
+  Unmerged commits: 1
+    bc3f6e876 OOMPAH-449: Fail-closed on empty CI checks for known-CI repos
+  Open PRs from this branch: 0
+  Merged PRs from this branch: 0
+
+Required: open a PR before closing.
+  gh pr create --base main --head OOMPAH-449 --title "OOMPAH-449: Do not merge a newly updated PR before its CI checks register" --body "..."
+
+Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
 ---
 <!-- COMMENTS:END -->
