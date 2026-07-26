@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-423
 type: bug
-status: Done
+status: Merged
 priority: 2
 title: Keep normal epic branch drift out of alerts
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T20:25:33.664332Z'
-updated_at: '2026-07-23T20:27:20.401215Z'
+updated_at: '2026-07-26T00:28:47.052828Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-23 20:27
 ---
 Removed normal drift alerts; retained actionable failed-rebase alerts.
+---
+author: oompah
+created: 2026-07-26 00:28
+---
+Delivery reconciled: normal epic drift alert suppression is present on origin/main in commit c57a02648. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->
