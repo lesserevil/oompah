@@ -7,16 +7,33 @@ title: Do not reopen merged epic siblings for a later shared-branch PR
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:02:02.297716Z'
-updated_at: '2026-07-26T04:07:08.521935Z'
+updated_at: '2026-07-26T04:07:20.816181Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: a8c8219a-1068-46be-85c1-792605dc3425
+oompah.task_costs:
+  total_input_tokens: 38
+  total_output_tokens: 7083
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 38
+      output_tokens: 7083
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 38
+    output_tokens: 7083
+    cost_usd: 0.0
+    recorded_at: '2026-07-26T04:07:16.375885+00:00'
 ---
 ## Summary
 
@@ -88,5 +105,25 @@ Focus handoff: duplicate_detector
 - Add regression tests per issue description: Merged epic + multiple Merged children sharing epic-EPIC-1; a later open PR titled for only one child; verify only the identified owner is demoted; TASK-4 does not match TASK-41.
 
 **Recommended next focus:** feature (backend implementation in oompah/orchestrator.py + tests)
+---
+author: oompah
+created: 2026-07-26 04:07
+---
+Agent completed successfully in 187s (7121 tokens)
+---
+author: oompah
+created: 2026-07-26 04:07
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 57, Tool calls: 43
+- Tokens: 38 in / 7.1K out [7.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 7s
+- Log: OOMPAH-447__20260726T040411Z.jsonl
+---
+author: oompah
+created: 2026-07-26 04:07
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
