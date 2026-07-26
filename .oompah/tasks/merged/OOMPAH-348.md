@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-348
 type: epic
-status: Done
+status: Merged
 priority: 1
 title: Eliminate Oompah service wedge failure modes
 parent: null
@@ -16,7 +16,7 @@ labels:
 - service-wedge
 assignee: null
 created_at: '2026-07-22T00:56:17.834972Z'
-updated_at: '2026-07-22T01:16:11.129362Z'
+updated_at: '2026-07-26T00:27:08.494117Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-22 01:16
 ---
 Completed and pushed the durable scheduler wedge fixes; Exocomp state branch migration is complete.
+---
+author: oompah
+created: 2026-07-26 00:27
+---
+Delivery reconciled: the aggregate scheduler wedge fixes is present on origin/main in commit 6dd2cdfcf. This task was Done rather than waiting for an agent; it is now being aligned with the delivered repository state.
 ---
 <!-- COMMENTS:END -->
