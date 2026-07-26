@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:18:09.820483Z'
+updated_at: '2026-07-26T18:18:24.263087Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,10 @@ author: oompah
 created: 2026-07-26 18:18
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-26 18:18
+---
+Understanding: Implementing the CI check race condition fix as DevOps Engineer. The bug: after a PR synchronize webhook, oompah queries GitHub's status/check-run APIs and gets empty results (checks not yet registered), which maps to 'passed', allowing YOLO to merge before CI runs. My plan: (1) explore oompah/scm.py and oompah/orchestrator.py to understand current CI verdict logic, (2) implement fail-closed behavior for empty check sets on recently-synchronized PRs when repo has CI history, (3) preserve no-CI repo behavior, (4) invalidate prior-head verdicts on synchronize, (5) add regression tests covering the PR #555 race sequence, (6) run make test.
 ---
 <!-- COMMENTS:END -->
