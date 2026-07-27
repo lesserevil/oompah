@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-252
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Move Release Delivery from dashboard dialog to a dedicated page
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T22:03:50.663411Z'
-updated_at: '2026-07-19T23:59:16.624303Z'
+updated_at: '2026-07-27T00:35:55.279140Z'
 work_branch: OOMPAH-252
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/450
