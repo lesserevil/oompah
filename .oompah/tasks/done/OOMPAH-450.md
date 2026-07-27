@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-450
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Link project bootstrap guide to CLI installation instructions
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-07-27T21:17:04.093802Z'
+updated_at: '2026-07-27T21:19:25.103223Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-07-27 21:17
 ---
 Verification: Confirmed the documented oompah project-bootstrap help command lists status, preview, and apply. Focused regression passed (1 passed). Full Makefile test gate passed: 12,112 passed, 39 skipped, 14 warnings in 250.22s. The initial Snap wrapper failure was resolved by invoking the installed uv binary directly with a worktree-local cache; tests then ran through make test as required.
+---
+author: oompah
+created: 2026-07-27 21:19
+---
+Completion: Delivered and pushed commit ad75513ae on branch OOMPAH-450. The bootstrap guide now links the CLI install guide before all bootstrap commands, states bootstrap does not install the executable, and includes a verified help check with stop-and-install guidance. Added the requested ordering regression. Focused test passed; full make test passed with 12,112 passed and 39 skipped; staged secret scan passed. The whole-tree secret target reports only the pre-existing synthetic GitLab fixture from commit 3247029a9, outside this change. No follow-up work remains.
 ---
 <!-- COMMENTS:END -->
