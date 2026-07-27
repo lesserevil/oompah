@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-249
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Wire Release Delivery PR fallback into server backlog service
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-19T19:14:04.819745Z'
-updated_at: '2026-07-19T21:11:29.499613Z'
+updated_at: '2026-07-27T21:12:37.440156Z'
 work_branch: OOMPAH-249
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/447
