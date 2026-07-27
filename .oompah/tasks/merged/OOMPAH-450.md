@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-450
 type: task
-status: In Review
+status: Merged
 priority: null
 title: Link project bootstrap guide to CLI installation instructions
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-07-27T21:20:18.669976Z'
+updated_at: '2026-07-27T21:40:10.356934Z'
 work_branch: OOMPAH-450
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/557
