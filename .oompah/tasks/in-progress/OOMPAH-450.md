@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-07-27T21:10:32.687965Z'
+updated_at: '2026-07-27T21:11:16.988866Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -116,5 +116,10 @@ author: oompah
 created: 2026-07-27 21:10
 ---
 Discovery: docs/project-bootstrap.md first invokes  in Local CLI without linking cli-install.md, explicitly warning that bootstrap cannot install the CLI, or verifying the executable. docs/cli-install.md already supplies authoritative install and verification instructions. tests/test_cli_release_packaging.py is the existing regression suite for these cross-document CLI guarantees, so I will add the link/prerequisite ordering assertion there.
+---
+author: oompah
+created: 2026-07-27 21:11
+---
+Implementation: Updated docs/project-bootstrap.md so the Local CLI section says project bootstrap does not install or create the oompah executable, links cli-install.md before any bootstrap invocation, verifies the bootstrap help output, and tells readers to stop and install or upgrade when verification fails. Added a regression test in tests/test_cli_release_packaging.py that enforces prerequisite and link ordering before the first bootstrap command.
 ---
 <!-- COMMENTS:END -->
