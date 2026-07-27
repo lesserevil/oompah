@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-07-27T21:10:02.275685Z'
+updated_at: '2026-07-27T21:10:14.346336Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -106,5 +106,10 @@ author: oompah
 created: 2026-07-27 21:10
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-27 21:10
+---
+Understanding: I will update docs/project-bootstrap.md so the Local CLI workflow links docs/cli-install.md, explicitly says bootstrap does not install the executable, and verifies the CLI before any bootstrap command. I will add an ordering regression to tests/test_cli_release_packaging.py, validate the documented commands, run focused and full Makefile-backed tests, then commit, push, and close the task.
 ---
 <!-- COMMENTS:END -->
