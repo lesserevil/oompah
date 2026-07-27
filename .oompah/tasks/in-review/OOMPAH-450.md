@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-450
 type: task
-status: Done
+status: In Review
 priority: null
 title: Link project bootstrap guide to CLI installation instructions
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-07-27T21:19:38.347552Z'
+updated_at: '2026-07-27T21:20:13.043710Z'
 work_branch: null
 target_branch: null
 review_url: null
