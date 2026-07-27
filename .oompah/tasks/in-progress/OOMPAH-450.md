@@ -10,12 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-07-27T21:06:15.172060Z'
+updated_at: '2026-07-27T21:07:50.294169Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: e5e9183e-a914-44f0-b240-510ee775d2d0
 ---
 ## Summary
 
@@ -33,5 +34,15 @@ author: oompah
 created: 2026-07-27 21:06
 ---
 Starting implementation. Confirmed docs/project-bootstrap.md currently assumes the oompah executable exists and does not link to docs/cli-install.md. I will add an explicit prerequisite/link before the Local CLI commands and a regression assertion in the existing CLI documentation test suite.
+---
+author: oompah
+created: 2026-07-27 21:07
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-27 21:07
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
