@@ -7,10 +7,12 @@ title: Link project bootstrap guide to CLI installation instructions
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:docs
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-07-27T21:09:24.043926Z'
+updated_at: '2026-07-27T21:09:40.593169Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +56,10 @@ author: oompah
 created: 2026-07-27 21:09
 ---
 Discovery: Duplicate screening found no confirmed duplicate. Reviewed OOMPAH-9 (generated managed-project guidance and CLI fallbacks), OOMPAH-31 (bootstrap flow validation), OOMPAH-52 (stale-install upgrade guidance in cli-install/release docs), and OOMPAH-35 (broad onboarding checklist), including their full descriptions and comments. None changes docs/project-bootstrap.md to link cli-install.md as a prerequisite before commands or adds the requested ordering regression. Current evidence: the Local CLI section says the GitHub install includes the bootstrap CLI but has no cli-install.md link and does not explicitly say bootstrap itself does not install the executable.
+---
+author: oompah
+created: 2026-07-27 21:09
+---
+Focus handoff: duplicate_detector\n\nOutcome: No duplicate confirmed; implementation should proceed.\nEvidence: Closest tasks reviewed were OOMPAH-9, OOMPAH-31, OOMPAH-52, and OOMPAH-35, all with distinct scopes. Relevant files are docs/project-bootstrap.md, docs/cli-install.md, and the existing CLI documentation regression suite in tests/test_cli_release_packaging.py. The prerequisite/link must appear in or immediately before the Local CLI section and before the first project-bootstrap command.\nRemaining work/risks: Update the guide to state explicitly that project bootstrap does not install the oompah CLI, link cli-install.md, include an executable verification step suitable for a fresh machine, add a regression test covering link presence and ordering, then run the focused test and project quality gate. No worktree changes were made during duplicate screening.\nRecommended next focus: docs.
 ---
 <!-- COMMENTS:END -->
