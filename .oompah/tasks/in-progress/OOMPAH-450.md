@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-07-27T21:11:16.988866Z'
+updated_at: '2026-07-27T21:17:04.093802Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -121,5 +121,10 @@ author: oompah
 created: 2026-07-27 21:11
 ---
 Implementation: Updated docs/project-bootstrap.md so the Local CLI section says project bootstrap does not install or create the oompah executable, links cli-install.md before any bootstrap invocation, verifies the bootstrap help output, and tells readers to stop and install or upgrade when verification fails. Added a regression test in tests/test_cli_release_packaging.py that enforces prerequisite and link ordering before the first bootstrap command.
+---
+author: oompah
+created: 2026-07-27 21:17
+---
+Verification: Confirmed the documented oompah project-bootstrap help command lists status, preview, and apply. Focused regression passed (1 passed). Full Makefile test gate passed: 12,112 passed, 39 skipped, 14 warnings in 250.22s. The initial Snap wrapper failure was resolved by invoking the installed uv binary directly with a worktree-local cache; tests then ran through make test as required.
 ---
 <!-- COMMENTS:END -->
