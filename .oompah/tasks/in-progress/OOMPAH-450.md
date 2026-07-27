@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-07-27T21:10:14.346336Z'
+updated_at: '2026-07-27T21:10:32.687965Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,5 +111,10 @@ author: oompah
 created: 2026-07-27 21:10
 ---
 Understanding: I will update docs/project-bootstrap.md so the Local CLI workflow links docs/cli-install.md, explicitly says bootstrap does not install the executable, and verifies the CLI before any bootstrap command. I will add an ordering regression to tests/test_cli_release_packaging.py, validate the documented commands, run focused and full Makefile-backed tests, then commit, push, and close the task.
+---
+author: oompah
+created: 2026-07-27 21:10
+---
+Discovery: docs/project-bootstrap.md first invokes  in Local CLI without linking cli-install.md, explicitly warning that bootstrap cannot install the CLI, or verifying the executable. docs/cli-install.md already supplies authoritative install and verification instructions. tests/test_cli_release_packaging.py is the existing regression suite for these cross-document CLI guarantees, so I will add the link/prerequisite ordering assertion there.
 ---
 <!-- COMMENTS:END -->
