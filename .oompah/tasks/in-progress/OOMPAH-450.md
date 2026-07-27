@@ -9,16 +9,31 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
-- needs:docs
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-07-27T21:09:40.593169Z'
+updated_at: '2026-07-27T21:10:02.275685Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: e5e9183e-a914-44f0-b240-510ee775d2d0
+oompah.agent_run_id: 0ca37cf4-2921-415b-93ac-51bbde488940
+oompah.task_costs:
+  total_input_tokens: 855180
+  total_output_tokens: 3523
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 855180
+      output_tokens: 3523
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 855180
+    output_tokens: 3523
+    cost_usd: 0.0
+    recorded_at: '2026-07-27T21:09:47.922098+00:00'
 ---
 ## Summary
 
@@ -61,5 +76,35 @@ author: oompah
 created: 2026-07-27 21:09
 ---
 Focus handoff: duplicate_detector\n\nOutcome: No duplicate confirmed; implementation should proceed.\nEvidence: Closest tasks reviewed were OOMPAH-9, OOMPAH-31, OOMPAH-52, and OOMPAH-35, all with distinct scopes. Relevant files are docs/project-bootstrap.md, docs/cli-install.md, and the existing CLI documentation regression suite in tests/test_cli_release_packaging.py. The prerequisite/link must appear in or immediately before the Local CLI section and before the first project-bootstrap command.\nRemaining work/risks: Update the guide to state explicitly that project bootstrap does not install the oompah CLI, link cli-install.md, include an executable verification step suitable for a fresh machine, add a regression test covering link presence and ordering, then run the focused test and project quality gate. No worktree changes were made during duplicate screening.\nRecommended next focus: docs.
+---
+author: oompah
+created: 2026-07-27 21:09
+---
+Agent completed successfully in 121s (858703 tokens)
+---
+author: oompah
+created: 2026-07-27 21:09
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 15
+- Tokens: 855.2K in / 3.5K out [858.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 1s
+- Log: OOMPAH-450__20260727T210751Z.jsonl
+---
+author: oompah
+created: 2026-07-27 21:09
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-27 21:10
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-27 21:10
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
