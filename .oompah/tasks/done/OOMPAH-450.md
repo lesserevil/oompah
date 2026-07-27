@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-07-27T21:19:25.103223Z'
+updated_at: '2026-07-27T21:19:38.347552Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,20 @@ author: oompah
 created: 2026-07-27 21:19
 ---
 Completion: Delivered and pushed commit ad75513ae on branch OOMPAH-450. The bootstrap guide now links the CLI install guide before all bootstrap commands, states bootstrap does not install the executable, and includes a verified help check with stop-and-install guidance. Added the requested ordering regression. Focused test passed; full make test passed with 12,112 passed and 39 skipped; staged secret scan passed. The whole-tree secret target reports only the pre-existing synthetic GitLab fixture from commit 3247029a9, outside this change. No follow-up work remains.
+---
+author: oompah
+created: 2026-07-27 21:19
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 0, Tool calls: 52
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 41s
+- Log: OOMPAH-450__20260727T211002Z.jsonl
+---
+author: oompah
+created: 2026-07-27 21:19
+---
+Linked project bootstrap to CLI installation prerequisite, added verification guidance, and added regression coverage; full tests passed and commit ad75513ae was pushed.
 ---
 <!-- COMMENTS:END -->
