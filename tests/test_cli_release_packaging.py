@@ -240,6 +240,25 @@ def test_install_docs_cover_upgrade_from_pre_project_bootstrap_install():
     assert "project_bootstrap" in text
 
 
+def test_project_bootstrap_docs_require_cli_install_before_commands():
+    """The bootstrap guide must direct fresh machines to install the CLI first."""
+    text = (REPO_ROOT / "docs" / "project-bootstrap.md").read_text(
+        encoding="utf-8"
+    )
+    local_cli = text.index("## Local CLI")
+    prerequisite = text.index(
+        "Project bootstrap does not install the `oompah` CLI", local_cli
+    )
+    install_link = text.index(
+        "[CLI installation guide](cli-install.md)", local_cli
+    )
+    first_bootstrap_command = text.index("oompah project-bootstrap", local_cli)
+
+    assert prerequisite < first_bootstrap_command
+    assert install_link < first_bootstrap_command
+    assert "oompah project-bootstrap --help" in text[first_bootstrap_command:]
+
+
 def test_release_docs_describe_draft_and_final_tag_convention():
     text = (REPO_ROOT / "docs" / "cli-release.md").read_text(encoding="utf-8")
 
