@@ -42,8 +42,20 @@ manually and provide the preceding tag.
 
 ## Local CLI
 
-The default GitHub install includes the bootstrap CLI. It does not require the
-server runtime.
+Project bootstrap does not install the `oompah` CLI or create the `oompah`
+executable. Before running any bootstrap command on a fresh machine, follow the
+[CLI installation guide](cli-install.md).
+
+Verify that the installed CLI includes the bootstrap subcommand:
+
+```bash
+oompah project-bootstrap --help
+```
+
+The help output should list `status`, `preview`, and `apply`. If the command is
+not found or those subcommands are missing, stop and complete the installation
+or upgrade steps in the CLI installation guide. The default GitHub install
+includes the bootstrap CLI and does not require the server runtime.
 
 ```bash
 oompah project-bootstrap status /path/to/repo
