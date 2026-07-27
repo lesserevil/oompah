@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-07-27T21:08:15.008760Z'
+updated_at: '2026-07-27T21:09:24.043926Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-07-27 21:08
 ---
 Understanding: I am performing the required duplicate-investigator phase only. I will search existing task records and documentation for prior work covering the project-bootstrap CLI prerequisite/link, inspect plausible task candidates in full, and either archive this task if it is a confirmed duplicate or hand it off without implementation if no duplicate is established.
+---
+author: oompah
+created: 2026-07-27 21:09
+---
+Discovery: Duplicate screening found no confirmed duplicate. Reviewed OOMPAH-9 (generated managed-project guidance and CLI fallbacks), OOMPAH-31 (bootstrap flow validation), OOMPAH-52 (stale-install upgrade guidance in cli-install/release docs), and OOMPAH-35 (broad onboarding checklist), including their full descriptions and comments. None changes docs/project-bootstrap.md to link cli-install.md as a prerequisite before commands or adds the requested ordering regression. Current evidence: the Local CLI section says the GitHub install includes the bootstrap CLI but has no cli-install.md link and does not explicitly say bootstrap itself does not install the executable.
 ---
 <!-- COMMENTS:END -->
