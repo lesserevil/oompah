@@ -13,7 +13,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:36:59.934570Z'
+updated_at: '2026-07-28T14:49:51.433670Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -284,5 +284,10 @@ author: oompah
 created: 2026-07-28 14:36
 ---
 Discovery: Current state after security+frontend passes. The git_credentials.py module is already implemented (GIT_ASKPASS ephemeral helper, redact_git_output, forge_display_name). state_branch_migration.py already imports these and has _network_git/_network_git_check helpers and verify_state_branch(). project_bootstrap/__init__.py already uses git_credential_environment for network ops and handles local-only branch retry.\n\nRemaining gaps:\n1. migrate_stage_a/b/c and rollback_migration missing access_token/forge_kind params; their network git calls are unauthenticated\n2. server.py api_state_branch_migrate passes no forge credentials to migration functions\n3. After Stage A, server flips state_branch_enabled=True without calling verify_state_branch() first\n4. No asyncio.to_thread — blocking git ops run on the async event loop\n5. No per-project migration lock (project_write_lock exists but not used by migrate endpoint)\n6. docs/state-branch-migration.md has 3 GITHUB_TOKEN/GitHub-specific references that need forge-neutral text\n7. No GitLab-specific integration tests for forge credentials, auth failure rollback, remote verify before config flip
+---
+author: oompah
+created: 2026-07-28 14:49
+---
+Implementation: All backend feature gaps closed.\n\n**state_branch_migration.py:**\n- migrate_stage_a(): added access_token/forge_kind/forge_base_url params; passed to initialize_state_branch\n- migrate_stage_b(): added forge credentials; replaced plain _git fetch with _network_git for authenticated fetch\n- migrate_stage_c(): added forge credentials; replaced _git_check push with _network_git_check\n- rollback_migration(): added forge credentials; replaced _git/fetch/push with _network_git/_network_git_check\n\n**server.py api_state_branch_migrate:**\n- Extracts project.access_token, forge_kind, forge_base_url and passes them to all migration calls\n- Acquires project_write_lock() and runs all blocking git ops via asyncio.to_thread\n- After Stage A success: calls verify_state_branch() before flipping config; on verification failure, state_branch_enabled stays False\n- MigrationResult imported to support the verification error path\n\n**docs/state-branch-migration.md:**\n- 3 forge-specific references updated to forge-neutral language; no more GITHUB_TOKEN references in GitLab context\n\n**Tests (71 migration + 140 config):**\n- TestForgeAwareCredentials: 7 tests verifying token/forge_kind pass-through for stages A/B/C and rollback (both GitLab and GitHub)\n- TestVerifyStateBranch: 7 tests for verify_state_branch (local/remote, layout check, commit mismatch, push verification)\n- TestGitLabForgeActivation: 9 server-side tests covering: GitLab token pass-through, push failure no partial enable, remote verify failure no partial enable, full success path, forge-neutral error messages, GitHub regression, concurrent lock, dry-run safety
 ---
 <!-- COMMENTS:END -->
