@@ -9,10 +9,12 @@ children: []
 blocked_by:
 - OOMPAH-462
 - OOMPAH-452
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-28T13:05:05.235115Z'
-updated_at: '2026-07-28T18:41:31.429421Z'
+updated_at: '2026-07-28T18:41:46.636576Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -62,5 +64,10 @@ author: oompah
 created: 2026-07-28 18:41
 ---
 Discovery: Duplicate screening found no confirmed duplicate. Exact searches across .oompah/tasks, docs, plans, README.md, and WORKFLOW.md found no prior terminal_audit, pending-chain, audit-attempt, or metadata-contract task. Full task views reviewed: OOMPAH-462 (Done) defines tracker-neutral audit records/fingerprints only; OOMPAH-452 (Merged) restores GitLab adapter metadata support only; OOMPAH-464 covers service_state.json grandfather baselines/recovery; OOMPAH-465 covers transition staging/chains. These are dependencies/consumers with distinct acceptance criteria, not duplicates. Existing source primitives are TrackerProtocol.get_metadata/set_metadata_field in oompah/tracker.py, the per-project lock in oompah/projects.py, and the completed terminal_audit domain in oompah/terminal_audit.py; no terminal-audit persistence helper exists.
+---
+author: oompah
+created: 2026-07-28 18:41
+---
+Focus handoff: duplicate_detector\n\nOutcome: No duplicate confirmed; OOMPAH-463 remains a distinct implementation task.\n\nEvidence and decisions: Searched with rg for terminal-audit, terminal_audit, audit-attempt, pending chain, tracker metadata, metadata contract, malformed-document, secret redaction, terminal, and audit across .oompah/tasks, docs, plans, README.md, and WORKFLOW.md. Read full task descriptions/comments for OOMPAH-462, OOMPAH-452, OOMPAH-464, OOMPAH-465, plus closest historical candidates OOMPAH-28, OOMPAH-29, OOMPAH-173, OOMPAH-194, OOMPAH-219, OOMPAH-253, and OOMPAH-257. OOMPAH-462 supplies domain types; OOMPAH-452 supplies the GitLab adapter; OOMPAH-464 owns service-state upgrade/recovery; OOMPAH-465 owns transition orchestration. None covers the requested tracker-neutral oompah.terminal_audit document, unknown-field-preserving updates, no-op detection, per-project lock serialization, malformed quarantine, or adapter contract/redaction tests. Relevant current primitives/files: oompah/terminal_audit.py, oompah/tracker.py (TrackerProtocol metadata methods), oompah/projects.py (project_write_lock), and existing adapter tests.\n\nRemaining work/risks: implement and test the metadata helper across native Markdown, GitHub body metadata, and the now-available GitLab adapter; ensure concurrent read-modify-write operations cannot lose attempts, unchanged writes make no tracker mutation, malformed metadata is quarantined safely, and secrets/model prose never enter tracker metadata.\n\nRecommended next focus: feature (backend implementation), with OOMPAH-452 and OOMPAH-462 treated as completed prerequisites.
 ---
 <!-- COMMENTS:END -->
