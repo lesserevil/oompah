@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:03.234325Z'
-updated_at: '2026-07-28T18:08:45.315770Z'
+updated_at: '2026-07-28T18:08:54.730751Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -71,5 +71,43 @@ Closest candidates reviewed and ruled out:
 - All Release Delivery tasks (OOMPAH-200/236/252, etc.): Focus on dashboard UI/workflow, not status lifecycle.
 
 Conclusion: OOMPAH-461 is a unique, original feature implementation task. No prior implementation or duplicate discovery found.
+---
+author: oompah
+created: 2026-07-28 18:08
+---
+Focus handoff: duplicate_detector
+
+**Outcome**: No duplicate found. OOMPAH-461 is a unique, original feature implementation task.
+
+**Investigation scope & evidence**:
+- All .oompah/tasks directories searched (200+ tasks)
+- Keywords: validation, IN_VALIDATION, status, lifecycle, canonical, OOMPAH-457, OOMPAH-461
+- Git history searched for 'In Validation', 'OOMPAH-461', 'OOMPAH-457'
+- Reviewed 25+ related tasks covering status audits and lifecycle work
+- Source code: statuses.py contains 14 existing canonical statuses; no IN_VALIDATION constant exists
+- Docs/plans: No design discussions found for adding validation status
+
+**Closest reviewed candidates**:
+- OOMPAH-28 (Archived): Audited existing 14 statuses; ruled out — does not cover adding new statuses
+- OOMPAH-31 (Archived): Added Needs Answer / Needs Human (different feature, completed 2026-06-22)
+- All Release Delivery tasks: UI/workflow focus, not status system extensions
+
+**Implementation scope** (from task description):
+- Add IN_VALIDATION = "In Validation" constant to oompah/statuses.py
+- Include in CANONICAL_STATUSES tuple and related lists (aliases, rank, etc.)
+- Properties: nonterminal, non-working, not ordinarily dispatchable
+- Update tracker/config status defaults for MD, GitHub Issues, GitLab Issues round-tripping
+- Add comprehensive status tests (canonicalization, aliases, rank, terminal/working/dispatchable flags)
+- Add tracker serialization/label round-trip tests
+
+**Files likely to change**:
+- oompah/statuses.py — main constants and logic
+- oompah/tracker/*.py — GitHub Issues, GitLab, Markdown tracker status handling
+- tests/test_statuses.py — focused status tests
+- tests/test_*_tracker.py — tracker round-trip tests
+
+**Remaining work**: Full implementation as described in task scope. No blockers identified.
+
+**Recommended next focus**: feature (implement the new IN_VALIDATION status constant and integrate across all trackers)
 ---
 <!-- COMMENTS:END -->
