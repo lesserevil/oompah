@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:59:39.381172Z'
+updated_at: '2026-07-28T19:00:17.087974Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -338,5 +338,10 @@ author: oompah
 created: 2026-07-28 18:59
 ---
 Understanding: I’m auditing the existing ASGI Basic-auth implementation and its focused tests, then I’ll verify security edge cases, rerun the required suites, and ensure the committed branch is clean, pushed, and ready to close.
+---
+author: oompah
+created: 2026-07-28 19:00
+---
+Discovery: The ASGI middleware is correctly mounted outermost, wired from Services.http_credentials, and has exact method/path exemptions. However, _check_basic currently calls base64.b64decode without validate=True, which accepts ignored non-Base64 characters; this conflicts with the requirement that malformed Authorization headers be denied uniformly. I’m tightening that parser and adding a regression test.
 ---
 <!-- COMMENTS:END -->
