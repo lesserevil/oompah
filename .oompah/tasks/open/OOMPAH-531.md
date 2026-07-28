@@ -1,18 +1,17 @@
 ---
 id: OOMPAH-531
 type: task
-status: In Progress
+status: Open
 priority: 2
 title: Schedule duplicate preflight from spare agent capacity
 parent: OOMPAH-528
 children: []
 blocked_by:
 - OOMPAH-530
-labels:
-- focus-complete:duplicate_detector
+labels: []
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-07-28T21:58:44.528409Z'
+updated_at: '2026-07-28T21:58:56.888364Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -20,6 +19,22 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 1396171d-e040-47b0-9f96-018da95e2c08
 oompah.work_branch: epic-OOMPAH-528
+oompah.task_costs:
+  total_input_tokens: 210
+  total_output_tokens: 6408
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 210
+      output_tokens: 6408
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 210
+    output_tokens: 6408
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T21:58:49.799298+00:00'
 ---
 ## Summary
 
@@ -117,5 +132,25 @@ Recommendation: Ready for implementation focus agent to add:
 3. Implementation-first ordering to preserve capacity for checked implementation-ready work
 4. All required tests from acceptance criteria
 5. Configuration in .env.example and ServiceConfig
+---
+author: oompah
+created: 2026-07-28 21:58
+---
+Agent completed successfully in 110s (6618 tokens)
+---
+author: oompah
+created: 2026-07-28 21:58
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 61, Tool calls: 25
+- Tokens: 210 in / 6.4K out [6.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 50s
+- Log: OOMPAH-531__20260728T215703Z.jsonl
+---
+author: oompah
+created: 2026-07-28 21:58
+---
+Focus handoff required before leaving `duplicate_detector`. Add a comment headed `Focus handoff: duplicate_detector` with outcome, evidence, remaining work, and next focus.
 ---
 <!-- COMMENTS:END -->
