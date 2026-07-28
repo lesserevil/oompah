@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-535
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Prevent orphaned duplicate-preflight workers and phantom claims
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T23:18:01.725169Z'
-updated_at: '2026-07-28T23:20:39.964810Z'
+updated_at: '2026-07-28T23:39:04.348532Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,5 +107,10 @@ Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 2s
 - Log: OOMPAH-535__20260728T231844Z.jsonl
+---
+author: oompah
+created: 2026-07-28 23:39
+---
+Implementation complete on branch OOMPAH-535. Focused lifecycle/capability regressions pass (278 tests), and the full make test gate passes (13,082 passed, 7 skipped). Preparing the reviewed branch for push and deployment; the project remains paused until the corrected service is running.
 ---
 <!-- COMMENTS:END -->
