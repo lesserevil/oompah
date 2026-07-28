@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-497
 type: task
-status: In Progress
+status: Done
 priority: 2
 title: Assign canonical ownership for overlapping Release Delivery UI tests
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:32.426575Z'
-updated_at: '2026-07-28T16:24:38.946919Z'
+updated_at: '2026-07-28T16:24:50.484226Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -210,5 +210,39 @@ CONTRACT OWNERSHIP ESTABLISHED:
 - Backlog rendering/selection/queuing: test_dashboard_release_delivery_ui.py (retained)
 - Status variants & drawer: test_dashboard_release_delivery_ui.py (retained)
 - XSS prevention & refresh: test_dashboard_release_delivery_ui.py (retained)
+---
+author: oompah
+created: 2026-07-28 16:24
+---
+Verification: All tests passing. Test counts and results:
+
+BEFORE CONSOLIDATION:
+- test_dashboard_release_delivery_ui.py: 348 tests
+- test_release_delivery_page.py: 131 tests  
+- test_dashboard_release_addendums_ui.py: 96 tests
+- Total: 575 tests
+
+AFTER CONSOLIDATION:
+- test_dashboard_release_delivery_ui.py: 313 tests
+- test_release_delivery_page.py: 129 tests
+- test_dashboard_release_addendums_ui.py: 94 tests
+- Total: 536 tests
+- REMOVED: 39 duplicate/redundant tests
+
+TEST RESULTS:
+✓ All 536 tests in focused suite pass
+✓ Full suite (12,237 tests) passes with no errors
+✓ No duplicate test names across files confirmed
+✓ Retained tests only: backlog rendering, selection, queuing, status, drawer, XSS, refresh behavior
+✓ Page contracts exclusively owned by test_release_delivery_page.py
+✓ Dialog contracts exclusively owned by test_dashboard_release_addendums_ui.py
+
+ACCEPTANCE CRITERIA MET:
+✓ Each page/dialog contract has one clear owner
+✓ At least 5 exact retained-control duplicates removed (precisely 5)
+✓ ~25 page-structure tests removed from overlay tests
+✓ Module descriptions updated (overlay -> page)
+✓ All three focused suites pass
+✓ Contract ownership table added at top of legacy file
 ---
 <!-- COMMENTS:END -->
