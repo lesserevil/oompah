@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-07-28T14:35:51.807481Z'
+updated_at: '2026-07-28T14:37:20.375400Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -55,5 +55,10 @@ author: oompah
 created: 2026-07-28 14:35
 ---
 Understanding: I will screen OOMPAH-491 for duplicates before any implementation by searching task records and project documentation for pytest Git remote/network safety work, then reading each plausible candidate's full description and comments. I will archive only on a confirmed scope match; otherwise I will record evidence and hand off for implementation.
+---
+author: oompah
+created: 2026-07-28 14:37
+---
+Discovery: No duplicate found. Exact searches across .oompah/tasks, docs, plans, README.md, and WORKFLOW.md found no prior GIT_CONFIG_COUNT, url.*.insteadOf, pytest-session Git network barrier, SCP-style blocking, or unmocked-Git safety work. Closest full tasks reviewed: OOMPAH-500 is the downstream final clean-checkout/no-network audit and explicitly depends on this guard; OOMPAH-492 isolates specific worker-exit/epic-rebase leaks rather than enforcing a suite-wide transport barrier; OOMPAH-281 provisions the CI runner; OOMPAH-203 concerns auto-update restarts after tracker writes. Parent OOMPAH-490 assigns the first suite-wide outbound-Git barrier uniquely to OOMPAH-491.
 ---
 <!-- COMMENTS:END -->
