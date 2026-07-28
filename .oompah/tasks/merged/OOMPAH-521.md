@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-521
 type: epic
-status: In Review
+status: Merged
 priority: 0
 title: Add optional htpasswd authentication to the Oompah service
 parent: null
@@ -17,7 +17,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-07-28T21:22:01.576191Z'
+updated_at: '2026-07-28T21:30:52.126126Z'
 work_branch: epic-OOMPAH-521
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/567
