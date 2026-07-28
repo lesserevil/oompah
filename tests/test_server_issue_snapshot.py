@@ -9,6 +9,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from oompah.duplicate_screening import (
+    ScreeningVerdict,
+    complete_claim_record,
+    new_claim_record,
+)
 from oompah.models import Issue
 from oompah.tracker import StateBranchMissingError, TrackerError
 from oompah import server as server_module
@@ -373,6 +378,50 @@ def test_fetch_and_serialize_issues_omits_stale_intake_summary_after_intake():
 
     assert payload["In Review"][0]["identifier"] == "example-org/oompah#309"
     assert "intake_summary" not in payload["In Review"][0]
+
+
+def test_duplicate_screening_summary_serializes_safe_operator_states():
+    unchecked = _issue("TASK-10", "Open")
+    unchecked.description = "Unchecked task"
+    unchecked.project_id = "proj-1"
+    running = _issue("TASK-11", "Open")
+    running.description = "Running task"
+    running.project_id = "proj-1"
+    running.duplicate_screening = new_claim_record(
+        running,
+        owner="secret-scheduler-identity",
+    ).to_dict()
+    checked = _issue("TASK-12", "Open")
+    checked.description = "Checked task"
+    checked.project_id = "proj-1"
+    checked.duplicate_screening = complete_claim_record(
+        new_claim_record(checked, owner="scheduler"),
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        evidence="private full model output",
+    ).to_dict()
+    stale = _issue("TASK-13", "Open")
+    stale.description = "Original description"
+    stale.project_id = "proj-1"
+    stale.duplicate_screening = complete_claim_record(
+        new_claim_record(stale, owner="scheduler"),
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+    ).to_dict()
+    stale.description = "Changed description"
+    orch = _orch_with_issues([unchecked, running, checked, stale])
+    orch.config = SimpleNamespace(duplicate_preflight_max_agents=1)
+
+    payload = server_module._fetch_and_serialize_issues(orch)
+    rows = {row["identifier"]: row for row in payload["Open"]}
+
+    assert rows["TASK-10"]["duplicate_screening"]["state"] == "unchecked"
+    assert rows["TASK-11"]["duplicate_screening"]["state"] == "running"
+    assert rows["TASK-12"]["duplicate_screening"]["state"] == "checked"
+    assert rows["TASK-13"]["duplicate_screening"]["state"] == "stale"
+    assert rows["TASK-10"]["duplicate_screening"]["required"] is True
+    serialized = json.dumps(rows)
+    assert "secret-scheduler-identity" not in serialized
+    assert "private full model output" not in serialized
+    assert "claim_id" not in serialized
 
 
 # ---------------------------------------------------------------------------
