@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:54:42.640718Z'
+updated_at: '2026-07-28T13:54:55.983115Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -270,5 +270,20 @@ author: oompah
 created: 2026-07-28 13:54
 ---
 Completion: Delivered and pushed commit 48a793f90. The Projects editor sends only external_issue_intake_enabled; PATCH accepts legacy-only, neutral-only, and matching aliases while rejecting conflicts precisely; GitLab create/edit/token paths never call GitHub token-owner resolution and leave blank actors unset. Full suite passed (12,342 passed, 39 skipped), post-rebase focused CRUD/UI suite passed (233 passed), and the branch is synchronized with origin (+0/-0). The repository secret target's only finding was an unchanged REDACTED test fixture false positive.
+---
+author: oompah
+created: 2026-07-28 13:54
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/default]
+- Turns: 0, Tool calls: 47
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 13s
+- Log: OOMPAH-455__20260728T134343Z.jsonl
+---
+author: oompah
+created: 2026-07-28 13:54
+---
+Made project intake aliases deterministic and identity lookup forge-aware; GitLab Projects-page state-branch edits now succeed without GitHub credential calls. Added comprehensive CRUD/UI regressions and pushed commit 48a793f90.
 ---
 <!-- COMMENTS:END -->
