@@ -7,10 +7,11 @@ title: Route webhook lifecycle by forge and stop gh forwarder churn for GitLab p
 parent: OOMPAH-451
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-07-28T13:10:56.835161Z'
+updated_at: '2026-07-28T13:11:16.218994Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -64,5 +65,29 @@ Discovery: Duplicate screening found no confirmed duplicate for OOMPAH-453.
 
 **Why OOMPAH-453 is distinct:**
 Current oompah/webhooks.py line 1908: `projects = (self.project_store.list_all() if self.project_store else [])` — WebhookForwarder._poll_and_restart processes ALL projects with zero forge filtering. The recovered 341/342 commits only added GitLabHookManager with its own _is_gitlab_project() helper; neither patched WebhookForwarder to skip GitLab projects. The bug (gh webhook forward churn against GitLab repos) is still present on the current branch.
+---
+author: oompah
+created: 2026-07-28 13:11
+---
+Focus handoff: duplicate_detector
+
+1. **Outcome**: No duplicate confirmed. OOMPAH-453 is a unique, targeted bug fix.
+
+2. **Evidence and key findings**:
+   - Searched all .oompah/tasks/ directories and docs/plans for WebhookForwarder, GitLabHookManager, gh forwarder, forge filtering, forge_kind — no overlapping open/backlog tasks.
+   - OOMPAH-341 (Merged) and OOMPAH-342 (Merged) covered GitLabHookManager implementation and lifecycle wiring; both were already cherry-picked onto epic-OOMPAH-451 branch (commits f6c4ef88d and 4c5420f7d) as part of OOMPAH-452.
+   - Current branch already has GitLabHookManager, GitLabEventDedup, project lifecycle wiring (reconcile/remove), and hook health alerts.
+   - **Root of the remaining bug**: WebhookForwarder._poll_and_restart (oompah/webhooks.py line 1906–1960) calls project_store.list_all() and processes every project, with no check for forge_kind. GitLab projects get a _ForwarderProcess created and `gh webhook forward` launched for them, producing HTTP 401s against api.github.com.
+   - Neither 341 nor 342 modified _poll_and_restart to skip non-GitHub projects.
+
+3. **Remaining work**:
+   - Add forge filtering to WebhookForwarder._poll_and_restart: skip projects where forge_kind == 'gitlab' or 'gitlab' in repo_url (mirror the _is_gitlab_project() pattern in GitLabHookManager).
+   - Add regression test with mixed GitHub+GitLab project_store fixture proving no gh subprocess launch and no api.github.com call for GitLab projects.
+   - Tests for restart backoff, polling fallback, and configuration degradation/recovery as described in the issue.
+   - Run make test to verify.
+   - Key files: oompah/webhooks.py (WebhookForwarder._poll_and_restart ~line 1906, _launch ~line 2050), tests/test_webhooks.py.
+   - All code is on branch epic-OOMPAH-451.
+
+4. **Recommended next focus**: feature (targeted bug fix — add forge filter to WebhookForwarder, write regression tests).
 ---
 <!-- COMMENTS:END -->
