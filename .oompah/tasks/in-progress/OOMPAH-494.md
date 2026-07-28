@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:29.472352Z'
-updated_at: '2026-07-28T15:30:16.941175Z'
+updated_at: '2026-07-28T15:31:43.077710Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-07-28 15:30
 ---
 Understanding: duplicate-screening only. I will search native task history and project documentation for Granian E2E/subprocess-test consolidation work, inspect plausible candidates in full, and either archive a confirmed duplicate or hand off with evidence for implementation.
+---
+author: oompah
+created: 2026-07-28 15:31
+---
+Discovery: No confirmed duplicate. Repository-wide searches for Granian, test_granian_e2e, subprocess cleanup, WebSocket fan-out, restart, SIGINT, and pipe draining found no task with this consolidation scope. Closest full tasks reviewed: parent OOMPAH-490 uniquely assigns Granian scenario consolidation to OOMPAH-494; OOMPAH-499 covers unrelated exact clones/name shadowing; OOMPAH-500 is the downstream final runtime/process-leak audit; archived OOMPAH-172 fixes global orchestrator pollution affecting Granian parity, not E2E process ownership. Git history identifies legacy TASK-472 as the suite's origin: it added the 20 contracts with a module fixture, then commit 3c992af47 intentionally switched to one subprocess per test after WebSocket close/handshake hangs. That legacy tracker ID is no longer viewable (404), but its commit history shows creation/stabilization rather than the current scenario-level consolidation and bounded cleanup work.
 ---
 <!-- COMMENTS:END -->
