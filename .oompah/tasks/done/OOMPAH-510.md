@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-510
 type: task
-status: Backlog
+status: Done
 priority: 1
 title: Measure throughput improvements and validate the clean epic branch
 parent: OOMPAH-502
@@ -16,10 +16,9 @@ blocked_by:
 - OOMPAH-509
 labels:
 - focus-complete:duplicate_detector
-- needs:test
 assignee: null
 created_at: '2026-07-28T15:06:11.106221Z'
-updated_at: '2026-07-28T17:38:42.242354Z'
+updated_at: '2026-07-28T17:40:28.507427Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -90,5 +89,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 29s
 - Log: OOMPAH-510__20260728T173715Z.jsonl
+---
+author: oompah
+created: 2026-07-28 17:40
+---
+Final exact-head validation completed on aa93fa639. Before/after: (1) duplicate work: historical duplicate-investigator runs took 2.5-4 minutes and 400k-750k input tokens; the scheduler prefilter now excludes terminal tasks, its latest empty-candidate decision took 0.142ms, and an independent live screening of this final task completed in 1m29s with no duplicate; (2) prompt replay: a 24-comment/4,533-byte representative history compacts to 20 comments/3,897 bytes while retaining the latest human/actionable/handoff context, with a 32KiB byte ceiling; (3) models: all six explicit role candidates resolve live under round-robin—Claude haiku/sonnet/opus and Codex gpt-5.6-luna/terra/sol; (4) cleanup: the pressure-triggered live scan inspected 988 entries, cleaned a bounded batch of 25 worktrees, and reported zero permission errors after the restrictive-mode fix; current storage remains pressured at 0.794% free because the latest 988 cache entries were not yet eligible, so cleanup correctly deferred rather than deleting active/unowned data; (5) restart: graceful request 619dfc32-bb71-47c8-b531-b2573ec52dc9 execed cleanly from instance 482ad174 to 4ed729f5, rebound on 0.0.0.0:8090, retained max concurrency 0 auto mode (effective 10), and logged no fatal/cross-loop error; active-drain and loop ownership are covered by 96 focused tests; (6) tests: exact outcomes matched—serial 12,616 passed/7 skipped in 271.98s, then four-worker parallel 12,616 passed/7 skipped in 70.52s and 69.12s, a stable 3.9x speedup. Both private run roots and subprocesses were clean afterward. make check-secrets and git diff --check passed. Both local and managed epic checkouts are clean, at aa93fa639, and up to date with origin. Every sibling is Done with its implementation commit pushed. GitHub returned no existing review for epic-OOMPAH-502 before this final task. Project test_command and test_command_full are both persisted as make test, so Oompah must now run one exact-head full gate before creating the single epic review.
 ---
 <!-- COMMENTS:END -->
