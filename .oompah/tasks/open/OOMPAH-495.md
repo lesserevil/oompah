@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-495
 type: chore
-status: In Progress
+status: Open
 priority: 2
 title: Retire pre-implementation state-branch design tests
 parent: OOMPAH-490
@@ -13,7 +13,7 @@ labels:
 - needs:chore
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T15:44:27.799517Z'
+updated_at: '2026-07-28T15:44:38.774698Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -21,6 +21,22 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 6a57a446-e7d4-481a-b0e3-574f474d8ca1
 oompah.work_branch: epic-OOMPAH-490
+oompah.task_costs:
+  total_input_tokens: 17
+  total_output_tokens: 3760
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 17
+      output_tokens: 3760
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 17
+    output_tokens: 3760
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T15:44:35.335688+00:00'
 ---
 ## Summary
 
@@ -82,5 +98,25 @@ Focus handoff: duplicate_detector
    - Confirm at least 22 collected cases are removed.
 
 4. Recommended next focus: chore (implementation — test cleanup).
+---
+author: oompah
+created: 2026-07-28 15:44
+---
+Agent completed successfully in 87s (3777 tokens)
+---
+author: oompah
+created: 2026-07-28 15:44
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 32, Tool calls: 21
+- Tokens: 17 in / 3.8K out [3.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 27s
+- Log: OOMPAH-495__20260728T154316Z.jsonl
+---
+author: oompah
+created: 2026-07-28 15:44
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
