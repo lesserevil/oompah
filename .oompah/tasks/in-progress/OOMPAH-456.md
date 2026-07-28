@@ -13,7 +13,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:49:51.433670Z'
+updated_at: '2026-07-28T14:50:48.024181Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -289,5 +289,10 @@ author: oompah
 created: 2026-07-28 14:49
 ---
 Implementation: All backend feature gaps closed.\n\n**state_branch_migration.py:**\n- migrate_stage_a(): added access_token/forge_kind/forge_base_url params; passed to initialize_state_branch\n- migrate_stage_b(): added forge credentials; replaced plain _git fetch with _network_git for authenticated fetch\n- migrate_stage_c(): added forge credentials; replaced _git_check push with _network_git_check\n- rollback_migration(): added forge credentials; replaced _git/fetch/push with _network_git/_network_git_check\n\n**server.py api_state_branch_migrate:**\n- Extracts project.access_token, forge_kind, forge_base_url and passes them to all migration calls\n- Acquires project_write_lock() and runs all blocking git ops via asyncio.to_thread\n- After Stage A success: calls verify_state_branch() before flipping config; on verification failure, state_branch_enabled stays False\n- MigrationResult imported to support the verification error path\n\n**docs/state-branch-migration.md:**\n- 3 forge-specific references updated to forge-neutral language; no more GITHUB_TOKEN references in GitLab context\n\n**Tests (71 migration + 140 config):**\n- TestForgeAwareCredentials: 7 tests verifying token/forge_kind pass-through for stages A/B/C and rollback (both GitLab and GitHub)\n- TestVerifyStateBranch: 7 tests for verify_state_branch (local/remote, layout check, commit mismatch, push verification)\n- TestGitLabForgeActivation: 9 server-side tests covering: GitLab token pass-through, push failure no partial enable, remote verify failure no partial enable, full success path, forge-neutral error messages, GitHub regression, concurrent lock, dry-run safety
+---
+author: oompah
+created: 2026-07-28 14:50
+---
+Verification: Full test suite passed.\n\n- .venv/bin/pytest tests/ -q: 12,380 passed, 39 skipped, 11 warnings in 235.95s\n- Targeted state-branch + crud tests: 412 passed\n- Commit ef6437082 pushed to origin/epic-OOMPAH-451\n\nAcceptance criteria met:\n1. One action (POST /state-branch/migrate {action:'A', confirm:true}) takes a GitLab project from no state branch to verified enabled state\n2. A failed GitLab push cannot leave the project enabled — verify_state_branch runs after migrate_stage_a, config flip only on success\n3. Diagnostics mention the configured forge (GitLab) and never GitHub-specific credentials for GitLab projects\n4. All forge credentials flow through ephemeral GIT_ASKPASS; never in argv, URLs, logs, or persisted config\n5. Per-project write lock + asyncio.to_thread prevent concurrent race and event-loop blocking
 ---
 <!-- COMMENTS:END -->
