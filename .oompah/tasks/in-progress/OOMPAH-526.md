@@ -13,17 +13,32 @@ blocked_by:
 - OOMPAH-525
 labels:
 - focus-complete:duplicate_detector
-- needs:docs
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T20:11:52.447406Z'
+updated_at: '2026-07-28T20:12:30.365901Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: e2248382-f0d7-43f6-b30c-9a06d7e5c9c4
+oompah.agent_run_id: b6b9862b-29cc-4c82-81ec-993ac87d955e
 oompah.work_branch: epic-OOMPAH-521
+oompah.task_costs:
+  total_input_tokens: 1067196
+  total_output_tokens: 5201
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 1067196
+      output_tokens: 5201
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 1067196
+    output_tokens: 5201
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T20:12:05.483146+00:00'
 ---
 ## Summary
 
@@ -106,5 +121,40 @@ author: oompah
 created: 2026-07-28 20:11
 ---
 Focus handoff: duplicate_detector\n\nOutcome: No duplicate confirmed; OOMPAH-526 is the distinct documentation and cross-surface validation child of OOMPAH-521.\n\nEvidence and decisions: Reviewed OOMPAH-521 and children OOMPAH-522 through OOMPAH-525 in full via the oompah task view command; their scopes are server credential loading, ASGI enforcement, MCP propagation, and CLI/lifecycle client credentials, respectively. Reviewed OOMPAH-6 and OOMPAH-339 as closest historical auth/GitLab candidates; they cover GitHub API intake credentials and GitLab label governance, not htpasswd deployment. Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md with rg for htpasswd, Basic auth, server/client passwords, and authentication. No implementation files were changed. Existing relevant surfaces include docs/cli-install.md, docs/operator-runbook.md, docs/project-bootstrap.md, .env.example, oompah/client_auth.py, oompah/http_auth.py, oompah/server.py, oompah/mcp_gateway.py, and their focused tests.\n\nRemaining work and risks: add or finish operator authentication documentation and links, ensure setting names and precedence agree across docs, .env.example, CLI, and discovery, add documentation contract coverage where appropriate, and run cross-surface auth-off/auth-on, webhook, MCP, CLI, lifecycle, secret-scan, and full-gate verification. Preserve the exact public endpoint boundary and never include real credentials in docs, logs, URLs, argv, or fixtures.\n\nRecommended next focus: docs, followed by integration and security verification.
+---
+author: oompah
+created: 2026-07-28 20:12
+---
+Agent completed successfully in 124s (1072397 tokens)
+---
+author: oompah
+created: 2026-07-28 20:12
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 25
+- Tokens: 1.1M in / 5.2K out [1.1M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 4s
+- Log: OOMPAH-526__20260728T201006Z.jsonl
+---
+author: oompah
+created: 2026-07-28 20:12
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 20:12
+---
+Agent dispatched (profile: quick)
+---
+author: oompah
+created: 2026-07-28 20:12
+---
+Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-28 20:12
+---
+Understanding: I'm the Technical Writer taking over from the Duplicate Investigator. The scope is to create operator-facing documentation for htpasswd setup, rotation, disablement, and recovery, then run cross-surface integration checks. I'll review existing auth-related code and docs, create/improve docs/authentication.md with step-by-step deployment guidance, verify setting name consistency across .env.example/CLI/discovery, add documentation contract tests where patterns exist, and smoke-test auth-off and auth-on scenarios. I'll preserve the exact unauthenticated endpoint boundary and never embed real credentials in docs/logs/URLs. Dependencies (OOMPAH-522-525) are prerequisite implementations I'll document.
 ---
 <!-- COMMENTS:END -->
