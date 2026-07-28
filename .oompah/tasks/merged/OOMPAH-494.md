@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-494
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Consolidate Granian subprocess tests into complete scenarios
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:29.472352Z'
-updated_at: '2026-07-28T15:42:27.059419Z'
+updated_at: '2026-07-28T17:07:06.008353Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
