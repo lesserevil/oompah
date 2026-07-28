@@ -14,7 +14,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-07-28T22:02:19.560231Z'
+updated_at: '2026-07-28T22:02:34.672029Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -273,5 +273,21 @@ author: oompah
 created: 2026-07-28 22:02
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-28 22:02
+---
+Understanding: Implementing OOMPAH-531 - Schedule duplicate preflight from spare agent capacity.
+
+Plan:
+1. Add OOMPAH_DUPLICATE_PREFLIGHT_MAX_AGENTS to config.py and .env.example (default 1, 0=disabled)
+2. In _handle_dispatch_needed_locked, after normal dispatch loop, add a preflight scheduling pass:
+   - Collect eligible Open tasks (non-terminal, dispatchable, not dep-blocked, not claimed, unchecked/stale)
+   - Check spare capacity after implementation dispatch, reserving last slot for implementation-ready work
+   - Use deterministic priority/age ordering to avoid starvation
+   - For each eligible task up to cap: acquire preflight claim (OOMPAH-530 API), dispatch duplicate_detector focus without In Progress transition
+   - Track counters/log for selected, started, skipped-no-capacity, skipped-reserved-slot, stale, already-checked, claim-race-lost
+3. Preserve existing _apply_duplicate_detection heuristic pass
+4. Add tests per requirements
 ---
 <!-- COMMENTS:END -->
