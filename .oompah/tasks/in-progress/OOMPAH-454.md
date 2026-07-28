@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-454
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Recover GitLab webhook event parity onto main
 parent: OOMPAH-451
@@ -10,12 +10,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:52.642232Z'
-updated_at: '2026-07-28T12:41:53.058091Z'
-work_branch: null
+updated_at: '2026-07-28T13:23:50.096796Z'
+work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 6dc953d0-8070-41a0-9586-f9d505de83f0
+oompah.work_branch: epic-OOMPAH-451
 ---
 ## Summary
 
@@ -33,3 +35,16 @@ Acceptance criteria: every documented GitLab event type is authenticated, normal
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 13:23
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 13:23
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
