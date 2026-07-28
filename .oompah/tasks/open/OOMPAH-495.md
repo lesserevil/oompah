@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T15:51:48.005448Z'
+updated_at: '2026-07-28T15:56:41.418418Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -142,5 +142,15 @@ author: oompah
 created: 2026-07-28 15:47
 ---
 Implementation: removed tests/test_state_branch_design.py and the duplicate TestXfailDesignContractNowPasses class. Also retired obsolete state-branch feature-detection/conditional-xfail scaffolding in test_oompah_md_tracker_state_branch.py while preserving all test bodies, so implemented routing regressions now fail normally and no stale 'not implemented' xfail reason remains. No replacement tests were needed because every production contract is already exercised by the five surviving suites.
+---
+author: oompah
+created: 2026-07-28 15:56
+---
+Run #1 [attempt=1, profile=quick, role=fast -> Codex/default]
+- Turns: 0, Tool calls: 57
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 52s
+- Log: OOMPAH-495__20260728T154450Z.jsonl
 ---
 <!-- COMMENTS:END -->
