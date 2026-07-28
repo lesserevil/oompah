@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:35:38.927735Z'
+updated_at: '2026-07-28T19:35:41.218666Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -494,5 +494,10 @@ INTEGRATION NOTE:
 The coordinator is ready for integration into bootstrap.py/orchestrator.py.
 It takes (tracker: TrackerProtocol, project_store: ProjectWriteLockProvider) as constructor args.
 No changes to existing files were required.
+---
+author: oompah
+created: 2026-07-28 19:35
+---
+Implemented TerminalTransitionCoordinator (oompah/terminal_transition_coordinator.py) with 40 comprehensive tests. All acceptance criteria met: atomic staging, idempotent coalescing, Done-before-Merged chain enforcement, stale rejection, per-project locking, and comment deduplication persisted across restarts.
 ---
 <!-- COMMENTS:END -->
