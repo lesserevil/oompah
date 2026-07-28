@@ -13,7 +13,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-28T21:18:51.634942Z'
-updated_at: '2026-07-28T21:33:47.677201Z'
+updated_at: '2026-07-28T21:36:06.660077Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -183,5 +183,32 @@ author: oompah
 created: 2026-07-28 21:33
 ---
 Discovery: the worktree includes the uncommitted OOMPAH-529 metadata prerequisite in oompah/duplicate_screening.py plus tests; I will preserve it and use its parser/fingerprint helpers. Native tracker instances share a repository _write_lock, while ProjectStore exposes project_write_lock. Implementation claims are currently in orchestrator state, so duplicate preflight must coordinate with that state while holding the project lock.
+---
+author: oompah
+created: 2026-07-28 21:36
+---
+**Discovery:**
+
+Found and documented the tracker-backed persistence patterns from OOMPAH-529 (DuplicateScreeningEvidence) and explored the write-lock mechanism in oompah_md_tracker.py.
+
+Key findings:
+1. Created oompah/duplicate_preflight_claims.py with:
+   - PreflightClaimRecord dataclass with all required fields (id, owner, timestamps, fingerprint, detector_version)
+   - PreflightClaimStore with atomic claim/renew/release/expire/scan operations
+   - Metadata key: 'oompah.duplicate_preflight_claim'
+   - Expiry-based TTL (default 1 hour)
+   - CAS semantics for release (old claims cannot clear newer ones)
+   
+2. Created comprehensive tests (35 tests, all passing):
+   - Claim lifecycle (create, renew, release, expire)
+   - Blocking logic (preflight blocks implementation)
+   - CAS correctness (old claim IDs cannot clear newer claims)
+   - Restart recovery (scan_expired_claims)
+   - Timestamp handling and expiry detection
+   - Concurrent claim attempts
+   
+3. Tracker write-lock usage: Each claim operation calls tracker.set_metadata_field() which acquires the per-repo RLock, ensuring atomic metadata mutations across concurrent threads.
+
+4. Next: Integrate mutual exclusion checks into orchestrator.py dispatch logic and test end-to-end blocking behavior.
 ---
 <!-- COMMENTS:END -->
