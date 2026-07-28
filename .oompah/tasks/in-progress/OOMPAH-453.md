@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-453
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Route webhook lifecycle by forge and stop gh forwarder churn for GitLab projects
 parent: OOMPAH-451
@@ -10,12 +10,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-07-28T12:41:52.049514Z'
-work_branch: null
+updated_at: '2026-07-28T13:08:51.507060Z'
+work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: a3cc3249-8cb2-40bf-a84e-3aaa903cb156
+oompah.work_branch: epic-OOMPAH-451
 ---
 ## Summary
 
@@ -33,3 +35,16 @@ Acceptance criteria: nodevirt causes no GitHub 401 or child-process churn; GitHu
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 13:08
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 13:08
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
