@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:04.307001Z'
-updated_at: '2026-07-28T18:27:29.731089Z'
+updated_at: '2026-07-28T18:27:58.623867Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -167,5 +167,10 @@ author: oompah
 created: 2026-07-28 18:27
 ---
 Understanding: I will add a standalone terminal-audit domain module with typed enums, versioned dataclasses, strict required-field decoding, optional-field compatibility, and deterministic SHA-256 evidence fingerprints. I will first inspect existing models, enum, serialization, and test conventions, then implement focused tests and run the prescribed checks.
+---
+author: oompah
+created: 2026-07-28 18:27
+---
+Discovery: No terminal-audit implementation exists. Existing models.py uses dataclass to_dict/from_dict, while statuses.py defines Done, Merged, and Archived. The new module will be tracker-independent and will enforce its own schema/version and enum validation.
 ---
 <!-- COMMENTS:END -->
