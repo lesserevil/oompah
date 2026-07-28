@@ -10,10 +10,11 @@ blocked_by:
 - OOMPAH-462
 - OOMPAH-463
 - OOMPAH-457
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T21:11:07.766013Z'
+updated_at: '2026-07-28T21:11:52.388716Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -58,5 +59,10 @@ author: oompah
 created: 2026-07-28 21:11
 ---
 **Understanding:** Duplicate investigation starting. OOMPAH-468 is about persisting work_contributors records (run ID, provider ID, safe provider name, resolved model ID, focus, source branch/SHA, completion time) at worker startup/exit, deriving union of contributors from child/nested-child audit records for epic revisions, without storing credentials/prompts/logs/costs. This is distinct from OOMPAH-462/463 which handle terminal-audit records and state transitions. Searching for any prior implementation or duplicate tasks.
+---
+author: oompah
+created: 2026-07-28 21:11
+---
+**Discovery:** Comprehensive duplicate screening complete. OOMPAH-468 is NOT a duplicate.\n\nSearched scope:\n- All .oompah/tasks directories (open, backlog, merged, archived): 281 task files total\n- Source code (oompah/, src/, tests/): zero matches for work_contributors, WorkContributor, RunningEntry, audit.*work patterns\n- Git history: no prior implementations of provider-model provenance tracking\n- OOMPAH-458 (parent epic) and its 8 children: distinct scopes confirmed\n  - OOMPAH-469 (auditor focus contract) — defines auditor role, not contributor tracking\n  - OOMPAH-470 (auditor candidate selection) — DEPENDS on OOMPAH-468 to exclude contributors\n  - OOMPAH-471 (Done evidence collector) — includes contributor identities as part of evidence\n- Related prior work: OOMPAH-287 (external content provenance) — different domain (trust boundaries, not worker provenance)\n\nScope confirmation: OOMPAH-468 is uniquely focused on persisting work_contributors records at worker startup/exit containing run ID, provider ID, safe provider name, resolved model ID, focus, source branch/SHA, and completion time. This infrastructure is required by OOMPAH-470 and later auditor tasks but does not duplicate any existing implementation.\n\nNo duplicate found. Ready for implementation focus.
 ---
 <!-- COMMENTS:END -->
