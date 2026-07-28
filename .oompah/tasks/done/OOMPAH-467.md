@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T20:24:26.899648Z'
+updated_at: '2026-07-28T20:24:29.127363Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -277,5 +277,10 @@ Work committed and pushed on epic-OOMPAH-457 (commits cbbe8d39b and a5699d6fc).
 - 147 existing audit/coordinator tests: all passing ✓
 
 Coverage includes: authorized owner, additional authorized login, unauthorized actor, bot-only actor, blank reason, whitespace reason, stale fingerprint, failure ordering (metadata first, comment second, status last), reason redaction, repeated override, Done/Merged/Archived targets, quarantine rejection, record serialization.
+---
+author: oompah
+created: 2026-07-28 20:24
+---
+Added override_transition() to TerminalTransitionCoordinator with project-owner authorization, non-empty reason enforcement, evidence fingerprint validation, comment-before-status ordering, reason redaction, and 23 comprehensive tests covering all acceptance criteria.
 ---
 <!-- COMMENTS:END -->
