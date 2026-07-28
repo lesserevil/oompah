@@ -1,0 +1,35 @@
+---
+id: OOMPAH-456
+type: bug
+status: Backlog
+priority: 1
+title: Make state-branch activation atomic and forge-aware for GitLab projects
+parent: OOMPAH-451
+children: []
+blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-07-28T12:36:06.205487Z'
+updated_at: '2026-07-28T12:36:06.205487Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+---
+## Summary
+
+Problem: nodevirt has state_branch_enabled=false and no local or remote oompah/state/proj-bbba976d branch. The Projects editor treats the setting as a plain PATCH boolean, so after the intake-alias bug is fixed it can enable reads before the branch exists. The supported migration preflight also runs git push --dry-run without the configured GitLab project token; it fails authentication and incorrectly tells the operator to verify GITHUB_TOKEN even though GitLab API readiness confirms access_level=40 and push permission.
+
+Implementation scope: route UI activation through the validated state-branch bootstrap/migration workflow rather than a naked config flip; create and push the state branch, verify the remote commit and task layout, then atomically enable project state tracking. Use forge-aware noninteractive Git credentials derived safely from the project access token without embedding secrets in remote URLs, command output, persisted config, or logs. Make all validation and remediation messages forge-neutral. On failure, leave state_branch_enabled false and preserve both branches. Relevant files include oompah/templates/projects.html, oompah/server.py, oompah/state_branch_migration.py, oompah/projects.py, and migration/bootstrap tests.
+
+Tests: reproduce a new GitLab native-Markdown project with only main, assert preflight and activation authenticate with the project token, verify the remote state branch before the config flips, cover auth and push failures with rollback/no partial enablement, and retain GitHub/native migration behavior; run make test.
+
+Acceptance criteria: one supported action takes nodevirt from no state branch to a verified enabled state; a failed GitLab push cannot leave the project enabled; diagnostics mention the configured forge and never GitHub-specific credentials for GitLab.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
