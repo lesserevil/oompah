@@ -86,7 +86,12 @@ from oompah.focus import (
     select_focus,
     select_focus_async,
 )
-from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
+from oompah.prompt import (
+    PromptError,
+    build_continuation_prompt,
+    compact_prompt_comments,
+    render_prompt,
+)
 from oompah.repo_map_prompt import build_repo_map_context
 from oompah.projects import (
     ProjectError,
@@ -13485,6 +13490,17 @@ class Orchestrator:
 
         return sorted(issues, key=sort_key)
 
+    def _comments_for_prompt(
+        self, issue: Issue, comments: list[dict] | None
+    ) -> list[dict]:
+        """Return bounded startup context without altering tracker history."""
+        return compact_prompt_comments(
+            issue,
+            comments,
+            max_comments=self.config.prompt_max_comments,
+            max_bytes=self.config.prompt_max_comment_bytes,
+        )
+
     def _apply_duplicate_detection(self, candidates: list[Issue]) -> list[Issue]:
         """Run similarity-based duplicate detection on candidates (runs in thread pool).
 
@@ -16525,7 +16541,7 @@ class Orchestrator:
                     self._prompt_template,
                     issue,
                     attempt,
-                    comments=comments,
+                    comments=self._comments_for_prompt(issue, comments),
                     focus_text=focus.render(project_obj),
                     workspace_path=wp,
                     memories=memories,
@@ -16890,7 +16906,7 @@ class Orchestrator:
                     self._prompt_template,
                     issue,
                     attempt,
-                    comments=comments,
+                    comments=self._comments_for_prompt(issue, comments),
                     focus_text=focus.render(project_obj),
                     workspace_path=wp,
                     memories=memories,
@@ -17455,7 +17471,9 @@ class Orchestrator:
                             self._prompt_template,
                             current_issue,
                             attempt,
-                            comments=cli_comments,
+                            comments=self._comments_for_prompt(
+                                current_issue, cli_comments
+                            ),
                             focus_text=cli_focus.render(cli_project_obj),
                             workspace_path=workspace_path,
                             memories=cli_memories,

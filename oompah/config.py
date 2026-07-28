@@ -272,7 +272,7 @@ def _parse_repo_map_languages(
     return parsed
 
 
-def _parse_repo_map_positive_int(env_key: str, default: int) -> int:
+def _parse_positive_env_int(env_key: str, default: int) -> int:
     """Read *env_key* as a positive integer (≥ 1).
 
     Falls back to *default* for a missing, non-numeric, or non-positive value
@@ -561,6 +561,11 @@ class ServiceConfig:
     # the scheduler or prevent the service from stopping.
     # Configurable via OOMPAH_WORKER_TERMINATION_TIMEOUT_MS.
     worker_termination_timeout_ms: int = 10000
+
+    # Initial agent prompt comment-history budgets. These are environment-only
+    # because they are operational tuning, not workflow structure.
+    prompt_max_comments: int = 20
+    prompt_max_comment_bytes: int = 32 * 1024
 
     # Dispatch-loop heartbeat staleness detection (lesserevil/oompah#305).
     # The threshold and recovery grace are independent of the full-sync
@@ -952,6 +957,15 @@ class ServiceConfig:
             worker_termination_timeout_ms=_env_int(
                 "OOMPAH_WORKER_TERMINATION_TIMEOUT_MS", None, 10000
             ),
+            prompt_max_comments=max(
+                5, _parse_positive_env_int("OOMPAH_PROMPT_MAX_COMMENTS", 20)
+            ),
+            prompt_max_comment_bytes=max(
+                1024,
+                _parse_positive_env_int(
+                    "OOMPAH_PROMPT_MAX_COMMENT_BYTES", 32 * 1024
+                ),
+            ),
             dispatch_stale_threshold_ms=_env_int(
                 "OOMPAH_DISPATCH_STALE_THRESHOLD_MS", None, 120000
             ),
@@ -966,20 +980,20 @@ class ServiceConfig:
             # Repository-map feature (OOMPAH-293 / OOMPAH-299).
             # All settings are environment-only; do not expose them in WORKFLOW.md.
             repo_map_enabled=_env_bool("OOMPAH_REPO_MAP_ENABLED", None, False),
-            repo_map_token_budget=_parse_repo_map_positive_int(
+            repo_map_token_budget=_parse_positive_env_int(
                 "OOMPAH_REPO_MAP_TOKEN_BUDGET", 2000
             ),
             repo_map_languages=_parse_repo_map_languages(
                 os.environ.get("OOMPAH_REPO_MAP_LANGUAGES"),
                 _REPO_MAP_SUPPORTED_LANGUAGES,
             ),
-            repo_map_max_file_size=_parse_repo_map_positive_int(
+            repo_map_max_file_size=_parse_positive_env_int(
                 "OOMPAH_REPO_MAP_MAX_FILE_SIZE", 1_000_000
             ),
-            repo_map_generation_timeout=_parse_repo_map_positive_int(
+            repo_map_generation_timeout=_parse_positive_env_int(
                 "OOMPAH_REPO_MAP_GENERATION_TIMEOUT", 120
             ),
-            repo_map_retained_artifacts=_parse_repo_map_positive_int(
+            repo_map_retained_artifacts=_parse_positive_env_int(
                 "OOMPAH_REPO_MAP_RETAINED_ARTIFACTS", 5
             ),
         )

@@ -89,6 +89,8 @@ class TestServiceConfig:
         assert cfg.duplicate_detection_candidate_limit == 64
         assert cfg.auto_archive_batch_size == 25
         assert cfg.worktree_cleanup_batch_size == 25
+        assert cfg.prompt_max_comments == 20
+        assert cfg.prompt_max_comment_bytes == 32 * 1024
         assert cfg.release_pick_max_runtime_seconds == 15
         assert cfg.merged_labels_max_runtime_seconds == 15
         assert cfg.close_gate_enabled is True
@@ -101,6 +103,47 @@ class TestServiceConfig:
         )
         cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="test"))
         assert cfg.gitlab_webhook_public_url == "https://oompah.example.com/"
+
+    def test_prompt_history_budgets_come_from_environment(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_PROMPT_MAX_COMMENTS", "12")
+        monkeypatch.setenv("OOMPAH_PROMPT_MAX_COMMENT_BYTES", "8192")
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.prompt_max_comments == 12
+        assert cfg.prompt_max_comment_bytes == 8192
+
+    @pytest.mark.parametrize(
+        ("name", "value", "attribute", "minimum"),
+        [
+            ("OOMPAH_PROMPT_MAX_COMMENTS", "1", "prompt_max_comments", 5),
+            (
+                "OOMPAH_PROMPT_MAX_COMMENT_BYTES",
+                "12",
+                "prompt_max_comment_bytes",
+                1024,
+            ),
+        ],
+    )
+    def test_prompt_history_budgets_enforce_retention_minimums(
+        self, monkeypatch, name, value, attribute, minimum
+    ):
+        monkeypatch.setenv(name, value)
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert getattr(cfg, attribute) == minimum
+
+    def test_prompt_history_settings_are_documented_in_env_example(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        content = env_example.read_text(encoding="utf-8")
+
+        assert "OOMPAH_PROMPT_MAX_COMMENTS=" in content
+        assert "OOMPAH_PROMPT_MAX_COMMENT_BYTES=" in content
 
 
 class TestRepoMapEnvironmentConfiguration(TestServiceConfig):

@@ -6,6 +6,7 @@ import base64
 import logging
 import mimetypes
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -28,6 +29,17 @@ _liquid_env = LiquidEnvironment()
 # bloat fast as base64; this keeps prompts under typical provider limits.
 _PER_PROMPT_BYTE_CAP = 20 * 1024 * 1024  # 20 MB
 _PER_ATTACHMENT_BYTE_CAP = 25 * 1024 * 1024  # 25 MB (matches AttachmentStore)
+_PROMPT_HISTORY_NOTICE_PREFIX = "[Oompah compacted task history]"
+_TRUSTED_NOTICE_KEY = "_oompah_trusted_prompt_notice"
+_TRUSTED_NOTICE_SENTINEL = object()
+_FOCUS_HANDOFF_RE = re.compile(r"^\s*focus handoff\s*:", re.IGNORECASE | re.MULTILINE)
+_ACTIONABLE_HUMAN_RE = re.compile(
+    r"(?:\?|^\s*(?:please|can you|could you|would you|i want|we need|"
+    r"do|fix|add|remove|update|change|implement|check|tell|investigate|"
+    r"ensure|use|do not|don't|yes|no|agreed)\b)",
+    re.IGNORECASE | re.MULTILINE,
+)
+_AUTOMATION_AUTHORS = {"oompah", "oompah-agent", "oompah bot"}
 
 
 class PromptError(Exception):
@@ -52,6 +64,150 @@ class RenderedPrompt:
     text: str
     parts: list[dict[str, Any]] | None = None
     elided: list[str] = field(default_factory=list)
+
+
+def _comment_text(comment: dict[str, Any]) -> str:
+    return str(comment.get("text") or "")
+
+
+def _is_human_comment(comment: dict[str, Any]) -> bool:
+    author = str(comment.get("author") or "").strip().casefold()
+    return (
+        author not in _AUTOMATION_AUTHORS
+        and not author.endswith("[bot]")
+        and not author.endswith("-bot")
+    )
+
+
+def _clip_utf8(text: str, limit: int) -> tuple[str, bool]:
+    """Return *text* within *limit* UTF-8 bytes, preserving both ends."""
+    encoded = text.encode("utf-8")
+    if len(encoded) <= limit:
+        return text, False
+
+    marker = b"\n[... retained comment truncated; full text is in the task history ...]\n"
+    if limit <= len(marker):
+        return marker[:limit].decode("utf-8", errors="ignore"), True
+    content_budget = limit - len(marker)
+    head_size = (content_budget + 1) // 2
+    tail_size = content_budget // 2
+    head = encoded[:head_size].decode("utf-8", errors="ignore")
+    tail = encoded[-tail_size:].decode("utf-8", errors="ignore") if tail_size else ""
+    return head + marker.decode("utf-8") + tail, True
+
+
+def compact_prompt_comments(
+    issue: Issue,
+    comments: list[dict] | None,
+    *,
+    max_comments: int = 20,
+    max_bytes: int = 32 * 1024,
+) -> list[dict]:
+    """Select bounded, actionable task history for an initial agent prompt.
+
+    The canonical tracker history is never mutated. The newest human comment,
+    newest actionable human request/question, latest focus handoff, and final
+    Needs Human instruction are retained before the remaining budget is filled
+    from newest to oldest. Retained comments stay in chronological order.
+
+    ``max_bytes`` applies to retained comment text. Renderer-added provenance
+    delimiters are intentionally outside this operator-controlled content cap.
+    """
+    source = []
+    for raw in comments or []:
+        if not isinstance(raw, dict):
+            continue
+        copied = dict(raw)
+        copied.pop(_TRUSTED_NOTICE_KEY, None)
+        source.append(copied)
+    if not source:
+        return []
+
+    # The minimum leaves room for every distinct priority class plus the
+    # trusted omission notice. Environment parsing enforces the same floor.
+    max_comments = max(5, int(max_comments))
+    max_bytes = max(1024, int(max_bytes))
+    total_bytes = sum(len(_comment_text(c).encode("utf-8")) for c in source)
+    if len(source) <= max_comments and total_bytes <= max_bytes:
+        return source
+
+    priority: set[int] = set()
+    human_indexes = [i for i, c in enumerate(source) if _is_human_comment(c)]
+    if human_indexes:
+        priority.add(human_indexes[-1])
+        actionable = [
+            i
+            for i in human_indexes
+            if _ACTIONABLE_HUMAN_RE.search(_comment_text(source[i]))
+        ]
+        if actionable:
+            priority.add(actionable[-1])
+
+    handoffs = [
+        i for i, c in enumerate(source) if _FOCUS_HANDOFF_RE.search(_comment_text(c))
+    ]
+    if handoffs:
+        priority.add(handoffs[-1])
+
+    normalized_state = str(issue.state or "").strip().casefold().replace("_", " ")
+    if normalized_state in {"needs human", "needs answer"}:
+        priority.add(len(source) - 1)
+
+    retained_capacity = max_comments - 1
+    selected = set(priority)
+    for index in range(len(source) - 1, -1, -1):
+        if len(selected) >= retained_capacity:
+            break
+        selected.add(index)
+
+    ordered_indexes = sorted(selected)
+    omitted_count = len(source) - len(ordered_indexes)
+    project_arg = f" --project {issue.project_id}" if issue.project_id else ""
+    notice_text = (
+        f"{_PROMPT_HISTORY_NOTICE_PREFIX} Omitted {omitted_count} older comment(s)"
+        f" from this startup prompt. Run `oompah task view {issue.identifier}"
+        f"{project_arg}` for the full canonical history. Retained comments may"
+        f" be shortened to fit the byte cap."
+    )
+    notice_bytes = len(notice_text.encode("utf-8"))
+    content_budget = max(max_bytes - notice_bytes, 1)
+
+    # Distribute the byte budget fairly so no priority comment disappears
+    # merely because another retained comment is enormous. Short comments use
+    # only what they need; the remainder is shared by longer comments.
+    texts = {i: _comment_text(source[i]) for i in ordered_indexes}
+    allocations: dict[int, int] = {}
+    pending = set(ordered_indexes)
+    remaining = content_budget
+    while pending:
+        share = max(remaining // len(pending), 1)
+        completed = {
+            i for i in pending if len(texts[i].encode("utf-8")) <= share
+        }
+        if not completed:
+            for i in pending:
+                allocations[i] = share
+            break
+        for i in completed:
+            size = len(texts[i].encode("utf-8"))
+            allocations[i] = size
+            remaining = max(remaining - size, 0)
+        pending -= completed
+
+    retained: list[dict] = []
+    for index in ordered_indexes:
+        comment = dict(source[index])
+        clipped, _ = _clip_utf8(texts[index], allocations.get(index, 1))
+        comment["text"] = clipped
+        retained.append(comment)
+
+    notice = {
+        "author": "oompah",
+        "created_at": "",
+        "text": notice_text,
+        _TRUSTED_NOTICE_KEY: _TRUSTED_NOTICE_SENTINEL,
+    }
+    return [notice, *retained]
 
 
 def _project_to_template_vars(project: Project | None) -> dict[str, Any]:
@@ -266,7 +422,12 @@ def render_prompt(
     for c in (comments or []):
         raw_text = str(c.get("text") or "")
         wrapped = dict(c)
-        wrapped["text"] = _wrap_comment_text(raw_text, issue)
+        trusted_notice = wrapped.pop(_TRUSTED_NOTICE_KEY, None)
+        wrapped["text"] = (
+            raw_text
+            if trusted_notice is _TRUSTED_NOTICE_SENTINEL
+            else _wrap_comment_text(raw_text, issue)
+        )
         wrapped_comments.append(wrapped)
 
     variables: dict[str, Any] = {
