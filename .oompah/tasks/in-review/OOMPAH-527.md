@@ -10,11 +10,11 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T20:16:36.783511Z'
-updated_at: '2026-07-28T20:37:16.969449Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-28T20:37:29.603846Z'
+work_branch: OOMPAH-527
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/566
+review_number: '566'
 merged_at: null
 oompah.agent_run_id: b1f9484d-4b96-4267-803d-0cdcff603857
 oompah.task_costs:
@@ -33,6 +33,10 @@ oompah.task_costs:
     output_tokens: 24484
     cost_usd: 0.0
     recorded_at: '2026-07-28T20:23:29.498719+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/566
+oompah.review_number: '566'
+oompah.work_branch: OOMPAH-527
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -207,5 +211,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 29s
 - Log: OOMPAH-527__20260728T202343Z.jsonl
+---
+author: oompah
+created: 2026-07-28 20:37
+---
+Manual implementation is complete and pushed at 384a4a928. PR #566 is open: https://github.com/lesserevil/oompah/pull/566. Validation passed: make check-secrets; make test (12,635 passed, 7 skipped). The implementation reconciles the earlier automated commit and adds deterministic UDP route discovery, explicit-URL precedence, per-project readiness/status, route-change hook updates, safe polling fallback, and operator documentation.
 ---
 <!-- COMMENTS:END -->
