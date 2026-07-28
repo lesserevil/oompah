@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-525
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Add Basic auth support to Oompah CLIs and lifecycle commands
 parent: OOMPAH-521
@@ -10,16 +10,15 @@ blocked_by:
 - OOMPAH-523
 labels:
 - focus-complete:duplicate_detector
-- needs:feature
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:34:46.854795Z'
+updated_at: '2026-07-28T19:35:01.453719Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 2f520e45-aa7c-4e90-aca9-c0508642255b
+oompah.agent_run_id: fb1d6b49-ab2b-4ff7-b304-f89ef517ac3b
 oompah.work_branch: epic-OOMPAH-521
 oompah.task_costs:
   total_input_tokens: 1933340
@@ -170,5 +169,15 @@ author: oompah
 created: 2026-07-28 19:34
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 19:34
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-28 19:35
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
