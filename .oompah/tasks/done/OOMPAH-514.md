@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:44.915690Z'
-updated_at: '2026-07-28T16:16:14.893604Z'
+updated_at: '2026-07-28T16:16:29.946259Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -136,5 +136,20 @@ author: oompah
 created: 2026-07-28 16:16
 ---
 Completion: pushed 5397b7a82 to origin/epic-OOMPAH-511. The regression now covers server ErrorWatcher routing, scheduler archive writes, exact code HEAD/worktree/index/origin-main/remote-main invariants, remote state-branch task contents, ambiguous/missing-project fail-closed behavior, and stop() drainage of maintenance futures and owned executor threads. Focused tests pass 19/19 in three repeats; full equivalent pytest passes 12,631 with the documented read-only agent-log environment failure resolved via OOMPAH_AGENT_LOG_DIR=/tmp; make check-secrets passes.
+---
+author: oompah
+created: 2026-07-28 16:16
+---
+Run #2 [attempt=2, profile=quick, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 25
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 39s
+- Log: OOMPAH-514__20260728T160754Z.jsonl
+---
+author: oompah
+created: 2026-07-28 16:16
+---
+Added and pushed deterministic server/scheduler state-branch isolation and executor-drainage regressions.
 ---
 <!-- COMMENTS:END -->
