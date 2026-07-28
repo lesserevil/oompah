@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-07-28T14:55:48.330073Z'
+updated_at: '2026-07-28T14:56:15.360245Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -147,5 +147,15 @@ Implementation: Added two files:
    - §4 Session barrier active: verifies env vars are set and git subprocesses inherit the guard
 
 No changes to developer's global or repository git config.
+---
+author: oompah
+created: 2026-07-28 14:56
+---
+Verification: All tests pass.
+- 17/17 new tests in tests/test_git_remote_safety.py pass
+- 49/49 tests in test_project_bootstrap_state_branch.py pass (no regression)
+- 44/44 tests in test_state_branch_e2e.py pass (no regression)
+- Full suite: 12341 passed, 7 skipped, 0 failures, 11 warnings (pre-existing)
+The barrier correctly blocks HTTPS/HTTP/SSH/SCP/git:// while leaving absolute-path and file:// remotes fully usable.
 ---
 <!-- COMMENTS:END -->
