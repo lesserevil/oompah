@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:11:42.517390Z'
+updated_at: '2026-07-28T14:12:00.784350Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -82,5 +82,15 @@ author: oompah
 created: 2026-07-28 14:11
 ---
 Discovery: Duplicate screening found no confirmed duplicate. OOMPAH-443 added the canonical child-state/landing-evidence gate used by _open_epic_main_prs and the final YOLO merge check, but it did not make check_close_gate parent-aware. OOMPAH-309/OOMPAH-404 hardened the separate automatic review-handoff path when parent resolution fails, but did not change the generic close gate or its gh-specific refusal diagnostic. OOMPAH-165 addressed premature parent Merged state/target validation, and OOMPAH-219 addressed shared-worktree commit absorption; neither covers review creation during child close. OOMPAH-452 confirms the new path-specific regression: its Done child close on epic-OOMPAH-451 was refused while OOMPAH-456 remained Open, inducing PR #558. OOMPAH-501 is therefore distinct follow-up work.
+---
+author: oompah
+created: 2026-07-28 14:12
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No duplicate confirmed. OOMPAH-501 is a distinct close-gate bypass of existing epic rollup safeguards and needs implementation.
+2. Evidence: Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for epic rollup, close gate, shared epic branch, review handoff, premature review, nested readiness, and landing evidence. Read OOMPAH-443, OOMPAH-452, OOMPAH-451, OOMPAH-165, OOMPAH-219, OOMPAH-309, and OOMPAH-404 in full. Current code confirms oompah/orchestrator.py::_epic_rollup_children_block_reason is reused by _open_epic_main_prs/final merge paths, while _run_close_gate calls oompah/close_gate.py::check_close_gate with only the child branch and project default branch; build_refusal_comment then emits a hard-coded gh pr create command. OOMPAH-452 comment #18/#23 is the exact reproduction, and OOMPAH-451 still had Open child OOMPAH-456.
+3. Remaining work/risks: Make child close on a parent-owned epic branch bypass review requirements without bypassing standalone-task checks; reuse the canonical readiness result in every rollup review-creation path; keep nested-epic and landing-evidence rules, provider neutrality, idempotent single creation, and final YOLO recheck. Add the specified regressions in tests/test_close_gate.py and tests/test_epic_strategy.py, run focused tests and make test. Do not mutate unrelated existing reviews. The worktree is clean and no code/tests were changed in this focus.
+4. Recommended next focus: feature (backend orchestrator/close-gate implementation with regression tests).
 ---
 <!-- COMMENTS:END -->
