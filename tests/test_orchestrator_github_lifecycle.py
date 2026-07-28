@@ -195,7 +195,7 @@ def _make_orch(tmp_path, *, projects: list | None = None) -> Orchestrator:
         (p for p in (projects or []) if p.id == pid), None
     )
 
-    config = ServiceConfig()
+    config = ServiceConfig(duplicate_preflight_max_agents=0)
     orch = Orchestrator(
         config=config,
         workflow_path="WORKFLOW.md",

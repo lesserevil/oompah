@@ -67,6 +67,11 @@ from oompah.issue_enhancer import (
     has_quality_source,
 )
 from oompah.intake_summary import build_intake_summary
+from oompah.duplicate_screening import (
+    DETECTOR_VERSION as DUPLICATE_DETECTOR_VERSION,
+    assess_screening,
+    eligible_for_model_screening,
+)
 from oompah.intake_approval import (
     is_approval_command,
     is_plain_requestor_approval_comment,
@@ -1470,6 +1475,36 @@ def _issue_intake_summary(issue) -> dict[str, Any] | None:
     )
 
 
+def _issue_duplicate_screening_summary(issue, orch) -> dict[str, Any] | None:
+    """Return safe operator-facing duplicate qualification state."""
+
+    enabled = (
+        int(
+            getattr(
+                getattr(orch, "config", None),
+                "duplicate_preflight_max_agents",
+                0,
+            )
+            or 0
+        )
+        > 0
+    )
+    raw = getattr(issue, "duplicate_screening", None)
+    has_legacy = any(
+        str(label).strip().lower() == "focus-complete:duplicate_detector"
+        for label in (getattr(issue, "labels", None) or [])
+    )
+    if not enabled and raw is None and not has_legacy:
+        return None
+    assessment = assess_screening(
+        issue,
+        detector_version=DUPLICATE_DETECTOR_VERSION,
+    )
+    result = assessment.to_public_dict()
+    result["required"] = enabled and eligible_for_model_screening(issue)
+    return result
+
+
 def _issue_count_from_board(board: dict[str, Any]) -> int:
     return sum(len(v) for v in board.values() if isinstance(v, list))
 
@@ -2012,6 +2047,9 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
         }
         if intake_summary is not None:
             entry["intake_summary"] = intake_summary
+        duplicate_screening = _issue_duplicate_screening_summary(issue, orch)
+        if duplicate_screening is not None:
+            entry["duplicate_screening"] = duplicate_screening
         if issue.id in parents:
             entry["children_counts"] = parents[issue.id]
         result[state].append(entry)
@@ -8464,6 +8502,9 @@ async def api_issue_full_detail(identifier: str, request: Request):
         intake_summary = _issue_intake_summary(issue)
         if intake_summary is not None:
             result["intake_summary"] = intake_summary
+        duplicate_screening = _issue_duplicate_screening_summary(issue, orch)
+        if duplicate_screening is not None:
+            result["duplicate_screening"] = duplicate_screening
         if issue.issue_type in ("epic", "feature"):
             children = tracker.fetch_children(issue.id)
             result["children"] = [
@@ -8907,6 +8948,14 @@ async def api_agent_activity(identifier: str):
                         "profile": entry.agent_profile_name,
                         "provider_name": entry.provider_name,
                         "model_name": entry.model_name,
+                        "work_kind": (
+                            "duplicate_screening"
+                            if getattr(entry, "duplicate_preflight", False)
+                            else "implementation"
+                        ),
+                        "duplicate_preflight": bool(
+                            getattr(entry, "duplicate_preflight", False)
+                        ),
                         "started_at": entry.started_at.isoformat(),
                         "activity": [a.to_dict() for a in entry.activity_log],
                     }

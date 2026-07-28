@@ -190,6 +190,11 @@ class Issue:
     # Raw intake-readiness metadata (oompah.intake). The dashboard turns this
     # into a compact intake_summary without requiring tracker-specific reads.
     intake: dict[str, Any] | None = None
+    # Raw revision-aware duplicate-screening metadata
+    # (oompah.duplicate_screening).  Tracker adapters populate this alongside
+    # intake metadata so scheduler and API paths do not need an N+1 metadata
+    # read for every Open task.
+    duplicate_screening: dict[str, Any] | None = None
     # Explicit work branch stored in tracker metadata (oompah.work_branch).
     # Populated for GitHub-backed tasks from the hidden body metadata block.
     # When set, branch-to-issue resolution uses this value instead of
@@ -1360,6 +1365,11 @@ class RunningEntry:
     candidate_key: str | None = None
     # Absolute path to the workspace/worktree used for this dispatch.
     workspace_path: str | None = None
+    # True when this worker is qualifying an Open task for duplicate screening
+    # rather than implementing it.  Such runs keep the tracker status Open.
+    duplicate_preflight: bool = False
+    duplicate_preflight_claim_id: str | None = None
+    duplicate_preflight_fingerprint: str | None = None
 
 
 @dataclass

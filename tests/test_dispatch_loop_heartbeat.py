@@ -54,7 +54,7 @@ def _make_config(
     dispatch_stale_threshold_ms: int = 0,
     dispatch_stale_grace_ms: int = 30_000,
 ) -> ServiceConfig:
-    cfg = ServiceConfig()
+    cfg = ServiceConfig(duplicate_preflight_max_agents=0)
     cfg.full_sync_interval_ms = full_sync_interval_ms
     cfg.dispatch_loop_stale_factor = dispatch_loop_stale_factor
     cfg.dispatch_stale_threshold_ms = dispatch_stale_threshold_ms

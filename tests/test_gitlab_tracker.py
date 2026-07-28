@@ -380,6 +380,30 @@ class TestReadPath:
         assert issue is not None
         assert issue.identifier == "group/sub/project#2"
 
+    def test_fetch_issue_detail_hydrates_and_hides_duplicate_metadata(self, tracker):
+        instance, client = tracker
+        client.issue = _issue(
+            2,
+            labels=["task", "oompah:status:open"],
+            description=_update_description_metadata(
+                "Visible task description.",
+                {
+                    "duplicate_screening": {
+                        "schema_version": 1,
+                        "task_fingerprint": "abc",
+                        "detector_version": "duplicate-detector-v1",
+                        "verdict": "no_duplicate",
+                    }
+                },
+            ),
+        )
+
+        issue = instance.fetch_issue_detail("group/sub/project#2")
+
+        assert issue is not None
+        assert issue.description == "Visible task description."
+        assert issue.duplicate_screening["task_fingerprint"] == "abc"
+
     def test_fetch_issue_detail_returns_none_for_404(self):
         class NotFoundClient:
             def request(self, method, path, **kwargs):

@@ -1108,11 +1108,14 @@ class TestDuplicateDetectorFocus:
         text = " ".join(focus.must_do)
         assert ".oompah/tasks" in text and ("duplicate" in text.lower() or "similar" in text.lower())
 
-    def test_must_do_includes_close_as_duplicate(self):
-        """must_do should instruct closing confirmed duplicates."""
+    def test_verdict_handoff_leaves_status_change_to_oompah(self):
+        """The focus reports a verdict; the orchestrator owns transitions."""
         focus = self._get_duplicate_detector()
-        text = " ".join(focus.must_do)
-        assert "oompah task set-status" in text.lower() and "archived" in text.lower()
+        must_do = " ".join(focus.must_do).lower()
+        must_not_do = " ".join(focus.must_not_do).lower()
+        assert "duplicate preflight verdict: duplicate_candidate" in must_do
+        assert "do not change task status" in must_do
+        assert "change the task status directly" in must_not_do
 
     def test_must_not_do_prevents_implementing_before_confirming(self):
         """must_not_do should prevent implementing code before duplicate is confirmed."""

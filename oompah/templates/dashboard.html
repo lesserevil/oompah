@@ -346,6 +346,37 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .duplicate-screening-summary {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.4rem;
+      font-size: 0.68rem;
+      color: var(--text-muted);
+    }
+    .duplicate-screening-pill {
+      padding: 0.08rem 0.35rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .duplicate-screening-running .duplicate-screening-pill {
+      color: var(--accent);
+      border-color: rgba(88, 166, 255, 0.45);
+      background: rgba(88, 166, 255, 0.12);
+    }
+    .duplicate-screening-checked .duplicate-screening-pill {
+      color: var(--green);
+      border-color: rgba(63, 185, 80, 0.45);
+      background: rgba(63, 185, 80, 0.12);
+    }
+    .duplicate-screening-stale .duplicate-screening-pill,
+    .duplicate-screening-unchecked .duplicate-screening-pill {
+      color: var(--yellow);
+      border-color: rgba(210, 153, 34, 0.45);
+      background: rgba(210, 153, 34, 0.12);
+    }
     .intake-state-missing-info .intake-state-pill {
       color: var(--red);
       border-color: rgba(248, 81, 73, 0.45);
@@ -2341,6 +2372,9 @@ function renderRunningAgentChips(running, paused) {
       '<span class="dot"></span>' +
       displayId +
       (r.agent_profile ? ' (' + esc(r.agent_profile) + ')' : '') +
+      (r.duplicate_preflight || r.work_kind === 'duplicate_screening'
+        ? ' · screening'
+        : '') +
     '</span>';
   }).join('');
   if (paused) {
@@ -2476,7 +2510,12 @@ function handleStateUpdate(state) {
       .map(r => runningAgentIssueKey(r))
   );
   const newDispatchAgents = running
-    .filter(r => r.issue_identifier && !previousRunningKeys.has(runningAgentIssueKey(r)));
+    .filter(r =>
+      r.issue_identifier &&
+      !r.duplicate_preflight &&
+      r.work_kind !== 'duplicate_screening' &&
+      !previousRunningKeys.has(runningAgentIssueKey(r))
+    );
   if (newDispatchAgents.length > 0) {
     for (const agent of newDispatchAgents) {
       const key = runningAgentIssueKey(agent);
@@ -3197,6 +3236,7 @@ function issueFingerprint(issue) {
     parent_id: issue.parent_id,
     url: issue.url,
     intake_summary: issue.intake_summary,
+    duplicate_screening: issue.duplicate_screening,
     attachments: issue.attachments,
     labels: issue.labels,
     has_open_review: issue.has_open_review,
@@ -3665,6 +3705,29 @@ function renderCardIntakeSummary(issue) {
   `;
 }
 
+function renderDuplicateScreeningSummary(summary) {
+  if (!summary) return '';
+  const state = summary.state || 'unchecked';
+  const labels = {
+    unchecked: 'Duplicate check pending',
+    running: 'Duplicate check running',
+    checked: summary.verdict === 'duplicate_candidate'
+      ? 'Duplicate found'
+      : 'Duplicate checked',
+    stale: 'Duplicate check stale',
+  };
+  const label = labels[state] || 'Duplicate screening';
+  const detail = summary.reason || label;
+  const checked = summary.checked_at ? ` Checked ${summary.checked_at}.` : '';
+  return `
+    <div class="duplicate-screening-summary duplicate-screening-${esc(state)}"
+         role="status" title="${esc(detail + checked)}"
+         aria-label="${esc(label + ': ' + detail)}">
+      <span class="duplicate-screening-pill">${esc(label)}</span>
+    </div>
+  `;
+}
+
 function intakeDisplayValue(value, fallback) {
   if (Array.isArray(value)) return value.length ? value.join(', ') : (fallback || 'None');
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
@@ -3771,6 +3834,7 @@ function createCard(issue) {
     <div class="card-desc" contenteditable="true" spellcheck="false"
          data-field="description" data-id="${esc(issue.identifier)}">${esc(issue.description || '')}</div>
     ${renderCardIntakeSummary(issue)}
+    ${renderDuplicateScreeningSummary(issue.duplicate_screening)}
     ${renderCardAttachments(issue)}
   `;
 
@@ -5130,6 +5194,14 @@ async function openDetailPanel(identifier) {
   setTimeout(() => loadIssueAttachments(detail.identifier), 0);
 
   html += renderIntakeSummary(detail.intake_summary);
+  html += `
+    <div class="detail-field">
+      <div class="detail-field-label">Duplicate check</div>
+      <div class="detail-field-value">
+        ${renderDuplicateScreeningSummary(detail.duplicate_screening) || 'Not enabled'}
+      </div>
+    </div>
+  `;
 
   // GitHub issue URL — show for GitHub-backed issues
   if (detail.url) {

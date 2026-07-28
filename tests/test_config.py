@@ -87,6 +87,7 @@ class TestServiceConfig:
         assert cfg.server_port == 8080
         assert cfg.dispatch_scan_limit == 64
         assert cfg.duplicate_detection_candidate_limit == 64
+        assert cfg.duplicate_preflight_max_agents == 1
         assert cfg.auto_archive_batch_size == 25
         assert cfg.worktree_cleanup_batch_size == 25
         assert cfg.storage_cleanup_interval_seconds == 86400
@@ -105,6 +106,10 @@ class TestServiceConfig:
         assert cfg.close_gate_enabled is True
         assert cfg.gitlab_webhook_public_url is None
         assert cfg.workspace_root  # should have a default
+
+    def test_direct_construction_keeps_duplicate_preflight_inert(self):
+        cfg = ServiceConfig()
+        assert cfg.duplicate_preflight_max_agents == 0
 
     def test_gitlab_webhook_public_url_comes_from_environment(self, monkeypatch):
         monkeypatch.setenv(
@@ -324,6 +329,7 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         monkeypatch.setenv("OOMPAH_DISPATCH_SCAN_LIMIT", "12")
         monkeypatch.setenv("OOMPAH_DISPATCH_READY_BUFFER", "3")
         monkeypatch.setenv("OOMPAH_DUPLICATE_DETECTION_CANDIDATE_LIMIT", "11")
+        monkeypatch.setenv("OOMPAH_DUPLICATE_PREFLIGHT_MAX_AGENTS", "3")
         monkeypatch.setenv("OOMPAH_AUTO_ARCHIVE_BATCH_SIZE", "7")
         monkeypatch.setenv("OOMPAH_AUTO_ARCHIVE_INTERVAL_SECONDS", "30")
         monkeypatch.setenv("OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", "5")
@@ -337,6 +343,7 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         assert cfg.dispatch_scan_limit == 12
         assert cfg.dispatch_ready_buffer == 3
         assert cfg.duplicate_detection_candidate_limit == 11
+        assert cfg.duplicate_preflight_max_agents == 3
         assert cfg.auto_archive_batch_size == 7
         assert cfg.auto_archive_interval_seconds == 30
         assert cfg.worktree_cleanup_batch_size == 5

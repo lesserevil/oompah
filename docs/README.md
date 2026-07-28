@@ -19,6 +19,8 @@ works inside or how it might work in the future, see [`../plans/`](../plans/).
 - [Operator Runbook](operator-runbook.md) - configure and operate the service.
 - [CLI Installation](cli-install.md) - install the task CLI and configure
   client credentials.
+- [Duplicate Screening](duplicate-screening.md) - qualify Open tasks with
+  spare-capacity duplicate-check agents before implementation dispatch.
 
 ## Keeping Docs In Sync
 

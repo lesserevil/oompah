@@ -31,7 +31,10 @@ from oompah.terminal_audit import ContributorIdentity, EvidenceFingerprint, Targ
 from oompah.terminal_transition_coordinator import TransitionResult
 
 def _make_config() -> ServiceConfig:
-    return ServiceConfig(tracker_kind="oompah_md")
+    return ServiceConfig(
+        tracker_kind="oompah_md",
+        duplicate_preflight_max_agents=0,
+    )
 
 
 def _make_issue(

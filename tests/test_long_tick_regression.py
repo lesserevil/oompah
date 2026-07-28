@@ -43,7 +43,7 @@ from oompah.roles import RoleStore
 
 
 def _make_config() -> ServiceConfig:
-    return ServiceConfig()
+    return ServiceConfig(duplicate_preflight_max_agents=0)
 
 
 def _make_project(
