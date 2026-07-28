@@ -5,13 +5,14 @@ status: Backlog
 priority: 1
 title: Add optional htpasswd authentication to the Oompah service
 parent: null
-children: []
+children:
+- OOMPAH-522
 blocked_by: []
 labels:
 - security
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-07-28T18:10:41.609070Z'
+updated_at: '2026-07-28T18:11:34.263955Z'
 work_branch: null
 target_branch: null
 review_url: null
