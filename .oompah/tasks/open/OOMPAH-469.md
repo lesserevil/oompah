@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:09.346734Z'
-updated_at: '2026-07-28T23:50:56.313024Z'
+updated_at: '2026-07-28T23:51:08.886408Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -47,8 +47,8 @@ oompah.duplicate_screening:
   retry_count: 1
   retry_after: null
 oompah.task_costs:
-  total_input_tokens: 1513178
-  total_output_tokens: 10407
+  total_input_tokens: 1513554
+  total_output_tokens: 10481
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -56,8 +56,8 @@ oompah.task_costs:
       output_tokens: 1511
       cost_usd: 0.0
     haiku:
-      input_tokens: 1513122
-      output_tokens: 8896
+      input_tokens: 1513498
+      output_tokens: 8970
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -78,6 +78,12 @@ oompah.task_costs:
     output_tokens: 2928
     cost_usd: 0.0
     recorded_at: '2026-07-28T23:49:47.983657+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 376
+    output_tokens: 74
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T23:51:06.469457+00:00'
 ---
 ## Summary
 
@@ -235,5 +241,15 @@ author: oompah
 created: 2026-07-28 23:50
 ---
 Understanding: I am implementing the reserved read-only auditor focus and prompt contract. The auditor is a built-in focus with role 'Completion Auditor' that must be explicitly excluded from normal keyword/LLM focus triage. Its prompt must deliver the target contract, trusted task metadata, delimited untrusted descriptions/comments, evidence summary, allowed read/test actions, and the auditor result tool schema. The focus must prohibit file editing, committing, pushing, merging, creating tasks, changing status, or fixing findings. A server-side capability policy must expose read-only repo/test operations plus the result tool while denying mutating task/Git actions. Plan: (1) examine existing capability policy infrastructure, (2) add the auditor focus definition excluded from triage, (3) implement its rendered prompt contract with untrusted delimiters, (4) add the capability policy, (5) add comprehensive tests covering exclusion from triage, required prompt sections, prompt-injection resistance, and tool authorization.
+---
+author: oompah
+created: 2026-07-28 23:51
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 23
+- Tokens: 376 in / 74 out [450 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 11s
+- Log: OOMPAH-469__20260728T234959Z.jsonl
 ---
 <!-- COMMENTS:END -->
