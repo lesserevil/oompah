@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:29.472352Z'
-updated_at: '2026-07-28T15:42:16.287906Z'
+updated_at: '2026-07-28T15:42:27.059419Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ merged_at: null
 oompah.agent_run_id: e0f0b0bd-fe96-425b-9c9a-4dc2b317dee3
 oompah.work_branch: epic-OOMPAH-490
 oompah.task_costs:
-  total_input_tokens: 517867
-  total_output_tokens: 4905
+  total_input_tokens: 517888
+  total_output_tokens: 18941
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 517867
-      output_tokens: 4905
+      input_tokens: 517888
+      output_tokens: 18941
       cost_usd: 0.0
   runs:
   - profile: default
@@ -36,6 +36,12 @@ oompah.task_costs:
     output_tokens: 4905
     cost_usd: 0.0
     recorded_at: '2026-07-28T15:32:19.590110+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 21
+    output_tokens: 14036
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T15:42:24.437692+00:00'
 ---
 ## Summary
 
@@ -148,5 +154,20 @@ author: oompah
 created: 2026-07-28 15:42
 ---
 Refactored tests/test_granian_e2e.py: 20 tests → 4 scenario tests, 52.97s → 5.35s (10x faster). _granian_server() context manager centralises SIGINT→terminate→kill cleanup with pipe draining. No subprocess leaks. All 12345 tests pass.
+---
+author: oompah
+created: 2026-07-28 15:42
+---
+Agent completed successfully in 596s (14057 tokens)
+---
+author: oompah
+created: 2026-07-28 15:42
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 45, Tool calls: 23
+- Tokens: 21 in / 14.0K out [14.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 56s
+- Log: OOMPAH-494__20260728T153231Z.jsonl
 ---
 <!-- COMMENTS:END -->
