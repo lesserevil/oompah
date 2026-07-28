@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-530
 type: task
-status: In Progress
+status: Open
 priority: 2
 title: Add atomic duplicate-preflight claims and recovery
 parent: OOMPAH-528
 children: []
 blocked_by:
 - OOMPAH-529
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:18:51.634942Z'
-updated_at: '2026-07-28T21:32:12.222005Z'
+updated_at: '2026-07-28T21:32:25.895710Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -86,5 +87,15 @@ author: oompah
 created: 2026-07-28 21:32
 ---
 Discovery: No clear duplicate confirmed. Full task views reviewed for OOMPAH-528 (parent), OOMPAH-529 (revision-aware evidence prerequisite), OOMPAH-531 (capacity scheduling), OOMPAH-532 (verdict completion), OOMPAH-533 (API/dashboard), and OOMPAH-534 (end-to-end/docs). Historical candidates OOMPAH-217 (duplicate-focus handoff), OOMPAH-156 (error_watcher event deduplication), and OOMPAH-160 (atomic native-task writes/corrupt intake recovery) do not implement task-scoped preflight claims, implementation mutual exclusion, or restart-safe claim recovery. No code changed and no tests were run in this screening-only focus.
+---
+author: oompah
+created: 2026-07-28 21:32
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: Duplicate screening found no confirmed duplicate; OOMPAH-530 is a distinct implementation child of OOMPAH-528.
+2. Evidence/decisions: Reviewed full task descriptions and comments for OOMPAH-528 through OOMPAH-534, plus OOMPAH-217, OOMPAH-156, and OOMPAH-160 using oompah task view. Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for duplicate preflight, screening, detector, fingerprint, claim, lease, dispatch, recovery, and lock terms. The closest records cover revision-aware metadata (529), scheduler capacity (531), verdict CAS/completion (532), operator surfaces (533/534), generic focus handoff (217), error-event deduplication (156), or atomic task-file/intake recovery (160); none covers this task’s claim lifecycle.
+3. Remaining work/risks: Implement claim/renew/release/expire with tracker-scoped locking, re-read fingerprint and metadata inside the lock, mutual exclusion with implementation agents, CAS by opaque claim ID, restart/timeout recovery, and stale-revision completion protection. Add the required concurrency, recovery, terminal/Open eligibility, and edit-during-screening tests. Relevant implementation areas are oompah/orchestrator.py, oompah/state.py, oompah/terminal_transition_coordinator.py, the OOMPAH-529 metadata helpers, and their focused tests.
+4. Recommended next focus: feature.
 ---
 <!-- COMMENTS:END -->
