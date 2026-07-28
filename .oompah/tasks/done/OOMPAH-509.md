@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:10.253754Z'
-updated_at: '2026-07-28T17:34:10.992707Z'
+updated_at: '2026-07-28T17:34:13.397528Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-07-28 17:34
 ---
 Completed exact-head validation on aa93fa639. Serial: 12,616 passed, 7 skipped in 271.98s. Parallel with OOMPAH_PYTEST_WORKERS=4: the same 12,616 passed and 7 skipped in 70.52s and 69.12s on consecutive runs, a stable 3.9x speedup. The serial fallback and both parallel runs removed their private run roots and leaked no pytest or Granian child process. The branch is clean and pushed. make test now uses bounded four-worker isolation; make test-serial remains the reliable diagnostic fallback.
+---
+author: oompah
+created: 2026-07-28 17:34
+---
+Added bounded four-worker pytest-xdist execution with per-run/per-worker filesystem isolation, serialized process-owning tests, and an exact-outcome serial fallback; repeated full suites show a stable 3.9x speedup.
 ---
 <!-- COMMENTS:END -->
