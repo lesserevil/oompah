@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-511
 type: epic
-status: In Progress
+status: In Review
 priority: 1
 title: Prevent managed task writes from bypassing state branches
 parent: null
@@ -13,7 +13,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:09.831740Z'
-updated_at: '2026-07-28T15:41:41.395451Z'
+updated_at: '2026-07-28T15:42:08.306506Z'
 work_branch: epic-OOMPAH-511
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/562
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-07-28 15:17
 ---
 Claimed for this manual implementation session. Work will be completed sequentially in an isolated epic-OOMPAH-511 worktree; OOMPAH-492 remains with its existing worker because its targeted test isolation is complementary, not duplicated.
+---
+author: oompah
+created: 2026-07-28 15:42
+---
+Implementation complete and pushed at 6533e235e. All three child tasks are Done and the complete epic branch is ready for review in https://github.com/lesserevil/oompah/pull/562. Validation: 12,402 tests passed, 39 skipped; secret scan passed; worktree is clean and synchronized with origin.
 ---
 <!-- COMMENTS:END -->

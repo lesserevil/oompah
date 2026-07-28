@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:44.915690Z'
-updated_at: '2026-07-28T15:41:58.105288Z'
+updated_at: '2026-07-28T15:42:01.266544Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-07-28 15:41
 ---
 Completed in commit 6533e235e. A disposable bare-remote integration test proves auto-archive changes only the configured state ref while local/remote main and the code checkout remain unchanged. Orchestrator shutdown now drains maintenance futures and owned executor pools. make test: 12,402 passed, 39 skipped; make check-secrets passed.
+---
+author: oompah
+created: 2026-07-28 15:42
+---
+Added deterministic maintenance/state-branch Git isolation coverage and shutdown drainage for background work.
 ---
 <!-- COMMENTS:END -->
