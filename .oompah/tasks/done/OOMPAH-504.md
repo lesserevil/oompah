@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:00.486812Z'
-updated_at: '2026-07-28T17:54:00.522546Z'
+updated_at: '2026-07-28T17:54:03.084856Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -187,5 +187,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 58s
 - Log: OOMPAH-504__20260728T174938Z.jsonl
+---
+author: oompah
+created: 2026-07-28 17:54
+---
+Restored after patch-equivalent commit 85be456eb was verified on the rebased epic branch; prompt compaction remains fully implemented and tested.
 ---
 <!-- COMMENTS:END -->
