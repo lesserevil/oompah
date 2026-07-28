@@ -20,6 +20,8 @@ from oompah.terminal_audit import (
     ContributorIdentity,
     EvidenceFingerprint,
     OverrideRecord,
+    RequestState,
+    TerminalAuditRecord,
     TargetState,
 )
 from oompah.terminal_audit_metadata import (
@@ -299,10 +301,75 @@ async def test_bot_cannot_override_without_authorization(
         project=project,
     )
     
-    # Bot is always authorized by the label_auth module, so this should succeed
-    # This tests that the bot-override restriction is enforced through
-    # explicit project authorization, not through identity blacklisting
+    # Normal status-label authorization trusts the bot, but an override also
+    # requires the project-owner layer, so bot-only actors are rejected.
+    assert result.success is False
+    assert result.error_code == "unauthorized_actor"
+    assert tracker.comments == []
+    assert tracker.status_updates == []
+
+
+@pytest.mark.asyncio
+async def test_bot_can_override_when_project_owner_rules_explicitly_authorize_it(
+    coordinator, tracker, project_id, task_id, fingerprint
+):
+    """Bot identity is valid only when independently configured as an owner."""
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="Open",
+        title="Test task",
+        description="Test",
+    )
+    project = _MockProject(status_label_authorized_logins=["oompah"])
+    tracker.set_metadata(
+        task_id,
+        {METADATA_KEY: TerminalAuditMetadata.empty().to_dict()},
+    )
+
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=ContributorIdentity("oompah", "github"),
+        project_id=project_id,
+        evidence_fingerprint=fingerprint,
+        reason="Explicitly configured bot owner",
+        project=project,
+    )
+
     assert result.success is True
+
+
+@pytest.mark.asyncio
+async def test_auditor_identity_cannot_override_without_owner_authorization(
+    coordinator, tracker, project_id, task_id, fingerprint
+):
+    """An auditor agent is not a project owner merely because it can audit."""
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="Open",
+        title="Test task",
+        description="Test",
+    )
+    project = _MockProject(status_label_authorized_logins=["owner"])
+    tracker.set_metadata(
+        task_id,
+        {METADATA_KEY: TerminalAuditMetadata.empty().to_dict()},
+    )
+
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=ContributorIdentity("auditor", "oompah"),
+        project_id=project_id,
+        evidence_fingerprint=fingerprint,
+        reason="Auditor override attempt",
+        project=project,
+    )
+
+    assert result.success is False
+    assert result.error_code == "unauthorized_actor"
 
 
 # ---------------------------------------------------------------------------
@@ -409,6 +476,169 @@ async def test_stale_fingerprint_rejected(
     # Should succeed since metadata is empty (no pending audits to check)
     # The fingerprint check only fails if there's a mismatch with pending audits
     assert result.success is True
+
+
+@pytest.mark.asyncio
+async def test_stale_fingerprint_rejected_against_pending_audit(
+    coordinator, tracker, project_id, task_id, fingerprint, owner_identity
+):
+    """An override cannot use a fingerprint older than the pending request."""
+    current = EvidenceFingerprint.from_evidence(
+        requirements_text="current requirements",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    stale = EvidenceFingerprint.from_evidence(
+        requirements_text="old requirements",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="In Validation",
+        title="Test task",
+        description="Test",
+    )
+    project = _MockProject(status_label_authorized_logins=["owner"])
+    pending = TerminalAuditRecord(
+        audit_id="audit-current",
+        project_id=project_id,
+        task_id=task_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=current,
+        request_state=RequestState.PENDING,
+        requested_by=owner_identity,
+    )
+    tracker.set_metadata(
+        task_id,
+        {METADATA_KEY: TerminalAuditMetadata(pending_chain=[pending]).to_dict()},
+    )
+
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=stale,
+        reason="Stale evidence should be rejected",
+        project=project,
+    )
+
+    assert result.success is False
+    assert result.error_code == "fingerprint_mismatch"
+    assert tracker.comments == []
+    assert tracker.status_updates == []
+
+
+@pytest.mark.asyncio
+async def test_metadata_failure_precedes_comment_and_status(
+    coordinator, tracker, project_id, task_id, fingerprint, owner_identity
+):
+    """Metadata failure prevents both the comment and terminal status write."""
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="Open",
+        title="Test task",
+        description="Test",
+    )
+    project = _MockProject(status_label_authorized_logins=["owner"])
+    tracker.set_metadata(
+        task_id,
+        {METADATA_KEY: TerminalAuditMetadata.empty().to_dict()},
+    )
+    tracker.set_metadata_field = MagicMock(side_effect=RuntimeError("metadata down"))
+
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=fingerprint,
+        reason="Metadata ordering test",
+        project=project,
+    )
+
+    assert result.success is False
+    assert result.error_code == "metadata_write_failed"
+    assert tracker.comments == []
+    assert tracker.status_updates == []
+
+
+@pytest.mark.asyncio
+async def test_comment_failure_precedes_status_write(
+    coordinator, tracker, project_id, task_id, fingerprint, owner_identity
+):
+    """A missing durable comment prevents applying the terminal target."""
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="Open",
+        title="Test task",
+        description="Test",
+    )
+    project = _MockProject(status_label_authorized_logins=["owner"])
+    tracker.set_metadata(
+        task_id,
+        {METADATA_KEY: TerminalAuditMetadata.empty().to_dict()},
+    )
+    tracker.add_comment = MagicMock(side_effect=RuntimeError("comments down"))
+
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=fingerprint,
+        reason="Comment ordering test",
+        project=project,
+    )
+
+    assert result.success is False
+    assert result.error_code == "comment_failed"
+    assert result.posted_comment is False
+    assert tracker.status_updates == []
+    # The audit record is intentionally durable even though application waits
+    # for the comment, allowing a later retry or human recovery.
+    stored = tracker.get_metadata(task_id)[METADATA_KEY]
+    assert stored["oompah.terminal_override_records"]
+
+
+@pytest.mark.asyncio
+async def test_override_reason_is_redacted_in_metadata_and_comment(
+    coordinator, tracker, project_id, task_id, fingerprint, owner_identity
+):
+    """Secrets in an owner reason never reach metadata or human comments."""
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="Open",
+        title="Test task",
+        description="Test",
+    )
+    project = _MockProject(status_label_authorized_logins=["owner"])
+    tracker.set_metadata(
+        task_id,
+        {METADATA_KEY: TerminalAuditMetadata.empty().to_dict()},
+    )
+    secret = "ghp_0123456789abcdefghijklmnop"
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=fingerprint,
+        reason=f"Emergency approval token={secret}",
+        project=project,
+    )
+
+    assert result.success is True
+    comment = tracker.comments[0][1]
+    stored = tracker.get_metadata(task_id)[METADATA_KEY]
+    assert secret not in comment
+    assert secret not in repr(stored)
+    assert stored["oompah.terminal_override_records"][0]["reason"] == "[REDACTED]"
 
 
 # ---------------------------------------------------------------------------

@@ -475,6 +475,21 @@ def _redact_for_storage(value: Any, key: str | None = None) -> Any:
     return value
 
 
+def redact_terminal_audit_text(value: str) -> str:
+    """Redact sensitive or oversized text before placing it in a comment.
+
+    Metadata serialization already applies this policy to persisted audit
+    records.  Coordinator-generated comments need the same boundary because
+    a human-supplied override reason is otherwise copied to the tracker
+    verbatim.
+    """
+    if not isinstance(value, str):
+        raise TypeError("terminal-audit text must be a string")
+    redacted = _redact_for_storage(value)
+    assert isinstance(redacted, str)  # _redact_for_storage preserves strings
+    return redacted
+
+
 __all__ = [
     "DEFAULT_MAX_ATTEMPT_HISTORY",
     "METADATA_KEY",
@@ -485,6 +500,7 @@ __all__ = [
     "TerminalAuditMetadataError",
     "TerminalAuditMetadataQuarantinedError",
     "TerminalAuditMetadataStore",
+    "redact_terminal_audit_text",
     "read_terminal_audit_metadata",
     "write_terminal_audit_metadata",
 ]
