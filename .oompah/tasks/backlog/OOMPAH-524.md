@@ -6,11 +6,12 @@ priority: 1
 title: Integrate htpasswd authentication with the embedded MCP gateway
 parent: OOMPAH-521
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-523
 labels: []
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T18:12:19.566427Z'
+updated_at: '2026-07-28T18:13:38.906539Z'
 work_branch: null
 target_branch: null
 review_url: null

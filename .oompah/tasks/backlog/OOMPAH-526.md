@@ -6,11 +6,15 @@ priority: 1
 title: Document and validate secure htpasswd deployment and recovery
 parent: OOMPAH-521
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-522
+- OOMPAH-523
+- OOMPAH-524
+- OOMPAH-525
 labels: []
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T18:13:23.306052Z'
+updated_at: '2026-07-28T18:13:43.813485Z'
 work_branch: null
 target_branch: null
 review_url: null

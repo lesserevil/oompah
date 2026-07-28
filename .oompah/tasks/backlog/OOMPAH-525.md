@@ -6,11 +6,12 @@ priority: 1
 title: Add Basic auth support to Oompah CLIs and lifecycle commands
 parent: OOMPAH-521
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-523
 labels: []
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T18:12:57.984075Z'
+updated_at: '2026-07-28T18:13:39.857720Z'
 work_branch: null
 target_branch: null
 review_url: null

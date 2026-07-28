@@ -6,11 +6,12 @@ priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-522
 labels: []
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:11:58.412853Z'
+updated_at: '2026-07-28T18:13:37.679372Z'
 work_branch: null
 target_branch: null
 review_url: null
