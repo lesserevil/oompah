@@ -2953,12 +2953,25 @@ class TestGitHubIssueTrackerMutations:
             tracker.remove_label("example-org/oompah-tasks#5", "nonexistent")
 
     def test_remove_label_re_raises_non_404_errors(self):
-        """Non-404 errors from remove_label are propagated."""
+        """Non-404 errors from remove_label are propagated after retry exhaustion.
+
+        When the raw HTTP layer returns 500 on every attempt the production retry
+        wrapper exhausts all retries, sleeps between each one, and re-raises as
+        TrackerError.  We patch _sleep so no real waits occur and assert both the
+        exhausted-retry contract (all _MAX_RETRIES+1 attempts made) and the sleep
+        contract (_MAX_RETRIES sleep calls, one per retry).
+        """
+        from oompah.github_tracker import _MAX_RETRIES
         tracker = self._make_tracker()
         resp = _mock_response(500, text="Server Error")
-        with patch.object(tracker._client._http, "request", return_value=resp):
-            with pytest.raises(TrackerError):
-                tracker.remove_label("example-org/oompah-tasks#5", "bug")
+        with patch.object(tracker._client._http, "request", return_value=resp) as mock_http:
+            with patch.object(tracker._client, "_sleep") as mock_sleep:
+                with pytest.raises(TrackerError):
+                    tracker.remove_label("example-org/oompah-tasks#5", "bug")
+        # Every retry attempt was made.
+        assert mock_http.call_count == _MAX_RETRIES + 1
+        # _sleep was called once before each retry (not before the first attempt).
+        assert mock_sleep.call_count == _MAX_RETRIES
 
     def test_remove_label_invalid_identifier_raises(self):
         tracker = self._make_tracker()
