@@ -13,7 +13,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:50:59.878281Z'
+updated_at: '2026-07-28T14:51:02.189977Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -294,5 +294,10 @@ author: oompah
 created: 2026-07-28 14:50
 ---
 Verification: Full test suite passed.\n\n- .venv/bin/pytest tests/ -q: 12,380 passed, 39 skipped, 11 warnings in 235.95s\n- Targeted state-branch + crud tests: 412 passed\n- Commit ef6437082 pushed to origin/epic-OOMPAH-451\n\nAcceptance criteria met:\n1. One action (POST /state-branch/migrate {action:'A', confirm:true}) takes a GitLab project from no state branch to verified enabled state\n2. A failed GitLab push cannot leave the project enabled — verify_state_branch runs after migrate_stage_a, config flip only on success\n3. Diagnostics mention the configured forge (GitLab) and never GitHub-specific credentials for GitLab projects\n4. All forge credentials flow through ephemeral GIT_ASKPASS; never in argv, URLs, logs, or persisted config\n5. Per-project write lock + asyncio.to_thread prevent concurrent race and event-loop blocking
+---
+author: oompah
+created: 2026-07-28 14:51
+---
+Implemented forge-aware atomic state-branch activation. migrate_stage_a/b/c and rollback_migration now pass project access_token and forge_kind through ephemeral GIT_ASKPASS to all network git operations. Server endpoint acquires per-project write lock, runs git ops via asyncio.to_thread, and calls verify_state_branch() after Stage A push before flipping state_branch_enabled — push or verify failure leaves the project disabled. Docs updated to remove GITHUB_TOKEN references for GitLab. 23 new tests cover GitLab token routing, atomicity, no partial enablement on failure, forge-neutral errors, and GitHub regression. 12,380 tests pass.
 ---
 <!-- COMMENTS:END -->
