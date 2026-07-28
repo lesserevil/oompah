@@ -8,11 +8,10 @@ parent: OOMPAH-521
 children: []
 blocked_by:
 - OOMPAH-523
-labels:
-- focus-complete:duplicate_detector
+labels: []
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:11:55.960866Z'
+updated_at: '2026-07-28T19:12:11.824741Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -20,6 +19,22 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 3fc201d9-6d80-43f3-9b9d-e578fe5116aa
 oompah.work_branch: epic-OOMPAH-521
+oompah.task_costs:
+  total_input_tokens: 242
+  total_output_tokens: 7327
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 242
+      output_tokens: 7327
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 242
+    output_tokens: 7327
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T19:12:01.576965+00:00'
 ---
 ## Summary
 
@@ -106,5 +121,25 @@ Focus: Duplicate Investigator - Screening Complete
 - Commit 3aa8dd5e1: MCP gateway mounting (COMPLETE)
 
 This task requires implementation of auth integration with the mounted MCP gateway to fulfill the acceptance criteria.
+---
+author: oompah
+created: 2026-07-28 19:12
+---
+Agent completed successfully in 127s (7569 tokens)
+---
+author: oompah
+created: 2026-07-28 19:12
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 76, Tool calls: 42
+- Tokens: 242 in / 7.3K out [7.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 7s
+- Log: OOMPAH-524__20260728T190959Z.jsonl
+---
+author: oompah
+created: 2026-07-28 19:12
+---
+Focus handoff required before leaving `duplicate_detector`. Add a comment headed `Focus handoff: duplicate_detector` with outcome, evidence, remaining work, and next focus.
 ---
 <!-- COMMENTS:END -->
