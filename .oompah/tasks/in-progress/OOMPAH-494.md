@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:29.472352Z'
-updated_at: '2026-07-28T15:32:31.796122Z'
+updated_at: '2026-07-28T15:32:46.385802Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -118,5 +118,10 @@ author: oompah
 created: 2026-07-28 15:32
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-28 15:32
+---
+Understanding: I am the Test Engineer for OOMPAH-494. My task is to refactor tests/test_granian_e2e.py to consolidate its 20 function-scoped subprocess-per-test cases into no more than 6 scenario tests. Each scenario will own its own server lifecycle via a bounded context manager (SIGINT/terminate/kill + pipe draining). The four required scenarios are: (1) HTTP root/state contract, (2) WebSocket initial state/issues push, (3) two-client broadcast fan-out, (4) restart + HTTP/WS verification. I will preserve all existing behavioral contracts, verify no leaked subprocesses, and record before/after collection counts and timing.
 ---
 <!-- COMMENTS:END -->
