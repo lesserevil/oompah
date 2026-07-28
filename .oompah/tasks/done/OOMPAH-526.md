@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-526
 type: chore
-status: In Progress
+status: Done
 priority: 1
 title: Document and validate secure htpasswd deployment and recovery
 parent: OOMPAH-521
@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T20:16:20.803522Z'
+updated_at: '2026-07-28T20:16:36.034285Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -171,5 +171,23 @@ author: oompah
 created: 2026-07-28 20:16
 ---
 Verification: All 154 auth-related unit tests pass (http_auth.py, server_auth.py, client_auth.py). Secret scanning (make check-secrets) passes. Documentation cross-references verified: operator-runbook.md links authentication.md (§1.1), cli-install.md links authentication.md (end of Basic auth section). No plaintext passwords, credentials, or sensitive data in documentation examples. OAuth HTTPS requirement, webhook exemptions with forge-signature validation, and fail-closed startup behavior confirmed in code and tests. Ready for final smoke tests and merge.
+---
+author: oompah
+created: 2026-07-28 20:16
+---
+Completion: Delivered comprehensive HTTP Basic authentication documentation for the OOMPAH-521 epic.
+
+Documentation:
+- docs/authentication.md (18KB): Complete operator guide covering setup (htpasswd utility), user management (add/update/remove), password rotation (restart-required), disablement, file format validation (bcrypt/APR1, fail-closed), startup behavior, client configuration (CLI/MCP/curl), unauthenticated endpoints (GET /healthz, POST webhooks with signature/token validation preserved), HTTPS reverse proxy examples (nginx/HAProxy), troubleshooting, and security properties
+- Updated docs/operator-runbook.md § 1.1: Added link to authentication guide
+- Updated docs/cli-install.md § Basic authentication: Added cross-reference to authentication.md
+
+Verification:
+- 154 auth unit tests pass (http_auth, server_auth, client_auth)
+- make check-secrets passes (no credential leaks)
+- Documentation examples are accurate and do not leak credentials
+- Configuration names (OOMPAH_HTPASSWD_FILE, OOMPAH_SERVER_USERNAME, OOMPAH_SERVER_PASSWORD_FILE) consistent across docs/.env.example/CLI/discovery
+- Fail-closed startup behavior, unauthenticated endpoint boundary, and webhook exemptions confirmed in code and tests
+- Ready for integration with completed prerequisites (OOMPAH-522-525) and cross-surface smoke tests
 ---
 <!-- COMMENTS:END -->
