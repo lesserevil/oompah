@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-525
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Add Basic auth support to Oompah CLIs and lifecycle commands
 parent: OOMPAH-521
@@ -11,12 +11,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T18:32:40.098072Z'
-work_branch: null
+updated_at: '2026-07-28T19:30:04.165984Z'
+work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 796d5adf-5fc9-4e36-afaf-10aee3847d29
+oompah.work_branch: epic-OOMPAH-521
 ---
 ## Summary
 
@@ -64,3 +66,16 @@ Add tests for environment and password-file credential resolution, valid authent
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 19:30
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 19:30
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
