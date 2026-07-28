@@ -19,7 +19,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:35.430103Z'
-updated_at: '2026-07-28T16:56:56.305112Z'
+updated_at: '2026-07-28T16:57:13.487575Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -28,13 +28,13 @@ merged_at: null
 oompah.agent_run_id: 4f273d3e-28e5-4b94-a174-6870c850ff84
 oompah.work_branch: epic-OOMPAH-490
 oompah.task_costs:
-  total_input_tokens: 702119
-  total_output_tokens: 4460
+  total_input_tokens: 702305
+  total_output_tokens: 10585
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 702119
-      output_tokens: 4460
+      input_tokens: 702305
+      output_tokens: 10585
       cost_usd: 0.0
   runs:
   - profile: default
@@ -43,6 +43,12 @@ oompah.task_costs:
     output_tokens: 4460
     cost_usd: 0.0
     recorded_at: '2026-07-28T16:51:10.461298+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 186
+    output_tokens: 6125
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T16:57:10.950953+00:00'
 ---
 ## Summary
 
@@ -183,5 +189,20 @@ author: oompah
 created: 2026-07-28 16:56
 ---
 Final test gate passed. Pruning epic OOMPAH-490 validated from clean checkout: 12,246 tests collected (vs baseline 12,347), 12,239 passed, 235.57s runtime (24% faster), zero network Git ops, zero process leaks, Git remote safety and Granian E2E deterministic.
+---
+author: oompah
+created: 2026-07-28 16:57
+---
+Agent completed successfully in 353s (6311 tokens)
+---
+author: oompah
+created: 2026-07-28 16:57
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 53, Tool calls: 22
+- Tokens: 186 in / 6.1K out [6.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 53s
+- Log: OOMPAH-500__20260728T165120Z.jsonl
 ---
 <!-- COMMENTS:END -->
