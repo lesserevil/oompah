@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:29:36.820684Z'
+updated_at: '2026-07-28T19:35:09.006013Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -414,5 +414,22 @@ Implementation plan:
 
 2. tests/test_terminal_transition_coordinator.py:
    - 13+ test cases covering all scenarios from design doc
+---
+author: oompah
+created: 2026-07-28 19:35
+---
+Implementation: Added TerminalTransitionCoordinator and comprehensive tests.
+
+Files created:
+1. oompah/terminal_transition_coordinator.py (TransitionResult dataclass + TerminalTransitionCoordinator class)
+2. tests/test_terminal_transition_coordinator.py (40 test cases)
+
+Key design decisions:
+- All chain logic (stale-check, coalesce, supersede, build-new-entries) runs INSIDE store.update() updater to be atomic with respect to the threading write lock — no TOCTOU races
+- Catches TerminalAuditMetadataQuarantinedError (raised before updater by store.update()) and converts to TransitionResult(success=False)
+- Comment deduplication flag (queued_comment_posted) stored in metadata unknown_fields — survives restarts and new coordinator instances
+- Per-project asyncio.Lock serializes concurrent request_transition calls; inner threading.RLock in TerminalAuditMetadataStore protects tracker reads/writes
+- Tracker update_issue failure logged but non-fatal: audit chain already persisted, so crash recovery works
+- _MemoryTracker test double tracks metadata per-identifier (not globally) to allow multi-project tests
 ---
 <!-- COMMENTS:END -->
