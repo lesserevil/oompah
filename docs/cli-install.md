@@ -129,12 +129,16 @@ export OOMPAH_SERVER_PASSWORD_FILE=/run/secrets/oompah-client-password
 oompah task view owner/repo#123
 ```
 
-Use exactly one of `OOMPAH_SERVER_PASSWORD` (inline plaintext) or
-`OOMPAH_SERVER_PASSWORD_FILE` (preferred). A password file must be a regular,
+Use exactly one of `OOMPAH_SERVER_PASSWORD` (limited inline environment
+alternative) or `OOMPAH_SERVER_PASSWORD_FILE` (preferred). A password file must be a regular,
 readable file containing only the client plaintext password; symlinks are
 rejected and group/world-readable POSIX files produce a warning. The CLI also
 accepts the non-secret `--username` and `--password-file` options before the
-subcommand. There is intentionally no plaintext `--password` option.
+subcommand. `--username` overrides `OOMPAH_SERVER_USERNAME`; `--password-file`
+overrides both environment password sources. There is intentionally no
+plaintext `--password` option. Do not put a password in `.env`, a URL, shell
+history, or process arguments; use the password-file source for unattended
+operation.
 
 `OOMPAH_HTPASSWD_FILE` is server configuration and must contain htpasswd
 password hashes. `OOMPAH_SERVER_PASSWORD` and `OOMPAH_SERVER_PASSWORD_FILE`

@@ -29,6 +29,10 @@ server = [
     # verification. Supports bcrypt and APR1 hashes from Apache htpasswd.
     # Installed as server-only to keep the standalone CLI lightweight.
     "passlib[bcrypt]>=1.7.4",
+    # passlib 1.7.4 is incompatible with bcrypt 5's strict >72-byte check
+    # during backend detection. Keep the maintained bcrypt 4 compatibility
+    # range until passlib 2 supports bcrypt 5.
+    "bcrypt>=3.1.0,<5",
     # Repository-map indexer: Tree-sitter Python bindings plus packaged
     # grammars for Python, Rust, TypeScript, JavaScript, YAML, and Markdown.
     # See oompah/repo_indexer.py (OOMPAH-295).
@@ -79,6 +83,7 @@ dev = [
     "PyJWT[crypto]>=2.8",
     "python-multipart>=0.0.9",
     "passlib[bcrypt]>=1.7.4",
+    "bcrypt>=3.1.0,<5",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-xdist>=3.8",

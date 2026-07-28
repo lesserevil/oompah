@@ -66,6 +66,7 @@ class TestServicesDataclass:
         )
         assert svc.port == 8080
         assert svc.workflow_path == str(tmp_path / "WORKFLOW.md")
+        assert svc.http_credentials is None
 
     def test_services_is_dataclass(self):
         import dataclasses
@@ -115,6 +116,7 @@ class TestSetupServicesSuccess:
         mock_config = MagicMock(name="config")
         mock_config.server_port = 8080
         mock_config.gitlab_webhook_public_url = None
+        mock_config.htpasswd_file = None
         mock_config.strict_profile_source = "warn"
         mock_config.workflow_has_profiles_block = False
         mock_config.agent_profiles_drift = False

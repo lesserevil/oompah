@@ -305,7 +305,13 @@ def _check_sync(project_id: str, status_data: dict) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="oompah admin",
-        description="Operator commands for oompah service administration.",
+        description=(
+            "Operator commands for oompah service administration.\n\n"
+            "For HTTP Basic auth, set OOMPAH_SERVER_USERNAME and exactly one "
+            "of OOMPAH_SERVER_PASSWORD_FILE (preferred) or "
+            "OOMPAH_SERVER_PASSWORD. Never put credentials in the server URL; "
+            "there is no plaintext --password option."
+        ),
     )
     parser.add_argument(
         "--username",
@@ -325,7 +331,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Path to a file containing the client plaintext password. "
             "Overrides OOMPAH_SERVER_PASSWORD_FILE. "
             "Must be a regular (non-symlink) readable file. "
-            "Preferred over OOMPAH_SERVER_PASSWORD for unattended use."
+            "Preferred over OOMPAH_SERVER_PASSWORD for unattended use; "
+            "no plaintext --password option exists."
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)

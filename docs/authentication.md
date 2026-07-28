@@ -1,6 +1,13 @@
 # HTTP Basic Authentication for Oompah
 
-Oompah supports optional HTTP Basic authentication via Apache-style htpasswd files. This guide covers setup, configuration, user management, rotation, and recovery for operators.
+Oompah supports optional HTTP Basic authentication via Apache-style htpasswd
+files. This guide covers setup, configuration, user management, rotation,
+disablement, and recovery for operators.
+
+> **HTTPS is mandatory.** HTTP Basic authentication only encodes credentials;
+> it does not encrypt them. Put Oompah behind a TLS-terminating reverse proxy
+> before enabling it for anything beyond a private local hop. Oompah does not
+> terminate TLS itself.
 
 ## Overview
 
@@ -11,12 +18,34 @@ When enabled, Oompah requires HTTP Basic credentials (`username:password`) for:
 - OpenAPI/Swagger documentation
 - MCP gateway connections
 
-**Unauthenticated (always accessible):**
+**The only unauthenticated HTTP routes are:**
+
 - `GET /healthz` — health check endpoint with minimal metadata only
 - `POST /api/v1/webhooks/github` — GitHub webhook delivery (GitHub signature validation still applies)
 - `POST /api/v1/webhooks/gitlab` — GitLab webhook delivery (GitLab token validation still applies)
 
-> **IMPORTANT:** HTTP Basic auth must always be used over HTTPS. Oompah does not terminate TLS itself — use a reverse proxy (nginx, HAProxy, Caddy, etc.) to terminate HTTPS and forward cleartext HTTP to Oompah.
+Every other route is protected when authentication is enabled, including the
+dashboard, REST API, OpenAPI (`/openapi.json`), WebSocket (`/ws`), MCP
+discovery (`/.well-known/mcp`), MCP transport (`/api/mcp/v1`), and webhook
+status (`/api/v1/webhooks/gitlab/status`). A different HTTP method, encoded
+path, or path prefix is not an exemption.
+
+## Public URL, TLS, and GitLab webhooks
+
+These settings have separate jobs:
+
+- `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` is the public **Oompah** base URL that a
+  GitLab instance can reach. GitLab delivers to
+  `<base>/api/v1/webhooks/gitlab`; it is not the GitLab forge/API URL and it
+  does not configure HTTP Basic authentication.
+- TLS is terminated by the reverse proxy at that public URL. The proxy may
+  forward to Oompah over a private loopback/network hop, but the public hop
+  must be HTTPS.
+- `OOMPAH_HTPASSWD_FILE` enables Basic authentication for Oompah's protected
+  routes. It does not replace GitLab's `webhook_secret` or GitHub's webhook
+  secret/signature configuration.
+
+For GitLab setup, see [Project Bootstrap](project-bootstrap.md#webhook-configuration-public-https-endpoint-required).
 
 ## Configuration Quick Start
 
@@ -25,8 +54,11 @@ When enabled, Oompah requires HTTP Basic credentials (`username:password`) for:
 Use the standard `htpasswd` utility (Apache HTTP Server Tools):
 
 ```bash
-# Create a new file with bcrypt password hashing (recommended)
-htpasswd -B -c .htpasswd admin
+# Run this from the directory containing the selected .env file.
+# Create a new file with bcrypt password hashing (recommended).
+umask 077
+htpasswd -B -c .htpasswd operator
+chmod 600 .htpasswd
 
 # -B: use bcrypt ($2y$) hashing
 # -c: create new file
@@ -40,30 +72,44 @@ htpasswd -B -c .htpasswd admin
 brew install httpd
 
 # Then:
-$(brew --prefix)/bin/htpasswd -B -c .htpasswd admin
+$(brew --prefix)/bin/htpasswd -B -c .htpasswd operator
+chmod 600 .htpasswd
 ```
 
 ### 2. Add the file to your deployment
 
-**For development (beside .env):**
+**Beside the selected `.env` file (auto-discovery):**
 
 ```bash
-cp .htpasswd ~/.oompah/  # or wherever you keep your .env file
+# If the selected file is /srv/oompah/.env, use /srv/oompah as ENV_DIR.
+ENV_DIR=/srv/oompah
+umask 077
+htpasswd -B -c "$ENV_DIR/.htpasswd" operator
+chmod 600 "$ENV_DIR/.htpasswd"
 ```
 
-Oompah auto-discovers `.htpasswd` beside the `.env` file — no configuration needed.
+With `OOMPAH_HTPASSWD_FILE` unset or empty, Oompah auto-discovers
+`.htpasswd` beside the selected `.env` file. The file must be readable by the
+service account and must not be committed; `.gitignore` already ignores
+`.htpasswd` and `.htpasswd.*`, but verify the file is untracked before pushing.
 
-**For production (explicit path with secrets):**
+**At an explicit secret path:**
 
 ```bash
-# Store securely (e.g., Kubernetes secret, Docker secret, vault)
-# Set the path in .env:
-echo "OOMPAH_HTPASSWD_FILE=/run/secrets/htpasswd" >> .env
+# Store the file in a secret mount or other deployment secret store.
+umask 077
+htpasswd -B -c /run/secrets/oompah-htpasswd operator
+chmod 600 /run/secrets/oompah-htpasswd
 
-# Or provide via environment:
-export OOMPAH_HTPASSWD_FILE=/run/secrets/oompah-htpasswd
-oompah server
+# Put this non-secret path in the selected .env, or inject it as an environment
+# setting before starting the service:
+OOMPAH_HTPASSWD_FILE=/run/secrets/oompah-htpasswd
 ```
+
+An explicit relative value, such as `OOMPAH_HTPASSWD_FILE=secrets/oompah.htpasswd`,
+is resolved relative to the selected `.env` directory. An absolute value is
+used as written. An explicitly configured file must exist and be readable;
+there is no fallback to auto-discovery when that path is wrong.
 
 ### 3. Restart Oompah
 
@@ -76,15 +122,32 @@ Oompah validates the htpasswd file at startup and **fails fatally** if it is mis
 ### 4. Verify auth is enabled
 
 ```bash
-# Should print the healthz endpoint without credentials:
-curl http://localhost:8080/healthz
+# Health is intentionally public and contains minimal metadata:
+curl http://127.0.0.1:8080/healthz
 
-# Should be rejected with 401 (WWW-Authenticate: Basic):
-curl http://localhost:8080/api/v1/state
+# A protected route should return 401 (and a Basic challenge):
+curl http://127.0.0.1:8080/api/v1/state
 
-# Accepted with credentials:
-curl -u admin:password http://localhost:8080/api/v1/state
+# Prompt for the password without putting it in shell history or argv. The
+# username is non-secret; use the HTTPS proxy URL for remote access.
+export OOMPAH_SERVER_USERNAME=operator
+curl --user "$OOMPAH_SERVER_USERNAME:" https://oompah.example.com/api/v1/state
 ```
+
+The last command prompts on the terminal because the password is omitted from
+the `--user` value. For a non-interactive client, use the password-file
+mechanism below rather than placing a password in a URL or command argument.
+
+### Browser behavior
+
+When an operator opens the dashboard or another protected page without
+credentials, the browser receives `401 Unauthorized` and a Basic-auth prompt.
+Enter the username and password there only over the HTTPS proxy. Browsers may
+cache Basic credentials for the origin, so use a private operator profile on
+shared machines and close it when finished; do not rely on browser logout as a
+credential rotation mechanism. `GET /healthz` remains prompt-free, while the
+webhook receivers are called by GitHub/GitLab with forge headers rather than
+browser credentials.
 
 ---
 
@@ -93,11 +156,9 @@ curl -u admin:password http://localhost:8080/api/v1/state
 ### Add a new user
 
 ```bash
-# Add or update a user (prompts for password)
-htpasswd .htpasswd operator
-
-# -B: use bcrypt (automatically used if file already has bcrypt entries)
+# Add a user with bcrypt (prompts for the password; nothing is echoed).
 htpasswd -B .htpasswd operator
+chmod 600 .htpasswd
 ```
 
 ### Update a user's password
@@ -105,7 +166,8 @@ htpasswd -B .htpasswd operator
 Same as add — htpasswd will overwrite the existing entry:
 
 ```bash
-htpasswd .htpasswd admin
+htpasswd -B .htpasswd operator
+chmod 600 .htpasswd
 ```
 
 ### Remove a user
@@ -113,18 +175,22 @@ htpasswd .htpasswd admin
 ```bash
 # Use -D (delete) flag
 htpasswd -D .htpasswd operator
+chmod 600 .htpasswd
 ```
 
-### View htpasswd file contents
+Do not remove the last usable user unless you are intentionally disabling
+authentication or have a recovery path. Add and verify a replacement user
+before deleting the old one during a live rotation.
+
+### Check the file without exposing its contents
 
 ```bash
-cat .htpasswd
-# Output:
-# admin:$2y$12$R9h/cIPz0gi.URNNGS3/aO/O.r6HS5xO31a5NQc6XjHPT8f6sFXe2
-# operator:$2y$12$K8g/dJPz0fi.URNNGS4/bO/P.r7IS5xO31a5NQc6YjHPT8f6sGXf3
+stat -c '%a %U:%G %n' .htpasswd  # Linux; use stat -f on macOS
 ```
 
-Usernames and bcrypt hashes are not sensitive — the file is safe to inspect. The plaintext password is never stored or logged.
+The file contains password hashes, but protect it as a credential file anyway:
+do not print it into logs, tickets, terminals being recorded, or chat. The
+plaintext password is never stored in the server htpasswd file.
 
 ---
 
@@ -132,7 +198,7 @@ Usernames and bcrypt hashes are not sensitive — the file is safe to inspect. T
 
 When you change passwords or add/remove users:
 
-1. **Edit the htpasswd file** (e.g., `htpasswd .htpasswd admin`)
+1. **Edit the htpasswd file** (for example, `htpasswd -B .htpasswd operator`)
 2. **Restart Oompah** to load the new credentials:
 
 ```bash
@@ -149,12 +215,14 @@ make restart
 
 To temporarily disable authentication (for local testing or manual recovery):
 
-### Option 1: Remove the file
+### Option 1: Move the discovered file
 
-If using auto-discovery (.htpasswd beside .env):
+If using auto-discovery, move the file out of the discovered name while keeping
+it recoverable and protected:
 
 ```bash
-rm .htpasswd
+mv -f .htpasswd .htpasswd.disabled
+chmod 600 .htpasswd.disabled
 make restart
 ```
 
@@ -163,13 +231,17 @@ make restart
 If using explicit configuration:
 
 ```bash
-# In .env, comment out or delete:
+# In the selected .env, comment out or delete the non-secret path:
 # OOMPAH_HTPASSWD_FILE=/run/secrets/htpasswd
 
 make restart
 ```
 
-When Oompah starts with no configured htpasswd file and no .htpasswd beside .env, authentication is **disabled** and all routes are accessible without credentials.
+When Oompah starts with no configured htpasswd file and no `.htpasswd` beside
+the selected `.env`, authentication is **disabled** and all routes are
+accessible without credentials. Treat this as a controlled maintenance or
+rollback window: keep the service on a private interface, restore the file,
+and restart promptly.
 
 ---
 
@@ -179,10 +251,10 @@ When Oompah starts with no configured htpasswd file and no .htpasswd beside .env
 
 Oompah accepts **bcrypt** and **APR1** hashes only. Both are produced by `htpasswd`:
 
-| Format   | Prefix | Example | htpasswd flag |
+| Format   | Prefix | Example | `htpasswd` guidance |
 |----------|--------|---------|---|
-| bcrypt   | `$2y$`, `$2b$`, `$2a$` | `$2y$12$R9h/cIP...` | `-B` (recommended) |
-| APR1     | `$apr1$` | `$apr1$r31....$Hq...` | `-a apr1` |
+| bcrypt   | `$2y$`, `$2b$`, `$2a$` | `<bcrypt-hash>` | `-B` (recommended) |
+| APR1     | `$apr1$` | `<apr1-hash>` | `-m` on Apache implementations that emit APR1 |
 
 ### Rejected formats
 
@@ -193,7 +265,10 @@ Oompah accepts **bcrypt** and **APR1** hashes only. Both are produced by `htpass
 
 ### Best practice
 
-Always use bcrypt (`htpasswd -B`). It is modern, adaptive (cost can increase over time), and resistant to modern attacks.
+Always use bcrypt (`htpasswd -B`). It is modern, adaptive (cost can increase
+over time), and resistant to modern attacks. APR1 is accepted only for
+compatibility with existing files; do not create new APR1 credentials unless a
+deployment requires them.
 
 ---
 
@@ -240,7 +315,7 @@ Authentication is **disabled**. All routes are accessible without credentials.
 ... service startup FAILED
 ```
 
-**Fatal error.** Add at least one user: `htpasswd -B .htpasswd admin`.
+**Fatal error.** Add at least one user: `htpasswd -B .htpasswd operator`.
 
 ---
 
@@ -254,9 +329,15 @@ Authentication is **disabled**. All routes are accessible without credentials.
 
 **Clients need plaintext passwords:**
 - `OOMPAH_SERVER_USERNAME` — client username (matches a name in htpasswd)
-- `OOMPAH_SERVER_PASSWORD` or `OOMPAH_SERVER_PASSWORD_FILE` — client plaintext password (what you typed to `htpasswd`)
+- `OOMPAH_SERVER_PASSWORD_FILE` — preferred path to a regular file containing
+  the client plaintext password (what you typed to `htpasswd`)
+- `OOMPAH_SERVER_PASSWORD` — limited inline environment alternative for a
+  short-lived shell or controlled secret injection; do not put it in a
+  committed `.env`, URL, command argument, or process-managed config
 
-> Never put plaintext passwords or credentials in .env files, URLs, Makefile recipes, or logs. Always use environment variables or password files.
+> Never put plaintext passwords or credentials in URLs, command arguments,
+> logs, documentation, or source control. Password files should be regular,
+> owner-readable files with mode `600` where the platform permits it.
 
 ### CLI authentication
 
@@ -272,9 +353,30 @@ oompah task view owner/repo#123
 **Password file format:** A regular file containing only the plaintext password (whitespace trimmed).
 
 ```bash
-echo "my_plaintext_password" > /run/secrets/oompah-client-password
-chmod 600 /run/secrets/oompah-client-password
+# Read without echoing, write without placing the value in shell history/argv.
+CLIENT_PASSWORD_FILE=/run/secrets/oompah-client-password
+umask 077
+read -r -s -p 'Oompah client password: ' CLIENT_PASSWORD
+printf '\n'
+printf '%s\n' "$CLIENT_PASSWORD" > "$CLIENT_PASSWORD_FILE"
+unset CLIENT_PASSWORD
+chmod 600 "$CLIENT_PASSWORD_FILE"
 ```
+
+Set `OOMPAH_SERVER_USERNAME` and `OOMPAH_SERVER_PASSWORD_FILE` in the client
+environment, or pass the non-secret CLI overrides:
+
+```bash
+export OOMPAH_SERVER_USERNAME=operator
+export OOMPAH_SERVER_PASSWORD_FILE=/run/secrets/oompah-client-password
+oompah task view owner/repo#123
+```
+
+The CLI precedence is: `--username` over `OOMPAH_SERVER_USERNAME`, and
+`--password-file` over both environment password forms. Without the CLI file
+override, set exactly one of `OOMPAH_SERVER_PASSWORD_FILE` or
+`OOMPAH_SERVER_PASSWORD`; both is an error. There is deliberately no
+plaintext `--password` option.
 
 ### Makefile lifecycle commands
 
@@ -294,53 +396,77 @@ For custom scripts using httpx:
 
 ```python
 import os
+from pathlib import Path
 from httpx import BasicAuth, Client
 
 username = os.environ["OOMPAH_SERVER_USERNAME"]
-password = os.environ["OOMPAH_SERVER_PASSWORD"]
+password_file = os.environ["OOMPAH_SERVER_PASSWORD_FILE"]
+password = Path(password_file).read_text(encoding="utf-8").strip()
 
 auth = BasicAuth(username, password)
-with Client(auth=auth, base_url="http://localhost:8080") as client:
+with Client(auth=auth, base_url="https://oompah.example.com") as client:
     resp = client.get("/api/v1/state")
     print(resp.json())
 ```
 
+For a local-only process-to-service hop, a loopback `http://` URL is also
+possible. Never use that form for a network-facing client. If the password
+file is unavailable, the limited alternative is to set
+`OOMPAH_SERVER_PASSWORD` in the process environment for that invocation and
+unset it immediately afterward; do not put its value in source or argv.
+
 ### curl examples
 
-**With explicit username/password:**
+**Interactive prompt (no password in history or argv):**
 
 ```bash
-curl -u admin:password http://localhost:8080/api/v1/state
+export OOMPAH_SERVER_USERNAME=operator
+curl --user "$OOMPAH_SERVER_USERNAME:" https://oompah.example.com/api/v1/state
 ```
 
-**With password file (preferred):**
+When curl sees a username with no password, it prompts on the terminal. For
+automation, use a protected netrc/config file supplied by your secret manager
+and pass only its path to curl:
 
 ```bash
-PASSWORD=$(cat /run/secrets/oompah-password)
-curl -u admin:$PASSWORD http://localhost:8080/api/v1/state
+NETRC_FILE=/run/secrets/oompah-netrc
+chmod 600 "$NETRC_FILE"
+curl --netrc-file "$NETRC_FILE" https://oompah.example.com/api/v1/state
 ```
 
-Never use `curl -u admin:password http://...` with the password visible in shell history or process listings. Prefer password files or environment-based redaction.
+The netrc file is a client secret and must be provisioned outside the
+repository; do not print it or commit it. Do not use a `--user
+user:password` argument, command substitution in a `--user` argument, or a
+URL containing credentials.
 
 ### MCP Gateway
 
-The MCP client (e.g., Claude Code's MCP integration) must provide credentials during the WebSocket handshake:
+MCP uses the embedded streamable-HTTP transport, not a separate MCP password.
+The generic MCP client must connect to the discovered endpoint
+`/.well-known/mcp` / `/api/mcp/v1` over HTTPS and provide the same Basic
+credentials during its HTTP handshake. Configure the client with a protected
+password-file reference rather than a literal password:
 
 ```bash
-# MCP client connection (pseudo-code in your Claude Code settings.json):
+# Generic MCP client configuration (adapt the key names to your client):
 {
-  "mcp_servers": {
+  "mcpServers": {
     "oompah": {
-      "command": "... (MCP server command)",
+      "url": "https://oompah.example.com/api/mcp/v1",
       "env": {
         "OOMPAH_SERVER_USERNAME": "mcp-client",
-        "OOMPAH_SERVER_PASSWORD_FILE": "/run/secrets/mcp-password",
-        "OOMPAH_SERVER_URL": "http://localhost:8080"
+        "OOMPAH_SERVER_PASSWORD_FILE": "/run/secrets/oompah-mcp-password"
       }
     }
   }
 }
 ```
+
+The exact names for URL and secret-file references vary by MCP client; the
+security requirements do not. Use `GET /.well-known/mcp` to inspect discovery
+metadata after authenticating. It reports `authentication: "http-basic"`
+when enabled. MCP does not expose webhook ingestion or lifecycle-control
+tools, and the Basic boundary still protects the transport and discovery.
 
 ---
 
@@ -353,8 +479,11 @@ GitHub and GitLab webhooks are **exempt from Basic auth** so that webhooks can b
 Webhooks are delivered to: `POST /api/v1/webhooks/github`
 
 - Basic auth is **not required** — GitHub can deliver webhooks without credentials
-- GitHub signature validation (`X-Hub-Signature-256`) is **always enforced**, with or without Basic auth
-- Webhook signature is your `webhook_secret` configured per project in `.oompah/projects.json`
+- GitHub signature validation (`X-Hub-Signature-256`) remains separate from
+  Basic auth and is checked when the matching project has a `webhook_secret`
+- Configure a per-project `webhook_secret` so signed delivery is enforced;
+  the handler supports an initial setup window for a matching project with no
+  secret, which must not be treated as a secure steady state
 
 ### GitLab webhooks
 
@@ -362,7 +491,8 @@ Webhooks are delivered to: `POST /api/v1/webhooks/gitlab`
 
 - Basic auth is **not required** — GitLab can deliver webhooks without credentials
 - GitLab token validation (`X-Gitlab-Token`) is **always enforced**, with or without Basic auth
-- Webhook token is your `webhook_secret` configured per project in `.oompah/projects.json`
+- The token is the per-project `webhook_secret` configured through the project
+  settings/API; a matching project without one is rejected with 401
 
 ### Webhook status
 
@@ -370,11 +500,16 @@ Checking webhook status requires authentication:
 
 ```bash
 # Unauthenticated: 401
-curl http://localhost:8080/api/v1/webhooks/gitlab/status
+curl https://oompah.example.com/api/v1/webhooks/gitlab/status
 
-# Authenticated:
-curl -u admin:password http://localhost:8080/api/v1/webhooks/gitlab/status
+# Authenticated: prompt for the password without putting it in argv.
+export OOMPAH_SERVER_USERNAME=operator
+curl --user "$OOMPAH_SERVER_USERNAME:" \
+  https://oompah.example.com/api/v1/webhooks/gitlab/status
 ```
+
+Webhook delivery itself uses the forge signature/token headers, not Basic
+credentials. The status endpoint is an ordinary protected API route.
 
 ---
 
@@ -402,6 +537,9 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
+
+        # Do not add credentials to this configuration. The proxy forwards
+        # the client's Authorization header only when the client supplied it.
 
         # WebSocket support
         proxy_http_version 1.1;
@@ -448,11 +586,13 @@ backend oompah
 
 ```bash
 # 1. Verify auth is enabled:
-curl http://localhost:8080/healthz     # should work
-curl http://localhost:8080/api/v1/state   # should be 401 if auth is on
+curl https://oompah.example.com/healthz       # should work
+curl https://oompah.example.com/api/v1/state  # should be 401 if auth is on
 
-# 2. Verify credentials are correct:
-curl -u admin:password http://localhost:8080/api/v1/state
+# 2. Verify credentials interactively (password is prompted, not shown):
+export OOMPAH_SERVER_USERNAME=operator
+curl --user "$OOMPAH_SERVER_USERNAME:" \
+  https://oompah.example.com/api/v1/state
 
 # 3. Check oompah logs:
 make logs | grep -i auth
@@ -481,6 +621,12 @@ make logs | grep -i auth
    ls -la .env .htpasswd
    ```
 
+5. Check that the service account can read the file and that its mode is
+   restrictive:
+   ```bash
+   chmod 600 .htpasswd
+   ```
+
 ### "plaintext password" error at startup
 
 **Symptom:** Oompah fails with: `htpasswd file:3: plaintext password (rejected; use bcrypt or APR1)`
@@ -491,16 +637,15 @@ make logs | grep -i auth
 
 1. Regenerate the file using `-B` flag:
    ```bash
-   htpasswd -B -c .htpasswd admin
+   umask 077
+   htpasswd -B -c .htpasswd operator
+   chmod 600 .htpasswd
    ```
 
-2. Or convert individual entries:
+2. Recreate or update individual entries with bcrypt:
    ```bash
-   # Bad: plaintext entry
-   # admin:mypassword
-
-   # Good: use htpasswd -B to add entries
-   htpasswd -B .htpasswd admin
+   htpasswd -B .htpasswd operator
+   chmod 600 .htpasswd
    ```
 
 3. Restart:
@@ -517,7 +662,8 @@ make logs | grep -i auth
 **Fix:**
 
 ```bash
-htpasswd -B .htpasswd admin
+htpasswd -B .htpasswd operator
+chmod 600 .htpasswd
 make restart
 ```
 
@@ -549,7 +695,8 @@ Group/world-readable password files are a security risk. The warning does not bl
 
 2. Ensure it's readable by the user running the command:
    ```bash
-   cat $OOMPAH_SERVER_PASSWORD_FILE
+   test -r "$OOMPAH_SERVER_PASSWORD_FILE"
+   stat -c '%a %U:%G %n' "$OOMPAH_SERVER_PASSWORD_FILE"  # Linux
    ```
 
 3. Use an absolute path (relative paths may resolve differently depending on working directory).
@@ -565,9 +712,10 @@ Group/world-readable password files are a security risk. The warning does not bl
    make stop
    ```
 
-2. **Remove or disable the htpasswd file:**
+2. **Temporarily move or disable the htpasswd file (preserve it for rollback):**
    ```bash
-   rm .htpasswd
+   mv -f .htpasswd .htpasswd.disabled
+   chmod 600 .htpasswd.disabled
    # OR comment out in .env:
    # OOMPAH_HTPASSWD_FILE=/run/secrets/htpasswd
    ```
@@ -579,13 +727,21 @@ Group/world-readable password files are a security risk. The warning does not bl
 
 4. **Regenerate credentials:**
    ```bash
-   htpasswd -B -c .htpasswd admin
+   umask 077
+   htpasswd -B -c .htpasswd operator
+   chmod 600 .htpasswd
    ```
 
 5. **Restart with auth enabled:**
    ```bash
    make restart
    ```
+
+If the service uses an explicit secret mount, restore or recreate that mount
+instead of creating a discovered `.htpasswd`. Verify the protected endpoint
+with the client password file before re-enabling normal external traffic. If
+the file is corrupted, replace the complete file atomically according to the
+secret-store's procedure; do not edit a live secret in a shell transcript.
 
 ---
 
@@ -612,7 +768,8 @@ Group/world-readable password files are a security risk. The warning does not bl
 # Explicit: absolute or relative to .env directory
 # OOMPAH_HTPASSWD_FILE=.htpasswd
 
-# Client credentials for task CLI and Makefile lifecycle commands.
+# Client credentials for task CLI and Makefile lifecycle commands. These are
+# client-side settings; do not put a plaintext value in this file.
 # Prefer OOMPAH_SERVER_PASSWORD_FILE over OOMPAH_SERVER_PASSWORD.
 # OOMPAH_SERVER_USERNAME=operator
 # OOMPAH_SERVER_PASSWORD_FILE=/run/secrets/oompah-password
@@ -627,8 +784,12 @@ Group/world-readable password files are a security risk. The warning does not bl
 Oompah and its CLI clients **never** log, display, or echo:
 - Authorization headers
 - Plaintext passwords
-- Credential file paths (only generic "not found" messages)
+- Password-file contents or htpasswd hashes
 - Username/password distinction in verification errors (prevents user enumeration)
+
+Startup diagnostics may identify the configured path so an operator can repair
+permissions or mounts. Protect service logs and do not treat a path as a
+secret-bearing substitute for the file itself.
 
 ### Constant-time comparison
 
@@ -638,9 +799,12 @@ Password verification uses constant-time comparison to prevent timing attacks th
 
 If htpasswd is invalid (malformed, empty, plaintext passwords, unsupported formats), **Oompah refuses to start**. This is intentional — better to fail loudly than to silently operate without auth when it was intended.
 
-### Plaintext passwords in files only
+### Plaintext password sources
 
-Client credentials **may appear in `.env`, password files, or shell scripts** for deployment automation. These are ephemeral and necessary for unattended operation. But server htpasswd hashes and client plaintext passwords must never:
+The preferred client source is a protected password file or deployment secret.
+The inline environment form is a limited alternative for a short-lived shell
+or controlled secret injection; do not store it in a committed `.env` or shell
+script. Server htpasswd hashes and client plaintext passwords must never:
 - Be committed to git
 - Appear in logs or error messages
 - Be embedded in URLs
@@ -653,10 +817,10 @@ Use password files or secrets management (Kubernetes Secrets, Docker Secrets, Ha
 
 ## Next Steps
 
-1. **Generate credentials:** `htpasswd -B -c .htpasswd admin`
+1. **Generate credentials:** `umask 077; htpasswd -B -c .htpasswd operator; chmod 600 .htpasswd`
 2. **Configure Oompah:** Place `.htpasswd` beside `.env` or set `OOMPAH_HTPASSWD_FILE`
 3. **Restart:** `make restart`
-4. **Verify:** `curl http://localhost:8080/healthz` should work; `curl http://localhost:8080/api/v1/state` should be 401
+4. **Verify:** `curl https://oompah.example.com/healthz` should work; the protected state route should be 401 without credentials
 5. **Set up HTTPS:** Deploy behind nginx/HAProxy/Caddy with TLS termination
 6. **Configure clients:** Set `OOMPAH_SERVER_USERNAME` and `OOMPAH_SERVER_PASSWORD_FILE` for CLI/MCP access
 

@@ -72,11 +72,13 @@ class Services:
     role_store: "RoleStore"
     webhook_forwarder: "WebhookForwarder"
     gitlab_hook_manager: "GitLabHookManager"
-    http_credentials: "oompah.http_auth.HtpasswdCredentials"
     port: int | None
     workflow_path: str
     workflow: object  # oompah.config.WorkflowDefinition, typed loosely
     terminal_transition_coordinator: object | None = None
+    # Keep direct construction compatible with callers that do not need the
+    # optional auth bundle. Real bootstrap always supplies the resolved value.
+    http_credentials: "oompah.http_auth.HtpasswdCredentials | None" = None
 
 
 def attach_webhook_forwarder_alerts(

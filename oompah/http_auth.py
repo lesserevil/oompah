@@ -84,7 +84,6 @@ def _verify_password(hashed_password: str, supplied_password: str) -> bool:
         Verification uses constant-time comparison.
     """
     try:
-        from passlib.apache import HtpasswdFile
         from passlib.context import CryptContext
 
         # passlib's HtpasswdFile and CryptContext handle APR1 and bcrypt
