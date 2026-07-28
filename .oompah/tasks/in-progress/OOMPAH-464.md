@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:06.169316Z'
-updated_at: '2026-07-28T19:06:35.958270Z'
+updated_at: '2026-07-28T19:11:38.662904Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -166,5 +166,10 @@ author: oompah
 created: 2026-07-28 19:06
 ---
 Implementation: added oompah/terminal_audit_enforcement.py with durable grandfather tuples, versioned state serialization, deterministic duplicate-safe pending queue entries, metadata recovery for In Validation, and fail-closed/quarantined handling for malformed service state or task metadata. Orchestrator startup invokes it before the initial tick and periodically reconciles on the full-sync cadence; diagnostics are exposed in maintenance status and alerts.
+---
+author: oompah
+created: 2026-07-28 19:11
+---
+Verification: focused terminal-audit/domain/metadata and orchestrator startup/restart/event-loop tests pass (82 tests). Added coverage for first/second startup, unchanged baselines, evidence changes, terminal transitions, metadata recovery and duplicate attempt suppression, corrupt/legacy state, overlapping project IDs, quarantine observability, audit completion, and startup wiring. Ruff and git diff checks are clean.
 ---
 <!-- COMMENTS:END -->
