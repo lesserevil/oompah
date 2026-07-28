@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-28T22:19:59.472752Z'
+updated_at: '2026-07-28T22:21:10.766320Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -72,5 +72,10 @@ author: oompah
 created: 2026-07-28 22:19
 ---
 **Understanding:** I am conducting a duplicate investigation for OOMPAH-471 (Collect stable evidence for Done completion audits). The task calls for building a read-only DoneEvidenceCollector that gathers evidence for task/epic completion audits including: workspace/worktree info, source SHA, branch info, requirements/digest, diff/stat excerpts, changed files, commit/push status, test commands, CI/test evidence, comments/handoffs, children, and contributor identities. Will search the task graph, plans, and source for existing similar implementations or duplicates.
+---
+author: oompah
+created: 2026-07-28 22:21
+---
+**Discovery:** Comprehensive duplicate screening complete. OOMPAH-471 is NOT a duplicate.\n\nSearch scope:\n- All .oompah/tasks directories (archived, merged, open, backlog): 281+ task files searched\n- Source code (oompah/, tests/): searched for DoneEvidenceCollector, Collector, evidence collection patterns\n- Plans and docs: terminal-transition-coordinator.md, terminal-transition-coordinator-api.md, WORKFLOW.md, README.md\n- Git history: no prior implementations\n\nFindings:\n- OOMPAH-462 (Merged): Defines terminal-audit records/enums/fingerprints — different scope (audit types, not evidence collection)\n- OOMPAH-463-467 (Merged): Terminal-audit coordinator and enforcement — infrastructure for queueing/applying audits\n- OOMPAH-468 (Done): Persist worker/epic contributor provenance — supplies contributor identities, not evidence collection\n- OOMPAH-469 (Open): Reserved auditor focus/prompt contract — supplies auditor interface, not evidence collection\n- OOMPAH-470 (Open): Auditor role selection and candidate filtering — independent candidate selection, not evidence collection\n- No existing DoneEvidenceCollector, EvidenceCollector, or similar collector classes in codebase\n\nScope confirmation: OOMPAH-471 uniquely builds a read-only DoneEvidenceCollector that gathers task/epic completion evidence (workspace, branch, SHAs, requirements, diff/stat, changed files, commit/push status, test commands, CI evidence, comments, children, contributors). This is required by auditors but not yet implemented.\n\nConclusion: OOMPAH-471 is a unique, original feature task. No duplicate found.
 ---
 <!-- COMMENTS:END -->
