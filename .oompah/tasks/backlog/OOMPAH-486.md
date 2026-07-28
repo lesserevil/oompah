@@ -6,11 +6,13 @@ priority: 1
 title: Add terminal-audit metrics, maintenance health, and actionable alerts
 parent: OOMPAH-460
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-475
+- OOMPAH-483
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-28T13:08:25.195304Z'
+updated_at: '2026-07-28T13:09:56.995941Z'
 work_branch: null
 target_branch: null
 review_url: null

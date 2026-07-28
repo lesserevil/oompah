@@ -6,11 +6,13 @@ priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-467
+- OOMPAH-475
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-28T13:07:24.379848Z'
+updated_at: '2026-07-28T13:09:37.967405Z'
 work_branch: null
 target_branch: null
 review_url: null

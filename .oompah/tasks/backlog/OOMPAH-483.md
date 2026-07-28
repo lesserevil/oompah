@@ -6,11 +6,19 @@ priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-464
+- OOMPAH-476
+- OOMPAH-477
+- OOMPAH-478
+- OOMPAH-479
+- OOMPAH-480
+- OOMPAH-481
+- OOMPAH-482
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-28T13:07:31.119782Z'
+updated_at: '2026-07-28T13:09:53.444969Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -6,11 +6,12 @@ priority: 1
 title: Expose safe terminal-audit state in project, task, and activity APIs
 parent: OOMPAH-460
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-483
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:23.210919Z'
-updated_at: '2026-07-28T13:08:23.210919Z'
+updated_at: '2026-07-28T13:09:54.332517Z'
 work_branch: null
 target_branch: null
 review_url: null

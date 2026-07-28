@@ -6,11 +6,13 @@ priority: 1
 title: Validate the complete task Done-Merged-Archived audit lifecycle
 parent: OOMPAH-460
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-476
+- OOMPAH-477
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-28T13:08:27.238658Z'
+updated_at: '2026-07-28T13:10:00.761941Z'
 work_branch: null
 target_branch: null
 review_url: null

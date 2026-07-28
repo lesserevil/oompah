@@ -6,11 +6,12 @@ priority: 1
 title: Route epic rollup, child Done, and epic close transitions through audits
 parent: OOMPAH-459
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-475
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-28T13:07:26.329329Z'
+updated_at: '2026-07-28T13:09:39.652368Z'
 work_branch: null
 target_branch: null
 review_url: null

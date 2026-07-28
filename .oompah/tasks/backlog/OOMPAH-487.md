@@ -6,11 +6,13 @@ priority: 1
 title: Document auditor configuration, overrides, migration, and recovery
 parent: OOMPAH-460
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-483
+- OOMPAH-486
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-28T13:08:26.170630Z'
+updated_at: '2026-07-28T13:09:58.916040Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -6,11 +6,13 @@ priority: 1
 title: Dispatch one repair-planner run for an epic that fails audit
 parent: OOMPAH-459
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-466
+- OOMPAH-475
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:30.191340Z'
-updated_at: '2026-07-28T13:07:30.191340Z'
+updated_at: '2026-07-28T13:09:46.179061Z'
 work_branch: null
 target_branch: null
 review_url: null
