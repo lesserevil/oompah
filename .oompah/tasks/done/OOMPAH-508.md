@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-508
 type: feature
-status: Backlog
+status: Done
 priority: 1
 title: Run focused checks at handoff and one full quality gate per ready branch
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:08.389229Z'
-updated_at: '2026-07-28T15:49:14.785693Z'
+updated_at: '2026-07-28T15:56:35.196834Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -92,5 +92,10 @@ author: oompah
 created: 2026-07-28 15:49
 ---
 Holding in Backlog only to prevent orphan recovery from assigning a duplicate agent while the claimed implementation is active in this session. Focused coverage currently passes (824 tests); full branch gate and final status follow after the complete epic head is ready.
+---
+author: oompah
+created: 2026-07-28 15:56
+---
+Implemented and pushed as 79f023202. Review creation for standalone tasks and complete epic branches now requires a persistent, single-flight full quality outcome keyed by repo/target/work branch/head SHA/command. Passing or failing unchanged heads are reused across concurrent ticks and restarts; new commits/rebases/config invalidate naturally. Failures route to Needs CI Fix with actionable output, and configured standalone gates run in the off-loop deferred-review lane. Worker/bootstrap guidance now requests focused behavior and neighbor tests. Coverage: 824 focused tests, then full make test (12,673 passed, 7 skipped), plus secret scan.
 ---
 <!-- COMMENTS:END -->
