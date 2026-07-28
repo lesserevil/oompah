@@ -14,11 +14,10 @@ children:
 blocked_by: []
 labels:
 - security
-- merge-conflict
 - epic:rebasing
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-07-28T21:17:57.062108Z'
+updated_at: '2026-07-28T21:21:07.028407Z'
 work_branch: epic-OOMPAH-521
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/567
