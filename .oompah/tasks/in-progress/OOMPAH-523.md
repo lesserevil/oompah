@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T19:00:17.087974Z'
+updated_at: '2026-07-28T19:03:35.405119Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -343,5 +343,10 @@ author: oompah
 created: 2026-07-28 19:00
 ---
 Discovery: The ASGI middleware is correctly mounted outermost, wired from Services.http_credentials, and has exact method/path exemptions. However, _check_basic currently calls base64.b64decode without validate=True, which accepts ignored non-Base64 characters; this conflicts with the requirement that malformed Authorization headers be denied uniformly. I’m tightening that parser and adding a regression test.
+---
+author: oompah
+created: 2026-07-28 19:03
+---
+Implementation: Tightened _BasicAuthMiddleware parsing with strict Base64 validation and duplicate-header rejection; exemptions now use ASGI raw_path so percent-encoded spellings cannot inherit public-route access. Wired set_http_credentials() into the normal uvicorn startup path in oompah/__main__.py. Added auth regressions for permissive Base64 inputs, encoded health/webhook paths, duplicate headers, and startup credential registration.
 ---
 <!-- COMMENTS:END -->
