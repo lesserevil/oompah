@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-525
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Add Basic auth support to Oompah CLIs and lifecycle commands
 parent: OOMPAH-521
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:51:05.881285Z'
+updated_at: '2026-07-28T19:51:12.315930Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: fb1d6b49-ab2b-4ff7-b304-f89ef517ac3b
+oompah.agent_run_id: 950da29e-0142-433e-b7ab-cbabde90d9c2
 oompah.work_branch: epic-OOMPAH-521
 oompah.task_costs:
   total_input_tokens: 1933410
@@ -302,5 +302,15 @@ Steps to resolve:
   git push origin epic-OOMPAH-521
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-28 19:51
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 19:51
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
