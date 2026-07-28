@@ -8,10 +8,11 @@ parent: OOMPAH-490
 children: []
 blocked_by:
 - OOMPAH-491
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:32.426575Z'
-updated_at: '2026-07-28T16:09:38.566694Z'
+updated_at: '2026-07-28T16:09:53.299844Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -95,5 +96,24 @@ Closest tasks reviewed:
 - OOMPAH-495: retired pre-implementation state-branch design tests — different scope
 
 The three target files (test_dashboard_release_delivery_ui.py, test_release_delivery_page.py, test_dashboard_release_addendums_ui.py) all exist in tests/. OOMPAH-497 is the unique task in the epic that establishes the ownership boundary between them.
+---
+author: oompah
+created: 2026-07-28 16:09
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No confirmed duplicate. OOMPAH-497 should proceed to implementation.
+
+2. Evidence: Exhaustively searched .oompah/tasks (all subdirectories), docs, plans, README.md, and WORKFLOW.md for 'release_delivery', 'addendums', 'canonical', 'overlapping.*test', 'delivery.*ui', 'delivery.*page'. Read OOMPAH-490, OOMPAH-491, OOMPAH-495, OOMPAH-496, OOMPAH-498, OOMPAH-499 in full. All three target test files confirmed present in tests/. OOMPAH-498 explicitly depends on this task's canonical ownership being established first.
+
+3. Remaining work / risks:
+   - Record baseline collection counts from all three files before changes
+   - Move/remove the 12 same-named page contracts from test_dashboard_release_delivery_ui.py (owned by test_release_delivery_page.py)
+   - Remove the 5 retained-controls duplicates covered by test_dashboard_release_addendums_ui.py
+   - Update stale 'overlay' docstrings to 'dedicated page'
+   - Add contract-ownership table comment at top of test_dashboard_release_delivery_ui.py
+   - Run make test; record before/after counts
+
+4. Recommended next focus: test (or refactor) — implementation of the canonical-ownership consolidation in the three test files.
 ---
 <!-- COMMENTS:END -->
