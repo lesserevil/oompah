@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T20:03:52.681748Z'
+updated_at: '2026-07-28T20:06:32.316851Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -405,5 +405,10 @@ author: oompah
 created: 2026-07-28 20:03
 ---
 Implementation: Reused the shared resolver in scripts/oompah_http.py, hardened malformed/userinfo URL rejection and password-file open flags, made --password-file override inline env credentials, and added agent_environment() filtering for API/ACP child processes. Makefile lifecycle calls now use the configured PORT, fail closed on state preflight errors, surface status auth failures, and retain unauthenticated /healthz probing. Added docs and focused task/admin/lifecycle/agent tests.
+---
+author: oompah
+created: 2026-07-28 20:06
+---
+Verification: Focused neighboring suites pass: 354 passed, 20 skipped across auth, task/admin CLI, Makefile lifecycle, legacy agent, API-agent, and ACP tests. make check-secrets completed successfully. The full make test gate was attempted but could not start because uv failed with a host DBus transient-scope error (org.freedesktop.DBus.Error.InvalidArgs: kernel thread); no test failure was reported.
 ---
 <!-- COMMENTS:END -->
