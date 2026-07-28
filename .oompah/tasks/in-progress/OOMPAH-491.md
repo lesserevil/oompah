@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-07-28T14:37:20.375400Z'
+updated_at: '2026-07-28T14:37:28.937602Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -60,5 +60,15 @@ author: oompah
 created: 2026-07-28 14:37
 ---
 Discovery: No duplicate found. Exact searches across .oompah/tasks, docs, plans, README.md, and WORKFLOW.md found no prior GIT_CONFIG_COUNT, url.*.insteadOf, pytest-session Git network barrier, SCP-style blocking, or unmocked-Git safety work. Closest full tasks reviewed: OOMPAH-500 is the downstream final clean-checkout/no-network audit and explicitly depends on this guard; OOMPAH-492 isolates specific worker-exit/epic-rebase leaks rather than enforcing a suite-wide transport barrier; OOMPAH-281 provisions the CI runner; OOMPAH-203 concerns auto-update restarts after tracker writes. Parent OOMPAH-490 assigns the first suite-wide outbound-Git barrier uniquely to OOMPAH-491.
+---
+author: oompah
+created: 2026-07-28 14:37
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No confirmed duplicate; OOMPAH-491 should proceed to implementation.
+2. Evidence: Searched task records and docs for Git remote/network safety, pytest-session guards, GIT_CONFIG_COUNT, url.*.insteadOf, SCP-style URLs, and unmocked Git. Read OOMPAH-490, OOMPAH-500, OOMPAH-492, OOMPAH-281, and OOMPAH-203 in full. OOMPAH-490 uniquely assigns the suite-wide barrier to this child; OOMPAH-500 validates it later, and OOMPAH-492 fixes specific leak sites.
+3. Remaining work/risks: Implement the process-local inherited Git configuration in tests/conftest.py and tests/test_git_remote_safety.py. Preserve numbered Git config entries, allow absolute paths and temporary file:// remotes, block HTTP/HTTPS/SSH/SCP/git transports fail-fast with actionable errors, and avoid persistent config changes. Verify representative state-branch local-remote tests.
+4. Recommended next focus: feature (implementation), followed by test verification.
 ---
 <!-- COMMENTS:END -->
