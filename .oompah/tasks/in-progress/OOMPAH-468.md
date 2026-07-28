@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T21:57:40.289254Z'
+updated_at: '2026-07-28T22:03:22.796055Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -258,5 +258,10 @@ author: oompah
 created: 2026-07-28 21:57
 ---
 Implementation: commit 0115bfaaa persists compact oompah.work_contributors records on normal worker exit for API, ACP, and CLI paths; captures provider/model/focus/branch/SHA/completion time, preserves retries and prior runs, and provides revision-filtered recursive epic collection with ancestry checks and redacted schema.
+---
+author: oompah
+created: 2026-07-28 22:03
+---
+Verification: focused suites pass (151 tests: work_contributors plus task-cost and telemetry neighbors). make test could not initialize because uv fails with DBus transient-scope error 46. Equivalent full pytest reached 13,107 passed/7 skipped; its 7 ACP handoff failures were caused by the default agent-log directory being read-only, and those 7 pass with a writable temporary log directory. No contributor-suite failures.
 ---
 <!-- COMMENTS:END -->

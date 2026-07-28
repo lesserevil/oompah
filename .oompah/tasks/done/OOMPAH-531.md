@@ -14,7 +14,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-07-28T22:03:20.278344Z'
+updated_at: '2026-07-28T22:03:23.508336Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -304,5 +304,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 59s
 - Log: OOMPAH-531__20260728T220219Z.jsonl
+---
+author: oompah
+created: 2026-07-28 22:03
+---
+Already completed and merged in PR #568; terminated stale post-merge redispatch from the old scheduler.
 ---
 <!-- COMMENTS:END -->
