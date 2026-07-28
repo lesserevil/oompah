@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-492
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Isolate worker-exit and epic-rebase tests from the live tracker
 parent: OOMPAH-490
@@ -13,7 +13,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-28T13:53:27.511520Z'
-updated_at: '2026-07-28T14:58:17.478886Z'
+updated_at: '2026-07-28T14:58:27.442458Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -21,6 +21,22 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 89b1e6eb-aa99-4590-a53d-56b3aa990bd0
 oompah.work_branch: epic-OOMPAH-490
+oompah.task_costs:
+  total_input_tokens: 404810
+  total_output_tokens: 3022
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 404810
+      output_tokens: 3022
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 404810
+    output_tokens: 3022
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T14:58:23.653994+00:00'
 ---
 ## Summary
 
@@ -73,5 +89,25 @@ Focus handoff: duplicate_detector
 2. Evidence: Searched task records and project docs for the three named test files/classes, worker-exit tests, live tracker access, project_id omissions, Git push guards, isolation, and network delays. Reviewed OOMPAH-491, OOMPAH-500, and parent OOMPAH-490 in full. OOMPAH-491 is the completed suite-wide remote barrier; OOMPAH-500 is the final audit; neither performs these targeted fixture corrections.
 3. Remaining work/risks: Update only the affected and confirmed neighboring tests in tests/test_event_driven_loop.py, tests/test_acp_billing.py, and tests/test_epic_rebase_state.py; inject project-scoped mock trackers, isolate unrelated side effects, add fail-fast Git push guards, retain original assertions, run the three files with --durations=20, then make test. Watch for background tasks and any orch.tracker fallback.
 4. Recommended next focus: test implementation. No code was changed or tests run during duplicate screening.
+---
+author: oompah
+created: 2026-07-28 14:58
+---
+Agent completed successfully in 92s (407832 tokens)
+---
+author: oompah
+created: 2026-07-28 14:58
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 14
+- Tokens: 404.8K in / 3.0K out [407.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 32s
+- Log: OOMPAH-492__20260728T145655Z.jsonl
+---
+author: oompah
+created: 2026-07-28 14:58
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
