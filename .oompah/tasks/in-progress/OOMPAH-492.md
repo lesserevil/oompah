@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-492
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Isolate worker-exit and epic-rebase tests from the live tracker
 parent: OOMPAH-490
@@ -10,16 +10,15 @@ blocked_by:
 - OOMPAH-491
 labels:
 - focus-complete:duplicate_detector
-- needs:test
 assignee: null
 created_at: '2026-07-28T13:53:27.511520Z'
-updated_at: '2026-07-28T14:58:27.442458Z'
+updated_at: '2026-07-28T14:58:38.788637Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 89b1e6eb-aa99-4590-a53d-56b3aa990bd0
+oompah.agent_run_id: 08675e3c-a8d0-43a7-aff6-520907bec104
 oompah.work_branch: epic-OOMPAH-490
 oompah.task_costs:
   total_input_tokens: 404810
@@ -109,5 +108,15 @@ author: oompah
 created: 2026-07-28 14:58
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 14:58
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-28 14:58
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
