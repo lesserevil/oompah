@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-524
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Integrate htpasswd authentication with the embedded MCP gateway
 parent: OOMPAH-521
@@ -12,20 +12,19 @@ labels:
 - focus-complete:duplicate_detector
 - focus-complete:security
 - focus-complete:refactor
-- needs:feature
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:21:09.220444Z'
+updated_at: '2026-07-28T19:21:30.640203Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: ffc358af-3f6e-4cda-a4cf-deb983c464b5
+oompah.agent_run_id: 866d7df0-012f-4eef-8449-99bbc0c6f997
 oompah.work_branch: epic-OOMPAH-521
 oompah.task_costs:
-  total_input_tokens: 1335101
-  total_output_tokens: 18739
+  total_input_tokens: 1335127
+  total_output_tokens: 30390
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -33,8 +32,8 @@ oompah.task_costs:
       output_tokens: 9954
       cost_usd: 0.0
     sonnet:
-      input_tokens: 960714
-      output_tokens: 8785
+      input_tokens: 960740
+      output_tokens: 20436
       cost_usd: 0.0
   runs:
   - profile: default
@@ -55,6 +54,12 @@ oompah.task_costs:
     output_tokens: 8785
     cost_usd: 0.0
     recorded_at: '2026-07-28T19:16:55.186716+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 26
+    output_tokens: 11651
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T19:21:17.693779+00:00'
 ---
 ## Summary
 
@@ -312,5 +317,35 @@ Risks:
 - Authorization values must never appear in logs, exceptions, or tool responses.
 
 Recommended next focus: feature
+---
+author: oompah
+created: 2026-07-28 19:21
+---
+Agent completed successfully in 250s (11677 tokens)
+---
+author: oompah
+created: 2026-07-28 19:21
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 48, Tool calls: 29
+- Tokens: 26 in / 11.7K out [11.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 10s
+- Log: OOMPAH-524__20260728T191712Z.jsonl
+---
+author: oompah
+created: 2026-07-28 19:21
+---
+Focus handoff from `refactor` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 19:21
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-28 19:21
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
