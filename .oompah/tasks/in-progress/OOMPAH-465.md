@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:19:57.356666Z'
+updated_at: '2026-07-28T19:20:50.842469Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -156,5 +156,33 @@ author: oompah
 created: 2026-07-28 19:19
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-28 19:20
+---
+Understanding: Technical Writer phase for OOMPAH-465 (Terminal-Transition Staging & Audit Chains).
+
+Scope:
+- Create comprehensive design/architecture documentation for TerminalTransitionCoordinator
+- Document idempotent staging, coalescing, and audit-chain coordination
+- Explain integration with existing In Validation status, terminal audit records, and metadata persistence
+
+Prerequisites satisfied:
+- OOMPAH-461: In Validation status (statuses.py)
+- OOMPAH-462: Terminal audit records (terminal_audit.py)
+- OOMPAH-463: Metadata persistence (evidenced by tracker/metadata storage)
+- OOMPAH-464: Grandfather recovery baseline
+
+Key components to document:
+1. TerminalTransitionCoordinator architecture and interface
+2. Request staging and persistence model
+3. Coalescing and superseding logic
+4. Terminal state chains (Done → Merged, Archived rules)
+5. Per-project locking strategy
+6. Comment deduplication
+7. Recovery and restart semantics
+8. Testing requirements
+
+Approach: Create design doc in plans/ that serves as implementation spec, then hand off to feature agent for implementation.
 ---
 <!-- COMMENTS:END -->

@@ -13,7 +13,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:20:38.779329Z'
+updated_at: '2026-07-28T19:20:46.070369Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -279,5 +279,10 @@ author: oompah
 created: 2026-07-28 19:20
 ---
 Implementation: Extracted inline ASGI dispatch from build_mcp_gateway into standalone _dispatch_api_call(api_app, method, path, *, params, body) in oompah/mcp_gateway.py. This preparatory refactoring: (1) makes the dispatch independently testable - 5 new unit tests added and passing; (2) creates a single extension point where the feature agent can inject an authenticated capability (e.g., a bypassed transport or sentinel-carrying scope) without forwarding Authorization headers; (3) all 74 tests pass. Committed 159e09110 and pushed to epic-OOMPAH-521.
+---
+author: oompah
+created: 2026-07-28 19:20
+---
+Verification: .venv/bin/pytest -q tests/test_mcp_gateway.py tests/test_server_auth.py → 74 passed (69 original + 5 new _dispatch_api_call unit tests). No regressions.
 ---
 <!-- COMMENTS:END -->
