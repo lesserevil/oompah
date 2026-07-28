@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-07-28T21:43:09.204536Z'
+updated_at: '2026-07-28T21:43:11.552641Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-07-28 21:43
 ---
 Implemented and pushed in 7a2e467fb: per-tick spare-capacity selection, implementation-first ordering, configurable cap, forced duplicate-detector focus, pause/budget/dependency/shared-epic gates, deterministic ordering, and metrics. Scheduler regressions pass.
+---
+author: oompah
+created: 2026-07-28 21:43
+---
+Spare-capacity duplicate-preflight scheduling implemented and pushed in 7a2e467fb.
 ---
 <!-- COMMENTS:END -->

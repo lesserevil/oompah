@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-533
 type: task
-status: Backlog
+status: In Progress
 priority: 3
 title: Expose duplicate-screening state in the API and dashboard
 parent: OOMPAH-528
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:45.110386Z'
-updated_at: '2026-07-28T21:20:17.606776Z'
+updated_at: '2026-07-28T21:43:13.848064Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,3 +56,11 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 21:43
+---
+Claimed by the current interactive Codex session before OOMPAH-532 completion. API/dashboard work is underway on epic-OOMPAH-528; do not dispatch another agent.
+---
+<!-- COMMENTS:END -->
