@@ -1,16 +1,18 @@
 ---
 id: OOMPAH-456
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Make state-branch activation atomic and forge-aware for GitLab projects
 parent: OOMPAH-451
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:00:03.464829Z'
+updated_at: '2026-07-28T14:00:28.636380Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -56,5 +58,10 @@ author: oompah
 created: 2026-07-28 14:00
 ---
 Discovery: Duplicate screening complete — OOMPAH-456 is NOT a duplicate.\n\nSearched all .oompah/tasks/ directories, docs/, and plans/ using keywords: state_branch, gitlab, forge_kind, GITHUB_TOKEN, atomic, preflight, dry-run, intake-alias, nodevirt, proj-bbba976d, forge-aware, forge-neutral, credential, activation, projects.html, PATCH boolean.\n\nClosest candidates reviewed (all confirmed distinct):\n\n1. OOMPAH-255 (Archived): Added state_branch_enabled as a plain PATCH checkbox to projects.html — this is the root-cause implementation that OOMPAH-456 identifies as a bug. OOMPAH-255 was intentionally building the checkbox; OOMPAH-456 is describing the bug that results.\n\n2. OOMPAH-259 (Archived): Implemented migration workflow for existing projects including validate_state_branch() with push-access preflight. Did NOT implement GitLab forge-aware credentials for git push, and did NOT make the projects.html UI route through this workflow instead of a raw PATCH.\n\n3. OOMPAH-258 (Archived): Bootstrap for new projects (initialize_state_branch). No GitLab credential handling.\n\n4. OOMPAH-282 (Backlog): Stage A migration failed with UnicodeEncodeError — different bug (encoding, not auth or atomicity).\n\n5. OOMPAH-6 (Archived): Auth error surfacing for GitHub intake bridge — different forge, different feature area.\n\nKey evidence: docs/state-branch-migration.md line 80 contains 'The GitHub token in .env does not have write access to the repository. Update GITHUB_TOKEN and restart.' — confirming the GitHub-specific diagnostic message that OOMPAH-456 identifies as the bug for GitLab projects.\n\nConclusion: OOMPAH-456 is a unique bug combining three new problems not covered by any prior task: (1) UI activation bypasses migration workflow via plain PATCH; (2) git push --dry-run in preflight doesn't use the GitLab project access token; (3) diagnostics incorrectly mention GITHUB_TOKEN for GitLab projects.
+---
+author: oompah
+created: 2026-07-28 14:00
+---
+Focus handoff: duplicate_detector\n\n1. **Outcome**: OOMPAH-456 is NOT a duplicate. Full search of all task states, docs/, and plans/ confirms this is a new, unique bug report.\n\n2. **Evidence and key files**:\n   - docs/state-branch-migration.md: Contains GitHub-specific GITHUB_TOKEN diagnostic that is wrong for GitLab projects (line ~80)\n   - oompah/templates/projects.html: Has state_branch_enabled as a plain PATCH boolean checkbox (from OOMPAH-255)\n   - oompah/state_branch_migration.py: Has validate_state_branch() and migrate_stage_a/b/c() implemented by OOMPAH-259, but no forge-aware git credentials\n   - oompah/project_bootstrap/__init__.py: Has initialize_state_branch() from OOMPAH-258, also without GitLab credential support\n   - oompah/server.py: PATCH handler for projects treats state_branch_enabled as a plain config update\n   - plans/gitlab-forge-parity.md: GitLab forge parity design doc (state-branch push access mentioned)\n   - docs/project-bootstrap.md: Lists state_branch_push preflight check (line 377 mentions 'Developer access level' — a GitLab concept)\n\n3. **Remaining work**:\n   a. Route projects.html state_branch_enabled UI toggle through the migration/bootstrap workflow (not a naked PATCH)\n   b. Inject forge-aware noninteractive git credentials (derived from project access_token, not embedded in URL or logs) for git push/dry-run operations in state_branch_migration.py and project_bootstrap/__init__.py\n   c. Update all validation and remediation messages to be forge-neutral (no GITHUB_TOKEN references for GitLab projects)\n   d. Make activation atomic: verify remote commit and task layout before flipping state_branch_enabled=true\n   e. Tests: GitLab native-Markdown project with only main, auth and push failure rollback, forge-neutral diagnostics\n\n4. **Recommended next focus**: feature (backend implementation: forge-aware git credentials + atomic activation + forge-neutral error messages + UI routing through migration workflow)
 ---
 <!-- COMMENTS:END -->
