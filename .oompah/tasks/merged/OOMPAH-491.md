@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-491
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Block network Git remotes during pytest sessions
 parent: OOMPAH-490
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-07-28T14:56:43.013911Z'
+updated_at: '2026-07-28T17:06:59.120870Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null

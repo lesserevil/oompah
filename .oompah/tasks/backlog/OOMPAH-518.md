@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:06:49.891505Z'
-updated_at: '2026-07-28T17:06:49.891505Z'
+updated_at: '2026-07-28T17:06:57.456916Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ Implementation scope: Fix the graceful restart shutdown path introduced under OO
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 17:06
+---
+Claimed for this session on epic-OOMPAH-502. Live reproduction is in oompah.log at 17:04:38 UTC: _drain_background_work raised 'Future attached to a different loop' after Uvicorn shutdown, preventing os.execv. I will keep this Backlog while implementing manually to avoid duplicate dispatch.
+---
+<!-- COMMENTS:END -->
