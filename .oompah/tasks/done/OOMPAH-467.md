@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T20:31:07.345452Z'
+updated_at: '2026-07-28T20:31:20.584800Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -420,5 +420,20 @@ author: oompah
 created: 2026-07-28 20:31
 ---
 Completion: explicit authorized terminal-audit overrides are implemented and present on pushed epic-OOMPAH-457 (commits cbbe8d39b and a5699d6fc). The coordinator requires existing status authorization plus independent project-owner authorization, a terminal target, evidence fingerprint, and non-blank reason; it durably records and redacts the reason, posts the explanatory comment before status application, and returns typed result/rejection codes. Focused verification is green and the branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-07-28 20:31
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 49
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 33s
+- Log: OOMPAH-467__20260728T202847Z.jsonl
+---
+author: oompah
+created: 2026-07-28 20:31
+---
+Implemented and verified explicit authorized owner overrides for terminal audits; pushed on epic-OOMPAH-457.
 ---
 <!-- COMMENTS:END -->
