@@ -427,6 +427,24 @@ async def _lifespan(app: "FastAPI"):
 # HTTP Basic authentication middleware (OOMPAH-523)
 # ---------------------------------------------------------------------------
 
+# These object identities are capabilities, not HTTP-visible markers.  The
+# first records a Basic-authenticated request to the mounted MCP transport;
+# the second marks its one in-process API dispatch.  An external client cannot
+# reproduce either by sending headers, selecting a Host, or choosing a path.
+_MCP_AUTHENTICATED_SCOPE_CAPABILITY = object()
+_MCP_INTERNAL_DISPATCH_CAPABILITY = object()
+
+
+def _mcp_authentication_enabled() -> bool:
+    """Return whether the current server configuration requires Basic auth."""
+    return _http_credentials is not None and _http_credentials.enabled
+
+
+def _is_mcp_transport_scope(scope) -> bool:  # noqa: ANN001
+    """Return whether an HTTP ASGI scope targets the mounted MCP transport."""
+    path = scope.get("path", "")
+    return path == MCP_ENDPOINT_PATH or path.startswith(f"{MCP_ENDPOINT_PATH}/")
+
 class _BasicAuthMiddleware:
     """Raw ASGI middleware enforcing HTTP Basic authentication.
 
@@ -473,6 +491,16 @@ class _BasicAuthMiddleware:
             return
 
         if scope_type == "http":
+            # The gateway's private in-process dispatcher is the only code
+            # that can attach this object identity.  Never infer it from an
+            # inbound header, Host, method, or path.
+            if (
+                scope.get(_MCP_INTERNAL_DISPATCH_CAPABILITY)
+                is _MCP_INTERNAL_DISPATCH_CAPABILITY
+            ):
+                await self._app(self._redact_scope(scope), receive, send)
+                return
+
             method = scope.get("method", "").upper()
             # Use the raw path for exemptions when the server supplies it.
             # ``scope['path']`` is percent-decoded by ASGI servers, so using
@@ -497,7 +525,16 @@ class _BasicAuthMiddleware:
 
             # Check Authorization header.
             if self._verify_scope(scope, creds):
-                await self._app(self._redact_scope(scope), receive, send)
+                authenticated_scope = self._redact_scope(scope)
+                if _is_mcp_transport_scope(scope):
+                    # Preserve authentication provenance for this request
+                    # only.  The key/value identity is server-private and is
+                    # deliberately absent from logs and HTTP headers.
+                    authenticated_scope = dict(authenticated_scope)
+                    authenticated_scope[_MCP_AUTHENTICATED_SCOPE_CAPABILITY] = (
+                        _MCP_AUTHENTICATED_SCOPE_CAPABILITY
+                    )
+                await self._app(authenticated_scope, receive, send)
                 return
 
             # Deny with 401 Basic challenge — no credential disclosure.
@@ -14528,10 +14565,17 @@ def _esc(s: str) -> str:
 # not explicitly approve.
 @app.get(MCP_DISCOVERY_PATH, include_in_schema=False)
 async def mcp_discovery() -> JSONResponse:
-    """Return credential-free discovery metadata for the embedded MCP server."""
-    return JSONResponse(discovery_document())
+    """Return discovery metadata for the embedded MCP server."""
+    return JSONResponse(
+        discovery_document(authentication_enabled=_mcp_authentication_enabled())
+    )
 
 
-_mcp_gateway = build_mcp_gateway(app)
+_mcp_gateway = build_mcp_gateway(
+    app,
+    mcp_authentication_capability=_MCP_AUTHENTICATED_SCOPE_CAPABILITY,
+    internal_dispatch_capability=_MCP_INTERNAL_DISPATCH_CAPABILITY,
+    authentication_enabled=_mcp_authentication_enabled,
+)
 _mcp_gateway_app = _mcp_gateway.streamable_http_app()
 app.mount(MCP_ENDPOINT_PATH, _mcp_gateway_app)

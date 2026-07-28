@@ -16,7 +16,7 @@ from urllib.parse import quote
 
 import httpx
 from fastapi import FastAPI
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from oompah.mcp_exposure_policy import (
@@ -28,6 +28,23 @@ from oompah.mcp_exposure_policy import (
 _PATH_PARAMETER_RE = re.compile(r"\{([^}:]+)(?::[^}]+)?\}")
 _TOOL_NAME_RE = re.compile(r"[^a-zA-Z0-9_]")
 _MCP_ALLOW_NETWORK_ENV = "OOMPAH_MCP_ALLOW_NETWORK"
+
+
+class _InternalMcpDispatch:
+    """Attach a server-private capability to one synthetic ASGI request.
+
+    The capability is an object used as both the scope key and value.  HTTP
+    clients can supply header strings, but cannot create this object identity.
+    """
+
+    def __init__(self, app: FastAPI, capability: object) -> None:
+        self._app = app
+        self._capability = capability
+
+    async def __call__(self, scope, receive, send) -> None:  # noqa: ANN001
+        internal_scope = dict(scope)
+        internal_scope[self._capability] = self._capability
+        await self._app(internal_scope, receive, send)
 
 
 def mcp_network_access_enabled() -> bool:
@@ -89,6 +106,7 @@ async def _dispatch_api_call(
     *,
     params: dict[str, Any] | None = None,
     body: dict[str, Any] | None = None,
+    internal_dispatch_capability: object | None = None,
 ) -> httpx.Response:
     """Send one request to *api_app* via its ASGI interface and return the raw response.
 
@@ -96,24 +114,55 @@ async def _dispatch_api_call(
     The synthetic ``base_url`` (``http://oompah.local``) never leaves the
     process.
 
-    This helper centralises the ASGI dispatch so that callers do not need to
-    manage the transport or client lifecycle.  The feature layer (OOMPAH-524)
-    will extend this path to propagate an authenticated-request capability
-    without forwarding ``Authorization`` headers.
+    ``internal_dispatch_capability`` is a server-private object identity used
+    only after an authenticated MCP tool invocation.  It is attached directly
+    to the synthetic ASGI scope, never serialised into a header or response.
     """
-    transport = httpx.ASGITransport(app=api_app)
+    dispatch_app = (
+        _InternalMcpDispatch(api_app, internal_dispatch_capability)
+        if internal_dispatch_capability is not None
+        else api_app
+    )
+    transport = httpx.ASGITransport(app=dispatch_app)
     async with httpx.AsyncClient(
         transport=transport, base_url="http://oompah.local"
     ) as client:
         return await client.request(method.upper(), path, params=params, json=body)
 
 
-def build_mcp_gateway(api_app: FastAPI) -> FastMCP:
+def _has_mcp_authentication_capability(
+    context: Context,
+    capability: object | None,
+) -> bool:
+    """Return whether *context* originated from a verified MCP HTTP request."""
+    if capability is None:
+        return False
+    try:
+        request = context.request_context.request
+        scope = getattr(request, "scope", None)
+    except ValueError:
+        return False
+    return isinstance(scope, dict) and scope.get(capability) is capability
+
+
+def build_mcp_gateway(
+    api_app: FastAPI,
+    *,
+    mcp_authentication_capability: object | None = None,
+    internal_dispatch_capability: object | None = None,
+    authentication_enabled: Callable[[], bool] | None = None,
+) -> FastMCP:
     """Build the MCP server from allowed operations in ``api_app.openapi()``.
 
     Requests are dispatched through FastAPI's ASGI interface rather than an
     externally supplied URL.  This is the same local service boundary, does
     not propagate client credentials, and works for both uvicorn and tests.
+
+    When Basic authentication is active, the caller supplies two distinct
+    private object identities.  The first must be present on the source MCP
+    request before a tool can make an API call; the second marks only the
+    resulting in-process ASGI dispatch.  Neither capability is representable
+    by an HTTP header or MCP tool argument.
     """
     gateway = FastMCP(
         "oompah",
@@ -129,6 +178,7 @@ def build_mcp_gateway(api_app: FastAPI) -> FastMCP:
     )
     schema = api_app.openapi()
     names: set[str] = set()
+    is_authentication_enabled = authentication_enabled or (lambda: False)
 
     for path, path_item in schema.get("paths", {}).items():
         for method, operation in path_item.items():
@@ -154,7 +204,22 @@ def build_mcp_gateway(api_app: FastAPI) -> FastMCP:
                     path_params: dict[str, Any] | None = None,
                     query: dict[str, Any] | None = None,
                     body: dict[str, Any] | None = None,
+                    context: Context | None = None,
                 ) -> dict[str, Any]:
+                    dispatch_capability: object | None = None
+                    if is_authentication_enabled():
+                        if (
+                            context is None
+                            or internal_dispatch_capability is None
+                            or not _has_mcp_authentication_capability(
+                                context, mcp_authentication_capability
+                            )
+                        ):
+                            # The public transport normally rejects this
+                            # request first.  Keep the tool fail-closed if it
+                            # is ever invoked without that transport context.
+                            return {"status_code": 401, "body": "Unauthorized"}
+                        dispatch_capability = internal_dispatch_capability
                     rendered_path = _render_path(request_path, path_params or {})
                     response = await _dispatch_api_call(
                         api_app,
@@ -162,6 +227,7 @@ def build_mcp_gateway(api_app: FastAPI) -> FastMCP:
                         rendered_path,
                         params=query,
                         body=body,
+                        internal_dispatch_capability=dispatch_capability,
                     )
                     return _response_payload(response)
 
@@ -172,13 +238,17 @@ def build_mcp_gateway(api_app: FastAPI) -> FastMCP:
     return gateway
 
 
-def discovery_document() -> dict[str, Any]:
-    """Return static, credential-free MCP discovery metadata."""
+def discovery_document(*, authentication_enabled: bool = False) -> dict[str, Any]:
+    """Return MCP discovery metadata for the effective authentication mode."""
     return {
         "name": "oompah",
         "version": "v1",
         "transport": "streamable-http",
         "mcp_endpoint": MCP_ENDPOINT_PATH,
         "discovery_path": MCP_DISCOVERY_PATH,
-        "authentication": "none; local service access only",
+        "authentication": (
+            "http-basic"
+            if authentication_enabled
+            else "none; local service access only"
+        ),
     }
