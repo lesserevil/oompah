@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T15:46:51.755268Z'
+updated_at: '2026-07-28T15:47:51.678456Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -137,5 +137,10 @@ author: oompah
 created: 2026-07-28 15:46
 ---
 Discovery: baseline collection is 322 cases across the obsolete module plus five surviving suites. The design module contributes 22 cases and TestXfailDesignContractNowPasses contributes 2, so the expected post-cleanup count is 298. All real contracts survive through production APIs: Project defaults/naming in test_state_branch_project_config.py; orphan/layout/seeding/push in test_project_bootstrap_state_branch.py; routing/isolation/failures in test_oompah_md_tracker_state_branch.py; migration/rollback/release isolation/malformed and duplicate validation in test_state_branch_e2e.py; and debounce/max-delay correction/retries in test_checkpoint_coalescing.py. No new coverage is needed. The tracker suite still has obsolete conditional xfail scaffolding with a 'not yet implemented' reason; I will remove that scaffolding while retaining every test body.
+---
+author: oompah
+created: 2026-07-28 15:47
+---
+Implementation: removed tests/test_state_branch_design.py and the duplicate TestXfailDesignContractNowPasses class. Also retired obsolete state-branch feature-detection/conditional-xfail scaffolding in test_oompah_md_tracker_state_branch.py while preserving all test bodies, so implemented routing regressions now fail normally and no stale 'not implemented' xfail reason remains. No replacement tests were needed because every production contract is already exercised by the five surviving suites.
 ---
 <!-- COMMENTS:END -->
