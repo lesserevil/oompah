@@ -11,11 +11,11 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:16:15.374720Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-28T14:16:24.070153Z'
+work_branch: OOMPAH-501
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/559
+review_number: '559'
 merged_at: null
 oompah.agent_run_id: 56f74aa3-2471-493d-8764-12e98a7b1b4a
 oompah.task_costs:
@@ -34,6 +34,10 @@ oompah.task_costs:
     output_tokens: 780
     cost_usd: 0.0
     recorded_at: '2026-07-28T14:12:12.383224+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/559
+oompah.review_number: '559'
+oompah.work_branch: OOMPAH-501
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -157,5 +161,10 @@ Fix: Add a skip rule in check_close_gate() for issues with parent_id set (shared
 The _ensure_review_exists() already correctly skips per-child PR creation when parent_id is set. The _open_epic_main_prs() already has _epic_rollup_children_block_reason() that blocks rollup PR creation until all children are terminal. Only the close gate is missing this check.
 
 Implementing now: 1) Add shared_epic_child skip rule in check_close_gate(), 2) Add regression tests for the OOMPAH-452 scenario, 3) Add tests for rollup readiness guard.
+---
+author: oompah
+created: 2026-07-28 14:16
+---
+Implementation complete and pushed in commit 6bfb20898. PR #559: https://github.com/lesserevil/oompah/pull/559. Shared child closes now bypass standalone review requirements, and the epic rollup creator refreshes canonical child state plus landing evidence immediately before create_review. Regression coverage includes OOMPAH-452/PR #558, a child reopening during branch preparation, and nested epics requiring Merged. Verification: focused suite 240 passed; GitLab readiness 47 passed; make test 12,344 passed, 7 skipped; make check-secrets passed; git diff --check passed.
 ---
 <!-- COMMENTS:END -->
