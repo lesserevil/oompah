@@ -1531,18 +1531,176 @@ class TestGitLabHookManager:
     async def test_missing_or_non_https_public_url_does_not_call_gitlab(self):
         project = self._project()
         client = _FakeGitLabClient([])
-        manager = GitLabHookManager(_FakeProjectStore([project]), http_client=client)
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            server_port=None,
+            http_client=client,
+        )
         await manager.reconcile()
         assert client.calls == []
         assert manager.status["configured"] is False
-        assert "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL" in manager.status["detail"]
+        assert "OOMPAH_SERVER_PORT" in manager.status["detail"]
 
         manager = GitLabHookManager(
-            _FakeProjectStore([project]), public_url="http://oompah.example.com", http_client=client,
+            _FakeProjectStore([project]),
+            public_url="http://oompah.example.com",
+            server_port=8080,
+            http_client=client,
         )
         await manager.reconcile()
         assert client.calls == []
         assert "HTTPS" in manager.status["detail"]
+
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            public_url="https://operator:secret@oompah.example.com",
+            server_port=8080,
+            http_client=client,
+        )
+        await manager.reconcile()
+        assert client.calls == []
+        assert manager.status["configured"] is False
+        assert manager.status["webhook_url"] == ""
+        assert "operator" not in str(manager.status)
+        assert "secret" not in str(manager.status)
+
+    @pytest.mark.asyncio
+    async def test_missing_public_url_derives_callback_from_gitlab_route(self):
+        project = self._project()
+        client = _FakeGitLabClient([(200, []), (201, {"id": 12})])
+        resolver = MagicMock(return_value="10.42.0.7")
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            server_port=8090,
+            http_client=client,
+            route_resolver=resolver,
+        )
+
+        await manager.reconcile()
+
+        callback = "http://10.42.0.7:8090/api/v1/webhooks/gitlab"
+        assert client.calls[1][2]["json"]["url"] == callback
+        assert manager.status["configured"] is True
+        assert manager.status["webhook_url"] == callback
+        project_status = manager.status["projects"][project.id]
+        assert project_status["webhook_url"] == callback
+        assert project_status["webhook_url_source"] == "route"
+        assert project_status["healthy"] is True
+        resolver.assert_called_once_with("gitlab.example.com", 443)
+
+    @pytest.mark.asyncio
+    async def test_route_failure_degrades_project_to_polling_without_api_call(self):
+        project = self._project()
+        client = _FakeGitLabClient([])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            server_port=8090,
+            http_client=client,
+            route_resolver=MagicMock(side_effect=OSError("no route to host")),
+        )
+
+        await manager.reconcile()
+
+        assert client.calls == []
+        project_status = manager.status["projects"][project.id]
+        assert project_status["configured"] is False
+        assert project_status["healthy"] is False
+        assert "no route to host" in project_status["last_error"]
+
+    @pytest.mark.asyncio
+    async def test_multiple_projects_use_their_own_route_selected_addresses(self):
+        project_a = self._project(project_id="gitlab-a")
+        project_a.forge_base_url = "https://gitlab-a.internal"
+        project_b = self._project(project_id="gitlab-b")
+        project_b.forge_base_url = "https://gitlab-b.internal:8443"
+        addresses = {
+            "gitlab-a.internal": "10.1.0.5",
+            "gitlab-b.internal": "192.168.40.5",
+        }
+        resolver = MagicMock(
+            side_effect=lambda host, _port: addresses[host]
+        )
+        client = _FakeGitLabClient(
+            [(200, []), (201, {"id": 1}), (200, []), (201, {"id": 2})]
+        )
+        manager = GitLabHookManager(
+            _FakeProjectStore([project_a, project_b]),
+            server_port=8080,
+            http_client=client,
+            route_resolver=resolver,
+        )
+
+        await manager.reconcile()
+
+        posts = [call for call in client.calls if call[0] == "POST"]
+        assert posts[0][2]["json"]["url"].startswith("http://10.1.0.5:8080/")
+        assert posts[1][2]["json"]["url"].startswith(
+            "http://192.168.40.5:8080/"
+        )
+        assert resolver.call_args_list[0].args == ("gitlab-a.internal", 443)
+        assert resolver.call_args_list[1].args == ("gitlab-b.internal", 8443)
+
+    @pytest.mark.asyncio
+    async def test_route_change_updates_the_previously_managed_hook(self):
+        project = self._project()
+        old_url = "http://10.42.0.7:8090/api/v1/webhooks/gitlab"
+        new_url = "http://10.43.0.7:8090/api/v1/webhooks/gitlab"
+        client = _FakeGitLabClient(
+            [
+                (200, []),
+                (201, {"id": 12}),
+                (200, [{"id": 12, "url": old_url}]),
+                (200, {"id": 12}),
+            ]
+        )
+        resolver = MagicMock(side_effect=["10.42.0.7", "10.43.0.7"])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            server_port=8090,
+            http_client=client,
+            route_resolver=resolver,
+        )
+
+        await manager.reconcile()
+        await manager.reconcile()
+
+        assert [call[0] for call in client.calls] == [
+            "GET",
+            "POST",
+            "GET",
+            "PUT",
+        ]
+        assert client.calls[-1][1].endswith("/hooks/12")
+        assert client.calls[-1][2]["json"]["url"] == new_url
+        assert manager.status["projects"][project.id]["webhook_url"] == new_url
+
+    @pytest.mark.asyncio
+    async def test_remove_deletes_route_derived_hook_only(self):
+        project = self._project()
+        target = "http://10.42.0.7:8090/api/v1/webhooks/gitlab"
+        client = _FakeGitLabClient(
+            [
+                (
+                    200,
+                    [
+                        {"id": 3, "url": target},
+                        {"id": 9, "url": "https://other.example/hook"},
+                    ],
+                ),
+                (204, None),
+            ]
+        )
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            server_port=8090,
+            http_client=client,
+            route_resolver=MagicMock(return_value="10.42.0.7"),
+        )
+
+        await manager.remove(project)
+
+        assert [call[0] for call in client.calls] == ["GET", "DELETE"]
+        assert client.calls[1][1].endswith("/hooks/3")
 
     @pytest.mark.asyncio
     async def test_missing_project_credentials_degrades_without_api_retry(self):

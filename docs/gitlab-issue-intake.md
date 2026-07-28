@@ -39,9 +39,11 @@ Before enabling GitLab intake on a project:
    project-level permissions for self-managed GitLab. Store it as the project's
    `access_token` or set the `GITLAB_TOKEN` environment variable.
 
-2. **Public HTTPS webhook URL** — GitLab delivers webhooks to an HTTPS endpoint
-   that it can reach. Set `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` in `.env` to the
-   base URL oompah listens on publicly.
+2. **Reachable webhook callback** — by default, Oompah registers the local IP
+   selected by the OS route to the configured GitLab server, together with
+   `OOMPAH_SERVER_PORT`. Set `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` to a public
+   HTTPS base URL when using TLS, a reverse proxy, NAT, a tunnel, or a GitLab
+   server that cannot reach the route-selected private address.
 
 3. **Webhook secret** — set a high-entropy random secret on the project
    (`webhook_secret`) and keep it out of source control and logs. Oompah uses
@@ -212,15 +214,17 @@ logs a warning and falls back to polling.
 ### Verify the webhook
 
 1. In GitLab, go to **[your project] → Settings → Webhooks**.
-2. Confirm a hook pointing at `<OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL>/api/v1/webhooks/gitlab`
-   appears in the list.
+2. Confirm a hook pointing at the effective URL shown by Oompah's GitLab hook
+   status appears in the list. It is either the explicit
+   `<OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL>/api/v1/webhooks/gitlab` URL or a
+   route-derived `http://<local-IP>:<port>/api/v1/webhooks/gitlab` URL.
 3. Use the **Test** button to send a test event and confirm a 200 response.
 
 ### Webhook troubleshooting
 
 | Symptom | Check | Fix |
 |---------|-------|-----|
-| No native task created after filing a GitLab issue | Hook missing in GitLab | Check that `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` is set and reachable; re-save the project to trigger hook reconciliation |
+| No native task created after filing a GitLab issue | Hook missing in GitLab | Check the effective callback in GitLab hook status; verify the route-selected address is reachable or set `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL`, then re-save the project |
 | 401 on webhook delivery | Wrong secret | Confirm `webhook_secret` matches the token in the GitLab hook settings |
 | Tasks created but comments not imported | Note events not subscribed | Delete and re-save the webhook from the oompah project settings |
 | Hook health shows degraded in dashboard | Delivery failures | Check GitLab's hook recent deliveries log for specific errors |

@@ -45,6 +45,12 @@ from typing import Any
 
 import httpx
 
+from oompah.gitlab_webhook_url import (
+    GitLabWebhookURLResolution,
+    RouteSourceResolver,
+    resolve_gitlab_webhook_url,
+    route_source_address,
+)
 from oompah.scm import extract_repo_slug
 
 logger = logging.getLogger(__name__)
@@ -1052,6 +1058,8 @@ class _GitLabHookState:
     configured: bool = False
     healthy: bool = False
     last_error: str = ""
+    webhook_url: str = ""
+    webhook_url_source: str = ""
 
 
 class GitLabHookManager:
@@ -1068,14 +1076,18 @@ class GitLabHookManager:
         self,
         project_store: Any = None,
         public_url: str | None = None,
+        server_port: int | str | None = None,
         poll_interval_s: float = _GITLAB_HOOK_POLL_INTERVAL_S,
         http_client: Any = None,
+        route_resolver: RouteSourceResolver = route_source_address,
     ) -> None:
         self.project_store = project_store
         self._public_url = (public_url or "").strip().rstrip("/")
         self._webhook_url = (
             f"{self._public_url}/api/v1/webhooks/gitlab" if self._public_url else ""
         )
+        self._server_port = server_port
+        self._route_resolver = route_resolver
         self._poll_interval_s = poll_interval_s
         self._http_client = http_client
         self._states: dict[str, _GitLabHookState] = {}
@@ -1094,11 +1106,20 @@ class GitLabHookManager:
     @property
     def status(self) -> dict[str, Any]:
         error = self._configuration_error()
+        project_urls = {
+            state.webhook_url for state in self._states.values() if state.webhook_url
+        }
+        # Invalid explicit URLs may contain malformed or sensitive userinfo.
+        # Never echo them through the status endpoint.
+        webhook_url = self._webhook_url if not error else ""
+        if not webhook_url and len(project_urls) == 1:
+            webhook_url = next(iter(project_urls))
         return {
             "running": self.is_running,
             "configured": not bool(error),
             "detail": error,
-            "webhook_url": self._webhook_url,
+            "webhook_url": webhook_url,
+            "webhook_url_source": "explicit" if self._public_url else "route",
             "projects": {
                 pid: {
                     "name": state.project_name,
@@ -1106,17 +1127,31 @@ class GitLabHookManager:
                     "configured": state.configured,
                     "healthy": state.healthy,
                     "last_error": state.last_error,
+                    "webhook_url": state.webhook_url,
+                    "webhook_url_source": state.webhook_url_source,
                 }
                 for pid, state in self._states.items()
             },
         }
 
     def _configuration_error(self) -> str:
-        if not self._public_url:
-            return "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL is not configured"
-        parsed = urllib.parse.urlparse(self._public_url)
-        if parsed.scheme != "https" or not parsed.netloc:
-            return "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL must be a public HTTPS base URL"
+        if self._public_url:
+            resolution = resolve_gitlab_webhook_url(
+                forge_url="https://gitlab.invalid",
+                explicit_public_url=self._public_url,
+                server_port=self._server_port,
+                route_resolver=self._route_resolver,
+            )
+            return resolution.error
+        try:
+            port = int(str(self._server_port).strip())
+        except (TypeError, ValueError):
+            port = 0
+        if not 1 <= port <= 65535:
+            return (
+                "GitLab webhook route fallback requires an active "
+                "OOMPAH_SERVER_PORT"
+            )
         return ""
 
     async def start(self) -> None:
@@ -1188,6 +1223,24 @@ class GitLabHookManager:
             return f"https://{repo_url.split('@', 1)[1].split(':', 1)[0]}/api/v4"
         return "https://gitlab.com/api/v4"
 
+    @staticmethod
+    def _project_forge_url(project: Any) -> str:
+        base = str(getattr(project, "forge_base_url", "") or "").strip()
+        if base:
+            return base
+        return str(getattr(project, "repo_url", "") or "").strip()
+
+    def _resolve_project_webhook_url(
+        self,
+        project: Any,
+    ) -> GitLabWebhookURLResolution:
+        return resolve_gitlab_webhook_url(
+            forge_url=self._project_forge_url(project),
+            explicit_public_url=self._public_url,
+            server_port=self._server_port,
+            route_resolver=self._route_resolver,
+        )
+
     def _headers(self, project: Any) -> dict[str, str]:
         token = str(getattr(project, "access_token", "") or "").strip()
         return {"PRIVATE-TOKEN": token} if token else {}
@@ -1245,12 +1298,21 @@ class GitLabHookManager:
             _GitLabHookState(project_id=project_id, project_name=str(project.name)),
         )
         state.project_name = str(project.name)
+        resolution = self._resolve_project_webhook_url(project)
+        state.webhook_url = resolution.url
+        state.webhook_url_source = resolution.source
+        if not resolution.ok:
+            state.configured = False
+            state.healthy = False
+            state.last_error = resolution.error
+            return
         configuration_error = self._project_configuration_error(project)
         if configuration_error:
             state.configured = False
             state.healthy = False
             state.last_error = configuration_error
             return
+
         state.configured = True
         slug = self._project_slug(project)
         if not slug:
@@ -1263,18 +1325,29 @@ class GitLabHookManager:
             response = await self._request("GET", project, path)
             response.raise_for_status()
             hooks = response.json()
-            matching = [hook for hook in hooks if hook.get("url") == self._webhook_url]
-            payload = {"url": self._webhook_url, **_GITLAB_HOOK_EVENT_FLAGS}
+            matching = [hook for hook in hooks if hook.get("url") == resolution.url]
+            owned = next(
+                (
+                    hook
+                    for hook in hooks
+                    if state.hook_id is not None
+                    and int(hook.get("id", -1)) == state.hook_id
+                ),
+                None,
+            )
+            primary = owned or (matching[0] if matching else None)
+            payload = {"url": resolution.url, **_GITLAB_HOOK_EVENT_FLAGS}
             secret = str(getattr(project, "webhook_secret", "") or "")
             if secret:
                 payload["token"] = secret
-            if matching:
-                hook = matching[0]
-                hook_id = int(hook["id"])
+            if primary:
+                hook_id = int(primary["id"])
                 update = await self._request("PUT", project, f"{path}/{hook_id}", json=payload)
                 update.raise_for_status()
                 state.hook_id = hook_id
-                for duplicate in matching[1:]:
+                for duplicate in matching:
+                    if int(duplicate["id"]) == hook_id:
+                        continue
                     await self._request("DELETE", project, f"{path}/{int(duplicate['id'])}")
             else:
                 created = await self._request("POST", project, path, json=payload)
@@ -1289,24 +1362,37 @@ class GitLabHookManager:
 
     async def remove(self, project: Any) -> None:
         """Delete only this manager's hook from a GitLab project."""
-        if self._configuration_error():
-            return
         if not str(getattr(project, "access_token", "") or "").strip():
             return
         slug = self._project_slug(project)
         if not slug:
+            return
+        project_id = str(project.id)
+        state = self._states.get(project_id)
+        resolution = self._resolve_project_webhook_url(project)
+        managed_urls = {
+            url
+            for url in (
+                resolution.url,
+                state.webhook_url if state is not None else "",
+            )
+            if url
+        }
+        managed_hook_id = state.hook_id if state is not None else None
+        if not managed_urls and managed_hook_id is None:
             return
         path = f"/projects/{urllib.parse.quote(slug, safe='')}/hooks"
         try:
             response = await self._request("GET", project, path)
             response.raise_for_status()
             for hook in response.json():
-                if hook.get("url") == self._webhook_url:
+                hook_id = int(hook["id"])
+                if hook.get("url") in managed_urls or hook_id == managed_hook_id:
                     deleted = await self._request("DELETE", project, f"{path}/{int(hook['id'])}")
                     deleted.raise_for_status()
-            self._states.pop(str(project.id), None)
+            self._states.pop(project_id, None)
         except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
-            state = self._states.get(str(project.id))
+            state = self._states.get(project_id)
             if state:
                 state.healthy = False
                 state.last_error = _truncate_error_detail(str(exc))

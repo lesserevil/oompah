@@ -247,24 +247,36 @@ Or configure it via the dashboard: **Projects → Settings → Access Token**.
 > responses (`***`). Never include the raw token in logs, config files committed
 > to source control, or task comments.
 
-### Webhook configuration (public HTTPS endpoint required)
+### Webhook callback selection
 
-GitLab delivers webhook events directly to an HTTPS endpoint that must be
-publicly reachable from the GitLab instance. Unlike the GitHub integration
-(which uses `gh webhook forward` via a local process), the GitLab webhook
-endpoint is public.
+GitLab delivers webhook events directly to Oompah. Unlike the GitHub
+integration, no local forwarding process is involved.
 
-**Required:** Set `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` in `.env` to the base URL
-where oompah is reachable over HTTPS, for example:
+By default, Oompah resolves the configured GitLab server and asks the operating
+system which local source IP it would use to route there. It registers this
+per-project callback:
+
+```text
+http://<route-selected-local-IP>:<OOMPAH_SERVER_PORT>/api/v1/webhooks/gitlab
+```
+
+Route discovery selects an address without sending application data. It is
+especially useful when Oompah and a self-managed GitLab instance share a
+private network. If different GitLab servers use different routes, each
+project receives the corresponding callback address.
+
+Set `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` in `.env` to override automatic
+selection when using TLS termination, a reverse proxy, NAT, a tunnel, or a
+public GitLab instance:
 
 ```ini
 OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL=https://oompah.example.com
 ```
 
-GitLab will POST events to `<OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL>/api/v1/webhooks/gitlab`.
-
-**HTTPS is required** — GitLab rejects webhook endpoints that do not use HTTPS.
-If running locally during initial setup, expose oompah with a tunnel:
+Explicit overrides must be HTTPS base URLs and must not include the webhook
+path. GitLab will POST to
+`<OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL>/api/v1/webhooks/gitlab`. For a temporary
+public endpoint, expose Oompah with a tunnel:
 
 ```bash
 # Using ngrok:
@@ -275,10 +287,11 @@ ngrok http 8080
 cloudflare tunnel --url http://localhost:8080
 ```
 
-If no public URL is available, oompah falls back to polling for project
-activity. Set `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` to an empty string or leave it
-unset to run in polling-only mode. Polling introduces higher latency (up to
-`OOMPAH_POLL_INTERVAL_MS`, default 2 minutes).
+If route selection fails, the server port is disabled, GitLab blocks local
+network webhook targets, or the selected address is unreachable from GitLab,
+Oompah reports an actionable hook-health error and falls back to polling.
+Polling introduces higher latency (up to `OOMPAH_POLL_INTERVAL_MS`, default
+2 minutes).
 
 ### Webhook secret (security requirement)
 
@@ -296,9 +309,9 @@ curl -X PATCH http://localhost:8080/api/v1/projects/<project-id> \
   -d "{\"webhook_secret\": \"$SECRET\"}"
 ```
 
-The same secret value must be set in the GitLab project hook (oompah manages
-this automatically when `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` is configured and
-the token has Maintainer role).
+The same secret value must be set in the GitLab project hook. Oompah manages
+this automatically when callback resolution succeeds and the token has
+Maintainer role.
 
 ### Auto-merge semantics
 
@@ -375,7 +388,7 @@ The dry-run check validates:
 | `mr_access` | Token can read project merge requests |
 | `pipeline_read` | Token can read CI pipeline results |
 | `state_branch_push` | Token has Developer access level (push permission) |
-| `webhook_url` | `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` is a valid HTTPS URL |
+| `webhook_url` | Explicit HTTPS override or route-derived callback is valid |
 | `hook_create` | Token can list project hooks (Maintainer role) |
 | `polling_fallback` | Token can list branches (polling available as fallback) |
 
@@ -394,6 +407,8 @@ the remediation step. No state is modified in dry-run mode.
 - To force reconciliation: `make restart` or `POST /api/v1/orchestrator/restart`.
 - If the hook cannot be created (Maintainer role missing), configure it manually
   in GitLab → Settings → Webhooks with the URL and token shown in the dashboard.
+- If the route-derived address is wrong for GitLab, set
+  `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` to the externally reachable HTTPS base URL.
 
 **State branch push rejected:**
 - Check GitLab → Settings → Repository → Protected branches for a rule that
@@ -402,9 +417,11 @@ the remediation step. No state is modified in dry-run mode.
   for the `oompah/state/*` pattern.
 
 **Polling degraded (no webhooks):**
-- Set `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` in `.env` and restart.
-- Verify the URL is HTTPS and publicly reachable from the GitLab instance.
-- If running behind a firewall, set up a tunnel (ngrok, cloudflared, etc.).
+- Verify `OOMPAH_SERVER_PORT` is enabled and Oompah can route to the configured
+  GitLab host.
+- Verify GitLab can reach the route-derived callback shown in hook status.
+- For TLS, NAT, a firewall, or a public GitLab instance, set
+  `OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` and restart.
 
 ---
 

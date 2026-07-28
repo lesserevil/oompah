@@ -315,7 +315,7 @@ async function loadProjects() {
       </div>
       ${p.forge_kind === 'gitlab' ? `<div class="field-row" data-field="gitlab-webhook-endpoint">
         <span class="field-label">GL Hook URL:</span>
-        <span class="field-value" style="font-family:monospace;font-size:0.72rem;">/api/v1/webhooks/gitlab <em style="font-family:inherit;color:var(--text-muted);">(prefix with OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL)</em></span>
+        <span class="field-value" style="font-family:monospace;font-size:0.72rem;">/api/v1/webhooks/gitlab <em style="font-family:inherit;color:var(--text-muted);">(route-selected IP, or OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL override)</em></span>
       </div>` : ''}
       <div class="field-row">
         <span class="field-label">YOLO:</span>

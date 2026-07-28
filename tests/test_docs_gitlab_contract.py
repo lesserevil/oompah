@@ -69,16 +69,18 @@ class TestProjectBootstrapDocGitLab:
             "(merge-when-pipeline-succeeds)"
         )
 
-    def test_webhook_url_requirement_documented(self):
+    def test_webhook_url_override_documented(self):
         assert "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL" in self.text, (
             "docs/project-bootstrap.md must document the "
-            "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL configuration requirement"
+            "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL override"
         )
 
-    def test_webhook_https_requirement_documented(self):
-        # The webhook URL must require HTTPS — security contract
-        assert "https" in self.text.lower(), (
-            "docs/project-bootstrap.md must document that GitLab webhook URLs require HTTPS"
+    def test_route_selected_fallback_and_explicit_https_documented(self):
+        assert "route-selected" in self.text.lower(), (
+            "docs/project-bootstrap.md must document route-derived callbacks"
+        )
+        assert "explicit overrides must be https" in self.text.lower(), (
+            "docs/project-bootstrap.md must require HTTPS for explicit overrides"
         )
 
     def test_recovery_procedures_exist(self):
@@ -138,9 +140,12 @@ class TestGitLabIntakeDocContract:
             "docs/gitlab-issue-intake.md must document the webhook_secret requirement"
         )
 
-    def test_https_webhook_url_requirement(self):
+    def test_webhook_url_override_and_route_fallback(self):
         assert "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL" in self.text, (
             "docs/gitlab-issue-intake.md must document OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL"
+        )
+        assert "route-selected" in self.text.lower(), (
+            "docs/gitlab-issue-intake.md must document route-derived callbacks"
         )
 
     def test_webhook_fails_closed_without_secret(self):
