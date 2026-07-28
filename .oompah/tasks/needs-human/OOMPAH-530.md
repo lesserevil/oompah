@@ -13,7 +13,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-28T21:18:51.634942Z'
-updated_at: '2026-07-28T22:03:04.185842Z'
+updated_at: '2026-07-28T22:05:10.266945Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -326,5 +326,10 @@ author: oompah
 created: 2026-07-28 22:03
 ---
 The parent epic OOMPAH-528 merged from epic-OOMPAH-528, but this task was Done with work branch epic-OOMPAH-528. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-530 branch epic-OOMPAH-528 has 1 unlanded commit(s), including 92aa5e5c2410. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-28 22:05
+---
+The parent epic OOMPAH-528 merged from epic-OOMPAH-528, but this task was Needs Human with work branch epic-OOMPAH-528. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
