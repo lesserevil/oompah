@@ -818,8 +818,10 @@ def find_similar_issues(
 
     Args:
         issue:   The issue to evaluate.
-        candidates: Pool of other issues to compare against (may include
-                   closed, in_progress, and open issues from the same project).
+        candidates: Pool of other issues to compare against. Automatic
+                    duplicate detection passes only nonterminal issues; direct
+                    callers may use this state-agnostic scoring helper with any
+                    explicitly selected pool.
         min_score: Minimum similarity score to return (default 0.5).
 
     Returns:

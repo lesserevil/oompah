@@ -13488,13 +13488,11 @@ class Orchestrator:
     def _apply_duplicate_detection(self, candidates: list[Issue]) -> list[Issue]:
         """Run similarity-based duplicate detection on candidates (runs in thread pool).
 
-        For each candidate issue, scans against the project's open+closed issue pool.
+        For each candidate issue, scans against the project's active issue pool.
         When a high-similarity match (score >= _MIN_SCORE_TO_FLAG) is found:
 
-        * If the matching issue is OPEN → adds ``duplicate-candidate`` label and posts
-          a comment linking to the existing issue, so `_should_dispatch` will reject it.
-        * If the matching issue is CLOSED → adds ``needs:duplicate_detector`` label so
-          the ``duplicate_detector`` focus will be selected for agent investigation.
+        * Moves the candidate to ``Duplicate Candidate`` and posts a comment linking
+          to the existing active issue, so `_should_dispatch` will reject it.
 
         Also updates the in-memory candidate's ``labels`` list so that subsequent
         checks in this tick (like ``_should_dispatch``) see the new labels without
@@ -13528,9 +13526,6 @@ class Orchestrator:
                 limit,
             )
 
-        projects = self.project_store.list_all()
-        project_by_id: dict[str, Project] = {p.id: p for p in projects}
-
         # Group candidates by project so we can batch queries
         by_project: dict[str | None, list[Issue]] = {}
         for c in detection_candidates:
@@ -13543,19 +13538,25 @@ class Orchestrator:
                 else self.tracker
             )
             try:
-                # Fetch the full issue pool for this project (open + closed for comparison)
+                # Ask the tracker only for active issues. Filter the result too:
+                # some external trackers may return a broader state set than
+                # requested, and terminal work must never trigger duplicate
+                # detection.
                 all_pool = tracker.fetch_issues_by_states(
                     _dispatch_active_state_names(self.config.tracker_active_states)
-                    + list(self.config.tracker_terminal_states)
                 )
+                all_pool = [
+                    issue
+                    for issue in all_pool
+                    if not _is_terminal_state(
+                        issue.state, self.config.tracker_terminal_states
+                    )
+                ]
             except Exception:
                 logger.debug("Failed to fetch issue pool for duplicate detection on %s", project_id)
                 continue
 
             for candidate in proj_candidates:
-                # A completed duplicate-investigation focus is handed to a
-                # fresh agent. Do not rediscover the same closed match and
-                # route it back to that already-completed focus.
                 if "focus-complete:duplicate_detector" in {
                     label.lower() for label in (candidate.labels or [])
                 }:
@@ -13567,60 +13568,32 @@ class Orchestrator:
                     continue
 
                 for match_issue, score in similar:
-                    if not _is_terminal_state(
-                        match_issue.state, self.config.tracker_terminal_states
-                    ):
-                        # Match is OPEN — reject candidate as duplicate of existing open issue
-                        if "duplicate-candidate" not in (candidate.labels or []):
-                            try:
-                                tracker.update_issue(
-                                    candidate.identifier,
-                                    status=DUPLICATE_CANDIDATE,
-                                )
-                                # Update in-memory candidate so subsequent checks in this
-                                # tick (_should_dispatch) see the new label without a re-fetch.
-                                if candidate.labels is None:
-                                    candidate.labels = []
-                                candidate.state = DUPLICATE_CANDIDATE
-                                self._post_comment(
-                                    candidate.identifier,
-                                    f"Potential duplicate detected (similarity={score:.2f}): "
-                                    f"this issue appears similar to existing open issue "
-                                    f"{match_issue.identifier}.\n"
-                                    f"See {match_issue.identifier} for existing work.",
-                                    project_id=project_id,
-                                )
-                                logger.info(
-                                    "Duplicate detection: flagged %s as duplicate-candidate "
-                                    "(score=%.2f, matches %s)",
-                                    candidate.identifier, score, match_issue.identifier,
-                                )
-                            except Exception as exc:
-                                logger.debug(
-                                    "Failed to label/comment duplicate candidate %s: %s",
-                                    candidate.identifier, exc,
-                                )
-                        break  # only flag the highest-scoring match
-                    else:
-                        # Match is CLOSED — route to duplicate_detector focus
-                        if "needs:duplicate_detector" not in (candidate.labels or []):
-                            try:
-                                tracker.add_label(candidate.identifier, "needs:duplicate_detector")
-                                # Update in-memory candidate for same reason.
-                                if candidate.labels is None:
-                                    candidate.labels = []
-                                candidate.labels.append("needs:duplicate_detector")
-                                logger.info(
-                                    "Duplicate detection: added needs:duplicate_detector to %s "
-                                    "(score=%.2f, matches closed %s)",
-                                    candidate.identifier, score, match_issue.identifier,
-                                )
-                            except Exception as exc:
-                                logger.debug(
-                                    "Failed to add label for closed-match candidate %s: %s",
-                                    candidate.identifier, exc,
-                                )
-                        break  # only flag the highest-scoring match
+                    if "duplicate-candidate" not in (candidate.labels or []):
+                        try:
+                            tracker.update_issue(
+                                candidate.identifier,
+                                status=DUPLICATE_CANDIDATE,
+                            )
+                            candidate.state = DUPLICATE_CANDIDATE
+                            self._post_comment(
+                                candidate.identifier,
+                                f"Potential duplicate detected (similarity={score:.2f}): "
+                                f"this issue appears similar to existing active issue "
+                                f"{match_issue.identifier}.\n"
+                                f"See {match_issue.identifier} for existing work.",
+                                project_id=project_id,
+                            )
+                            logger.info(
+                                "Duplicate detection: flagged %s as duplicate-candidate "
+                                "(score=%.2f, matches %s)",
+                                candidate.identifier, score, match_issue.identifier,
+                            )
+                        except Exception as exc:
+                            logger.debug(
+                                "Failed to label/comment duplicate candidate %s: %s",
+                                candidate.identifier, exc,
+                            )
+                    break  # only flag the highest-scoring match
 
         self._last_duplicate_detection_metrics = {
             "candidate_count": len(candidates),

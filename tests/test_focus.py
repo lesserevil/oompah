@@ -1066,8 +1066,8 @@ class TestFindSimilarIssues:
         similar = find_similar_issues(base, candidates, min_score=0.8)
         assert len(similar) == 0
 
-    def test_includes_closed_issues(self):
-        """Closed candidate issues should be included in results."""
+    def test_scoring_helper_is_state_agnostic(self):
+        """Explicit callers control the pool passed to this pure helper."""
         base = _make_issue(identifier="x", title="rogers-connect", project_id="p", issue_type="bug")
         closed = _make_issue(identifier="closed-1", title="rogers-fix-already", project_id="p", issue_type="bug", state="closed")
         similar = find_similar_issues(base, [closed])

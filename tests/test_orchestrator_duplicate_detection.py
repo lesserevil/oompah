@@ -1,8 +1,8 @@
 """Integration tests for orchestrator duplicate detection (oompah-zlz_2-x6w3).
 
 Tests that find_similar_issues() is wired into the orchestrator dispatch flow:
-- Open-issue duplicates get rejected via Duplicate Candidate status
-- Closed-issue matches get needs:duplicate_detector label
+- Active-issue duplicates get rejected via Duplicate Candidate status
+- Terminal issues are excluded from automatic duplicate detection
 - _should_dispatch rejects duplicate-candidate labelled issues
 """
 
@@ -395,8 +395,8 @@ class TestFocusScopedIncompleteSessionLimit:
         comment_text = orch._post_comment.call_args[0][1]
         assert "duplicate" in comment_text.lower() or "similar" in comment_text.lower()
 
-    def test_detects_closed_match_and_labels_candidate(self, tmp_path, monkeypatch):
-        """When candidate matches closed issue by prefix, add needs:duplicate_detector label."""
+    def test_terminal_match_returned_by_tracker_is_ignored(self, tmp_path, monkeypatch):
+        """A tracker returning extra terminal records must not flag a candidate."""
         from oompah.orchestrator import Orchestrator
         from oompah.config import ServiceConfig
         from oompah.projects import ProjectStore
@@ -418,7 +418,6 @@ class TestFocusScopedIncompleteSessionLimit:
 
         mock_tracker = MagicMock()
 
-        # Closed issue — terminal state
         closed_issue = _make_issue(
             identifier="rogers-fixed",
             title="rogers-fixed issue",
@@ -440,10 +439,14 @@ class TestFocusScopedIncompleteSessionLimit:
         orch._tracker_for_project = lambda pid: mock_tracker
         orch._post_comment = MagicMock()
 
-        result = orch._apply_duplicate_detection([candidate])
+        orch._apply_duplicate_detection([candidate])
 
-        # Should have added needs:duplicate_detector label
-        mock_tracker.add_label.assert_called_with("rogers-new", "needs:duplicate_detector")
+        mock_tracker.fetch_issues_by_states.assert_called_once_with(
+            ["Open", "Needs CI Fix", "Needs Rebase"]
+        )
+        mock_tracker.update_issue.assert_not_called()
+        mock_tracker.add_label.assert_not_called()
+        orch._post_comment.assert_not_called()
 
     def test_no_duplicate_when_different_prefix(self, tmp_path, monkeypatch):
         """Issues with different prefixes should not trigger duplicate detection."""
@@ -658,9 +661,8 @@ class TestEndToEndDispatchFlow:
         call_args = mock_tracker.update_issue.call_args
         assert call_args.kwargs["status"] == "Duplicate Candidate"
 
-    def test_closed_match_routes_to_duplicate_detector_focus(self):
-        """When candidate matches closed issue, needs:duplicate_detector label
-        should cause the duplicate_detector focus to be selected."""
+    def test_terminal_match_does_not_add_duplicate_detector_handoff(self):
+        """A matching terminal issue does not create an automatic handoff."""
         from unittest.mock import MagicMock
         from oompah.orchestrator import Orchestrator
         from oompah.config import ServiceConfig
@@ -697,14 +699,11 @@ class TestEndToEndDispatchFlow:
             labels=[],
         )
 
-        # Apply duplicate detection
         detected_candidates = orch._apply_duplicate_detection([candidate])
 
-        # Now check that select_focus picks duplicate_detector due to the label
-        focus = select_focus(detected_candidates[0])
-        assert focus.name == "duplicate_detector", (
-            f"Expected duplicate_detector focus, got {focus.name}"
-        )
+        assert "needs:duplicate_detector" not in detected_candidates[0].labels
+        mock_tracker.add_label.assert_not_called()
+        mock_tracker.update_issue.assert_not_called()
 
 
 class TestNoCommitFocusCompletionAdvancesToFeature:
