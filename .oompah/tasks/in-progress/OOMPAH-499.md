@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:34.407060Z'
-updated_at: '2026-07-28T16:39:27.515303Z'
+updated_at: '2026-07-28T16:40:23.138667Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -118,5 +118,15 @@ author: oompah
 created: 2026-07-28 16:39
 ---
 Understanding: I will identify and remove exact duplicate tests across 8 test files, resolve Python name shadowing, and add an AST-based duplicate-name guard. Approach: (1) inspect each file to find duplicates, (2) preserve distinct cases (especially the .oompah/tasks case in test_epic_strategy.py), (3) remove or merge identical tests, (4) add AST guard check, (5) run collection checks and full test suite.
+---
+author: oompah
+created: 2026-07-28 16:40
+---
+Discovery: Found duplicates:
+- test_epic_strategy.py: test_shared_mode_skips_fast_forward_for_dirty_worktree (lines 3709, 3785) - different inputs (.oompah/tasks vs src/server.py)
+- test_label_auth.py: 4x test_proposed, 2x each of test_archived/backlog/done/in_progress/needs_ci_fix/open
+- test_orchestrator_merged.py: 2x TestProjectHasOpenReview, 2x TestDispatchSerializationByProject
+- test_webhooks.py: 2x each test_different_repo/test_empty_both/test_empty_secret, 6x test_raw_payload_preserved
+- No duplicates found in test_intake_approval.py, test_role_store.py, test_authority_boundary.py, test_error_watcher.py
 ---
 <!-- COMMENTS:END -->
