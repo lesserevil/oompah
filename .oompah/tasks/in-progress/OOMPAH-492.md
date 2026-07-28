@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:27.511520Z'
-updated_at: '2026-07-28T15:07:54.869040Z'
+updated_at: '2026-07-28T15:18:18.297613Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-07-28 15:07
 ---
 Discovery: Root causes identified in three test files:\n\n1. tests/test_event_driven_loop.py::TestWorkerExitPostsEvent: Issue objects created without project_id, causing _on_worker_exit to fall back to self.tracker (live). No mocks for _fire_task_cost_record, _fire_telemetry_comment, _post_comment, or completion gates (_run_close_gate, _ensure_review_exists). Fix: add project_id='proj-test' to Issue, inject mock tracker via _tracker_for_project, mock side-effects, set close_gate_enabled=False.\n\n2. tests/test_acp_billing.py::TestOnWorkerExitCostAccumulation (3 tests) + TestMissingRatesWarningLogged::test_on_worker_exit_no_cost_no_crash: Same pattern - _make_issue() creates Issue with no project_id. Fix: add project_id='proj-test' to _make_issue(), add close_gate_enabled=False to _make_orchestrator(), inject mock tracker and side-effect mocks per test.\n\n3. tests/test_epic_rebase_state.py::TestPersistence::test_persists_on_clear: _set_epic_rebase_state and _clear_epic_rebase_state both called without project_id even though _tracker_for_project is already mocked. Fix: pass project_id='proj-1' to both calls.\n\nAll fixes will add fail-fast subprocess git-push guards and assert tracker was called via project_id.
+---
+author: oompah
+created: 2026-07-28 15:18
+---
+Implementation: Applied isolation fixes to three test files.\n\n1. tests/test_event_driven_loop.py::TestWorkerExitPostsEvent:\n   - Added project_id='proj-test' to Issue in _make_running_entry()\n   - Added _inject_isolation_mocks() that wires _tracker_for_project to a MagicMock (terminal 'Done' issue), silences fire-and-forget telemetry, comment posting, completion gates, and retry scheduling\n   - Added _fail_on_git_push() fail-fast guard (raises on git push)\n   - Used close_gate_enabled=False to skip git-touching gate checks\n   - Both test methods now assert _tracker_for_project was called with 'proj-test'\n\n2. tests/test_acp_billing.py (TestOnWorkerExitCostAccumulation + TestMissingRatesWarningLogged::test_on_worker_exit_no_cost_no_crash):\n   - Added project_id param to _make_issue() (default None preserves backward compat)\n   - Added close_gate_enabled=False to _make_orchestrator() config\n   - Added module-level _inject_worker_exit_isolation() and _no_git_push() helpers\n   - Configured project_store.get.return_value=None to prevent MagicMock attributes looking like a 'paused' project\n   - 4 tests now use project_id='proj-test' + isolation + subprocess guards\n\n3. tests/test_epic_rebase_state.py::TestPersistence::test_persists_on_clear:\n   - Pass project_id='proj-1' to both _set_epic_rebase_state and _clear_epic_rebase_state\n   - Added subprocess guard\n   - Assert _tracker_for_project was called with 'proj-1'
 ---
 <!-- COMMENTS:END -->
