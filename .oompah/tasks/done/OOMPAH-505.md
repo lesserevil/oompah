@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:58:17.540816Z'
+updated_at: '2026-07-28T16:11:09.129273Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -260,5 +260,10 @@ author: oompah
 created: 2026-07-28 15:58
 ---
 Manual per-role Claude/Codex models are supported, visible in the UI, persisted, and configured live.
+---
+author: oompah
+created: 2026-07-28 16:11
+---
+Live verification correction: the initial Claude fast mapping used literal fable. Two dispatches failed before any tool call with SDK invalid_request and 'selected model (fable) may not exist or you may not have access'; Anthropic also classifies Fable as a highest-capability tier, not fast. Updated live fast/default candidates to Claude haiku (standard=sonnet, deep=opus unchanged), and updated regression coverage in the pushed epic commit. Direct Claude CLI smoke resolved haiku to claude-haiku-4-5-20251001 and completed successfully; 48 ACP handoff tests pass. Codex remains gpt-5.6-luna/terra/sol.
 ---
 <!-- COMMENTS:END -->
