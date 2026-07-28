@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-521
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Add optional htpasswd authentication to the Oompah service
 parent: null
@@ -16,7 +16,7 @@ labels:
 - security
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-07-28T18:32:44.868607Z'
+updated_at: '2026-07-28T20:40:49.454307Z'
 work_branch: null
 target_branch: null
 review_url: null
