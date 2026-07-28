@@ -2499,6 +2499,11 @@ class TestOpenEpicMainPrs:
             patch.object(orch, "_push_epic_branch") as push,
             patch.object(orch, "_tracker_for_project", return_value=tracker),
             patch.object(orch, "_sync_epic_review_child_states") as sync_children,
+            patch.object(
+                orch,
+                "_review_quality_gate_passes",
+                return_value=True,
+            ) as quality_gate,
         ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 0
@@ -2516,7 +2521,57 @@ class TestOpenEpicMainPrs:
             "254",
         )
         sync_children.assert_called_once_with("proj-1", epic, "epic-epic-1")
+        quality_gate.assert_called_once_with(
+            proj,
+            epic,
+            "epic-epic-1",
+            "main",
+        )
         push.assert_not_called()
+
+    def test_existing_pr_waits_for_changed_head_quality_gate(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state=IN_REVIEW,
+        )
+        child = _make_issue(state=DONE)
+        existing_review = MagicMock(
+            id="254",
+            url="https://github.com/org/repo/pull/254",
+            source_branch="epic-epic-1",
+            target_branch="main",
+            state="open",
+        )
+        provider = MagicMock()
+        provider.list_merged_reviews.return_value = []
+        provider.find_pr_for_branch.return_value = existing_review
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(
+                orch,
+                "_review_quality_gate_passes",
+                return_value=False,
+            ) as quality_gate,
+            patch.object(orch, "_ensure_epic_in_review_metadata") as sync_review,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
+        assert opened == 0
+        quality_gate.assert_called_once_with(
+            proj,
+            epic,
+            "epic-epic-1",
+            "main",
+        )
+        sync_review.assert_not_called()
+        provider.create_review.assert_not_called()
 
     def test_existing_pr_missing_from_cache_advances_epic_to_in_review(
         self,

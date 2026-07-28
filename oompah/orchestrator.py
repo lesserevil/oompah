@@ -6597,6 +6597,13 @@ class Orchestrator:
                 epic_branch,
             )
             if existing_review is not None:
+                if not self._review_quality_gate_passes(
+                    project,
+                    issue,
+                    epic_branch,
+                    target_branch,
+                ):
+                    continue
                 self._ensure_epic_in_review_metadata(
                     project_id,
                     issue,
