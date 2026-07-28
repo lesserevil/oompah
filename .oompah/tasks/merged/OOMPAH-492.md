@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-492
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Isolate worker-exit and epic-rebase tests from the live tracker
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:27.511520Z'
-updated_at: '2026-07-28T15:18:54.965233Z'
+updated_at: '2026-07-28T17:07:01.430546Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
