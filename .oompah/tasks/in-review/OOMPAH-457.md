@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-07-28T21:07:19.926024Z'
+updated_at: '2026-07-28T21:07:31.781594Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -100,5 +100,10 @@ author: oompah
 created: 2026-07-28 21:07
 ---
 Implementation: Changed only the failing E2E test configuration. Its checkpoint debounce/max-delay are now 30s/60s, matching the existing pending-counter test pattern, so the explicit flush deterministically owns all five mutations even on a slow CI runner. No production code or workflow files were changed.
+---
+author: oompah
+created: 2026-07-28 21:07
+---
+Verification: Focused checkpoint coverage passes locally on Python 3.12.12: TestCheckpointCoalescingE2E alone 3/3, then tests/test_checkpoint_coalescing.py plus tests/test_state_branch_e2e.py 105/105 in 11.08s. git diff --check also passes. Per CI-fixer instructions I did not rerun the already-passed full make test gate.
 ---
 <!-- COMMENTS:END -->
