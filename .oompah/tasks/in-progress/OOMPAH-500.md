@@ -19,7 +19,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:35.430103Z'
-updated_at: '2026-07-28T16:51:35.789778Z'
+updated_at: '2026-07-28T16:56:28.034484Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -125,5 +125,10 @@ author: oompah
 created: 2026-07-28 16:51
 ---
 **Understanding**: This is the final test gate after pruning epic OOMPAH-490 completion. I will: (1) Run make test from this clean checkout with timing/metrics capture, (2) Verify Git remote safety (no network ops), (3) Check for leaked processes, (4) Compare module/case/time metrics against July 28 baseline (282 modules, 201,700 lines, 12,347 collected, 5,954 passes in 309.78s), (5) Report determinism of Granian E2E and Git safety suites, (6) Post concise before/after summary. No test modifications—failures must pass as-is.
+---
+author: oompah
+created: 2026-07-28 16:56
+---
+Final-audit evidence: PID 3361788 is a pre-existing orphaned Granian test subprocess (PPID 1), cwd /home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-490, PYTEST_CURRENT_TEST=tests/test_granian_e2e.py::test_restart_http_and_ws_contract (call), started 2026-07-28 16:20:25 UTC. Do not report zero leaks while it remains. Distinguish this pre-run orphan from any new processes, terminate it safely after recording, repeat the consolidated Granian suite, and verify no additional test-owned processes survive.
 ---
 <!-- COMMENTS:END -->
