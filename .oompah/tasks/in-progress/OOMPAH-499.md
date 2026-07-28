@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:34.407060Z'
-updated_at: '2026-07-28T16:40:23.138667Z'
+updated_at: '2026-07-28T16:44:37.524262Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -128,5 +128,16 @@ Discovery: Found duplicates:
 - test_orchestrator_merged.py: 2x TestProjectHasOpenReview, 2x TestDispatchSerializationByProject
 - test_webhooks.py: 2x each test_different_repo/test_empty_both/test_empty_secret, 6x test_raw_payload_preserved
 - No duplicates found in test_intake_approval.py, test_role_store.py, test_authority_boundary.py, test_error_watcher.py
+---
+author: oompah
+created: 2026-07-28 16:44
+---
+Implementation complete:
+1. test_epic_strategy.py: renamed second dirty_worktree test to test_shared_mode_skips_fast_forward_for_dirty_src_file (preserving .oompah/tasks case)
+2. test_label_auth.py: removed 2 duplicate test_proposed definitions (kept 1 in each class)
+3. test_orchestrator_merged.py: merged duplicate classes - added test_unknown_project_returns_false to TestProjectHasOpenReview, deleted second TestProjectHasOpenReview; deleted duplicate TestDispatchSerializationByProject
+4. test_webhooks.py: removed duplicate _FakeProjectStore class definition (kept factory function)
+5. tests/test_duplicate_names.py: created AST-based check for duplicate test names within classes/modules
+All collection checks pass, all modified tests pass.
 ---
 <!-- COMMENTS:END -->

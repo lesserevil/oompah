@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T16:44:23.886600Z'
-updated_at: '2026-07-28T16:44:23.886600Z'
+updated_at: '2026-07-28T16:44:31.847773Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ Implementation scope\n\nHarden oompah/storage_cleanup.py so a stale Oompah-owned
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 16:44
+---
+Claimed for this session as part of OOMPAH-502. I will implement and validate it manually on the shared epic branch; leave it undispatched while I work.
+---
+<!-- COMMENTS:END -->
