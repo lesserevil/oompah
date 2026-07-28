@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-525
 type: feature
-status: Done
+status: Open
 priority: 1
 title: Add Basic auth support to Oompah CLIs and lifecycle commands
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:50:48.651669Z'
+updated_at: '2026-07-28T19:51:05.881285Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -21,8 +21,8 @@ merged_at: null
 oompah.agent_run_id: fb1d6b49-ab2b-4ff7-b304-f89ef517ac3b
 oompah.work_branch: epic-OOMPAH-521
 oompah.task_costs:
-  total_input_tokens: 1933340
-  total_output_tokens: 11195
+  total_input_tokens: 1933410
+  total_output_tokens: 62038
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -30,8 +30,8 @@ oompah.task_costs:
       output_tokens: 8439
       cost_usd: 0.0
     sonnet:
-      input_tokens: 483144
-      output_tokens: 2756
+      input_tokens: 483214
+      output_tokens: 53599
       cost_usd: 0.0
   runs:
   - profile: default
@@ -46,6 +46,12 @@ oompah.task_costs:
     output_tokens: 2756
     cost_usd: 0.0
     recorded_at: '2026-07-28T19:34:41.429724+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 70
+    output_tokens: 50843
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T19:50:56.804565+00:00'
 ---
 ## Summary
 
@@ -263,5 +269,38 @@ author: oompah
 created: 2026-07-28 19:50
 ---
 Implemented Basic auth support for oompah CLIs and Makefile lifecycle commands. Added oompah/client_auth.py (shared credential resolver with TOCTOU-safe file ops, symlink rejection, URL sanitization, 401 remediation), integrated --username/--password-file into task_cli.py and admin_cli.py, added scripts/oompah_http.py for credential-safe Makefile calls, updated Makefile status/restart/graceful to use authenticated Python helper without exposing credentials in process argv. 201 focused tests pass.
+---
+author: oompah
+created: 2026-07-28 19:50
+---
+Agent completed successfully in 962s (50913 tokens)
+---
+author: oompah
+created: 2026-07-28 19:50
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 130, Tool calls: 75
+- Tokens: 70 in / 50.8K out [50.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 16m 2s
+- Log: OOMPAH-525__20260728T193501Z.jsonl
+---
+author: oompah
+created: 2026-07-28 19:50
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-521` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-521
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-521
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
