@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -13,7 +13,7 @@ labels:
 - needs:devops
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:39:23.443146Z'
+updated_at: '2026-07-28T15:41:34.497738Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -22,13 +22,13 @@ merged_at: null
 oompah.agent_run_id: e76c1de6-5299-4ea3-92eb-c6d4e18f9093
 oompah.work_branch: epic-OOMPAH-502
 oompah.task_costs:
-  total_input_tokens: 24
-  total_output_tokens: 4765
+  total_input_tokens: 9628065
+  total_output_tokens: 30913
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 24
-      output_tokens: 4765
+      input_tokens: 9628065
+      output_tokens: 30913
       cost_usd: 0.0
   runs:
   - profile: default
@@ -37,6 +37,12 @@ oompah.task_costs:
     output_tokens: 4765
     cost_usd: 0.0
     recorded_at: '2026-07-28T15:20:55.773130+00:00'
+  - profile: standard
+    model: unknown
+    input_tokens: 9628041
+    output_tokens: 26148
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T15:41:30.391589+00:00'
 ---
 ## Summary
 
@@ -175,5 +181,25 @@ Relevant files/evidence: oompah/templates/providers.html and tests/test_provider
 Remaining work/risk: Deploy/restart the updated service, apply the six live round-robin role candidates (fast Claude/fable + Codex/gpt-5.6-luna; standard Claude/sonnet + Codex/gpt-5.6-terra; deep Claude/opus + Codex/gpt-5.6-sol), verify provider IDs/credentials/project whitelist and running telemetry, then close the task. Do not hardcode local provider IDs in production defaults.
 
 Recommended next focus: devops.
+---
+author: oompah
+created: 2026-07-28 15:41
+---
+Agent completed successfully in 1225s (9654189 tokens)
+---
+author: oompah
+created: 2026-07-28 15:41
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 1, Tool calls: 100
+- Tokens: 9.6M in / 26.1K out [9.7M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 20m 25s
+- Log: OOMPAH-505__20260728T152107Z.jsonl
+---
+author: oompah
+created: 2026-07-28 15:41
+---
+Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->

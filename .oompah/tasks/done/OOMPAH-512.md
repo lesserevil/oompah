@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-512
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Route managed tracker mutations through project-scoped trackers
 parent: OOMPAH-511
@@ -12,7 +12,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T15:37:13.538826Z'
+updated_at: '2026-07-28T15:41:38.670115Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -190,5 +190,10 @@ author: oompah
 created: 2026-07-28 15:37
 ---
 Understanding (Software Engineer): I have read the full codebase context, prior agent findings, and issue requirements. Root cause: Orchestrator.__init__ always creates self.tracker via _new_tracker() which defaults cwd to os.getcwd(). In managed-project mode (projects in project_store), this cwd-derived tracker incorrectly receives mutations. Three high-risk sites to fix: (1) server.py:614 — remove_draft_labels_from_epics(orch.tracker) runs on cwd tracker in managed mode instead of iterating project trackers like _migrate_release_picks_on_startup does; (2) server.py:629 — global ErrorWatcher(orch.tracker) files server errors in cwd tracker in managed mode; (3) orchestrator.py:2051 — _tracker_for_issue falls back to self.tracker for issues without project_id in managed mode. Plan: (a) fix set_orchestrator to iterate projects for draft-label migration (same pattern as _migrate_release_picks_on_startup), (b) skip global ErrorWatcher in managed mode, (c) add _resolve_tracker(project_id) helper that raises an actionable error in managed mode when project_id is None, (d) update _tracker_for_issue and release_addendum_queue to use it, (e) update _dispatch_conflict_agent_for_delivery to use project-scoped tracker in managed mode. Add regressions proving cwd tracker is not reached for managed-project mutations. Baseline: 12,611 passed, 1 sandbox-only failure (unrelated).
+---
+author: oompah
+created: 2026-07-28 15:41
+---
+Completed in commit 6533e235e on epic-OOMPAH-511. Managed startup draft migration, global operational error filing, issue routing, and release-conflict task creation now resolve explicit project trackers; ambiguous management scope fails closed. Focused routing tests and the full suite pass.
 ---
 <!-- COMMENTS:END -->
