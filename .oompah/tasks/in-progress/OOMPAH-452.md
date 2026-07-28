@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-452
 type: bug
-status: Done
+status: In Progress
 priority: 1
 title: Recover the GitLab Issues tracker implementation onto main
 parent: OOMPAH-451
@@ -11,22 +11,22 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:50.818103Z'
-updated_at: '2026-07-28T13:04:19.149376Z'
+updated_at: '2026-07-28T13:04:38.844677Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 2b8c3788-ac6e-48d8-b1cd-87c008057920
+oompah.agent_run_id: 5f2edf84-251c-481d-88e2-c95a83815384
 oompah.work_branch: epic-OOMPAH-451
 oompah.task_costs:
-  total_input_tokens: 20
-  total_output_tokens: 7139
+  total_input_tokens: 87
+  total_output_tokens: 26670
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 20
-      output_tokens: 7139
+      input_tokens: 87
+      output_tokens: 26670
       cost_usd: 0.0
   runs:
   - profile: default
@@ -35,6 +35,12 @@ oompah.task_costs:
     output_tokens: 7139
     cost_usd: 0.0
     recorded_at: '2026-07-28T12:44:39.059331+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 67
+    output_tokens: 19531
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T13:04:29.597135+00:00'
 ---
 ## Summary
 
@@ -192,5 +198,50 @@ author: oompah
 created: 2026-07-28 13:04
 ---
 Recovered GitLab Issues tracker (oompah/gitlab_tracker.py, GitLabHookManager, Issue Hook parsing, status governance) from 5 stranded commits onto epic-OOMPAH-451 branch. 12,324 tests pass, 0 regressions.
+---
+author: oompah
+created: 2026-07-28 13:04
+---
+Agent completed successfully in 1182s (19598 tokens)
+---
+author: oompah
+created: 2026-07-28 13:04
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
+- Turns: 103, Tool calls: 64
+- Tokens: 67 in / 19.5K out [19.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 19m 42s
+- Log: OOMPAH-452__20260728T124452Z.jsonl
+---
+author: oompah
+created: 2026-07-28 13:04
+---
+Close refused by orchestrator: branch `epic-OOMPAH-451` has 5 commits not on `main` and no open PR targets `main` from this branch.
+
+Diagnostic:
+  Unmerged commits: 5
+    14344e318 OOMPAH-339: Enforce GitLab status-label authorization and audit/revert safety
+    238ce3900 OOMPAH-338: Add GitLab tracker metadata persistence and comprehensive tests
+    4c5420f7d OOMPAH-342: Wire GitLabHookManager into project lifecycle with hook health, polling fallback, and delivery dedup
+    f6c4ef88d OOMPAH-341: Implement GitLabHookManager with OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL config
+    4c215500f OOMPAH-340: Extend parse_gitlab_webhook for Push/Issue/Note/Pipeline/Job hooks
+  Open PRs from this branch: 0
+  Merged PRs from this branch: 0
+
+Required: open a PR before closing.
+  gh pr create --base main --head epic-OOMPAH-451 --title "OOMPAH-452: Recover the GitLab Issues tracker implementation onto main" --body "..."
+
+Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
+---
+author: oompah
+created: 2026-07-28 13:04
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 13:04
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
