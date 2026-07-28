@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:21:20.018512Z'
+updated_at: '2026-07-28T14:21:22.224886Z'
 work_branch: OOMPAH-501
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/559
@@ -228,5 +228,10 @@ Tests: 11 new tests across tests/test_close_gate.py and tests/test_epic_strategy
 - All 12,123 tests pass ✓
 
 Commit: 4f8fae82e pushed to origin/OOMPAH-501
+---
+author: oompah
+created: 2026-07-28 14:21
+---
+Fixed premature epic rollup PR creation from child close gate. Added 'shared_epic_child' skip rule in check_close_gate() so children of epics (parent_id set) can close without requiring a PR from the shared epic branch to main. Added 11 regression tests reproducing OOMPAH-452/PR #558 scenario. All 12,123 tests pass.
 ---
 <!-- COMMENTS:END -->
