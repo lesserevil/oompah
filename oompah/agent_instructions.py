@@ -229,6 +229,8 @@ comments.
 - Record blockers with `oompah task set-dependency`; do not hand-write
   dependency metadata.
 - Always pass `--author oompah` when posting progress comments through the CLI.
+- Use `$TMPDIR` or `mktemp` for scratch files. Never hard-code `/tmp`; Oompah
+  redirects the standard temp environment to its private, quota-safe root.
 - Do not edit `.oompah/tasks` files directly unless you are repairing a tracker
   bug and have checked with the project owner.
 - Do not edit GitHub `oompah:*`, `type:*`, `priority:*`, `parent:*`, or

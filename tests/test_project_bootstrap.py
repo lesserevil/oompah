@@ -363,6 +363,8 @@ def test_agents_md_template_uses_1_0_native_tracker_workflow() -> None:
         "AGENTS.md template must describe GitHub Issues as customer-facing intake, "
         "not as the primary task tracker"
     )
+    assert "Use `$TMPDIR` or `mktemp` for scratch files" in AGENTS_MD
+    assert "Never hard-code `/tmp`" in AGENTS_MD
 
     # Must NOT use the GitHub Issues integration marker (wrong tracker)
     assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" not in AGENTS_MD, (

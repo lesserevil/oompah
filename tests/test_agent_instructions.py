@@ -97,6 +97,8 @@ def test_rendered_oompah_task_instructions_use_native_markdown_store():
     assert "OOMPAH_SERVER_URL=\"${OOMPAH_SERVER_URL:-http://127.0.0.1:<port>}\"" in rendered
     assert "oompah task view <task-id> --project <project-id>" in rendered
     assert "oompah task set-status <task-id> Done --project <project-id>" in rendered
+    assert "Use `$TMPDIR` or `mktemp` for scratch files" in rendered
+    assert "Never hard-code `/tmp`" in rendered
     assert "Work is not complete until the code is pushed" in rendered
     assert "GitHub Fallback" not in rendered
 
