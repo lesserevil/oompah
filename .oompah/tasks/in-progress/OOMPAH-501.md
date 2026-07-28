@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-501
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Prevent premature epic rollup PR/MR creation from child close handoffs
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:01:32.048881Z'
+updated_at: '2026-07-28T14:01:47.376283Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Acceptance criteria: no PR/MR from an epic branch to its target branch exists be
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 14:01
+---
+Manual implementation started. Root cause confirmed: check_close_gate evaluates a shared child work_branch against the project default branch without parent/epic context, refuses the child close, and emits a forge-specific create-PR command. The existing canonical epic-rollup readiness gate covers normal automated creation and final merging but is bypassed when an agent follows this refusal instruction. Implementing parent-aware close handling plus regression coverage now.
+---
+<!-- COMMENTS:END -->
