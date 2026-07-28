@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T20:12:30.365901Z'
+updated_at: '2026-07-28T20:13:00.513749Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -156,5 +156,10 @@ author: oompah
 created: 2026-07-28 20:12
 ---
 Understanding: I'm the Technical Writer taking over from the Duplicate Investigator. The scope is to create operator-facing documentation for htpasswd setup, rotation, disablement, and recovery, then run cross-surface integration checks. I'll review existing auth-related code and docs, create/improve docs/authentication.md with step-by-step deployment guidance, verify setting name consistency across .env.example/CLI/discovery, add documentation contract tests where patterns exist, and smoke-test auth-off and auth-on scenarios. I'll preserve the exact unauthenticated endpoint boundary and never embed real credentials in docs/logs/URLs. Dependencies (OOMPAH-522-525) are prerequisite implementations I'll document.
+---
+author: oompah
+created: 2026-07-28 20:13
+---
+Discovery: Reviewed http_auth.py (server credential loading, validation, hash format support) and client_auth.py (client-side credential resolution, environment/password-file configuration). Implementation supports bcrypt/APR1 hashes only, rejects plaintext passwords, validates at startup (fail-closed), and has discovery behavior for .htpasswd beside .env. Client-side code properly handles password files (checks for symlinks, regular files, TOCTOU races), prevents credential leaks in URLs/logs, and redacts errors. .env.example already documents OOMPAH_HTPASSWD_FILE, OOMPAH_SERVER_USERNAME, OOMPAH_SERVER_PASSWORD, and OOMPAH_SERVER_PASSWORD_FILE. docs/cli-install.md has a Basic authentication section. Next: create comprehensive docs/authentication.md covering setup, htpasswd generation, user management, rotation, disablement, recovery, HTTP Basic auth over HTTPS, unauthenticated endpoints (GET /healthz, GitHub/GitLab webhook POST receivers), client configuration examples, MCP setup, and cross-surface smoke tests.
 ---
 <!-- COMMENTS:END -->
