@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T21:49:45.535839Z'
+updated_at: '2026-07-28T21:49:54.133739Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -170,5 +170,24 @@ author: oompah
 created: 2026-07-28 21:49
 ---
 Verification: 151 tests pass — test_work_contributors.py (72 new tests), test_task_cost_telemetry.py (41), test_telemetry_comment.py (38). No regressions. Branch epic-OOMPAH-458 pushed to origin.
+---
+author: oompah
+created: 2026-07-28 21:49
+---
+Completion: Implemented oompah.work_contributors persistence (OOMPAH-468).
+
+New module oompah/work_contributors.py:
+- WorkContributor dataclass (run_id, provider_id, provider_name, model_id, focus, source_branch, source_sha, completed_at)
+- merge_contributor_records/load_contributors helpers (accumulate runs, never discard prior records)
+- sha_is_ancestor() via git merge-base --is-ancestor (fail-open on error)
+- collect_epic_contributors() with cycle guard and SHA ancestry filtering; conservative inclusion when source_sha is None
+
+Modified oompah/orchestrator.py:
+- _build_work_contributor_record: derives run_id from agent log basename, maps unknown models (default/cli-managed/cli) to model_id=None, captures source_branch/source_sha/completed_at
+- _write_work_contributor_record: reads existing metadata, merges, writes via tracker.set_metadata_field; all exceptions logged at WARNING and swallowed
+- _fire_work_contributor_record: fire-and-forget via _tick_pool (mirrors _fire_task_cost_record pattern)
+- Call site in _on_worker_exit: fires only when reason=='normal' (not stalled/abnormal/max_turns)
+
+72 new tests in tests/test_work_contributors.py covering: API, ACP SDK-managed unknown model, CLI worker, retries, multiple workers on one task, shared epic children, nested epics, commits excluded from current SHA, restart rereads, and redaction.
 ---
 <!-- COMMENTS:END -->
