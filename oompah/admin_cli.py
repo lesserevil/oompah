@@ -23,21 +23,41 @@ Design reference: plans/state-branch-design.md § 7.2
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import sys
 from pathlib import Path
 
+from oompah.client_auth import (
+    CredentialError,
+    format_auth_error,
+    resolve_client_credentials,
+    sanitize_server_url,
+)
+
+# Module-level auth slot: set by main() before dispatching to subcommands.
+# None means unauthenticated (backward-compatible).
+_session_auth = None  # oompah.client_auth.ClientCredentials | None
+
 
 def _server_url() -> str:
-    """Return the oompah server URL from OOMPAH_SERVER_URL or the default."""
-    return os.environ.get("OOMPAH_SERVER_URL", "http://127.0.0.1:8090").rstrip("/")
+    """Return the sanitized oompah server URL from OOMPAH_SERVER_URL or the default."""
+    raw = os.environ.get("OOMPAH_SERVER_URL", "http://127.0.0.1:8090").strip()
+    try:
+        return sanitize_server_url(raw) or "http://127.0.0.1:8090"
+    except CredentialError as exc:
+        sys.exit(f"ERROR: {exc}")
 
 
 def _api(method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
     """Make an HTTP request to the oompah API.
 
-    Returns (status_code, parsed_json).  Raises SystemExit on network error.
+    Sends HTTP Basic auth when client credentials are configured.
+    Returns (status_code, parsed_json).  Raises SystemExit on network error
+    or authentication failure.
+
+    The 401 error path never echoes credentials or Authorization header content.
     """
     try:
         import urllib.request
@@ -45,22 +65,39 @@ def _api(method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
 
         url = _server_url() + path
         data = json.dumps(body).encode() if body is not None else None
+        headers: dict[str, str] = {}
+        if data:
+            headers["Content-Type"] = "application/json"
+
+        # Add Basic auth header when credentials are configured.
+        auth = _session_auth
+        if auth is not None:
+            raw_credentials = f"{auth.username}:{auth.password}"
+            encoded = base64.b64encode(raw_credentials.encode("utf-8")).decode("ascii")
+            headers["Authorization"] = f"Basic {encoded}"
+            # raw_credentials and encoded are local variables; they are not
+            # logged, stored, or included in any error message.
+
         req = urllib.request.Request(
             url,
             data=data,
-            headers={"Content-Type": "application/json"} if data else {},
+            headers=headers,
             method=method,
         )
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
                 return resp.status, json.load(resp)
         except urllib.error.HTTPError as exc:
+            if exc.code == 401:
+                sys.exit(format_auth_error(_server_url()))
             try:
                 body_bytes = exc.read()
                 parsed = json.loads(body_bytes)
             except Exception:
                 parsed = {"error": {"message": exc.reason}}
             return exc.code, parsed
+    except SystemExit:
+        raise
     except ConnectionRefusedError:
         sys.exit(
             f"ERROR: Cannot connect to oompah at {_server_url()}. "
@@ -270,6 +307,27 @@ def build_parser() -> argparse.ArgumentParser:
         prog="oompah admin",
         description="Operator commands for oompah service administration.",
     )
+    parser.add_argument(
+        "--username",
+        default=None,
+        metavar="USER",
+        help=(
+            "Username for HTTP Basic auth. Overrides OOMPAH_SERVER_USERNAME. "
+            "Non-secret; combine with --password-file or OOMPAH_SERVER_PASSWORD_FILE."
+        ),
+    )
+    parser.add_argument(
+        "--password-file",
+        default=None,
+        metavar="PATH",
+        dest="password_file",
+        help=(
+            "Path to a file containing the client plaintext password. "
+            "Overrides OOMPAH_SERVER_PASSWORD_FILE. "
+            "Must be a regular (non-symlink) readable file. "
+            "Preferred over OOMPAH_SERVER_PASSWORD for unattended use."
+        ),
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     # validate-state-branch
@@ -331,7 +389,24 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
-    args.func(args)
+
+    # Resolve client credentials (env vars + optional CLI overrides).
+    try:
+        auth = resolve_client_credentials(
+            username_override=getattr(args, "username", None),
+            password_file_override=getattr(args, "password_file", None),
+        )
+    except CredentialError as exc:
+        sys.exit(f"ERROR: {exc}")
+
+    # Store resolved auth in the module-level slot so _api() picks it up.
+    global _session_auth
+    _prev_auth = _session_auth
+    _session_auth = auth
+    try:
+        args.func(args)
+    finally:
+        _session_auth = _prev_auth
 
 
 if __name__ == "__main__":

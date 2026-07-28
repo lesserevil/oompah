@@ -161,7 +161,10 @@ class TestHttpErrorHandling:
             result = task_cli._http("GET", "http://127.0.0.1:8080/api/v1/test")
 
         assert result == {"ok": True}
-        client_cls.assert_called_once_with(timeout=75.0)
+        # Verify timeout was passed; auth=None is also passed (no credentials configured).
+        assert client_cls.call_count == 1
+        call_kwargs = client_cls.call_args.kwargs
+        assert call_kwargs.get("timeout") == 75.0
 
     def test_connection_error_exits_with_actionable_message(self):
         import httpx
