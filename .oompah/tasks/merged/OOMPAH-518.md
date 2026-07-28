@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-518
 type: task
-status: Done
+status: Merged
 priority: null
 title: Keep graceful restart cleanup on the owning event loop
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:06:49.891505Z'
-updated_at: '2026-07-28T17:53:13.709961Z'
+updated_at: '2026-07-28T18:01:54.076315Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
