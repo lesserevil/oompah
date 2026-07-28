@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T20:14:40.363623Z'
+updated_at: '2026-07-28T20:16:20.803522Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -166,5 +166,10 @@ author: oompah
 created: 2026-07-28 20:14
 ---
 Implementation: Created comprehensive docs/authentication.md (18KB) covering HTTP Basic auth setup with htpasswd utility, user management (add/update/remove), password rotation with restart, disablement, file format/hash support (bcrypt/APR1 only), startup behavior (fail-closed on errors), client configuration for CLI/MCP/curl, webhook exemptions with signature/token validation preserved, HTTPS reverse proxy setup (nginx/HAProxy examples), troubleshooting (401 errors, htpasswd file validation, recovery, lockout), and security considerations. Updated docs/operator-runbook.md to link the new guide. All 154 auth-related tests pass (http_auth, server_auth, client_auth). No credentials leaked in docs, examples, or tests.
+---
+author: oompah
+created: 2026-07-28 20:16
+---
+Verification: All 154 auth-related unit tests pass (http_auth.py, server_auth.py, client_auth.py). Secret scanning (make check-secrets) passes. Documentation cross-references verified: operator-runbook.md links authentication.md (§1.1), cli-install.md links authentication.md (end of Basic auth section). No plaintext passwords, credentials, or sensitive data in documentation examples. OAuth HTTPS requirement, webhook exemptions with forge-signature validation, and fail-closed startup behavior confirmed in code and tests. Ready for final smoke tests and merge.
 ---
 <!-- COMMENTS:END -->
