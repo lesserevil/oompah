@@ -555,6 +555,82 @@ class TerminalAuditRecord:
         )
 
 
+@dataclass(frozen=True)
+class OverrideRecord:
+    """Durable record of an explicit coordinator override by a project owner.
+
+    An override bypasses the normal audit process when authorized by a verified
+    project owner.  The reason field is mandatory and non-empty, and the
+    evidence fingerprint is validated to match the current state at override time.
+    """
+
+    override_id: str
+    project_id: str
+    task_id: str
+    target_state: TargetState
+    evidence_fingerprint: EvidenceFingerprint
+    authorized_by: ContributorIdentity
+    reason: str
+    created_at: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.override_id, str) or not self.override_id.strip():
+            raise ValueError("OverrideRecord.override_id must be non-empty")
+        if not isinstance(self.project_id, str) or not self.project_id.strip():
+            raise ValueError("OverrideRecord.project_id must be non-empty")
+        if not isinstance(self.task_id, str) or not self.task_id.strip():
+            raise ValueError("OverrideRecord.task_id must be non-empty")
+        object.__setattr__(self, "target_state", TargetState.from_raw(self.target_state))
+        if not isinstance(self.evidence_fingerprint, EvidenceFingerprint):
+            raise TypeError(
+                "OverrideRecord.evidence_fingerprint must be an EvidenceFingerprint"
+            )
+        if not isinstance(self.authorized_by, ContributorIdentity):
+            raise TypeError("OverrideRecord.authorized_by must be a ContributorIdentity")
+        if not isinstance(self.reason, str) or not self.reason.strip():
+            raise ValueError("OverrideRecord.reason must be a non-empty string")
+
+    @property
+    def id(self) -> str:
+        return self.override_id
+
+    def to_dict(self) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "version": CURRENT_VERSION,
+            "override_id": self.override_id,
+            "project_id": self.project_id,
+            "task_id": self.task_id,
+            "target_state": self.target_state.value,
+            "evidence_fingerprint": self.evidence_fingerprint.to_dict(),
+            "authorized_by": self.authorized_by.to_dict(),
+            "reason": self.reason,
+        }
+        if self.created_at is not None:
+            result["created_at"] = self.created_at
+        return result
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> "OverrideRecord":
+        data = _require_mapping(raw, cls.__name__)
+        _read_version(data, cls.__name__)
+        fingerprint = data.get("evidence_fingerprint")
+        if fingerprint is None:
+            raise ValueError("OverrideRecord requires 'evidence_fingerprint'")
+        authorized_by = data.get("authorized_by")
+        if authorized_by is None:
+            raise ValueError("OverrideRecord requires 'authorized_by'")
+        return cls(
+            override_id=_required_string(data, "override_id", cls.__name__),
+            project_id=_required_string(data, "project_id", cls.__name__),
+            task_id=_required_string(data, "task_id", cls.__name__),
+            target_state=TargetState.from_raw(data.get("target_state")),
+            evidence_fingerprint=EvidenceFingerprint.from_dict(fingerprint),
+            authorized_by=ContributorIdentity.from_dict(authorized_by),
+            reason=_required_string(data, "reason", cls.__name__),
+            created_at=_optional_string(data, "created_at", cls.__name__),
+        )
+
+
 AuditRecord = TerminalAuditRecord
 
 
@@ -566,6 +642,7 @@ __all__ = [
     "ContributorIdentity",
     "EvidenceFingerprint",
     "FailureClassification",
+    "OverrideRecord",
     "RequestState",
     "TargetState",
     "TerminalAuditRecord",

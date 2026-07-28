@@ -87,6 +87,7 @@ from oompah.terminal_audit import (
     ContributorIdentity,
     EvidenceFingerprint,
     FailureClassification,
+    OverrideRecord,
     RequestState,
     TargetState,
     TerminalAuditRecord,
@@ -193,6 +194,26 @@ def classify_failure_to_status(
 # ---------------------------------------------------------------------------
 # Public result types
 # ---------------------------------------------------------------------------
+
+
+@dataclass
+class OverrideResult:
+    """Outcome of a :meth:`TerminalTransitionCoordinator.override_transition` call."""
+
+    success: bool
+    """``True`` when the override was applied successfully."""
+
+    override_id: str | None = None
+    """``override_id`` of the persisted override record."""
+
+    applied_status: str | None = None
+    """The terminal status that was applied to the tracker."""
+
+    posted_comment: bool = False
+    """``True`` when the override explanation comment was posted."""
+
+    reason: str | None = None
+    """Human-readable explanation when ``success`` is ``False``."""
 
 
 @dataclass
@@ -517,6 +538,89 @@ class TerminalTransitionCoordinator:
             )
             return self._apply_result_locked(
                 store, tracker, current_issue, result, project_id
+            )
+
+    # ------------------------------------------------------------------
+    # Public API — override_transition
+    # ------------------------------------------------------------------
+
+    async def override_transition(
+        self,
+        current_issue: Issue,
+        requested_target: TargetState,
+        authorized_actor: ContributorIdentity,
+        project_id: str,
+        evidence_fingerprint: EvidenceFingerprint,
+        reason: str,
+        project: Any = None,
+    ) -> OverrideResult:
+        """Apply an authorized owner override to bypass auditing.
+
+        Directly applies a terminal status when authorized by a project owner,
+        persisting an override audit record and human-readable comment before
+        changing the task status.
+
+        Parameters
+        ----------
+        current_issue:
+            The task to override.  ``current_issue.identifier`` and
+            ``current_issue.state`` are used for the override record.
+        requested_target:
+            The requested terminal lifecycle state.
+        authorized_actor:
+            The project owner requesting the override. Will be validated as
+            authorized via project-owner rules.
+        project_id:
+            Managed-project ID that owns the issue.
+        evidence_fingerprint:
+            Current SHA-256 digest of the auditable evidence. Must match the
+            task's current evidence to prevent stale overrides.
+        reason:
+            Non-empty human-readable justification for the override.
+        project:
+            Optional project object for authorization checks. If provided, must
+            have ``status_label_authorized_logins``, ``status_actor_login``, or
+            ``tracker_owner`` attributes.
+
+        Returns
+        -------
+        OverrideResult
+            ``.success`` is ``True`` when the override was persisted and applied.
+            ``False`` when authorization failed, reason was blank, fingerprint was
+            stale, or a tracker operation failed.
+
+        Raises
+        ------
+        ValueError
+            If ``requested_target`` cannot be parsed as a
+            :class:`~oompah.terminal_audit.TargetState`, or if ``reason`` is
+            blank/None.
+        TypeError
+            If ``authorized_actor`` is not a
+            :class:`~oompah.terminal_audit.ContributorIdentity`.
+        """
+        requested_target = TargetState.from_raw(requested_target)
+        if not isinstance(authorized_actor, ContributorIdentity):
+            raise TypeError("authorized_actor must be a ContributorIdentity")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason must be a non-empty string")
+        
+        lock = self._async_locks.setdefault(project_id, asyncio.Lock())
+        async with lock:
+            tracker = self._tracker_for_project(project_id)
+            store = TerminalAuditMetadataStore(
+                tracker, self._project_store, project_id
+            )
+            return self._override_transition_locked(
+                store,
+                tracker,
+                current_issue,
+                requested_target,
+                authorized_actor,
+                project_id,
+                evidence_fingerprint,
+                reason,
+                project,
             )
 
     # ------------------------------------------------------------------
@@ -884,6 +988,137 @@ class TerminalTransitionCoordinator:
             applied_status=applied_status,
             posted_comment=posted,
             advanced_target=decision.advanced_target,
+        )
+
+    def _override_transition_locked(
+        self,
+        store: TerminalAuditMetadataStore,
+        tracker: TrackerProtocol,
+        current_issue: Issue,
+        requested_target: TargetState,
+        authorized_actor: ContributorIdentity,
+        project_id: str,
+        evidence_fingerprint: EvidenceFingerprint,
+        reason: str,
+        project: Any,
+    ) -> OverrideResult:
+        identifier = current_issue.identifier
+        
+        # Step 1: Validate authorization using existing label_auth model
+        from oompah.label_auth import is_authorized_status_actor
+        
+        actor_login = authorized_actor.identity
+        if not is_authorized_status_actor(actor_login, project):
+            return OverrideResult(
+                success=False,
+                reason="actor is not authorized as project owner",
+            )
+        
+        # Step 2: Verify fingerprint matches current state
+        try:
+            document = store.read(identifier)
+        except TerminalAuditMetadataQuarantinedError:
+            return OverrideResult(
+                success=False,
+                reason="terminal-audit metadata is quarantined",
+            )
+        except Exception:
+            logger.exception("Failed to read terminal-audit metadata for %s", identifier)
+            return OverrideResult(
+                success=False,
+                reason="failed to read metadata",
+            )
+        
+        # Check if fingerprint matches any pending audit or matches the evidence at override time
+        fingerprint_mismatch = False
+        for record in document.pending_chain:
+            if (record.target_state == requested_target and 
+                record.evidence_fingerprint != evidence_fingerprint):
+                fingerprint_mismatch = True
+                break
+        
+        if fingerprint_mismatch:
+            return OverrideResult(
+                success=False,
+                reason="evidence fingerprint mismatch (stale override)",
+            )
+        
+        # Step 3: Create and persist the override record
+        now = _now_iso8601()
+        override_record = OverrideRecord(
+            override_id=_generate_override_id(),
+            project_id=project_id,
+            task_id=identifier,
+            target_state=requested_target,
+            evidence_fingerprint=evidence_fingerprint,
+            authorized_by=authorized_actor,
+            reason=reason,
+            created_at=now,
+        )
+        
+        # Step 4: Persist override record in metadata before status change
+        def _updater(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
+            """Atomically add the override record to metadata."""
+            new_unknown = dict(doc.unknown_fields)
+            
+            # Store override records in a list
+            overrides = new_unknown.get("oompah.terminal_override_records", [])
+            if not isinstance(overrides, list):
+                overrides = []
+            
+            overrides.append(override_record.to_dict())
+            new_unknown["oompah.terminal_override_records"] = overrides
+            
+            return replace(doc, unknown_fields=new_unknown)
+        
+        try:
+            store.update(identifier, _updater)
+        except TerminalAuditMetadataQuarantinedError:
+            return OverrideResult(
+                success=False,
+                reason="terminal-audit metadata is quarantined",
+            )
+        except Exception:
+            logger.exception("Failed to persist override record for %s", identifier)
+            return OverrideResult(
+                success=False,
+                reason="failed to persist override record",
+            )
+        
+        # Step 5: Post explanatory comment before status change
+        posted = False
+        if self._post_comments:
+            comment = (
+                f"Override by {authorized_actor.identity}: terminal transition to "
+                f"{requested_target.value} applied by project owner.\n\n"
+                f"Reason: {reason}"
+            )
+            try:
+                tracker.add_comment(identifier, comment, author="oompah")
+                posted = True
+            except Exception:
+                logger.exception("Failed to post override comment for %s", identifier)
+        
+        # Step 6: Apply terminal status
+        target_status = _target_state_to_status(requested_target)
+        try:
+            tracker.update_issue(identifier, status=target_status)
+        except Exception:
+            logger.exception(
+                "Failed to apply override status %r for %s",
+                target_status,
+                identifier,
+            )
+            return OverrideResult(
+                success=False,
+                reason="failed to update tracker status",
+            )
+        
+        return OverrideResult(
+            success=True,
+            override_id=override_record.override_id,
+            applied_status=target_status,
+            posted_comment=posted,
         )
 
     def _tracker_for_project(self, project_id: str) -> TrackerProtocol:
@@ -1271,6 +1506,11 @@ def _generate_audit_id() -> str:
     return f"audit-{uuid.uuid4().hex[:12]}"
 
 
+def _generate_override_id() -> str:
+    """Return a unique override record identifier."""
+    return f"override-{uuid.uuid4().hex[:12]}"
+
+
 def _now_iso8601() -> str:
     """Return the current UTC time in ISO 8601 format."""
     return datetime.now(timezone.utc).isoformat()
@@ -1289,6 +1529,7 @@ def route_failure_status(
 
 __all__ = [
     "AuditResult",
+    "OverrideResult",
     "ResultOutcome",
     "ResultRejection",
     "TerminalTransitionCoordinator",
