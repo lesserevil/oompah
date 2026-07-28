@@ -1020,37 +1020,6 @@ class TestStateBranchNameProperty:
 
 
 # ---------------------------------------------------------------------------
-# § 14 — xfail-marked design contract (from existing test_state_branch_design.py)
-# ---------------------------------------------------------------------------
-
-
-class TestXfailDesignContractNowPasses:
-    """Design-contract tests that were xfail in test_state_branch_design.py.
-
-    These duplicate the xfail test bodies to confirm that the feature is now
-    implemented and the assertions hold without xfail marks.  Both sets are
-    kept in the test suite: the xfail set as documentation, this set as a
-    regression guard.
-    """
-
-    def test_state_branch_enabled_defaults_to_false(self):
-        """Project.state_branch_enabled must exist and default to False."""
-        p = _make_project()
-        assert hasattr(p, "state_branch_enabled"), (
-            "Project must have a state_branch_enabled attribute"
-        )
-        assert p.state_branch_enabled is False
-
-    def test_per_project_checkpoint_fields_default_none(self):
-        """Per-project checkpoint overrides must default to None."""
-        p = _make_project()
-        assert hasattr(p, "state_branch_checkpoint_debounce_ms")
-        assert hasattr(p, "state_branch_checkpoint_max_delay_ms")
-        assert p.state_branch_checkpoint_debounce_ms is None
-        assert p.state_branch_checkpoint_max_delay_ms is None
-
-
-# ---------------------------------------------------------------------------
 # § 15 — Stage B API contract (OOMPAH-283)
 #
 # Verifies that to_dict() / to_safe_dict() and the GET /api/v1/projects
