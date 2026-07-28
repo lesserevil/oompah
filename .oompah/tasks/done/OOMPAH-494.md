@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:29.472352Z'
-updated_at: '2026-07-28T15:42:14.207497Z'
+updated_at: '2026-07-28T15:42:16.287906Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -143,5 +143,10 @@ author: oompah
 created: 2026-07-28 15:42
 ---
 Completion: tests/test_granian_e2e.py refactored and committed (14a319df7). Delivered: 4 scenario tests (down from 20), 5.35s runtime (down from 52.97s, 10x improvement), _granian_server() context manager with SIGINT→terminate→kill + pipe-drain cleanup on all exit paths, zero subprocess leaks verified, all 12345 tests passing in make test, test_granian_parity.py and test_ws_lifecycle.py untouched.
+---
+author: oompah
+created: 2026-07-28 15:42
+---
+Refactored tests/test_granian_e2e.py: 20 tests → 4 scenario tests, 52.97s → 5.35s (10x faster). _granian_server() context manager centralises SIGINT→terminate→kill cleanup with pipe draining. No subprocess leaks. All 12345 tests pass.
 ---
 <!-- COMMENTS:END -->
