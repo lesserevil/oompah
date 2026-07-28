@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-513
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Fail closed on task writes from a managed code checkout
 parent: OOMPAH-511
@@ -11,12 +11,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:43.939778Z'
-updated_at: '2026-07-28T15:43:12.838068Z'
-work_branch: null
+updated_at: '2026-07-28T15:43:22.951370Z'
+work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 7d1f7dd7-46fa-4ae9-ad9b-95a4e3c24178
+oompah.work_branch: epic-OOMPAH-511
 ---
 ## Summary
 
@@ -58,5 +60,15 @@ author: oompah
 created: 2026-07-28 15:41
 ---
 Added a fail-closed native tracker write policy with complete public-mutation regression coverage.
+---
+author: oompah
+created: 2026-07-28 15:43
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 15:43
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->

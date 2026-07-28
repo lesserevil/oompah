@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T15:43:12.073287Z'
+updated_at: '2026-07-28T15:43:27.017454Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-07-28 15:43
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 15:43
+---
+Understanding: This task asks to retire pre-implementation state-branch design tests by removing tests/test_state_branch_design.py and TestXfailDesignContractNowPasses from test_state_branch_project_config.py. Before any implementation, I am running duplicate screening to check whether this work is already covered by another task.
 ---
 <!-- COMMENTS:END -->
