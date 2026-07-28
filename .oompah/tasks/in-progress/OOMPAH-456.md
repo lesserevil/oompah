@@ -10,9 +10,10 @@ blocked_by: []
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:frontend
+- focus-complete:security
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:23:36.317035Z'
+updated_at: '2026-07-28T14:25:31.071661Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -190,5 +191,18 @@ author: oompah
 created: 2026-07-28 14:23
 ---
 Implementation: Hardened server-side migration controls. Generic project PATCH now rejects state_branch_enabled so crafted/stale clients cannot bypass bootstrap. Migration requests require real JSON booleans for confirm/dry_run and enforce valid transitions: A only from unmigrated/A, C only from B, rollback only from A/B. Added HTTP tests for bypass rejection, mixed-request atomicity, boolean coercion, destructive-stage gating, and Stage B downgrade prevention; updated legacy CRUD expectations.
+---
+author: oompah
+created: 2026-07-28 14:25
+---
+Focus handoff: security
+
+1. Outcome: Security review complete. Commit e27f34e65 is pushed. Generic PATCH can no longer mutate state_branch_enabled; migration confirm/dry_run require JSON booleans; invalid A/C/rollback transitions are rejected before Git. This closes client-bypass, type-coercion, and premature destructive-stage paths.
+
+2. Evidence/files: oompah/server.py; tests/test_state_branch_project_config.py; tests/test_projects_crud.py. Full run: 12,358 passed, 39 skipped. OWASP review: subprocesses use argv lists with no shell=True (no direct command injection); UI relays state-branch messages via textContent (no new XSS); migrate is classified ADMIN_MUTATION and excluded from MCP. No credentials were added to URLs, config, logs, or source.
+
+3. Remaining work/risks: Feature backend must pass project.access_token plus forge_kind/base URL to validate and Stage A Git operations using a noninteractive ephemeral credential mechanism. Never put tokens in argv, remote URLs, persisted git config, results, or logs; redact token and credential-bearing URLs from all stderr/stdout and exception paths. initialize_state_branch currently returns success when only a local branch exists, so a prior failed push can be retried and then incorrectly enabled without a remote branch. After push, independently fetch/inspect the exact remote ref, verify its commit matches the intended commit and its tree contains the canonical .oompah/tasks layout, then update config last. Add a per-project migration lock: the endpoint currently claims serialization but has none, allowing A/rollback/config races. Apply credentials to fetch, dry-run, push, verification, rollback, and Stage C paths or explicitly constrain scope. Move cache invalidation after successful config persistence. Make validation/docs forge-neutral and avoid GITHUB_TOKEN guidance for GitLab. Sync Git subprocess work off the async request loop to avoid availability/DoS impact.
+
+4. Recommended next focus: feature. Add GitLab native-Markdown integration tests for project token auth, local-only branch retry, remote commit/layout verification before enable, auth/push/verification/config failures remaining disabled, concurrent requests, secret redaction, and GitHub regression behavior.
 ---
 <!-- COMMENTS:END -->
