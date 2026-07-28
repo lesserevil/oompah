@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:27.511520Z'
-updated_at: '2026-07-28T14:56:55.101568Z'
+updated_at: '2026-07-28T14:57:08.191296Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-07-28 14:56
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 14:57
+---
+Understanding: Screening OOMPAH-492 for an existing task covering the same live-tracker/origin leakage in worker-exit, ACP billing, and epic-rebase tests. I will search task history and project decisions, inspect plausible candidates in full, and either archive as a confirmed duplicate or hand off for implementation without changing code.
 ---
 <!-- COMMENTS:END -->
