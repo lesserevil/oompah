@@ -7,10 +7,12 @@ title: Make GitLab project edits use one intake alias and forge-aware identity r
 parent: OOMPAH-451
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:32:27.559011Z'
+updated_at: '2026-07-28T13:32:57.143740Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -119,5 +121,18 @@ author: oompah
 created: 2026-07-28 13:32
 ---
 Understanding: This run is limited to duplicate screening and the required duplicate_detector handoff. I am verifying whether any prior task covers the simultaneous intake-alias PATCH failure or cross-forge token-owner lookup; if none does, I will label this focus complete without modifying code.
+---
+author: oompah
+created: 2026-07-28 13:32
+---
+Focus handoff: duplicate_detector
+
+Outcome: No duplicate found. OOMPAH-455 is a novel bug and should proceed to implementation.
+
+Evidence: Re-searched .oompah/tasks, docs, and plans for github_issue_intake_enabled, external_issue_intake_enabled, status_actor_login, state_branch_enabled, intake aliases, token-owner/API identity lookup, GitLab 401, and the 'Specify only one' error. OOMPAH-255 was read in full: it introduced state_branch_enabled model/API/UI support, but does not cover simultaneous intake aliases or forge-aware identity resolution. OOMPAH-6 was read in full: it covers a real GitHub intake token failure and actionable auth reporting, not a GitLab project token being sent to GitHub during an unrelated Projects edit. plans/gitlab-forge-parity.md specifies external_issue_intake_enabled with a legacy GitHub alias, but contains no implementation/task for deterministic PATCH alias normalization or provider-aware actor resolution.
+
+Remaining work: Update oompah/templates/projects.html to submit one canonical forge-neutral intake field; make server/ProjectStore PATCH compatibility deterministic so matching legacy+neutral aliases do not block unrelated edits while conflicts return a precise error; resolve blank status_actor_login through only the configured forge (or leave unset); add GitLab UI/CRUD regressions plus legacy GitHub and conflicting-alias tests; run make test. No code was changed in this duplicate-screening run.
+
+Recommended next focus: feature, covering the backend/UI compatibility fix and regression tests.
 ---
 <!-- COMMENTS:END -->
