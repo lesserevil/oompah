@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-493
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Remove real retry sleeps from GitHub tracker error tests
 parent: OOMPAH-490
@@ -11,12 +11,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:28.451050Z'
-updated_at: '2026-07-28T14:35:25.255013Z'
-work_branch: null
+updated_at: '2026-07-28T15:19:04.023547Z'
+work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: f75e1b31-5fdd-47e1-a383-1fa4b1843e47
+oompah.work_branch: epic-OOMPAH-490
 ---
 ## Summary
 
@@ -38,3 +40,16 @@ The 500-error path still proves retry exhaustion and error propagation, performs
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 15:19
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 15:19
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

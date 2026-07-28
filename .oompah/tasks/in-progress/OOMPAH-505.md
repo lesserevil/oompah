@@ -10,12 +10,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:18:50.742877Z'
-work_branch: null
+updated_at: '2026-07-28T15:19:11.927495Z'
+work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: b8a2c3a1-c7e9-4dbb-b374-445c39d5681f
+oompah.work_branch: epic-OOMPAH-502
 ---
 ## Summary
 
@@ -44,5 +46,15 @@ author: oompah
 created: 2026-07-28 15:18
 ---
 Confirmed the remaining functional gap: backend sessions already forward explicit models, but the Claude alias allowlist omits fable and the role matrix renders only an empty SDK-managed selector when an ACP catalog is absent. I am adding a first-class backend manual-selection capability, a free-text role control for those backends, accurate API notes, and six-tier propagation tests while retaining empty-model SDK fallback.
+---
+author: oompah
+created: 2026-07-28 15:19
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 15:19
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
