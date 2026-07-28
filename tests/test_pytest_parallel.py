@@ -14,6 +14,7 @@ from tests.pytest_worker_isolation import (
     _PROCESS_GLOBAL_MODULES,
     build_worker_environment,
     pytest_collection_modifyitems,
+    pytest_runtest_setup,
 )
 
 
@@ -123,6 +124,32 @@ def test_worker_environment_isolates_home_temp_and_cache(tmp_path: Path):
         "XDG_DATA_HOME",
     ):
         assert Path(result[key]).is_dir()
+
+
+def test_worker_environment_is_restored_before_each_test(monkeypatch, tmp_path: Path):
+    isolated = build_worker_environment(tmp_path / "gw2", os.environ)
+    config = SimpleNamespace(
+        _oompah_isolated_environment={
+            key: isolated[key]
+            for key in (
+                "HOME",
+                "TMPDIR",
+                "TMP",
+                "TEMP",
+                "XDG_CACHE_HOME",
+                "XDG_CONFIG_HOME",
+                "XDG_DATA_HOME",
+            )
+        }
+    )
+    item = SimpleNamespace(config=config)
+    monkeypatch.setenv("HOME", "/contaminated")
+    monkeypatch.setenv("TMPDIR", "/contaminated")
+
+    pytest_runtest_setup(item)  # type: ignore[arg-type]
+
+    assert os.environ["HOME"] == isolated["HOME"]
+    assert os.environ["TMPDIR"] == isolated["TMPDIR"]
 
 
 def test_active_xdist_worker_uses_its_private_run_tree():

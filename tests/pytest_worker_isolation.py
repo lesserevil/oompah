@@ -109,7 +109,25 @@ def pytest_configure(config: pytest.Config) -> None:
 
     config._oompah_worker_root = worker_root  # type: ignore[attr-defined]
     config._oompah_saved_environment = saved_environment  # type: ignore[attr-defined]
+    config._oompah_isolated_environment = {  # type: ignore[attr-defined]
+        key: isolated[key] for key in _ISOLATED_ENV_KEYS
+    }
     config._oompah_saved_tempdir = tempfile.tempdir  # type: ignore[attr-defined]
+    tempfile.tempdir = isolated["TMPDIR"]
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Restore the worker boundary before fixtures for every individual test."""
+    isolated: dict[str, str] | None = getattr(
+        item.config,
+        "_oompah_isolated_environment",
+        None,
+    )
+    if isolated is None:
+        return
+    for key, value in isolated.items():
+        os.environ[key] = value
     tempfile.tempdir = isolated["TMPDIR"]
 
 
