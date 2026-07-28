@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-526
 type: chore
-status: Done
+status: Merged
 priority: 1
 title: Document and validate secure htpasswd deployment and recovery
 parent: OOMPAH-521
@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T20:40:09.618750Z'
+updated_at: '2026-07-28T21:32:54.556922Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
