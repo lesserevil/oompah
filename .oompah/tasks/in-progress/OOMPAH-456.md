@@ -13,7 +13,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:26:27.881674Z'
+updated_at: '2026-07-28T14:31:09.135065Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -259,5 +259,10 @@ author: oompah
 created: 2026-07-28 14:26
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-28 14:31
+---
+Discovery: The project already has a reusable per-project RLock in ProjectStore, so migration can serialize with tracker/git writes and run off the async loop via asyncio.to_thread. Backend gaps are: validate/bootstrap/migrate network Git commands have no credential env; bootstrap treats a local-only branch as success; Stage A has no exact remote/tree verification; ProjectStore.update mutates memory before a non-atomic save; and cache invalidation precedes persistence. The fix will use a token-free ephemeral GIT_ASKPASS script (token only in child env), sanitized Git output, authenticated fetch/dry-run/push/verification across stages, remote SHA plus canonical task-layout validation, transactional config save/update, and config-last activation under the project lock.
 ---
 <!-- COMMENTS:END -->
