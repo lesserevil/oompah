@@ -6,11 +6,13 @@ priority: 1
 title: Persist the upgrade grandfather baseline and recover pending audits
 parent: OOMPAH-457
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-462
+- OOMPAH-463
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:06.169316Z'
-updated_at: '2026-07-28T13:05:06.169316Z'
+updated_at: '2026-07-28T13:09:10.224219Z'
 work_branch: null
 target_branch: null
 review_url: null

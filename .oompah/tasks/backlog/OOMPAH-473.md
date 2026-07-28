@@ -6,11 +6,13 @@ priority: 1
 title: Collect safe-retirement evidence for Archived audits
 parent: OOMPAH-458
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-471
+- OOMPAH-472
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:13.914904Z'
-updated_at: '2026-07-28T13:06:13.914904Z'
+updated_at: '2026-07-28T13:09:23.833905Z'
 work_branch: null
 target_branch: null
 review_url: null

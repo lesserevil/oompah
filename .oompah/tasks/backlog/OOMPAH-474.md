@@ -6,11 +6,13 @@ priority: 1
 title: Add the auditor-only structured result submission API and tool
 parent: OOMPAH-458
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-466
+- OOMPAH-469
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-07-28T13:06:14.992374Z'
+updated_at: '2026-07-28T13:09:25.607811Z'
 work_branch: null
 target_branch: null
 review_url: null

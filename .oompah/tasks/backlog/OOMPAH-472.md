@@ -6,11 +6,12 @@ priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-471
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-28T13:06:12.977543Z'
+updated_at: '2026-07-28T13:09:21.873543Z'
 work_branch: null
 target_branch: null
 review_url: null

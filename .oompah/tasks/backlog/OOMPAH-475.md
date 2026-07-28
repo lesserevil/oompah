@@ -6,11 +6,17 @@ priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-464
+- OOMPAH-465
+- OOMPAH-466
+- OOMPAH-468
+- OOMPAH-469
+- OOMPAH-470
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-28T13:06:15.927352Z'
+updated_at: '2026-07-28T13:09:30.916576Z'
 work_branch: null
 target_branch: null
 review_url: null

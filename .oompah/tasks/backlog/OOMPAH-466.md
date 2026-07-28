@@ -6,11 +6,12 @@ priority: 1
 title: Apply audit verdicts and route failures without fail-open behavior
 parent: OOMPAH-457
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-465
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:08.204164Z'
-updated_at: '2026-07-28T13:05:08.204164Z'
+updated_at: '2026-07-28T13:09:14.403849Z'
 work_branch: null
 target_branch: null
 review_url: null

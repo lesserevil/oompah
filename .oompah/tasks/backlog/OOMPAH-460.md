@@ -13,11 +13,12 @@ children:
 - OOMPAH-487
 - OOMPAH-488
 - OOMPAH-489
-blocked_by: []
+blocked_by:
+- OOMPAH-459
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:47.776498Z'
-updated_at: '2026-07-28T13:08:28.364269Z'
+updated_at: '2026-07-28T13:09:06.203781Z'
 work_branch: null
 target_branch: null
 review_url: null

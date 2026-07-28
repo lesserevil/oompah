@@ -6,11 +6,12 @@ priority: 1
 title: Add the reserved read-only auditor focus and prompt contract
 parent: OOMPAH-458
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-461
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:09.346734Z'
-updated_at: '2026-07-28T13:06:09.346734Z'
+updated_at: '2026-07-28T13:09:18.366197Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-07-28T13:08:51.507060Z'
+updated_at: '2026-07-28T13:09:00.586079Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-07-28 13:08
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 13:09
+---
+Understanding (Duplicate Investigator): Investigating whether OOMPAH-453 (route webhook lifecycle by forge, stop gh forwarder churn for GitLab projects) is a duplicate of any existing issue. Will search for related tasks around WebhookForwarder, GitLabHookManager, forge filtering, and webhook lifecycle before any implementation work.
 ---
 <!-- COMMENTS:END -->

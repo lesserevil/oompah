@@ -6,11 +6,12 @@ priority: 1
 title: Add explicit authorized owner overrides for terminal audits
 parent: OOMPAH-457
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-466
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T13:05:09.155697Z'
+updated_at: '2026-07-28T13:09:15.401400Z'
 work_branch: null
 target_branch: null
 review_url: null

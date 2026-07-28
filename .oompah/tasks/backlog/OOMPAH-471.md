@@ -6,11 +6,13 @@ priority: 1
 title: Collect stable evidence for Done completion audits
 parent: OOMPAH-458
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-462
+- OOMPAH-468
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-28T13:06:12.016068Z'
+updated_at: '2026-07-28T13:09:20.998945Z'
 work_branch: null
 target_branch: null
 review_url: null
