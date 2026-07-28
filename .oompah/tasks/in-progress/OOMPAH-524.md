@@ -10,9 +10,10 @@ blocked_by:
 - OOMPAH-523
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:security
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:16:34.588091Z'
+updated_at: '2026-07-28T19:16:49.439020Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -218,5 +219,10 @@ author: oompah
 created: 2026-07-28 19:16
 ---
 Implementation: Security review completed; no code was changed in this focus. Required secure implementation decision: annotate only a successfully Basic-authenticated MCP ASGI scope with an in-memory sentinel, require that sentinel before a tool creates internal dispatch, and have a private ASGI wrapper attach a distinct internal-dispatch sentinel. The Basic middleware may trust only object-identity sentinels in ASGI scope—never Host, path, or any HTTP header—and must continue to redact Authorization.
+---
+author: oompah
+created: 2026-07-28 19:16
+---
+Focus handoff: security\n\nOutcome: The security architecture is defined and the existing auth middleware/exposure policy are sound, but OOMPAH-524 still needs feature implementation.\n\nEvidence: Reviewed oompah/server.py (_BasicAuthMiddleware and mounted gateway), oompah/mcp_gateway.py (credential-free ASGI dispatch), oompah/mcp_exposure_policy.py, and focused gateway/auth tests. Valid authenticated MCP initialize works; an allowed tool returns 401 because the inner ASGI request lacks auth. Focused test command passed: .venv/bin/pytest -q tests/test_mcp_gateway.py tests/test_server_auth.py (69 passed).\n\nRemaining work/risk: Implement effective discovery authentication mode; preserve Basic auth for initialize/list/call/stream/session cleanup; add an unforgeable ASGI-scope sentinel capability to connect a verified MCP request to its private inner dispatch without forwarding Authorization; ensure direct REST and spoofed Host/path/headers stay 401; test enabled network mode, redaction, and denied tool absence. Do not use inbound internal marker headers.\n\nRecommended next focus: feature.
 ---
 <!-- COMMENTS:END -->
