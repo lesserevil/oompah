@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:05.235115Z'
-updated_at: '2026-07-28T18:42:19.286707Z'
+updated_at: '2026-07-28T18:42:30.137860Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -114,5 +114,10 @@ author: oompah
 created: 2026-07-28 18:42
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-28 18:42
+---
+Understanding: I will add a tracker-neutral terminal-audit metadata helper backed by oompah.terminal_audit, use the project write lock for serialized read-modify-write operations, preserve unknown fields, quarantine malformed data, redact persisted values, and cover native/GitHub/GitLab behavior with focused tests before committing and closing the task.
 ---
 <!-- COMMENTS:END -->
