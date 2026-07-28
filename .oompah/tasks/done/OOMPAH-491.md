@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-07-28T14:56:29.088705Z'
+updated_at: '2026-07-28T14:56:31.337408Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ Acceptance criteria met:
 - Local bare-remote coverage still passes (12341 tests, 0 failures)
 - No persistent git configuration changes
 - Error messages include OOMPAH-TEST-NETWORK-BARRIER marker identifying the blocked URL
+---
+author: oompah
+created: 2026-07-28 14:56
+---
+Added pytest-session Git network barrier in tests/conftest.py (build_network_barrier_env + _block_network_git_remotes session fixture) and tests/test_git_remote_safety.py (17 tests). Blocks https://, http://, ssh://, git://, git@ via GIT_CONFIG_COUNT/KEY_N/VALUE_N; absolute-path and file:// remotes unaffected. 12341 tests pass, 0 failures.
 ---
 <!-- COMMENTS:END -->
