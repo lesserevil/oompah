@@ -274,7 +274,14 @@ class TestUnpausePostsEvent:
 # ---------------------------------------------------------------------------
 
 class TestWorkerExitPostsEvent:
-    """_on_worker_exit() posts a WORKER_EXIT event to the dispatch queue."""
+    """_on_worker_exit() posts a WORKER_EXIT event to the dispatch queue.
+
+    Each running entry carries a test project ID ("proj-test") so the
+    worker-exit path routes through _tracker_for_project (which is
+    replaced by a MagicMock) rather than falling back to the checkout's
+    live orch.tracker.  Telemetry and completion side-effects are mocked
+    out so only event publication is exercised.
+    """
 
     @pytest.fixture
     def event_loop(self):
@@ -292,6 +299,10 @@ class TestWorkerExitPostsEvent:
             identifier=issue_id,
             title="Test Issue",
             state="in_progress",
+            # Give every entry a test project ID so the worker-exit
+            # path calls _tracker_for_project instead of falling back
+            # to the live tracker.
+            project_id="proj-test",
         )
         entry = RunningEntry(
             worker_task=MagicMock(),
@@ -304,16 +315,66 @@ class TestWorkerExitPostsEvent:
         )
         return entry
 
+    @staticmethod
+    def _fail_on_git_push(*args, **kwargs):
+        """Fail-fast guard: raise if any subprocess call issues a git push."""
+        cmd = args[0] if args else kwargs.get("args", [])
+        if isinstance(cmd, (list, tuple)) and "push" in cmd:
+            raise AssertionError(f"Test must not invoke git push: {cmd}")
+        return MagicMock(returncode=0, stdout=b"", stderr=b"")
+
+    def _inject_isolation_mocks(self, orch: Any, issue_id: str) -> Any:
+        """Inject a mock tracker and mute unrelated side-effect methods.
+
+        Returns the mock tracker so callers can assert its interactions.
+        The tracker's fetch_issue_detail returns a terminal 'Done' issue
+        so the normal-exit path treats the task as successfully closed
+        without re-opening or scheduling retries.
+        """
+        from oompah.models import Issue as _Issue
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = _Issue(
+            id=issue_id,
+            identifier=issue_id,
+            title="Test Issue",
+            state="Done",
+        )
+        mock_tracker.fetch_comments.return_value = []
+        orch._tracker_for_project = MagicMock(return_value=mock_tracker)
+        # Silence fire-and-forget telemetry so no background threads escape.
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        # Silence comment posting (not the target of these tests).
+        orch._post_comment = MagicMock()
+        # Silence completion-side-effects: review creation, epic close,
+        # focus analysis.  These are orthogonal to event publication and
+        # may otherwise trigger git or network I/O.
+        orch._ensure_review_exists = MagicMock(return_value=True)
+        orch._maybe_auto_close_parent_epic = MagicMock()
+        orch._analyze_focus_fit = MagicMock()
+        # Silence retry scheduling for abnormal exits (prevents asyncio timers).
+        orch._schedule_retry = MagicMock()
+        return mock_tracker
+
     def test_worker_exit_posts_event(self, tmp_path, event_loop):
-        orch = _make_orchestrator(tmp_path)
+        """Normal exit posts exactly one WORKER_EXIT event with reason='normal'."""
+        # Disable close gates so _run_close_gate / _run_unpushed_gate return
+        # True immediately without touching git.
+        orch = _make_orchestrator(tmp_path, config=_make_config(close_gate_enabled=False))
         issue_id = "issue-1"
         orch.state.running[issue_id] = self._make_running_entry(issue_id)
+        mock_tracker = self._inject_isolation_mocks(orch, issue_id)
 
-        event_loop.run_until_complete(
-            orch._on_worker_exit(issue_id, "normal", None)
-        )
+        with patch("subprocess.run", side_effect=self._fail_on_git_push), \
+             patch("subprocess.Popen", side_effect=self._fail_on_git_push):
+            event_loop.run_until_complete(
+                orch._on_worker_exit(issue_id, "normal", None)
+            )
 
-        # At least one WORKER_EXIT event should be in the queue
+        # Verify the project-scoped mock tracker was used, not the live one.
+        orch._tracker_for_project.assert_called_with("proj-test")
+
+        # At least one WORKER_EXIT event should be in the queue.
         events = []
         while not orch._dispatch_queue.empty():
             events.append(orch._dispatch_queue.get_nowait())
@@ -326,13 +387,17 @@ class TestWorkerExitPostsEvent:
         assert worker_exit_events[0].payload["reason"] == "normal"
 
     def test_worker_exit_posts_event_on_failure(self, tmp_path, event_loop):
-        orch = _make_orchestrator(tmp_path)
+        """Abnormal exit posts exactly one WORKER_EXIT event with reason='abnormal'."""
+        orch = _make_orchestrator(tmp_path, config=_make_config(close_gate_enabled=False))
         issue_id = "issue-2"
         orch.state.running[issue_id] = self._make_running_entry(issue_id)
+        self._inject_isolation_mocks(orch, issue_id)
 
-        event_loop.run_until_complete(
-            orch._on_worker_exit(issue_id, "abnormal", "something went wrong")
-        )
+        with patch("subprocess.run", side_effect=self._fail_on_git_push), \
+             patch("subprocess.Popen", side_effect=self._fail_on_git_push):
+            event_loop.run_until_complete(
+                orch._on_worker_exit(issue_id, "abnormal", "something went wrong")
+            )
 
         events = []
         while not orch._dispatch_queue.empty():
