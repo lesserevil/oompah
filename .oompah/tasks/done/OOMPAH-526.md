@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T20:16:36.034285Z'
+updated_at: '2026-07-28T20:16:39.009970Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -189,5 +189,10 @@ Verification:
 - Configuration names (OOMPAH_HTPASSWD_FILE, OOMPAH_SERVER_USERNAME, OOMPAH_SERVER_PASSWORD_FILE) consistent across docs/.env.example/CLI/discovery
 - Fail-closed startup behavior, unauthenticated endpoint boundary, and webhook exemptions confirmed in code and tests
 - Ready for integration with completed prerequisites (OOMPAH-522-525) and cross-surface smoke tests
+---
+author: oompah
+created: 2026-07-28 20:16
+---
+Delivered comprehensive HTTP Basic auth documentation (docs/authentication.md with setup, user management, rotation, disablement, recovery, client configuration, MCP setup, webhook exemptions, reverse proxy examples, troubleshooting). All 154 auth tests pass. Cross-referenced from operator-runbook.md and cli-install.md. Ready for cross-surface smoke tests with completed prerequisites.
 ---
 <!-- COMMENTS:END -->
