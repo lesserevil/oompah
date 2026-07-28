@@ -5,12 +5,20 @@ status: Backlog
 priority: 1
 title: Dispatch independent auditor agents and evaluate target-specific evidence
 parent: null
-children: []
+children:
+- OOMPAH-468
+- OOMPAH-469
+- OOMPAH-470
+- OOMPAH-471
+- OOMPAH-472
+- OOMPAH-473
+- OOMPAH-474
+- OOMPAH-475
 blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-28T13:03:46.047976Z'
+updated_at: '2026-07-28T13:06:16.086104Z'
 work_branch: null
 target_branch: null
 review_url: null
