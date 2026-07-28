@@ -1,16 +1,18 @@
 ---
 id: OOMPAH-504
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Compact agent prompt history around actionable handoffs
 parent: OOMPAH-502
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-28T15:06:00.486812Z'
-updated_at: '2026-07-28T17:47:14.276856Z'
+updated_at: '2026-07-28T17:49:27.911275Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -19,13 +21,17 @@ merged_at: null
 oompah.agent_run_id: 6c39897d-af45-4246-8a49-4b9f1e005720
 oompah.work_branch: epic-OOMPAH-502
 oompah.task_costs:
-  total_input_tokens: 1187311
-  total_output_tokens: 5652
+  total_input_tokens: 1542009
+  total_output_tokens: 11602
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1187311
       output_tokens: 5652
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 354698
+      output_tokens: 5950
       cost_usd: 0.0
   runs:
   - profile: default
@@ -34,6 +40,12 @@ oompah.task_costs:
     output_tokens: 5652
     cost_usd: 0.0
     recorded_at: '2026-07-28T17:46:50.679958+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 354698
+    output_tokens: 5950
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T17:49:24.424039+00:00'
 ---
 ## Summary
 
@@ -112,5 +124,38 @@ author: oompah
 created: 2026-07-28 17:47
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 17:49
+---
+Focus handoff: duplicate_detector
+
+Outcome: no separate duplicate was found. The exact OOMPAH-504 implementation is already present in commit c1eb096e2 (feat: compact startup prompt history), which is an ancestor of the current epic-OOMPAH-502 head and explicitly references OOMPAH-504.
+
+Evidence: searched task history, plans/docs, and all git history for prompt/comment compaction; no other task matches the complete scope. The implementation spans oompah/prompt.py, oompah/orchestrator.py, oompah/config.py, .env.example, and focused tests.
+
+Verification: .venv/bin/python -m pytest tests/test_prompt_comment_compaction.py tests/test_config.py tests/test_provenance.py -q => 411 passed.
+
+Remaining work/risk: feature/finalization focus should assess the already-landed implementation against acceptance criteria and close OOMPAH-504 if satisfied. Recommended next focus: feature.
+---
+author: oompah
+created: 2026-07-28 17:49
+---
+Agent completed successfully in 132s (360648 tokens)
+---
+author: oompah
+created: 2026-07-28 17:49
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 17
+- Tokens: 354.7K in / 6.0K out [360.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 12s
+- Log: OOMPAH-504__20260728T174714Z.jsonl
+---
+author: oompah
+created: 2026-07-28 17:49
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
