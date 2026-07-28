@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:46:48.581634Z'
-updated_at: '2026-07-28T17:46:57.490763Z'
+updated_at: '2026-07-28T17:53:53.995569Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,5 +33,10 @@ author: oompah
 created: 2026-07-28 17:46
 ---
 Claimed by the current Codex session after reproducing the live PR #564 rollback. Held out of dispatch while I implement and validate the repair directly on epic-OOMPAH-502.
+---
+author: oompah
+created: 2026-07-28 17:53
+---
+Implemented and pushed in commit e654aad1b. Review coverage now reads only Oompah-authored completion commit evidence, proves exact ancestry or git-cherry patch equivalence against the current epic ref, rejects human/unverifiable SHAs, and persists the canonical epic work branch after proof. Live reproducer SHAs 91d6c4344, 85be456eb, and 8e9455a92 each resolve as patch-equivalent to the rebased PR branch. Focused epic suite passed 202 tests; exact-head full suite later passed 12,618 with 7 skipped.
 ---
 <!-- COMMENTS:END -->
