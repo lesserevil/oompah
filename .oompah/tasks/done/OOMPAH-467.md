@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-467
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Add explicit authorized owner overrides for terminal audits
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T20:30:47.927037Z'
+updated_at: '2026-07-28T20:31:07.345452Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -415,5 +415,10 @@ author: oompah
 created: 2026-07-28 20:30
 ---
 Verification: worktree-local focused checks pass — 23/23 tests in tests/test_terminal_override.py and 147/147 directly affected terminal audit, coordinator, metadata, and record tests. Python compilation also passes. The initial bare pytest command had an unrelated installed-worktree import mismatch; rerunning with the repository .venv and importlib mode passed.
+---
+author: oompah
+created: 2026-07-28 20:31
+---
+Completion: explicit authorized terminal-audit overrides are implemented and present on pushed epic-OOMPAH-457 (commits cbbe8d39b and a5699d6fc). The coordinator requires existing status authorization plus independent project-owner authorization, a terminal target, evidence fingerprint, and non-blank reason; it durably records and redacts the reason, posts the explanatory comment before status application, and returns typed result/rejection codes. Focused verification is green and the branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
