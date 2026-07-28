@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-501
 type: bug
-status: In Progress
+status: In Review
 priority: 1
 title: Prevent premature epic rollup PR/MR creation from child close handoffs
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:13:56.874490Z'
+updated_at: '2026-07-28T14:16:15.374720Z'
 work_branch: null
 target_branch: null
 review_url: null
