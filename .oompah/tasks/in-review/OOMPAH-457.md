@@ -2,7 +2,7 @@
 id: OOMPAH-457
 type: epic
 status: In Review
-priority: 1
+priority: 0
 title: Build the terminal-audit state model and transition coordinator
 parent: null
 children:
@@ -14,10 +14,11 @@ children:
 - OOMPAH-466
 - OOMPAH-467
 blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-07-28T20:37:02.863046Z'
+updated_at: '2026-07-28T20:45:10.201118Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -68,5 +69,10 @@ author: oompah
 created: 2026-07-28 20:36
 ---
 Branch quality gate passed for `a5699d6fce9e358c556763e304f47deeca17d958` using `make test` in 72.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-28 20:45
+---
+YOLO: CI tests failed on MR #565. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
