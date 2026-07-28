@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:33:30.599455Z'
+updated_at: '2026-07-28T13:36:19.396988Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -174,5 +174,10 @@ author: oompah
 created: 2026-07-28 13:33
 ---
 Understanding: As the Frontend Developer focus, my job is to fix oompah/templates/projects.html to send only ONE canonical forge-neutral intake field (external_issue_intake_enabled) instead of both github_issue_intake_enabled and external_issue_intake_enabled simultaneously. ProjectStore rejects payloads with both fields. I will also check what else the form submits that may trigger cross-forge API calls. Plan: (1) read projects.html to understand the current form structure, (2) identify where both intake fields are submitted, (3) update the form/JS to submit only external_issue_intake_enabled, (4) ensure the UI still shows correctly for GitHub and GitLab projects, (5) run make test.
+---
+author: oompah
+created: 2026-07-28 13:36
+---
+Discovery: Root cause confirmed in oompah/templates/projects.html. In saveProject() (line ~805), the PATCH body always includes BOTH github_issue_intake_enabled AND external_issue_intake_enabled with the same value. server.py passes both to ProjectStore.update() fields dict; ProjectStore.update() at projects.py:1343 rejects any payload where both fields are present with 'Specify only one...' error - even when both values are false and equal. Fix: remove github_issue_intake_enabled from the saveProject body; send only external_issue_intake_enabled (the canonical forge-neutral field). server.py already handles external_issue_intake_enabled in the PATCH handler (lines 10375-10377) and passes it to ProjectStore which normalizes it internally. Backend status_actor_login issue: server.py lines 10518-10530 call _resolve_github_token_owner() regardless of forge_kind, sending GitLab tokens to GitHub API - this needs a backend fix (forge-aware check before calling). Will implement frontend fix now and note backend work for handoff.
 ---
 <!-- COMMENTS:END -->
