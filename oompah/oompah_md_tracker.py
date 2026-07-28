@@ -1141,6 +1141,11 @@ class OompahMarkdownTracker:
             closed_at=closed_at,
             attachments=attachments,
             intake=meta.get("oompah.intake") if isinstance(meta.get("oompah.intake"), dict) else None,
+            duplicate_screening=(
+                meta.get("oompah.duplicate_screening")
+                if isinstance(meta.get("oompah.duplicate_screening"), dict)
+                else None
+            ),
             work_branch=_optional_str(
                 meta.get("work_branch") or meta.get("oompah.work_branch")
             ),

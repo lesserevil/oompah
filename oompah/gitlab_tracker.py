@@ -277,6 +277,10 @@ class GitLabIssueTracker:
 
     def _issue(self, data: dict[str, Any]) -> Issue:
         labels = [str(label) for label in data.get("labels") or []]
+        metadata = _parse_description_metadata(data.get("description"))
+        duplicate_screening = metadata.get("duplicate_screening")
+        if not isinstance(duplicate_screening, dict):
+            duplicate_screening = None
         iid = int(data["iid"])
         status = _status_from_labels(labels, str(data.get("state", "opened")))
         parent = next(
@@ -323,6 +327,7 @@ class GitLabIssueTracker:
             tracker_repo=self.project.rsplit("/", 1)[-1],
             issue_number=str(iid),
             requestor_login=(data.get("author") or {}).get("username"),
+            duplicate_screening=duplicate_screening,
         )
 
     def _labels_with_status(self, labels: list[str], status: str) -> list[str]:

@@ -1336,6 +1336,11 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
     intake = meta.get("intake") or meta.get("oompah.intake")
     if not isinstance(intake, dict):
         intake = None
+    duplicate_screening = (
+        meta.get("duplicate_screening") or meta.get("oompah.duplicate_screening")
+    )
+    if not isinstance(duplicate_screening, dict):
+        duplicate_screening = None
 
     # Description: issue body with metadata block stripped.
     description_text = _BODY_METADATA_RE.sub("", body).strip()
@@ -1367,6 +1372,7 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         updated_at=_gh_timestamp(gh_issue.get("updated_at")),
         closed_at=_gh_timestamp(gh_issue.get("closed_at")),
         intake=intake,
+        duplicate_screening=duplicate_screening,
         tracker_kind="github_issues",
         tracker_owner=owner,
         tracker_repo=repo,
