@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-453
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Route webhook lifecycle by forge and stop gh forwarder churn for GitLab projects
 parent: OOMPAH-451
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-07-28T13:23:29.439131Z'
+updated_at: '2026-07-28T15:05:48.649276Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
