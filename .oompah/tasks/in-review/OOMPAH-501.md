@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:16:24.070153Z'
+updated_at: '2026-07-28T14:16:35.545252Z'
 work_branch: OOMPAH-501
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/559
@@ -19,13 +19,13 @@ review_number: '559'
 merged_at: null
 oompah.agent_run_id: 56f74aa3-2471-493d-8764-12e98a7b1b4a
 oompah.task_costs:
-  total_input_tokens: 33
-  total_output_tokens: 780
+  total_input_tokens: 107
+  total_output_tokens: 2536
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 33
-      output_tokens: 780
+      input_tokens: 107
+      output_tokens: 2536
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -34,6 +34,12 @@ oompah.task_costs:
     output_tokens: 780
     cost_usd: 0.0
     recorded_at: '2026-07-28T14:12:12.383224+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 74
+    output_tokens: 1756
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T14:16:34.092414+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/559
 oompah.review_number: '559'
 oompah.work_branch: OOMPAH-501
@@ -166,5 +172,15 @@ author: oompah
 created: 2026-07-28 14:16
 ---
 Implementation complete and pushed in commit 6bfb20898. PR #559: https://github.com/lesserevil/oompah/pull/559. Shared child closes now bypass standalone review requirements, and the epic rollup creator refreshes canonical child state plus landing evidence immediately before create_review. Regression coverage includes OOMPAH-452/PR #558, a child reopening during branch preparation, and nested epics requiring Merged. Verification: focused suite 240 passed; GitLab readiness 47 passed; make test 12,344 passed, 7 skipped; make check-secrets passed; git diff --check passed.
+---
+author: oompah
+created: 2026-07-28 14:16
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 60
+- Tokens: 74 in / 1.8K out [1.8K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 8s
+- Log: OOMPAH-501__20260728T141229Z.jsonl
 ---
 <!-- COMMENTS:END -->
