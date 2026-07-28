@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -10,16 +10,15 @@ blocked_by: []
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:frontend
-- needs:devops
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:41:34.497738Z'
+updated_at: '2026-07-28T15:43:07.529294Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: e76c1de6-5299-4ea3-92eb-c6d4e18f9093
+oompah.agent_run_id: 818cb150-174f-44fa-a308-d95deb13501e
 oompah.work_branch: epic-OOMPAH-502
 oompah.task_costs:
   total_input_tokens: 9628065
@@ -201,5 +200,15 @@ author: oompah
 created: 2026-07-28 15:41
 ---
 Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 15:43
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-28 15:43
+---
+Focus: DevOps Engineer
 ---
 <!-- COMMENTS:END -->

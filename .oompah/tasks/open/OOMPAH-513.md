@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-513
 type: bug
-status: Done
+status: Open
 priority: 1
 title: Fail closed on task writes from a managed code checkout
 parent: OOMPAH-511
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:43.939778Z'
-updated_at: '2026-07-28T15:41:54.434689Z'
+updated_at: '2026-07-28T15:43:12.838068Z'
 work_branch: null
 target_branch: null
 review_url: null

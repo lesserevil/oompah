@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-495
 type: chore
-status: Open
+status: In Progress
 priority: 2
 title: Retire pre-implementation state-branch design tests
 parent: OOMPAH-490
@@ -11,12 +11,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T14:35:29.827623Z'
-work_branch: null
+updated_at: '2026-07-28T15:43:12.073287Z'
+work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 6a57a446-e7d4-481a-b0e3-574f474d8ca1
+oompah.work_branch: epic-OOMPAH-490
 ---
 ## Summary
 
@@ -38,3 +40,16 @@ The design-only module and duplicate post-xfail checks are gone, at least 22 col
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 15:43
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 15:43
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
