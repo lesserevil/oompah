@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-531
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Schedule duplicate preflight from spare agent capacity
 parent: OOMPAH-528
@@ -11,13 +11,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-07-28T21:58:56.888364Z'
+updated_at: '2026-07-28T21:59:06.614600Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 1396171d-e040-47b0-9f96-018da95e2c08
+oompah.agent_run_id: e5108dfb-cfd3-476d-b894-f4d3afc23db2
 oompah.work_branch: epic-OOMPAH-528
 oompah.task_costs:
   total_input_tokens: 210
@@ -152,5 +152,15 @@ author: oompah
 created: 2026-07-28 21:58
 ---
 Focus handoff required before leaving `duplicate_detector`. Add a comment headed `Focus handoff: duplicate_detector` with outcome, evidence, remaining work, and next focus.
+---
+author: oompah
+created: 2026-07-28 21:59
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 21:59
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
