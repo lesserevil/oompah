@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-07-28T21:05:13.228093Z'
+updated_at: '2026-07-28T21:05:35.701043Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -85,5 +85,10 @@ author: oompah
 created: 2026-07-28 21:05
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-28 21:05
+---
+Understanding: I will inspect the failed GitHub Actions jobs for MR #565 on epic-OOMPAH-457, reproduce the reported errors locally, apply only the minimal covered CI fix, run focused tests, push the same branch, and verify checks restart.
 ---
 <!-- COMMENTS:END -->
