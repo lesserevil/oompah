@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:03.234325Z'
-updated_at: '2026-07-28T18:21:25.713354Z'
+updated_at: '2026-07-28T18:21:39.260010Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -180,5 +180,20 @@ author: oompah
 created: 2026-07-28 18:21
 ---
 Completion: delivered and pushed eb8da0e97. In Validation now canonicalizes aliases, has ordered display/rank support, remains nonterminal/non-working/non-dispatchable, round-trips through native Markdown, GitHub labels, and GitLab labels, and is excluded from ordinary worker candidates. Focused tests: 681 passed. Full make test gate: 12,631 passed, 7 skipped (14 pre-existing warnings). Branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-07-28 18:21
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 98
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 12m 27s
+- Log: OOMPAH-461__20260728T180914Z.jsonl
+---
+author: oompah
+created: 2026-07-28 18:21
+---
+Added canonical In Validation lifecycle status with tracker round-tripping and dispatch exclusion; tests and full gate pass.
 ---
 <!-- COMMENTS:END -->
