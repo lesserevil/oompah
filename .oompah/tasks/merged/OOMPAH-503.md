@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-503
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Limit automatic duplicate detection to nonterminal tasks
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:05:59.013552Z'
-updated_at: '2026-07-28T17:53:59.318927Z'
+updated_at: '2026-07-28T17:58:54.648344Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
