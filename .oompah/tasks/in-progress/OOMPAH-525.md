@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:54:49.582824Z'
+updated_at: '2026-07-28T19:55:15.404155Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -395,5 +395,10 @@ author: oompah
 created: 2026-07-28 19:54
 ---
 Understanding: I will audit the committed client-auth and lifecycle implementation for API-boundary correctness, secret handling, and compatibility, then run focused tests and address any defects before pushing and closing the task.
+---
+author: oompah
+created: 2026-07-28 19:55
+---
+Discovery: The implementation is present in commit 3e59598df and the worktree is clean/upstream-synced. The shared resolver is wired into task/admin, while Makefile protected calls use scripts/oompah_http.py and /healthz remains public. I’m checking the duplicated helper logic and shell error propagation now, since those are the highest API/lifecycle integration risks.
 ---
 <!-- COMMENTS:END -->

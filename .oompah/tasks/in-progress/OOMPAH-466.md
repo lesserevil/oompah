@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:08.204164Z'
-updated_at: '2026-07-28T19:53:05.225500Z'
+updated_at: '2026-07-28T19:55:16.250628Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -97,5 +97,10 @@ author: oompah
 created: 2026-07-28 19:53
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-28 19:55
+---
+Understanding: This task implements coordinator result-handling per OOMPAH-457's terminal-transition-coordinator design. The staging half (OOMPAH-465) landed; the verdict-application half is missing. Plan: (1) add an AuditResult submission surface with an idempotency attempt_id; (2) add TerminalTransitionCoordinator.apply_audit_result that CAS-checks audit_id/target/fingerprint and requires In Validation before applying; (3) on PASS record safe evidence, post a result comment, and apply only the audited target while advancing the next chain item; (4) map FAIL classifications centrally to Open, Needs CI Fix, Needs Rebase, In Review, Needs Human, or the recorded pre-audit state per the spec; (5) NEEDS_HUMAN comments run through validate_needs_human_comment so they end with instructions/questions; (6) never map error/timeout/unparseable/malformed/retry-ceiling to PASS. Note: the dispatcher labelled this run 'CI Failure Fixer' but there is no failing PR/CI on this branch — the actual work is the feature. I will implement it directly rather than hand off again since the prior agent also did not close and CI has no failures to fix.
 ---
 <!-- COMMENTS:END -->
