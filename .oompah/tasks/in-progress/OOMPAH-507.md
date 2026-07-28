@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-507
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Drain active agents before deployment restarts
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:07.476394Z'
-updated_at: '2026-07-28T15:06:56.125119Z'
+updated_at: '2026-07-28T15:31:34.051707Z'
 work_branch: null
 target_branch: null
 review_url: null
