@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T20:16:36.783511Z'
-updated_at: '2026-07-28T20:17:20.820810Z'
+updated_at: '2026-07-28T20:17:57.976267Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,5 +58,24 @@ author: oompah
 created: 2026-07-28 20:17
 ---
 Focus: Api Oompah Integration Specialist
+---
+author: oompah
+created: 2026-07-28 20:17
+---
+Understanding: This feature adds automatic webhook URL derivation for GitLab when OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL is not configured. The callback URL will be derived per-project by:
+1. Resolving the GitLab forge host from project config
+2. Using OS route discovery (socket-based, no network traffic) to find local source IP for that destination
+3. Combining IP + server port + /api/v1/webhooks/gitlab
+
+Explicit OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL always takes precedence.
+Will handle IPv4/IPv6, multiple GitLab projects with different routes, and fail safely to polling if discovery fails.
+
+Primary changes:
+- oompah/webhooks.py: Add route discovery utility, update GitLabHookManager to derive URLs per-project, add callback URL derivation logic
+- oompah/bootstrap.py: Wire server_port parameter to GitLabHookManager
+- .env.example: Document explicit URL as override for HTTPS/proxies/NAT
+- tests/: Add comprehensive tests for all scenarios
+
+Next: Explore route discovery patterns and implement.
 ---
 <!-- COMMENTS:END -->
