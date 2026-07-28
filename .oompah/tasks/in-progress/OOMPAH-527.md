@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-527
 type: feature
-status: Open
+status: In Progress
 priority: 2
 title: Derive GitLab webhook callback URL from the GitLab route
 parent: null
@@ -10,12 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T20:16:36.783511Z'
-updated_at: '2026-07-28T20:17:06.978174Z'
+updated_at: '2026-07-28T20:17:20.820810Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 5b18b096-2b14-4fad-a26a-0097a6c838c0
 ---
 ## Summary
 
@@ -46,3 +47,16 @@ Acceptance criteria
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 20:17
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 20:17
+---
+Focus: Api Oompah Integration Specialist
+---
+<!-- COMMENTS:END -->
