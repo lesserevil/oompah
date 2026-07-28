@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:50:46.401001Z'
+updated_at: '2026-07-28T19:50:48.651669Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -258,5 +258,10 @@ All acceptance criteria met:
 5. Failed authentication in make restart halts with exit 1; never escalates to force-restart.
 6. Unauthenticated workflows unchanged when OOMPAH_SERVER_USERNAME is unset.
 7. 201 focused tests pass.
+---
+author: oompah
+created: 2026-07-28 19:50
+---
+Implemented Basic auth support for oompah CLIs and Makefile lifecycle commands. Added oompah/client_auth.py (shared credential resolver with TOCTOU-safe file ops, symlink rejection, URL sanitization, 401 remediation), integrated --username/--password-file into task_cli.py and admin_cli.py, added scripts/oompah_http.py for credential-safe Makefile calls, updated Makefile status/restart/graceful to use authenticated Python helper without exposing credentials in process argv. 201 focused tests pass.
 ---
 <!-- COMMENTS:END -->
