@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:12:17.472259Z'
+updated_at: '2026-07-28T14:23:36.317035Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -180,5 +180,15 @@ author: oompah
 created: 2026-07-28 14:12
 ---
 Discovery: The client-side fix is not yet a security boundary. server.py still accepts state_branch_enabled in generic PATCH, so any stale/crafted request can enable reads before a state branch exists. The migrate endpoint also has no per-project lock despite claiming serialization, coerces confirm/dry_run with bool() (e.g. strings become true), invokes unauthenticated Git for validate/push, and enables config immediately after bootstrap without independently verifying the remote ref/commit/task layout. Git subprocesses use argv lists (no shell injection), but raw stderr is returned/logged without credential redaction. I will close the PATCH bypass with HTTP regression tests and hand the credential/atomicity work to feature with explicit security constraints.
+---
+author: oompah
+created: 2026-07-28 14:23
+---
+Verification: make test was attempted first but the environment's snap-wrapped uv failed before pytest with a DBus transient-scope error. Equivalent repository venv run succeeded: .venv/bin/pytest tests/ -q => 12,358 passed, 39 skipped, 14 warnings in 238.29s. Targeted state-branch/CRUD run => 133 passed.
+---
+author: oompah
+created: 2026-07-28 14:23
+---
+Implementation: Hardened server-side migration controls. Generic project PATCH now rejects state_branch_enabled so crafted/stale clients cannot bypass bootstrap. Migration requests require real JSON booleans for confirm/dry_run and enforce valid transitions: A only from unmigrated/A, C only from B, rollback only from A/B. Added HTTP tests for bypass rejection, mixed-request atomicity, boolean coercion, destructive-stage gating, and Stage B downgrade prevention; updated legacy CRUD expectations.
 ---
 <!-- COMMENTS:END -->
