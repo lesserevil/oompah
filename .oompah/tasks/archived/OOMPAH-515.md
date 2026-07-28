@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-515
 type: bug
-status: Backlog
+status: Archived
 priority: 2
 title: '[backend:server] Add comment API error: Cannot sync state branch ''oompah/state/proj-14849f1b'':
   git fetch origin ''oompah/state/proj-14849f1b'' failed: fatal: unable to access
@@ -13,7 +13,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-07-28T15:29:11.690903Z'
-updated_at: '2026-07-28T15:29:32.586826Z'
+updated_at: '2026-07-28T18:15:09.393806Z'
 work_branch: null
 target_branch: null
 review_url: null
