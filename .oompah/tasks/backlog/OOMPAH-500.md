@@ -6,11 +6,19 @@ priority: 1
 title: Measure the pruned suite and enforce the no-network final gate
 parent: OOMPAH-490
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-492
+- OOMPAH-493
+- OOMPAH-494
+- OOMPAH-495
+- OOMPAH-496
+- OOMPAH-497
+- OOMPAH-498
+- OOMPAH-499
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:35.430103Z'
-updated_at: '2026-07-28T13:53:35.430103Z'
+updated_at: '2026-07-28T13:54:08.108596Z'
 work_branch: null
 target_branch: null
 review_url: null

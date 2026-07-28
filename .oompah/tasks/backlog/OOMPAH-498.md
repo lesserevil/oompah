@@ -6,11 +6,13 @@ priority: 2
 title: Group granular Release Delivery template assertions by behavior
 parent: OOMPAH-490
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-491
+- OOMPAH-497
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:33.437818Z'
-updated_at: '2026-07-28T13:53:33.437818Z'
+updated_at: '2026-07-28T13:54:00.052164Z'
 work_branch: null
 target_branch: null
 review_url: null

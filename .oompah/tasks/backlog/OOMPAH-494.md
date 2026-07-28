@@ -6,11 +6,12 @@ priority: 1
 title: Consolidate Granian subprocess tests into complete scenarios
 parent: OOMPAH-490
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-491
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:29.472352Z'
-updated_at: '2026-07-28T13:53:29.472352Z'
+updated_at: '2026-07-28T13:53:53.987279Z'
 work_branch: null
 target_branch: null
 review_url: null

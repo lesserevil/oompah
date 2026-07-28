@@ -6,11 +6,12 @@ priority: 2
 title: Remove exact duplicate tests and resolve shadowed definitions
 parent: OOMPAH-490
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-491
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:34.407060Z'
-updated_at: '2026-07-28T13:53:34.407060Z'
+updated_at: '2026-07-28T13:53:59.104331Z'
 work_branch: null
 target_branch: null
 review_url: null

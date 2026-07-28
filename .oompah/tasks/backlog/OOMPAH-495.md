@@ -6,11 +6,12 @@ priority: 2
 title: Retire pre-implementation state-branch design tests
 parent: OOMPAH-490
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-491
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T13:53:30.405382Z'
+updated_at: '2026-07-28T13:53:55.098009Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -6,11 +6,12 @@ priority: 2
 title: Consolidate removed draft-epic and epic-strategy UI contracts
 parent: OOMPAH-490
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-491
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:31.446905Z'
-updated_at: '2026-07-28T13:53:31.446905Z'
+updated_at: '2026-07-28T13:53:56.010761Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -6,11 +6,12 @@ priority: 1
 title: Remove real retry sleeps from GitHub tracker error tests
 parent: OOMPAH-490
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-491
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:28.451050Z'
-updated_at: '2026-07-28T13:53:28.451050Z'
+updated_at: '2026-07-28T13:53:53.108770Z'
 work_branch: null
 target_branch: null
 review_url: null
