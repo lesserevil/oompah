@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:18:31.077035Z'
-updated_at: '2026-07-28T21:26:55.471078Z'
+updated_at: '2026-07-28T21:27:07.784970Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ merged_at: null
 oompah.agent_run_id: 6bbf97b4-c6ae-45c6-b1bb-612bb6e8ddc0
 oompah.work_branch: epic-OOMPAH-528
 oompah.task_costs:
-  total_input_tokens: 773703
-  total_output_tokens: 4250
+  total_input_tokens: 774029
+  total_output_tokens: 4312
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 773703
-      output_tokens: 4250
+      input_tokens: 774029
+      output_tokens: 4312
       cost_usd: 0.0
   runs:
   - profile: default
@@ -35,6 +35,12 @@ oompah.task_costs:
     output_tokens: 4250
     cost_usd: 0.0
     recorded_at: '2026-07-28T21:23:55.393926+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 326
+    output_tokens: 62
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T21:27:05.257409+00:00'
 ---
 ## Summary
 
@@ -182,5 +188,20 @@ author: oompah
 created: 2026-07-28 21:26
 ---
 Implemented revision-aware duplicate-screening metadata in commit 1a3a882c5 on epic-OOMPAH-528. Added typed tolerant parsing, stable material-input fingerprints, legacy/malformed fail-closed behavior, all tracker adapter hydration, and native tracker round-trip coverage. Focused result: 7 passed.
+---
+author: oompah
+created: 2026-07-28 21:27
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 16
+- Tokens: 326 in / 62 out [388 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 58s
+- Log: OOMPAH-529__20260728T212409Z.jsonl
+---
+author: oompah
+created: 2026-07-28 21:27
+---
+Implemented and pushed as 1a3a882c5 on epic-OOMPAH-528; focused duplicate-screening tests pass.
 ---
 <!-- COMMENTS:END -->
