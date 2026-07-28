@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-286
 type: task
-status: Merged
+status: Archived
 priority: 0
 title: Define the external-content trust model and prompt-injection threat model
 parent: OOMPAH-285
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T14:51:39.881239Z'
-updated_at: '2026-07-21T16:24:45.813583Z'
+updated_at: '2026-07-28T16:48:45.675020Z'
 work_branch: OOMPAH-286
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/466
