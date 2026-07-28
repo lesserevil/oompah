@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:08.204164Z'
-updated_at: '2026-07-28T19:55:16.250628Z'
+updated_at: '2026-07-28T20:03:52.097352Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -102,5 +102,10 @@ author: oompah
 created: 2026-07-28 19:55
 ---
 Understanding: This task implements coordinator result-handling per OOMPAH-457's terminal-transition-coordinator design. The staging half (OOMPAH-465) landed; the verdict-application half is missing. Plan: (1) add an AuditResult submission surface with an idempotency attempt_id; (2) add TerminalTransitionCoordinator.apply_audit_result that CAS-checks audit_id/target/fingerprint and requires In Validation before applying; (3) on PASS record safe evidence, post a result comment, and apply only the audited target while advancing the next chain item; (4) map FAIL classifications centrally to Open, Needs CI Fix, Needs Rebase, In Review, Needs Human, or the recorded pre-audit state per the spec; (5) NEEDS_HUMAN comments run through validate_needs_human_comment so they end with instructions/questions; (6) never map error/timeout/unparseable/malformed/retry-ceiling to PASS. Note: the dispatcher labelled this run 'CI Failure Fixer' but there is no failing PR/CI on this branch — the actual work is the feature. I will implement it directly rather than hand off again since the prior agent also did not close and CI has no failures to fix.
+---
+author: oompah
+created: 2026-07-28 20:03
+---
+Discovery + Implementation: Extended oompah/terminal_transition_coordinator.py with (1) AuditResult submission surface, ResultOutcome, and ResultRejection reason constants; (2) classify_failure_to_status() as the single central mapping from FailureClassification -> canonical status (Open/Needs CI Fix/Needs Rebase/In Review/Needs Human, and pre-audit state restore for UNSAFE_ARCHIVE); (3) TerminalTransitionCoordinator.apply_audit_result() that CAS-checks audit_id/target_state/evidence_fingerprint AND that the tracker still holds the issue in In Validation, records the auditor's attempt into the audit chain, and only then routes the verdict; (4) idempotency via a bounded applied_result_attempts log in metadata; (5) actionable Needs Human comment composition with an always-appended fallback so validate_needs_human_comment cannot reject the composed message. Never-honor guarantees: ERROR verdicts, unparseable payloads, MALFORMED_RESULT, INFRASTRUCTURE_ERROR, retry ceilings, and rejected NEEDS_HUMAN messages all leave the record PENDING and the task in In Validation. Files: oompah/terminal_transition_coordinator.py, plans/terminal-transition-coordinator.md (added Result Application section), tests/test_terminal_transition_coordinator.py (added 59 result-handling tests, 100 total in this suite).
 ---
 <!-- COMMENTS:END -->

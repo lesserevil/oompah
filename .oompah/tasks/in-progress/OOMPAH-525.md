@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:55:15.404155Z'
+updated_at: '2026-07-28T20:03:52.681748Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -400,5 +400,10 @@ author: oompah
 created: 2026-07-28 19:55
 ---
 Discovery: The implementation is present in commit 3e59598df and the worktree is clean/upstream-synced. The shared resolver is wired into task/admin, while Makefile protected calls use scripts/oompah_http.py and /healthz remains public. I’m checking the duplicated helper logic and shell error propagation now, since those are the highest API/lifecycle integration risks.
+---
+author: oompah
+created: 2026-07-28 20:03
+---
+Implementation: Reused the shared resolver in scripts/oompah_http.py, hardened malformed/userinfo URL rejection and password-file open flags, made --password-file override inline env credentials, and added agent_environment() filtering for API/ACP child processes. Makefile lifecycle calls now use the configured PORT, fail closed on state preflight errors, surface status auth failures, and retain unauthenticated /healthz probing. Added docs and focused task/admin/lifecycle/agent tests.
 ---
 <!-- COMMENTS:END -->
