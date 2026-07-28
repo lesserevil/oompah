@@ -13,7 +13,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-28T21:18:51.634942Z'
-updated_at: '2026-07-28T21:33:13.186295Z'
+updated_at: '2026-07-28T21:33:47.677201Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -152,5 +152,36 @@ author: oompah
 created: 2026-07-28 21:33
 ---
 Understanding: implement revision-aware duplicate-preflight claims (claim/renew/release/expire) under the project tracker lock, with mutual exclusion against implementation agents, restart/timeout recovery, claim-ID CAS, and stale-revision protection. I will inspect the OOMPAH-529 metadata work plus dispatch/state locking, then add focused race, recovery, CAS, revision-change, and eligibility tests.
+---
+author: oompah
+created: 2026-07-28 21:33
+---
+**Understanding:**
+
+I need to implement atomic duplicate-preflight claims and recovery. The claim lifecycle will enable duplicate-screening agents to run while tasks remain Open, with mutual exclusion from implementation dispatch.
+
+Key findings:
+1. OOMPAH-529 has provided DuplicateScreeningEvidence and metadata helpers in duplicate_screening.py
+2. The oompah_md_tracker has a per-repo write-lock mechanism (_repo_write_lock) for atomic metadata updates
+3. terminal_transition_coordinator.py demonstrates project-scoped locking and CAS patterns
+4. Claims need: opaque ID, owner/run identity, timestamps (claimed/expiry), detector version, task fingerprint
+
+Plan:
+1. Create duplicate_preflight_claims.py with ClaimRecord dataclass (id, owner, claimed_at, expires_at, detector_version, fingerprint)
+2. Add ClaimStore class with claim/renew/release/expire operations, using tracker write-lock for atomicity
+3. Integrate into orchestrator.py dispatch logic:
+   - Block preflight claim if implementation agent is active
+   - Block implementation dispatch if preflight claim is active
+4. Add restart recovery by scanning for expired claims on startup
+5. Implement CAS release by claim ID
+6. Prevent stale pass recording when task edits during screening
+7. Add comprehensive tests for concurrency, blocking, validation, and recovery
+
+Relevant files: oompah/orchestrator.py, oompah/duplicate_screening.py (OOMPAH-529), oompah/oompah_md_tracker.py (write-lock), tests/test_*_claims.py
+---
+author: oompah
+created: 2026-07-28 21:33
+---
+Discovery: the worktree includes the uncommitted OOMPAH-529 metadata prerequisite in oompah/duplicate_screening.py plus tests; I will preserve it and use its parser/fingerprint helpers. Native tracker instances share a repository _write_lock, while ProjectStore exposes project_write_lock. Implementation claims are currently in orchestrator state, so duplicate preflight must coordinate with that state while holding the project lock.
 ---
 <!-- COMMENTS:END -->
