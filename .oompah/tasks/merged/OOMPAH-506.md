@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-506
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Run safe stale-cache and worktree cleanup daily and under storage pressure
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:06.576042Z'
-updated_at: '2026-07-28T17:53:10.007073Z'
+updated_at: '2026-07-28T17:59:01.286574Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
