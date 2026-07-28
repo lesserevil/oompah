@@ -224,6 +224,9 @@ class TestDispatchConflictAgentForDelivery:
             tracker = mock_tracker
             project_store = mock_project_store
 
+            def _management_tracker_scope(self):
+                return self.tracker, "proj-management"
+
             _dispatch_conflict_agent_for_delivery = (
                 lambda self, p, s, d:
                 _real_impl(self, p, s, d)
@@ -338,6 +341,9 @@ class TestDispatchDeliveryConflictAgents:
 
             def _tracker_for_project(self, pid):
                 return self.tracker
+
+            def _management_tracker_scope(self):
+                return self.tracker, "proj-management"
 
             # Delegate the per-delivery method to the real implementation
             _dispatch_conflict_agent_for_delivery = (

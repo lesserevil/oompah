@@ -15,6 +15,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from enum import Enum
 from typing import Any
@@ -675,7 +676,10 @@ class Orchestrator:
             poll_interval_ms=config.poll_interval_ms,
             max_concurrent_agents=config.max_concurrent_agents,
         )
-        # Legacy single tracker (used when no projects configured)
+        # Legacy single tracker (used when no projects are configured).  In
+        # managed-project mode the native factory makes this tracker
+        # fail-closed for task mutations, so an unscoped caller cannot write
+        # task metadata into the service process's code checkout.
         self.tracker = self._new_tracker()
         # Per-project trackers, keyed by project_id
         self._project_trackers: dict[str, TrackerProtocol] = {}
@@ -1933,10 +1937,16 @@ class Orchestrator:
                 f"Unsupported tracker.kind: {kind!r}."
                 f" Registered adapters: {registered}"
             )
+        extra: dict[str, object] = {}
+        if kind in ("oompah_md", "oompah.md", "oompah"):
+            extra["allow_default_branch_task_writes"] = (
+                not self._has_managed_projects()
+            )
         return factory(
             active_states=self.config.tracker_active_states,
             terminal_states=self.config.tracker_terminal_states,
             cwd=cwd,
+            **extra,
         )
 
     def _new_tracker_for_project(self, project: "Project") -> TrackerProtocol:
@@ -2004,7 +2014,17 @@ class Orchestrator:
             default_branch = (getattr(project, "default_branch", None) or "").strip()
             if default_branch:
                 extra["default_branch"] = default_branch
-            if getattr(project, "state_branch_enabled", False) is True:
+            state_branch_enabled = (
+                getattr(project, "state_branch_enabled", False) is True
+            )
+            # A project-scoped legacy tracker may write its default branch.
+            # State-branch projects may only write task state through the
+            # configured state worktree; the flag is also a defensive marker
+            # carried by the resulting tracker instance.
+            extra["allow_default_branch_task_writes"] = (
+                not state_branch_enabled
+            )
+            if state_branch_enabled:
                 extra["state_branch_enabled"] = True
                 extra["state_branch_name"] = project.state_branch_name
                 if getattr(project, "state_branch_shadow_write", False) is True:
@@ -2015,6 +2035,47 @@ class Orchestrator:
             cwd=project.repo_path,
             **extra,
         )
+
+    def _has_managed_projects(self) -> bool:
+        """Return whether managed-mode safeguards must be active."""
+        try:
+            return bool(self.project_store.list_all())
+        except Exception:  # noqa: BLE001 - an unreadable store must fail closed
+            return True
+
+    def _management_tracker_scope(self) -> tuple[TrackerProtocol, str | None]:
+        """Resolve the tracker that owns Oompah's own operational tasks.
+
+        In standalone mode this is the legacy tracker.  In managed mode the
+        workflow file must live inside exactly one registered project checkout;
+        that project's canonical tracker becomes the management tracker.
+        Refusing to guess is important: a wrong guess can put backend-error or
+        maintenance tasks in another project's tracker.
+        """
+        projects = self.project_store.list_all()
+        if not projects:
+            return self.tracker, None
+
+        workflow_root = Path(self.workflow_path).expanduser().resolve().parent
+        matches = []
+        for project in projects:
+            repo_path = str(getattr(project, "repo_path", "") or "").strip()
+            if not repo_path:
+                continue
+            if Path(repo_path).expanduser().resolve() == workflow_root:
+                matches.append(project)
+
+        if len(matches) != 1:
+            matched_ids = ", ".join(str(project.id) for project in matches) or "none"
+            raise ProjectError(
+                "Cannot resolve the Oompah management tracker safely: "
+                f"workflow root {str(workflow_root)!r} matched {matched_ids}. "
+                "Register the service checkout as exactly one managed project "
+                "and use its project ID for management task writes."
+            )
+
+        project = matches[0]
+        return self._tracker_for_project(str(project.id)), str(project.id)
 
     def _tracker_for_project(self, project_id: str) -> TrackerProtocol:
         """Get or create the tracker for a project.
@@ -2051,6 +2112,11 @@ class Orchestrator:
         """Get the appropriate tracker for an issue."""
         if issue.project_id:
             return self._tracker_for_project(issue.project_id)
+        if self._has_managed_projects():
+            raise ProjectError(
+                f"Managed issue {issue.identifier!r} has no project_id; "
+                "refusing to use the unscoped legacy tracker"
+            )
         return self.tracker
 
     def _invalidate_tracker_read_caches(self) -> None:
@@ -2954,7 +3020,45 @@ class Orchestrator:
             if retry.timer_handle and not retry.timer_handle.cancelled():
                 retry.timer_handle.cancel()
         self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
+        await self._drain_background_work()
         logger.info("Orchestrator stopped")
+
+    async def _drain_background_work(self) -> None:
+        """Wait for fire-and-forget maintenance and shut down owned pools.
+
+        Maintenance is intentionally not awaited by an ordinary scheduler tick,
+        but it must not outlive the orchestrator itself.  In particular, a
+        short-lived test or graceful restart must not leave a worker that can
+        mutate tracker state after its event loop and fixtures have gone away.
+        """
+        futures = [
+            future
+            for future in (
+                self._maintenance_future,
+                self._epic_maintenance_future,
+            )
+            if future is not None
+        ]
+        if futures:
+            await asyncio.gather(
+                *(asyncio.shield(future) for future in futures),
+                return_exceptions=True,
+            )
+
+        # shutdown(wait=True) also accounts for short auxiliary submissions
+        # that are not represented by the two maintenance future attributes.
+        # Run it off-loop so graceful shutdown does not block WebSocket/API
+        # cancellation while the workers finish.
+        await asyncio.to_thread(
+            self._tick_pool.shutdown,
+            wait=True,
+            cancel_futures=False,
+        )
+        await asyncio.to_thread(
+            self._refresh_pool.shutdown,
+            wait=True,
+            cancel_futures=False,
+        )
 
     async def _tick(self) -> None:
         """One poll-and-dispatch cycle.
@@ -10492,7 +10596,10 @@ class Orchestrator:
             "Do NOT create a branch or PR for this task itself._"
         )
 
-        new_task = self.tracker.create_issue(
+        management_tracker, _management_project_id = (
+            self._management_tracker_scope()
+        )
+        new_task = management_tracker.create_issue(
             title=title,
             issue_type="task",
             description=description,

@@ -14,7 +14,7 @@ remove_draft_labels_from_epics(tracker) must:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -275,3 +275,70 @@ def test_migration_called_during_set_orchestrator():
             mock_migrate.assert_called_once_with(mock_orch.tracker)
     finally:
         server_module._orchestrator = _saved_orchestrator
+
+
+def test_managed_startup_migration_uses_each_project_tracker_not_global():
+    """Managed startup must never run the migration through orch.tracker."""
+    import oompah.server as server_module
+
+    project_a = MagicMock(id="proj-a")
+    project_b = MagicMock(id="proj-b")
+    tracker_a = MagicMock()
+    tracker_b = MagicMock()
+    global_tracker = MagicMock()
+
+    mock_orch = MagicMock()
+    mock_orch.tracker = global_tracker
+    mock_orch.project_store.list_all.return_value = [project_a, project_b]
+    mock_orch._tracker_for_project.side_effect = {
+        "proj-a": tracker_a,
+        "proj-b": tracker_b,
+    }.__getitem__
+    mock_orch._management_tracker_scope.return_value = (
+        tracker_a,
+        "proj-a",
+    )
+    mock_orch.agent_profile_store = MagicMock()
+    mock_orch.role_store = MagicMock()
+    mock_orch.provider_store = MagicMock()
+    mock_orch._observers = []
+    mock_orch._state_only_observers = []
+    mock_orch._activity_observers = []
+    mock_orch.register_error_watcher = MagicMock()
+
+    saved_orchestrator = server_module._orchestrator
+    error_watcher_cls = MagicMock()
+    try:
+        with (
+            patch.object(
+                server_module,
+                "remove_draft_labels_from_epics",
+                return_value=0,
+            ) as migrate,
+            patch.object(
+                server_module,
+                "_migrate_release_picks_on_startup",
+            ),
+            patch.object(server_module, "ErrorWatcher", error_watcher_cls),
+            patch.object(server_module, "ProjectLogWatcherManager", MagicMock()),
+        ):
+            try:
+                server_module.set_orchestrator(mock_orch)
+            except Exception:
+                pass
+
+        assert migrate.call_args_list == [
+            call(tracker_a),
+            call(tracker_b),
+        ]
+        assert all(
+            args.args[0] is not global_tracker
+            for args in migrate.call_args_list
+        )
+        error_watcher_cls.assert_called_once_with(
+            tracker_a,
+            project_id="proj-a",
+        )
+        assert error_watcher_cls.call_args.args[0] is not global_tracker
+    finally:
+        server_module._orchestrator = saved_orchestrator

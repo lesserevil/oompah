@@ -83,6 +83,9 @@ class TestLabelMergedIssues:
 
     def test_no_merged_branches_is_noop(self, tmp_path):
         orch = self._make_orchestrator(tmp_path)
+        # Construction checks whether managed-project write safeguards should
+        # be active.  This assertion covers the later reconciliation sweep.
+        orch.project_store.list_all.reset_mock()
         orch._merged_branches = set()
         orch._label_merged_issues()
         # The sweep still checks projects because provider fallback can
