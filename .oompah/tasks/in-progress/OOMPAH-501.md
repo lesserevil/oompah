@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:12:41.024695Z'
+updated_at: '2026-07-28T14:13:56.874490Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -144,5 +144,18 @@ author: oompah
 created: 2026-07-28 14:12
 ---
 Understanding: Starting implementation of OOMPAH-501. The bug is that check_close_gate in oompah/close_gate.py evaluates a shared epic branch child's work_branch against the project default branch without parent/epic context, then emits a gh pr create command when it finds commits ahead of main. This bypasses the existing canonical epic-rollup readiness gate (_epic_rollup_children_block_reason in orchestrator.py). Fix plan: (1) make check_close_gate parent-aware so children on shared epic branches skip review creation requirements, (2) reuse/centralize the canonical rollup readiness check in every automatic review-creation path, (3) add regression tests reproducing OOMPAH-452/PR #558 scenario. Relevant files: oompah/close_gate.py, oompah/orchestrator.py, tests/test_close_gate.py, tests/test_epic_strategy.py.
+---
+author: oompah
+created: 2026-07-28 14:13
+---
+Understanding: This is NOT a duplicate. Prior agents were assigned as Duplicate Investigators but the duplicate screen found no duplicate and ended without implementing the fix.
+
+Root cause confirmed (same as previous manual analysis): check_close_gate in oompah/close_gate.py evaluates a shared child's work_branch (e.g., epic-OOMPAH-451) against the project default branch. When the child (OOMPAH-452) closes, the gate sees that branch is ahead of main with no PR and refuses - emitting a 'gh pr create --base main --head epic-OOMPAH-451 ...' diagnostic. An agent follows this and creates the premature PR #558.
+
+Fix: Add a skip rule in check_close_gate() for issues with parent_id set (shared epic children). Their shared epic branch is intentionally ahead of main; the epic rollup gate in _open_epic_main_prs handles the eventual PR when all children are done.
+
+The _ensure_review_exists() already correctly skips per-child PR creation when parent_id is set. The _open_epic_main_prs() already has _epic_rollup_children_block_reason() that blocks rollup PR creation until all children are terminal. Only the close gate is missing this check.
+
+Implementing now: 1) Add shared_epic_child skip rule in check_close_gate(), 2) Add regression tests for the OOMPAH-452 scenario, 3) Add tests for rollup readiness guard.
 ---
 <!-- COMMENTS:END -->
