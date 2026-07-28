@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:54:43.636254Z'
+updated_at: '2026-07-28T18:55:12.671204Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -195,5 +195,10 @@ author: oompah
 created: 2026-07-28 18:54
 ---
 Implementation complete. Changes made: (1) oompah/server.py: added import base64; _BasicAuthMiddleware ASGI class before app creation with exact-match exemption for GET /healthz, POST /api/v1/webhooks/github, POST /api/v1/webhooks/gitlab; app.add_middleware(_BasicAuthMiddleware); _http_credentials module var + _INSTANCE_ID; set_http_credentials() function; GET /healthz endpoint returning {status, instance_id} with no operational data; call set_http_credentials(services.http_credentials) in _service_lifespan. (2) tests/test_server_auth.py: 57 new integration tests covering all acceptance criteria (disabled mode, valid creds, 7 invalid credential cases, challenge header, 9 protected surfaces, healthz minimal, WS accept/reject/no-ws-clients-registration, webhook exemptions, anti-bypass method/path variants, GitHub signature validation under auth). All 57 new tests pass, all 875 server tests pass, http_auth tests unaffected.
+---
+author: oompah
+created: 2026-07-28 18:55
+---
+Verification: All 57 new auth tests pass. All 875 existing server tests pass. No regressions in test_http_auth.py, test_ws_lifecycle.py, test_server_webhooks.py, test_server_favicon.py. Code pushed to epic-OOMPAH-521 (commit cf4690852).
 ---
 <!-- COMMENTS:END -->
