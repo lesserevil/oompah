@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-508
 type: feature
-status: In Progress
+status: Backlog
 priority: 1
 title: Run focused checks at handoff and one full quality gate per ready branch
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:08.389229Z'
-updated_at: '2026-07-28T15:47:05.239353Z'
+updated_at: '2026-07-28T15:49:02.345939Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
