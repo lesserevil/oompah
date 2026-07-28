@@ -8,10 +8,11 @@ parent: OOMPAH-502
 children: []
 blocked_by:
 - OOMPAH-492
+- OOMPAH-490
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:10.253754Z'
-updated_at: '2026-07-28T15:06:58.224808Z'
+updated_at: '2026-07-28T16:00:38.400511Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +41,10 @@ author: oompah
 created: 2026-07-28 15:06
 ---
 Claimed for manual implementation by the current Codex session. Held in Backlog while the shared epic branch is built so Oompah does not dispatch another agent; status will move to In Progress and Done as this session completes the slice.
+---
+author: oompah
+created: 2026-07-28 16:00
+---
+Sequencing update: the required no-network and live-tracker isolation changes are committed only on the still-incomplete epic-OOMPAH-490 branch. Added an explicit dependency on the whole epic to preserve branch atomicity; no child commit will be cherry-picked. I am proceeding with the non-overlapping xdist/config work on epic-OOMPAH-502 and will run repeated parallel full-suite verification only after OOMPAH-490 is merged and rebased.
 ---
 <!-- COMMENTS:END -->

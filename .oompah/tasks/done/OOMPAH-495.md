@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T16:00:22.247373Z'
+updated_at: '2026-07-28T16:00:36.607457Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -21,13 +21,17 @@ merged_at: null
 oompah.agent_run_id: 360de98d-5111-4fec-966e-8753a0f5dbba
 oompah.work_branch: epic-OOMPAH-490
 oompah.task_costs:
-  total_input_tokens: 17
-  total_output_tokens: 3760
+  total_input_tokens: 44
+  total_output_tokens: 4293
   total_cost_usd: 0.0
   by_model:
     unknown:
       input_tokens: 17
       output_tokens: 3760
+      cost_usd: 0.0
+    fable:
+      input_tokens: 27
+      output_tokens: 533
       cost_usd: 0.0
   runs:
   - profile: default
@@ -36,6 +40,12 @@ oompah.task_costs:
     output_tokens: 3760
     cost_usd: 0.0
     recorded_at: '2026-07-28T15:44:35.335688+00:00'
+  - profile: quick
+    model: fable
+    input_tokens: 27
+    output_tokens: 533
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T16:00:34.034133+00:00'
 ---
 ## Summary
 
@@ -177,5 +187,20 @@ author: oompah
 created: 2026-07-28 16:00
 ---
 Completion: Retired tests/test_state_branch_design.py, removed the duplicate TestXfailDesignContractNowPasses checks, and removed obsolete conditional xfail scaffolding while keeping all production-backed state-branch test bodies active. Collection dropped by 24 cases (322 to 298), targeted suites passed 298/298, and make test passed 12,321 tests with 7 skipped. Commit 93fbea87d is pushed to origin/epic-OOMPAH-490; the worktree is clean and up to date.
+---
+author: oompah
+created: 2026-07-28 16:00
+---
+Run #2 [attempt=2, profile=quick, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 11
+- Tokens: 27 in / 533 out [560 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 34s
+- Log: OOMPAH-495__20260728T155704Z.jsonl
+---
+author: oompah
+created: 2026-07-28 16:00
+---
+Retired the pre-implementation state-branch design module and duplicate post-xfail checks; preserved production-backed coverage and verified all tests.
 ---
 <!-- COMMENTS:END -->
