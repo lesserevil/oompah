@@ -10,10 +10,11 @@ blocked_by:
 - OOMPAH-462
 - OOMPAH-468
 - OOMPAH-457
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-28T22:21:10.766320Z'
+updated_at: '2026-07-28T22:21:22.496919Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -77,5 +78,10 @@ author: oompah
 created: 2026-07-28 22:21
 ---
 **Discovery:** Comprehensive duplicate screening complete. OOMPAH-471 is NOT a duplicate.\n\nSearch scope:\n- All .oompah/tasks directories (archived, merged, open, backlog): 281+ task files searched\n- Source code (oompah/, tests/): searched for DoneEvidenceCollector, Collector, evidence collection patterns\n- Plans and docs: terminal-transition-coordinator.md, terminal-transition-coordinator-api.md, WORKFLOW.md, README.md\n- Git history: no prior implementations\n\nFindings:\n- OOMPAH-462 (Merged): Defines terminal-audit records/enums/fingerprints — different scope (audit types, not evidence collection)\n- OOMPAH-463-467 (Merged): Terminal-audit coordinator and enforcement — infrastructure for queueing/applying audits\n- OOMPAH-468 (Done): Persist worker/epic contributor provenance — supplies contributor identities, not evidence collection\n- OOMPAH-469 (Open): Reserved auditor focus/prompt contract — supplies auditor interface, not evidence collection\n- OOMPAH-470 (Open): Auditor role selection and candidate filtering — independent candidate selection, not evidence collection\n- No existing DoneEvidenceCollector, EvidenceCollector, or similar collector classes in codebase\n\nScope confirmation: OOMPAH-471 uniquely builds a read-only DoneEvidenceCollector that gathers task/epic completion evidence (workspace, branch, SHAs, requirements, diff/stat, changed files, commit/push status, test commands, CI evidence, comments, children, contributors). This is required by auditors but not yet implemented.\n\nConclusion: OOMPAH-471 is a unique, original feature task. No duplicate found.
+---
+author: oompah
+created: 2026-07-28 22:21
+---
+Focus handoff: duplicate_detector\n\n**Outcome:** No duplicate found. OOMPAH-471 is a unique, original feature implementation task.\n\n**Evidence:** Repository-wide searches (281+ .oompah/tasks files, plans/, docs/, source code) found zero existing implementations of DoneEvidenceCollector, evidence collection for task audits, or similar work. OOMPAH-462-468 provide terminal-audit infrastructure (records/fingerprints/coordinator/contributor-persistence) but do not collect audit evidence. OOMPAH-469-470 define auditor focus/role but do not collect evidence. The new DoneEvidenceCollector is required by auditors to gather task/epic completion evidence.\n\n**Remaining work/risks:** Implement read-only DoneEvidenceCollector module that resolves workspace/worktree, branch info, SHAs, requirements/digest, diff/stat with bounded excerpts, changed files, commit/push status, test commands, CI/test evidence, comments/handoffs, children, and contributor identities. For tasks, require committed+pushed work on intended branch covering description/acceptance criteria. For epics, include every direct/nested child audit result and prove child commits are contained in epic revision. Return typed unavailable/invalid evidence. Add git fixtures for standalone tasks, epic children, nested epics, clean/dirty worktrees, unpushed commits, missing branches, changed requirements, test evidence, incomplete children, bounded prompts. Run focused tests and make test.\n\n**Recommended next focus:** feature (backend implementation)
 ---
 <!-- COMMENTS:END -->
