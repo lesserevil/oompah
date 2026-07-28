@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:53:49.306496Z'
+updated_at: '2026-07-28T19:53:51.599155Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -336,5 +336,10 @@ Implementation verified:
 - Comprehensive test coverage of all paths: credential resolution, file permissions, symlinks, URL redaction, 401 handling
 
 All files are committed on epic-OOMPAH-521 and pushed to origin. Ready for review.
+---
+author: oompah
+created: 2026-07-28 19:53
+---
+Implemented Basic auth support for oompah CLIs and Makefile lifecycle commands. Added client credential resolver with TOCTOU-safe file ops, symlink rejection, URL sanitization. Integrated httpx/urllib BasicAuth into task_cli.py and admin_cli.py. Added scripts/oompah_http.py for credential-safe Makefile calls. Updated Makefile status/restart/graceful to use authenticated Python helper. 201 focused tests pass. All acceptance criteria met.
 ---
 <!-- COMMENTS:END -->
