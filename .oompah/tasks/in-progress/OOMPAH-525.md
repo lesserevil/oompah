@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:33:43.503931Z'
+updated_at: '2026-07-28T19:34:22.235200Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-07-28 19:33
 ---
 Understanding: I am performing the required duplicate review before any implementation. I will search existing auth/htpasswd-related tasks, read full candidate records, and either archive this task as a confirmed duplicate or hand it off with the closest evidence.
+---
+author: oompah
+created: 2026-07-28 19:34
+---
+Discovery: Duplicate screening found no duplicate. Reviewed OOMPAH-522 (server htpasswd loading/verifier), OOMPAH-523 (ASGI HTTP/WebSocket enforcement and public /healthz), OOMPAH-524 (authenticated embedded MCP), and OOMPAH-526 (operator documentation/integration). Their scopes are prerequisites or follow-on documentation; none implements client credential resolution for task/admin CLIs or authenticated Makefile lifecycle APIs. Repository search across .oompah/tasks, docs, plans, README.md, and WORKFLOW.md found no separate task for this client/lifecycle scope.
 ---
 <!-- COMMENTS:END -->
