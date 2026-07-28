@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:36:19.396988Z'
+updated_at: '2026-07-28T13:41:53.984138Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -179,5 +179,10 @@ author: oompah
 created: 2026-07-28 13:36
 ---
 Discovery: Root cause confirmed in oompah/templates/projects.html. In saveProject() (line ~805), the PATCH body always includes BOTH github_issue_intake_enabled AND external_issue_intake_enabled with the same value. server.py passes both to ProjectStore.update() fields dict; ProjectStore.update() at projects.py:1343 rejects any payload where both fields are present with 'Specify only one...' error - even when both values are false and equal. Fix: remove github_issue_intake_enabled from the saveProject body; send only external_issue_intake_enabled (the canonical forge-neutral field). server.py already handles external_issue_intake_enabled in the PATCH handler (lines 10375-10377) and passes it to ProjectStore which normalizes it internally. Backend status_actor_login issue: server.py lines 10518-10530 call _resolve_github_token_owner() regardless of forge_kind, sending GitLab tokens to GitHub API - this needs a backend fix (forge-aware check before calling). Will implement frontend fix now and note backend work for handoff.
+---
+author: oompah
+created: 2026-07-28 13:41
+---
+Implementation: Fixed oompah/templates/projects.html saveProject() function. Removed github_issue_intake_enabled from the PATCH body — it was being sent alongside external_issue_intake_enabled (the canonical forge-neutral field), causing ProjectStore.update() to raise 'Specify only one' for every save from the Projects page, including unrelated edits like enabling state_branch_enabled. The fix: send only external_issue_intake_enabled. The server PATCH handler already routes this field through ProjectStore which normalizes it internally. Card display still reads both aliases (OR) for backward compatibility with stored data. Added TestSaveProjectIntakeAliasPayload class to tests/test_projects_gitlab_ui.py with 4 tests covering: external alias is sent, legacy alias is absent from PATCH body, checkbox value maps to canonical field, and backward-compat card display reads both.
 ---
 <!-- COMMENTS:END -->
