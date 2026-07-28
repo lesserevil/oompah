@@ -166,6 +166,12 @@ from oompah.tracker import (
     TrackerStateBranchMissingError,
     TrackerTimeoutError,
 )
+from oompah.work_contributors import (
+    METADATA_KEY as _WORK_CONTRIBUTORS_KEY,
+    WorkContributor,
+    _UNKNOWN_MODEL_NAMES as _WORK_CONTRIBUTOR_UNKNOWN_MODELS,
+    merge_contributor_records as _merge_work_contributors,
+)
 from oompah.workspace import WorkspaceError, WorkspaceManager
 from oompah.yolo_watchdog import (
     CoverageRecord,
@@ -16597,6 +16603,164 @@ class Orchestrator:
             )
 
     # ------------------------------------------------------------------
+    # Work contributor provenance (OOMPAH-468)
+    # ------------------------------------------------------------------
+
+    def _build_work_contributor_record(
+        self, entry: "RunningEntry"
+    ) -> "WorkContributor | None":
+        """Build a :class:`WorkContributor` record from a completed RunningEntry.
+
+        Returns ``None`` when the entry lacks the minimum required fields
+        (identifier missing).  Never raises — any exception is caught and
+        logged so the caller's fire-and-forget path is never disrupted.
+        """
+        try:
+            identifier = entry.identifier
+            if not identifier:
+                return None
+
+            # Derive a stable run_id from the agent log path basename.
+            run_id: str
+            if entry.agent_log_path:
+                run_id = os.path.basename(entry.agent_log_path)
+                if run_id.endswith(".jsonl"):
+                    run_id = run_id[:-6]
+            else:
+                stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+                run_id = f"{identifier}__{stamp}"
+
+            # Model ID: None for SDK-managed or CLI-managed unknowns.
+            raw_model = entry.model_name
+            model_id: str | None = (
+                None
+                if (raw_model or "").strip().lower() in _WORK_CONTRIBUTOR_UNKNOWN_MODELS
+                else raw_model
+            )
+
+            # Source branch from the issue metadata.
+            issue = entry.issue
+            source_branch: str | None = None
+            if issue:
+                source_branch = (
+                    getattr(issue, "work_branch", None)
+                    or getattr(issue, "branch_name", None)
+                ) or None
+
+            # Source SHA from the worker's workspace at exit time.
+            source_sha: str | None = None
+            if entry.workspace_path:
+                sha = self._worktree_head(entry.workspace_path)
+                source_sha = sha or None
+
+            completed_at = datetime.now(timezone.utc).isoformat()
+
+            return WorkContributor(
+                run_id=run_id,
+                provider_id=entry.provider_id or None,
+                provider_name=entry.provider_name or None,
+                model_id=model_id,
+                focus=entry.focus_name or None,
+                source_branch=source_branch,
+                source_sha=source_sha,
+                completed_at=completed_at,
+            )
+        except Exception as exc:
+            logger.warning(
+                "work_contributor: failed to build record for %s: %s",
+                getattr(entry, "identifier", "?"),
+                exc,
+            )
+            return None
+
+    def _write_work_contributor_record(self, entry: "RunningEntry") -> None:
+        """Persist work contributor provenance for a successfully completed run.
+
+        Storage key: ``oompah.work_contributors``, written via the tracker
+        protocol (``set_metadata_field``).  Multiple runs accumulate in the
+        ``runs`` list — prior records are never discarded here; filtering
+        for a specific audit revision is done at read time.
+
+        Designed to be called from a background thread (fire-and-forget).
+        Any exception is logged at WARNING and swallowed.
+        """
+        try:
+            contributor = self._build_work_contributor_record(entry)
+            if contributor is None:
+                return
+
+            issue = entry.issue
+            try:
+                tracker = self._tracker_for_issue(issue)
+            except Exception as exc:
+                logger.warning(
+                    "work_contributor: tracker lookup failed for %s: %s",
+                    entry.identifier,
+                    exc,
+                )
+                return
+
+            # Fetch existing metadata (fail-open: proceed without existing data)
+            existing_meta: dict[str, Any] = {}
+            try:
+                existing_meta = dict(tracker.get_metadata(issue.identifier))
+            except Exception as exc:
+                logger.debug(
+                    "work_contributor: failed to fetch metadata for %s: %s",
+                    entry.identifier,
+                    exc,
+                )
+
+            existing_contributors = existing_meta.get(_WORK_CONTRIBUTORS_KEY)
+            merged = _merge_work_contributors(
+                existing_contributors
+                if isinstance(existing_contributors, dict)
+                else None,
+                contributor,
+            )
+
+            try:
+                tracker.set_metadata_field(
+                    issue.identifier,
+                    _WORK_CONTRIBUTORS_KEY,
+                    merged,
+                )
+                logger.info(
+                    "work_contributor: wrote %s run_id=%s provider=%s model=%s",
+                    entry.identifier,
+                    contributor.run_id,
+                    contributor.provider_name,
+                    contributor.model_id,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "work_contributor: failed to write metadata for %s: %s",
+                    entry.identifier,
+                    exc,
+                )
+        except Exception as exc:
+            logger.warning(
+                "work_contributor: unexpected error for %s: %s",
+                getattr(entry, "identifier", "?"),
+                exc,
+            )
+
+    def _fire_work_contributor_record(self, entry: "RunningEntry") -> None:
+        """Fire-and-forget: write work contributor provenance in a background thread.
+
+        Mirrors :meth:`_fire_task_cost_record` — exceptions are logged but
+        never propagate so the worker exit path stays unblocked.
+        """
+        try:
+            self._tick_pool.submit(self._write_work_contributor_record, entry)
+        except Exception as exc:
+            logger.warning(
+                "work_contributor: failed to submit background write for %s: %s",
+                getattr(entry, "identifier", "?"),
+                exc,
+            )
+
+    # ------------------------------------------------------------------
     # Per-agent telemetry comment (task oompah-zlz_2-y3fy)
     # ------------------------------------------------------------------
 
@@ -20065,6 +20229,12 @@ class Orchestrator:
         # separate comment so the task history shows all attempts
         # side-by-side. See task oompah-zlz_2-y3fy.
         self._fire_telemetry_comment(entry, reason, elapsed)
+
+        # Persist work contributor provenance (OOMPAH-468): write only on
+        # successful completion so partial/stalled runs are not recorded as
+        # contributors to the task or epic revision.
+        if reason == "normal":
+            self._fire_work_contributor_record(entry)
 
         tokens_str = ""
         if entry.session and entry.session.total_tokens > 0:
