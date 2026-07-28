@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T15:21:24.238661Z'
+updated_at: '2026-07-28T15:27:59.673003Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -136,5 +136,10 @@ author: oompah
 created: 2026-07-28 15:21
 ---
 Understanding (refactor): Managed runtime paths currently retain a cwd-derived global tracker alongside project-scoped trackers. I will inventory every orch.tracker/self.tracker consumer and the project tracker construction contract, run baseline focused tests, then make only behavior-preserving structural changes that clarify/centralize tracker resolution. Any mutation-routing behavior change will be handed to a feature focus with exact remaining call sites and regression requirements.
+---
+author: oompah
+created: 2026-07-28 15:27
+---
+Discovery (refactor): Root cause is not missing tracker construction but ambiguous selection. Orchestrator.__init__ and reload_config always create self.tracker via _new_tracker(), whose OompahMarkdownTracker defaults cwd to os.getcwd(); managed paths then reach it whenever project_id is absent. High-risk consumers: server.set_orchestrator draft-label migration and global ErrorWatcher (server.py:614,629), frontend /api/v1/errors (projectless global watcher), Orchestrator._tracker_for_issue and repeated  mutation paths, release_addendum_queue, config-error task creation at orchestrator.py:10495, and server legacy fallbacks. Per-project startup release migration and project log watchers already route correctly. _new_tracker_for_project passes repo_path plus enabled/name/shadow-write, but does not represent state_branch_migration_stage. Required contract: one resolver must return a project tracker for explicit project_id; allow the cwd standalone tracker only when the project store has no projects; and raise an actionable error for missing/ambiguous project context in managed mode.
 ---
 <!-- COMMENTS:END -->
