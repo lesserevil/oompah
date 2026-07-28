@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:06:49.891505Z'
-updated_at: '2026-07-28T17:11:59.865121Z'
+updated_at: '2026-07-28T17:12:03.525109Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-28 17:11
 ---
 Implemented and pushed at eea181d3a. Scheduler run() now drains executor futures before its owning asyncio loop closes; shutdown defensively avoids attaching pending Futures from a closed foreign loop and still waits for executor completion. Verification: 96 focused restart/event-loop tests pass in 5.10s. Live test: forced one load restart from instance 63782c5b-ff9a-4c4a-a3fd-434d52aadcce, then make restart used request 29586011-550a-4df1-83d3-884bbad76752 and exec-restarted to instance 482ad174-b6c0-475a-851a-d2cf5e30365b on 0.0.0.0:8090 with no different-loop/Fatal error; auto concurrency remained enabled (effective 10).
+---
+author: oompah
+created: 2026-07-28 17:12
+---
+Fixed cross-loop graceful restart cleanup; 96 focused tests and a live instance-changing drain restart pass.
 ---
 <!-- COMMENTS:END -->
