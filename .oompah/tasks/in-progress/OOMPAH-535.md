@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-535
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Prevent orphaned duplicate-preflight workers and phantom claims
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-28T23:18:01.725169Z'
-updated_at: '2026-07-28T23:18:01.725169Z'
+updated_at: '2026-07-28T23:18:13.976771Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,3 +52,11 @@ The server never reports zero agents while an Oompah-owned worker remains alive;
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 23:18
+---
+Claimed for direct incident recovery and implementation in this session. I will preserve the orphaned OOMPAH-458 worktree before terminating it, repair the live server, implement the lifecycle and read-only enforcement regressions, run focused tests plus make test, push the fix, and verify the deployed service.
+---
+<!-- COMMENTS:END -->
