@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-495
 type: chore
-status: Done
+status: Merged
 priority: 2
 title: Retire pre-implementation state-branch design tests
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T16:00:36.607457Z'
+updated_at: '2026-07-28T17:10:43.464803Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
