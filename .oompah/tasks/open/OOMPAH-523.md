@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:13:37.679372Z'
+updated_at: '2026-07-28T18:32:34.916720Z'
 work_branch: null
 target_branch: null
 review_url: null

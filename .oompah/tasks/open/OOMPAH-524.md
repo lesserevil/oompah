@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-524
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Integrate htpasswd authentication with the embedded MCP gateway
 parent: OOMPAH-521
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T18:13:38.906539Z'
+updated_at: '2026-07-28T18:32:36.009450Z'
 work_branch: null
 target_branch: null
 review_url: null

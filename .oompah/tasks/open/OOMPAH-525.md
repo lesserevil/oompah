@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-525
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Add Basic auth support to Oompah CLIs and lifecycle commands
 parent: OOMPAH-521
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T18:13:39.857720Z'
+updated_at: '2026-07-28T18:32:40.098072Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-522
 type: feature
-status: Backlog
+status: In Progress
 priority: 1
 title: Load and verify optional htpasswd credentials safely
 parent: OOMPAH-521
@@ -10,12 +10,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T18:11:34.097786Z'
-updated_at: '2026-07-28T18:11:34.097786Z'
-work_branch: null
+updated_at: '2026-07-28T18:32:48.643253Z'
+work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 20035684-bbb3-44ed-a683-ec3b2d707fb9
+oompah.work_branch: epic-OOMPAH-521
 ---
 ## Summary
 
@@ -63,3 +65,16 @@ Add unit tests for disabled discovery, default discovery beside a non-default en
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 18:32
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 18:32
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
