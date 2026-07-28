@@ -7,12 +7,10 @@ title: Prevent orphaned duplicate-preflight workers and phantom claims
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:backend
-- needs:test
+labels: []
 assignee: null
 created_at: '2026-07-28T23:18:01.725169Z'
-updated_at: '2026-07-28T23:18:33.125574Z'
+updated_at: '2026-07-28T23:18:44.316907Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,6 +30,7 @@ oompah.duplicate_screening:
   claim_expires_at: '2026-07-28T23:48:32.518579+00:00'
   retry_count: 0
   retry_after: null
+oompah.agent_run_id: e5c1863f-5dbc-4957-87a9-c6dc182bdde2
 ---
 ## Summary
 
@@ -72,5 +71,15 @@ author: oompah
 created: 2026-07-28 23:18
 ---
 Claimed for direct incident recovery and implementation in this session. I will preserve the orphaned OOMPAH-458 worktree before terminating it, repair the live server, implement the lifecycle and read-only enforcement regressions, run focused tests plus make test, push the fix, and verify the deployed service.
+---
+author: oompah
+created: 2026-07-28 23:18
+---
+Duplicate screening dispatched (profile: deep, task remains Open)
+---
+author: oompah
+created: 2026-07-28 23:18
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
