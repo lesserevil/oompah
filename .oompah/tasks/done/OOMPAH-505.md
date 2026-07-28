@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:53:38.854884Z'
+updated_at: '2026-07-28T15:58:17.540816Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -250,5 +250,15 @@ author: oompah
 created: 2026-07-28 15:53
 ---
 Implemented and verified explicit Claude/Codex model-tier support in commits 23d1c043b and 020199d32; branch is pushed and clean. Isolated rollout/rollback validation and 200 focused tests pass. Operator-only live deployment/configuration is tracked as OOMPAH-516 (Needs Human).
+---
+author: oompah
+created: 2026-07-28 15:58
+---
+Completed and live. Code shipped on epic-OOMPAH-502 in 23d1c043b plus accessible provider-matrix controls in 020199d32. The running service advertises manual model selection separately from catalog discovery for Claude and Codex ACP backends. Live role mappings now resolve as: fast/default = Claude fable + Codex gpt-5.6-luna; standard = Claude sonnet + Codex gpt-5.6-terra; deep = Claude opus + Codex gpt-5.6-sol, all round-robin. Existing in-flight agents retain their original model; new dispatches use these mappings. Full make test passed 12,673/0 failures after integration.
+---
+author: oompah
+created: 2026-07-28 15:58
+---
+Manual per-role Claude/Codex models are supported, visible in the UI, persisted, and configured live.
 ---
 <!-- COMMENTS:END -->
