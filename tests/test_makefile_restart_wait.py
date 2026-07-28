@@ -654,6 +654,25 @@ class TestMakefileAuthSecurity:
             "Helper must not accept --password via CLI args (process table exposure)"
         )
 
+    def test_lifecycle_helper_uses_makefile_configured_port(self):
+        """Auth-protected lifecycle requests must follow PORT, not a hard-coded 8080."""
+        content = self._read_makefile()
+        assert "LOCAL_HTTP_URL := http://127.0.0.1:$(PORT)" in content
+        assert 'OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)"' in content
+
+    def test_restart_checks_state_failure_before_posting_restart(self):
+        """A failed authenticated state probe must stop before the drain POST."""
+        content = self._read_makefile()
+        restart = content[content.index("\nrestart:"):content.index("\ngraceful:")]
+        assert "if ! BEFORE=$$(OOMPAH_SERVER_URL=" in restart
+        assert "|| true);" not in restart.split("Requesting draining restart", 1)[0]
+
+    def test_status_surfaces_state_auth_failure(self):
+        content = self._read_makefile()
+        status = content[content.index("\nstatus:"):]
+        assert "Could not fetch state" in status
+        assert "OOMPAH_SERVER_PASSWORD_FILE" in status
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

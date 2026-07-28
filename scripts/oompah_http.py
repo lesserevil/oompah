@@ -31,33 +31,26 @@ import json
 import os
 import sys
 import urllib.error
-import urllib.parse
 import urllib.request
+
+from oompah.client_auth import (
+    CredentialError,
+    format_auth_error,
+    resolve_client_credentials,
+    sanitize_server_url,
+)
 
 # ---------------------------------------------------------------------------
 # Resolve server URL (no embedded credentials allowed)
 # ---------------------------------------------------------------------------
 
 def _server_url() -> str:
-    raw = os.environ.get("OOMPAH_SERVER_URL", "http://127.0.0.1:8080").strip().rstrip("/")
-    if not raw:
-        raw = "http://127.0.0.1:8080"
+    raw = os.environ.get("OOMPAH_SERVER_URL", "http://127.0.0.1:8080")
     try:
-        parsed = urllib.parse.urlparse(raw)
-    except Exception:
-        return raw
-    if parsed.username or parsed.password:
-        # Redact URL for error message.
-        netloc = (parsed.hostname or "") + (f":{parsed.port}" if parsed.port else "")
-        redacted = urllib.parse.urlunparse((parsed.scheme, netloc, parsed.path, "", "", ""))
-        print(
-            f"ERROR: OOMPAH_SERVER_URL must not contain credentials (user:pass@host).\n"
-            f"Set OOMPAH_SERVER_USERNAME and OOMPAH_SERVER_PASSWORD_FILE instead.\n"
-            f"(Redacted URL: {redacted!r})",
-            file=sys.stderr,
-        )
+        return sanitize_server_url(raw) or "http://127.0.0.1:8080"
+    except CredentialError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
-    return raw
 
 
 # ---------------------------------------------------------------------------
@@ -66,85 +59,12 @@ def _server_url() -> str:
 
 def _resolve_credentials() -> tuple[str, str] | None:
     """Return (username, password) or None for unauthenticated."""
-    username = os.environ.get("OOMPAH_SERVER_USERNAME", "").strip()
-    password_file = os.environ.get("OOMPAH_SERVER_PASSWORD_FILE", "").strip()
-    password_env = os.environ.get("OOMPAH_SERVER_PASSWORD", "").strip()
-
-    if not username and not password_file and not password_env:
-        return None
-
-    if not username:
-        print(
-            "ERROR: OOMPAH_SERVER_USERNAME is required when a password is set.",
-            file=sys.stderr,
-        )
+    try:
+        credentials = resolve_client_credentials()
+    except CredentialError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
-
-    if password_file and password_env:
-        print(
-            "ERROR: Set exactly one of OOMPAH_SERVER_PASSWORD or "
-            "OOMPAH_SERVER_PASSWORD_FILE, not both.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    if not password_file and not password_env:
-        print(
-            "ERROR: A password source is required when OOMPAH_SERVER_USERNAME is set. "
-            "Set OOMPAH_SERVER_PASSWORD_FILE or OOMPAH_SERVER_PASSWORD.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    if password_file:
-        import stat
-        try:
-            lst = os.lstat(password_file)
-        except FileNotFoundError:
-            print(f"ERROR: OOMPAH_SERVER_PASSWORD_FILE not found: {password_file!r}", file=sys.stderr)
-            sys.exit(1)
-        except OSError as exc:
-            print(f"ERROR: Cannot access OOMPAH_SERVER_PASSWORD_FILE {password_file!r}: {exc.strerror}", file=sys.stderr)
-            sys.exit(1)
-
-        if stat.S_ISLNK(lst.st_mode):
-            print(
-                f"ERROR: OOMPAH_SERVER_PASSWORD_FILE {password_file!r} is a symbolic link. "
-                "Provide the direct target path.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        if not stat.S_ISREG(lst.st_mode):
-            print(f"ERROR: OOMPAH_SERVER_PASSWORD_FILE {password_file!r} is not a regular file.", file=sys.stderr)
-            sys.exit(1)
-
-        # Permission warning
-        mode = stat.S_IMODE(lst.st_mode)
-        if mode & (stat.S_IRGRP | stat.S_IROTH):
-            print(
-                f"WARNING: OOMPAH_SERVER_PASSWORD_FILE {password_file!r} has unsafe permissions {oct(mode)}. "
-                f"Consider: chmod 600 {password_file!r}",
-                file=sys.stderr,
-            )
-
-        try:
-            with open(password_file, "r", encoding="utf-8") as fh:
-                password = fh.read().strip()
-        except PermissionError:
-            print(f"ERROR: OOMPAH_SERVER_PASSWORD_FILE {password_file!r} is not readable.", file=sys.stderr)
-            sys.exit(1)
-        except OSError as exc:
-            print(f"ERROR: Failed to read OOMPAH_SERVER_PASSWORD_FILE: {exc.strerror}", file=sys.stderr)
-            sys.exit(1)
-
-        if not password:
-            print(f"ERROR: OOMPAH_SERVER_PASSWORD_FILE {password_file!r} is empty.", file=sys.stderr)
-            sys.exit(1)
-    else:
-        password = password_env
-
-    return username, password
+    return tuple(credentials) if credentials is not None else None
 
 
 # ---------------------------------------------------------------------------
@@ -177,13 +97,7 @@ def _make_request(method: str, path: str, body_json: str | None = None) -> None:
             return
     except urllib.error.HTTPError as exc:
         if exc.code == 401:
-            print(
-                "ERROR (401): Authentication required.\n"
-                "Set OOMPAH_SERVER_USERNAME and OOMPAH_SERVER_PASSWORD_FILE (preferred)\n"
-                "or OOMPAH_SERVER_PASSWORD to authenticate against the oompah server.\n"
-                "Verify credentials match the server's htpasswd configuration.",
-                file=sys.stderr,
-            )
+            print(format_auth_error(base), file=sys.stderr)
             sys.exit(1)
         try:
             err_body = exc.read().decode("utf-8", errors="replace")

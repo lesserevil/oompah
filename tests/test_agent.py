@@ -14,10 +14,13 @@ from oompah.agent import AgentSession
 
 
 @pytest.mark.asyncio
-async def test_start_creates_dedicated_posix_session(tmp_path):
+async def test_start_creates_dedicated_posix_session(tmp_path, monkeypatch):
     session = AgentSession("agent", str(tmp_path))
     process = MagicMock()
     session._drain_stderr = AsyncMock()
+    monkeypatch.setenv("OOMPAH_SERVER_PASSWORD", "client-secret")
+    monkeypatch.setenv("OOMPAH_SERVER_PASSWORD_FILE", "/run/secrets/client-pass")
+    monkeypatch.setenv("OOMPAH_SERVER_USERNAME", "operator")
 
     with patch(
         "oompah.agent.asyncio.create_subprocess_exec",
@@ -29,6 +32,10 @@ async def test_start_creates_dedicated_posix_session(tmp_path):
     assert create_process.await_args.kwargs["start_new_session"] is (
         os.name == "posix"
     )
+    child_env = create_process.await_args.kwargs["env"]
+    assert "OOMPAH_SERVER_USERNAME" not in child_env
+    assert "OOMPAH_SERVER_PASSWORD" not in child_env
+    assert "OOMPAH_SERVER_PASSWORD_FILE" not in child_env
 
 
 @pytest.mark.asyncio

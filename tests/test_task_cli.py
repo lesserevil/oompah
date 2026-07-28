@@ -28,6 +28,7 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 
 from oompah import task_cli
+from oompah.client_auth import ClientCredentials
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +166,53 @@ class TestHttpErrorHandling:
         assert client_cls.call_count == 1
         call_kwargs = client_cls.call_args.kwargs
         assert call_kwargs.get("timeout") == 75.0
+
+    def test_http_uses_basic_auth_when_configured(self):
+        import httpx
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"ok": True}
+        mock_resp.is_success = True
+        mock_resp.status_code = 200
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get.return_value = mock_resp
+
+        with patch("httpx.Client", return_value=mock_client) as client_cls:
+            with patch.object(task_cli, "_session_auth", ClientCredentials("operator", "secret")):
+                result = task_cli._http("GET", "http://127.0.0.1:8080/api/v1/test")
+
+        assert result == {"ok": True}
+        auth = client_cls.call_args.kwargs["auth"]
+        assert isinstance(auth, httpx.BasicAuth)
+        assert auth._auth_header == "Basic b3BlcmF0b3I6c2VjcmV0"
+
+    def test_http_401_uses_safe_remediation(self):
+        import httpx
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"detail": "Authorization: Basic c2VjcmV0"}
+        mock_resp.text = "Authorization: Basic c2VjcmV0"
+        mock_resp.is_success = False
+        mock_resp.status_code = 401
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get.return_value = mock_resp
+
+        with patch("httpx.Client", return_value=mock_client):
+            with patch.object(task_cli, "_session_auth", ClientCredentials("operator", "secret")):
+                with pytest.raises(SystemExit) as exc_info:
+                    task_cli._http("GET", "http://127.0.0.1:8080/api/v1/test")
+
+        message = str(exc_info.value)
+        assert "401" in message
+        assert "OOMPAH_SERVER_PASSWORD_FILE" in message
+        assert "Authorization: Basic" not in message
+        assert "secret" not in message
 
     def test_connection_error_exits_with_actionable_message(self):
         import httpx

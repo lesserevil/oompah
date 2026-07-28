@@ -93,6 +93,7 @@ from oompah.acp_backends.base import (
     BackendEvent,
 )
 from oompah.acp_backends.registry import register_backend
+from oompah.client_auth import agent_environment
 from oompah.agent import AgentEvent
 
 if TYPE_CHECKING:
@@ -518,9 +519,9 @@ class CodexAcpBackendSession(AcpBackendSession):
         # Compose env. agents runtime reads OPENAI_API_KEY from the
         # process env; if the provider configured a custom api_key it
         # will already be in options.env.
-        agent_env = dict(os.environ)
-        if self._options.env:
-            agent_env.update(self._options.env)
+        agent_env = agent_environment(
+            {**os.environ, **(self._options.env or {})}
+        )
         # Push the api_key into the process env if present in options
         # so the SDK's default client picks it up.
         api_key = agent_env.get("OPENAI_API_KEY") or agent_env.get("OOMPAH_CODEX_API_KEY")
@@ -711,9 +712,9 @@ class CodexAcpBackendSession(AcpBackendSession):
         # Compose the subprocess env: inherit the process env plus any
         # options.env overrides, but strip CODEX_API_KEY so the CLI's
         # OAuth login is used rather than a key.
-        cli_env = dict(os.environ)
-        if self._options.env:
-            cli_env.update(self._options.env)
+        cli_env = agent_environment(
+            {**os.environ, **(self._options.env or {})}
+        )
         cli_env.pop("CODEX_API_KEY", None)
 
         # Detect git worktrees: the Codex ``workspace-write`` sandbox only

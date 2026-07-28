@@ -38,6 +38,7 @@ from oompah.client_auth import (
     CredentialError,
     _check_password_file_permissions,
     _read_password_file,
+    agent_environment,
     format_auth_error,
     resolve_client_credentials,
     sanitize_server_url,
@@ -177,6 +178,18 @@ class TestCliOverrides:
         finally:
             os.unlink(path)
             os.unlink(env_path)
+
+    def test_password_file_override_wins_over_inline_password(self, monkeypatch):
+        path = _tmp_file("file_pass")
+        try:
+            monkeypatch.setenv("OOMPAH_SERVER_USERNAME", "user")
+            monkeypatch.setenv("OOMPAH_SERVER_PASSWORD", "inline_pass")
+            monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+            creds = resolve_client_credentials(password_file_override=path)
+            assert creds is not None
+            assert creds.password == "file_pass"
+        finally:
+            os.unlink(path)
 
     def test_username_and_password_file_both_overridden(self, monkeypatch):
         path = _tmp_file("secretpass")
@@ -484,6 +497,24 @@ class TestSanitizeServerUrl:
         result = sanitize_server_url("http://127.0.0.1:8080/api/v1")
         assert result == "http://127.0.0.1:8080/api/v1"
 
+    def test_embedded_credentials_error_does_not_echo_query_or_path(self):
+        with pytest.raises(CredentialError) as exc_info:
+            sanitize_server_url(
+                "http://admin:topsecret@host:8080/path/topsecret?password=topsecret"
+            )
+        message = str(exc_info.value)
+        assert "topsecret" not in message
+        assert "/path" not in message
+
+    def test_malformed_port_with_credentials_is_rejected_without_traceback(self):
+        with pytest.raises(CredentialError, match="must not contain credentials"):
+            sanitize_server_url("http://admin:topsecret@host:notaport")
+
+    def test_unparseable_url_is_rejected_without_echoing_raw_value(self):
+        with pytest.raises(CredentialError) as exc_info:
+            sanitize_server_url("http://admin:topsecret@[bad")
+        assert "topsecret" not in str(exc_info.value)
+
 
 # ---------------------------------------------------------------------------
 # format_auth_error
@@ -701,3 +732,18 @@ class TestEndToEnd:
                     assert suspicious not in val, (
                         f"Module attribute {name!r} contains suspicious credential string"
                     )
+
+    def test_agent_environment_strips_client_auth_values(self):
+        clean = agent_environment(
+            {
+                "PATH": "/bin",
+                "OOMPAH_SERVER_USERNAME": "operator",
+                "OOMPAH_SERVER_PASSWORD": "topsecret",
+                "OOMPAH_SERVER_PASSWORD_FILE": "/run/secrets/client-pass",
+                "OOMPAH_SERVER_URL": "http://127.0.0.1:8080",
+            }
+        )
+        assert clean == {
+            "PATH": "/bin",
+            "OOMPAH_SERVER_URL": "http://127.0.0.1:8080",
+        }

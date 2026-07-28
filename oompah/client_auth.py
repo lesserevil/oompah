@@ -52,9 +52,21 @@ import logging
 import os
 import stat
 import urllib.parse
+from collections.abc import Mapping
 from typing import NamedTuple
 
 logger = logging.getLogger(__name__)
+
+# These values are client-side inputs only.  They must not be inherited by
+# agent subprocesses launched by the server, where an agent could expose them
+# in diagnostics or command output.
+CLIENT_AUTH_ENV_VARS = frozenset(
+    {
+        "OOMPAH_SERVER_USERNAME",
+        "OOMPAH_SERVER_PASSWORD",
+        "OOMPAH_SERVER_PASSWORD_FILE",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -168,7 +180,8 @@ def _read_password_file(path: str) -> str:
 
     # Step 3: Open and verify inode consistency to tighten the TOCTOU window.
     try:
-        fd = os.open(path, os.O_RDONLY)
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(path, flags)
     except PermissionError:
         raise CredentialError(
             f"OOMPAH_SERVER_PASSWORD_FILE {path!r} is not readable. "
@@ -235,28 +248,36 @@ def sanitize_server_url(url: str) -> str:
     Raises:
         CredentialError: If the URL contains a username or password component.
     """
+    url = url.strip()
     if not url:
         return url
 
     try:
         parsed = urllib.parse.urlparse(url)
     except Exception:
-        # Unparseable URL — let the HTTP client report the error.
-        return url.rstrip("/")
+        # Do not return or echo an unparseable value: malformed userinfo can
+        # make urllib.parse reject the URL before it exposes parsed fields.
+        raise CredentialError(
+            "OOMPAH_SERVER_URL is invalid. Use an http(s) URL without embedded credentials."
+        ) from None
 
-    if parsed.username or parsed.password:
-        # Build a redacted URL for the error message: strip userinfo entirely.
-        netloc_redacted = parsed.hostname or ""
-        if parsed.port:
-            netloc_redacted += f":{parsed.port}"
-        redacted = urllib.parse.urlunparse((
-            parsed.scheme,
-            netloc_redacted,
-            parsed.path,
-            parsed.params,
-            parsed.query,
-            parsed.fragment,
-        ))
+    # ``@`` catches an empty userinfo component too (``http://@host``), while
+    # username/password catches percent-encoded userinfo recognized by
+    # urllib.parse.  Only emit an origin in the error message: a path, query,
+    # or fragment can also contain a secret supplied by a misconfigured URL.
+    if "@" in parsed.netloc or parsed.username is not None or parsed.password is not None:
+        try:
+            hostname = parsed.hostname or "<invalid-host>"
+            if ":" in hostname and not hostname.startswith("["):
+                hostname = f"[{hostname}]"
+            try:
+                port = parsed.port
+            except ValueError:
+                port = None
+            netloc_redacted = hostname + (f":{port}" if port else "")
+            redacted = urllib.parse.urlunparse((parsed.scheme, netloc_redacted, "", "", "", ""))
+        except (TypeError, ValueError):
+            redacted = "<unparseable-server-url>"
         raise CredentialError(
             "OOMPAH_SERVER_URL must not contain credentials (user:password@host). "
             "Set OOMPAH_SERVER_USERNAME and OOMPAH_SERVER_PASSWORD_FILE (preferred) "
@@ -295,19 +316,22 @@ def resolve_client_credentials(
             incomplete (username without password or vice versa), unreadable,
             empty, or unsafe credential configuration.
     """
-    username: str = (
-        username_override
-        or os.environ.get("OOMPAH_SERVER_USERNAME", "")
-    ).strip()
+    raw_username = (
+        os.environ.get("OOMPAH_SERVER_USERNAME", "")
+        if username_override is None
+        else username_override
+    )
+    username = raw_username.strip()
 
-    password_file: str | None = (
-        password_file_override
-        or os.environ.get("OOMPAH_SERVER_PASSWORD_FILE", "")
-    ).strip() or None
-
-    password_env: str | None = (
-        os.environ.get("OOMPAH_SERVER_PASSWORD", "")
-    ).strip() or None
+    if password_file_override is not None:
+        # A CLI password-file is an explicit source selection.  It overrides
+        # both environment password forms, including an inline password that
+        # may be present in a calling shell.
+        password_file = password_file_override.strip() or None
+        password_env = None
+    else:
+        password_file = os.environ.get("OOMPAH_SERVER_PASSWORD_FILE", "").strip() or None
+        password_env = os.environ.get("OOMPAH_SERVER_PASSWORD", "").strip() or None
 
     # Nothing configured at all → unauthenticated (backward-compatible).
     if not username and not password_file and not password_env:
@@ -342,6 +366,21 @@ def resolve_client_credentials(
         password = password_env
 
     return ClientCredentials(username=username, password=password)
+
+
+def agent_environment(base_env: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Return an environment safe to pass to an agent subprocess.
+
+    The server may itself be started from a shell that exports client Basic
+    auth variables for ``make`` or a CLI.  Copy the supplied environment and
+    remove those client-only values before an agent process can inherit them.
+    ``OOMPAH_SERVER_URL`` is intentionally retained because it is a locator,
+    not a credential, and existing agent workflows may use it.
+    """
+    environment = dict(os.environ if base_env is None else base_env)
+    for key in CLIENT_AUTH_ENV_VARS:
+        environment.pop(key, None)
+    return environment
 
 
 # ---------------------------------------------------------------------------

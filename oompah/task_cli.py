@@ -138,6 +138,14 @@ def _http(
             "Install it with: pip install httpx"
         )
 
+    # Sanitize at the request boundary as well as when resolving the base URL.
+    # This keeps internal callers from accidentally putting userinfo into a
+    # request and ensures connection errors cannot echo a plaintext password.
+    try:
+        url = sanitize_server_url(url)
+    except CredentialError as exc:
+        sys.exit(f"ERROR: {exc}")
+
     # Derive base URL for error messages (strip everything after /api/).
     # Never include the auth object in error output.
     base_url = url.split("/api/")[0] if "/api/" in url else url

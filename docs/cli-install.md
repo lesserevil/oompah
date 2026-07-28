@@ -117,6 +117,30 @@ oompah task --port 9000 view owner/repo#123
 oompah task --server http://192.168.1.10:8080 view owner/repo#123
 ```
 
+### Basic authentication
+
+When the server is configured with `OOMPAH_HTPASSWD_FILE`, task and admin
+requests, plus the protected API calls used by `make status`, `make restart`,
+and `make graceful`, can authenticate with client-side credentials:
+
+```bash
+export OOMPAH_SERVER_USERNAME=operator
+export OOMPAH_SERVER_PASSWORD_FILE=/run/secrets/oompah-client-password
+oompah task view owner/repo#123
+```
+
+Use exactly one of `OOMPAH_SERVER_PASSWORD` (inline plaintext) or
+`OOMPAH_SERVER_PASSWORD_FILE` (preferred). A password file must be a regular,
+readable file containing only the client plaintext password; symlinks are
+rejected and group/world-readable POSIX files produce a warning. The CLI also
+accepts the non-secret `--username` and `--password-file` options before the
+subcommand. There is intentionally no plaintext `--password` option.
+
+`OOMPAH_HTPASSWD_FILE` is server configuration and must contain htpasswd
+password hashes. `OOMPAH_SERVER_PASSWORD` and `OOMPAH_SERVER_PASSWORD_FILE`
+are client plaintext credential sources; they are not htpasswd files or server
+configuration values. Never put credentials in `OOMPAH_SERVER_URL`.
+
 ## Upgrading an existing install
 
 If you installed oompah before the `project-bootstrap` subcommand was shipped,
