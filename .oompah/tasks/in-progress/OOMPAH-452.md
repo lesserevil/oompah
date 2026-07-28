@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:50.818103Z'
-updated_at: '2026-07-28T12:48:16.473548Z'
+updated_at: '2026-07-28T13:03:56.140853Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -148,5 +148,26 @@ Files recovered:
 - tests/test_server_webhooks.py — auto-merged cleanly with additional GitLab server webhook tests
 
 No structural conflicts — the OOMPAH-340 commits (Push/Issue/Note/Pipeline/Job webhook parsing) were already in HEAD. Running tests now.
+---
+author: oompah
+created: 2026-07-28 13:03
+---
+Implementation: Cherry-picked 5 stranded commits in the correct dependency order onto epic-OOMPAH-451 branch:
+
+1. 2b3312672 (OOMPAH-340) - Extend parse_gitlab_webhook for Push/Issue/Note/Pipeline/Job hooks (+972 lines to webhooks.py, server.py, tests)
+2. 4302b74e8 (OOMPAH-341) - Implement GitLabHookManager with OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL config (+401 lines, config.py, .env.example, webhooks.py, tests)
+3. 62cde900b (OOMPAH-342) - Wire GitLabHookManager into project lifecycle (+1191 lines, server.py, tests/test_server_gitlab_lifecycle.py)
+4. 24ae25693 (OOMPAH-338) - Add GitLab tracker metadata persistence and comprehensive tests (creates oompah/gitlab_tracker.py 792 lines, tests/test_gitlab_tracker.py 1463 lines, registers in tracker.py)
+5. 696d5bfaa (OOMPAH-339) - Enforce GitLab status-label authorization and audit/revert safety (+725 lines across gitlab_tracker.py, server.py, webhooks.py, tests)
+
+All 5 applied cleanly - no manual conflict resolution needed with the correct order.
+
+Key deliverables:
+- oompah/gitlab_tracker.py: GitLabIssueTracker full TrackerProtocol implementation
+- 'gitlab_issues'/'gitlab-issues' registered in ADAPTER_REGISTRY in tracker.py
+- Issue Hook parsing for status-label authorization governance
+- GitLabHookManager for automated webhook registration
+- GitLabEventDedup for fingerprint-based deduplication
+- 115+ tests in test_gitlab_tracker.py, 42 tests in test_server_gitlab_lifecycle.py
 ---
 <!-- COMMENTS:END -->
