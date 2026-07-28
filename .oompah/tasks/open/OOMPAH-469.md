@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-469
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Add the reserved read-only auditor focus and prompt contract
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:09.346734Z'
-updated_at: '2026-07-28T23:50:47.739992Z'
+updated_at: '2026-07-28T23:50:56.313024Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
