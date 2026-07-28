@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-471
 type: feature
-status: Open
+status: Needs Human
 priority: 1
 title: Collect stable evidence for Done completion audits
 parent: OOMPAH-458
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-28T22:28:53.839157Z'
+updated_at: '2026-07-28T22:29:04.296371Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -27,23 +27,23 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: a5fa990c-9dff-4ef8-9efb-bd57596c68bc
-  claim_owner: 8e692a0c-71f6-4607-8341-3faedd0fb344
-  claimed_at: '2026-07-28T22:28:23.787475+00:00'
-  claim_expires_at: '2026-07-28T22:58:23.787475+00:00'
-  retry_count: 2
-  retry_after: null
+  evidence: Duplicate-screening worker exited with reason normal.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-07-28T22:32:59.347124+00:00'
 oompah.agent_run_id: 14344ca7-40d6-4091-82c1-ac528a682390
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 490905
-  total_output_tokens: 14844
+  total_input_tokens: 490939
+  total_output_tokens: 16977
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 490905
-      output_tokens: 14844
+      input_tokens: 490939
+      output_tokens: 16977
       cost_usd: 0.0
   runs:
   - profile: default
@@ -58,6 +58,12 @@ oompah.task_costs:
     output_tokens: 5586
     cost_usd: 0.0
     recorded_at: '2026-07-28T22:25:21.905751+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 34
+    output_tokens: 2133
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T22:28:59.346664+00:00'
 ---
 ## Summary
 
@@ -150,5 +156,20 @@ author: oompah
 created: 2026-07-28 22:28
 ---
 Duplicate investigator work confirmed and handoff completed. Previous agent's comprehensive investigation (281+ tasks, source code, plans, git history) conclusively shows OOMPAH-471 is NOT a duplicate—it uniquely implements read-only DoneEvidenceCollector for audit evidence collection. Ready for feature-focused implementation. Added focus-complete:duplicate_detector label to route to next specialist.
+---
+author: oompah
+created: 2026-07-28 22:29
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 10, Tool calls: 3
+- Tokens: 34 in / 2.1K out [2.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 34s
+- Log: OOMPAH-471__20260728T222827Z.jsonl
+---
+author: oompah
+created: 2026-07-28 22:29
+---
+Duplicate screening was inconclusive 3 times. Human action required: review the latest duplicate-screening comments, then either identify the active canonical duplicate or confirm that no active duplicate exists and move the task back to Open.
 ---
 <!-- COMMENTS:END -->
