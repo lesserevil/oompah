@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-514
 type: chore
-status: In Progress
+status: Open
 priority: 1
 title: Prove maintenance cannot dirty or push the server code checkout
 parent: OOMPAH-511
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:44.915690Z'
-updated_at: '2026-07-28T15:38:01.683651Z'
+updated_at: '2026-07-28T15:41:55.409908Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-07-28 15:38
 ---
 Claimed in the OOMPAH-511 isolated worktree. Added disposable-remote regression coverage for state-only maintenance writes and orchestrator shutdown drainage; the full project test suite is running.
+---
+author: oompah
+created: 2026-07-28 15:41
+---
+Completed in commit 6533e235e. A disposable bare-remote integration test proves auto-archive changes only the configured state ref while local/remote main and the code checkout remain unchanged. Orchestrator shutdown now drains maintenance futures and owned executor pools. make test: 12,402 passed, 39 skipped; make check-secrets passed.
 ---
 <!-- COMMENTS:END -->

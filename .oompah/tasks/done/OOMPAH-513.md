@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:43.939778Z'
-updated_at: '2026-07-28T15:41:50.563244Z'
+updated_at: '2026-07-28T15:41:54.434689Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-07-28 15:41
 ---
 Completed in commit 6533e235e. The native tracker now rejects unscoped managed task writes before filesystem or Git mutation across create, update, archive, comment, label, parent, dependency, attachment, metadata, raw-body, and external-import operations. Correct state-branch and standalone paths remain covered.
+---
+author: oompah
+created: 2026-07-28 15:41
+---
+Added a fail-closed native tracker write policy with complete public-mutation regression coverage.
 ---
 <!-- COMMENTS:END -->
