@@ -108,6 +108,25 @@ def _entry_size(path: Path) -> int:
     return total
 
 
+def _make_owned_tree_removable(path: Path) -> None:
+    """Restore owner access to quarantined directories without following links."""
+    info = path.lstat()
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        return
+    os.chmod(
+        path,
+        stat.S_IMODE(info.st_mode) | stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR,
+        follow_symlinks=False,
+    )
+    with os.scandir(path) as entries:
+        children = [path / entry.name for entry in entries]
+    for child in children:
+        try:
+            _make_owned_tree_removable(child)
+        except FileNotFoundError:
+            continue
+
+
 def _remove_owned_entry(path: Path) -> int:
     """Atomically quarantine and remove one direct child of an owned root."""
     info = path.lstat()
@@ -118,6 +137,7 @@ def _remove_owned_entry(path: Path) -> int:
     os.replace(path, quarantine)
     try:
         if quarantine.is_dir() and not quarantine.is_symlink():
+            _make_owned_tree_removable(quarantine)
             shutil.rmtree(quarantine)
         else:
             quarantine.unlink()

@@ -59,6 +59,34 @@ def test_removes_stale_temp_entries_and_jsonl_logs(tmp_path):
     assert result.reclaimed_bytes > 0
 
 
+def test_removes_stale_tree_with_read_only_directories_without_following_links(
+    tmp_path,
+):
+    temp = tmp_path / "temp"
+    logs = tmp_path / "logs"
+    temp.mkdir()
+    logs.mkdir()
+    stale_cache = temp / "build-cache"
+    read_only = stale_cache / "releases" / "0.2.0"
+    read_only.mkdir(parents=True)
+    payload = read_only / "payload"
+    payload.write_text("cached")
+    outside = tmp_path / "outside"
+    outside.write_text("keep")
+    (read_only / "outside-link").symlink_to(outside)
+    payload.chmod(0o400)
+    read_only.chmod(0o555)
+    (stale_cache / "releases").chmod(0o555)
+    _age(stale_cache)
+
+    _, _, result = _cleanup(tmp_path)
+
+    assert not stale_cache.exists()
+    assert outside.read_text() == "keep"
+    assert result.cleaned_count == 1
+    assert result.errors == []
+
+
 def test_preserves_recent_unknown_active_vm_and_symlink_entries(tmp_path):
     temp = tmp_path / "temp"
     logs = tmp_path / "logs"
