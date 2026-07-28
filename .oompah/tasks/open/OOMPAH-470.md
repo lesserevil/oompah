@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-28T22:54:20.248933Z'
+updated_at: '2026-07-28T22:54:58.981100Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -169,5 +169,29 @@ The task requires:
 7. Return normalized no-candidate diagnostics
 
 Will explore oompah/roles.py (RoleStore/Candidate), WorkContributor tracking (OOMPAH-468), and role configuration patterns.
+---
+author: oompah
+created: 2026-07-28 22:54
+---
+Discovery: Found relevant architecture:
+
+1. **RoleStore** (oompah/roles.py): Manages roles with multiple candidates + strategy (priority/round_robin). Validation already respects ProviderStore.
+
+2. **WorkContributor** (oompah/work_contributors.py): Tracks provider_id + model_id for each completed run. Can query epic contributors via collect_epic_contributors().
+
+3. **ProviderStore** (oompah/providers.py): Manages ModelProvider instances with health checks, credentials, budget tracking (model_costs), and mode (api/acp).
+
+4. **Provider Health** (oompah/provider_health.py): Tests provider health with normalized error reasons (missing_credentials, auth_failed, etc).
+
+5. **ProjectConfig** (oompah/models.py): Has provider_whitelist field for filtering providers by name.
+
+Key insight: No existing auditor role implementation. Need to:
+- Create 'auditor' as reserved editable role
+- Seed from deduplicated union of deep/standard/default + configured provider defaults
+- Filter by whitelist, credentials, health, budget, validity
+- Exclude ALL contributor models; prefer independent providers
+- Handle same-provider fallback (different model) safely
+- Reject unknown SDK models on contributing providers
+- Provide normalized no-candidate diagnostics
 ---
 <!-- COMMENTS:END -->
