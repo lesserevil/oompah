@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-496
 type: chore
-status: Open
+status: In Progress
 priority: 2
 title: Consolidate removed draft-epic and epic-strategy UI contracts
 parent: OOMPAH-490
@@ -11,12 +11,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:31.446905Z'
-updated_at: '2026-07-28T14:36:11.152078Z'
-work_branch: null
+updated_at: '2026-07-28T16:02:31.421814Z'
+work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 7dfabf98-e10d-46c8-b019-93dd7e9b9400
+oompah.work_branch: epic-OOMPAH-490
 ---
 ## Summary
 
@@ -38,3 +40,16 @@ The same retired controls cannot silently return, the four API behavior cases re
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 16:02
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 16:02
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
