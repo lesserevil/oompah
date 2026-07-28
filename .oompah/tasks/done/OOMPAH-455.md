@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-455
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Make GitLab project edits use one intake alias and forge-aware identity resolution
 parent: OOMPAH-451
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:52:35.134576Z'
+updated_at: '2026-07-28T13:54:42.640718Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -265,5 +265,10 @@ author: oompah
 created: 2026-07-28 13:52
 ---
 Verification: The Makefile test target could not start because the installed snap-backed uv failed to create a transient DBus scope (exit 46), so I ran the target's equivalent command with the repository virtualenv. Full suite passed: 12,342 passed, 39 skipped, 12 warnings in 239.14s. Focused project CRUD/GitLab UI suite then passed: 233 passed, 1 warning in 2.07s. No test failures.
+---
+author: oompah
+created: 2026-07-28 13:54
+---
+Completion: Delivered and pushed commit 48a793f90. The Projects editor sends only external_issue_intake_enabled; PATCH accepts legacy-only, neutral-only, and matching aliases while rejecting conflicts precisely; GitLab create/edit/token paths never call GitHub token-owner resolution and leave blank actors unset. Full suite passed (12,342 passed, 39 skipped), post-rebase focused CRUD/UI suite passed (233 passed), and the branch is synchronized with origin (+0/-0). The repository secret target's only finding was an unchanged REDACTED test fixture false positive.
 ---
 <!-- COMMENTS:END -->
