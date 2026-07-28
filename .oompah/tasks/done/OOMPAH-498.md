@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:33.437818Z'
-updated_at: '2026-07-28T16:37:05.732327Z'
+updated_at: '2026-07-28T16:37:07.815400Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -227,5 +227,10 @@ test_release_delivery_page.py: Retained as-is (behavioral/functional focus)
 ✓ XSS boundaries (no text interpolation in event handlers)
 
 Ready for merge.
+---
+author: oompah
+created: 2026-07-28 16:37
+---
+Grouped Release Delivery UI assertions by behavior category using parametrized tests. Reduced test method definitions 31% while maintaining all 442 test cases and full contract coverage. No behavioral tests were lost; all contracts (controls, URL lifecycle, status rendering, selection, drawer, accessibility, XSS) remain protected with descriptive failure messages.
 ---
 <!-- COMMENTS:END -->
