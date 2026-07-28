@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:06.169316Z'
-updated_at: '2026-07-28T18:57:42.159534Z'
+updated_at: '2026-07-28T18:58:29.447459Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -156,5 +156,10 @@ author: oompah
 created: 2026-07-28 18:57
 ---
 Understanding: I will extend durable service state with a versioned terminal-audit grandfather baseline, initialize it idempotently on first upgraded startup, invalidate records on terminal/evidence changes, and recover In Validation audits without duplicate attempts. I will first inspect the existing orchestrator, state, metadata, and test seams, then implement focused coverage and verify with Makefile targets.
+---
+author: oompah
+created: 2026-07-28 18:58
+---
+Discovery: OOMPAH-462/463 supply only terminal-audit records and tracker metadata persistence; no enforcement coordinator exists. The single startup path is Orchestrator.run() before its initial _tick(), and project-scoped tracker resolution is available. I will add a dedicated coordinator with versioned service-state serialization, stable project+task keys, conservative evidence extraction, and metadata-based pending recovery.
 ---
 <!-- COMMENTS:END -->
