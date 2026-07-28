@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:32.426575Z'
-updated_at: '2026-07-28T16:16:21.600625Z'
+updated_at: '2026-07-28T16:18:09.157499Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -166,5 +166,21 @@ author: oompah
 created: 2026-07-28 16:16
 ---
 Understanding: Frontend developer taking over after duplicate_detector handoff. Task is to remove cross-file test duplication among test_dashboard_release_delivery_ui.py, test_release_delivery_page.py, and test_dashboard_release_addendums_ui.py. Ownership model: test_release_delivery_page.py owns page contracts (navigation, structure, URL, bootstrap, accessibility, live-status), test_dashboard_release_addendums_ui.py owns dialog controls. Will baseline test counts, consolidate duplicates, update docstrings, add ownership table, and verify all tests pass.
+---
+author: oompah
+created: 2026-07-28 16:18
+---
+Discovery: Found duplicate tests across three files. test_dashboard_release_delivery_ui.py contains:
+
+DUPLICATES TO REMOVE:
+1. TestRDIOverlayHTML (25 tests, lines 430-548): Tests page structure, controls, HTML elements - duplicated in test_release_delivery_page.py
+2. TestRDIDrawerHTML drawer role/aria tests: Duplicated in test_release_delivery_page.py TestPageAccessibility  
+3. Five retained-control tests (lines 1946-1969): test_*_retained for add-release-branches dialog - duplicated in test_dashboard_release_addendums_ui.py
+4. TestAccessibility drawer tests (lines 2007-2009): test_drawer_has_aria_modal and test_drawer_has_role_dialog - duplicated
+
+Page contracts duplicated: ~12 tests from TestRDIOverlayHTML + drawer tests = ~15 total
+Retained-control duplicates: 5 exact duplicates
+
+Plan: Remove TestRDIOverlayHTML class entirely, remove drawer role/aria tests from TestRDIDrawerHTML, remove all five retained-* tests, update docstrings from 'overlay' to 'page'. Baseline counts: 348/131/96 tests.
 ---
 <!-- COMMENTS:END -->

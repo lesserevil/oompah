@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:06.576042Z'
-updated_at: '2026-07-28T15:27:13.966549Z'
+updated_at: '2026-07-28T16:18:06.628246Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-07-28 15:27
 ---
 Daily and pressure-triggered safe owned-storage cleanup is implemented with bounded deletion, preservation guards, metrics, docs, and tests.
+---
+author: oompah
+created: 2026-07-28 16:18
+---
+Live pressure follow-up: Oompah correctly exported its private TMPDIR/TMP/TEMP, but a Claude agent hard-coded /tmp for sort scratch files and hit the shared quota. Added a managed AGENTS/bootstrap rule requiring  or mktemp and forbidding hard-coded /tmp. This affects existing Oompah AGENTS.md and newly/refreshed managed projects. 40 agent-instruction, bootstrap, and temp-root tests pass; pushed on epic-OOMPAH-502.
 ---
 <!-- COMMENTS:END -->
