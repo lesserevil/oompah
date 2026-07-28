@@ -48,13 +48,19 @@ cleanup_test_run() {
 trap cleanup_test_run EXIT
 
 export OOMPAH_PYTEST_RUN_ROOT="${test_run_root}"
+export PYTHONPYCACHEPREFIX="${test_run_root}/pycache"
 
 if (( $# > 0 )); then
     test_targets=("$@")
 else
     test_targets=(tests/)
 fi
-pytest_args=("${test_targets[@]}" -v --basetemp "${test_run_root}/basetemp")
+pytest_args=(
+    "${test_targets[@]}"
+    -v
+    --basetemp "${test_run_root}/basetemp"
+    -o "cache_dir=${test_run_root}/pytest-cache"
+)
 if [[ "${mode}" == "parallel" ]]; then
     pytest_args+=(-n "${workers}" --dist loadgroup)
     echo "Running pytest with ${workers} isolated workers under ${test_run_root}"

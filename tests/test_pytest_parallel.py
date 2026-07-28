@@ -40,6 +40,14 @@ def test_make_exposes_serial_diagnostic_target():
     assert "test-serial" in text[text.index("help:") : text.index("setup:")]
 
 
+def test_runner_keeps_pytest_and_bytecode_caches_in_disposable_tree():
+    text = RUNNER.read_text(encoding="utf-8")
+
+    assert 'export PYTHONPYCACHEPREFIX="${test_run_root}/pycache"' in text
+    assert '"cache_dir=${test_run_root}/pytest-cache"' in text
+    assert '--basetemp "${test_run_root}/basetemp"' in text
+
+
 def test_dotenv_documents_conservative_default():
     text = ENV_EXAMPLE.read_text(encoding="utf-8")
 
