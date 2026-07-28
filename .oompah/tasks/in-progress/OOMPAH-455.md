@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-455
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make GitLab project edits use one intake alias and forge-aware identity resolution
 parent: OOMPAH-451
@@ -10,16 +10,15 @@ blocked_by: []
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:frontend
-- needs:feature
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:43:32.016481Z'
+updated_at: '2026-07-28T13:43:43.272722Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 54524660-1490-43ab-86cf-4d4697bc8e8f
+oompah.agent_run_id: 64a396b2-aa5a-4bd8-afe5-9fe6e62f85b0
 oompah.work_branch: epic-OOMPAH-451
 oompah.task_costs:
   total_input_tokens: 513917
@@ -236,5 +235,15 @@ author: oompah
 created: 2026-07-28 13:43
 ---
 Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 13:43
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-28 13:43
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
