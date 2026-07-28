@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:55:12.671204Z'
+updated_at: '2026-07-28T18:55:26.009738Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -200,5 +200,10 @@ author: oompah
 created: 2026-07-28 18:55
 ---
 Verification: All 57 new auth tests pass. All 875 existing server tests pass. No regressions in test_http_auth.py, test_ws_lifecycle.py, test_server_webhooks.py, test_server_favicon.py. Code pushed to epic-OOMPAH-521 (commit cf4690852).
+---
+author: oompah
+created: 2026-07-28 18:55
+---
+Completion: OOMPAH-523 implemented and tested. Delivered: (1) _BasicAuthMiddleware ASGI class in oompah/server.py enforcing HTTP Basic auth at the ASGI boundary for all HTTP routes, static assets, mounted apps, and /ws — auth is checked before accept() on WebSocket so rejected connections never enter _ws_clients; (2) exact exemptions for GET /healthz, POST /api/v1/webhooks/github, POST /api/v1/webhooks/gitlab — all other methods and path variants are blocked; (3) GET /healthz endpoint returning only {status: ok, instance_id} with no operational data; (4) _http_credentials module var + set_http_credentials() wired in _service_lifespan; (5) 57 integration tests in tests/test_server_auth.py covering all acceptance criteria. Auth is transparent when disabled; credential disclosure is impossible. All 875 server tests pass.
 ---
 <!-- COMMENTS:END -->
