@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T23:18:01.725169Z'
-updated_at: '2026-07-28T23:18:44.316907Z'
+updated_at: '2026-07-28T23:20:39.964810Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,14 +23,30 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: fc8d5169-2484-45f7-9402-efc70fdccbda
-  claim_owner: 8e692a0c-71f6-4607-8341-3faedd0fb344
-  claimed_at: '2026-07-28T23:18:32.518579+00:00'
-  claim_expires_at: '2026-07-28T23:48:32.518579+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: Duplicate-screening worker exited with reason normal.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-07-28T23:21:37.758030+00:00'
 oompah.agent_run_id: e5c1863f-5dbc-4957-87a9-c6dc182bdde2
+oompah.task_costs:
+  total_input_tokens: 814000
+  total_output_tokens: 4016
+  total_cost_usd: 0.0
+  by_model:
+    opus:
+      input_tokens: 814000
+      output_tokens: 4016
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: opus
+    input_tokens: 814000
+    output_tokens: 4016
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T23:20:37.757056+00:00'
 ---
 ## Summary
 
@@ -81,5 +97,15 @@ author: oompah
 created: 2026-07-28 23:18
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 23:20
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 10
+- Tokens: 814.0K in / 4.0K out [818.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 2s
+- Log: OOMPAH-535__20260728T231844Z.jsonl
 ---
 <!-- COMMENTS:END -->
