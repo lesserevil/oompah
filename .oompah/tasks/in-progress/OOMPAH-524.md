@@ -8,10 +8,11 @@ parent: OOMPAH-521
 children: []
 blocked_by:
 - OOMPAH-523
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:09:59.218368Z'
+updated_at: '2026-07-28T19:11:55.960866Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -76,5 +77,34 @@ author: oompah
 created: 2026-07-28 19:09
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 19:11
+---
+Focus: Duplicate Investigator - Screening Complete
+
+**Outcome:** No duplicate detected.
+
+**Findings:**
+- OOMPAH-523 (HTTP Basic auth for server) is COMPLETE: Two commits (cf4690852, e115fed59) implemented comprehensive authentication middleware protecting HTTP and WebSocket surfaces.
+- OOMPAH-524 is a DISTINCT, DEPENDENT task requiring MCP gateway integration.
+- Current state: MCP gateway code exists and is mounted, BUT:
+  * MCP endpoints (/.well-known/mcp, /api/mcp/v1) are NOT protected by auth middleware
+  * Discovery document still advertises 'authentication: none; local service access only'
+  * Internal API dispatch path through MCP has not been adapted for authenticated requests
+
+**Related code reviewed:**
+- oompah/http_auth.py - HTTP Basic auth module (OOMPAH-523)
+- oompah/mcp_gateway.py - MCP gateway implementation (mounted at /api/mcp/v1)
+- oompah/mcp_exposure_policy.py - Fail-closed exposure policy
+- tests/test_mcp_gateway.py - MCP integration tests (lack auth coverage)
+- tests/test_server_auth.py - Server auth tests (do not cover MCP endpoints)
+
+**Closest related tasks:**
+- OOMPAH-523: HTTP Basic auth enforcement (COMPLETE)
+- OOMPAH-419: MCP exposure policy definition (COMPLETE)
+- Commit 3aa8dd5e1: MCP gateway mounting (COMPLETE)
+
+This task requires implementation of auth integration with the mounted MCP gateway to fulfill the acceptance criteria.
 ---
 <!-- COMMENTS:END -->
