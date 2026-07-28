@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:41:53.984138Z'
+updated_at: '2026-07-28T13:42:06.426268Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -184,5 +184,10 @@ author: oompah
 created: 2026-07-28 13:41
 ---
 Implementation: Fixed oompah/templates/projects.html saveProject() function. Removed github_issue_intake_enabled from the PATCH body — it was being sent alongside external_issue_intake_enabled (the canonical forge-neutral field), causing ProjectStore.update() to raise 'Specify only one' for every save from the Projects page, including unrelated edits like enabling state_branch_enabled. The fix: send only external_issue_intake_enabled. The server PATCH handler already routes this field through ProjectStore which normalizes it internally. Card display still reads both aliases (OR) for backward compatibility with stored data. Added TestSaveProjectIntakeAliasPayload class to tests/test_projects_gitlab_ui.py with 4 tests covering: external alias is sent, legacy alias is absent from PATCH body, checkbox value maps to canonical field, and backward-compat card display reads both.
+---
+author: oompah
+created: 2026-07-28 13:42
+---
+Verification: make test passed — 12333 passed, 39 skipped in 236.81s. All 76 tests in test_projects_gitlab_ui.py pass including the 4 new TestSaveProjectIntakeAliasPayload tests. Frontend fix is complete. Backend work remaining (outside frontend scope): (1) server.py PATCH handler calls _resolve_github_token_owner() for GitLab projects when status_actor_login is blank — sends GitLab token to GitHub API generating 401 warnings; needs forge_kind check before calling (lines 10518-10530 and 10633-10637 in server.py); (2) tests that reproduce the GitLab project edit end-to-end via HTTP (server-level integration test with mock GitHub identity call assertion). These require a backend/feature focus.
 ---
 <!-- COMMENTS:END -->
