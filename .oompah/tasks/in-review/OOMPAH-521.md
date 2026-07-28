@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-521
 type: epic
-status: Done
+status: In Review
 priority: 1
 title: Add optional htpasswd authentication to the Oompah service
 parent: null
@@ -16,7 +16,7 @@ labels:
 - security
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-07-28T20:44:23.040912Z'
+updated_at: '2026-07-28T21:17:07.300318Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,3 +71,11 @@ Every child must add focused tests. The completed epic must pass make test and i
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 21:17
+---
+Branch quality gate passed for `4a15c3ecb298cf0e4812146b2bba3d45877c2527` using `make test` in 69.0s. Review creation may proceed.
+---
+<!-- COMMENTS:END -->
