@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-531
 type: task
-status: In Progress
+status: Open
 priority: 2
 title: Schedule duplicate preflight from spare agent capacity
 parent: OOMPAH-528
@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-07-28T22:00:36.510782Z'
+updated_at: '2026-07-28T22:00:45.330624Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
