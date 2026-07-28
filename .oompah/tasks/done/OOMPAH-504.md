@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-504
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Compact agent prompt history around actionable handoffs
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:00.486812Z'
-updated_at: '2026-07-28T15:12:37.761793Z'
+updated_at: '2026-07-28T15:16:47.689370Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-07-28 15:12
 ---
 Implementing a pure, non-mutating comment compactor at the three initial-prompt paths. It will retain latest human context, latest Focus handoff, the final Needs Human instruction, and recent comments within count/byte caps; a renderer-only trusted omission notice will point agents to the full task history.
+---
+author: oompah
+created: 2026-07-28 15:16
+---
+Implemented and pushed in commit 85be456eb. Fresh agent prompts now compact comment history without mutating tracker storage, retain prioritized human/handoff/Needs Human context plus recent comments, include a trusted full-history notice, preserve untrusted provenance, and support environment-only count/byte caps. Focused prompt/config/provenance suite: 439 passed.
 ---
 <!-- COMMENTS:END -->
