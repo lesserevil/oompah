@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T20:16:36.783511Z'
-updated_at: '2026-07-28T20:23:12.431667Z'
+updated_at: '2026-07-28T20:23:14.485591Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -125,5 +125,10 @@ ACCEPTANCE CRITERIA MET:
 ✓ All focused and full test suites pass
 
 Ready for review.
+---
+author: oompah
+created: 2026-07-28 20:23
+---
+Implemented automatic GitLab webhook URL derivation. When OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL is not configured, Oompah derives a per-project callback URL using OS route discovery to find the local source IP, combined with server port and webhook path. Explicit URL always takes precedence. All 226 webhook tests pass, including 25 new comprehensive tests. Backward compatible with existing deployments.
 ---
 <!-- COMMENTS:END -->
