@@ -107,6 +107,10 @@ class TestServiceConfig:
         assert cfg.gitlab_webhook_public_url is None
         assert cfg.workspace_root  # should have a default
 
+    def test_direct_construction_keeps_duplicate_preflight_inert(self):
+        cfg = ServiceConfig()
+        assert cfg.duplicate_preflight_max_agents == 0
+
     def test_gitlab_webhook_public_url_comes_from_environment(self, monkeypatch):
         monkeypatch.setenv(
             "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL", "https://oompah.example.com/"

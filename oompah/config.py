@@ -518,7 +518,9 @@ class ServiceConfig:
     duplicate_detection_candidate_limit: int = 64
     # Maximum model-backed duplicate-screening workers that may consume spare
     # capacity at once.  Zero disables Open-task preflight qualification.
-    duplicate_preflight_max_agents: int = 1
+    # Directly constructed configs stay inert for library/test callers; the
+    # runtime loader below enables one worker by default.
+    duplicate_preflight_max_agents: int = 0
     auto_archive_batch_size: int = 25
     auto_archive_interval_seconds: int = 300
     worktree_cleanup_batch_size: int = 25

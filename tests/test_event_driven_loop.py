@@ -528,6 +528,7 @@ class TestRunEventDrivenLoop:
         """Create an orchestrator where _tick() and startup are no-ops."""
         orch = _make_orchestrator(tmp_path, config=_make_config(full_sync_interval_ms=600000))
         orch._tick = AsyncMock()
+        orch._run_terminal_audit_enforcement = MagicMock()
         orch.startup_cleanup = AsyncMock()
         orch._recover_restart_issues = AsyncMock()
         return orch
