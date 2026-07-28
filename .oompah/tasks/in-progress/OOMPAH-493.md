@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:28.451050Z'
-updated_at: '2026-07-28T15:23:42.467145Z'
+updated_at: '2026-07-28T15:29:06.086084Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -128,5 +128,15 @@ author: oompah
 created: 2026-07-28 15:23
 ---
 Discovery: Confirmed the target test is at lines 2955-2962. The test uses return_value=resp with _mock_response(500) so the same 500 is returned for every retry attempt. Since 500 is in _RETRYABLE_STATUS, the production retry loop makes _MAX_RETRIES+1 = 4 requests and calls _sleep(_backoff(n)) for 3 sleeps before raising TrackerError. No _sleep patch means real backoff occurs. Scan of TestGitHubIssueTrackerMutations confirms no other always-transient-500 pattern — test_create_issue_raises_on_bad_response uses 422 (not retryable). Fix: wrap the HTTP mock with patch.object(tracker._client, '_sleep') and assert call_count for both request (4) and sleep (3).
+---
+author: oompah
+created: 2026-07-28 15:29
+---
+Implementation: Updated test_remove_label_re_raises_non_404_errors in tests/test_github_tracker.py. Added patch.object(tracker._client, '_sleep') nested inside the HTTP mock context so no real backoff sleeps occur. Added two assertions: mock_http.call_count == _MAX_RETRIES + 1 (all 4 retry attempts made) and mock_sleep.call_count == _MAX_RETRIES (3 sleep calls, one before each retry). 404 no-op and successful DELETE tests are untouched. Scan of TestGitHubIssueTrackerHierarchyAndDependencies confirmed neighboring re_raises_non_404_errors tests use 422 (not retryable) so they need no change.
+---
+author: oompah
+created: 2026-07-28 15:29
+---
+Verification: Targeted test passes in 0.02s call time (was ~7.3s with real sleeps). Full tests/test_github_tracker.py: 365 passed in 2.17s. make test: 12361 passed, 7 skipped, 13 warnings in 260.82s. All green.
 ---
 <!-- COMMENTS:END -->
