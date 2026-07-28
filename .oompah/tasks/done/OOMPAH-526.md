@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T20:39:56.438820Z'
+updated_at: '2026-07-28T20:40:09.618750Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -268,5 +268,20 @@ author: oompah
 created: 2026-07-28 20:39
 ---
 Completion: Secure htpasswd deployment and recovery documentation is landed and pushed in commit 4a15c3ecb. The guide covers HTTPS/TLS boundaries, Oompah-vs-GitLab URLs, bcrypt file lifecycle, client/MCP/CLI credentials, exact webhook exemptions, rotation, disablement, recovery, rollback, and troubleshooting. Links and setting precedence are aligned across .env.example, operator/bootstrap/CLI docs, help, and discovery; contract tests and full verification are green.
+---
+author: oompah
+created: 2026-07-28 20:40
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 110
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 22m 52s
+- Log: OOMPAH-526__20260728T201718Z.jsonl
+---
+author: oompah
+created: 2026-07-28 20:40
+---
+Documented and validated secure htpasswd deployment, client configuration, webhook boundaries, lifecycle operations, recovery, and rollback; added contract coverage and pushed the complete verified change.
 ---
 <!-- COMMENTS:END -->
