@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-451
 type: epic
-status: In Review
+status: Merged
 priority: 1
 title: Restore GitLab parity stranded after the OOMPAH-318 epic merge
 parent: null
@@ -15,7 +15,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:07.972119Z'
-updated_at: '2026-07-28T14:55:41.114274Z'
+updated_at: '2026-07-28T15:05:33.277748Z'
 work_branch: epic-OOMPAH-451
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/560
