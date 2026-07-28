@@ -10,12 +10,13 @@ children:
 - OOMPAH-523
 - OOMPAH-524
 - OOMPAH-525
+- OOMPAH-526
 blocked_by: []
 labels:
 - security
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-07-28T18:12:58.123017Z'
+updated_at: '2026-07-28T18:13:23.438057Z'
 work_branch: null
 target_branch: null
 review_url: null
