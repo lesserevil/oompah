@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-510
 type: task
-status: In Progress
+status: Backlog
 priority: 1
 title: Measure throughput improvements and validate the clean epic branch
 parent: OOMPAH-502
@@ -17,7 +17,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:11.106221Z'
-updated_at: '2026-07-28T17:37:44.065164Z'
+updated_at: '2026-07-28T17:38:31.031180Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
