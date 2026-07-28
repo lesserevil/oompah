@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T20:16:36.783511Z'
-updated_at: '2026-07-28T20:23:41.587489Z'
+updated_at: '2026-07-28T20:23:57.000685Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -187,5 +187,10 @@ author: oompah
 created: 2026-07-28 20:23
 ---
 Focus: Api Oompah Integration Specialist
+---
+author: oompah
+created: 2026-07-28 20:23
+---
+Understanding: review the existing GitLab callback URL derivation implementation against explicit override precedence, socket-only route discovery, IPv4/IPv6 formatting, per-project routes, safe polling fallback, status exposure, reconcile/remove behavior, bootstrap wiring, and documentation. I will fix any gaps, run focused checks plus required repository checks, then commit, push, and close the task.
 ---
 <!-- COMMENTS:END -->
