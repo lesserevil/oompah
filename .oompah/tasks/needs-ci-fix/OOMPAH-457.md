@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-07-28T21:00:30.180161Z'
+updated_at: '2026-07-28T21:05:04.254920Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -28,6 +28,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/565
 oompah.review_number: '565'
 oompah.work_branch: epic-OOMPAH-457
 oompah.target_branch: main
+oompah.agent_run_id: d58c06c0-a435-492e-aa36-13e0fccab150
 ---
 ## Summary
 
@@ -74,5 +75,15 @@ author: oompah
 created: 2026-07-28 20:45
 ---
 YOLO: CI tests failed on MR #565. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-28 21:04
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-28 21:05
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
