@@ -7,10 +7,11 @@ title: Make GitLab project edits use one intake alias and forge-aware identity r
 parent: OOMPAH-451
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:28:51.198496Z'
+updated_at: '2026-07-28T13:30:49.048003Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -46,5 +47,27 @@ author: oompah
 created: 2026-07-28 13:28
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 13:30
+---
+Duplicate investigation complete: No duplicate found.
+
+Searched across all .oompah/tasks/ states (archived, merged, open, backlog — 280+ tasks) and plans/ docs/ using keywords: github_issue_intake_enabled, external_issue_intake_enabled, Specify only one, intake alias, forge-aware, forge identity, status_actor_login, state_branch_enabled, nodevirt, Projects editor, GitLab 401, token owner, PATCH project, intake_enabled.
+
+Zero matches across all search patterns. OOMPAH-455 describes a novel bug specific to the Projects UI editor sending both intake alias fields simultaneously, causing ProjectStore validation failure.
+
+Closest candidate reviewed and ruled out:
+- plans/gitlab-forge-parity.md — a large design plan that mentions generalizing github_issue_intake_enabled → external_issue_intake_enabled as a future architecture goal, but contains no task or fix for the specific bug described here (simultaneous alias sending blocking unrelated edits).
+
+No existing task covers the same failure mode (ProjectStore rejecting both intake aliases simultaneously, or GitHub 401 warnings from GitLab token resolving via GitHub API).
+
+Relevant files for implementation:
+- oompah/templates/projects.html — UI sends both intake fields; needs to send only one canonical forge-neutral field
+- oompah/server.py — PATCH handler; needs compatibility alias contract and forge-aware identity resolution
+- oompah/projects.py — ProjectStore validation; needs deterministic alias normalization
+- tests/ — need GitLab project edit test, legacy GitHub client test, conflicting alias test
+
+Next focus: backend (bug fix + tests)
 ---
 <!-- COMMENTS:END -->
