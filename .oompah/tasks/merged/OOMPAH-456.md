@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-456
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Make state-branch activation atomic and forge-aware for GitLab projects
 parent: OOMPAH-451
@@ -13,7 +13,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:55:26.247919Z'
+updated_at: '2026-07-28T15:10:36.697739Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
