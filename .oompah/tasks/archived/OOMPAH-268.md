@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-268
 type: bug
-status: Merged
+status: Archived
 priority: 2
 title: '[backend:server] Add comment API error: git add .oompah/tasks failed: fatal:
   Unable to create ''/home/shedwards/.oompah/repos/oompah/.git/index.lock'': File
@@ -18,7 +18,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:52:04.570031Z'
-updated_at: '2026-07-20T21:55:56.896051Z'
+updated_at: '2026-07-28T13:42:41.496729Z'
 work_branch: null
 target_branch: null
 review_url: null
