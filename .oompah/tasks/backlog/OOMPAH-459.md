@@ -5,12 +5,20 @@ status: Backlog
 priority: 1
 title: Route all terminal-state producers through independent auditing
 parent: null
-children: []
+children:
+- OOMPAH-476
+- OOMPAH-477
+- OOMPAH-478
+- OOMPAH-479
+- OOMPAH-480
+- OOMPAH-481
+- OOMPAH-482
+- OOMPAH-483
 blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-28T13:03:46.877390Z'
+updated_at: '2026-07-28T13:07:31.278631Z'
 work_branch: null
 target_branch: null
 review_url: null
