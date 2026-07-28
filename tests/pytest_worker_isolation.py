@@ -21,6 +21,7 @@ _ISOLATED_ENV_KEYS = (
     "XDG_CONFIG_HOME",
     "XDG_DATA_HOME",
 )
+_RUNNER_ENV_KEYS = ("OOMPAH_PYTEST_RUN_ROOT",)
 _PROCESS_GLOBAL_MODULES = frozenset(
     {
         "test_agent.py",
@@ -112,6 +113,11 @@ def pytest_configure(config: pytest.Config) -> None:
     config._oompah_isolated_environment = {  # type: ignore[attr-defined]
         key: isolated[key] for key in _ISOLATED_ENV_KEYS
     }
+    config._oompah_runner_environment = {  # type: ignore[attr-defined]
+        key: os.environ[key]
+        for key in _RUNNER_ENV_KEYS
+        if key in os.environ
+    }
     config._oompah_saved_tempdir = tempfile.tempdir  # type: ignore[attr-defined]
     tempfile.tempdir = isolated["TMPDIR"]
 
@@ -127,6 +133,13 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
     if isolated is None:
         return
     for key, value in isolated.items():
+        os.environ[key] = value
+    runner_environment: dict[str, str] = getattr(
+        item.config,
+        "_oompah_runner_environment",
+        {},
+    )
+    for key, value in runner_environment.items():
         os.environ[key] = value
     tempfile.tempdir = isolated["TMPDIR"]
 

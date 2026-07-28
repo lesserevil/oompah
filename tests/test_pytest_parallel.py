@@ -140,16 +140,21 @@ def test_worker_environment_is_restored_before_each_test(monkeypatch, tmp_path: 
                 "XDG_CONFIG_HOME",
                 "XDG_DATA_HOME",
             )
-        }
+        },
+        _oompah_runner_environment={
+            "OOMPAH_PYTEST_RUN_ROOT": str(tmp_path / "run")
+        },
     )
     item = SimpleNamespace(config=config)
     monkeypatch.setenv("HOME", "/contaminated")
     monkeypatch.setenv("TMPDIR", "/contaminated")
+    monkeypatch.delenv("OOMPAH_PYTEST_RUN_ROOT", raising=False)
 
     pytest_runtest_setup(item)  # type: ignore[arg-type]
 
     assert os.environ["HOME"] == isolated["HOME"]
     assert os.environ["TMPDIR"] == isolated["TMPDIR"]
+    assert os.environ["OOMPAH_PYTEST_RUN_ROOT"] == str(tmp_path / "run")
 
 
 def test_active_xdist_worker_uses_its_private_run_tree():
