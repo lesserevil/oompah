@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:27.511520Z'
-updated_at: '2026-07-28T15:18:40.301158Z'
+updated_at: '2026-07-28T15:18:54.965233Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ merged_at: null
 oompah.agent_run_id: 08675e3c-a8d0-43a7-aff6-520907bec104
 oompah.work_branch: epic-OOMPAH-490
 oompah.task_costs:
-  total_input_tokens: 404810
-  total_output_tokens: 3022
+  total_input_tokens: 404899
+  total_output_tokens: 54437
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 404810
-      output_tokens: 3022
+      input_tokens: 404899
+      output_tokens: 54437
       cost_usd: 0.0
   runs:
   - profile: default
@@ -36,6 +36,12 @@ oompah.task_costs:
     output_tokens: 3022
     cost_usd: 0.0
     recorded_at: '2026-07-28T14:58:23.653994+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 89
+    output_tokens: 51415
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T15:18:52.663886+00:00'
 ---
 ## Summary
 
@@ -148,5 +154,20 @@ author: oompah
 created: 2026-07-28 15:18
 ---
 Isolated worker-exit and epic-rebase tests from live tracker. Added project IDs, injected MagicMock trackers via _tracker_for_project, muted fire-and-forget telemetry/comment/completion side-effects, added fail-fast git-push subprocess guards, and asserted project-scoped tracker usage. All 3 files affected, 7 tests isolated, make test passes (12361/0 fail).
+---
+author: oompah
+created: 2026-07-28 15:18
+---
+Agent completed successfully in 1217s (51504 tokens)
+---
+author: oompah
+created: 2026-07-28 15:18
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
+- Turns: 166, Tool calls: 99
+- Tokens: 89 in / 51.4K out [51.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 20m 17s
+- Log: OOMPAH-492__20260728T145838Z.jsonl
 ---
 <!-- COMMENTS:END -->

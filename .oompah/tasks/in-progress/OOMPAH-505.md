@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: Backlog
+status: In Progress
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:06:54.053914Z'
+updated_at: '2026-07-28T15:18:50.742877Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-28 15:06
 ---
 Claimed for manual implementation by the current Codex session. Held in Backlog while the shared epic branch is built so Oompah does not dispatch another agent; status will move to In Progress and Done as this session completes the slice.
+---
+author: oompah
+created: 2026-07-28 15:18
+---
+Confirmed the remaining functional gap: backend sessions already forward explicit models, but the Claude alias allowlist omits fable and the role matrix renders only an empty SDK-managed selector when an ACP catalog is absent. I am adding a first-class backend manual-selection capability, a free-text role control for those backends, accurate API notes, and six-tier propagation tests while retaining empty-model SDK fallback.
 ---
 <!-- COMMENTS:END -->
