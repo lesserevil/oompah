@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:43:19.452004Z'
+updated_at: '2026-07-28T13:43:32.016481Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -22,13 +22,13 @@ merged_at: null
 oompah.agent_run_id: 54524660-1490-43ab-86cf-4d4697bc8e8f
 oompah.work_branch: epic-OOMPAH-451
 oompah.task_costs:
-  total_input_tokens: 513872
-  total_output_tokens: 8554
+  total_input_tokens: 513917
+  total_output_tokens: 23979
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 513872
-      output_tokens: 8554
+      input_tokens: 513917
+      output_tokens: 23979
       cost_usd: 0.0
   runs:
   - profile: default
@@ -43,6 +43,12 @@ oompah.task_costs:
     output_tokens: 2413
     cost_usd: 0.0
     recorded_at: '2026-07-28T13:33:05.918597+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 45
+    output_tokens: 15425
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T13:43:28.511825+00:00'
 ---
 ## Summary
 
@@ -210,5 +216,25 @@ Remaining work for backend focus:
 2. Server-level integration tests: reproduce editing a GitLab project with both intake aliases in stored data, enable state_branch_enabled, assert 200 response, assert _resolve_github_token_owner is never called. Cover legacy GitHub clients (send only github_issue_intake_enabled), conflicting aliases (send both with different values → precise error), GitLab blank status_actor_login (no GitHub call). Run make test.
 
 Recommended next focus: feature (backend + server integration tests).
+---
+author: oompah
+created: 2026-07-28 13:43
+---
+Agent completed successfully in 612s (15470 tokens)
+---
+author: oompah
+created: 2026-07-28 13:43
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
+- Turns: 87, Tool calls: 54
+- Tokens: 45 in / 15.4K out [15.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 12s
+- Log: OOMPAH-455__20260728T133319Z.jsonl
+---
+author: oompah
+created: 2026-07-28 13:43
+---
+Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
