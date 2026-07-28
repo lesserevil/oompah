@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-534
 type: task
-status: Open
+status: Done
 priority: 3
 title: Add end-to-end duplicate-preflight regressions and operator documentation
 parent: OOMPAH-528
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:20:02.804008Z'
-updated_at: '2026-07-28T21:53:06.884243Z'
+updated_at: '2026-07-28T21:54:30.994725Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -197,5 +197,10 @@ author: oompah
 created: 2026-07-28 21:51
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 21:54
+---
+Completed by the interactive Codex session on epic-OOMPAH-528. Added end-to-end pass/duplicate/stale-edit/recovery/capacity regressions, API/dashboard coverage, and docs/duplicate-screening.md with configuration and troubleshooting guidance. Rebased onto origin/main at e9681a58d. Final branch head: c4c7f5dfa. Quality gates: make test — 13,070 passed, 7 skipped; git diff --check passed. The competing scheduler commit was incomplete and was excluded; the verified branch contains the complete claim, scheduling, verdict, visibility, and documentation implementation.
 ---
 <!-- COMMENTS:END -->
