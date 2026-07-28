@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-456
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make state-branch activation atomic and forge-aware for GitLab projects
 parent: OOMPAH-451
@@ -14,7 +14,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:25:42.410967Z'
+updated_at: '2026-07-28T14:25:59.081477Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -205,5 +205,15 @@ Focus handoff: security
 3. Remaining work/risks: Feature backend must pass project.access_token plus forge_kind/base URL to validate and Stage A Git operations using a noninteractive ephemeral credential mechanism. Never put tokens in argv, remote URLs, persisted git config, results, or logs; redact token and credential-bearing URLs from all stderr/stdout and exception paths. initialize_state_branch currently returns success when only a local branch exists, so a prior failed push can be retried and then incorrectly enabled without a remote branch. After push, independently fetch/inspect the exact remote ref, verify its commit matches the intended commit and its tree contains the canonical .oompah/tasks layout, then update config last. Add a per-project migration lock: the endpoint currently claims serialization but has none, allowing A/rollback/config races. Apply credentials to fetch, dry-run, push, verification, rollback, and Stage C paths or explicitly constrain scope. Move cache invalidation after successful config persistence. Make validation/docs forge-neutral and avoid GITHUB_TOKEN guidance for GitLab. Sync Git subprocess work off the async request loop to avoid availability/DoS impact.
 
 4. Recommended next focus: feature. Add GitLab native-Markdown integration tests for project token auth, local-only branch retry, remote commit/layout verification before enable, auth/push/verification/config failures remaining disabled, concurrent requests, secret redaction, and GitHub regression behavior.
+---
+author: oompah
+created: 2026-07-28 14:25
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/default]
+- Turns: 0, Tool calls: 67
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 15m 13s
+- Log: OOMPAH-456__20260728T141041Z.jsonl
 ---
 <!-- COMMENTS:END -->
