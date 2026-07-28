@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-503
 type: bug
-status: In Progress
+status: Backlog
 priority: 1
 title: Limit automatic duplicate detection to nonterminal tasks
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:05:59.013552Z'
-updated_at: '2026-07-28T17:43:21.545439Z'
+updated_at: '2026-07-28T17:44:09.301343Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
