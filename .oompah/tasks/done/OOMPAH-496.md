@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:31.446905Z'
-updated_at: '2026-07-28T16:13:38.378309Z'
+updated_at: '2026-07-28T16:13:51.581036Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -203,5 +203,20 @@ author: oompah
 created: 2026-07-28 16:13
 ---
 Completion: Consolidated retired UI contracts in tests/test_dashboard_draft_epics.py and tests/test_projects_epic_strategy_ui.py; deleted the three redundant draft-only modules. Baseline was 59 collected tests across five files; surviving contracts collect 8. Focused 8/8 and focused UI/backend regression set 355/355 pass. Full equivalent suite: 12,269 passed, 7 skipped, 1 unrelated ACP failure; make test could not start pytest because uv hit the environment DBus transient-scope error. Commit bba2829f0 is pushed to epic-OOMPAH-490, and git status is clean/up to date.
+---
+author: oompah
+created: 2026-07-28 16:13
+---
+Run #3 [attempt=3, profile=quick, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 21
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 16s
+- Log: OOMPAH-496__20260728T160835Z.jsonl
+---
+author: oompah
+created: 2026-07-28 16:13
+---
+Consolidated draft-removal and epic-strategy UI contracts from 59 tests to 8; preserved API and shared-only backend coverage; focused checks pass and commit bba2829f0 is pushed.
 ---
 <!-- COMMENTS:END -->
