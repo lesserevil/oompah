@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:18:31.077035Z'
-updated_at: '2026-07-28T21:24:09.695093Z'
+updated_at: '2026-07-28T21:24:20.001176Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -134,5 +134,21 @@ author: oompah
 created: 2026-07-28 21:24
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-28 21:24
+---
+**Understanding**: This is a Maintenance Engineer focus to implement duplicate-screening evidence persistence. The Duplicate Investigator confirmed no duplicate exists; now I need to build the foundation for preflight scheduling.
+
+**Plan**:
+1. Create a duplicate_screening domain module with typed evidence record
+2. Implement canonical fingerprint from task fields (title, description, project, parent, dependencies, user labels)
+3. Add tracker metadata storage/retrieval using get_metadata/set_metadata_field pattern
+4. Implement state classification helpers (unchecked/running/checked/stale)
+5. Handle legacy focus-complete:duplicate_detector label migration
+6. Write comprehensive unit and tracker contract tests
+7. Verify all acceptance criteria met
+
+**Key insight from prior context**: Need to handle fingerprint/detector-version mismatch as stale (not delete historical evidence), exclude Oompah-owned transient labels/comments, and fail safe on malformed records.
 ---
 <!-- COMMENTS:END -->
