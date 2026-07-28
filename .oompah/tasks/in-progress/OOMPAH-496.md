@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:31.446905Z'
-updated_at: '2026-07-28T16:08:35.201834Z'
+updated_at: '2026-07-28T16:08:50.956279Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -188,5 +188,10 @@ author: oompah
 created: 2026-07-28 16:08
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-28 16:08
+---
+Understanding: I will consolidate the five named retired-interface test modules without changing production behavior: baseline their collection counts, preserve the four dashboard API cases and positive smoke checks, collapse absence assertions into marker-driven contracts (scoping epic-strategy markers to saveProject()), remove only redundant draft-only modules, then run focused tests and make test.
 ---
 <!-- COMMENTS:END -->
