@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:28.451050Z'
-updated_at: '2026-07-28T15:21:43.877541Z'
+updated_at: '2026-07-28T15:23:42.467145Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -123,5 +123,10 @@ author: oompah
 created: 2026-07-28 15:21
 ---
 Understanding: As the Test Engineer, I will patch tracker._client._sleep in test_remove_label_re_raises_non_404_errors so the 500-error retry path does not incur real sleeps. I'll assert TrackerError is raised after retry exhaustion, check that retries occurred (request attempt count), and verify sleep was called with expected arguments — all without actual waiting. I'll also scan neighboring mutation error tests in TestGitHubIssueTrackerMutations for the same always-transient-500 pattern and apply the same treatment. No production retry constants will be changed.
+---
+author: oompah
+created: 2026-07-28 15:23
+---
+Discovery: Confirmed the target test is at lines 2955-2962. The test uses return_value=resp with _mock_response(500) so the same 500 is returned for every retry attempt. Since 500 is in _RETRYABLE_STATUS, the production retry loop makes _MAX_RETRIES+1 = 4 requests and calls _sleep(_backoff(n)) for 3 sleeps before raising TrackerError. No _sleep patch means real backoff occurs. Scan of TestGitHubIssueTrackerMutations confirms no other always-transient-500 pattern — test_create_issue_raises_on_bad_response uses 422 (not retryable). Fix: wrap the HTTP mock with patch.object(tracker._client, '_sleep') and assert call_count for both request (4) and sleep (3).
 ---
 <!-- COMMENTS:END -->
