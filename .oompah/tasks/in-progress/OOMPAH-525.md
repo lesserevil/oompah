@@ -8,10 +8,12 @@ parent: OOMPAH-521
 children: []
 blocked_by:
 - OOMPAH-523
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:34:22.235200Z'
+updated_at: '2026-07-28T19:34:36.348525Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -133,5 +135,10 @@ author: oompah
 created: 2026-07-28 19:34
 ---
 Discovery: Duplicate screening found no duplicate. Reviewed OOMPAH-522 (server htpasswd loading/verifier), OOMPAH-523 (ASGI HTTP/WebSocket enforcement and public /healthz), OOMPAH-524 (authenticated embedded MCP), and OOMPAH-526 (operator documentation/integration). Their scopes are prerequisites or follow-on documentation; none implements client credential resolution for task/admin CLIs or authenticated Makefile lifecycle APIs. Repository search across .oompah/tasks, docs, plans, README.md, and WORKFLOW.md found no separate task for this client/lifecycle scope.
+---
+author: oompah
+created: 2026-07-28 19:34
+---
+Focus handoff: duplicate_detector\n\nOutcome: No duplicate confirmed; OOMPAH-525 is distinct client and lifecycle implementation work.\n\nEvidence: Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for htpasswd, Basic auth, client credentials, password files, authentication, and lifecycle commands. Read OOMPAH-522, OOMPAH-523, OOMPAH-524, and OOMPAH-526 in full. OOMPAH-522 owns server-side htpasswd loading/verification; 523 owns server route/WebSocket protection plus public /healthz; 524 owns MCP propagation; 526 is downstream docs/integration. None owns task_cli.py/admin_cli.py credential resolution or Makefile status/graceful/restart API authentication.\n\nRelevant implementation context: start with oompah/task_cli.py, oompah/admin_cli.py, Makefile, oompah/http_auth.py, oompah/server.py, and tests/test_makefile_restart_wait.py. Preserve the existing unauthenticated public /healthz probe; protected state and drain/restart APIs must use safe client-side Basic auth without secrets in URLs, argv, logs, or recipes.\n\nRemaining work/risk: implement and test credential source validation, password-file regular-file/permission checks, URL credential redaction/rejection, concise 401 remediation, safe no-force fallback on authentication failure, and backward compatibility.\n\nRecommended next focus: feature.
 ---
 <!-- COMMENTS:END -->
