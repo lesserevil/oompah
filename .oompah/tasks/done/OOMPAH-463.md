@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-463
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Persist terminal-audit state through the tracker metadata contract
 parent: OOMPAH-457
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:05.235115Z'
-updated_at: '2026-07-28T18:53:19.111064Z'
+updated_at: '2026-07-28T18:53:44.975699Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -129,5 +129,10 @@ author: oompah
 created: 2026-07-28 18:53
 ---
 Verification: New metadata contract suite passes (19 tests), including native Markdown, GitHub, and GitLab round trips/no-op writes/unknown-field retention/quarantine/redaction; adjacent terminal-audit and tracker suites pass (633 tests). make test was attempted but cannot initialize uv in this sandbox due DBus transient-scope failure; the equivalent final parallel pytest gate passed (12,685 tests, 7 skipped). make check-secrets passed (with an existing null-byte shell warning).
+---
+author: oompah
+created: 2026-07-28 18:53
+---
+Completion: Delivered and pushed 1116ff8c6. Terminal-audit state now survives tracker rereads through a single namespaced metadata envelope; serialized updates retain concurrent attempts, unchanged polls do not mutate trackers, malformed payloads fail closed with secret-free quarantine markers, and persisted fields are redacted. Tests and final equivalent full gate passed; branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
