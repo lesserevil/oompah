@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-499
 type: chore
-status: Done
+status: Merged
 priority: 2
 title: Remove exact duplicate tests and resolve shadowed definitions
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:34.407060Z'
-updated_at: '2026-07-28T16:49:20.229076Z'
+updated_at: '2026-07-28T17:11:27.435400Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
