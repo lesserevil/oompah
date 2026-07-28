@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-314
 type: bug
-status: Merged
+status: Archived
 priority: 1
 title: Deliver only selected commits to release branches and monitor release CI
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-21T17:25:55.951557Z'
-updated_at: '2026-07-21T20:58:20.961258Z'
+updated_at: '2026-07-28T21:15:52.873493Z'
 work_branch: OOMPAH-314
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/475

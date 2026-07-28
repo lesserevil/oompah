@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-468
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Persist worker and epic contributor provider-model provenance
 parent: OOMPAH-458
@@ -13,13 +13,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T21:12:08.463819Z'
+updated_at: '2026-07-28T21:15:51.693895Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: d67d60ba-3924-4ac8-80a7-939687ba33b6
+oompah.agent_run_id: 425d3506-ea37-47e5-bb15-187aeb99d9eb
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 226
@@ -99,5 +99,15 @@ author: oompah
 created: 2026-07-28 21:12
 ---
 Focus handoff required before leaving `duplicate_detector`. Add a comment headed `Focus handoff: duplicate_detector` with outcome, evidence, remaining work, and next focus.
+---
+author: oompah
+created: 2026-07-28 21:15
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 21:15
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
