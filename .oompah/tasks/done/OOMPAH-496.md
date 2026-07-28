@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-496
 type: chore
-status: In Progress
+status: Done
 priority: 2
 title: Consolidate removed draft-epic and epic-strategy UI contracts
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:31.446905Z'
-updated_at: '2026-07-28T16:10:18.645208Z'
+updated_at: '2026-07-28T16:13:38.378309Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -198,5 +198,10 @@ author: oompah
 created: 2026-07-28 16:10
 ---
 Implementation: retained tests/test_dashboard_draft_epics.py as the canonical module with 8 named dashboard forbidden markers, marker-specific failures, one card/swimlane smoke test, and all four existing API cases; deleted test_draft_epic_swimlane.py, test_draft_epic_badge.py, and test_draft_swimlane_toggle.py; consolidated tests/test_projects_epic_strategy_ui.py into one page-wide marker contract and one saveProject()-scoped contract. Focused suite: 8 passed.
+---
+author: oompah
+created: 2026-07-28 16:13
+---
+Completion: Consolidated retired UI contracts in tests/test_dashboard_draft_epics.py and tests/test_projects_epic_strategy_ui.py; deleted the three redundant draft-only modules. Baseline was 59 collected tests across five files; surviving contracts collect 8. Focused 8/8 and focused UI/backend regression set 355/355 pass. Full equivalent suite: 12,269 passed, 7 skipped, 1 unrelated ACP failure; make test could not start pytest because uv hit the environment DBus transient-scope error. Commit bba2829f0 is pushed to epic-OOMPAH-490, and git status is clean/up to date.
 ---
 <!-- COMMENTS:END -->
