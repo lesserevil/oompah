@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:49:18.823929Z'
-updated_at: '2026-07-28T17:54:13.586574Z'
+updated_at: '2026-07-28T17:54:17.419076Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-28 17:53
 ---
 Implemented and pushed in commit 3a34d9a3f. Existing open epic reviews now call the persistent branch quality gate before metadata and YOLO reconciliation, so unchanged heads reuse evidence while any new commit/rebase runs once for the new exact SHA. Combined epic/quality focused suite passed 210 tests; exact-head full suite passed 12,618 with 7 skipped in 73.01s.
+---
+author: oompah
+created: 2026-07-28 17:54
+---
+Made changed heads on existing epic reviews run the persistent exact-head quality gate before review/YOLO reconciliation.
 ---
 <!-- COMMENTS:END -->
