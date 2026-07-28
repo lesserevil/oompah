@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-453
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Route webhook lifecycle by forge and stop gh forwarder churn for GitLab projects
 parent: OOMPAH-451
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-07-28T12:34:51.844079Z'
+updated_at: '2026-07-28T12:41:52.049514Z'
 work_branch: null
 target_branch: null
 review_url: null

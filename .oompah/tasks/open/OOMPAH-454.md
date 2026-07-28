@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-454
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Recover GitLab webhook event parity onto main
 parent: OOMPAH-451
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:52.642232Z'
-updated_at: '2026-07-28T12:34:52.642232Z'
+updated_at: '2026-07-28T12:41:53.058091Z'
 work_branch: null
 target_branch: null
 review_url: null

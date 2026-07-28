@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-456
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Make state-branch activation atomic and forge-aware for GitLab projects
 parent: OOMPAH-451
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T12:36:06.205487Z'
+updated_at: '2026-07-28T12:41:55.571816Z'
 work_branch: null
 target_branch: null
 review_url: null
