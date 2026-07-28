@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:50:25.626728Z'
+updated_at: '2026-07-28T19:50:32.863139Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -232,5 +232,17 @@ Files changed (commit 3e59598df on epic-OOMPAH-521):
 - tests/test_makefile_restart_wait.py — 9 new Makefile auth security tests.
 
 Security guarantees enforced: no plaintext password in URL/argv/logs/errors; TOCTOU-safe file reads; symlinks rejected; 401 remediation references env var names only; make restart auth failure never escalates.
+---
+author: oompah
+created: 2026-07-28 19:50
+---
+Verification: All focused tests pass.
+
+- tests/test_client_auth.py: 55 passed
+- tests/test_task_cli.py: 115 passed (includes 12 new auth tests)
+- tests/test_makefile_restart_wait.py: 31 passed (includes 9 new Makefile auth security tests)
+- Full focused suite: 201 passed in 2.08s, 0 failures
+
+Test coverage includes: env-var resolution, password-file reading, symlink rejection, TOCTOU race protection, permission warnings, URL sanitization, 401 remediation, httpx.BasicAuth wiring, embedded-URL rejection, CLI flag parsing, Makefile recipe security properties (no bare curl for protected APIs, /healthz as public probe, exit 1 on auth failure without force-restart escalation, no literal credentials in Makefile).
 ---
 <!-- COMMENTS:END -->
