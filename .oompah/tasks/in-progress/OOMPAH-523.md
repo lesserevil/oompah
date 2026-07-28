@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:45:29.388576Z'
+updated_at: '2026-07-28T18:46:15.484123Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -180,5 +180,10 @@ author: oompah
 created: 2026-07-28 18:45
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-28 18:46
+---
+Understanding (Frontend): Reviewed the task scope and codebase. OOMPAH-523 requires adding ASGI middleware to oompah/server.py that enforces HTTP Basic authentication (using the htpasswd verifier from OOMPAH-522/oompah/http_auth.py) at the ASGI boundary. Work includes: (1) an auth middleware class wrapping the FastAPI app, (2) exempting GET /healthz, POST /api/v1/webhooks/github, POST /api/v1/webhooks/gitlab with exact-method+path matching, (3) WebSocket auth before accept(), (4) a minimal /healthz endpoint, (5) request log redaction of Authorization headers, and (6) focused integration tests. This is entirely Python/backend work — no HTML templates, JavaScript, or CSS changes are required. Handing off to the feature specialist.
 ---
 <!-- COMMENTS:END -->
