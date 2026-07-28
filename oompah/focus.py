@@ -500,28 +500,28 @@ BUILTIN_FOCI: list[Focus] = [
         ),
         must_do=[
             "Search for similar tasks with `rg -n \"<query>\" .oompah/tasks docs plans README.md WORKFLOW.md` filtered by the shared topic prefix (e.g. for 'rogers-something' search 'rogers') or the bug/error description",
-            "Read the description, error messages, and comments of any "
-            "candidate duplicate with `oompah task view <identifier>` to confirm whether it covers the same ground",
+            "Read the matching native task Markdown under `.oompah/tasks` "
+            "(including its description, status, and comments) to confirm "
+            "whether it covers the same ground",
             "Exclude every candidate in a terminal state (Done, Merged, or "
             "Archived). A completed task is historical context, not an active "
             "duplicate target",
-            "If a confirmed active duplicate exists, add one comment with this "
-            "exact structure: `Focus handoff: duplicate_detector`, then "
+            "If a confirmed active duplicate exists, end your final response "
+            "with this exact structure: `Focus handoff: duplicate_detector`, then "
             "`Duplicate preflight verdict: duplicate_candidate`, then "
             "`Matches: <active-task-id>` and a concise `Evidence:` paragraph. "
-            "Add the `focus-complete:duplicate_detector` label and end the run. "
-            "Do not change task status; Oompah verifies the match and moves it "
+            "Do not post a task comment or add a label. Oompah records the "
+            "result, verifies the match, and moves the task. Do not change task "
+            "status; Oompah owns that transition "
             "to Duplicate Candidate",
-            "If no clear active duplicate is confirmed, add one comment with "
-            "this exact structure: `Focus handoff: duplicate_detector`, then "
+            "If no clear active duplicate is confirmed, end your final response "
+            "with this exact structure: `Focus handoff: duplicate_detector`, then "
             "`Duplicate preflight verdict: no_duplicate`, then `Matches: none` "
             "and a concise `Evidence:` paragraph naming the closest reviewed "
-            "tasks. Add the `focus-complete:duplicate_detector` label and end "
-            "the run without implementation",
-            "If the result is genuinely inconclusive, comment with "
+            "tasks. End the run without implementation or tracker mutation",
+            "If the result is genuinely inconclusive, return "
             "`Duplicate preflight verdict: inconclusive` and a concrete reason, "
-            "but do not add the focus-complete label. Oompah will retry with "
-            "bounded backoff",
+            "plus `Matches: none`. Oompah will retry with bounded backoff",
         ],
         must_not_do=[
             "Start implementing code until you have confirmed whether this "
@@ -531,7 +531,9 @@ BUILTIN_FOCI: list[Focus] = [
             "and comments — surface-level title match is not enough evidence",
             "Create a new branch or PR for this issue",
             "Use a terminal task as the canonical duplicate target",
-            "Archive, close, or otherwise change the task status directly",
+            "Comment, label, archive, close, change the task status directly, "
+            "or otherwise mutate any task",
+            "Write, edit, delete, commit, push, or otherwise modify repository files",
         ],
         keywords=[
             "duplicate", "similar", "already", "fixed", "exists",

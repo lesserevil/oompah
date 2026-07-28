@@ -272,6 +272,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             project_store=self._options.project_store,
             project_id=self._options.project_id,
             task_tracker=self._options.task_tracker,
+            read_only=self._options.read_only,
         )
 
     # ---- run_turn: drive the opencode serve subprocess ----

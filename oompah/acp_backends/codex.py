@@ -460,6 +460,7 @@ class CodexAcpBackendSession(AcpBackendSession):
             project_store=self._options.project_store,
             project_id=self._options.project_id,
             task_tracker=self._options.task_tracker,
+            read_only=self._options.read_only,
         )
 
     # ---- run_turn: drive the openai-agents Runner ----
@@ -724,7 +725,12 @@ class CodexAcpBackendSession(AcpBackendSession):
         # ``.git/worktrees/<branch>/``.  Add that directory as an additional
         # writable path so ``git add``, ``git commit``, and ``git pull --rebase``
         # work without broadening access to the entire repository.
-        additional_dirs = _get_worktree_git_write_dirs(self._options.workspace_path)
+        additional_dirs = (
+            None
+            if self._options.read_only
+            else _get_worktree_git_write_dirs(self._options.workspace_path)
+        )
+        sandbox_mode = "read-only" if self._options.read_only else "workspace-write"
 
         try:
             codex = Codex(env=cli_env)
@@ -733,9 +739,9 @@ class CodexAcpBackendSession(AcpBackendSession):
                     model=self._options.model or None,
                     working_directory=self._options.workspace_path,
                     skip_git_repo_check=True,
-                    sandbox_mode="workspace-write",
+                    sandbox_mode=sandbox_mode,
                     approval_policy="never",
-                    network_access_enabled=True,
+                    network_access_enabled=not self._options.read_only,
                     additional_directories=additional_dirs,
                 )
             )
@@ -752,9 +758,10 @@ class CodexAcpBackendSession(AcpBackendSession):
                 "max_turns": self._options.max_turns,
                 "permission_mode": self._options.permission_mode,
                 "tool_policy": "codex_cli:native_sandbox",
-                "sandbox_mode": "workspace-write",
+                "sandbox_mode": sandbox_mode,
                 "additional_directories": additional_dirs,
                 "approval_policy": "never",
+                "network_access_enabled": not self._options.read_only,
                 "billing_model": self._billing_model,
                 "cwd": self._options.workspace_path,
             },

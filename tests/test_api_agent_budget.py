@@ -172,6 +172,21 @@ class TestSessionConstruction:
         )
         assert s.model_max_context == 196608
 
+    def test_read_only_session_exposes_only_inspection_tools(self, tmp_path):
+        from oompah.api_agent import ApiAgentSession
+
+        session = ApiAgentSession(
+            base_url="http://x",
+            api_key="",
+            model="m",
+            workspace_path=str(tmp_path),
+            read_only=True,
+        )
+
+        assert {
+            tool["function"]["name"] for tool in session._tool_definitions
+        } == {"read_file", "list_files", "search_files"}
+
 
 class TestCallApiBudget:
     """End-to-end check that _call_api budgets correctly. We patch the

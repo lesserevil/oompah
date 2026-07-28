@@ -776,6 +776,48 @@ class TestTerminateRunningWritesCostRecord:
 
         assert len(fire_calls) == 0
 
+    def test_terminate_invokes_registered_acp_session(self, tmp_path):
+        orch, _entry = self._make_orchestrator_with_running(tmp_path)
+        acp_session = MagicMock()
+        acp_session.terminate = AsyncMock()
+        orch._acp_agent_sessions["test-001"] = acp_session
+
+        result = asyncio.run(
+            orch._terminate_running("test-001", cleanup_workspace=False)
+        )
+
+        assert result is True
+        acp_session.terminate.assert_awaited_once_with()
+        assert "test-001" not in orch._acp_agent_sessions
+
+    def test_terminate_keeps_runtime_when_managed_process_survives(
+        self,
+        tmp_path,
+    ):
+        orch, entry = self._make_orchestrator_with_running(tmp_path)
+        entry.workspace_path = str(tmp_path)
+        orch.state.claimed.add("test-001")
+        orch._fire_task_cost_record = MagicMock()
+
+        with (
+            patch(
+                "oompah.orchestrator.capture_workspace_processes",
+                return_value={12345: 67890},
+            ),
+            patch(
+                "oompah.orchestrator.terminate_captured_processes",
+                return_value={12345},
+            ),
+        ):
+            result = asyncio.run(
+                orch._terminate_running("test-001", cleanup_workspace=False)
+            )
+
+        assert result is False
+        assert orch.state.running["test-001"] is entry
+        assert "test-001" in orch.state.claimed
+        orch._fire_task_cost_record.assert_not_called()
+
     def test_terminate_does_not_wait_forever_for_cancelled_worker(self, tmp_path):
         """A cancellation-resistant worker cannot wedge service shutdown."""
         orch = _make_orchestrator(tmp_path)

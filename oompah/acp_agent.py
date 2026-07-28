@@ -98,6 +98,7 @@ class AcpAgentSession:
         max_turns: int | None = None,
         env: dict[str, str] | None = None,
         tool_catalog: list[Any] | None = None,
+        read_only: bool = False,
         on_event: Callable[[AgentEvent], None] | None = None,
         turn_timeout_s: float = _DEFAULT_TURN_TIMEOUT_S,
         permission_mode: str = "default",
@@ -115,6 +116,7 @@ class AcpAgentSession:
         self.max_turns = max_turns
         self.env = env or {}
         self.tool_catalog = tool_catalog or []
+        self.read_only = bool(read_only)
         self.on_event = on_event
         self.turn_timeout_s = turn_timeout_s
         self.permission_mode = permission_mode
@@ -232,6 +234,7 @@ class AcpAgentSession:
             max_turns=self.max_turns,
             env=self.env or None,
             tool_catalog=list(self.tool_catalog) if self.tool_catalog else None,
+            read_only=self.read_only,
             permission_mode=self.permission_mode,
             turn_timeout_s=self.turn_timeout_s,
             on_event=self.on_event,

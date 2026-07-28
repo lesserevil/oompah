@@ -716,6 +716,8 @@ _TOOL_REQUIRED_ARGS: dict[str, list[str]] = {
     "attach_image": ["issue_identifier", "filename", "content_base64"],
 }
 
+_READ_ONLY_TOOL_NAMES = frozenset({"read_file", "search_files", "list_files"})
+
 
 def _execute_tool(
     workspace: Path,
@@ -723,12 +725,16 @@ def _execute_tool(
     args: dict[str, Any],
     cmd_timeout: int | None = None,
     env_overrides: dict[str, str] | None = None,
+    read_only: bool = False,
 ) -> str:
     """Execute a tool call and return its string result.
 
     ``env_overrides`` is forwarded to ``run_command`` only — the file/edit
     tools don't spawn subprocesses, so it has no effect on them.
     """
+    if read_only and name not in _READ_ONLY_TOOL_NAMES:
+        return f"Error: tool {name!r} is unavailable in a read-only session"
+
     handler = _TOOL_DISPATCH.get(name)
     if handler is None:
         # Models occasionally lift a shell command out of the WORKFLOW.md
@@ -1065,6 +1071,7 @@ class ApiAgentSession:
         system_prompt: str = "",
         command_timeout: int | None = None,
         enabled_tools: set[str] | None = None,
+        read_only: bool = False,
         model_max_context: int | None = None,
         log_path: str | None = None,
     ):
@@ -1088,6 +1095,7 @@ class ApiAgentSession:
         # active focus opts in and the resolved model has the image
         # capability.
         self.enabled_tools = enabled_tools
+        self.read_only = bool(read_only)
         # Total context window for ``model`` (input + output, in tokens).
         # When set, _call_api budgets each request: prunes the oldest
         # assistant/tool round-trips if the prompt would overflow, and
@@ -1133,9 +1141,19 @@ class ApiAgentSession:
                 t
                 for t in TOOL_DEFINITIONS
                 if t["function"]["name"] not in _OPT_IN_TOOLS
+                and (
+                    not self.read_only
+                    or t["function"]["name"] in _READ_ONLY_TOOL_NAMES
+                )
             ]
         return [
-            t for t in TOOL_DEFINITIONS if t["function"]["name"] in self.enabled_tools
+            t
+            for t in TOOL_DEFINITIONS
+            if t["function"]["name"] in self.enabled_tools
+            and (
+                not self.read_only
+                or t["function"]["name"] in _READ_ONLY_TOOL_NAMES
+            )
         ]
 
     # -- public interface ---------------------------------------------------
@@ -1420,6 +1438,7 @@ class ApiAgentSession:
                             tool_args,
                             self.command_timeout,
                             env_overrides,
+                            self.read_only,
                         )
 
                     tool_failed = result_str.startswith("Error")
