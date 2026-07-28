@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-498
 type: chore
-status: Done
+status: Merged
 priority: 2
 title: Group granular Release Delivery template assertions by behavior
 parent: OOMPAH-490
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:33.437818Z'
-updated_at: '2026-07-28T16:37:25.292350Z'
+updated_at: '2026-07-28T17:11:25.265013Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
