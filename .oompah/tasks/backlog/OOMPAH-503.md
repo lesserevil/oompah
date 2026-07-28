@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:05:59.013552Z'
-updated_at: '2026-07-28T17:44:09.301343Z'
+updated_at: '2026-07-28T17:44:18.611284Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -18,6 +18,22 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 97f1c0a8-978f-4528-98ed-ac08e35f86c1
 oompah.work_branch: epic-OOMPAH-502
+oompah.task_costs:
+  total_input_tokens: 150
+  total_output_tokens: 29
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 150
+      output_tokens: 29
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 150
+    output_tokens: 29
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T17:44:16.234874+00:00'
 ---
 ## Summary
 
@@ -66,5 +82,15 @@ author: oompah
 created: 2026-07-28 17:43
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 17:44
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 7
+- Tokens: 150 in / 29 out [179 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 58s
+- Log: OOMPAH-503__20260728T174321Z.jsonl
 ---
 <!-- COMMENTS:END -->

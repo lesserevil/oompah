@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-504
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Compact agent prompt history around actionable handoffs
 parent: OOMPAH-502
@@ -10,12 +10,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:00.486812Z'
-updated_at: '2026-07-28T17:43:13.665996Z'
-work_branch: null
+updated_at: '2026-07-28T17:44:26.501191Z'
+work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 1462c7f5-6d20-40e0-9bbb-f21fe5d2a245
+oompah.work_branch: epic-OOMPAH-502
 ---
 ## Summary
 
@@ -54,5 +56,15 @@ author: oompah
 created: 2026-07-28 15:16
 ---
 Startup task history is bounded and actionable context is retained; canonical tracker history and provenance remain intact.
+---
+author: oompah
+created: 2026-07-28 17:44
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 17:44
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
