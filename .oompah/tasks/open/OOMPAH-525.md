@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-525
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Add Basic auth support to Oompah CLIs and lifecycle commands
 parent: OOMPAH-521
@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:34:36.348525Z'
+updated_at: '2026-07-28T19:34:46.854795Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -22,13 +22,17 @@ merged_at: null
 oompah.agent_run_id: 2f520e45-aa7c-4e90-aca9-c0508642255b
 oompah.work_branch: epic-OOMPAH-521
 oompah.task_costs:
-  total_input_tokens: 1450196
-  total_output_tokens: 8439
+  total_input_tokens: 1933340
+  total_output_tokens: 11195
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1450196
       output_tokens: 8439
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 483144
+      output_tokens: 2756
       cost_usd: 0.0
   runs:
   - profile: default
@@ -37,6 +41,12 @@ oompah.task_costs:
     output_tokens: 8439
     cost_usd: 0.0
     recorded_at: '2026-07-28T19:33:09.124812+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 483144
+    output_tokens: 2756
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T19:34:41.429724+00:00'
 ---
 ## Summary
 
@@ -140,5 +150,25 @@ author: oompah
 created: 2026-07-28 19:34
 ---
 Focus handoff: duplicate_detector\n\nOutcome: No duplicate confirmed; OOMPAH-525 is distinct client and lifecycle implementation work.\n\nEvidence: Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for htpasswd, Basic auth, client credentials, password files, authentication, and lifecycle commands. Read OOMPAH-522, OOMPAH-523, OOMPAH-524, and OOMPAH-526 in full. OOMPAH-522 owns server-side htpasswd loading/verification; 523 owns server route/WebSocket protection plus public /healthz; 524 owns MCP propagation; 526 is downstream docs/integration. None owns task_cli.py/admin_cli.py credential resolution or Makefile status/graceful/restart API authentication.\n\nRelevant implementation context: start with oompah/task_cli.py, oompah/admin_cli.py, Makefile, oompah/http_auth.py, oompah/server.py, and tests/test_makefile_restart_wait.py. Preserve the existing unauthenticated public /healthz probe; protected state and drain/restart APIs must use safe client-side Basic auth without secrets in URLs, argv, logs, or recipes.\n\nRemaining work/risk: implement and test credential source validation, password-file regular-file/permission checks, URL credential redaction/rejection, concise 401 remediation, safe no-force fallback on authentication failure, and backward compatibility.\n\nRecommended next focus: feature.
+---
+author: oompah
+created: 2026-07-28 19:34
+---
+Agent completed successfully in 74s (485900 tokens)
+---
+author: oompah
+created: 2026-07-28 19:34
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 15
+- Tokens: 483.1K in / 2.8K out [485.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 14s
+- Log: OOMPAH-525__20260728T193329Z.jsonl
+---
+author: oompah
+created: 2026-07-28 19:34
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
