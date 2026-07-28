@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+import threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,7 +12,8 @@ import pytest
 
 from oompah.agent_profile_store import AgentProfileStore
 from oompah.config import ServiceConfig
-from oompah.models import Project
+from oompah.error_watcher import ErrorWatcher
+from oompah.models import Issue, Project
 from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
@@ -30,6 +32,25 @@ def _git(repo: Path, *args: str) -> str:
         text=True,
     )
     return result.stdout.strip()
+
+
+def _code_checkout_snapshot(repo: Path, remote: Path) -> dict[str, str]:
+    """Capture every tracked code-checkout surface maintenance must preserve."""
+    return {
+        "head": _git(repo, "rev-parse", "HEAD"),
+        "branch": _git(repo, "symbolic-ref", "--short", "HEAD"),
+        "worktree": _git(repo, "status", "--porcelain=v2"),
+        "worktree_diff": _git(repo, "diff", "--binary"),
+        "index": _git(repo, "diff", "--cached", "--binary"),
+        "origin_default": _git(repo, "rev-parse", "refs/remotes/origin/main"),
+        "remote_default": _git(remote, "rev-parse", "refs/heads/main"),
+    }
+
+
+def _assert_no_live_owned_pool_threads(orch: Orchestrator) -> None:
+    """Ensure an orchestrator shutdown did not leave executor workers alive."""
+    assert all(not thread.is_alive() for thread in orch._tick_pool._threads)
+    assert all(not thread.is_alive() for thread in orch._refresh_pool._threads)
 
 
 def _make_project(
@@ -261,6 +282,16 @@ def test_management_tracker_refuses_to_guess_when_workflow_is_unregistered(
     with pytest.raises(ProjectError, match="Cannot resolve.*management tracker"):
         orch._management_tracker_scope()
 
+    with pytest.raises(ProjectError, match="refusing to use the unscoped"):
+        orch._tracker_for_issue(
+            Issue(
+                id="unscoped",
+                identifier="TASK-UNSCOPED",
+                title="ambiguous management issue",
+            )
+        )
+    assert not (repo / ".oompah").exists()
+
 
 def _init_remote_with_state_branch(tmp_path: Path) -> tuple[Path, Path, str]:
     remote = tmp_path / "remote.git"
@@ -313,29 +344,36 @@ def test_auto_archive_and_shutdown_leave_code_branch_untouched(
         )
     assert tracker.flush_checkpoint(reason="test-seed") == 1
 
-    main_before = _git(repo, "rev-parse", "main")
-    remote_main_before = _git(remote, "rev-parse", "refs/heads/main")
+    code_before = _code_checkout_snapshot(repo, remote)
     state_before = _git(remote, "rev-parse", f"refs/heads/{state_branch}")
-    assert _git(repo, "status", "--porcelain") == ""
 
     orch._do_auto_archive()
 
     archived = tracker.fetch_issue_detail(issue.identifier)
     assert archived is not None
     assert archived.state == ARCHIVED
-    assert _git(remote, "rev-parse", f"refs/heads/{state_branch}") != state_before
-    assert _git(repo, "rev-parse", "main") == main_before
-    assert _git(remote, "rev-parse", "refs/heads/main") == remote_main_before
-    assert _git(repo, "status", "--porcelain") == ""
+    state_after = _git(remote, "rev-parse", f"refs/heads/{state_branch}")
+    assert state_after != state_before
+    assert _code_checkout_snapshot(repo, remote) == code_before
+
+    state_paths = _git(
+        remote,
+        "diff-tree",
+        "--no-commit-id",
+        "--name-only",
+        "-r",
+        state_before,
+        state_after,
+    ).splitlines()
+    assert state_paths
+    assert all(path.startswith(".oompah/tasks/") for path in state_paths)
 
     with pytest.raises(TrackerError, match="unscoped native task write"):
         orch.tracker.create_issue(
             title="escaped maintenance",
             description="the global tracker must fail before changing main",
         )
-    assert _git(repo, "rev-parse", "main") == main_before
-    assert _git(remote, "rev-parse", "refs/heads/main") == remote_main_before
-    assert _git(repo, "status", "--porcelain") == ""
+    assert _code_checkout_snapshot(repo, remote) == code_before
 
     asyncio.run(orch.stop())
     assert orch._maintenance_future is None or orch._maintenance_future.done()
@@ -343,3 +381,155 @@ def test_auto_archive_and_shutdown_leave_code_branch_untouched(
         orch._epic_maintenance_future is None
         or orch._epic_maintenance_future.done()
     )
+    _assert_no_live_owned_pool_threads(orch)
+
+
+def test_server_error_watcher_and_scheduler_write_only_to_state_branch(
+    tmp_path: Path,
+) -> None:
+    """Server startup and background archive mutations share the state tracker."""
+    repo, remote, state_branch = _init_remote_with_state_branch(tmp_path)
+    project = _make_project(repo)
+    orch = _make_orchestrator(tmp_path, project)
+    tracker = orch._tracker_for_project(project.id)
+    assert isinstance(tracker, OompahMarkdownTracker)
+
+    # Exercise the actual server startup consumer that creates the global
+    # ErrorWatcher.  Unrelated startup migrations are covered separately and
+    # are suppressed here so this test remains focused on tracker routing.
+    import oompah.server as server
+
+    with (
+        patch.object(server, "remove_draft_labels_from_epics", return_value=0),
+        patch.object(server, "_migrate_release_picks_on_startup"),
+        patch.object(server, "ProjectLogWatcherManager") as watcher_manager,
+    ):
+        server.set_orchestrator(orch)
+        watcher_manager.return_value.sync_watchers.assert_called_once()
+
+    watcher = server._error_watcher
+    assert isinstance(watcher, ErrorWatcher)
+    assert watcher._tracker is tracker
+    assert watcher._project_id == project.id
+
+    try:
+        error_id = watcher.report_error(
+            source="backend",
+            message="state-branch maintenance regression",
+            detail="The error watcher must not write the service checkout.",
+        )
+        assert error_id
+        # ErrorWatcher creates a deferred task, so flush it before taking the
+        # state-branch baseline.  The scheduler mutation below must advance it
+        # again while the code checkout remains byte-for-byte unchanged.
+        assert tracker.flush_checkpoint(reason="test-error-watcher") == 1
+
+        old_timestamp = "2026-07-01T00:00:00+00:00"
+        with patch("oompah.oompah_md_tracker._now_iso", return_value=old_timestamp):
+            archived_id = tracker.create_issue(
+                title="archive from scheduler",
+                description="maintenance must use the project tracker",
+                initial_status=DONE,
+            )
+        assert archived_id.identifier
+        assert tracker.flush_checkpoint(reason="test-seed") == 1
+
+        code_before = _code_checkout_snapshot(repo, remote)
+        state_before = _git(remote, "rev-parse", f"refs/heads/{state_branch}")
+
+        # Run the actual maintenance wrapper used by _tick(), keeping the
+        # other independent jobs inert so only archive performs a durable
+        # mutation in this focused end-to-end test.
+        orch._maybe_heal_repos = lambda: None
+        orch._maybe_cleanup_worktrees = lambda: None
+        orch._maybe_open_deferred_done_reviews = lambda: None
+        orch._maybe_run_merged_labels = lambda: None
+        orch._maybe_run_release_pick_reconciliation = lambda: None
+        orch._maybe_sync_github_issue_intake = lambda: None
+        orch._maybe_run_stalled_task_watchdog = lambda: None
+        orch._run_step5b_maintenance()
+
+        archived = tracker.fetch_issue_detail(archived_id.identifier)
+        assert archived is not None
+        assert archived.state == ARCHIVED
+        error_task = tracker.fetch_issue_detail(error_id)
+        assert error_task is not None
+        assert error_task.state == "Backlog"
+
+        state_after = _git(remote, "rev-parse", f"refs/heads/{state_branch}")
+        assert state_after != state_before
+        assert _code_checkout_snapshot(repo, remote) == code_before
+        state_paths = _git(
+            remote,
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            state_before,
+            state_after,
+        ).splitlines()
+        assert state_paths
+        assert all(path.startswith(".oompah/tasks/") for path in state_paths)
+        state_root = tracker._state_root
+        assert state_root is not None
+        error_paths = list(tracker.tasks_root.rglob(f"{error_id}.md"))
+        assert len(error_paths) == 1
+        error_path = error_paths[0].relative_to(state_root).as_posix()
+        error_body = _git(remote, "show", f"{state_after}:{error_path}")
+        assert "state-branch maintenance regression" in error_body
+    finally:
+        watcher.uninstall_log_handler("oompah")
+        server._error_watcher = None
+        server._log_watcher_manager = None
+        asyncio.run(orch.stop())
+        _assert_no_live_owned_pool_threads(orch)
+
+
+def test_stop_drains_blocked_maintenance_future_and_owned_executors(
+    tmp_path: Path,
+) -> None:
+    """A scheduler stop waits for maintenance before releasing test fixtures."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    orch = _make_orchestrator(tmp_path, _make_project(repo, state_branch_enabled=False))
+    started = threading.Event()
+    release = threading.Event()
+
+    def blocked_maintenance() -> None:
+        started.set()
+        assert release.wait(timeout=5), "maintenance future was not released"
+
+    orch._run_step5b_maintenance = blocked_maintenance
+    orch._run_step5c_epic_maintenance = lambda: None
+    async def async_noop() -> None:
+        return None
+
+    async def async_yolo_noop() -> float:
+        return 0.0
+
+    orch._recover_release_addendum_leases = lambda: None
+    orch._handle_reconcile = async_noop
+    orch._handle_review_check = async_noop
+    orch._handle_dispatch_needed = async_noop
+    orch._handle_yolo_review = async_yolo_noop
+    orch._handle_auto_update = async_noop
+    orch._notify_observers = lambda: None
+    orch._maybe_run_watchdog = lambda: None
+
+    async def run_and_stop() -> None:
+        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+            await orch._tick()
+        assert orch._maintenance_future is not None
+        assert await asyncio.to_thread(started.wait, 2)
+        stop_task = asyncio.create_task(orch.stop())
+        await asyncio.sleep(0.01)
+        assert not stop_task.done()
+        release.set()
+        await asyncio.wait_for(stop_task, timeout=5)
+
+    asyncio.run(run_and_stop())
+    assert orch._maintenance_future is not None
+    assert orch._maintenance_future.done()
+    assert orch._epic_maintenance_future is not None
+    assert orch._epic_maintenance_future.done()
+    _assert_no_live_owned_pool_threads(orch)
