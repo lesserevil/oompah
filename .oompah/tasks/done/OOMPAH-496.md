@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:31.446905Z'
-updated_at: '2026-07-28T16:14:51.688861Z'
+updated_at: '2026-07-28T16:15:35.217297Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -223,5 +223,15 @@ author: oompah
 created: 2026-07-28 16:14
 ---
 Verification: baseline HEAD suite across all five named modules: 59 passed. After consolidation: 8 collected, 8 passed. make test was attempted after OOMPAH-491 completed but uv failed before pytest with DBus transient-scope error (exit 46); direct pytest tests/ -q reached 12268 passed, 7 skipped, 2 unrelated environment/order failures (tests/test_acp_agent.py log path is read-only; tests/test_dashboard_task_display_identifier.py returned an empty cached board). git diff --check passes.
+---
+author: oompah
+created: 2026-07-28 16:15
+---
+Completion: pushed bba2829f0 (OOMPAH-496: consolidate retired UI contract tests) to epic-OOMPAH-490. The canonical dashboard contract now covers all retired draft markers in one loop, keeps four API cases plus positive smoke coverage, and the three redundant draft-only modules are deleted. Projects-page coverage is consolidated into page markers plus saveProject() scoping. Baseline was 59/59; surviving area is 8/8; working tree is clean and up to date with origin.
+---
+author: oompah
+created: 2026-07-28 16:15
+---
+Consolidated retired draft-epic and epic-strategy UI regression contracts; baseline 59 tests reduced to 8, focused suite passes, and commit bba2829f0 is pushed.
 ---
 <!-- COMMENTS:END -->
