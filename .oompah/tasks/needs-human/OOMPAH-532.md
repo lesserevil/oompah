@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-532
 type: task
-status: Open
+status: Needs Human
 priority: 2
 title: Apply duplicate-preflight verdicts without implementation transitions
 parent: OOMPAH-528
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:28.624983Z'
-updated_at: '2026-07-28T21:56:50.874142Z'
+updated_at: '2026-07-28T22:03:06.958776Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,5 +75,10 @@ author: oompah
 created: 2026-07-28 21:43
 ---
 Verified duplicate-preflight completion lifecycle implemented and pushed in 7a2e467fb.
+---
+author: oompah
+created: 2026-07-28 22:03
+---
+The parent epic OOMPAH-528 merged from epic-OOMPAH-528, but this task was Open with work branch unset. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->

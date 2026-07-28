@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-529
 type: task
-status: Done
+status: Needs Human
 priority: 2
 title: Persist revision-aware duplicate-screening evidence
 parent: OOMPAH-528
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:18:31.077035Z'
-updated_at: '2026-07-28T21:27:07.784970Z'
+updated_at: '2026-07-28T22:03:02.583215Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -203,5 +203,10 @@ author: oompah
 created: 2026-07-28 21:27
 ---
 Implemented and pushed as 1a3a882c5 on epic-OOMPAH-528; focused duplicate-screening tests pass.
+---
+author: oompah
+created: 2026-07-28 22:03
+---
+The parent epic OOMPAH-528 merged from epic-OOMPAH-528, but this task was Done with work branch epic-OOMPAH-528. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-529 branch epic-OOMPAH-528 has 1 unlanded commit(s), including 92aa5e5c2410. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->

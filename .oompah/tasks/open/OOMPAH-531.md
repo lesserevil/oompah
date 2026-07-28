@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-531
 type: task
-status: In Progress
+status: Open
 priority: 2
 title: Schedule duplicate preflight from spare agent capacity
 parent: OOMPAH-528
@@ -14,7 +14,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-07-28T22:02:34.672029Z'
+updated_at: '2026-07-28T22:03:17.419842Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -289,5 +289,20 @@ Plan:
    - Track counters/log for selected, started, skipped-no-capacity, skipped-reserved-slot, stale, already-checked, claim-race-lost
 3. Preserve existing _apply_duplicate_detection heuristic pass
 4. Add tests per requirements
+---
+author: oompah
+created: 2026-07-28 22:03
+---
+The parent epic OOMPAH-528 merged from epic-OOMPAH-528, but this task was In Progress with work branch epic-OOMPAH-528. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-28 22:03
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 21
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 59s
+- Log: OOMPAH-531__20260728T220219Z.jsonl
 ---
 <!-- COMMENTS:END -->
