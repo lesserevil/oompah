@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:03.234325Z'
-updated_at: '2026-07-28T18:15:56.234503Z'
+updated_at: '2026-07-28T18:21:18.346622Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -175,5 +175,10 @@ author: oompah
 created: 2026-07-28 18:15
 ---
 Verification: focused status, dispatch, label-auth/bootstrap, GitHub, GitLab, and native Markdown suites pass: 681 tests passed. The first pytest invocation hit an environment import-path mismatch; rerunning with python -m pytest --import-mode=importlib passed cleanly.
+---
+author: oompah
+created: 2026-07-28 18:21
+---
+Completion: delivered and pushed eb8da0e97. In Validation now canonicalizes aliases, has ordered display/rank support, remains nonterminal/non-working/non-dispatchable, round-trips through native Markdown, GitHub labels, and GitLab labels, and is excluded from ordinary worker candidates. Focused tests: 681 passed. Full make test gate: 12,631 passed, 7 skipped (14 pre-existing warnings). Branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
