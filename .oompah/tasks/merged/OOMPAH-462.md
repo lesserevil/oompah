@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-462
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Define terminal-audit records, enums, and evidence fingerprints
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:04.307001Z'
-updated_at: '2026-07-28T18:39:19.159380Z'
+updated_at: '2026-07-28T21:16:05.960092Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
