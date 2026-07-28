@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:35:01.453719Z'
+updated_at: '2026-07-28T19:35:17.053073Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -179,5 +179,10 @@ author: oompah
 created: 2026-07-28 19:35
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-28 19:35
+---
+Understanding: Security Auditor focus. I will audit the security design for OOMPAH-525 (Basic auth client support for task/admin CLIs and Makefile lifecycle commands), then implement the feature with security properties verified throughout. Attack vectors I will address: (1) credential leakage in URLs, process args, logs, errors; (2) password-file unsafe permissions (world-readable secrets); (3) 401 responses reflecting back auth data; (4) URL injection via OOMPAH_SERVER_URL with embedded userinfo; (5) forced restart escalation on auth failure; (6) timing side-channels in file permission checks; (7) symlink attacks on password files. I will implement: oompah/client_auth.py (shared resolver), task_cli.py/admin_cli.py integration, Makefile auth plumbing, and focused tests.
 ---
 <!-- COMMENTS:END -->
