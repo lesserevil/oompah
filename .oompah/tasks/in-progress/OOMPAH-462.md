@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-462
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Define terminal-audit records, enums, and evidence fingerprints
 parent: OOMPAH-457
@@ -10,12 +10,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:04.307001Z'
-updated_at: '2026-07-28T18:06:15.386009Z'
-work_branch: null
+updated_at: '2026-07-28T18:24:59.324273Z'
+work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 34e4d1c3-3dbe-4d98-9818-f069adab7b1f
+oompah.work_branch: epic-OOMPAH-457
 ---
 ## Summary
 
@@ -37,3 +39,16 @@ Other tasks can construct, persist, and compare terminal-audit records without t
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 18:24
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 18:24
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
