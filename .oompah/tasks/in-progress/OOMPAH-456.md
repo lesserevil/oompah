@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:10:57.243257Z'
+updated_at: '2026-07-28T14:12:17.472259Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -175,5 +175,10 @@ author: oompah
 created: 2026-07-28 14:10
 ---
 Understanding: Security audit will trace all state-branch activation/config mutation paths and Git subprocesses, assess OWASP risks (authorization, injection, secret exposure, unsafe state transitions), verify the frontend change is not relied on as the trust boundary, and add focused security fixes/tests where appropriate. Remaining backend feature work will be handed off with concrete requirements and evidence.
+---
+author: oompah
+created: 2026-07-28 14:12
+---
+Discovery: The client-side fix is not yet a security boundary. server.py still accepts state_branch_enabled in generic PATCH, so any stale/crafted request can enable reads before a state branch exists. The migrate endpoint also has no per-project lock despite claiming serialization, coerces confirm/dry_run with bool() (e.g. strings become true), invokes unauthenticated Git for validate/push, and enables config immediately after bootstrap without independently verifying the remote ref/commit/task layout. Git subprocesses use argv lists (no shell injection), but raw stderr is returned/logged without credential redaction. I will close the PATCH bypass with HTTP regression tests and hand the credential/atomicity work to feature with explicit security constraints.
 ---
 <!-- COMMENTS:END -->

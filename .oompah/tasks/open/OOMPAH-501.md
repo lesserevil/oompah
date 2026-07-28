@@ -1,22 +1,39 @@
 ---
 id: OOMPAH-501
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Prevent premature epic rollup PR/MR creation from child close handoffs
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:12:00.784350Z'
+updated_at: '2026-07-28T14:12:16.123261Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 48afbf9e-aa7e-4d48-af33-bafcd2662217
+oompah.task_costs:
+  total_input_tokens: 33
+  total_output_tokens: 780
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 33
+      output_tokens: 780
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: unknown
+    input_tokens: 33
+    output_tokens: 780
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T14:12:12.383224+00:00'
 ---
 ## Summary
 
@@ -92,5 +109,25 @@ Focus handoff: duplicate_detector
 2. Evidence: Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for epic rollup, close gate, shared epic branch, review handoff, premature review, nested readiness, and landing evidence. Read OOMPAH-443, OOMPAH-452, OOMPAH-451, OOMPAH-165, OOMPAH-219, OOMPAH-309, and OOMPAH-404 in full. Current code confirms oompah/orchestrator.py::_epic_rollup_children_block_reason is reused by _open_epic_main_prs/final merge paths, while _run_close_gate calls oompah/close_gate.py::check_close_gate with only the child branch and project default branch; build_refusal_comment then emits a hard-coded gh pr create command. OOMPAH-452 comment #18/#23 is the exact reproduction, and OOMPAH-451 still had Open child OOMPAH-456.
 3. Remaining work/risks: Make child close on a parent-owned epic branch bypass review requirements without bypassing standalone-task checks; reuse the canonical readiness result in every rollup review-creation path; keep nested-epic and landing-evidence rules, provider neutrality, idempotent single creation, and final YOLO recheck. Add the specified regressions in tests/test_close_gate.py and tests/test_epic_strategy.py, run focused tests and make test. Do not mutate unrelated existing reviews. The worktree is clean and no code/tests were changed in this focus.
 4. Recommended next focus: feature (backend orchestrator/close-gate implementation with regression tests).
+---
+author: oompah
+created: 2026-07-28 14:12
+---
+Agent completed successfully in 83s (813 tokens)
+---
+author: oompah
+created: 2026-07-28 14:12
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 19
+- Tokens: 33 in / 780 out [813 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 23s
+- Log: OOMPAH-501__20260728T141050Z.jsonl
+---
+author: oompah
+created: 2026-07-28 14:12
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
