@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:22:24.031503Z'
+updated_at: '2026-07-28T15:25:50.311048Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -150,5 +150,10 @@ author: oompah
 created: 2026-07-28 15:22
 ---
 Discovery: The role API and RoleStore already accept arbitrary explicit models for ACP providers whose catalog is empty, but providers.html renders only a one-option SDK-managed select and status. GET /api/v1/acp-backends currently defines supports_model_selection as identical to has_catalog, so the UI cannot distinguish manual selection from catalog discovery. Relevant code: oompah/templates/providers.html renderRoleMatrix/loadAcpBackends and oompah/server.py acp_backend_descriptors.
+---
+author: oompah
+created: 2026-07-28 15:25
+---
+Implementation: Added a first-class supports_manual_model_selection capability to ACP backends/descriptors (Claude and Codex true, independent of has_catalog), preserved the legacy catalog signal, and exposed it in fetch-model responses. The role matrix now renders an accessible free-text model control for catalog-less/manual-capable ACP providers, preserves blank SDK-default behavior, reports manual/default status accurately, and rerenders when async descriptors arrive. Added backend/API/UI regression tests.
 ---
 <!-- COMMENTS:END -->
