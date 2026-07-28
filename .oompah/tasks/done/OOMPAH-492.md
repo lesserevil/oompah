@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:27.511520Z'
-updated_at: '2026-07-28T15:18:37.974086Z'
+updated_at: '2026-07-28T15:18:40.301158Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -143,5 +143,10 @@ author: oompah
 created: 2026-07-28 15:18
 ---
 Completion: Delivered isolation fixes for all identified live-tracker leak sites.\n\nFiles changed:\n- tests/test_event_driven_loop.py: TestWorkerExitPostsEvent now injects project-scoped mock tracker, silences all unrelated side-effects (telemetry, comments, completion gates, retry scheduling), and adds fail-fast git-push guard.\n- tests/test_acp_billing.py: Module-level helpers _inject_worker_exit_isolation() and _no_git_push() isolate 4 worker-exit tests. Added project_id param to _make_issue(), close_gate_enabled=False to _make_orchestrator().\n- tests/test_epic_rebase_state.py: test_persists_on_clear now passes project_id='proj-1' to both state operations so the already-mocked tracker is used.\n\nAll acceptance criteria satisfied: no live tracker access, no git origin reachability, original assertions preserved, no background task leakage, no network-scale delays.
+---
+author: oompah
+created: 2026-07-28 15:18
+---
+Isolated worker-exit and epic-rebase tests from live tracker. Added project IDs, injected MagicMock trackers via _tracker_for_project, muted fire-and-forget telemetry/comment/completion side-effects, added fail-fast git-push subprocess guards, and asserted project-scoped tracker usage. All 3 files affected, 7 tests isolated, make test passes (12361/0 fail).
 ---
 <!-- COMMENTS:END -->
