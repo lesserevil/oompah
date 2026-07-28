@@ -8,10 +8,12 @@ parent: OOMPAH-521
 children: []
 blocked_by:
 - OOMPAH-523
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:13:00.200930Z'
+updated_at: '2026-07-28T19:13:16.405562Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -156,5 +158,10 @@ author: oompah
 created: 2026-07-28 19:13
 ---
 Understanding: I am screening OOMPAH-524 for duplicates before any implementation. I will compare the MCP gateway/authentication scope against existing tracker tasks and repository design docs, then hand off with evidence if the work is distinct.
+---
+author: oompah
+created: 2026-07-28 19:13
+---
+Focus handoff: duplicate_detector\n\nOutcome: No duplicate confirmed; OOMPAH-524 is distinct MCP authentication integration work.\n\nEvidence: Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for MCP, gateway, FastMCP, streamable HTTP, htpasswd, Basic authentication, and related credential terms. Read OOMPAH-419 in full (fail-closed MCP exposure policy), OOMPAH-420 in full (embedded gateway implementation), OOMPAH-522 in full (htpasswd verifier/config foundation), OOMPAH-523 in full (HTTP/WebSocket Basic-auth middleware), and OOMPAH-524 in full. The existing tasks are prerequisites/components, not duplicates: 419 owns exposure policy, 420 owns the gateway, 522 owns credential loading, and 523 owns outer HTTP enforcement. Current MCP discovery/transport and in-process API dispatch still require the integration described here. Relevant files are oompah/mcp_gateway.py, oompah/mcp_exposure_policy.py, oompah/server.py, tests/test_mcp_gateway.py, and tests/test_server_auth.py.\n\nRemaining work/risk: Implement and test auth-aware discovery and streamable HTTP, authenticated internal ASGI dispatch without an externally spoofable bypass, credential redaction, network/local-mode behavior, direct REST protection, and preservation of the fail-closed exposure policy.\n\nRecommended next focus: feature.:
 ---
 <!-- COMMENTS:END -->
