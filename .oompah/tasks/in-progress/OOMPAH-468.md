@@ -10,10 +10,11 @@ blocked_by:
 - OOMPAH-462
 - OOMPAH-463
 - OOMPAH-457
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T21:17:01.668052Z'
+updated_at: '2026-07-28T21:17:22.265883Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -119,5 +120,10 @@ author: oompah
 created: 2026-07-28 21:17
 ---
 Discovery: No duplicate confirmed. Searched all .oompah/tasks states plus docs, plans, README.md, and WORKFLOW.md for work_contributors, worker/provider-model provenance, contributor records, RunningEntry, and audit-work terms; source/tests also contain no implementation. Read the full records for OOMPAH-458, OOMPAH-462, OOMPAH-463, OOMPAH-469, OOMPAH-470, OOMPAH-471, OOMPAH-287, and the closest tracker/audit dependencies. OOMPAH-462 defines audit types/fingerprints, OOMPAH-463 persists terminal-audit state, OOMPAH-470 consumes contributor identities for auditor exclusion, OOMPAH-471 consumes them for evidence, and OOMPAH-287 covers external-content trust provenance; none persists worker/epic provider-model contributors.
+---
+author: oompah
+created: 2026-07-28 21:17
+---
+Focus handoff: duplicate_detector\n\nOutcome: No duplicate confirmed; OOMPAH-468 is a distinct implementation task.\n\nEvidence: Repository-wide rg searches found no work_contributors/WorkContributor/provider-model provenance implementation. Full task review found OOMPAH-462 and OOMPAH-463 are terminal-audit domain/state persistence, OOMPAH-470 and OOMPAH-471 are downstream consumers, and OOMPAH-287 is external-content provenance. The parent epic explicitly makes contributor persistence a prerequisite for independent auditor selection.\n\nRemaining work/risks: Implement compact oompah.work_contributors records at successful worker startup/exit for API, ACP (including unknown SDK-managed models), and CLI paths; preserve safe redacted fields across retries/restarts and multiple workers; derive revision-scoped unions across shared child/nested-epic work only when commits are contained in the audited SHA; add the requested focused tests and run make test. Avoid credentials, prompts, logs, costs, and transient RunningEntry-only state.\n\nRecommended next focus: feature (backend implementation and tests).
 ---
 <!-- COMMENTS:END -->
