@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-492
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Isolate worker-exit and epic-rebase tests from the live tracker
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:27.511520Z'
-updated_at: '2026-07-28T15:18:25.849555Z'
+updated_at: '2026-07-28T15:18:37.974086Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -138,5 +138,10 @@ author: oompah
 created: 2026-07-28 15:18
 ---
 Verification: All tests pass.\n\n- tests/test_event_driven_loop.py::TestWorkerExitPostsEvent: 2 passed (no git spawned, < 0.005s each)\n- tests/test_acp_billing.py::TestOnWorkerExitCostAccumulation: 3 passed\n- tests/test_acp_billing.py::TestMissingRatesWarningLogged::test_on_worker_exit_no_cost_no_crash: passed\n- tests/test_epic_rebase_state.py::TestPersistence::test_persists_on_clear: passed\n\nFull suite: make test -> 12361 passed, 7 skipped, 0 failures (264s)\n\nThe 2 TestFullSyncIntervalConfig failures seen when running the event-driven file in isolation are pre-existing bugs (verified by git stash + re-run); they were already failing before this PR and are not within OOMPAH-492 scope.\n\nAll affected tests: cannot reach orch.tracker or git origin, retain original behavioral assertions, leave no background tasks, complete without network-scale delays.
+---
+author: oompah
+created: 2026-07-28 15:18
+---
+Completion: Delivered isolation fixes for all identified live-tracker leak sites.\n\nFiles changed:\n- tests/test_event_driven_loop.py: TestWorkerExitPostsEvent now injects project-scoped mock tracker, silences all unrelated side-effects (telemetry, comments, completion gates, retry scheduling), and adds fail-fast git-push guard.\n- tests/test_acp_billing.py: Module-level helpers _inject_worker_exit_isolation() and _no_git_push() isolate 4 worker-exit tests. Added project_id param to _make_issue(), close_gate_enabled=False to _make_orchestrator().\n- tests/test_epic_rebase_state.py: test_persists_on_clear now passes project_id='proj-1' to both state operations so the already-mocked tracker is used.\n\nAll acceptance criteria satisfied: no live tracker access, no git origin reachability, original assertions preserved, no background task leakage, no network-scale delays.
 ---
 <!-- COMMENTS:END -->
