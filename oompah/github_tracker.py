@@ -59,6 +59,7 @@ from oompah.statuses import (
     ARCHIVED,
     CANONICAL_STATUSES,
     DONE,
+    IN_VALIDATION,
     MERGED,
     NEEDS_HUMAN,
     PROPOSED,
@@ -1603,13 +1604,13 @@ class GitHubIssueTracker:
         active_set = {
             canonicalize_status(state)
             for state in self.active_states
-            if canonicalize_status(state) != PROPOSED
+            if canonicalize_status(state) not in {PROPOSED, IN_VALIDATION}
         }
         candidates = [
             iss
             for iss in issues
             if (
-                canonicalize_status(iss.state) != PROPOSED
+                canonicalize_status(iss.state) not in {PROPOSED, IN_VALIDATION}
                 and canonicalize_status(iss.state) in active_set
             )
         ]

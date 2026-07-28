@@ -7,6 +7,8 @@ from oompah.statuses import (
     DONE,
     DUPLICATE_CANDIDATE,
     IN_PROGRESS,
+    IN_REVIEW,
+    IN_VALIDATION,
     MERGED,
     NEEDS_ANSWER,
     NEEDS_CI_FIX,
@@ -16,6 +18,7 @@ from oompah.statuses import (
     canonicalize_status,
     is_dispatchable_status,
     is_terminal_status,
+    is_working_status,
     status_rank,
 )
 
@@ -82,6 +85,20 @@ def test_dispatchable_and_terminal_status_sets_are_explicit():
 
 def test_proposed_orders_before_backlog():
     assert CANONICAL_STATUSES[:2] == (PROPOSED, BACKLOG)
+
+
+def test_in_validation_canonicalizes_aliases_and_has_lifecycle_flags():
+    assert canonicalize_status(IN_VALIDATION) == IN_VALIDATION
+    assert canonicalize_status("in validation") == IN_VALIDATION
+    assert canonicalize_status("in-validation") == IN_VALIDATION
+    assert canonicalize_status("in_validation") == IN_VALIDATION
+    assert canonicalize_status("validation") == IN_VALIDATION
+    assert IN_VALIDATION in CANONICAL_STATUSES
+    assert status_rank(IN_REVIEW) < status_rank(IN_VALIDATION)
+    assert status_rank(IN_VALIDATION) < status_rank(DONE)
+    assert not is_terminal_status(IN_VALIDATION)
+    assert not is_working_status(IN_VALIDATION)
+    assert not is_dispatchable_status(IN_VALIDATION)
 
 
 # ---------------------------------------------------------------------------

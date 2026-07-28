@@ -66,6 +66,7 @@ def _project(**overrides) -> Project:
 
 def test_required_labels_include_proposed_and_all_status_labels() -> None:
     assert "oompah:status:proposed" in REQUIRED_LABEL_NAMES
+    assert "oompah:status:in-validation" in REQUIRED_LABEL_NAMES
     assert "oompah:status:decomposed" in REQUIRED_LABEL_NAMES
     assert "oompah:status:duplicate-candidate" in REQUIRED_LABEL_NAMES
     assert INTAKE_REQUIRED_LABELS <= set(REQUIRED_LABEL_NAMES)

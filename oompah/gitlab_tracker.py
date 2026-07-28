@@ -19,7 +19,14 @@ from urllib.parse import quote
 import httpx
 
 from oompah.models import BlockerRef, Issue
-from oompah.statuses import ARCHIVED, DONE, NEEDS_HUMAN, canonicalize_status
+from oompah.statuses import (
+    ARCHIVED,
+    DONE,
+    IN_VALIDATION,
+    NEEDS_HUMAN,
+    PROPOSED,
+    canonicalize_status,
+)
 from oompah.tracker import (
     TrackerAuthError,
     TrackerError,
@@ -477,11 +484,16 @@ class GitLabIssueTracker:
         return False
 
     def fetch_candidate_issues(self) -> list[Issue]:
-        active = {canonicalize_status(s) for s in self.active_states}
+        active = {
+            canonicalize_status(s)
+            for s in self.active_states
+            if canonicalize_status(s) not in {PROPOSED, IN_VALIDATION}
+        }
         candidates = [
             issue
             for issue in self._list(state="opened")
             if canonicalize_status(issue.state) in active
+            and canonicalize_status(issue.state) not in {PROPOSED, IN_VALIDATION}
             and self.parse_identifier(issue.identifier).iid
             not in self._untrusted_status_issues
         ]

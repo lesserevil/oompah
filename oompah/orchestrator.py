@@ -65,6 +65,7 @@ from oompah.statuses import (
     DONE,
     IN_PROGRESS,
     IN_REVIEW,
+    IN_VALIDATION,
     MERGED,
     NEEDS_ANSWER,
     NEEDS_CI_FIX,
@@ -263,7 +264,11 @@ def _terminal_state_keys(terminal_states: list[str] | tuple[str, ...]) -> set[st
 
 def _dispatch_active_state_names(active_states: list[str] | tuple[str, ...]) -> list[str]:
     """Return configured dispatch-active states excluding pre-work intake states."""
-    return [s for s in active_states if canonicalize_status(s) != PROPOSED]
+    return [
+        s
+        for s in active_states
+        if canonicalize_status(s) not in {PROPOSED, IN_VALIDATION}
+    ]
 
 
 def _dispatch_active_state_keys(active_states: list[str] | tuple[str, ...]) -> set[str]:

@@ -28,6 +28,7 @@ _STATUS_LABEL_COLORS: dict[str, str] = {
     "Needs CI Fix": "ee0701",
     "Needs Rebase": "ee0701",
     "In Review": "0e8a16",
+    "In Validation": "1d76db",
     "Decomposed": "bfd4f2",
     "Duplicate Candidate": "fef2c0",
     "Done": "cfd3d7",

@@ -154,6 +154,9 @@ class TestLabelNameToStatus:
     def test_needs_rebase(self):
         assert label_name_to_status("oompah:status:needs-rebase") == "Needs Rebase"
 
+    def test_in_validation(self):
+        assert label_name_to_status("oompah:status:in-validation") == "In Validation"
+
 
 # ===========================================================================
 # _status_to_label_name
@@ -182,6 +185,9 @@ class TestStatusToLabelName:
     def test_needs_ci_fix(self):
         assert _status_to_label_name("Needs CI Fix") == "oompah:status:needs-ci-fix"
 
+    def test_in_validation(self):
+        assert _status_to_label_name("In Validation") == "oompah:status:in-validation"
+
     def test_unknown_raises(self):
         with pytest.raises(ValueError, match="Unknown status"):
             _status_to_label_name("NotAStatus")
@@ -199,6 +205,7 @@ class TestStatusToLabelName:
             "oompah:status:needs-ci-fix",
             "oompah:status:needs-rebase",
             "oompah:status:in-review",
+            "oompah:status:in-validation",
             "oompah:status:needs-human",
             "oompah:status:needs-answer",
             "oompah:status:proposed",
