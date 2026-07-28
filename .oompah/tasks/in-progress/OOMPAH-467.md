@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T20:05:21.612057Z'
+updated_at: '2026-07-28T20:05:56.977488Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -68,5 +68,30 @@ This task adds an explicit coordinator override operation for terminal audits. T
 Tests must cover: authorized owner, additional authorized login, unauthorized actor, bot-only actor, blank reason, stale fingerprint, repeated override, metadata/comment failure ordering, and redaction.
 
 Starting exploration to understand current audit/terminal structure and existing authorization helpers.
+---
+author: oompah
+created: 2026-07-28 20:05
+---
+**Discovery: Code Architecture**
+
+Found key infrastructure:
+1. **Terminal audit records** (terminal_audit.py): TerminalAuditRecord, AuditAttempt, EvidenceFingerprint, TargetState, RequestState, Verdict
+2. **Coordinator** (terminal_transition_coordinator.py): TerminalTransitionCoordinator manages request_transition + apply_audit_result
+3. **Metadata store** (terminal_audit_metadata.py): Persists audit chains in tracker metadata
+4. **Authorization** (label_auth.py): is_authorized_status_actor() checks bot, status_actor_login, tracker_owner, status_label_authorized_logins
+
+Current flow:
+- request_transition() stages audit chains before moving to In Validation
+- apply_audit_result() accepts auditor verdicts and routes outcomes
+
+**Implementation approach:**
+Will add a new override_transition() method to coordinator that:
+1. Accepts actor, target state, fingerprint, reason
+2. Uses is_authorized_status_actor() for project-owner checks (prevents bot/auditor override)
+3. Validates reason is non-empty
+4. Creates OverrideRecord dataclass for audit trail
+5. Persists override metadata before applying terminal status
+6. Returns typed OverrideResult with success/error codes
+7. Includes comprehensive tests for all scenarios listed in acceptance criteria
 ---
 <!-- COMMENTS:END -->
