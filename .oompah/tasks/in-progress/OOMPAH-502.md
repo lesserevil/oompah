@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-502
 type: epic
-status: Backlog
+status: In Progress
 priority: 1
 title: Reduce agent wall-clock latency without weakening delivery gates
 parent: null
@@ -18,7 +18,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:03:45.331314Z'
-updated_at: '2026-07-28T15:06:40.973287Z'
+updated_at: '2026-07-28T15:10:28.970213Z'
 work_branch: null
 target_branch: null
 review_url: null

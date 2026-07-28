@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:05:59.013552Z'
-updated_at: '2026-07-28T15:10:26.690834Z'
+updated_at: '2026-07-28T15:10:29.944487Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-07-28 15:10
 ---
 Implemented on epic-OOMPAH-502 in commit 91d6c4344. Automatic duplicate detection now requests only configured active states and defensively removes terminal records returned by over-broad trackers; the former terminal-match duplicate-detector handoff was removed. Focused regression suite: 160 passed.
+---
+author: oompah
+created: 2026-07-28 15:10
+---
+Terminal tasks are excluded from automatic duplicate detection at query and filtering boundaries; regression tests pass.
 ---
 <!-- COMMENTS:END -->
