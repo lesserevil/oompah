@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-535
 type: bug
-status: In Progress
+status: In Review
 priority: 1
 title: Prevent orphaned duplicate-preflight workers and phantom claims
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T23:18:01.725169Z'
-updated_at: '2026-07-28T23:39:04.348532Z'
+updated_at: '2026-07-28T23:40:27.492205Z'
 work_branch: null
 target_branch: null
 review_url: null
