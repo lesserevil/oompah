@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T20:16:36.783511Z'
-updated_at: '2026-07-28T20:17:57.976267Z'
+updated_at: '2026-07-28T20:20:09.805791Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,5 +77,19 @@ Primary changes:
 - tests/: Add comprehensive tests for all scenarios
 
 Next: Explore route discovery patterns and implement.
+---
+author: oompah
+created: 2026-07-28 20:20
+---
+Discovery: Implementation started. Added route discovery utilities:
+- _discover_local_address(): Uses socket.connect() to determine local IP for reaching GitLab host (no network payload)
+- _extract_host_from_url(): Parses GitHub/HTTP/SSH URLs to extract hostname
+- _derive_gitlab_webhook_url(): Per-project derivation logic, falls back to explicit URL if configured
+- Updated _GitLabHookState to track webhook_url and url_source (explicit/derived/error)
+- Updated GitLabHookManager to use per-project URLs in reconciliation/removal
+- Updated bootstrap.py to pass server_port to manager
+- Updated .env.example with override documentation
+
+Next: Write comprehensive tests, then verify all scenarios work.
 ---
 <!-- COMMENTS:END -->
