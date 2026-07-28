@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T20:28:15.349611Z'
+updated_at: '2026-07-28T20:28:17.512611Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -356,5 +356,10 @@ Implementation delivered:
 - Comprehensive test coverage per requirements
 
 Ready for merge.
+---
+author: oompah
+created: 2026-07-28 20:28
+---
+Explicit authorized owner overrides for terminal audits implemented, tested, and verified. All 23 override tests and 128 coordinator tests passing.
 ---
 <!-- COMMENTS:END -->
