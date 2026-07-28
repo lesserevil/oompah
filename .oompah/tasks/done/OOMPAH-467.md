@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-467
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Add explicit authorized owner overrides for terminal audits
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T20:23:52.563248Z'
+updated_at: '2026-07-28T20:24:26.899648Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -254,5 +254,28 @@ author: oompah
 created: 2026-07-28 20:23
 ---
 Focus: Api Oompah Integration Specialist
+---
+author: oompah
+created: 2026-07-28 20:24
+---
+**Completion: Explicit authorized owner overrides for terminal audits**
+
+Work committed and pushed on epic-OOMPAH-457 (commits cbbe8d39b and a5699d6fc).
+
+**What was delivered:**
+
+1. `OverrideRecord` dataclass in `terminal_audit.py` — audit trail record with override_id, authorized_by, reason (non-empty enforced), target_state, and fingerprint. Supports serialization/deserialization.
+
+2. `override_transition()` async method in `TerminalTransitionCoordinator` — requires actor, target terminal state, evidence fingerprint, and non-empty reason. Uses existing `is_authorized_status_actor()` for project-owner authorization, never grants override to oompah bot or auditor agent unless project-owner rules independently authorize them.
+
+3. Strict ordering: metadata persistence → comment posting → status write. Any failure in metadata or comment prevents status from being applied.
+
+4. Typed `OverrideResult` with stable rejection codes: `unauthorized`, `blank_reason`, `stale_fingerprint`, `invalid_target`, `metadata_quarantined`.
+
+**Test results:**
+- 23 new override tests: all passing ✓
+- 147 existing audit/coordinator tests: all passing ✓
+
+Coverage includes: authorized owner, additional authorized login, unauthorized actor, bot-only actor, blank reason, whitespace reason, stale fingerprint, failure ordering (metadata first, comment second, status last), reason redaction, repeated override, Done/Merged/Archived targets, quarantine rejection, record serialization.
 ---
 <!-- COMMENTS:END -->
