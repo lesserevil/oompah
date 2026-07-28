@@ -83,7 +83,17 @@ from oompah.storage_cleanup import (
     cleanup_owned_storage,
     inspect_storage_pressure,
 )
+from oompah.terminal_audit import (
+    ContributorIdentity,
+    EvidenceFingerprint,
+    TargetState,
+    compute_evidence_fingerprint,
+)
 from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
+from oompah.terminal_transition_coordinator import (
+    TerminalTransitionCoordinator,
+    TransitionResult,
+)
 from oompah.focus import (
     _MIN_SCORE_TO_FLAG,
     analyze_completed_issue,
@@ -716,6 +726,13 @@ class Orchestrator:
         self.tracker = self._new_tracker()
         # Per-project trackers, keyed by project_id
         self._project_trackers: dict[str, TrackerProtocol] = {}
+        # Terminal transition staging is a long-lived orchestrator service.
+        # Pass the project-aware factory so metadata and tracker writes never
+        # fall back to the unscoped management tracker in managed mode.
+        self.terminal_transition_coordinator = TerminalTransitionCoordinator(
+            tracker=self._tracker_for_project,
+            project_store=self.project_store,
+        )
         # Per-project branch-to-issue index: maps work_branch → identifier.
         # Built lazily the first time _resolve_task_for_branch needs it for
         # a project and cleared with tracker read caches each tick so the
@@ -2253,6 +2270,56 @@ class Orchestrator:
         # Always cache by canonical ID so subsequent lookups hit the fast path.
         self._project_trackers[project.id] = tracker
         return tracker
+
+    async def request_terminal_transition(
+        self,
+        current_issue: Issue,
+        requested_target: TargetState,
+        trigger_identity: ContributorIdentity,
+        project_id: str | None = None,
+        evidence_fingerprint: EvidenceFingerprint | None = None,
+    ) -> TransitionResult:
+        """Stage a terminal transition through the server-owned coordinator.
+
+        ``project_id`` defaults to the issue's managed project.  Callers may
+        provide an explicit fingerprint when they have richer evidence than
+        the normalized issue fields; otherwise a deterministic fingerprint is
+        derived from the issue description and repository/review context.
+        """
+        effective_project_id = project_id or current_issue.project_id
+        if not effective_project_id:
+            raise ProjectError(
+                f"Terminal transition for {current_issue.identifier!r} "
+                "requires a managed project_id"
+            )
+
+        if evidence_fingerprint is None:
+            contributors = getattr(current_issue, "contributors", ()) or ()
+            if isinstance(contributors, str):
+                contributors = (contributors,)
+            evidence_fingerprint = compute_evidence_fingerprint(
+                requirements_text=str(current_issue.description or ""),
+                project_id=str(effective_project_id),
+                task_id=str(current_issue.identifier),
+                source_branch=str(
+                    getattr(current_issue, "source_branch", None)
+                    or current_issue.work_branch
+                    or current_issue.branch_name
+                    or ""
+                ),
+                target_branch=str(current_issue.target_branch or ""),
+                review_id=str(current_issue.review_number or ""),
+                review_state=str(getattr(current_issue, "review_state", "") or ""),
+                contributors=contributors,
+            )
+
+        return await self.terminal_transition_coordinator.request_transition(
+            current_issue=current_issue,
+            requested_target=requested_target,
+            trigger_identity=trigger_identity,
+            project_id=str(effective_project_id),
+            evidence_fingerprint=evidence_fingerprint,
+        )
 
     def _tracker_for_issue(self, issue: Issue) -> TrackerProtocol:
         """Get the appropriate tracker for an issue."""

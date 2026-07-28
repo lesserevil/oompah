@@ -117,6 +117,18 @@ class _FailingUpdateTracker(_MemoryTracker):
         super().update_issue(identifier, **kwargs)
 
 
+class _TrackerFactory:
+    """Project-aware tracker provider used by integration coverage."""
+
+    def __init__(self, trackers: dict[str, _MemoryTracker]) -> None:
+        self.trackers = trackers
+        self.calls: list[str] = []
+
+    def __call__(self, project_id: str) -> _MemoryTracker:
+        self.calls.append(project_id)
+        return self.trackers[project_id]
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -339,9 +351,10 @@ class TestMergedChain:
         doc = store.read(TASK_ID)
         done_records = [r for r in doc.pending_chain if r.target_state == TargetState.DONE]
         merged_records = [r for r in doc.pending_chain if r.target_state == TargetState.MERGED]
-        # At least one Done and one Merged should be present
+        # The existing queued Done is reused; retries must not create a second
+        # completion audit for the same chain.
         assert len(merged_records) == 1
-        assert len(done_records) >= 1
+        assert len(done_records) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -795,6 +808,35 @@ class TestPerProjectLocking:
         asyncio.run(_run_two())
         # There should be exactly one lock for PROJECT_ID
         assert list(coord._async_locks.keys()) == [PROJECT_ID]
+
+
+class TestProjectTrackerFactory:
+    def test_project_aware_factory_keeps_metadata_and_writes_scoped(self) -> None:
+        tracker_a = _MemoryTracker()
+        tracker_b = _MemoryTracker()
+        factory = _TrackerFactory({"proj-a": tracker_a, "proj-b": tracker_b})
+        coord = TerminalTransitionCoordinator(
+            tracker=factory,
+            project_store=_LockStore(),
+            post_comments=False,
+        )
+
+        issue_a = Issue(id="A-1", identifier="A-1", title="A", state="Open")
+        issue_b = Issue(id="B-1", identifier="B-1", title="B", state="Open")
+        _run(coord.request_transition(
+            issue_a, TargetState.DONE, _trigger(), "proj-a", _fingerprint("a")
+        ))
+        _run(coord.request_transition(
+            issue_b, TargetState.DONE, _trigger(), "proj-b", _fingerprint("b")
+        ))
+
+        store_a = TerminalAuditMetadataStore(tracker_a, _LockStore(), "proj-a")
+        store_b = TerminalAuditMetadataStore(tracker_b, _LockStore(), "proj-b")
+        assert len(store_a.read("A-1").pending_chain) == 1
+        assert len(store_b.read("B-1").pending_chain) == 1
+        assert tracker_a.current_status("A-1") == IN_VALIDATION
+        assert tracker_b.current_status("B-1") == IN_VALIDATION
+        assert factory.calls == ["proj-a", "proj-b"]
 
 
 # ---------------------------------------------------------------------------

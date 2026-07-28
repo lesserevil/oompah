@@ -44,6 +44,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
@@ -133,11 +134,15 @@ class TerminalTransitionCoordinator:
 
     def __init__(
         self,
-        tracker: TrackerProtocol,
+        tracker: TrackerProtocol | Callable[[str], TrackerProtocol],
         project_store: Any,
         *,
         post_comments: bool = True,
     ) -> None:
+        # The standalone API accepts one tracker, while the server passes a
+        # project-aware factory because managed projects each have their own
+        # tracker adapter.  Keeping both forms makes the coordinator useful in
+        # small integrations and in the multi-project orchestrator.
         self._tracker = tracker
         self._project_store = project_store
         self._post_comments = post_comments
@@ -191,11 +196,13 @@ class TerminalTransitionCoordinator:
         requested_target = TargetState.from_raw(requested_target)
         lock = self._async_locks.setdefault(project_id, asyncio.Lock())
         async with lock:
+            tracker = self._tracker_for_project(project_id)
             store = TerminalAuditMetadataStore(
-                self._tracker, self._project_store, project_id
+                tracker, self._project_store, project_id
             )
             return self._transition_locked(
                 store,
+                tracker,
                 current_issue,
                 requested_target,
                 trigger_identity,
@@ -210,6 +217,7 @@ class TerminalTransitionCoordinator:
     def _transition_locked(
         self,
         store: TerminalAuditMetadataStore,
+        tracker: TrackerProtocol,
         current_issue: Issue,
         requested_target: TargetState,
         trigger_identity: ContributorIdentity,
@@ -307,7 +315,7 @@ class TerminalTransitionCoordinator:
         issue_status = current_issue.state or ""
         if canonicalize_status(issue_status) not in TERMINAL_STATUSES:
             try:
-                self._tracker.update_issue(identifier, status=IN_VALIDATION)
+                tracker.update_issue(identifier, status=IN_VALIDATION)
             except Exception:
                 logger.exception(
                     "Failed to move %s to In Validation; audit chain persisted",
@@ -322,7 +330,7 @@ class TerminalTransitionCoordinator:
                     f"{requested_target.value}. "
                     "An auditor will review and apply the terminal status."
                 )
-                self._tracker.add_comment(identifier, comment, author="oompah")
+                tracker.add_comment(identifier, comment, author="oompah")
             except Exception:
                 logger.exception(
                     "Failed to post queued transition comment for %s", identifier
@@ -337,6 +345,12 @@ class TerminalTransitionCoordinator:
             coalesced=False,
             superseded_audit_id=decision.superseded_id,
         )
+
+    def _tracker_for_project(self, project_id: str) -> TrackerProtocol:
+        """Resolve the tracker used for a project-scoped request."""
+        if callable(self._tracker):
+            return self._tracker(project_id)
+        return self._tracker
 
 
 # ------------------------------------------------------------------
@@ -395,6 +409,9 @@ def _build_merged_entries(
 
     * If a ``COMPLETED`` ``Done`` audit already exists in *current_chain*, reuse it
       and create only the ``Merged`` record.
+    * If a ``PENDING`` or ``IN_PROGRESS`` ``Done`` audit exists, reuse that
+      queued completion work and create only the ``Merged`` record.  This keeps
+      retries from scheduling duplicate Done audits.
     * Otherwise queue ``Done`` followed by ``Merged`` so completion auditing is
       never skipped for a direct-Merged request.
     """
@@ -406,9 +423,17 @@ def _build_merged_entries(
         ),
         None,
     )
+    active_done = next(
+        (
+            r for r in current_chain
+            if r.target_state == TargetState.DONE
+            and r.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
+        ),
+        None,
+    )
 
     entries: list[TerminalAuditRecord] = []
-    if completed_done is None:
+    if completed_done is None and active_done is None:
         # No completed Done — queue Done first so the auditor cannot skip it
         entries.append(
             _make_record(project_id, task_id, TargetState.DONE,

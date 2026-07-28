@@ -1,6 +1,6 @@
 # Terminal-Transition Coordinator
 
-**Status:** Design (OOMPAH-465)  
+**Status:** Implemented (OOMPAH-465)
 **Epic:** OOMPAH-457  
 **Prerequisites:** OOMPAH-461 (In Validation status), OOMPAH-462 (Terminal audits), OOMPAH-463 (Metadata persistence), OOMPAH-464 (Grandfather recovery)
 
@@ -43,7 +43,8 @@ class RequestState(Enum):
 
 - **Done Chain**: `[Done(audit-1)]`
 - **Merged Chain (with Done)**: `[Done(audit-1), Merged(audit-2)]`
-- **Merged Chain (direct)**: `[Merged(audit-1)]` (no prior Done)
+- **Merged Chain (direct)**: `[Done(audit-1), Merged(audit-2)]` (the Done
+  audit is queued unless a completed or already-active Done audit exists)
 - **Archived Chain**: `[..., Archived(audit-N)]` (defers to earlier pending targets)
 
 ### Evidence Fingerprint
@@ -138,7 +139,7 @@ merged_audit = TerminalAuditRecord(
 chain = [done_audit, merged_audit]
 ```
 
-**Case 2: No completed Done audit exists**
+**Case 2: No completed or active Done audit exists**
 
 Queue Done first, then Merged:
 
@@ -147,6 +148,10 @@ done_audit = TerminalAuditRecord(target_state=DONE, request_state=PENDING)
 merged_audit = TerminalAuditRecord(target_state=MERGED, request_state=PENDING)
 chain = [done_audit, merged_audit]
 ```
+
+If a pending or in-progress Done audit already exists, it is reused for the
+chain and only the Merged audit is appended. This prevents a repeated direct
+Merged event from scheduling duplicate completion work.
 
 ##### Archived
 
