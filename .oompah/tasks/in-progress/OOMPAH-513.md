@@ -8,10 +8,12 @@ parent: OOMPAH-511
 children: []
 blocked_by:
 - OOMPAH-512
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:test
 assignee: null
 created_at: '2026-07-28T15:16:43.939778Z'
-updated_at: '2026-07-28T15:45:52.216136Z'
+updated_at: '2026-07-28T15:46:14.312687Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -90,5 +92,18 @@ author: oompah
 created: 2026-07-28 15:45
 ---
 Verification: Reviewed full task histories for OOMPAH-256, OOMPAH-512, OOMPAH-513, OOMPAH-514, and parent OOMPAH-511, plus the complete relevant diff/stat for 6533e235e. No duplicate was found, and the remote epic commit contains the described guard and tests. No test suite was run in this read-only duplicate-screening focus. Worktree is clean, but local epic-OOMPAH-511 currently points to origin/main at e7f3e9370 while origin/epic-OOMPAH-511 points to the implementation commit 6533e235e; the verification focus must test the remote epic state, not the stale local pointer.
+---
+author: oompah
+created: 2026-07-28 15:46
+---
+Focus handoff: duplicate_detector
+
+1. Outcome: No confirmed duplicate. OOMPAH-513 is a distinct defense-in-depth child of OOMPAH-511; OOMPAH-256 handles correct state-worktree routing and OOMPAH-512 handles project-scoped runtime resolution, while OOMPAH-513 rejects a misrouted task mutation at the tracker boundary.
+
+2. Evidence: Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for state-branch, managed-checkout, fail-closed, and task-write terms. Read full tracker histories for OOMPAH-256/511/512/513/514. Inspected remote commit 6533e235e, which changes oompah/oompah_md_tracker.py and adds tests/test_managed_tracker_state_branch_guard.py with pre-write coverage for public mutation families, configured state-branch success, standalone behavior, and main/ref isolation.
+
+3. Remaining work/risks: The implementation and prior full-suite result are recorded as complete, but this focus did not run tests. The local epic-OOMPAH-511 ref is clean but stale at e7f3e9370 and tracks origin/main; origin/epic-OOMPAH-511 is 6533e235e. A verifier must safely align/test the remote epic commit without losing work, then close the task if results hold.
+
+4. Recommended next focus: test, for independent focused/full-suite verification and task closure. No further implementation is indicated by duplicate screening.
 ---
 <!-- COMMENTS:END -->
