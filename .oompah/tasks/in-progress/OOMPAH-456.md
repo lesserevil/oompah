@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:00:54.894107Z'
+updated_at: '2026-07-28T14:01:09.905490Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -108,5 +108,10 @@ author: oompah
 created: 2026-07-28 14:00
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-28 14:01
+---
+Understanding: As Frontend Developer, my scope for OOMPAH-456 is the UI layer in oompah/templates/projects.html. The state_branch_enabled toggle is currently a plain PATCH boolean checkbox that bypasses the bootstrap/migration workflow entirely. My job: (1) replace the naked PATCH boolean with a dedicated activation button that calls a new /api/projects/:id/activate-state-branch endpoint, (2) show forge-neutral status and error messages in the UI (no hardcoded GitHub/GITHUB_TOKEN references), (3) add a loading/progress state during the activation workflow. Backend work (forge-aware git credentials, atomic activation logic, server-side endpoint) will be handed off to a feature agent after UI changes are complete. Starting by reading the current projects.html and related server code.
 ---
 <!-- COMMENTS:END -->
