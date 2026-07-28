@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-467
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Add explicit authorized owner overrides for terminal audits
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T20:24:52.552507Z'
+updated_at: '2026-07-28T20:28:15.349611Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -335,5 +335,26 @@ author: oompah
 created: 2026-07-28 20:24
 ---
 Focus: Api Oompah Integration Specialist
+---
+author: oompah
+created: 2026-07-28 20:28
+---
+**Verification Complete**
+
+Work is committed and pushed on epic-OOMPAH-457. All tests passing:
+- 23 override tests: PASSED ✓
+- 128 terminal audit & coordinator tests: PASSED ✓  
+- 12597 total suite tests: PASSED ✓
+
+Implementation delivered:
+- OverrideRecord dataclass with serialization/deserialization
+- override_transition() method with project-owner authorization
+- Reason validation (non-empty, non-whitespace only)
+- Evidence fingerprint validation
+- Metadata persistence → comment → status ordering
+- OverrideResult typed result with stable error codes
+- Comprehensive test coverage per requirements
+
+Ready for merge.
 ---
 <!-- COMMENTS:END -->
