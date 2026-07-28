@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-514
 type: chore
-status: Done
+status: Merged
 priority: 1
 title: Prove maintenance cannot dirty or push the server code checkout
 parent: OOMPAH-511
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:44.915690Z'
-updated_at: '2026-07-28T16:16:29.946259Z'
+updated_at: '2026-07-28T16:24:16.815330Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
