@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-496
 type: chore
-status: In Progress
+status: Open
 priority: 2
 title: Consolidate removed draft-epic and epic-strategy UI contracts
 parent: OOMPAH-490
 children: []
 blocked_by:
 - OOMPAH-491
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:31.446905Z'
-updated_at: '2026-07-28T16:03:39.111109Z'
+updated_at: '2026-07-28T16:03:56.892227Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -19,6 +20,22 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 7dfabf98-e10d-46c8-b019-93dd7e9b9400
 oompah.work_branch: epic-OOMPAH-490
+oompah.task_costs:
+  total_input_tokens: 505166
+  total_output_tokens: 3230
+  total_cost_usd: 0.0
+  by_model:
+    fable:
+      input_tokens: 505166
+      output_tokens: 3230
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: fable
+    input_tokens: 505166
+    output_tokens: 3230
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T16:03:53.321132+00:00'
 ---
 ## Summary
 
@@ -61,5 +78,30 @@ author: oompah
 created: 2026-07-28 16:03
 ---
 Discovery: No confirmed duplicate. Full task views show OOMPAH-171 uniquely removed the draft-epic lifecycle and rewrote the five draft regression modules; OOMPAH-169 uniquely removed the projects-page epic-strategy UI; OOMPAH-167/168 cover backend/configuration and orchestration, not test consolidation. The current five files collect 59 cases, including repeated static absence checks plus four API cases in test_dashboard_draft_epics.py, matching OOMPAH-496’s distinct pruning scope.
+---
+author: oompah
+created: 2026-07-28 16:03
+---
+Focus handoff: duplicate_detector\n\n1. Outcome: No confirmed duplicate; OOMPAH-496 should proceed to implementation.\n2. Evidence: Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for draft-epic/epic-strategy and the named test modules. Read OOMPAH-171, OOMPAH-169, OOMPAH-167, OOMPAH-168, OOMPAH-166, OOMPAH-490, and blocker OOMPAH-491 with full descriptions/comments. The five current target files collect 59 cases. OOMPAH-171 owns retired draft behavior, OOMPAH-169 owns retired strategy UI, and OOMPAH-167/168 preserve backend/shared-only behavior; none owns this consolidation.\n3. Remaining work/risks: Implement the requested canonical test_dashboard_draft_epics.py consolidation, delete the three draft-only duplicates, consolidate epic-strategy markers/saveProject() coverage, preserve API/generic-label and positive smoke tests, and run the specified focused tests plus make test after the safety prerequisite.\n4. Recommended next focus: chore or test (implementation), followed by verification.
+---
+author: oompah
+created: 2026-07-28 16:03
+---
+Agent completed successfully in 85s (508396 tokens)
+---
+author: oompah
+created: 2026-07-28 16:03
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 17
+- Tokens: 505.2K in / 3.2K out [508.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 25s
+- Log: OOMPAH-496__20260728T160232Z.jsonl
+---
+author: oompah
+created: 2026-07-28 16:03
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
