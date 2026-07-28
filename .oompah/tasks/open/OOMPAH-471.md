@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-28T22:18:51.580580Z'
+updated_at: '2026-07-28T22:19:59.472752Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-07-28 22:18
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 22:19
+---
+**Understanding:** I am conducting a duplicate investigation for OOMPAH-471 (Collect stable evidence for Done completion audits). The task calls for building a read-only DoneEvidenceCollector that gathers evidence for task/epic completion audits including: workspace/worktree info, source SHA, branch info, requirements/digest, diff/stat excerpts, changed files, commit/push status, test commands, CI/test evidence, comments/handoffs, children, and contributor identities. Will search the task graph, plans, and source for existing similar implementations or duplicates.
 ---
 <!-- COMMENTS:END -->
