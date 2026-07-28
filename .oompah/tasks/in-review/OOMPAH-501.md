@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:20:56.288829Z'
+updated_at: '2026-07-28T14:21:06.270706Z'
 work_branch: OOMPAH-501
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/559
@@ -191,5 +191,24 @@ Implementation: Added 'shared_epic_child' skip rule in oompah/close_gate.py chec
 Change: 8 lines added before the git/forge check in check_close_gate(). When issue.parent_id is non-empty, the function returns CloseGateResult(allowed=True, skip_reason='shared_epic_child') immediately without querying git or the forge. This prevents the 'gh pr create --base main --head epic-OOMPAH-451 ...' diagnostic from being emitted for children of epics.
 
 No changes needed to orchestrator.py — _ensure_review_exists() already skips per-child PRs when parent_id is set, and _open_epic_main_prs() already guards rollup PR creation with _epic_rollup_children_block_reason(). The fix is purely in the close gate's skip rules.
+---
+author: oompah
+created: 2026-07-28 14:21
+---
+Verification: All tests pass.
+
+Focused tests:
+- tests/test_close_gate.py::TestSharedEpicChildSkip: 5/5 passed
+- tests/test_epic_strategy.py::TestRollupPrematurePRGuard: 6/6 passed
+
+Full suite (make test): 12,123 passed, 39 skipped, 13 warnings
+
+Key tests added:
+1. test_shared_epic_child_allowed_without_pr_check: parent_id → skip_reason='shared_epic_child', no git/forge calls
+2. test_shared_epic_child_skip_with_commits_and_sibling_open: OOMPAH-452 reproduction — child with parent_id=OOMPAH-451 closes on epic-oompah-451 branch while OOMPAH-456 is still Open; allowed=True, skip_reason='shared_epic_child'
+3. test_rollup_creator_no_provider_call_while_normal_child_incomplete: open child blocks rollup PR
+4. test_rollup_creator_no_provider_call_while_nested_epic_not_merged: Done nested epic (not Merged) blocks rollup PR
+5. test_rollup_creator_no_provider_call_while_landing_evidence_missing: stranded child blocks rollup PR
+6. test_rollup_creator_creates_exactly_one_review_when_ready: all children Done with evidence → exactly one create_review call
 ---
 <!-- COMMENTS:END -->
