@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:06.169316Z'
-updated_at: '2026-07-28T18:58:29.447459Z'
+updated_at: '2026-07-28T19:06:35.958270Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -161,5 +161,10 @@ author: oompah
 created: 2026-07-28 18:58
 ---
 Discovery: OOMPAH-462/463 supply only terminal-audit records and tracker metadata persistence; no enforcement coordinator exists. The single startup path is Orchestrator.run() before its initial _tick(), and project-scoped tracker resolution is available. I will add a dedicated coordinator with versioned service-state serialization, stable project+task keys, conservative evidence extraction, and metadata-based pending recovery.
+---
+author: oompah
+created: 2026-07-28 19:06
+---
+Implementation: added oompah/terminal_audit_enforcement.py with durable grandfather tuples, versioned state serialization, deterministic duplicate-safe pending queue entries, metadata recovery for In Validation, and fail-closed/quarantined handling for malformed service state or task metadata. Orchestrator startup invokes it before the initial tick and periodically reconciles on the full-sync cadence; diagnostics are exposed in maintenance status and alerts.
 ---
 <!-- COMMENTS:END -->
