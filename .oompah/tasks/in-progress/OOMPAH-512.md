@@ -9,9 +9,10 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:refactor
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T15:28:15.862269Z'
+updated_at: '2026-07-28T15:29:29.514374Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -151,5 +152,18 @@ author: oompah
 created: 2026-07-28 15:28
 ---
 Verification (refactor baseline): make test was executed before any refactor. The installed Snap uv cannot create a transient scope in this sandbox, so the Make target was run with the existing project virtualenv while preserving the target command. Result: 12,611 passed, 7 skipped, 1 failed in 293.78s. The sole failure was tests/test_acp_agent.py::TestAcpWorkerModelHandoff::test_codex_subscription_omits_synthetic_default_model because the sandbox denied writing /home/shedwards/.oompah/agent-logs; it is unrelated to tracker routing. No repository files were changed.
+---
+author: oompah
+created: 2026-07-28 15:29
+---
+Focus handoff: refactor
+
+1. Outcome: Completed the production consumer inventory and defined the routing contract. No code refactor was made because the necessary work changes tracker-selection behavior; doing it under this focus would violate the behavior-preservation constraint. The existing _tracker_for_project helper is already the correct project factory/cache, so adding another forwarding abstraction alone would add churn without closing a mutation path.
+
+2. Evidence and decisions: Orchestrator creates cwd-derived self.tracker at orchestrator.py:679 and again at 1673. Project construction at 1942-2048 correctly uses project.repo_path and passes state_branch_enabled, state_branch_name, and state_branch_shadow_write, but the Project field state_branch_migration_stage is not represented by OompahMarkdownTracker. Direct managed-risk consumers include server.py:614 draft-label mutation, server.py:629 global ErrorWatcher creation, server.py:12372 frontend error filing, orchestrator.py:2051 issue fallback, 2100 release-addendum queue fallback, 10495 management/config-error task creation, and all project_id-else-self.tracker branches enumerated by rg. Correct examples are server.py:805 per-project release migration, server.py:638 project log watcher factory, and list-all-projects-else-standalone maintenance loops. Baseline make test: 12,611 passed, 7 skipped, 1 sandbox-only failure caused by denied write to /home/shedwards/.oompah/agent-logs.
+
+3. Remaining work and risks: Introduce one resolver whose contract is explicit project_id to _tracker_for_project; empty project store to standalone tracker; managed store plus missing project_id to actionable error. Route every direct fallback and mutation through it, including startup migrations, error reporting, maintenance, release delivery, worker-exit gates, reconciliation, and config-error filing. Prevent construction or exposure of a writable os.getcwd tracker in managed mode. Decide how unscoped backend log errors behave in managed mode; they must not guess a project. Preserve dynamic standalone compatibility and project-name lookup. Add regressions in project-scoped orchestrator/server/watcher tests plus existing tests/test_oompah_md_tracker_state_branch.py and tests/test_release_pick_migration_startup.py patterns.
+
+4. Recommended next focus: feature. This is a bug fix with observable fail-closed routing behavior, followed by focused orchestrator/server/error-watcher tests and make test.
 ---
 <!-- COMMENTS:END -->

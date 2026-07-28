@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-493
 type: task
-status: In Progress
+status: Done
 priority: 1
 title: Remove real retry sleeps from GitHub tracker error tests
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:28.451050Z'
-updated_at: '2026-07-28T15:29:06.086084Z'
+updated_at: '2026-07-28T15:29:30.348666Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -138,5 +138,10 @@ author: oompah
 created: 2026-07-28 15:29
 ---
 Verification: Targeted test passes in 0.02s call time (was ~7.3s with real sleeps). Full tests/test_github_tracker.py: 365 passed in 2.17s. make test: 12361 passed, 7 skipped, 13 warnings in 260.82s. All green.
+---
+author: oompah
+created: 2026-07-28 15:29
+---
+Completion: Delivered a single-file change to tests/test_github_tracker.py. test_remove_label_re_raises_non_404_errors now patches tracker._client._sleep, asserts all 4 retry attempts were made and 3 sleep calls occurred (matching _MAX_RETRIES), and raises TrackerError — all without real waits. Test call time dropped from ~7.3s to 0.02s. No production code changed. Full suite green (12361 passed). Pushed to epic-OOMPAH-490.
 ---
 <!-- COMMENTS:END -->
