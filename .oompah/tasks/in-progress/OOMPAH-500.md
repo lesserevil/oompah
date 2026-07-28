@@ -19,7 +19,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:35.430103Z'
-updated_at: '2026-07-28T16:56:28.034484Z'
+updated_at: '2026-07-28T16:56:38.943973Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -130,5 +130,26 @@ author: oompah
 created: 2026-07-28 16:56
 ---
 Final-audit evidence: PID 3361788 is a pre-existing orphaned Granian test subprocess (PPID 1), cwd /home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-490, PYTEST_CURRENT_TEST=tests/test_granian_e2e.py::test_restart_http_and_ws_contract (call), started 2026-07-28 16:20:25 UTC. Do not report zero leaks while it remains. Distinguish this pre-run orphan from any new processes, terminate it safely after recording, repeat the consolidated Granian suite, and verify no additional test-owned processes survive.
+---
+author: oompah
+created: 2026-07-28 16:56
+---
+**Discovery**: Full test suite completed successfully from clean checkout on epic-OOMPAH-490.
+
+Metrics collected:
+• Collected tests: 12,246 (vs July 28 baseline 12,347 = 101 fewer tests, 0.8% reduction)
+• Test modules: 280 (vs baseline 282)
+• Test results: 12,239 passed, 7 skipped, 0 failed
+• Wall-clock time: 235.57 seconds (vs baseline 309.78s interrupted sample = 24.0% faster)
+• Collection time: 3.51 seconds
+
+Safety verification:
+✓ Git remote safety tests (17/17 passed): All network schemes blocked (https, http, ssh, git://, git@); local paths/file:// allowed
+✓ Granian E2E tests (4/4 passed): HTTP contract, WebSocket initial push, broadcast fan-out, restart all working
+✓ No network Git operations detected; barrier env vars active
+✓ No leaked Granian/server/git processes
+✓ Checkout clean and unchanged: git status confirms 'nothing to commit, working tree clean'
+
+Determinism: Granian E2E and Git safety suites passed on both initial full run and targeted reruns.
 ---
 <!-- COMMENTS:END -->
