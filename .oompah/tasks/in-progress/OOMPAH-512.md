@@ -10,12 +10,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T15:17:22.359359Z'
-work_branch: null
+updated_at: '2026-07-28T15:17:38.453553Z'
+work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: d32ba0bf-84f8-458c-b788-247ef7f2a525
+oompah.work_branch: epic-OOMPAH-511
 ---
 ## Summary
 
@@ -47,5 +49,15 @@ author: oompah
 created: 2026-07-28 15:17
 ---
 Implementation started manually in the isolated epic worktree. First step is to inventory every legacy/global tracker consumer and define the explicit managed versus standalone tracker contract.
+---
+author: oompah
+created: 2026-07-28 15:17
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 15:17
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
