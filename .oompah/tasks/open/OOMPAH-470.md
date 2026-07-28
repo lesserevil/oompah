@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-28T22:54:12.728467Z'
+updated_at: '2026-07-28T22:54:20.248933Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -153,5 +153,21 @@ author: oompah
 created: 2026-07-28 22:53
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 22:54
+---
+Understanding phase: OOMPAH-470 is confirmed not a duplicate. Blocking dependencies (OOMPAH-468, OOMPAH-457) are merged. Beginning implementation.
+
+The task requires:
+1. Create reserved editable auditor role
+2. Seed from deduplicated union of deep/standard/default role candidates + configured provider defaults
+3. Filter candidates by: whitelist, credentials, health, budget, model validity
+4. Exclude contributor models; prefer independent providers
+5. Fall back to same-provider different-model only
+6. Reject unknown SDK models on contributing providers
+7. Return normalized no-candidate diagnostics
+
+Will explore oompah/roles.py (RoleStore/Candidate), WorkContributor tracking (OOMPAH-468), and role configuration patterns.
 ---
 <!-- COMMENTS:END -->
