@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -10,16 +10,15 @@ blocked_by:
 - OOMPAH-522
 labels:
 - focus-complete:duplicate_detector
-- needs:feature
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:45:09.914019Z'
+updated_at: '2026-07-28T18:45:29.388576Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 772acd4e-b5cd-4273-9b15-acec5f08f348
+oompah.agent_run_id: 24f1f162-6d1b-4c1d-bbe6-44de270e765a
 oompah.work_branch: epic-OOMPAH-521
 oompah.task_costs:
   total_input_tokens: 234
@@ -161,5 +160,25 @@ Relevant implementation context: use oompah/http_auth.py verifier and startup cr
 Remaining work/risk: full OOMPAH-523 middleware and test implementation remains. Preserve forge signature/token checks and ensure invalid WebSockets are rejected before _ws_clients registration.
 
 Recommended next focus: feature.
+---
+author: oompah
+created: 2026-07-28 18:45
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 10
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 9s
+- Log: OOMPAH-523__20260728T184414Z.jsonl
+---
+author: oompah
+created: 2026-07-28 18:45
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-28 18:45
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
