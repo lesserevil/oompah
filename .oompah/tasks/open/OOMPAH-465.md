@@ -16,7 +16,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:22:48.242820Z'
+updated_at: '2026-07-28T19:22:59.980064Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -255,5 +255,60 @@ These documents provide a complete specification for implementation. All require
 ✓ Complete test strategy
 
 Ready for feature implementation agent.
+---
+author: oompah
+created: 2026-07-28 19:22
+---
+Focus handoff: docs
+
+OUTCOME:
+Comprehensive design and API documentation created for TerminalTransitionCoordinator. All requirements from OOMPAH-465 are fully specified and ready for implementation.
+
+EVIDENCE & FILES:
+- plans/terminal-transition-coordinator.md (14KB) — Complete architecture, API spec, state chains, concurrency, testing
+- plans/terminal-transition-coordinator-api.md (18KB) — Python class template, method stubs, bootstrap/orchestrator integration, storage schema, test checklist
+- Reviewed existing infrastructure: terminal_audit.py (audit records), statuses.py (IN_VALIDATION), bootstrap.py (service initialization)
+- Examined test patterns in tests/test_terminal_audit.py
+
+REQUIREMENTS COVERED:
+✓ request_transition API (7-step algorithm: lock → load → coalesce/supersede → chain → persist → status → comment)
+✓ Atomic persistence before status move (ensures crash recovery)
+✓ Terminal state chains: Done (1 audit), Merged (1-2 audits with Done reuse), Archived (defers to pending)
+✓ Idempotent coalescing by fingerprint
+✓ Fingerprint-based superseding with old audit marked SUPERSEDED
+✓ Per-project async locks (prevent concurrent requests for same task)
+✓ Concise queued comment posted once per task (persisted set)
+✓ Recovery semantics (restart-recovered requests load from storage, no duplicates)
+✓ No terminal status written by coordinator (auditor applies statuses)
+✓ Complete test strategy with 13+ test cases
+
+REMAINING WORK:
+1. Implement TerminalTransitionCoordinator class (oompah/terminal_transition_coordinator.py)
+   - Use template in plans/terminal-transition-coordinator-api.md as starting point
+   - Implement all methods with full chain logic
+   - Store audit chains in project metadata (JSON serialization)
+   - Persist queued_comments_posted set
+
+2. Integrate into server bootstrap (oompah/bootstrap.py)
+   - Create coordinator in setup_services
+   - Attach to orchestrator
+
+3. Add orchestrator method for request_terminal_transition
+
+4. Implement tests (tests/test_terminal_transition_coordinator.py)
+   - 13+ test cases from design doc
+   - Coverage: chains, coalescing, superseding, locking, restart recovery, comment dedup
+
+5. Run focused tests: make test -- tests/test_terminal_transition_coordinator.py -v
+
+RISKS & NOTES:
+- Audit chain persistence must occur before tracker status write (atomicity guarantee)
+- Fingerprint computation must be deterministic (already ensured by terminal_audit.py)
+- Per-project locks are async; coordinate with orchestrator's existing locking
+- Comment deduplication set must survive restarts (persist to metadata)
+- Direct Merged (without current Done) must queue Done first; cannot skip completion auditing
+
+NEXT FOCUS: Feature agent for implementation.
+Recommended: Start with method stubs in API reference, implement chain logic, then add tests.
 ---
 <!-- COMMENTS:END -->
