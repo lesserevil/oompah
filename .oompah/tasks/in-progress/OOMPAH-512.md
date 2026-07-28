@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T15:28:08.483075Z'
+updated_at: '2026-07-28T15:28:15.862269Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -146,5 +146,10 @@ author: oompah
 created: 2026-07-28 15:28
 ---
 Discovery correction (refactor): Root cause is ambiguous tracker selection, not missing project tracker construction. Orchestrator.__init__ and reload_config always create self.tracker through _new_tracker; OompahMarkdownTracker then defaults cwd to os.getcwd. Managed paths reach that tracker whenever project_id is absent. High-risk consumers are server.set_orchestrator draft-label migration and the global ErrorWatcher (server.py:614 and 629), frontend POST /api/v1/errors, Orchestrator._tracker_for_issue and repeated project_id-else-self.tracker mutations, release_addendum_queue, config-error task creation at orchestrator.py:10495, and server legacy fallbacks. Per-project startup release migration and project log watchers already route correctly. _new_tracker_for_project passes repo_path and state-branch enabled/name/shadow-write, but does not represent state_branch_migration_stage. Required contract: explicit project_id resolves only its project tracker; cwd standalone tracker is allowed only when the project store is empty; missing project context in managed mode raises an actionable error.
+---
+author: oompah
+created: 2026-07-28 15:28
+---
+Verification (refactor baseline): make test was executed before any refactor. The installed Snap uv cannot create a transient scope in this sandbox, so the Make target was run with the existing project virtualenv while preserving the target command. Result: 12,611 passed, 7 skipped, 1 failed in 293.78s. The sole failure was tests/test_acp_agent.py::TestAcpWorkerModelHandoff::test_codex_subscription_omits_synthetic_default_model because the sandbox denied writing /home/shedwards/.oompah/agent-logs; it is unrelated to tracker routing. No repository files were changed.
 ---
 <!-- COMMENTS:END -->
