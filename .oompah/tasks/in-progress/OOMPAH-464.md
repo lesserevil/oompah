@@ -9,10 +9,11 @@ children: []
 blocked_by:
 - OOMPAH-462
 - OOMPAH-463
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:06.169316Z'
-updated_at: '2026-07-28T18:56:51.113112Z'
+updated_at: '2026-07-28T18:57:07.162740Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -62,5 +63,47 @@ author: oompah
 created: 2026-07-28 18:56
 ---
 Discovery: Completed duplicate screening. Searched 280+ archived/merged/backlog tasks, git log history, code files, and design plans. No existing task addresses grandfather baseline snapshotting, upgrade persistence to service_state.json, or pending audit queue recovery. OOMPAH-462 and OOMPAH-463 (the two blocking dependencies) are already committed in epic-OOMPAH-457; they provide terminal-audit domain records and metadata persistence. OOMPAH-464 is a new, non-duplicate task that builds on them.
+---
+author: oompah
+created: 2026-07-28 18:57
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate found. OOMPAH-464 is a unique task, not a re-detection of existing work.
+
+**Evidence searched:**
+- All .oompah/tasks/ states (open, in-progress, merged, archived, backlog) — 280+ tasks scanned
+- Git history: git log --all --oneline | grep patterns for 'grandfather', 'baseline', 'pending audit', 'recovery', 'upgrade' — zero matches
+- Code files: rg 'grandfather|baseline.*snapshot|first.*startup.*snapshot|recovery.*pending' in oompah/ and tests/
+- Design documents: plans/ directory for related architecture or TODOs — no matches
+- Recent commits: OOMPAH-462 (terminal-audit domain records) and OOMPAH-463 (metadata persistence) are already implemented on this branch as dependencies
+
+**Blocking dependencies (both complete):**
+- OOMPAH-462: terminal_audit.py — domain records for TargetState, RequestState, audit attempts, evidence fingerprints
+- OOMPAH-463: terminal_audit_metadata.py — tracker metadata persistence (oompah.terminal_audit key)
+
+**Remaining work for OOMPAH-464:**
+1. Extend service_state.json schema with versioned terminal-audit enforcement record
+2. On first upgraded startup: enumerate existing terminal tasks, snapshot as grandfather tuples (project, task, terminal state, evidence fingerprint)
+3. Persist grandfather baseline to service_state.json, reuse on restart
+4. Logic: task leaving terminal state, re-entering terminal state, or evidence fingerprint changing → no longer grandfathered
+5. Scan tracker metadata for 'In Validation' status and rebuild pending audit queue without duplicating attempts
+6. Handle corrupt/legacy entries fail-closed with observable errors
+7. Tests: first/second startup, unchanged records, changed evidence, terminal↔non-terminal↔terminal transitions, queue recovery, duplicate suppression, corrupt state, multi-project overlapping IDs
+8. Acceptance: no retroactive audit of existing terminal records, restart preserves enforcement and pending work, post-upgrade state/evidence changes require fresh audit
+
+**Relevant files to modify:**
+- oompah/orchestrator.py — add startup handler for grandfather snapshotting, pending queue recovery
+- oompah/service_state.py (if it exists) or service_state.json management — add schema + serialization
+- oompah/terminal_audit_metadata.py — extend to scan 'In Validation' metadata on startup
+- tests/test_terminal_audit_*.py — comprehensive coverage per acceptance criteria
+
+**Risks/Gotchas:**
+- Ensure backward compatibility: old service_state.json without grandfa ther record must be safely initialized
+- Evidence fingerprint stability: changes in fingerprint algorithm must not invalidate existing grandfathered tuples
+- Concurrent startup: if orchestrator starts in multiple places, ensure idempotent grandfather initialization
+- Metadata scanning: 'In Validation' field name must match actual tracker metadata schema
+
+**Recommended next focus:** feature (full implementation of grandfather baseline and pending audit recovery)
 ---
 <!-- COMMENTS:END -->
