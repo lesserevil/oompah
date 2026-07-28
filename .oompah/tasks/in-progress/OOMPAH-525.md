@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:37:50.081819Z'
+updated_at: '2026-07-28T19:50:25.626728Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -211,5 +211,26 @@ Implementation plan:
 - scripts/oompah_http.py (new): auth-aware helper for Makefile (avoids password in argv)
 - Makefile: replace curl state/restart calls with scripts/oompah_http.py
 - tests/test_client_auth.py (new): full credential resolver test suite
+---
+author: oompah
+created: 2026-07-28 19:50
+---
+Implementation: Added Basic auth support for CLIs and lifecycle commands.
+
+Files changed (commit 3e59598df on epic-OOMPAH-521):
+
+**New files:**
+- oompah/client_auth.py — shared credential resolver: env-var/password-file reading, TOCTOU-safe file ops (lstat→open→fstat inode comparison), symlink rejection, POSIX permission warnings, URL sanitization (rejects embedded credentials), 401 remediation formatter that never echoes credentials.
+- scripts/oompah_http.py — Makefile helper: reads credentials from env only (never argv), so passwords never appear in /proc/*/cmdline or make recipe output.
+- tests/test_client_auth.py — 55 unit tests for all resolver paths.
+
+**Modified files:**
+- oompah/task_cli.py — --username/--password-file flags; module-level _session_auth; httpx.BasicAuth; 401 → actionable sys.exit; URL sanitization.
+- oompah/admin_cli.py — same pattern using urllib Basic-auth header.
+- Makefile status/restart/graceful — replaced bare curl for /api/v1/state and /api/v1/orchestrator/restart with Python helper; /healthz stays as public unauthenticated probe; auth failure exits 1 and never escalates to force-restart.
+- tests/test_task_cli.py — 12 new auth integration tests.
+- tests/test_makefile_restart_wait.py — 9 new Makefile auth security tests.
+
+Security guarantees enforced: no plaintext password in URL/argv/logs/errors; TOCTOU-safe file reads; symlinks rejected; 401 remediation references env var names only; make restart auth failure never escalates.
 ---
 <!-- COMMENTS:END -->
