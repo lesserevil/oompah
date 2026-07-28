@@ -82,6 +82,32 @@ def _response_payload(response: httpx.Response) -> dict[str, Any]:
     return {"status_code": response.status_code, "body": content}
 
 
+async def _dispatch_api_call(
+    api_app: FastAPI,
+    method: str,
+    path: str,
+    *,
+    params: dict[str, Any] | None = None,
+    body: dict[str, Any] | None = None,
+) -> httpx.Response:
+    """Send one request to *api_app* via its ASGI interface and return the raw response.
+
+    Uses :class:`httpx.ASGITransport` so no real network socket is opened.
+    The synthetic ``base_url`` (``http://oompah.local``) never leaves the
+    process.
+
+    This helper centralises the ASGI dispatch so that callers do not need to
+    manage the transport or client lifecycle.  The feature layer (OOMPAH-524)
+    will extend this path to propagate an authenticated-request capability
+    without forwarding ``Authorization`` headers.
+    """
+    transport = httpx.ASGITransport(app=api_app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://oompah.local"
+    ) as client:
+        return await client.request(method.upper(), path, params=params, json=body)
+
+
 def build_mcp_gateway(api_app: FastAPI) -> FastMCP:
     """Build the MCP server from allowed operations in ``api_app.openapi()``.
 
@@ -130,16 +156,13 @@ def build_mcp_gateway(api_app: FastAPI) -> FastMCP:
                     body: dict[str, Any] | None = None,
                 ) -> dict[str, Any]:
                     rendered_path = _render_path(request_path, path_params or {})
-                    transport = httpx.ASGITransport(app=api_app)
-                    async with httpx.AsyncClient(
-                        transport=transport, base_url="http://oompah.local"
-                    ) as client:
-                        response = await client.request(
-                            request_method.upper(),
-                            rendered_path,
-                            params=query,
-                            json=body,
-                        )
+                    response = await _dispatch_api_call(
+                        api_app,
+                        request_method,
+                        rendered_path,
+                        params=query,
+                        body=body,
+                    )
                     return _response_payload(response)
 
                 return invoke

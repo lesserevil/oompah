@@ -5,11 +5,13 @@ from __future__ import annotations
 import asyncio
 
 import httpx
+import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
-from oompah.mcp_gateway import mcp_transport_security_settings
+from oompah.mcp_gateway import _dispatch_api_call, mcp_transport_security_settings
 from oompah.mcp_exposure_policy import MCP_DISCOVERY_PATH, MCP_ENDPOINT_PATH
 from oompah.server import app
 
@@ -84,3 +86,81 @@ def test_mcp_client_can_initialize_list_allowed_tools_and_call_state():
     assert "api_state_api_v1_state_get" in tool_names
     assert "api_orchestrator_restart_api_v1_orchestrator_restart_post" not in tool_names
     assert "api_webhook_github_api_v1_webhooks_github_post" not in tool_names
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for _dispatch_api_call
+# ---------------------------------------------------------------------------
+
+
+def _minimal_echo_app() -> FastAPI:
+    """Return a tiny FastAPI application for dispatch tests.
+
+    Routes:
+        GET /echo  → 200 {"method": "GET", "params": ...}
+        POST /echo → 201 {"method": "POST", "body": ...}
+    """
+    mini = FastAPI()
+
+    @mini.get("/echo")
+    async def echo_get(q: str | None = None):
+        return {"method": "GET", "q": q}
+
+    @mini.post("/echo", status_code=201)
+    async def echo_post(payload: dict | None = None):
+        return {"method": "POST", "payload": payload}
+
+    return mini
+
+
+@pytest.mark.asyncio
+async def test_dispatch_api_call_get_returns_response():
+    """_dispatch_api_call forwards GET requests and returns the raw response."""
+    mini = _minimal_echo_app()
+
+    response = await _dispatch_api_call(mini, "GET", "/echo")
+
+    assert response.status_code == 200
+    assert response.json() == {"method": "GET", "q": None}
+
+
+@pytest.mark.asyncio
+async def test_dispatch_api_call_get_with_query_params():
+    """_dispatch_api_call propagates query-string parameters."""
+    mini = _minimal_echo_app()
+
+    response = await _dispatch_api_call(mini, "GET", "/echo", params={"q": "hello"})
+
+    assert response.status_code == 200
+    assert response.json()["q"] == "hello"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_api_call_post_with_body():
+    """_dispatch_api_call serialises a JSON body for POST requests."""
+    mini = _minimal_echo_app()
+
+    response = await _dispatch_api_call(mini, "POST", "/echo", body={"key": "value"})
+
+    assert response.status_code == 201
+    assert response.json()["method"] == "POST"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_api_call_method_is_case_insensitive():
+    """_dispatch_api_call accepts lower- or mixed-case HTTP methods."""
+    mini = _minimal_echo_app()
+
+    response = await _dispatch_api_call(mini, "get", "/echo")
+
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_dispatch_api_call_unknown_path_returns_404():
+    """_dispatch_api_call propagates 404 for routes not in *api_app*."""
+    mini = _minimal_echo_app()
+
+    response = await _dispatch_api_call(mini, "GET", "/does-not-exist")
+
+    assert response.status_code == 404
