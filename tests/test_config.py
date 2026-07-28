@@ -97,6 +97,7 @@ class TestServiceConfig:
         assert cfg.storage_cleanup_max_bytes == 50 * 1024**3
         assert cfg.storage_cleanup_log_retention_seconds == 604800
         assert cfg.restart_drain_timeout_seconds == 3600
+        assert cfg.quality_gate_timeout_seconds == 3600
         assert cfg.prompt_max_comments == 20
         assert cfg.prompt_max_comment_bytes == 32 * 1024
         assert cfg.release_pick_max_runtime_seconds == 15
@@ -204,6 +205,21 @@ class TestServiceConfig:
     def test_restart_drain_timeout_is_documented(self):
         env_example = Path(__file__).parents[1] / ".env.example"
         assert "OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS=" in env_example.read_text(
+            encoding="utf-8"
+        )
+
+    def test_quality_gate_timeout_comes_from_environment(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_QUALITY_GATE_TIMEOUT_SECONDS", "5400")
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.quality_gate_timeout_seconds == 5400
+
+    def test_quality_gate_timeout_is_documented(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        assert "OOMPAH_QUALITY_GATE_TIMEOUT_SECONDS=" in env_example.read_text(
             encoding="utf-8"
         )
 

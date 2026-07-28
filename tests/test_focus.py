@@ -811,15 +811,17 @@ class TestFocusRenderWithProject:
         # And no Project Test Configuration block.
         assert "Project Test Configuration" not in out_no_arg
 
-    def test_render_with_test_command_replaces_run_tests(self):
+    def test_render_with_test_command_requests_focused_tests(self):
         focus = self._merge_conflict_focus()
         project = self._make_project(test_command="cargo test --workspace --lib")
         out = focus.render(project)
-        # The generic line should be gone, replaced with the explicit one.
+        # The generic line is narrowed to the changed behavior and neighbors.
         assert "Run tests after resolving all conflicts" not in out
-        assert "Run `cargo test --workspace --lib`" in out
+        assert "Run focused tests for the changed behavior" in out
         # The original tail (purpose) is preserved.
         assert "verify nothing is broken" in out
+        assert "orchestrator runs the full branch gate" in out
+        assert "cargo test --workspace --lib" in out
 
     def test_render_with_test_command_no_run_tests_bullet_appends_block(self):
         """Focus that doesn't have a 'Run tests' bullet still gets a hint block."""
@@ -833,7 +835,7 @@ class TestFocusRenderWithProject:
         out = focus.render(project)
         assert "Project Test Configuration" in out
         assert "make test" in out
-        assert "configured test_command" in out
+        assert "run focused tests" in out
 
     def test_render_does_not_double_mention_test_command(self):
         """When a must_do bullet already names the command, no duplicate hint."""
@@ -845,10 +847,9 @@ class TestFocusRenderWithProject:
         )
         project = self._make_project(test_command="make test")
         out = focus.render(project)
-        # The must_do line is rewritten with the command.
-        assert "Run `make test` to verify" in out
-        # But the extras hint is suppressed since the command appears already.
-        assert "configured test_command" not in out
+        assert "Run focused tests for the changed behavior" in out
+        # The full command is shown exactly once as orchestrator-owned.
+        assert out.count("make test") == 1
 
     def test_render_with_test_command_full(self):
         focus = self._merge_conflict_focus()
@@ -858,7 +859,8 @@ class TestFocusRenderWithProject:
         )
         out = focus.render(project)
         assert "make test-all" in out
-        assert "broader pre-merge-queue coverage" in out
+        assert "orchestrator runs the full branch gate" in out
+        assert "make test`" not in out
 
     def test_render_with_test_skip_paths(self):
         focus = self._merge_conflict_focus()

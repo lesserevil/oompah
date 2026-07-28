@@ -97,6 +97,7 @@ from oompah.prompt import (
     compact_prompt_comments,
     render_prompt,
 )
+from oompah.quality_gate import BranchQualityGate, QualityGateResult
 from oompah.repo_map_prompt import build_repo_map_context
 from oompah.projects import (
     ProjectError,
@@ -680,6 +681,10 @@ class Orchestrator:
         _state_dir = os.path.dirname(state_path or DEFAULT_SERVICE_STATE_PATH) or "."
         self._candidate_selector = CandidateSelector(
             path=os.path.join(_state_dir, "role_usage.json")
+        )
+        self._branch_quality_gate = BranchQualityGate(
+            os.path.join(_state_dir, "quality_gates.json"),
+            timeout_seconds=config.quality_gate_timeout_seconds,
         )
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         self.state = OrchestratorState(
@@ -1689,6 +1694,9 @@ class Orchestrator:
         self._prompt_template = prompt_template
         self.state.poll_interval_ms = config.poll_interval_ms
         self.state.max_concurrent_agents = config.max_concurrent_agents
+        self._branch_quality_gate.timeout_seconds = (
+            config.quality_gate_timeout_seconds
+        )
         self.tracker = self._new_tracker()
         # Clear cached per-project trackers so they pick up new state config
         self._project_trackers.clear()
@@ -5075,6 +5083,231 @@ class Orchestrator:
         return self._epic_rollup_children_block_reason(epic, children)
 
     @staticmethod
+    def _quality_gate_command(project: Project) -> str:
+        """Return the one full command for a review-ready branch."""
+        for raw in (
+            getattr(project, "test_command_full", None),
+            getattr(project, "test_command", None),
+        ):
+            if isinstance(raw, str) and raw.strip():
+                return raw.strip()
+        return ""
+
+    @staticmethod
+    def _worktree_head(path: str) -> str:
+        """Return ``path``'s exact git HEAD or an empty string."""
+        if not path or not os.path.isdir(path):
+            return ""
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return ""
+        return result.stdout.strip() if result.returncode == 0 else ""
+
+    def _quality_gate_worktree(
+        self,
+        project: Project,
+        issue: Issue,
+        branch: str,
+        *,
+        preferred_path: str | None = None,
+    ) -> str:
+        """Find an existing checkout whose HEAD is the review branch tip."""
+        project_id = str(project.id)
+        candidates: list[str] = []
+        if preferred_path:
+            candidates.append(preferred_path)
+        try:
+            if _is_epic_issue(issue) or self._issue_has_children(issue):
+                candidates.append(
+                    self.project_store.epic_worktree_path_for(
+                        project_id,
+                        issue.identifier,
+                    )
+                )
+            else:
+                candidates.append(
+                    self.project_store.worktree_path_for(
+                        project_id,
+                        issue.identifier,
+                    )
+                )
+        except (AttributeError, ProjectError):
+            pass
+        if project.repo_path:
+            candidates.append(project.repo_path)
+
+        branch_head = ""
+        if project.repo_path:
+            for ref in (
+                f"refs/heads/{branch}",
+                f"refs/remotes/origin/{branch}",
+            ):
+                try:
+                    resolved = subprocess.run(
+                        ["git", "rev-parse", "--verify", "--quiet", ref],
+                        cwd=project.repo_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=15,
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    continue
+                if resolved.returncode == 0:
+                    branch_head = resolved.stdout.strip()
+                    break
+        if not branch_head:
+            return ""
+
+        seen: set[str] = set()
+        for candidate in candidates:
+            path = os.path.abspath(str(candidate or ""))
+            if not path or path in seen:
+                continue
+            seen.add(path)
+            head = self._worktree_head(path)
+            if head == branch_head:
+                return path
+        return ""
+
+    def _record_quality_gate_failure(
+        self,
+        issue: Issue,
+        project_id: str,
+        branch: str,
+        target_branch: str,
+        result: QualityGateResult,
+        *,
+        post_comment: bool = True,
+    ) -> None:
+        """Route a failed pre-review gate to the normal CI repair workflow."""
+        try:
+            tracker = self._tracker_for_project(project_id)
+            tracker.update_issue(
+                issue.identifier,
+                status=NEEDS_CI_FIX,
+                **{"add-label": "ci-fix"},
+            )
+            output = result.output_tail.strip()
+            if len(output) > 4000:
+                output = output[-4000:]
+            lines = [
+                "Branch quality gate blocked review creation.",
+                "",
+                f"Branch: `{branch}`",
+                f"Target: `{target_branch}`",
+                f"Head: `{result.head_sha or 'unknown'}`",
+                f"Command: `{result.command or 'unavailable'}`",
+                f"Result: `{result.status}`",
+                "",
+                "Required: run the command in the task worktree, fix the "
+                "failure, commit and push the repair, then leave the task in "
+                "Done. Oompah will rerun the gate for the new head before "
+                "creating the PR/MR.",
+            ]
+            if output:
+                lines.extend(["", "Output tail:", "```text", output, "```"])
+            if post_comment:
+                tracker.add_comment(
+                    issue.identifier,
+                    "\n".join(lines),
+                    author="oompah",
+                )
+        except Exception as exc:  # noqa: BLE001 - gate still fails closed
+            logger.warning(
+                "Failed to route quality-gate failure for %s: %s",
+                issue.identifier,
+                exc,
+            )
+
+    def _review_quality_gate_passes(
+        self,
+        project: Project,
+        issue: Issue,
+        branch: str,
+        target_branch: str,
+        *,
+        preferred_path: str | None = None,
+    ) -> bool:
+        """Run or reuse the exact-head full check before creating a review."""
+        command = self._quality_gate_command(project)
+        if not command:
+            logger.debug(
+                "No branch quality command configured for %s; review gate skipped",
+                project.name,
+            )
+            return True
+
+        worktree = self._quality_gate_worktree(
+            project,
+            issue,
+            branch,
+            preferred_path=preferred_path,
+        )
+        if not worktree:
+            result = QualityGateResult(
+                status="error",
+                head_sha="",
+                command=command,
+                output_tail=(
+                    "No existing worktree matched the review branch tip. "
+                    "Recreate the task worktree before retrying."
+                ),
+            )
+        else:
+            result = self._branch_quality_gate.run(
+                repo_path=worktree,
+                repo_identity=project.repo_url or project.repo_path or str(project.id),
+                target_branch=target_branch,
+                work_branch=branch,
+                command=command,
+            )
+        if not result.passed:
+            log = logger.debug if result.cached else logger.warning
+            log(
+                "Branch quality gate %s for %s at %s%s",
+                result.status,
+                issue.identifier,
+                result.head_sha or "unknown",
+                " (cached)" if result.cached else "",
+            )
+            self._record_quality_gate_failure(
+                issue,
+                str(project.id),
+                branch,
+                target_branch,
+                result,
+                post_comment=not result.cached,
+            )
+            return False
+
+        if not result.cached:
+            try:
+                tracker = self._tracker_for_project(str(project.id))
+                tracker.add_comment(
+                    issue.identifier,
+                    "Branch quality gate passed for "
+                    f"`{result.head_sha}` using `{result.command}` "
+                    f"in {result.duration_seconds:.1f}s. Review creation may proceed.",
+                    author="oompah",
+                )
+            except Exception as exc:  # noqa: BLE001 - evidence is persisted
+                logger.debug(
+                    "Failed to post quality-gate pass comment for %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+        return True
+
+    @staticmethod
     def _resolve_git_branch_refs(repo_path: str, branch: str) -> tuple[str, ...]:
         """Return available local refs for ``branch`` without fetching.
 
@@ -6389,6 +6622,14 @@ class Orchestrator:
                     issue.identifier,
                     pre_create_block_reason,
                 )
+                continue
+
+            if not self._review_quality_gate_passes(
+                project,
+                issue,
+                epic_branch,
+                target_branch,
+            ):
                 continue
 
             title = (
@@ -8816,6 +9057,19 @@ class Orchestrator:
                 )
                 return True
 
+        if (
+            review_required
+            and entry.issue is not None
+            and not self._review_quality_gate_passes(
+                project,
+                entry.issue,
+                branch,
+                target_branch,
+                preferred_path=entry.workspace_path,
+            )
+        ):
+            return False
+
         # Create the review
         try:
             title = (
@@ -8878,6 +9132,29 @@ class Orchestrator:
                 )
                 return False
 
+        return True
+
+    def _defer_review_gate_to_maintenance(
+        self,
+        entry: RunningEntry,
+        project_id: str | None,
+    ) -> bool:
+        """Return True when standalone review handoff must run off-loop.
+
+        Worker exits execute on the scheduler event loop. A configured full
+        quality command can take minutes, so standalone Done tasks are left
+        for ``deferred_done_reviews``, which already runs in the maintenance
+        thread pool. Epic rollups use their own off-loop maintenance job.
+        """
+        if not project_id or entry.issue is None or entry.issue.parent_id:
+            return False
+        project = self.project_store.get(project_id)
+        if not project or not self._quality_gate_command(project):
+            return False
+        logger.info(
+            "Deferred review handoff for %s to the branch-quality maintenance lane",
+            entry.identifier,
+        )
         return True
 
     def _mark_task_in_review(
@@ -18749,7 +19026,11 @@ class Orchestrator:
                                     )
                                     self.state.completed.add(issue_id)
                                     self._clear_reopen_count(issue_id)
-                                    self._ensure_review_exists(entry, project_id)
+                                    if not self._defer_review_gate_to_maintenance(
+                                        entry,
+                                        project_id,
+                                    ):
+                                        self._ensure_review_exists(entry, project_id)
                                 else:
                                     try:
                                         self._post_comment(
@@ -18808,10 +19089,16 @@ class Orchestrator:
                                 # If review handoff fails for unmerged work,
                                 # the task is reopened and should not be
                                 # recorded as cleanly completed.
-                                review_ready = self._ensure_review_exists(
+                                if self._defer_review_gate_to_maintenance(
                                     entry,
                                     project_id,
-                                )
+                                ):
+                                    review_ready = True
+                                else:
+                                    review_ready = self._ensure_review_exists(
+                                        entry,
+                                        project_id,
+                                    )
                                 if review_ready:
                                     self.state.completed.add(issue_id)
                                     self._clear_reopen_count(issue_id)

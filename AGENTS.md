@@ -120,7 +120,8 @@ comments.
 When ending a work session, complete all of these steps:
 
 1. File follow-up tasks with `oompah task create` for remaining work.
-2. Run the relevant quality gates for the code you changed.
+2. Run focused checks for the code you changed. Oompah runs the configured
+   complete branch gate once for the exact review-ready head.
 3. Update the current oompah task status or leave a clear handoff comment.
 4. Push all committed work:
    ```bash
@@ -177,7 +178,8 @@ Quick test: if the doc tells the reader "what to do with oompah," it goes in `do
 
 - New functions/methods require unit tests
 - Bug fixes require a test that reproduces the bug
-- Run `make test` before committing to verify tests pass
+- Run focused tests before each specialist handoff. Oompah runs the configured
+  full Makefile gate once when the complete branch is ready for review.
 - Tests go in `tests/` following existing patterns (pytest, unittest.mock)
 
 ## Commit Attribution

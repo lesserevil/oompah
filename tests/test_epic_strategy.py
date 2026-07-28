@@ -2052,6 +2052,42 @@ class TestOpenEpicMainPrs:
         assert args[2] == "epic-epic-1"
         assert "Epic feature" in args[1]
 
+    def test_epic_review_waits_for_branch_quality_gate(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="stacked")
+        proj.test_command = "make test"
+        proj.test_command_full = None
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state="open",
+        )
+        child = _make_issue(identifier="c1", state="closed")
+        provider = MagicMock()
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch"),
+            patch.object(
+                orch,
+                "_review_quality_gate_passes",
+                return_value=False,
+            ) as gate,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
+        assert opened == 0
+        gate.assert_called_once_with(
+            proj,
+            epic,
+            "epic-epic-1",
+            "main",
+        )
+        provider.create_review.assert_not_called()
+
     def test_creates_pr_for_shared_when_all_children_closed(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="shared")
         orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"

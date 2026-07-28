@@ -39,7 +39,9 @@ When creating diagrams in documentation, use Mermaid code blocks.
 
 Code changes should include focused test coverage. Bug fixes should include a
 test that reproduces the failure. Prefer the repository's existing test
-patterns and run the relevant Makefile quality gate before handing off.
+patterns and run focused tests for changed behavior and directly affected
+neighboring suites before handing off. Oompah runs the configured complete
+branch gate once for the exact head that is ready for review.
 
 ## Non-Interactive Shell Commands
 

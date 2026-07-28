@@ -182,11 +182,14 @@ rg -n "<keyword>" docs plans README.md WORKFLOW.md
 - Run tests before committing to verify they pass
 - Follow existing test patterns in the project's test directory
 {% if project.test_command != "" %}
-**This project's pre-push verification command:** `{{ project.test_command }}`
+Run focused tests for the behavior you changed and the directly affected
+neighboring suites before each handoff.
 
-Use this exact command — do not infer a different test target from the repo layout.
-{% if project.test_command_full != "" %}For broader pre-merge-queue coverage, `{{ project.test_command_full }}` is also configured.
-{% endif %}{% if project.test_skip_paths.size > 0 %}Skip these paths during testing: {{ project.test_skip_paths | join: ", " }}.
+The orchestrator runs the complete branch gate once, for the exact head that is
+ready for review. Do not repeat that full gate at every specialist handoff.
+{% if project.test_command_full != "" %}Full branch gate: `{{ project.test_command_full }}`.
+{% else %}Full branch gate: `{{ project.test_command }}`.
+{% endif %}{% if project.test_skip_paths.size > 0 %}Skip these paths during focused testing: {{ project.test_skip_paths | join: ", " }}.
 {% endif %}{% endif %}
 
 ## Git Workflow

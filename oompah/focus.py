@@ -128,13 +128,10 @@ class Focus:
     def render(self, project: Project | None = None) -> str:
         """Render this focus as prompt text.
 
-        When ``project`` has a configured ``test_command``, every literal
-        "Run tests" instruction in the focus's ``must_do`` list is rewritten
-        to name that exact command so the agent does not have to infer the
-        right test target from repo layout. The same command is appended as
-        a hint when the focus has no explicit test step but the project
-        has one configured. ``test_command_full`` and ``test_skip_paths``
-        are surfaced as supplementary hints.
+        Worker handoffs request focused coverage for changed behavior and
+        neighboring suites. The configured full command is identified as an
+        orchestrator-owned review gate so every specialist does not repeat the
+        entire project suite.
         """
         lines = [
             f"## Your Role: {self.role}",
@@ -167,27 +164,20 @@ class Focus:
             "context. To request a particular next focus, also add "
             "`needs:<focus-name>`.",
         ])
-        # Append project-level test guidance whenever the project has
-        # a configured test_command. This applies to ALL focuses so the
-        # agent always sees the project's preferred command instead of
-        # inferring one from the repo layout. Avoid duplicating the
-        # message if a must_do bullet already names the command.
+        # Explain the division of responsibility: agents run focused checks;
+        # the orchestrator runs the full branch command once at review handoff.
         if project is not None and project.test_command:
             extras: list[str] = []
-            already_mentioned = any(
-                project.test_command in item for item in must_do
+            full_command = project.test_command_full or project.test_command
+            extras.append(
+                "At this handoff, run focused tests for the changed behavior "
+                "and directly affected neighboring suites."
             )
-            if not already_mentioned:
-                extras.append(
-                    f"For pre-push verification, run `{project.test_command}` "
-                    "(this project's configured test_command). Do not infer "
-                    "a different test target."
-                )
-            if project.test_command_full:
-                extras.append(
-                    f"For broader pre-merge-queue coverage, "
-                    f"`{project.test_command_full}` is also configured."
-                )
+            extras.append(
+                f"The orchestrator runs the full branch gate `{full_command}` "
+                "once when the complete branch is ready for review. Do not "
+                "repeat that full gate for each specialist handoff."
+            )
             if project.test_skip_paths:
                 extras.append(
                     "Skip these flaky/hardware/network paths during testing: "
@@ -201,15 +191,12 @@ class Focus:
         return "\n".join(lines)
 
     def _materialize_must_do(self, project: Project | None) -> list[str]:
-        """Return must_do with project test_command substituted where applicable.
+        """Return must_do with generic test bullets made explicitly focused.
 
-        When ``project.test_command`` is set, replace any generic
-        "Run tests..." bullet with a concrete "Run <test_command>..." line.
         Returns a copy; never mutates ``self.must_do``.
         """
         if project is None or not project.test_command:
             return list(self.must_do)
-        cmd = project.test_command
         out: list[str] = []
         for item in self.must_do:
             stripped = item.strip()
@@ -228,7 +215,10 @@ class Focus:
                 else:
                     tail = rest[2] if len(rest) >= 3 else ""
                 tail = (" " + tail.strip()) if tail.strip() else ""
-                out.append(f"Run `{cmd}`{tail}")
+                out.append(
+                    "Run focused tests for the changed behavior and directly "
+                    f"affected neighboring suites{tail}"
+                )
             else:
                 out.append(item)
         return out
