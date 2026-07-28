@@ -36,3 +36,5 @@ build/
 
 # Historical: beads/Dolt credential key from the old task tracker.
 .beads-credential-key
+
+.htpasswd
