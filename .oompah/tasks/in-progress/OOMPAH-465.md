@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:38:58.976885Z'
+updated_at: '2026-07-28T19:42:08.661968Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -621,5 +621,10 @@ author: oompah
 created: 2026-07-28 19:38
 ---
 Discovery: The coordinator/tests are present, but setup_services() does not construct or expose TerminalTransitionCoordinator and Orchestrator has no request wrapper. I will integrate it with the existing per-project tracker factory, add the orchestrator API, and cover bootstrap/orchestrator wiring while preserving the tested standalone API.
+---
+author: oompah
+created: 2026-07-28 19:42
+---
+Implementation: Integrated the coordinator into Orchestrator and bootstrap. It now resolves project-specific trackers, exposes request_terminal_transition with deterministic fallback fingerprints, and is returned in Services. Added project-factory, bootstrap wiring, and orchestrator routing tests.
 ---
 <!-- COMMENTS:END -->
