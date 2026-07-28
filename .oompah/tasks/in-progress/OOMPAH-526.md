@@ -13,9 +13,10 @@ blocked_by:
 - OOMPAH-525
 labels:
 - focus-complete:duplicate_detector
+- needs:docs
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T20:11:36.001790Z'
+updated_at: '2026-07-28T20:11:52.447406Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -100,5 +101,10 @@ author: oompah
 created: 2026-07-28 20:11
 ---
 Focus handoff: duplicate_detector\n\nOutcome: No duplicate confirmed; OOMPAH-526 is the distinct documentation and cross-surface validation child of OOMPAH-521.\n\nEvidence and decisions: Reviewed OOMPAH-521 and children OOMPAH-522 through OOMPAH-525 in full via ; their scopes are server credential loading, ASGI enforcement, MCP propagation, and CLI/lifecycle client credentials, respectively. Reviewed OOMPAH-6 and OOMPAH-339 as closest historical auth/GitLab candidates; they cover GitHub API intake credentials and GitLab label governance, not htpasswd deployment. Searched , , , , and  with rg for htpasswd, Basic auth, server/client passwords, and authentication. No implementation files were changed. Existing relevant surfaces include , , , , , , , , and their focused tests.\n\nRemaining work and risks: add/finish operator authentication documentation and links, ensure setting names and precedence agree across docs/.env.example/CLI/discovery, add documentation contract coverage where appropriate, and run cross-surface auth-off/auth-on, webhook, MCP, CLI, lifecycle, secret-scan, and full-gate verification. Preserve the exact public endpoint boundary and never include real credentials in docs, logs, URLs, argv, or fixtures.\n\nRecommended next focus: docs, followed by integration/security verification.
+---
+author: oompah
+created: 2026-07-28 20:11
+---
+Focus handoff: duplicate_detector\n\nOutcome: No duplicate confirmed; OOMPAH-526 is the distinct documentation and cross-surface validation child of OOMPAH-521.\n\nEvidence and decisions: Reviewed OOMPAH-521 and children OOMPAH-522 through OOMPAH-525 in full via the oompah task view command; their scopes are server credential loading, ASGI enforcement, MCP propagation, and CLI/lifecycle client credentials, respectively. Reviewed OOMPAH-6 and OOMPAH-339 as closest historical auth/GitLab candidates; they cover GitHub API intake credentials and GitLab label governance, not htpasswd deployment. Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md with rg for htpasswd, Basic auth, server/client passwords, and authentication. No implementation files were changed. Existing relevant surfaces include docs/cli-install.md, docs/operator-runbook.md, docs/project-bootstrap.md, .env.example, oompah/client_auth.py, oompah/http_auth.py, oompah/server.py, oompah/mcp_gateway.py, and their focused tests.\n\nRemaining work and risks: add or finish operator authentication documentation and links, ensure setting names and precedence agree across docs, .env.example, CLI, and discovery, add documentation contract coverage where appropriate, and run cross-surface auth-off/auth-on, webhook, MCP, CLI, lifecycle, secret-scan, and full-gate verification. Preserve the exact public endpoint boundary and never include real credentials in docs, logs, URLs, argv, or fixtures.\n\nRecommended next focus: docs, followed by integration and security verification.
 ---
 <!-- COMMENTS:END -->
