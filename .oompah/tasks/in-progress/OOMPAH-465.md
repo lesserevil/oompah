@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:24:34.787160Z'
+updated_at: '2026-07-28T19:29:36.820684Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -384,5 +384,35 @@ author: oompah
 created: 2026-07-28 19:24
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-28 19:29
+---
+Understanding: Software Engineer phase for OOMPAH-465.
+
+Scope: Implement TerminalTransitionCoordinator class in oompah/terminal_transition_coordinator.py and comprehensive tests in tests/test_terminal_transition_coordinator.py.
+
+Key findings from codebase exploration:
+- terminal_audit.py: TerminalAuditRecord, TargetState (DONE/MERGED/ARCHIVED), RequestState (PENDING/SUPERSEDED/COMPLETED), EvidenceFingerprint — all existing
+- terminal_audit_metadata.py: TerminalAuditMetadataStore with update() for atomic read-modify-write, upsert_pending_audit(), project_write_lock
+- statuses.py: IN_VALIDATION, TERMINAL_STATUSES, canonicalize_status() — all existing
+- models.py: Issue dataclass with .identifier, .state fields
+- tracker.py: TrackerProtocol with update_issue(identifier, status=...) and add_comment() methods
+- plans/terminal-transition-coordinator.md + plans/terminal-transition-coordinator-api.md: complete design doc from prior agent
+
+Implementation plan:
+1. oompah/terminal_transition_coordinator.py:
+   - TransitionResult dataclass
+   - TerminalTransitionCoordinator class with request_transition async method
+   - Per-project asyncio.Lock for concurrent request serialization
+   - Chain logic: Done (1 audit), Merged (reuse completed Done or queue Done+Merged), Archived (append)
+   - Coalescing: same target+fingerprint → return existing audit_id
+   - Superseding: same target, changed fingerprint → mark old SUPERSEDED
+   - Stale rejection: completed target → return already-completed
+   - All logic inside store.update() updater for atomicity
+   - Comment dedup via unknown_fields queued_comment_posted flag in metadata
+
+2. tests/test_terminal_transition_coordinator.py:
+   - 13+ test cases covering all scenarios from design doc
 ---
 <!-- COMMENTS:END -->
