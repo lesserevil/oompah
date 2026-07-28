@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T20:11:23.841032Z'
+updated_at: '2026-07-28T20:11:36.001790Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -95,5 +95,10 @@ author: oompah
 created: 2026-07-28 20:11
 ---
 Discovery: Duplicate screening found no duplicate. Reviewed OOMPAH-521 and its complete children OOMPAH-522 (htpasswd loading), OOMPAH-523 (ASGI HTTP/WebSocket boundary), OOMPAH-524 (MCP), and OOMPAH-525 (CLI/lifecycle client auth) in full; each is a distinct prerequisite or sibling scope for this documentation/integration task. OOMPAH-6 is unrelated GitHub API intake authentication, and OOMPAH-339 is unrelated GitLab label authorization. Repository searches across .oompah/tasks, docs, plans, README.md, and WORKFLOW.md found no separate htpasswd deployment/recovery documentation task.
+---
+author: oompah
+created: 2026-07-28 20:11
+---
+Focus handoff: duplicate_detector\n\nOutcome: No duplicate confirmed; OOMPAH-526 is the distinct documentation and cross-surface validation child of OOMPAH-521.\n\nEvidence and decisions: Reviewed OOMPAH-521 and children OOMPAH-522 through OOMPAH-525 in full via ; their scopes are server credential loading, ASGI enforcement, MCP propagation, and CLI/lifecycle client credentials, respectively. Reviewed OOMPAH-6 and OOMPAH-339 as closest historical auth/GitLab candidates; they cover GitHub API intake credentials and GitLab label governance, not htpasswd deployment. Searched , , , , and  with rg for htpasswd, Basic auth, server/client passwords, and authentication. No implementation files were changed. Existing relevant surfaces include , , , , , , , , and their focused tests.\n\nRemaining work and risks: add/finish operator authentication documentation and links, ensure setting names and precedence agree across docs/.env.example/CLI/discovery, add documentation contract coverage where appropriate, and run cross-surface auth-off/auth-on, webhook, MCP, CLI, lifecycle, secret-scan, and full-gate verification. Preserve the exact public endpoint boundary and never include real credentials in docs, logs, URLs, argv, or fixtures.\n\nRecommended next focus: docs, followed by integration/security verification.
 ---
 <!-- COMMENTS:END -->
