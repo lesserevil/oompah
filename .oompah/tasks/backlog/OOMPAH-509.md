@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:10.253754Z'
-updated_at: '2026-07-28T16:00:38.400511Z'
+updated_at: '2026-07-28T16:08:35.851705Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-07-28 16:00
 ---
 Sequencing update: the required no-network and live-tracker isolation changes are committed only on the still-incomplete epic-OOMPAH-490 branch. Added an explicit dependency on the whole epic to preserve branch atomicity; no child commit will be cherry-picked. I am proceeding with the non-overlapping xdist/config work on epic-OOMPAH-502 and will run repeated parallel full-suite verification only after OOMPAH-490 is merged and rebased.
+---
+author: oompah
+created: 2026-07-28 16:08
+---
+Checkpoint c25b592c5 is pushed on epic-OOMPAH-502: pytest-xdist 3.8.0; bounded OOMPAH_PYTEST_WORKERS=1..16 with default 4; make test-serial; private per-run and per-worker HOME/TMP/XDG cache trees under OOMPAH_TEMP_ROOT; one xdist group for process-owning tests; docs and contract tests. Focused results: 10 runner/plugin contracts passed; 97 process integration cases passed serially in 27.76s; 108 cases passed with four isolated workers in 37.28s before grouping optimization; the corrected live grouping check passed and put both selected process modules on gw0. No run directories or subprocesses leaked. Full repeated parallel-suite timing remains blocked on whole-epic OOMPAH-490 merge as recorded by the dependency.
 ---
 <!-- COMMENTS:END -->
