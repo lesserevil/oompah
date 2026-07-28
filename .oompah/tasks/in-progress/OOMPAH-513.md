@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:16:43.939778Z'
-updated_at: '2026-07-28T15:46:55.927925Z'
+updated_at: '2026-07-28T15:49:28.747671Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -155,5 +155,10 @@ author: oompah
 created: 2026-07-28 15:46
 ---
 Understanding: Test focus will independently verify the pushed fail-closed tracker-boundary guard. I will confirm the worktree is clean, safely align it to origin/epic-OOMPAH-511, inspect behavioral coverage for every public mutation family plus state-branch and standalone paths, prove key regressions fail when the guard is broken, then run focused tests and make test before closing or handing off.
+---
+author: oompah
+created: 2026-07-28 15:49
+---
+Discovery: Safely fast-forwarded the clean local epic branch from e7f3e9370 to pushed commit 6533e235e. The guard is at OompahMarkdownTracker._prepare_default_branch_for_write before task path resolution/Git sync, with a direct pre-write check for the external-import index; the orchestrator explicitly disables default-branch task writes for its global managed tracker and routes project writes to configured state trackers. The dedicated regression file covers 11 mutation families, a real disposable main/state remote isolation flow, management-scope errors, state writes, and non-task ledgers. Focused result so far: 17 passed.
 ---
 <!-- COMMENTS:END -->
