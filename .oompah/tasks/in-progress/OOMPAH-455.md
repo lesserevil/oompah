@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:44:47.132335Z'
+updated_at: '2026-07-28T13:52:17.900906Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -255,5 +255,10 @@ author: oompah
 created: 2026-07-28 13:44
 ---
 Discovery: The frontend commit is present and the worktree is clean. ProjectStore.update() currently rejects any payload containing both intake aliases before comparing values. api_update_project() also calls _resolve_github_token_owner() for explicit blank actors and token changes without checking the effective forge; api_create_project() has the same cross-forge fallback. The fix will keep github_issue_intake_enabled as the persisted field, accept either alias and coalesce matching dual values, reject differing dual values with a precise conflict error, and invoke the GitHub resolver only when the effective forge is github.
+---
+author: oompah
+created: 2026-07-28 13:52
+---
+Implementation: Updated ProjectStore intake-alias normalization to keep the legacy persisted field while accepting neutral-only, legacy-only, or matching dual-alias PATCHes and returning an explicit conflict error for differing values. Updated project create/PATCH identity fallback so _resolve_github_token_owner runs only for the effective github forge; GitLab blank actors remain unset and GitLab token changes never invoke GitHub. Added CRUD regressions for the GitLab UI state-branch edit, GitLab create/token update, both client aliases, matching values, conflicts, and invalid neutral values; refreshed the frontend comment to describe the canonical single-field payload.
 ---
 <!-- COMMENTS:END -->
