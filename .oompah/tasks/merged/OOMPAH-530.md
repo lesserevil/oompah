@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-530
 type: task
-status: Done
+status: Merged
 priority: 2
 title: Add atomic duplicate-preflight claims and recovery
 parent: OOMPAH-528
@@ -13,7 +13,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-28T21:18:51.634942Z'
-updated_at: '2026-07-28T22:13:35.671617Z'
+updated_at: '2026-07-28T22:14:45.582632Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
