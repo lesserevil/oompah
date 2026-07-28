@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:12:29.201978Z'
+updated_at: '2026-07-28T14:12:41.024695Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -139,5 +139,10 @@ author: oompah
 created: 2026-07-28 14:12
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-28 14:12
+---
+Understanding: Starting implementation of OOMPAH-501. The bug is that check_close_gate in oompah/close_gate.py evaluates a shared epic branch child's work_branch against the project default branch without parent/epic context, then emits a gh pr create command when it finds commits ahead of main. This bypasses the existing canonical epic-rollup readiness gate (_epic_rollup_children_block_reason in orchestrator.py). Fix plan: (1) make check_close_gate parent-aware so children on shared epic branches skip review creation requirements, (2) reuse/centralize the canonical rollup readiness check in every automatic review-creation path, (3) add regression tests reproducing OOMPAH-452/PR #558 scenario. Relevant files: oompah/close_gate.py, oompah/orchestrator.py, tests/test_close_gate.py, tests/test_epic_strategy.py.
 ---
 <!-- COMMENTS:END -->
