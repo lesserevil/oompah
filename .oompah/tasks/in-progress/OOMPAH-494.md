@@ -10,17 +10,32 @@ blocked_by:
 - OOMPAH-491
 labels:
 - focus-complete:duplicate_detector
-- needs:test
 assignee: null
 created_at: '2026-07-28T13:53:29.472352Z'
-updated_at: '2026-07-28T15:32:10.452385Z'
+updated_at: '2026-07-28T15:32:31.796122Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: e394b507-8596-4301-851f-21abd01a88fc
+oompah.agent_run_id: e0f0b0bd-fe96-425b-9c9a-4dc2b317dee3
 oompah.work_branch: epic-OOMPAH-490
+oompah.task_costs:
+  total_input_tokens: 517867
+  total_output_tokens: 4905
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 517867
+      output_tokens: 4905
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 517867
+    output_tokens: 4905
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T15:32:19.590110+00:00'
 ---
 ## Summary
 
@@ -73,5 +88,35 @@ Focus handoff: duplicate_detector
 2. Evidence: Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for Granian/E2E/subprocess/WebSocket/restart/cleanup overlap. Reviewed OOMPAH-490, OOMPAH-499, OOMPAH-500, and OOMPAH-172 in full. tests/test_granian_e2e.py owns the relevant helpers at lines 159-199, a function-scoped server fixture at line 215, and granular HTTP/WS/broadcast/restart classes from line 246 onward. Git history shows 9a68325e8 added 20 tests, 2821053d9 bounded complete WS draining, and 3c992af47 moved to per-test subprocesses to prevent a close/handshake edge case from hanging later tests.
 3. Remaining work/risks: Consolidate to no more than six independent scenarios without reverting to one shared module process. Preserve complete initial WS push/draining and isolate each scenario with bounded SIGINT/terminate/kill plus pipe draining on all exits. Capture before/after collection and timing, repeat the file including pytest -x, check for leaked generated-script children, and run make test now that prerequisite OOMPAH-491 is Done. Do not weaken Granian parity or unit lifecycle tests.
 4. Recommended next focus: test, for scenario refactoring and subprocess-cleanup verification. No files were changed and no tests were run during duplicate screening.
+---
+author: oompah
+created: 2026-07-28 15:32
+---
+Agent completed successfully in 155s (522772 tokens)
+---
+author: oompah
+created: 2026-07-28 15:32
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 27
+- Tokens: 517.9K in / 4.9K out [522.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 35s
+- Log: OOMPAH-494__20260728T152947Z.jsonl
+---
+author: oompah
+created: 2026-07-28 15:32
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 15:32
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-28 15:32
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
