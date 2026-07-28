@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-07-28T21:57:03.330715Z'
+updated_at: '2026-07-28T21:58:37.455765Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -88,5 +88,33 @@ author: oompah
 created: 2026-07-28 21:57
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 21:58
+---
+DUPLICATE INVESTIGATION COMPLETE
+
+No duplicate found. Searched .oompah/tasks (open, archived, merged) and documentation for related work.
+
+Current state:
+- OOMPAH-530 (dependency) was just merged with atomic duplicate-preflight claim infrastructure
+- OOMPAH-531 implementation has NOT been started yet
+  * No duplicate preflight scheduling logic exists in orchestrator._handle_dispatch_needed_locked
+  * No OOMPAH_DUPLICATE_PREFLIGHT_MAX_AGENTS config exists in .env.example or ServiceConfig
+  * No _select_duplicate_preflight or similar scheduling function exists
+
+Closest reviewed tasks:
+- OOMPAH-530: Atomic duplicate-preflight claims (completed, merged in HEAD 92aa5e5c2)
+- OOMPAH-529: Evidence and claim APIs (presumably completed, dependency satisfied)
+- OOMPAH-528: Parent epic (epic-OOMPAH-528 branch active)
+
+Previous comments referenced commit '7a2e467fb' claiming implementation complete. This commit does not exist in git history; the comment appears to be incorrect or from an abandoned branch.
+
+Recommendation: Ready for implementation focus agent to add:
+1. Per-tick duplicate preflight task selection (spare capacity only)
+2. Configurable capacity cap with OOMPAH_DUPLICATE_PREFLIGHT_MAX_AGENTS (default 1)
+3. Implementation-first ordering to preserve capacity for checked implementation-ready work
+4. All required tests from acceptance criteria
+5. Configuration in .env.example and ServiceConfig
 ---
 <!-- COMMENTS:END -->
