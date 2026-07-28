@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:53:36.055138Z'
+updated_at: '2026-07-28T15:53:38.854884Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -245,5 +245,10 @@ author: oompah
 created: 2026-07-28 15:53
 ---
 Completion: Feature code/documentation is complete and pushed on epic-OOMPAH-502 at 020199d32; the branch is clean and exactly up to date with origin. DevOps validation proved the six exact round-robin mappings, unchanged default/provider configuration, atomic invalid-input behavior, and exact rollback; focused tests (200), JS syntax, and secret scanning pass. The managed service cannot be safely mutated from this sandbox: its checkout/config is read-only, its running instance predates the feature, and managed ACP forbids loopback restart/API calls. The required production rollout, live role update, health checks, and telemetry confirmation are therefore tracked with full rollback criteria in OOMPAH-516, set to Needs Human for operator execution. No shadow service or unsafe production change was made.
+---
+author: oompah
+created: 2026-07-28 15:53
+---
+Implemented and verified explicit Claude/Codex model-tier support in commits 23d1c043b and 020199d32; branch is pushed and clean. Isolated rollout/rollback validation and 200 focused tests pass. Operator-only live deployment/configuration is tracked as OOMPAH-516 (Needs Human).
 ---
 <!-- COMMENTS:END -->
