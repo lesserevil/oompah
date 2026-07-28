@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-456
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make state-branch activation atomic and forge-aware for GitLab projects
 parent: OOMPAH-451
@@ -10,16 +10,15 @@ blocked_by: []
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:frontend
-- needs:feature
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:10:22.559886Z'
+updated_at: '2026-07-28T14:10:41.524729Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: d4d597a1-1df0-4cbc-aef1-fa240970426c
+oompah.agent_run_id: 36ed97d2-3656-4f14-bfde-bebd8e846ac7
 oompah.work_branch: epic-OOMPAH-451
 oompah.task_costs:
   total_input_tokens: 88
@@ -161,5 +160,15 @@ author: oompah
 created: 2026-07-28 14:10
 ---
 Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 14:10
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-28 14:10
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
