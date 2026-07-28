@@ -5,12 +5,22 @@ status: Backlog
 priority: 1
 title: Prune redundant tests and isolate the suite from live infrastructure
 parent: null
-children: []
+children:
+- OOMPAH-491
+- OOMPAH-492
+- OOMPAH-493
+- OOMPAH-494
+- OOMPAH-495
+- OOMPAH-496
+- OOMPAH-497
+- OOMPAH-498
+- OOMPAH-499
+- OOMPAH-500
 blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:51:11.052512Z'
-updated_at: '2026-07-28T13:51:11.052512Z'
+updated_at: '2026-07-28T13:53:35.593205Z'
 work_branch: null
 target_branch: null
 review_url: null
