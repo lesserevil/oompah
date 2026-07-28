@@ -3146,7 +3146,16 @@ class Orchestrator:
                 await full_sync_task
             except (asyncio.CancelledError, Exception):
                 pass
-            self._dispatch_loop = None
+            try:
+                # The executor futures below belong to this scheduler loop.
+                # Drain them before ``asyncio.run()`` closes the loop so the
+                # HTTP loop never has to await a foreign-loop Future during
+                # restart cleanup.
+                await self._drain_background_work()
+            except Exception:  # noqa: BLE001 -- shutdown must remain observable
+                logger.exception("Failed to drain orchestrator background work")
+            finally:
+                self._dispatch_loop = None
 
     async def stop(self) -> None:
         """Gracefully stop the orchestrator."""
@@ -3178,11 +3187,58 @@ class Orchestrator:
             )
             if future is not None
         ]
-        if futures:
+        current_loop = asyncio.get_running_loop()
+        local_futures: list[asyncio.Future[None]] = []
+        foreign_futures: list[asyncio.Future[None]] = []
+        for future in futures:
+            if future.done():
+                try:
+                    future.result()
+                except Exception:  # noqa: BLE001 -- maintenance failure is logged
+                    logger.exception("Background maintenance failed during shutdown")
+                continue
+            try:
+                owner_loop = future.get_loop()
+            except AttributeError:
+                owner_loop = current_loop
+            if owner_loop is current_loop:
+                local_futures.append(future)
+            else:
+                foreign_futures.append(future)
+
+        if local_futures:
             await asyncio.gather(
-                *(asyncio.shield(future) for future in futures),
+                *(asyncio.shield(future) for future in local_futures),
                 return_exceptions=True,
             )
+        for future in foreign_futures:
+            owner_loop = future.get_loop()
+            if owner_loop.is_running():
+
+                async def _wait_on_owner(
+                    owned_future: asyncio.Future[None] = future,
+                ) -> None:
+                    await asyncio.shield(owned_future)
+
+                bridge = asyncio.run_coroutine_threadsafe(
+                    _wait_on_owner(),
+                    owner_loop,
+                )
+                try:
+                    await asyncio.wrap_future(bridge)
+                except Exception:  # noqa: BLE001 -- preserve restart progress
+                    logger.exception(
+                        "Background maintenance failed on its owning loop"
+                    )
+            else:
+                # This is the defensive path for a scheduler loop that exited
+                # before an older service version drained its executor
+                # futures. Pool shutdown below still waits for the underlying
+                # worker without attaching the asyncio Future to this loop.
+                logger.warning(
+                    "Skipping pending background Future from a closed foreign loop; "
+                    "waiting for its executor during pool shutdown"
+                )
 
         # shutdown(wait=True) also accounts for short auxiliary submissions
         # that are not represented by the two maintenance future attributes.
