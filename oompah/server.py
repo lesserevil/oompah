@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import functools
 import json
@@ -294,6 +295,7 @@ async def _service_lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         services.webhook_forwarder,
     )
     set_gitlab_hook_manager(services.gitlab_hook_manager)
+    set_http_credentials(services.http_credentials)
     await services.webhook_forwarder.start()
     await services.gitlab_hook_manager.start()
 
@@ -421,7 +423,165 @@ async def _lifespan(app: "FastAPI"):
         raise _deferred_exit
 
 
+# ---------------------------------------------------------------------------
+# HTTP Basic authentication middleware (OOMPAH-523)
+# ---------------------------------------------------------------------------
+
+class _BasicAuthMiddleware:
+    """Raw ASGI middleware enforcing HTTP Basic authentication.
+
+    When ``_http_credentials`` is None or disabled, all requests pass through
+    unchanged (auth-disabled deployments retain current behaviour exactly).
+
+    When enabled:
+    - Exact (method, normalised-path) pairs in ``_AUTH_EXEMPT`` bypass auth.
+    - All other HTTP requests must carry a valid ``Authorization: Basic …`` header.
+    - All other WebSocket upgrade requests are authenticated from the HTTP
+      headers sent with the upgrade; auth is checked *before* ``accept()``.
+    - Failed auth receives HTTP 401 with
+      ``WWW-Authenticate: Basic realm="oompah", charset="UTF-8"`` (HTTP) or
+      WebSocket 1008 Policy Violation (WebSocket).
+    - The ``Authorization`` header value is never echoed, logged, or included
+      in error responses.
+    """
+
+    # Exact (METHOD, /path) pairs exempted from Basic authentication.
+    _AUTH_EXEMPT: frozenset[tuple[str, str]] = frozenset([
+        ("GET", "/healthz"),
+        ("POST", "/api/v1/webhooks/github"),
+        ("POST", "/api/v1/webhooks/gitlab"),
+    ])
+
+    _CHALLENGE = b'Basic realm="oompah", charset="UTF-8"'
+    _DENY_BODY = b"Unauthorized"
+
+    def __init__(self, app):  # noqa: ANN001 – ASGI app, typing not practical here
+        self._app = app
+
+    async def __call__(self, scope, receive, send):  # noqa: ANN001
+        scope_type = scope.get("type")
+
+        # Lifespan events always pass through — do not interfere with startup.
+        if scope_type == "lifespan":
+            await self._app(scope, receive, send)
+            return
+
+        # Auth disabled → transparent pass-through.
+        creds = _http_credentials
+        if creds is None or not creds.enabled:
+            await self._app(scope, receive, send)
+            return
+
+        if scope_type == "http":
+            method = scope.get("method", "").upper()
+            # Normalise path: strip trailing slash unless it is the root "/".
+            path = scope.get("path", "/")
+
+            # Exempt routes bypass Basic auth entirely.
+            if (method, path) in self._AUTH_EXEMPT:
+                await self._app(scope, receive, send)
+                return
+
+            # Check Authorization header.
+            if self._verify_scope(scope, creds):
+                await self._app(scope, receive, send)
+                return
+
+            # Deny with 401 Basic challenge — no credential disclosure.
+            body = self._DENY_BODY
+            await send({
+                "type": "http.response.start",
+                "status": 401,
+                "headers": [
+                    (b"www-authenticate", self._CHALLENGE),
+                    (b"content-type", b"text/plain; charset=utf-8"),
+                    (b"content-length", str(len(body)).encode()),
+                ],
+            })
+            await send({
+                "type": "http.response.body",
+                "body": body,
+                "more_body": False,
+            })
+            return
+
+        if scope_type == "websocket":
+            # Authenticate from the HTTP headers in the upgrade request.
+            # We must check auth *before* calling self._app (which calls
+            # ws.accept() internally), so that an unauthenticated connection
+            # is never added to _ws_clients.
+            if self._verify_scope(scope, creds):
+                await self._app(scope, receive, send)
+                return
+
+            # Consume the connect event, then close with Policy Violation (1008).
+            msg = await receive()
+            if msg.get("type") == "websocket.connect":
+                await send({"type": "websocket.close", "code": 1008})
+            return
+
+        # Unknown scope type — pass through.
+        await self._app(scope, receive, send)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _verify_scope(scope, creds) -> bool:
+        """Return True if the Authorization header in *scope* is valid."""
+        headers: dict[bytes, bytes] = {
+            k.lower(): v for k, v in scope.get("headers", [])
+        }
+        auth_bytes = headers.get(b"authorization", b"")
+        return _BasicAuthMiddleware._check_basic(auth_bytes, creds)
+
+    @staticmethod
+    def _check_basic(auth_bytes: bytes, creds) -> bool:
+        """Parse a Basic Authorization value and verify credentials.
+
+        Returns True on success, False for any failure condition
+        (missing header, wrong scheme, malformed base64, bad credentials).
+        The Authorization value is never logged or included in any error.
+        """
+        if not auth_bytes:
+            return False
+
+        try:
+            auth_str = auth_bytes.decode("latin-1")
+        except Exception:  # noqa: BLE001
+            return False
+
+        parts = auth_str.split(" ", 1)
+        if len(parts) != 2 or parts[0].lower() != "basic":
+            return False
+
+        try:
+            # Add padding to tolerate base64 without trailing "="
+            decoded_bytes = base64.b64decode(parts[1].strip() + "==")
+            decoded = decoded_bytes.decode("utf-8")
+        except Exception:  # noqa: BLE001
+            return False
+
+        if ":" not in decoded:
+            return False
+
+        username, _, password = decoded.partition(":")
+
+        from oompah.http_auth import VerificationError
+
+        try:
+            creds.verifier(username, password)
+            return True
+        except VerificationError:
+            return False
+        except Exception:  # noqa: BLE001 — unexpected error → deny
+            logger.debug("Unexpected error during credential verification", exc_info=True)
+            return False
+
+
 app = FastAPI(title="oompah", version="0.1.0", lifespan=_lifespan)
+app.add_middleware(_BasicAuthMiddleware)
 
 # Serve static assets (favicon, etc.) from oompah/static/
 from fastapi.staticfiles import StaticFiles
@@ -434,6 +594,18 @@ if _STATIC_DIR.is_dir():
 # on every request (hot path — browsers hit /favicon.ico on every page load).
 _FAVICON_PATH = _STATIC_DIR / "favicon.svg"
 _FAVICON_CACHE: bytes | None = _FAVICON_PATH.read_bytes() if _FAVICON_PATH.is_file() else None
+
+
+@app.get("/healthz")
+async def healthz():
+    """Minimal unauthenticated health endpoint for process supervisors.
+
+    Intentionally returns *only* the fields required to distinguish a live
+    instance from a restarted one.  No projects, tasks, providers, budgets,
+    alerts, or credentials are included.  This endpoint is exempt from HTTP
+    Basic authentication even when auth is enabled.
+    """
+    return JSONResponse({"status": "ok", "instance_id": _INSTANCE_ID})
 
 
 @app.get("/favicon.ico")
@@ -504,6 +676,14 @@ _ws_clients: set[WebSocket] = set()
 # set_orchestrator() once the project/provider/role stores are wired,
 # then accessed by the WS handler and the GET /api/v1/console endpoints.
 _console_manager: Any = None
+
+# HTTP Basic auth credentials (OOMPAH-523).  Set during startup via
+# set_http_credentials() when the htpasswd file is found; None means disabled.
+_http_credentials: Any = None  # oompah.http_auth.HtpasswdCredentials | None
+
+# Unique identifier for this service instance — used in /healthz to let
+# supervisors distinguish restarts without exposing operational data.
+_INSTANCE_ID: str = uuid.uuid4().hex
 
 _NATIVE_TASK_IDENTIFIER_RE = re.compile(r"^TASK-(\d+(?:\.\d+)*)$", re.IGNORECASE)
 
@@ -800,6 +980,25 @@ def set_gitlab_hook_manager(manager: Any) -> None:
     from oompah.webhooks import GitLabEventDedup
     _gitlab_hook_manager = manager
     _gitlab_event_dedup = GitLabEventDedup()
+
+
+def set_http_credentials(creds: Any) -> None:
+    """Register HTTP Basic auth credentials loaded at startup.
+
+    Called from ``_service_lifespan`` after :func:`setup_services` returns.
+    *creds* is an :class:`~oompah.http_auth.HtpasswdCredentials` instance.
+    When ``creds.enabled`` is False the middleware remains a transparent
+    pass-through.
+    """
+    global _http_credentials
+    _http_credentials = creds
+    if creds is not None and getattr(creds, "enabled", False):
+        logger.info(
+            "HTTP Basic auth enabled (htpasswd: %s)",
+            getattr(creds, "htpasswd_path", "<unknown>"),
+        )
+    else:
+        logger.debug("HTTP Basic auth disabled")
 
 
 def remove_draft_labels_from_epics(tracker) -> int:
