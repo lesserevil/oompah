@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:18:31.077035Z'
-updated_at: '2026-07-28T21:24:20.001176Z'
+updated_at: '2026-07-28T21:24:55.922859Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -150,5 +150,32 @@ created: 2026-07-28 21:24
 7. Verify all acceptance criteria met
 
 **Key insight from prior context**: Need to handle fingerprint/detector-version mismatch as stale (not delete historical evidence), exclude Oompah-owned transient labels/comments, and fail safe on malformed records.
+---
+author: oompah
+created: 2026-07-28 21:24
+---
+**Discovery**: Found the key architecture patterns:
+
+1. **Metadata Pattern** (intake_schema.py, terminal_audit_metadata.py):
+   - Typed dataclass with from_raw/to_raw for tolerant parsing
+   - Persisted via tracker.set_metadata_field/get_metadata with versioning
+   - Preserves unknown fields for forward compatibility
+   
+2. **Current Duplicate Detection** (orchestrator.py:14295):
+   - Skips candidates with 'focus-complete:duplicate_detector' label
+   - Uses find_similar_issues() to detect matches
+   - Moves matches to 'Duplicate Candidate' status
+   
+3. **Legacy Label** (test_orchestrator_duplicate_detection.py):
+   - Tests show focus-complete:duplicate_detector means 'already checked'
+   - Must migrate to new metadata-backed model
+
+**Implementation Plan**:
+- Create oompah/duplicate_screening.py with DuplicateScreeningEvidence dataclass
+- Implement canonical fingerprint from task fields (title, description, project, parent, dependencies, user labels)
+- Implement state helpers: is_unchecked(), is_running(), is_checked(), is_stale()
+- Add metadata persistence via DuplicateScreeningMetadataStore
+- Handle legacy label as migration input (expose as stale)
+- Write comprehensive tests for fingerprint stability, metadata round-trip, tracker contract
 ---
 <!-- COMMENTS:END -->
