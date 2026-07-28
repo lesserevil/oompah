@@ -9,6 +9,7 @@ import os
 import signal
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable
 
 from oompah.client_auth import agent_environment
@@ -19,6 +20,169 @@ logger = logging.getLogger(__name__)
 MAX_LINE_SIZE = 10 * 1024 * 1024
 DEFAULT_STOP_TIMEOUT_S = 5.0
 STOP_POLL_INTERVAL_S = 0.02
+
+
+def _linux_process_snapshot() -> dict[int, tuple[int, int, str | None, tuple[str, ...]]]:
+    """Return ``pid -> (ppid, starttime, cwd, argv)`` from procfs.
+
+    ``starttime`` protects the termination path from PID reuse.  Procfs reads
+    are intentionally best-effort because processes may exit between any two
+    entries while the snapshot is being assembled.
+    """
+
+    if os.name != "posix" or not os.path.isdir("/proc"):
+        return {}
+    snapshot: dict[int, tuple[int, int, str | None, tuple[str, ...]]] = {}
+    for raw_pid in os.listdir("/proc"):
+        if not raw_pid.isdigit():
+            continue
+        pid = int(raw_pid)
+        try:
+            stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+            fields = stat[stat.rfind(")") + 2 :].split()
+            if fields[0] == "Z":
+                # A zombie has exited and cannot perform work; its owner only
+                # needs to reap it. Treat it as gone for termination safety.
+                continue
+            ppid = int(fields[1])
+            starttime = int(fields[19])
+        except (OSError, ValueError, IndexError):
+            continue
+        try:
+            cwd = os.path.realpath(os.readlink(f"/proc/{pid}/cwd"))
+        except OSError:
+            cwd = None
+        try:
+            argv = tuple(
+                value.decode("utf-8", errors="replace")
+                for value in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+                if value
+            )
+        except OSError:
+            argv = ()
+        snapshot[pid] = (ppid, starttime, cwd, argv)
+    return snapshot
+
+
+def capture_workspace_processes(
+    workspace_path: str,
+    *,
+    ancestor_pid: int | None = None,
+) -> dict[int, int]:
+    """Capture service-owned processes associated with *workspace_path*.
+
+    Some third-party SDKs terminate only their immediate subprocess, allowing
+    grandchildren to survive and continue editing after Oompah has forgotten
+    the worker.  Before cancellation severs the ancestry, this function finds
+    descendants of the service whose cwd or argv identifies the exact managed
+    workspace, then includes every descendant of those matching processes.
+
+    The returned mapping contains PID start times and is safe to pass to
+    :func:`terminate_captured_processes`.
+    """
+
+    snapshot = _linux_process_snapshot()
+    if not snapshot:
+        return {}
+    root_pid = os.getpid() if ancestor_pid is None else int(ancestor_pid)
+    workspace = os.path.realpath(workspace_path)
+    workspace_prefix = workspace + os.sep
+
+    descendants: set[int] = set()
+    frontier = {root_pid}
+    while frontier:
+        parents = frontier
+        frontier = {
+            pid
+            for pid, (ppid, _start, _cwd, _argv) in snapshot.items()
+            if ppid in parents and pid not in descendants
+        }
+        descendants.update(frontier)
+
+    seeds = {
+        pid
+        for pid in descendants
+        if (
+            (snapshot[pid][2] == workspace)
+            or bool(snapshot[pid][2] and snapshot[pid][2].startswith(workspace_prefix))
+            or workspace in snapshot[pid][3]
+        )
+    }
+    selected = set(seeds)
+    frontier = set(seeds)
+    while frontier:
+        parents = frontier
+        frontier = {
+            pid
+            for pid, (ppid, _start, _cwd, _argv) in snapshot.items()
+            if ppid in parents and pid not in selected
+        }
+        selected.update(frontier)
+    return {pid: snapshot[pid][1] for pid in selected}
+
+
+def terminate_captured_processes(
+    captured: dict[int, int],
+    *,
+    timeout_s: float = DEFAULT_STOP_TIMEOUT_S,
+) -> set[int]:
+    """Terminate an exact, PID-reuse-safe process set and return survivors."""
+
+    if not captured:
+        return set()
+
+    # Include children created in the narrow interval between the orchestrator's
+    # capture and this termination worker beginning. They are accepted only
+    # when their ancestry reaches a PID whose start time was already captured.
+    current = _linux_process_snapshot()
+    frontier = {
+        pid
+        for pid, starttime in captured.items()
+        if pid in current and current[pid][1] == starttime
+    }
+    while frontier:
+        parents = frontier
+        frontier = {
+            pid
+            for pid, (ppid, starttime, _cwd, _argv) in current.items()
+            if ppid in parents and pid not in captured
+        }
+        for pid in frontier:
+            captured[pid] = current[pid][1]
+
+    def _alive() -> set[int]:
+        current = _linux_process_snapshot()
+        return {
+            pid
+            for pid, starttime in captured.items()
+            if pid in current and current[pid][1] == starttime
+        }
+
+    def _signal(pids: set[int], sig: signal.Signals) -> None:
+        # Signal only the captured PID/start-time identities; never a broad
+        # process group shared with the service or unrelated workers.
+        for pid in sorted(pids, reverse=True):
+            try:
+                os.kill(pid, sig)
+            except (ProcessLookupError, PermissionError):
+                continue
+
+    alive = _alive()
+    _signal(alive, signal.SIGTERM)
+    deadline = time.monotonic() + max(float(timeout_s), 0.0)
+    while alive and time.monotonic() < deadline:
+        time.sleep(STOP_POLL_INTERVAL_S)
+        alive = _alive()
+    if alive:
+        _signal(alive, signal.SIGKILL)
+        kill_deadline = time.monotonic() + max(
+            min(float(timeout_s), 1.0),
+            STOP_POLL_INTERVAL_S,
+        )
+        while alive and time.monotonic() < kill_deadline:
+            time.sleep(STOP_POLL_INTERVAL_S)
+            alive = _alive()
+    return alive
 
 
 class AgentError(Exception):

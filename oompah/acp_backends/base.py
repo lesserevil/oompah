@@ -84,6 +84,9 @@ class AcpBackendOptions:
     max_turns: int | None = None
     env: dict[str, str] | None = None
     tool_catalog: list[Any] | None = None
+    # Qualification-only runs expose read/search tools but no shell, file
+    # mutation, tracker mutation, network access, or writable sandbox.
+    read_only: bool = False
     # Permission mode kept accessible through options (not buried inside
     # the Claude-specific path) so future backends honoring different
     # permission semantics can read the same field. Today's

@@ -517,6 +517,7 @@ def build_tool_catalog(
     project_id: str | None = None,
     task_tracker: Any = None,
     action_policy: AgentActionPolicy | None = None,
+    read_only: bool = False,
 ) -> list[Any]:
     """Build the SDK-flavored tool list for one ACP session.
 
@@ -743,16 +744,23 @@ def build_tool_catalog(
             )
         )
 
-    return [
+    readable = [
         read_file,
-        write_file,
-        edit_file,
         list_files,
         search_files,
-        run_command,
         list_projects,
         get_project,
         get_project_by_id,
+    ]
+    if read_only:
+        return readable
+    return [
+        *readable[:1],
+        write_file,
+        edit_file,
+        *readable[1:3],
+        run_command,
+        *readable[3:],
         update_project,
         update_project_by_id,
     ]
@@ -771,6 +779,7 @@ def build_codex_tool_catalog(
     project_id: str | None = None,
     task_tracker: Any = None,
     action_policy: AgentActionPolicy | None = None,
+    read_only: bool = False,
 ) -> list[Any]:
     """Build the OpenAI-Agents-SDK-flavored tool list for a Codex session.
 
@@ -943,16 +952,23 @@ def build_codex_tool_catalog(
             action_policy=action_policy,
         )
 
-    return [
+    readable = [
         read_file,
-        write_file,
-        edit_file,
         list_files,
         search_files,
-        run_command,
         list_projects,
         get_project,
         get_project_by_id,
+    ]
+    if read_only:
+        return readable
+    return [
+        *readable[:1],
+        write_file,
+        edit_file,
+        *readable[1:3],
+        run_command,
+        *readable[3:],
         update_project,
         update_project_by_id,
     ]
@@ -971,6 +987,7 @@ def build_opencode_tool_catalog(
     project_id: str | None = None,
     task_tracker: Any = None,
     action_policy: AgentActionPolicy | None = None,
+    read_only: bool = False,
 ) -> list[Any]:
     """Build the OpenCode-SDK-flavored tool list for an OpenCode session.
 
@@ -1200,16 +1217,23 @@ def build_opencode_tool_catalog(
             )
         )
 
-    return [
+    readable = [
         read_file,
-        write_file,
-        edit_file,
         list_files,
         search_files,
-        run_command,
         list_projects,
         get_project,
         get_project_by_id,
+    ]
+    if read_only:
+        return readable
+    return [
+        *readable[:1],
+        write_file,
+        edit_file,
+        *readable[1:3],
+        run_command,
+        *readable[3:],
         update_project,
         update_project_by_id,
     ]

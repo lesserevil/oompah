@@ -8,11 +8,12 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from oompah.config import ServiceConfig
+from oompah.api_agent import AgentActivity
 from oompah.duplicate_screening import (
     DETECTOR_VERSION,
     METADATA_KEY,
@@ -316,6 +317,70 @@ def test_no_duplicate_completion_keeps_open_and_unlocks_implementation():
     assert (issue.identifier, "In Progress") not in tracker.status_updates
 
 
+def test_markdown_activity_verdict_completes_without_tracker_mutation():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    claim = orch._claim_duplicate_preflight(issue)
+    assert claim is not None
+    entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
+    entry.activity_log.append(
+        AgentActivity(
+            turn=1,
+            kind="message",
+            summary="Duplicate investigation complete",
+            detail=(
+                "**Focus handoff: duplicate_detector**\n"
+                "- **Duplicate preflight verdict: no_duplicate**\n"
+                "- **Matches: none**\n"
+                "**Evidence:** reviewed all active candidates."
+            ),
+            timestamp=datetime.now(timezone.utc).timestamp(),
+        )
+    )
+
+    result = orch._finish_duplicate_preflight_sync(entry, "normal", None)
+
+    refreshed = tracker.fetch_issue_detail(issue.identifier)
+    assert result["outcome"] == "checked"
+    assert refreshed.state == OPEN
+    assert tracker.fetch_comments(issue.identifier) == []
+    assert refreshed.labels == []
+
+
+def test_conflicting_activity_verdicts_fail_closed():
+    claimed_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    activity = [
+        AgentActivity(
+            turn=1,
+            kind="message",
+            summary="first",
+            detail="Duplicate preflight verdict: no_duplicate\nMatches: none",
+            timestamp=datetime.now(timezone.utc).timestamp(),
+        ),
+        AgentActivity(
+            turn=2,
+            kind="message",
+            summary="second",
+            detail=(
+                "Duplicate preflight verdict: duplicate_candidate\n"
+                "Matches: TASK-2"
+            ),
+            timestamp=datetime.now(timezone.utc).timestamp(),
+        ),
+    ]
+
+    verdict, matches, evidence = Orchestrator._parse_duplicate_preflight_verdict(
+        [],
+        claimed_at=claimed_at,
+        activity_log=activity,
+    )
+
+    assert verdict is None
+    assert matches == []
+    assert "Conflicting" in evidence
+
+
 def test_only_active_verified_match_becomes_duplicate_candidate():
     issue = _issue()
     active = _issue("TASK-2", title="Existing active equivalent")
@@ -480,6 +545,103 @@ async def test_dispatch_preflight_does_not_move_task_in_progress():
     stop.set()
     await entry.worker_task
     orch._tick_pool.shutdown(wait=True)
+
+
+@pytest.mark.asyncio
+async def test_reconcile_preserves_open_worker_with_current_preflight_claim():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    claim = orch._claim_duplicate_preflight(issue)
+    assert claim is not None
+    entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
+    orch.state.running[issue.id] = entry
+    orch.config.stall_timeout_ms = 0
+    orch._tick_pool = ThreadPoolExecutor(max_workers=1)
+    orch._fetch_running_states = lambda _by_project: {
+        issue.id: tracker.fetch_issue_detail(issue.identifier)
+    }
+    orch._terminate_running = AsyncMock(return_value=True)
+
+    try:
+        await orch._reconcile()
+    finally:
+        orch._tick_pool.shutdown(wait=True)
+
+    orch._terminate_running.assert_not_awaited()
+    assert issue.id in orch.state.running
+    assert orch.state.running[issue.id].issue.state == OPEN
+
+
+@pytest.mark.asyncio
+async def test_reconcile_terminates_stale_preflight_without_implementation_retry():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    claim = orch._claim_duplicate_preflight(issue)
+    assert claim is not None
+    entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
+    orch.state.running[issue.id] = entry
+    replacement = new_claim_record(issue, owner="other-scheduler")
+    tracker.set_metadata_field(
+        issue.identifier,
+        METADATA_KEY,
+        replacement.to_dict(),
+    )
+    orch.config.stall_timeout_ms = 0
+    orch._tick_pool = ThreadPoolExecutor(max_workers=1)
+    orch._fetch_running_states = lambda _by_project: {
+        issue.id: tracker.fetch_issue_detail(issue.identifier)
+    }
+    orch._terminate_running = AsyncMock(return_value=True)
+    orch._schedule_retry = MagicMock()
+
+    try:
+        await orch._reconcile()
+    finally:
+        orch._tick_pool.shutdown(wait=True)
+
+    orch._terminate_running.assert_awaited_once_with(
+        issue.id,
+        cleanup_workspace=False,
+    )
+    orch._schedule_retry.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_forced_termination_clears_only_its_exact_preflight_claim():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    claim = orch._claim_duplicate_preflight(issue)
+    assert claim is not None
+    entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
+    entry.worker_task = MagicMock()
+    entry.worker_task.done.return_value = True
+    orch.state.running[issue.id] = entry
+    orch.state.claimed.add(issue.id)
+    orch.state.claimed_issues[issue.id] = issue
+    orch._terminating_worker_ids = set()
+    orch._cli_agent_sessions = {}
+    orch._acp_agent_sessions = {}
+    orch._tick_pool = ThreadPoolExecutor(max_workers=1)
+    orch._fire_task_cost_record = MagicMock()
+    orch._fire_telemetry_comment = MagicMock()
+
+    try:
+        result = await orch._terminate_running(
+            issue.id,
+            cleanup_workspace=False,
+        )
+    finally:
+        orch._tick_pool.shutdown(wait=True)
+
+    stored = tracker.get_metadata(issue.identifier)[METADATA_KEY]
+    assert result is True
+    assert stored["claim_id"] is None
+    assert issue.id not in orch.state.running
+    assert issue.id not in orch.state.claimed
+    assert issue.id not in orch.state.claimed_issues
 
 
 def test_normal_implementation_gate_requires_current_model_pass():

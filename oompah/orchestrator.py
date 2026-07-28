@@ -20,7 +20,13 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from enum import Enum
 from typing import Any
 
-from oompah.agent import AgentError, AgentEvent, AgentSession
+from oompah.agent import (
+    AgentError,
+    AgentEvent,
+    AgentSession,
+    capture_workspace_processes,
+    terminate_captured_processes,
+)
 from oompah.agent_profile_store import AgentProfileStore
 from oompah.api_agent import AgentActivity, ApiAgentSession
 from oompah.completion_verifier import VerifierResult, verify_completion
@@ -1052,6 +1058,10 @@ class Orchestrator:
         # LiveSession telemetry stored on RunningEntry. Forced termination uses
         # these to stop a process tree even when its worker ignores cancellation.
         self._cli_agent_sessions: dict[str, AgentSession] = {}
+        # ACP backends also own subprocesses (including Codex descendants).
+        # Retain the facade so reconcile/service shutdown can invoke its
+        # backend-specific close path instead of relying on task cancellation.
+        self._acp_agent_sessions: dict[str, Any] = {}
         # Prevent a cancelled worker's finally block from racing the forced
         # termination path and reporting a normal exit before shutdown finishes.
         self._terminating_worker_ids: set[str] = set()
@@ -4668,6 +4678,37 @@ class Orchestrator:
         return assess_screening(
             issue,
             detector_version=DUPLICATE_DETECTOR_VERSION,
+        )
+
+    @staticmethod
+    def _duplicate_preflight_claim_is_current(
+        entry: RunningEntry,
+        issue: Issue,
+        *,
+        now: datetime | None = None,
+    ) -> bool:
+        """Return whether *issue* still owns *entry*'s exact live claim."""
+
+        if (
+            not getattr(entry, "duplicate_preflight", False)
+            or canonicalize_status(issue.state) != OPEN
+        ):
+            return False
+        record = DuplicateScreeningRecord.from_raw(
+            getattr(issue, "duplicate_screening", None)
+        )
+        now = now or datetime.now(timezone.utc)
+        current_fingerprint = compute_task_fingerprint(issue)
+        return bool(
+            record is not None
+            and record.claim_id
+            and record.claim_id == entry.duplicate_preflight_claim_id
+            and record.detector_version == DUPLICATE_DETECTOR_VERSION
+            and record.task_fingerprint == current_fingerprint
+            and record.task_fingerprint
+            == entry.duplicate_preflight_fingerprint
+            and record.claim_expires_at is not None
+            and record.claim_expires_at > now
         )
 
     def _requires_duplicate_preflight(self, issue: Issue) -> bool:
@@ -17822,6 +17863,10 @@ class Orchestrator:
             if running_entry:
                 running_entry.focus_name = focus.name
                 running_entry.focus_role = focus.role
+            read_only_preflight = bool(
+                running_entry
+                and getattr(running_entry, "duplicate_preflight", False)
+            )
 
             # Decide which opt-in tools to expose. Currently this is
             # just attach_image, gated on (a) the active focus opting in
@@ -17831,7 +17876,14 @@ class Orchestrator:
             base_tools = {
                 t["function"]["name"] for t in _TD if t["function"]["name"] not in _OPT
             }
-            if getattr(focus, "allow_image_output", False) and "image" in capabilities:
+            if read_only_preflight:
+                base_tools.intersection_update(
+                    {"read_file", "list_files", "search_files"}
+                )
+            elif (
+                getattr(focus, "allow_image_output", False)
+                and "image" in capabilities
+            ):
                 base_tools.add("attach_image")
 
             # Per-dispatch JSONL log capturing every request, response,
@@ -17852,7 +17904,15 @@ class Orchestrator:
                 max_turns=max_turns,
                 stall_turns=self.config.stall_turns,
                 system_prompt=(
+                    (
+                        "You are a read-only duplicate investigator. Inspect the "
+                        "repository and return the required structured verdict. "
+                        "Do not modify files or tracker state. "
+                    )
+                    if read_only_preflight
+                    else
                     "You are an autonomous coding agent. Use the provided tools to complete the task. "
+                ) + (
                     "You MUST work independently. NEVER ask the human to explain how something works, "
                     "diagnose a problem, or tell you what approach to take — that is YOUR job. "
                     "The `ask_question` tool exists ONLY for genuine ambiguity where the issue could "
@@ -17864,6 +17924,7 @@ class Orchestrator:
                     "'how should I proceed' are all failures."
                 ),
                 enabled_tools=base_tools,
+                read_only=read_only_preflight,
                 model_max_context=provider.get_model_context(model),
                 log_path=agent_log_path,
             )
@@ -18227,11 +18288,16 @@ class Orchestrator:
                 )
 
             task_tracker = self._tracker_for_issue(issue)
+            read_only_preflight = bool(
+                running_entry
+                and getattr(running_entry, "duplicate_preflight", False)
+            )
             tool_catalog = build_tool_catalog(
                 workspace_path,
                 project_store=self.project_store,
                 project_id=issue.project_id or None,
                 task_tracker=task_tracker,
+                read_only=read_only_preflight,
             )
 
             from oompah.api_agent import AgentActivity
@@ -18319,7 +18385,10 @@ class Orchestrator:
                 elif ev.event == "acp_text":
                     text = str(payload.get("text", ""))
                     summary = text[:200] or "(empty text)"
-                    detail = text[:2000]
+                    # Keep the complete structured final verdict in memory for
+                    # read-only preflight parsing. Serialization still applies
+                    # AgentActivity's normal display truncation.
+                    detail = text if read_only_preflight else text[:2000]
                 elif ev.event == "acp_thinking":
                     text = str(payload.get("text", ""))
                     summary = text[:200] or "(thinking)"
@@ -18430,6 +18499,7 @@ class Orchestrator:
                 model=acp_model,
                 max_turns=max_turns,
                 tool_catalog=tool_catalog,
+                read_only=read_only_preflight,
                 on_event=_on_event,
                 backend_name=acp_backend_name,
                 billing_model=acp_billing_model,
@@ -18438,10 +18508,13 @@ class Orchestrator:
                 task_tracker=task_tracker,
                 comment_queue=_comment_queue,
             )
+            self._acp_agent_sessions[issue.id] = session
 
             try:
                 status = await session.run_task()
             finally:
+                if self._acp_agent_sessions.get(issue.id) is session:
+                    self._acp_agent_sessions.pop(issue.id, None)
                 # Unregister the comment queue. Any un-drained comments
                 # remain visible in the next dispatch via the task's
                 # comment history.
@@ -19379,17 +19452,34 @@ class Orchestrator:
         comments: list[dict],
         *,
         claimed_at: datetime | None,
+        activity_log: list[Any] | None = None,
     ) -> tuple[ScreeningVerdict | None, list[str], str]:
-        """Parse the newest claim-era structured duplicate verdict comment."""
+        """Parse one unambiguous claim-era verdict from comments or activity.
 
-        for comment in reversed(comments or []):
+        The model's final response is the primary result channel; requiring it
+        to mutate the tracker made a qualification-only worker unnecessarily
+        powerful.  Ordinary Markdown decoration around the structured lines is
+        tolerated, while conflicting verdicts fail closed.
+        """
+
+        def _normalize_result_text(value: object) -> str:
+            lines: list[str] = []
+            for raw_line in str(value or "").splitlines():
+                line = re.sub(r"^\s*(?:>\s*)?(?:[-*+]\s+)?", "", raw_line)
+                line = line.strip().strip("`*_~").strip()
+                lines.append(line)
+            return "\n".join(lines)
+
+        sources: list[tuple[float, str]] = []
+        claimed_ts = claimed_at.timestamp() if claimed_at is not None else None
+        for index, comment in enumerate(comments or []):
             if not isinstance(comment, dict):
                 continue
             text = str(comment.get("text") or "").strip()
-            match = _DUPLICATE_PREFLIGHT_VERDICT_RE.search(text)
-            if match is None:
+            if not text:
                 continue
             created_raw = comment.get("created_at") or comment.get("created")
+            created_ts = float(index)
             if claimed_at is not None and isinstance(created_raw, str):
                 try:
                     created = datetime.fromisoformat(
@@ -19399,9 +19489,36 @@ class Orchestrator:
                         created = created.replace(tzinfo=timezone.utc)
                     if created.astimezone(timezone.utc) < claimed_at:
                         continue
+                    created_ts = created.timestamp()
                 except ValueError:
                     pass
-            verdict = ScreeningVerdict(match.group(1).lower())
+            sources.append((created_ts, text))
+
+        for index, activity in enumerate(activity_log or []):
+            kind = str(getattr(activity, "kind", "") or "").lower()
+            if kind not in {"message", "assistant", "text"}:
+                continue
+            timestamp = float(getattr(activity, "timestamp", 0.0) or 0.0)
+            if claimed_ts is not None and timestamp and timestamp < claimed_ts:
+                continue
+            text = str(
+                getattr(activity, "detail", "")
+                or getattr(activity, "summary", "")
+                or ""
+            ).strip()
+            if text:
+                sources.append((timestamp or float(index), text))
+
+        parsed: list[tuple[float, ScreeningVerdict, list[str], str]] = []
+        for timestamp, raw_text in sources:
+            text = _normalize_result_text(raw_text)
+            matches = list(_DUPLICATE_PREFLIGHT_VERDICT_RE.finditer(text))
+            if not matches:
+                continue
+            verdict_values = {match.group(1).lower() for match in matches}
+            if len(verdict_values) != 1:
+                return None, [], "Conflicting duplicate preflight verdicts."
+            verdict = ScreeningVerdict(verdict_values.pop())
             matches_line = _DUPLICATE_PREFLIGHT_MATCHES_RE.search(text)
             identifiers: list[str] = []
             if matches_line is not None:
@@ -19412,8 +19529,17 @@ class Orchestrator:
                         for value in re.split(r"[\s,]+", raw_matches)
                         if value
                     ]
-            return verdict, identifiers, text[:4000]
-        return None, [], ""
+            parsed.append((timestamp, verdict, identifiers, raw_text[:4000]))
+
+        if not parsed:
+            return None, [], ""
+        if len({item[1] for item in parsed}) != 1:
+            return None, [], "Conflicting duplicate preflight verdicts."
+        _timestamp, verdict, identifiers, evidence = max(
+            parsed,
+            key=lambda item: item[0],
+        )
+        return verdict, identifiers, evidence
 
     def _finish_duplicate_preflight_sync(
         self,
@@ -19476,15 +19602,13 @@ class Orchestrator:
             verdict: ScreeningVerdict | None = None
             matched_identifiers: list[str] = []
             evidence = str(error or "").strip()
-            labels = {
-                str(label).strip().lower() for label in (current.labels or [])
-            }
-            if reason == "normal" and "focus-complete:duplicate_detector" in labels:
+            if reason == "normal":
                 comments = tracker.fetch_comments(entry.identifier)
                 verdict, matched_identifiers, evidence = (
                     self._parse_duplicate_preflight_verdict(
                         comments,
                         claimed_at=record.claimed_at,
+                        activity_log=entry.activity_log,
                     )
                 )
 
@@ -21138,7 +21262,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         entry.identifier,
                         elapsed_ms,
                     )
-                    await self._terminate_running(issue_id, cleanup_workspace=False)
+                    terminated = await self._terminate_running(
+                        issue_id, cleanup_workspace=False
+                    )
+                    if getattr(entry, "duplicate_preflight", False) or not terminated:
+                        # Preflight claims are released by termination and become
+                        # eligible for the screening lane again. They must never
+                        # enter the ordinary implementation retry queue.
+                        continue
                     next_attempt = (entry.retry_attempt or 0) + 1
                     self._schedule_retry(
                         issue_id,
@@ -21177,6 +21308,45 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 continue
 
             state_norm = _state_key(issue.state)
+            running_entry = self.state.running.get(issue_id)
+            if running_entry and getattr(
+                running_entry, "duplicate_preflight", False
+            ):
+                # Duplicate screening intentionally leaves the tracker task
+                # Open. Load tracker metadata explicitly because forge state
+                # snapshots do not all include Oompah's state-branch metadata.
+                if getattr(issue, "duplicate_screening", None) is None:
+                    try:
+                        tracker = self._tracker_for_issue(running_entry.issue)
+                        await asyncio.get_event_loop().run_in_executor(
+                            self._tick_pool,
+                            lambda: load_duplicate_screening_record(tracker, issue),
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "Could not verify duplicate-preflight claim for %s: %s",
+                            running_entry.identifier,
+                            exc,
+                        )
+                if self._duplicate_preflight_claim_is_current(
+                    running_entry,
+                    issue,
+                ):
+                    running_entry.issue = issue
+                    continue
+                logger.warning(
+                    "Reconcile: duplicate-preflight claim is no longer current "
+                    "issue_id=%s state=%s claim_id=%s",
+                    issue_id,
+                    issue.state,
+                    running_entry.duplicate_preflight_claim_id,
+                )
+                await self._terminate_running(
+                    issue_id,
+                    cleanup_workspace=state_norm in terminal_norms,
+                )
+                continue
+
             if state_norm == "in_progress":
                 # Still in progress — update issue snapshot
                 self.state.running[issue_id].issue = issue
@@ -21188,7 +21358,6 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 )
                 await self._terminate_running(issue_id, cleanup_workspace=True)
             else:
-                running_entry = self.state.running.get(issue_id)
                 repair_status = canonicalize_status(issue.state)
                 if (
                     running_entry
@@ -21227,10 +21396,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     issue_id,
                     issue.state,
                 )
-                await self._terminate_running(issue_id, cleanup_workspace=False)
+                terminated = await self._terminate_running(
+                    issue_id, cleanup_workspace=False
+                )
                 # If state reverted to an active state (e.g. open), mark as claimed
                 # with a cooldown to prevent immediate re-dispatch loops
-                if state_norm in active_norms and running_entry:
+                if terminated and state_norm in active_norms and running_entry:
                     reopen_count = self._increment_reopen_count(
                         issue_id, running_entry.focus_name
                     )
@@ -21398,15 +21569,26 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "cursor": None,
         }
 
-    async def _terminate_running(self, issue_id: str, cleanup_workspace: bool) -> None:
-        """Terminate a running worker and optionally clean its workspace."""
+    async def _terminate_running(self, issue_id: str, cleanup_workspace: bool) -> bool:
+        """Terminate a running worker and optionally clean its workspace.
+
+        Returns ``True`` only after the runtime can be removed safely.  ACP
+        subprocess identities are captured before cancellation so descendants
+        cannot become reparented, survive, and keep editing after the runtime
+        entry has disappeared.
+        """
         entry = self.state.running.get(issue_id)
         if not entry:
-            return
+            return True
 
         self._terminating_worker_ids.add(issue_id)
         try:
             timeout_s = max(self.config.worker_termination_timeout_ms, 0) / 1000
+            captured_processes = (
+                capture_workspace_processes(entry.workspace_path)
+                if entry.workspace_path
+                else {}
+            )
             waitables: set[asyncio.Future] = set()
             worker_task = entry.worker_task
             if worker_task and not worker_task.done():
@@ -21414,7 +21596,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 waitables.add(worker_task)
 
             session_stop_task: asyncio.Task | None = None
-            cli_session = self._cli_agent_sessions.get(issue_id)
+            cli_session = getattr(self, "_cli_agent_sessions", {}).get(issue_id)
             if cli_session is not None:
                 session_timeout_s = timeout_s if timeout_s > 0 else 5.0
                 session_stop_task = asyncio.create_task(
@@ -21422,6 +21604,15 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     name=f"stop-cli-{entry.identifier}",
                 )
                 waitables.add(session_stop_task)
+
+            acp_stop_task: asyncio.Task | None = None
+            acp_session = getattr(self, "_acp_agent_sessions", {}).get(issue_id)
+            if acp_session is not None:
+                acp_stop_task = asyncio.create_task(
+                    acp_session.terminate(),
+                    name=f"stop-acp-{entry.identifier}",
+                )
+                waitables.add(acp_stop_task)
 
             if waitables:
                 if timeout_s == 0:
@@ -21453,6 +21644,15 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     # Give AgentSession.stop() one scheduling point to turn its
                     # cancellation into an immediate process-group SIGKILL.
                     await asyncio.sleep(0)
+                if acp_stop_task in waitables and acp_stop_task not in done:
+                    logger.warning(
+                        "ACP agent session did not stop within %dms; forcing "
+                        "shutdown issue_identifier=%s",
+                        self.config.worker_termination_timeout_ms,
+                        entry.identifier,
+                    )
+                    acp_stop_task.cancel()
+                    await asyncio.sleep(0)
 
                 for completed in done:
                     try:
@@ -21467,17 +21667,51 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                                 entry.identifier,
                                 exc,
                             )
+                        elif completed is acp_stop_task:
+                            logger.warning(
+                                "ACP agent session shutdown failed "
+                                "issue_identifier=%s error=%s",
+                                entry.identifier,
+                                exc,
+                            )
+
+            survivors: set[int] = set()
+            if captured_processes:
+                force_timeout_s = timeout_s if timeout_s > 0 else 1.0
+                survivors = await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda: terminate_captured_processes(
+                        captured_processes,
+                        timeout_s=force_timeout_s,
+                    ),
+                )
+            if survivors:
+                logger.error(
+                    "Refusing to forget worker while managed processes survive "
+                    "issue_identifier=%s pids=%s workspace=%s",
+                    entry.identifier,
+                    sorted(survivors),
+                    entry.workspace_path,
+                )
+                return False
 
             if (
                 cli_session is not None
-                and self._cli_agent_sessions.get(issue_id) is cli_session
+                and getattr(self, "_cli_agent_sessions", {}).get(issue_id)
+                is cli_session
             ):
                 self._cli_agent_sessions.pop(issue_id, None)
+            if (
+                acp_session is not None
+                and getattr(self, "_acp_agent_sessions", {}).get(issue_id)
+                is acp_session
+            ):
+                self._acp_agent_sessions.pop(issue_id, None)
 
             # Keep the runtime visible until worker/session termination has been
             # attempted, and do not remove a replacement entry with the same ID.
             if self.state.running.get(issue_id) is not entry:
-                return
+                return True
             self.state.running.pop(issue_id, None)
 
             # Add runtime to totals
@@ -21499,6 +21733,29 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             self._fire_telemetry_comment(entry, "terminated", elapsed)
 
             self.state.claimed.discard(issue_id)
+            self.state.claimed_issues.pop(issue_id, None)
+
+            if (
+                getattr(entry, "duplicate_preflight", False)
+                and entry.duplicate_preflight_claim_id
+            ):
+                try:
+                    await asyncio.get_event_loop().run_in_executor(
+                        self._tick_pool,
+                        lambda: self._clear_duplicate_preflight_claim(
+                            entry.issue,
+                            entry.duplicate_preflight_claim_id or "",
+                            reason="Duplicate screening worker was terminated.",
+                        ),
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to clear terminated duplicate-preflight claim "
+                        "issue_identifier=%s claim_id=%s error=%s",
+                        entry.identifier,
+                        entry.duplicate_preflight_claim_id,
+                        exc,
+                    )
 
             if cleanup_workspace:
                 project_id = entry.issue.project_id if entry.issue else None
@@ -21522,6 +21779,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 entry.identifier,
                 cleanup_workspace,
             )
+            return True
         finally:
             self._terminating_worker_ids.discard(issue_id)
 

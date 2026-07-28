@@ -10,7 +10,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from oompah.agent import AgentSession
+from oompah.agent import (
+    AgentSession,
+    capture_workspace_processes,
+    terminate_captured_processes,
+)
 
 
 @pytest.mark.asyncio
@@ -141,6 +145,45 @@ async def test_stop_kills_spawned_descendant(tmp_path):
             except ProcessLookupError:
                 pass
             await session._process.wait()
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(
+    os.name != "posix" or not os.path.isdir("/proc"),
+    reason="requires Linux procfs",
+)
+async def test_workspace_capture_kills_reparentable_subprocess_tree(tmp_path):
+    """Captured identities remain killable after their parent exits."""
+
+    process = await asyncio.create_subprocess_exec(
+        "bash",
+        "-c",
+        "sleep 60 & wait",
+        cwd=tmp_path,
+    )
+    try:
+        captured: dict[int, int] = {}
+        for _ in range(100):
+            captured = capture_workspace_processes(str(tmp_path))
+            if process.pid in captured and len(captured) >= 2:
+                break
+            await asyncio.sleep(0.01)
+        assert process.pid in captured
+        assert len(captured) >= 2
+
+        survivors = await asyncio.to_thread(
+            terminate_captured_processes,
+            captured,
+            timeout_s=0.2,
+        )
+        await asyncio.wait_for(process.wait(), timeout=1)
+
+        assert survivors == set()
+        assert all(not _pid_exists(pid) for pid in captured)
+    finally:
+        if process.returncode is None:
+            process.kill()
+            await process.wait()
 
 
 def _pid_exists(pid: int) -> bool:

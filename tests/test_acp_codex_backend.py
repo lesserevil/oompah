@@ -1172,7 +1172,14 @@ class TestCodexCliAdditionalDirectories:
     entire repository root.
     """
 
-    def _drive(self, monkeypatch, tmp_path, *, workspace_has_worktree=True):
+    def _drive(
+        self,
+        monkeypatch,
+        tmp_path,
+        *,
+        workspace_has_worktree=True,
+        read_only=False,
+    ):
         """Drive a subscription-tier CLI session with a fake Codex SDK.
 
         If *workspace_has_worktree* is True, the workspace has a .git
@@ -1204,6 +1211,7 @@ class TestCodexCliAdditionalDirectories:
                 workspace_path=str(workspace),
                 prompt="do work",
                 billing_model="subscription",
+                read_only=read_only,
             )
             sess = CodexAcpBackendSession(opt)
             collected = []
@@ -1253,6 +1261,26 @@ class TestCodexCliAdditionalDirectories:
             f"additional_directories should be None for plain workspace, "
             f"got: {additional!r}"
         )
+
+    def test_read_only_session_disables_writes_network_and_git_metadata_access(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        _sess, stream, cap = self._drive(
+            monkeypatch,
+            tmp_path,
+            workspace_has_worktree=True,
+            read_only=True,
+        )
+        thread_opts = cap["thread_options"]
+
+        assert thread_opts.sandbox_mode == "read-only"
+        assert thread_opts.network_access_enabled is False
+        assert thread_opts.additional_directories is None
+        start = next(ev for ev in stream if ev.kind == "session_start")
+        assert start.payload["sandbox_mode"] == "read-only"
+        assert start.payload["network_access_enabled"] is False
 
     def test_session_start_event_includes_additional_directories_for_worktree(
         self, monkeypatch, tmp_path

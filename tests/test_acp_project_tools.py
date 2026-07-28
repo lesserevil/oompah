@@ -598,6 +598,21 @@ class TestBuildToolCatalogProjectTools:
         assert "update_project_by_id" in names
         assert len(cat) == 11
 
+    def test_read_only_catalog_excludes_shell_and_mutators(self, tmp_path):
+        from oompah.acp_tools import build_tool_catalog
+
+        cat = build_tool_catalog(str(tmp_path), read_only=True)
+        names = {t.name for t in cat}
+
+        assert names == {
+            "read_file",
+            "list_files",
+            "search_files",
+            "list_projects",
+            "get_project",
+            "get_project_by_id",
+        }
+
     def test_run_command_tool_uses_env_timeout(self, tmp_path, monkeypatch):
         """ACP run_command must not pin the old 60s timeout."""
         import asyncio
@@ -887,6 +902,7 @@ class TestAcpAgentSessionProjectStoreFlow:
                 project_store=store,
                 project_id="proj-flow",
                 task_tracker=tracker,
+                read_only=True,
             )
             asyncio.run(session.run_task())
 
@@ -895,6 +911,7 @@ class TestAcpAgentSessionProjectStoreFlow:
         assert opts.project_store is store
         assert opts.project_id == "proj-flow"
         assert opts.task_tracker is tracker
+        assert opts.read_only is True
 
 
 # ---------------------------------------------------------------------------
@@ -952,3 +969,21 @@ class TestBuildCodexToolCatalogProjectTools:
             str(tmp_path), project_store=store, project_id="proj-test"
         )
         assert len(cat) == 11
+
+    def test_read_only_catalog_excludes_shell_and_mutators(self, tmp_path):
+        from oompah.acp_tools import build_codex_tool_catalog
+
+        cat = build_codex_tool_catalog(str(tmp_path), read_only=True)
+        names = {
+            getattr(t, "name", None) or getattr(t, "__name__", None) or str(t)
+            for t in cat
+        }
+
+        for forbidden in (
+            "write_file",
+            "edit_file",
+            "run_command",
+            "update_project",
+            "update_project_by_id",
+        ):
+            assert all(forbidden not in str(name) for name in names)
