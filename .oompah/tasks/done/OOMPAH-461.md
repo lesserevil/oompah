@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-461
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Add the canonical In Validation lifecycle status
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:03.234325Z'
-updated_at: '2026-07-28T18:21:18.346622Z'
+updated_at: '2026-07-28T18:21:25.713354Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
