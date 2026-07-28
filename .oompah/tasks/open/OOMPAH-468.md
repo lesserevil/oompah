@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-468
 type: feature
-status: Done
+status: Open
 priority: 1
 title: Persist worker and epic contributor provider-model provenance
 parent: OOMPAH-458
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T21:50:02.390804Z'
+updated_at: '2026-07-28T21:50:34.244920Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -23,13 +23,13 @@ merged_at: null
 oompah.agent_run_id: ea9c98e0-e253-494f-baf4-3d9933e24143
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 226
-  total_output_tokens: 8041
+  total_input_tokens: 576
+  total_output_tokens: 67994
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 226
-      output_tokens: 8041
+      input_tokens: 576
+      output_tokens: 67994
       cost_usd: 0.0
   runs:
   - profile: default
@@ -38,6 +38,12 @@ oompah.task_costs:
     output_tokens: 8041
     cost_usd: 0.0
     recorded_at: '2026-07-28T21:12:04.091442+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 350
+    output_tokens: 59953
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T21:50:10.826688+00:00'
 ---
 ## Summary
 
@@ -189,5 +195,43 @@ Modified oompah/orchestrator.py:
 - Call site in _on_worker_exit: fires only when reason=='normal' (not stalled/abnormal/max_turns)
 
 72 new tests in tests/test_work_contributors.py covering: API, ACP SDK-managed unknown model, CLI worker, retries, multiple workers on one task, shared epic children, nested epics, commits excluded from current SHA, restart rereads, and redaction.
+---
+author: oompah
+created: 2026-07-28 21:50
+---
+Implemented oompah.work_contributors persistence: WorkContributor records written at successful worker exit (reason=normal) for API/ACP/CLI workers; collect_epic_contributors() derives union from child/nested-child records filtered by git ancestry; 72 new tests pass (151 total in focused suites).
+---
+author: oompah
+created: 2026-07-28 21:50
+---
+Agent completed successfully in 1953s (60303 tokens)
+---
+author: oompah
+created: 2026-07-28 21:50
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 263, Tool calls: 136
+- Tokens: 350 in / 60.0K out [60.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 32m 33s
+- Log: OOMPAH-468__20260728T211743Z.jsonl
+---
+author: oompah
+created: 2026-07-28 21:50
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-458` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-458
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-458
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
