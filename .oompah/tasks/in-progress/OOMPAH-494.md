@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:29.472352Z'
-updated_at: '2026-07-28T15:32:46.385802Z'
+updated_at: '2026-07-28T15:35:20.341164Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -123,5 +123,10 @@ author: oompah
 created: 2026-07-28 15:32
 ---
 Understanding: I am the Test Engineer for OOMPAH-494. My task is to refactor tests/test_granian_e2e.py to consolidate its 20 function-scoped subprocess-per-test cases into no more than 6 scenario tests. Each scenario will own its own server lifecycle via a bounded context manager (SIGINT/terminate/kill + pipe draining). The four required scenarios are: (1) HTTP root/state contract, (2) WebSocket initial state/issues push, (3) two-client broadcast fan-out, (4) restart + HTTP/WS verification. I will preserve all existing behavioral contracts, verify no leaked subprocesses, and record before/after collection counts and timing.
+---
+author: oompah
+created: 2026-07-28 15:35
+---
+Discovery: Current state confirmed - 20 tests in ~53s. Breakdown: 7 HTTP tests + 7 WS push tests + 3 broadcast tests + 3 restart tests, all using a function-scoped fixture that starts a new Granian subprocess per test (17 fixture-managed + 6 self-managed in restart tests = 23 total server startups). Plan: Refactor to 4 scenario tests via a _granian_server() context manager (always drains pipes + SIGINT→terminate→kill). Scenarios: (1) HTTP root/state contract combining all 7 HTTP assertions, (2) WS initial push combining all 6 WS push assertions, (3) broadcast fan-out combining all 3 broadcast assertions, (4) restart + HTTP + WS combining 3 restart assertions. Sequential multi-client test omitted as its coverage is subsumed by scenarios 2 and 3.
 ---
 <!-- COMMENTS:END -->
