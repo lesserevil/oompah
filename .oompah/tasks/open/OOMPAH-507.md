@@ -1,17 +1,16 @@
 ---
 id: OOMPAH-507
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Drain active agents before deployment restarts
 parent: OOMPAH-502
 children: []
 blocked_by: []
-labels:
-- focus-complete:duplicate_detector
+labels: []
 assignee: null
 created_at: '2026-07-28T15:06:07.476394Z'
-updated_at: '2026-07-28T17:48:36.120005Z'
+updated_at: '2026-07-28T17:48:49.349316Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -19,6 +18,22 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 787b84ba-73b5-4af0-8412-82a6f7f35d83
 oompah.work_branch: epic-OOMPAH-502
+oompah.task_costs:
+  total_input_tokens: 146
+  total_output_tokens: 6664
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 146
+      output_tokens: 6664
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 146
+    output_tokens: 6664
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T17:48:45.090926+00:00'
 ---
 ## Summary
 
@@ -78,5 +93,25 @@ Findings:
 - Implementation already completed in commit 7bce3acbd (feat: make normal restarts drain agents) per previous session
 
 Conclusion: OOMPAH-507 is a unique, non-duplicate task with distinct scope within OOMPAH-502 epic. The implementation is complete and merged. Ready for next focus phase.
+---
+author: oompah
+created: 2026-07-28 17:48
+---
+Agent completed successfully in 105s (6810 tokens)
+---
+author: oompah
+created: 2026-07-28 17:48
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 58, Tool calls: 26
+- Tokens: 146 in / 6.7K out [6.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 45s
+- Log: OOMPAH-507__20260728T174706Z.jsonl
+---
+author: oompah
+created: 2026-07-28 17:48
+---
+Focus handoff required before leaving `duplicate_detector`. Add a comment headed `Focus handoff: duplicate_detector` with outcome, evidence, remaining work, and next focus.
 ---
 <!-- COMMENTS:END -->
