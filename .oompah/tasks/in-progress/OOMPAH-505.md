@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:25:50.311048Z'
+updated_at: '2026-07-28T15:34:13.631201Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -155,5 +155,10 @@ author: oompah
 created: 2026-07-28 15:25
 ---
 Implementation: Added a first-class supports_manual_model_selection capability to ACP backends/descriptors (Claude and Codex true, independent of has_catalog), preserved the legacy catalog signal, and exposed it in fetch-model responses. The role matrix now renders an accessible free-text model control for catalog-less/manual-capable ACP providers, preserves blank SDK-default behavior, reports manual/default status accurately, and rerenders when async descriptors arrive. Added backend/API/UI regression tests.
+---
+author: oompah
+created: 2026-07-28 15:34
+---
+Verification: Focused provider/backend/role-matrix tests pass (241). Full pytest fallback completed with 12,638 passed, 7 skipped and one sandbox-only failure writing ~/.oompah/agent-logs; that exact test passes when OOMPAH_AGENT_LOG_DIR points to writable /tmp. JavaScript syntax check and make check-secrets also pass. make test itself could not start because the environment's Snap-packaged uv fails DBus transient-scope creation.
 ---
 <!-- COMMENTS:END -->
