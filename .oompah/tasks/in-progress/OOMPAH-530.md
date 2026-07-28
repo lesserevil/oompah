@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-530
 type: task
-status: Open
+status: In Progress
 priority: 2
 title: Add atomic duplicate-preflight claims and recovery
 parent: OOMPAH-528
@@ -13,13 +13,13 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-28T21:18:51.634942Z'
-updated_at: '2026-07-28T21:32:50.126376Z'
+updated_at: '2026-07-28T21:33:00.303325Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 546f66f3-9c96-4725-969f-17892a8dbe32
+oompah.agent_run_id: 075e8330-d160-4439-8f15-689e3252bfd8
 oompah.work_branch: epic-OOMPAH-528
 ---
 ## Summary
@@ -137,5 +137,15 @@ author: oompah
 created: 2026-07-28 21:32
 ---
 Focus handoff from `` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 21:32
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 21:33
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
