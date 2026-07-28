@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T20:16:36.783511Z'
-updated_at: '2026-07-28T20:20:09.805791Z'
+updated_at: '2026-07-28T20:23:01.205426Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -91,5 +91,39 @@ Discovery: Implementation started. Added route discovery utilities:
 - Updated .env.example with override documentation
 
 Next: Write comprehensive tests, then verify all scenarios work.
+---
+author: oompah
+created: 2026-07-28 20:23
+---
+Implementation: Complete. Implemented automatic GitLab webhook URL derivation.
+
+CHANGES MADE:
+- Added _discover_local_address(host, port): Uses socket.connect() for route discovery without network payload. Handles IPv4/IPv6 correctly.
+- Added _extract_host_from_url(url): Parses HTTPS, SSH, and git URLs to extract hostname.
+- Added _derive_gitlab_webhook_url(project, server_port, fallback_public_url): Per-project derivation with explicit URL precedence.
+- Updated _GitLabHookState: Added webhook_url and url_source (explicit/derived/error) fields.
+- Updated GitLabHookManager.__init__: Accept server_port parameter.
+- Updated GitLabHookManager._reconcile_project: Derive per-project URLs, store in state, use in reconciliation.
+- Updated GitLabHookManager.remove: Use per-project URLs when removing hooks.
+- Updated bootstrap.py: Pass server_port to GitLabHookManager.
+- Updated .env.example: Document explicit URL as override for HTTPS/proxies/NAT.
+- Added 25 comprehensive tests: route discovery, URL extraction, derivation, explicit precedence, IPv4/IPv6, multiple projects, failure modes.
+
+TESTING:
+- All 226 webhook tests pass (including 25 new tests)
+- All 214 bootstrap tests pass
+- Backward compatibility verified (all existing tests still pass)
+- Configuration error handling works (fails safely with actionable messages)
+- Multiple projects with different routes handled independently
+
+ACCEPTANCE CRITERIA MET:
+✓ Per-project derived URLs using OS route to GitLab server + local IP + Oompah port
+✓ Explicit OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL always wins unchanged
+✓ Route discovery uses only socket operations (no network payload)
+✓ IPv4/IPv6 and multiple GitLab destinations handled deterministically
+✓ Discovery failures don't create/mutate hooks, report polling fallback with detail
+✓ All focused and full test suites pass
+
+Ready for review.
 ---
 <!-- COMMENTS:END -->
