@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-529
 type: task
-status: In Progress
+status: Done
 priority: 2
 title: Persist revision-aware duplicate-screening evidence
 parent: OOMPAH-528
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:18:31.077035Z'
-updated_at: '2026-07-28T21:24:55.922859Z'
+updated_at: '2026-07-28T21:26:55.471078Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -177,5 +177,10 @@ created: 2026-07-28 21:24
 - Add metadata persistence via DuplicateScreeningMetadataStore
 - Handle legacy label as migration input (expose as stale)
 - Write comprehensive tests for fingerprint stability, metadata round-trip, tracker contract
+---
+author: oompah
+created: 2026-07-28 21:26
+---
+Implemented revision-aware duplicate-screening metadata in commit 1a3a882c5 on epic-OOMPAH-528. Added typed tolerant parsing, stable material-input fingerprints, legacy/malformed fail-closed behavior, all tracker adapter hydration, and native tracker round-trip coverage. Focused result: 7 passed.
 ---
 <!-- COMMENTS:END -->
