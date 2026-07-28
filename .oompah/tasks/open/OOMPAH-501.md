@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-501
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Prevent premature epic rollup PR/MR creation from child close handoffs
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:09:26.715526Z'
+updated_at: '2026-07-28T14:09:49.500422Z'
 work_branch: null
 target_branch: null
 review_url: null

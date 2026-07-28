@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-456
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Make state-branch activation atomic and forge-aware for GitLab projects
 parent: OOMPAH-451
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:09:39.430533Z'
+updated_at: '2026-07-28T14:09:48.488308Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -123,5 +123,10 @@ author: oompah
 created: 2026-07-28 14:09
 ---
 Implementation: Updated oompah/templates/projects.html and tests/test_state_branch_project_config.py.\n\n**projects.html changes:**\n- Removed `state_branch_enabled` checkbox from the edit form (the naked PATCH bypass)\n- Replaced with read-only status text + 'Activate State Branch' / 'Deactivate State Branch' buttons (only shown for oompah_md projects)\n- Removed `state_branch_enabled: stateBranchEnabled` from `saveProject()` PATCH body\n- Added `activateStateBranch(id)` — POSTs to `/api/v1/projects/{id}/state-branch/migrate` with `{action: 'A', confirm: true}`\n- Added `deactivateStateBranch(id)` — POSTs to `/api/v1/projects/{id}/state-branch/migrate` with `{action: 'ROLLBACK', confirm: true}`\n- Added `_setStateBranchMsg(id, msg, isError)` helper for in-form status/error display\n- All error messages relay the server response — no hardcoded GITHUB_TOKEN text\n- Buttons have `aria-label` attributes; status area uses `aria-live='polite'`\n- Activate button disabled during in-flight request ('Activating…' state)\n- View card also shows Activate/Deactivate inline buttons\n\n**test_state_branch_project_config.py changes:**\n- Replaced 4 old checkbox/PATCH-body assertions with 11 new tests covering: no-checkbox, no-PATCH-body, button presence, aria-labels, migrate endpoint, confirm:true, live-region, GITHUB_TOKEN absence, button disabled state
+---
+author: oompah
+created: 2026-07-28 14:09
+---
+Verification: All tests pass.\n\n- `make test`: 12350 passed, 39 skipped, 12 warnings\n- `pytest tests/test_state_branch_project_config.py::TestProjectsHtmlUI -v`: 15/15 passed\n\nAll new assertions verified:\n- No checkbox element for state_branch_enabled\n- state_branch_enabled NOT in PATCH body\n- activateStateBranch() and deactivateStateBranch() present\n- Calls /state-branch/migrate with confirm:true\n- aria-labels on both buttons\n- aria-live='polite' region for status feedback\n- No GITHUB_TOKEN hardcoded in UI error paths\n- Button disabled during in-flight operation
 ---
 <!-- COMMENTS:END -->
