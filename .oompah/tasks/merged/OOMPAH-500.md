@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-500
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Measure the pruned suite and enforce the no-network final gate
 parent: OOMPAH-490
@@ -19,7 +19,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:35.430103Z'
-updated_at: '2026-07-28T16:59:18.229551Z'
+updated_at: '2026-07-28T17:10:41.311949Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
