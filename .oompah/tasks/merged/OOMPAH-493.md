@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-493
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Remove real retry sleeps from GitHub tracker error tests
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:28.451050Z'
-updated_at: '2026-07-28T15:29:42.151218Z'
+updated_at: '2026-07-28T17:07:03.821276Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
