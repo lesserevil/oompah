@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-524
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Integrate htpasswd authentication with the embedded MCP gateway
 parent: OOMPAH-521
@@ -14,7 +14,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:27:42.099925Z'
+updated_at: '2026-07-28T21:31:13.383947Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
