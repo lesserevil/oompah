@@ -5,12 +5,20 @@ status: Backlog
 priority: 1
 title: Reduce agent wall-clock latency without weakening delivery gates
 parent: null
-children: []
+children:
+- OOMPAH-503
+- OOMPAH-504
+- OOMPAH-505
+- OOMPAH-506
+- OOMPAH-507
+- OOMPAH-508
+- OOMPAH-509
+- OOMPAH-510
 blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:03:45.331314Z'
-updated_at: '2026-07-28T15:03:45.331314Z'
+updated_at: '2026-07-28T15:06:11.258667Z'
 work_branch: null
 target_branch: null
 review_url: null
