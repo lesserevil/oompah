@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-468
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Persist worker and epic contributor provider-model provenance
 parent: OOMPAH-458
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T22:03:22.796055Z'
+updated_at: '2026-07-28T22:03:40.999848Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -263,5 +263,10 @@ author: oompah
 created: 2026-07-28 22:03
 ---
 Verification: focused suites pass (151 tests: work_contributors plus task-cost and telemetry neighbors). make test could not initialize because uv fails with DBus transient-scope error 46. Equivalent full pytest reached 13,107 passed/7 skipped; its 7 ACP handoff failures were caused by the default agent-log directory being read-only, and those 7 pass with a writable temporary log directory. No contributor-suite failures.
+---
+author: oompah
+created: 2026-07-28 22:03
+---
+Completion: landing confirmed for commit 0115bfaaa on origin/epic-OOMPAH-458. It adds oompah.work_contributors persistence for successful API/ACP/CLI worker runs, revision-scoped epic contributor union with nested traversal and SHA filtering, and 72 acceptance-focused tests. Pull/rebase, push, and clean status all succeeded.
 ---
 <!-- COMMENTS:END -->
