@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-531
 type: task
-status: Done
+status: In Progress
 priority: 2
 title: Schedule duplicate preflight from spare agent capacity
 parent: OOMPAH-528
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-07-28T21:43:11.552641Z'
+updated_at: '2026-07-28T21:56:57.644274Z'
 work_branch: null
 target_branch: null
 review_url: null

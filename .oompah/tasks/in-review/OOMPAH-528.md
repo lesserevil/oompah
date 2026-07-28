@@ -17,12 +17,16 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-28T21:18:12.111324Z'
-updated_at: '2026-07-28T21:56:41.139486Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-28T21:56:46.221686Z'
+work_branch: epic-OOMPAH-528
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/568
+review_number: '568'
 merged_at: null
+oompah.review_url: https://github.com/lesserevil/oompah/pull/568
+oompah.review_number: '568'
+oompah.work_branch: epic-OOMPAH-528
+oompah.target_branch: main
 ---
 ## Summary
 
