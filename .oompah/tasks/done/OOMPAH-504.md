@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:00.486812Z'
-updated_at: '2026-07-28T15:16:47.689370Z'
+updated_at: '2026-07-28T15:16:50.195952Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-07-28 15:16
 ---
 Implemented and pushed in commit 85be456eb. Fresh agent prompts now compact comment history without mutating tracker storage, retain prioritized human/handoff/Needs Human context plus recent comments, include a trusted full-history notice, preserve untrusted provenance, and support environment-only count/byte caps. Focused prompt/config/provenance suite: 439 passed.
+---
+author: oompah
+created: 2026-07-28 15:16
+---
+Startup task history is bounded and actionable context is retained; canonical tracker history and provenance remain intact.
 ---
 <!-- COMMENTS:END -->
