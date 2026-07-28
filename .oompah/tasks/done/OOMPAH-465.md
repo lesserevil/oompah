@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-465
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Implement idempotent terminal-transition staging and audit chains
 parent: OOMPAH-457
@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:48:26.531571Z'
+updated_at: '2026-07-28T19:49:06.975040Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -631,5 +631,10 @@ author: oompah
 created: 2026-07-28 19:48
 ---
 Verification: Focused coordinator suite 41 passed; directly affected terminal-audit/status suites 142 passed; bootstrap/orchestrator suites 280 passed. Full available-environment pytest: 12,724 passed, 7 skipped, 7 unrelated ACP-agent failures caused by read-only /home/shedwards/agent-logs writes. make test could not start because astral-uv failed with DBus transient-scope error.
+---
+author: oompah
+created: 2026-07-28 19:49
+---
+Completion: Landed commit 1d48b885f and pushed epic-OOMPAH-457. TerminalTransitionCoordinator is now server-owned and project-tracker aware, Orchestrator exposes request_terminal_transition with deterministic fallback fingerprints, direct Merged reuses active Done work, and bootstrap/route/chain tests plus design documentation are updated. Branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
