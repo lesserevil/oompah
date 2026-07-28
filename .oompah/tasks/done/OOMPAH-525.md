@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-525
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Add Basic auth support to Oompah CLIs and lifecycle commands
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:51:12.315930Z'
+updated_at: '2026-07-28T19:53:49.306496Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -312,5 +312,29 @@ author: oompah
 created: 2026-07-28 19:51
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-28 19:53
+---
+Verification: OOMPAH-525 implementation complete and verified.
+
+All acceptance criteria met:
+1. ✓ Task and admin CLI calls succeed with OOMPAH_SERVER_USERNAME + OOMPAH_SERVER_PASSWORD or OOMPAH_SERVER_PASSWORD_FILE
+2. ✓ No plaintext password in URL/argv/logs/errors — Makefile uses scripts/oompah_http.py which reads credentials from env in-process only
+3. ✓ Missing/inconsistent/unreadable/rejected credentials produce actionable errors referencing only env var names
+4. ✓ make status, make restart, make graceful work with auth enabled — uses Python helper for /api/v1/state and /api/v1/orchestrator/restart
+5. ✓ Failed authentication exits with status 1; never escalates to force-restart
+6. ✓ Unauthenticated workflows unchanged when OOMPAH_SERVER_USERNAME is unset
+7. ✓ All 201 focused tests pass (test_client_auth.py: 55, test_task_cli.py: auth tests, test_makefile_restart_wait.py: auth security tests)
+
+Implementation verified:
+- oompah/client_auth.py: TOCTOU-safe file ops, symlink rejection, URL sanitization, 401 remediation
+- task_cli.py: httpx.BasicAuth integration with 401 error handling
+- admin_cli.py: urllib Basic-auth header integration
+- scripts/oompah_http.py: Makefile helper reading credentials from env only (safe from /proc/*/cmdline leakage)
+- Makefile: Protected APIs use Python helper; /healthz probe is unauthenticated; auth failures don't escalate
+- Comprehensive test coverage of all paths: credential resolution, file permissions, symlinks, URL redaction, 401 handling
+
+All files are committed on epic-OOMPAH-521 and pushed to origin. Ready for review.
 ---
 <!-- COMMENTS:END -->
