@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -20,7 +20,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-28T13:09:35.765917Z'
+updated_at: '2026-07-28T18:06:45.722241Z'
 work_branch: null
 target_branch: null
 review_url: null

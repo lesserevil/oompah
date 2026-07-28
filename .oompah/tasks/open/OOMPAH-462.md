@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-462
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Define terminal-audit records, enums, and evidence fingerprints
 parent: OOMPAH-457
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:04.307001Z'
-updated_at: '2026-07-28T13:05:04.307001Z'
+updated_at: '2026-07-28T18:06:15.386009Z'
 work_branch: null
 target_branch: null
 review_url: null

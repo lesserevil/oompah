@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-474
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Add the auditor-only structured result submission API and tool
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-07-28T13:09:25.607811Z'
+updated_at: '2026-07-28T18:06:43.045138Z'
 work_branch: null
 target_branch: null
 review_url: null

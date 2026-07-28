@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-467
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Add explicit authorized owner overrides for terminal audits
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T13:09:15.401400Z'
+updated_at: '2026-07-28T18:06:25.463487Z'
 work_branch: null
 target_branch: null
 review_url: null

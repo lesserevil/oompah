@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-464
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Persist the upgrade grandfather baseline and recover pending audits
 parent: OOMPAH-457
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:06.169316Z'
-updated_at: '2026-07-28T13:09:10.224219Z'
+updated_at: '2026-07-28T18:06:17.651358Z'
 work_branch: null
 target_branch: null
 review_url: null

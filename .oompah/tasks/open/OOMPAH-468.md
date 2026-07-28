@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-468
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Persist worker and epic contributor provider-model provenance
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T13:09:17.477159Z'
+updated_at: '2026-07-28T18:06:30.230142Z'
 work_branch: null
 target_branch: null
 review_url: null

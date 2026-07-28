@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-463
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Persist terminal-audit state through the tracker metadata contract
 parent: OOMPAH-457
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:05.235115Z'
-updated_at: '2026-07-28T13:09:08.287804Z'
+updated_at: '2026-07-28T18:06:16.406255Z'
 work_branch: null
 target_branch: null
 review_url: null

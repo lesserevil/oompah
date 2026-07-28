@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-466
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Apply audit verdicts and route failures without fail-open behavior
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:08.204164Z'
-updated_at: '2026-07-28T13:09:14.403849Z'
+updated_at: '2026-07-28T18:06:21.069555Z'
 work_branch: null
 target_branch: null
 review_url: null

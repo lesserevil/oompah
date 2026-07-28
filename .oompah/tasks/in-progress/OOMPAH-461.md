@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-461
 type: feature
-status: Backlog
+status: In Progress
 priority: 1
 title: Add the canonical In Validation lifecycle status
 parent: OOMPAH-457
@@ -10,12 +10,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:03.234325Z'
-updated_at: '2026-07-28T13:05:03.234325Z'
-work_branch: null
+updated_at: '2026-07-28T18:06:28.283585Z'
+work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 1268a29c-34db-4073-b938-5a68cf9c7644
+oompah.work_branch: epic-OOMPAH-457
 ---
 ## Summary
 
@@ -37,3 +39,16 @@ In Validation is accepted and returned consistently by every configured tracker,
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 18:06
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 18:06
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
