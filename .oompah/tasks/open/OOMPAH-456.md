@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-456
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Make state-branch activation atomic and forge-aware for GitLab projects
 parent: OOMPAH-451
@@ -11,9 +11,10 @@ labels:
 - focus-complete:duplicate_detector
 - focus-complete:frontend
 - focus-complete:security
+- needs:feature
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:25:31.071661Z'
+updated_at: '2026-07-28T14:25:42.410967Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
