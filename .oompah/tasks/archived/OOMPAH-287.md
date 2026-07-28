@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-287
 type: task
-status: Merged
+status: Archived
 priority: 0
 title: Add provenance metadata for external content entering Oompah
 parent: OOMPAH-285
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T14:51:40.852361Z'
-updated_at: '2026-07-21T21:28:53.623357Z'
+updated_at: '2026-07-28T22:04:43.884764Z'
 work_branch: OOMPAH-287
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/467
