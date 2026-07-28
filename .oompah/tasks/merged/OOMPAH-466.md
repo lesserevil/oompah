@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-466
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Apply audit verdicts and route failures without fail-open behavior
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:08.204164Z'
-updated_at: '2026-07-28T20:05:00.878668Z'
+updated_at: '2026-07-28T21:17:42.882286Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
