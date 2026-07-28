@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:29.472352Z'
-updated_at: '2026-07-28T15:41:40.698796Z'
+updated_at: '2026-07-28T15:41:49.965565Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -133,5 +133,10 @@ author: oompah
 created: 2026-07-28 15:41
 ---
 Implementation: Refactored tests/test_granian_e2e.py. Key changes: (1) Replaced function-scoped granian_e2e_base_url fixture with _granian_server() context manager that centralizes process ownership with always-run bounded SIGINT→terminate→kill cleanup plus pipe draining on all exits including assertion failure. (2) Consolidated 20 tests into 4 scenario functions: test_http_root_and_state_contract (7 HTTP assertions in 1 server start), test_ws_connection_and_initial_push (6 WS assertions in 1 server start), test_ws_broadcast_fan_out (3 broadcast assertions in 1 server start), test_restart_http_and_ws_contract (3 restart assertions with 2 server starts). All original behavioral contracts preserved. Sequential multi-client scenario omitted as subsumed by scenarios 2+3.
+---
+author: oompah
+created: 2026-07-28 15:41
+---
+Verification: PASSED. Before: 20 tests in 52.97s. After: 4 tests in 5.35s (10x faster). No subprocess leaks confirmed (pgrep after both plain and -x runs shows zero Granian e2e processes). make test: 12345 passed, 7 skipped, 11 warnings in 238s - all unaffected. test_granian_parity.py and test_ws_lifecycle.py unchanged and passing. Acceptance criteria met: all contracts asserted, cases reduced 20→4 (≤6), one server per independent scenario, cleanup leaves no subprocess, runtime decreased materially.
 ---
 <!-- COMMENTS:END -->
