@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:49:18.823929Z'
-updated_at: '2026-07-28T18:02:02.081641Z'
+updated_at: '2026-07-28T18:02:04.634852Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-07-28 17:54
 ---
 Made changed heads on existing epic reviews run the persistent exact-head quality gate before review/YOLO reconciliation.
+---
+author: oompah
+created: 2026-07-28 18:02
+---
+Landed in merged epic PR #564 on main.
 ---
 <!-- COMMENTS:END -->
