@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:31.446905Z'
-updated_at: '2026-07-28T16:02:58.326996Z'
+updated_at: '2026-07-28T16:03:39.111109Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-07-28 16:02
 ---
 Understanding: I’m screening OOMPAH-496 for duplicates before any implementation. I’ll compare its test-consolidation scope with the completed draft-lifecycle and epic-strategy tasks, then either archive a confirmed duplicate or record evidence and hand off.
+---
+author: oompah
+created: 2026-07-28 16:03
+---
+Discovery: No confirmed duplicate. Full task views show OOMPAH-171 uniquely removed the draft-epic lifecycle and rewrote the five draft regression modules; OOMPAH-169 uniquely removed the projects-page epic-strategy UI; OOMPAH-167/168 cover backend/configuration and orchestration, not test consolidation. The current five files collect 59 cases, including repeated static absence checks plus four API cases in test_dashboard_draft_epics.py, matching OOMPAH-496’s distinct pruning scope.
 ---
 <!-- COMMENTS:END -->
