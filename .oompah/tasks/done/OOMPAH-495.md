@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-495
 type: chore
-status: In Progress
+status: Done
 priority: 2
 title: Retire pre-implementation state-branch design tests
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T15:59:09.606770Z'
+updated_at: '2026-07-28T16:00:22.247373Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ author: oompah
 created: 2026-07-28 15:59
 ---
 Verification: Collection changed from 322 to 298 cases across the design module plus five surviving suites, removing 24 cases. No stale state-branch 'not implemented' xfail text remains. The five surviving suites passed 298/298 in 17.57s. The full Makefile gate passed: 12,321 passed, 7 skipped, 10 warnings in 239.00s (run with OOMPAH_AGENT_LOG_DIR=/tmp/oompah-495-agent-logs because the managed home log directory is read-only, and a temporary uv shim because the host snap uv cannot start in this sandbox).
+---
+author: oompah
+created: 2026-07-28 16:00
+---
+Completion: Retired tests/test_state_branch_design.py, removed the duplicate TestXfailDesignContractNowPasses checks, and removed obsolete conditional xfail scaffolding while keeping all production-backed state-branch test bodies active. Collection dropped by 24 cases (322 to 298), targeted suites passed 298/298, and make test passed 12,321 tests with 7 skipped. Commit 93fbea87d is pushed to origin/epic-OOMPAH-490; the worktree is clean and up to date.
 ---
 <!-- COMMENTS:END -->
