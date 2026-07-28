@@ -9,9 +9,10 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-07-28T13:11:16.218994Z'
+updated_at: '2026-07-28T13:11:18.348638Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
