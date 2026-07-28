@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:20:50.842469Z'
+updated_at: '2026-07-28T19:21:44.388145Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -184,5 +184,31 @@ Key components to document:
 8. Testing requirements
 
 Approach: Create design doc in plans/ that serves as implementation spec, then hand off to feature agent for implementation.
+---
+author: oompah
+created: 2026-07-28 19:21
+---
+Discovery: Created comprehensive design document at plans/terminal-transition-coordinator.md
+
+Content:
+- Full architecture and design principles
+- API specification for request_transition method  
+- Detailed state chains (Done, Merged, Archived)
+- Coalescing and superseding logic
+- Per-project locking strategy
+- Comment deduplication mechanism
+- Recovery and restart semantics
+- Integration points (bootstrap, orchestrator, auditor)
+- Testing strategy with 13+ test cases
+- Data schema and JSON storage format
+
+Key design highlights:
+1. Atomicity: Persistence before status move ensures crash recovery
+2. Coalescing: Identical requests deduplicated by fingerprint
+3. Chains: Done (1 audit) → Merged (1-2 audits) → Archived (deferred)
+4. Per-project locking: Concurrent requests serialize safely
+5. Comment dedup: Persisted set prevents duplicate notifications
+
+The design is ready for implementation. Next focus: Feature agent for implementation.
 ---
 <!-- COMMENTS:END -->

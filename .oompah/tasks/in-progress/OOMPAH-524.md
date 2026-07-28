@@ -14,7 +14,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:21:30.640203Z'
+updated_at: '2026-07-28T19:21:41.893497Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -347,5 +347,10 @@ author: oompah
 created: 2026-07-28 19:21
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-28 19:21
+---
+Understanding: I will complete the htpasswd-aware MCP gateway flow by inspecting the current refactor, adding only request-scoped server-private authentication propagation, updating discovery metadata, and covering the authenticated transport and spoofing cases with focused tests before committing and pushing.
 ---
 <!-- COMMENTS:END -->
