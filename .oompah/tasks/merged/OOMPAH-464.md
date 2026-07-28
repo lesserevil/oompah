@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-464
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Persist the upgrade grandfather baseline and recover pending audits
 parent: OOMPAH-457
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:06.169316Z'
-updated_at: '2026-07-28T19:16:37.008156Z'
+updated_at: '2026-07-28T21:16:10.635716Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
