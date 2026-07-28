@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T15:57:23.081510Z'
+updated_at: '2026-07-28T15:59:09.606770Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -167,5 +167,10 @@ author: oompah
 created: 2026-07-28 15:57
 ---
 Understanding: This is continuation attempt #1. Previous agent (quick profile) was terminated after 11m 52s. I will check current state of files, determine what was done vs uncommitted, complete the implementation (remove test_state_branch_design.py and TestXfailDesignContractNowPasses), run tests, commit, push, and close the task.
+---
+author: oompah
+created: 2026-07-28 15:59
+---
+Verification: Collection changed from 322 to 298 cases across the design module plus five surviving suites, removing 24 cases. No stale state-branch 'not implemented' xfail text remains. The five surviving suites passed 298/298 in 17.57s. The full Makefile gate passed: 12,321 passed, 7 skipped, 10 warnings in 239.00s (run with OOMPAH_AGENT_LOG_DIR=/tmp/oompah-495-agent-logs because the managed home log directory is read-only, and a temporary uv shim because the host snap uv cannot start in this sandbox).
 ---
 <!-- COMMENTS:END -->
