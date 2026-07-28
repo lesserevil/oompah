@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:07.476394Z'
-updated_at: '2026-07-28T15:06:07.476394Z'
+updated_at: '2026-07-28T15:06:56.125119Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,3 +33,11 @@ Acceptance criteria: normal deployments do not terminate active agents; dispatch
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 15:06
+---
+Claimed for manual implementation by the current Codex session. Held in Backlog while the shared epic branch is built so Oompah does not dispatch another agent; status will move to In Progress and Done as this session completes the slice.
+---
+<!-- COMMENTS:END -->

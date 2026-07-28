@@ -6,11 +6,12 @@ priority: 2
 title: Parallelize pytest safely on isolated workers
 parent: OOMPAH-502
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-492
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:10.253754Z'
-updated_at: '2026-07-28T15:06:10.253754Z'
+updated_at: '2026-07-28T15:06:58.224808Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,3 +34,11 @@ Acceptance criteria: make test uses a safe bounded worker count, is materially f
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 15:06
+---
+Claimed for manual implementation by the current Codex session. Held in Backlog while the shared epic branch is built so Oompah does not dispatch another agent; status will move to In Progress and Done as this session completes the slice.
+---
+<!-- COMMENTS:END -->

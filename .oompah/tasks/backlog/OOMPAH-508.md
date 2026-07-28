@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:08.389229Z'
-updated_at: '2026-07-28T15:06:08.389229Z'
+updated_at: '2026-07-28T15:06:57.132774Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,3 +33,11 @@ Acceptance criteria: intermediate agents run focused checks; every review has on
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 15:06
+---
+Claimed for manual implementation by the current Codex session. Held in Backlog while the shared epic branch is built so Oompah does not dispatch another agent; status will move to In Progress and Done as this session completes the slice.
+---
+<!-- COMMENTS:END -->

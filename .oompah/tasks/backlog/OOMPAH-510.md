@@ -6,11 +6,18 @@ priority: 1
 title: Measure throughput improvements and validate the clean epic branch
 parent: OOMPAH-502
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-503
+- OOMPAH-504
+- OOMPAH-505
+- OOMPAH-506
+- OOMPAH-507
+- OOMPAH-508
+- OOMPAH-509
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:11.106221Z'
-updated_at: '2026-07-28T15:06:11.106221Z'
+updated_at: '2026-07-28T15:06:59.177386Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +38,11 @@ Acceptance criteria: all gates pass from a clean branch; measurements and remain
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 15:06
+---
+Claimed for manual implementation by the current Codex session. Held in Backlog while the shared epic branch is built so Oompah does not dispatch another agent; status will move to In Progress and Done as this session completes the slice.
+---
+<!-- COMMENTS:END -->
