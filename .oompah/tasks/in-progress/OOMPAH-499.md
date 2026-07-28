@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-499
 type: chore
-status: Open
+status: In Progress
 priority: 2
 title: Remove exact duplicate tests and resolve shadowed definitions
 parent: OOMPAH-490
@@ -11,12 +11,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:34.407060Z'
-updated_at: '2026-07-28T14:36:12.339005Z'
-work_branch: null
+updated_at: '2026-07-28T16:37:31.257099Z'
+work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 0f30f032-68f1-41ba-af34-df39a755ea45
+oompah.work_branch: epic-OOMPAH-490
 ---
 ## Summary
 
@@ -38,3 +40,11 @@ No test module contains shadowed test classes/methods, no unique intended case r
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 16:37
+---
+Agent dispatched (profile: default)
+---
+<!-- COMMENTS:END -->
