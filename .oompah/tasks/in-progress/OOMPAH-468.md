@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T21:55:56.906282Z'
+updated_at: '2026-07-28T21:57:40.289254Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -253,5 +253,10 @@ author: oompah
 created: 2026-07-28 21:55
 ---
 Discovery: the branch already contains commit 0115bfaaa with work_contributors.py, orchestrator persistence hooks, and tests/test_work_contributors.py. The worktree has only an untracked generated finalization note; I am validating the committed code and will remove that note before the final status check.
+---
+author: oompah
+created: 2026-07-28 21:57
+---
+Implementation: commit 0115bfaaa persists compact oompah.work_contributors records on normal worker exit for API, ACP, and CLI paths; captures provider/model/focus/branch/SHA/completion time, preserves retries and prior runs, and provides revision-filtered recursive epic collection with ancestry checks and redacted schema.
 ---
 <!-- COMMENTS:END -->
