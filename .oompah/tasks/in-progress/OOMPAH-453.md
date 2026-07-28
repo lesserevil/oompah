@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-07-28T13:16:05.119047Z'
+updated_at: '2026-07-28T13:22:29.284687Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -150,5 +150,10 @@ author: oompah
 created: 2026-07-28 13:16
 ---
 Implementation: WebhookForwarder now filters its managed set to GitHub projects before creating, polling, or retiring process state, including cleanup when a project changes forge. GitLabHookManager now requires both project access_token and webhook_secret before API reconciliation, exposes per-project configured health, skips expected missing-credential API calls, and recovers on the next reconcile after configuration is supplied. Added mixed-forge subprocess/API regression coverage plus degradation, recovery, and secret-redaction tests.
+---
+author: oompah
+created: 2026-07-28 13:22
+---
+Verification: Focused webhook and lifecycle coverage passed (168 tests). The full repository suite passed (12,328 passed, 39 skipped). The Makefile uv launcher could not enter its Snap DBus transient scope in this sandbox, so the identical full pytest suite was run from the existing virtualenv. git diff --check is clean.
 ---
 <!-- COMMENTS:END -->
