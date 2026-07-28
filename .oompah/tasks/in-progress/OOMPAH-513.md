@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:16:43.939778Z'
-updated_at: '2026-07-28T15:49:28.747671Z'
+updated_at: '2026-07-28T15:50:26.585757Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ author: oompah
 created: 2026-07-28 15:49
 ---
 Discovery: Safely fast-forwarded the clean local epic branch from e7f3e9370 to pushed commit 6533e235e. The guard is at OompahMarkdownTracker._prepare_default_branch_for_write before task path resolution/Git sync, with a direct pre-write check for the external-import index; the orchestrator explicitly disables default-branch task writes for its global managed tracker and routes project writes to configured state trackers. The dedicated regression file covers 11 mutation families, a real disposable main/state remote isolation flow, management-scope errors, state writes, and non-task ledgers. Focused result so far: 17 passed.
+---
+author: oompah
+created: 2026-07-28 15:50
+---
+Implementation: No additional source or test edits were needed in this test focus. Review confirmed commit 6533e235e already supplies behavioral coverage for the requested guard, real Git/remote branch isolation, configured state-branch checkpointing, and legacy standalone behavior (including existing state-branch compatibility tests). I also neutralized the guard in-memory and all 11 mutation regressions failed, demonstrating the tests detect the broken behavior.
 ---
 <!-- COMMENTS:END -->
