@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T21:17:42.043284Z'
+updated_at: '2026-07-28T21:18:02.115314Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -150,5 +150,10 @@ author: oompah
 created: 2026-07-28 21:17
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-28 21:18
+---
+**Understanding:** Implementing work_contributors persistence for worker startup/exit. Scope: Create compact audit records containing run ID, provider ID, safe provider name, resolved model ID, focus, source branch/SHA, and completion time. Support API, ACP (unknown SDK-managed models), and CLI worker paths. For epic revisions, derive union of contributors from own branch work + child/nested-child audit records where commits are in the audited SHA. Preserve prior contributors across retries/restarts, discard contributors outside audited revision. Avoid credentials/prompts/logs/costs. Tests: API, ACP unknown model, CLI, retries, multiple workers, shared children, nested epics, excluded commits, restarts, redaction.
 ---
 <!-- COMMENTS:END -->

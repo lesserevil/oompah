@@ -18,7 +18,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-07-28T21:17:37.052969Z'
+updated_at: '2026-07-28T21:17:57.062108Z'
 work_branch: epic-OOMPAH-521
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/567
@@ -99,5 +99,10 @@ author: oompah
 created: 2026-07-28 21:17
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-28 21:17
+---
+Understanding: Task is to rebase epic-OOMPAH-521 (10 commits, OOMPAH-522/523/524/525/526) onto origin/main. Merge base is at 0237f7730 (Merge pull request #564). Main is 4 commits ahead (OOMPAH-457, OOMPAH-527). Will fetch, rebase, resolve conflicts, then run focused auth tests.
 ---
 <!-- COMMENTS:END -->
