@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-496
 type: chore
-status: In Progress
+status: Open
 priority: 2
 title: Consolidate removed draft-epic and epic-strategy UI contracts
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:31.446905Z'
-updated_at: '2026-07-28T16:04:52.776735Z'
+updated_at: '2026-07-28T16:05:13.195178Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
