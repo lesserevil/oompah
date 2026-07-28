@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T20:08:06.369974Z'
+updated_at: '2026-07-28T20:08:19.396619Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -415,5 +415,20 @@ author: oompah
 created: 2026-07-28 20:07
 ---
 Completion: Hardened and pushed commit bae820184 on epic-OOMPAH-521. Delivered shared Basic-auth resolution across task/admin/helper paths, safe URL and password-file handling, configured-port lifecycle calls with fail-closed restart preflight, client-secret filtering from legacy/API/ACP agent subprocesses, and auth documentation/tests. Branch is clean and up to date with origin. Focused verification is green (354 passed, 20 skipped); make check-secrets passed. Full make test was blocked by the host uv/DBus transient-scope error recorded above.
+---
+author: oompah
+created: 2026-07-28 20:08
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 110
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 52s
+- Log: OOMPAH-525__20260728T195427Z.jsonl
+---
+author: oompah
+created: 2026-07-28 20:08
+---
+Basic auth support for task/admin CLIs and Makefile lifecycle commands is implemented, hardened, tested, committed, and pushed in bae820184.
 ---
 <!-- COMMENTS:END -->
