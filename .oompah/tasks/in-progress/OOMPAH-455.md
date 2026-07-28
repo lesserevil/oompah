@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:43:54.837772Z'
+updated_at: '2026-07-28T13:44:47.132335Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -250,5 +250,10 @@ author: oompah
 created: 2026-07-28 13:43
 ---
 Understanding: Continuing from the completed frontend fix. I will inspect the existing branch changes, make PATCH intake-alias handling deterministic (accept one alias or matching aliases, reject conflicts precisely), prevent GitLab project edits from invoking GitHub token-owner resolution, add focused server/ProjectStore regressions, run make test, commit, push, and close the task.
+---
+author: oompah
+created: 2026-07-28 13:44
+---
+Discovery: The frontend commit is present and the worktree is clean. ProjectStore.update() currently rejects any payload containing both intake aliases before comparing values. api_update_project() also calls _resolve_github_token_owner() for explicit blank actors and token changes without checking the effective forge; api_create_project() has the same cross-forge fallback. The fix will keep github_issue_intake_enabled as the persisted field, accept either alias and coalesce matching dual values, reject differing dual values with a precise conflict error, and invoke the GitHub resolver only when the effective forge is github.
 ---
 <!-- COMMENTS:END -->
