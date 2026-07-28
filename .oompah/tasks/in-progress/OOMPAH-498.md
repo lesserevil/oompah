@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:33.437818Z'
-updated_at: '2026-07-28T16:27:17.832317Z'
+updated_at: '2026-07-28T16:28:16.820158Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -134,5 +134,33 @@ I'm the Maintenance Engineer taking over from the Duplicate Investigator focus. 
 **Target files:** tests/test_dashboard_release_delivery_ui.py, tests/test_release_delivery_page.py
 
 **Acceptance criteria:** Reduce test count, improve maintainability, preserve all security/queueing/accessibility behavior contracts.
+---
+author: oompah
+created: 2026-07-28 16:28
+---
+## Discovery
+
+Analyzed both test files:
+
+**test_dashboard_release_delivery_ui.py (313 tests):**
+- ~70 CSS class granular checks (each class gets its own test)
+- ~25 state variable initialization checks (one per variable)
+- ~45 function existence checks (one per function)
+- ~30 HTML ID/element presence checks
+- ~20 accessibility attribute checks
+- ~25 constant/map completeness checks (status labels, phase labels, etc.)
+- ~80+ XSS, status rendering, selection, queueing, drawer behavior tests (functional, should keep)
+
+**test_release_delivery_page.py (129 tests):**
+- ~15 route/navigation HTML element checks
+- ~25 accessibility label/role checks (can be table-driven)
+- ~50 function body/logic tests (functional, should keep)
+- ~30 URL persistence, bootstrap, progress integration tests (functional, should keep)
+
+**Grouping strategy:**
+1. Use table-driven parametrized tests for CSS classes, state vars, functions, HTML elements
+2. Group accessibility checks using helper function with descriptive failure messages
+3. Keep all behavioral/data-flow tests (selection, queueing, rendering, XSS, accessibility logic)
+4. Reduce duplicate element/attribute presence checks while maintaining contract coverage
 ---
 <!-- COMMENTS:END -->
