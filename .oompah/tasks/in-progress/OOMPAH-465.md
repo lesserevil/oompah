@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-465
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Implement idempotent terminal-transition staging and audit chains
 parent: OOMPAH-457
@@ -16,7 +16,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:23:52.643458Z'
+updated_at: '2026-07-28T19:24:28.124028Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -25,13 +25,13 @@ merged_at: null
 oompah.agent_run_id: f78f0011-7669-4aab-af85-e9505b4a000f
 oompah.work_branch: epic-OOMPAH-457
 oompah.task_costs:
-  total_input_tokens: 292873
-  total_output_tokens: 7494
+  total_input_tokens: 293179
+  total_output_tokens: 27433
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 292873
-      output_tokens: 7494
+      input_tokens: 293179
+      output_tokens: 27433
       cost_usd: 0.0
   runs:
   - profile: default
@@ -46,6 +46,12 @@ oompah.task_costs:
     output_tokens: 2719
     cost_usd: 0.0
     recorded_at: '2026-07-28T19:19:37.758578+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 306
+    output_tokens: 19939
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T19:24:19.420709+00:00'
 ---
 ## Summary
 
@@ -349,5 +355,25 @@ INTEGRATION READY:
 - Per-project write locks leverage existing ProjectStore locking
 
 STATUS: Handed off to feature implementation agent with focus:feature label.
+---
+author: oompah
+created: 2026-07-28 19:24
+---
+Agent completed successfully in 266s (20245 tokens)
+---
+author: oompah
+created: 2026-07-28 19:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 84, Tool calls: 37
+- Tokens: 306 in / 19.9K out [20.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 26s
+- Log: OOMPAH-465__20260728T191959Z.jsonl
+---
+author: oompah
+created: 2026-07-28 19:24
+---
+Focus handoff from `docs` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
