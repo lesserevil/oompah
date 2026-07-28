@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:00.486812Z'
-updated_at: '2026-07-28T17:49:38.154978Z'
+updated_at: '2026-07-28T17:49:53.808869Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -166,5 +166,10 @@ author: oompah
 created: 2026-07-28 17:49
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-28 17:49
+---
+Security Auditor understanding: Reviewing the comment compactor implementation (landed in commit c1eb096e2) for OOMPAH-504. Primary security concerns: (1) prompt injection — untrusted comment content must remain wrapped in provenance delimiters through the compaction pipeline; (2) trusted-notice spoofing — an attacker could craft a comment mimicking the trusted omission notice to manipulate agent behavior; (3) prioritization bypass — malicious content in a comment that looks like a Focus handoff or Needs Human message might escape the untrusted tier; (4) resource exhaustion — pathological byte/count configurations or enormous single comments. Will audit oompah/prompt.py, oompah/orchestrator.py, oompah/config.py, .env.example, and the test suite.
 ---
 <!-- COMMENTS:END -->
