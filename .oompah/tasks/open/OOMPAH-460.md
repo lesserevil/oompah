@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-460
 type: epic
-status: Backlog
+status: Open
 priority: 1
 title: Expose terminal audits in the UI, observability, migration, and end-to-end
   tests
@@ -18,7 +18,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:47.776498Z'
-updated_at: '2026-07-28T13:09:06.203781Z'
+updated_at: '2026-07-28T18:07:31.434682Z'
 work_branch: null
 target_branch: null
 review_url: null

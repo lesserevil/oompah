@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-459
 type: epic
-status: Backlog
+status: Open
 priority: 1
 title: Route all terminal-state producers through independent auditing
 parent: null
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-28T13:09:05.263656Z'
+updated_at: '2026-07-28T18:07:28.604322Z'
 work_branch: null
 target_branch: null
 review_url: null

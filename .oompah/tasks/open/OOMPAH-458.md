@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-458
 type: epic
-status: Backlog
+status: Open
 priority: 1
 title: Dispatch independent auditor agents and evaluate target-specific evidence
 parent: null
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-28T13:09:04.459709Z'
+updated_at: '2026-07-28T18:07:27.112912Z'
 work_branch: null
 target_branch: null
 review_url: null
