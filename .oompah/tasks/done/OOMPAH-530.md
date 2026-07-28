@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-530
 type: task
-status: In Progress
+status: Done
 priority: 2
 title: Add atomic duplicate-preflight claims and recovery
 parent: OOMPAH-528
@@ -13,7 +13,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-28T21:18:51.634942Z'
-updated_at: '2026-07-28T21:36:39.716610Z'
+updated_at: '2026-07-28T21:42:50.365755Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -215,5 +215,10 @@ author: oompah
 created: 2026-07-28 21:36
 ---
 Implementation: the prior partial commit added a claim record/store but explicitly left dispatch integration pending. I’m now replacing optimistic claim mutations with lock-scoped re-read/CAS operations, adding revision-safe completion and recovery, and wiring preflight claims into implementation eligibility/worker cleanup while preserving Open status.
+---
+author: oompah
+created: 2026-07-28 21:42
+---
+Implemented and pushed in 7a2e467fb: tracker-backed claim/renew/release lifecycle, compare-and-set completion, expiry recovery, stale edit protection, and implementation mutual exclusion. Focused concurrency/recovery tests pass.
 ---
 <!-- COMMENTS:END -->
