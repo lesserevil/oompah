@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:34.407060Z'
-updated_at: '2026-07-28T16:49:08.072552Z'
+updated_at: '2026-07-28T16:49:20.229076Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ merged_at: null
 oompah.agent_run_id: 0e45ce90-7695-4de5-b06e-9020e5a054dc
 oompah.work_branch: epic-OOMPAH-490
 oompah.task_costs:
-  total_input_tokens: 497352
-  total_output_tokens: 4023
+  total_input_tokens: 497946
+  total_output_tokens: 28688
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 497352
-      output_tokens: 4023
+      input_tokens: 497946
+      output_tokens: 28688
       cost_usd: 0.0
   runs:
   - profile: default
@@ -36,6 +36,12 @@ oompah.task_costs:
     output_tokens: 4023
     cost_usd: 0.0
     recorded_at: '2026-07-28T16:39:06.756185+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 594
+    output_tokens: 24665
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T16:49:18.043956+00:00'
 ---
 ## Summary
 
@@ -156,5 +162,20 @@ author: oompah
 created: 2026-07-28 16:49
 ---
 Removed exact duplicate tests and resolved shadowed definitions in 4 test files (test_epic_strategy.py, test_label_auth.py, test_orchestrator_merged.py, test_webhooks.py). Added AST-based duplicate-name guard (test_duplicate_names.py). All 12,239 tests pass. Unique test cases preserved. No shadowing remains.
+---
+author: oompah
+created: 2026-07-28 16:49
+---
+Agent completed successfully in 602s (25259 tokens)
+---
+author: oompah
+created: 2026-07-28 16:49
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 221, Tool calls: 73
+- Tokens: 594 in / 24.7K out [25.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 2s
+- Log: OOMPAH-499__20260728T163917Z.jsonl
 ---
 <!-- COMMENTS:END -->

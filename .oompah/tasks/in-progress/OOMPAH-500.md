@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-500
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Measure the pruned suite and enforce the no-network final gate
 parent: OOMPAH-490
@@ -18,12 +18,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:35.430103Z'
-updated_at: '2026-07-28T14:35:27.732647Z'
-work_branch: null
+updated_at: '2026-07-28T16:49:26.904720Z'
+work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 99872f39-7d3d-4145-9d63-0acae7d74834
+oompah.work_branch: epic-OOMPAH-490
 ---
 ## Summary
 
@@ -45,3 +47,16 @@ The complete suite passes, the checkout and tracker are unchanged, zero network 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 16:49
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 16:49
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
