@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-516
 type: chore
-status: Needs Human
+status: Done
 priority: 1
 title: Deploy OOMPAH-505 and apply live Claude/Codex tier roles
 parent: null
@@ -11,7 +11,7 @@ labels:
 - needs:human
 assignee: null
 created_at: '2026-07-28T15:52:20.003932Z'
-updated_at: '2026-07-28T17:10:12.701108Z'
+updated_at: '2026-07-28T17:28:52.560738Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-07-28 15:52
 ---
 Requires operator write/restart access to the managed runtime; the agent sandbox exposes only read-only runtime metadata and prohibits loopback self-calls.
+---
+author: oompah
+created: 2026-07-28 17:28
+---
+Resolved: the operator rollout has already been completed. The running service exposes manual model selection for Claude and Codex, and GET /api/v1/roles resolves the live round-robin mappings as fast/default = Claude haiku + Codex gpt-5.6-luna, standard = Claude sonnet + Codex gpt-5.6-terra, and deep = Claude opus + Codex gpt-5.6-sol. The task's original Claude fable value is superseded: two live dispatches rejected literal fable before tool use, while the direct haiku smoke test resolved successfully. Provider IDs were resolved from the live store rather than hardcoded, and OOMPAH-505 records the deployment and verification evidence. No human decision or manual action remains.
 ---
 <!-- COMMENTS:END -->
