@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:13:42.575547Z'
+updated_at: '2026-07-28T19:13:51.701135Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -198,5 +198,10 @@ author: oompah
 created: 2026-07-28 19:13
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-28 19:13
+---
+Understanding: I am reviewing the MCP authentication integration as a security auditor. I will trace discovery, streamable HTTP, and in-process API dispatch; test credential and header handling; verify direct REST endpoints cannot be bypassed; and preserve MCP exposure and DNS-rebinding protections.
 ---
 <!-- COMMENTS:END -->
