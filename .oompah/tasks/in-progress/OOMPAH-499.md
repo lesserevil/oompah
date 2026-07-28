@@ -8,10 +8,11 @@ parent: OOMPAH-490
 children: []
 blocked_by:
 - OOMPAH-491
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:34.407060Z'
-updated_at: '2026-07-28T16:38:49.852092Z'
+updated_at: '2026-07-28T16:39:02.289905Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -61,5 +62,10 @@ author: oompah
 created: 2026-07-28 16:38
 ---
 Discovery: No confirmed duplicate. The parent OOMPAH-490 uniquely assigns exact duplicate removal and Python test-name shadowing to OOMPAH-499. Reviewed in full: OOMPAH-490 (parent scope), OOMPAH-491 (Git remote safety), OOMPAH-492 (live-tracker isolation), OOMPAH-493 (retry sleeps), OOMPAH-494 (Granian scenarios), OOMPAH-495 (state-branch design tests), OOMPAH-496 (retired UI contracts, explicitly retaining backend shared-strategy coverage), OOMPAH-497/498 (Release Delivery UI ownership/assertion grouping), and OOMPAH-500 (downstream final audit). Archived OOMPAH-168 is a completed production shared-epic-strategy refactor, not this test-source cleanup. No code changes made.
+---
+author: oompah
+created: 2026-07-28 16:38
+---
+Focus handoff: duplicate_detector\n\n1. Outcome: No confirmed duplicate; OOMPAH-499 should proceed to implementation.\n2. Evidence: Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for OOMPAH-49x overlap and duplicate/shadowed-test wording; reviewed the parent and all sibling tasks in full plus archived OOMPAH-168. The sibling scopes are separate, and OOMPAH-490 uniquely owns this exact duplicate/name-shadowing work.\n3. Remaining work/risks: Implement the described cleanup in tests/test_intake_approval.py, test_epic_strategy.py, test_role_store.py, test_authority_boundary.py, test_error_watcher.py, test_label_auth.py, test_orchestrator_merged.py, and test_webhooks.py; add the actionable AST duplicate-name guard; preserve the distinct dirty-worktree case; run changed files, collection checks, and make test. No files were changed during screening.\n4. Recommended next focus: chore (test cleanup and AST guard).
 ---
 <!-- COMMENTS:END -->
