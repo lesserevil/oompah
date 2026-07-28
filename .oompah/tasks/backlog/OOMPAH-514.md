@@ -6,11 +6,13 @@ priority: 1
 title: Prove maintenance cannot dirty or push the server code checkout
 parent: OOMPAH-511
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-512
+- OOMPAH-513
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:44.915690Z'
-updated_at: '2026-07-28T15:16:44.915690Z'
+updated_at: '2026-07-28T15:17:20.375843Z'
 work_branch: null
 target_branch: null
 review_url: null

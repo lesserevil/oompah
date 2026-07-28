@@ -6,11 +6,12 @@ priority: 1
 title: Fail closed on task writes from a managed code checkout
 parent: OOMPAH-511
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-512
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:43.939778Z'
-updated_at: '2026-07-28T15:16:43.939778Z'
+updated_at: '2026-07-28T15:17:19.456282Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-511
 type: epic
-status: Backlog
+status: In Progress
 priority: 1
 title: Prevent managed task writes from bypassing state branches
 parent: null
@@ -13,7 +13,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:09.831740Z'
-updated_at: '2026-07-28T15:16:45.080333Z'
+updated_at: '2026-07-28T15:17:21.278021Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,3 +42,11 @@ All native task writes for a state-branch-enabled managed project resolve throug
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 15:17
+---
+Claimed for this manual implementation session. Work will be completed sequentially in an isolated epic-OOMPAH-511 worktree; OOMPAH-492 remains with its existing worker because its targeted test isolation is complementary, not duplicated.
+---
+<!-- COMMENTS:END -->

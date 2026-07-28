@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-512
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Route managed tracker mutations through project-scoped trackers
 parent: OOMPAH-511
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T15:16:42.904572Z'
+updated_at: '2026-07-28T15:17:22.359359Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,3 +41,11 @@ No managed-project mutation path can reach a writable cwd-derived tracker; proje
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 15:17
+---
+Implementation started manually in the isolated epic worktree. First step is to inventory every legacy/global tracker consumer and define the explicit managed versus standalone tracker contract.
+---
+<!-- COMMENTS:END -->
