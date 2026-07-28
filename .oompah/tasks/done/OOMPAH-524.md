@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-524
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Integrate htpasswd authentication with the embedded MCP gateway
 parent: OOMPAH-521
@@ -14,7 +14,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:26:56.613821Z'
+updated_at: '2026-07-28T19:27:28.745628Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -367,5 +367,10 @@ author: oompah
 created: 2026-07-28 19:26
 ---
 Verification: .venv/bin/pytest -q tests/test_mcp_gateway.py tests/test_server_auth.py passed (79 passed). make check-secrets completed successfully. The focused suite proves valid Basic initialize/list/call reaches protected api_state, while missing/invalid MCP and direct spoofed REST traffic receive 401 challenges.
+---
+author: oompah
+created: 2026-07-28 19:27
+---
+Completion: Delivered and pushed commit 27a4b8d60. MCP discovery and transport now enforce/report htpasswd Basic auth, protected tool dispatch uses only in-memory server-private capabilities, and direct/spoofed REST traffic remains protected. Focused tests: 79 passed; secret scan passed. Branch epic-OOMPAH-521 is up to date with origin.
 ---
 <!-- COMMENTS:END -->
