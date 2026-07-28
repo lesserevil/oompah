@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-506
 type: feature
-status: Backlog
+status: In Progress
 priority: 1
 title: Run safe stale-cache and worktree cleanup daily and under storage pressure
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:06.576042Z'
-updated_at: '2026-07-28T15:06:55.046579Z'
+updated_at: '2026-07-28T15:26:05.225745Z'
 work_branch: null
 target_branch: null
 review_url: null
