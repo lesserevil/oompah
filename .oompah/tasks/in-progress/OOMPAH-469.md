@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:09.346734Z'
-updated_at: '2026-07-28T23:49:58.833452Z'
+updated_at: '2026-07-28T23:50:47.739992Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -230,5 +230,10 @@ author: oompah
 created: 2026-07-28 23:49
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 23:50
+---
+Understanding: I am implementing the reserved read-only auditor focus and prompt contract. The auditor is a built-in focus with role 'Completion Auditor' that must be explicitly excluded from normal keyword/LLM focus triage. Its prompt must deliver the target contract, trusted task metadata, delimited untrusted descriptions/comments, evidence summary, allowed read/test actions, and the auditor result tool schema. The focus must prohibit file editing, committing, pushing, merging, creating tasks, changing status, or fixing findings. A server-side capability policy must expose read-only repo/test operations plus the result tool while denying mutating task/Git actions. Plan: (1) examine existing capability policy infrastructure, (2) add the auditor focus definition excluded from triage, (3) implement its rendered prompt contract with untrusted delimiters, (4) add the capability policy, (5) add comprehensive tests covering exclusion from triage, required prompt sections, prompt-injection resistance, and tool authorization.
 ---
 <!-- COMMENTS:END -->
