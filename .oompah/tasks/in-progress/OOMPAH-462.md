@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:04.307001Z'
-updated_at: '2026-07-28T18:27:10.321786Z'
+updated_at: '2026-07-28T18:27:29.731089Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -162,5 +162,10 @@ author: oompah
 created: 2026-07-28 18:27
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-28 18:27
+---
+Understanding: I will add a standalone terminal-audit domain module with typed enums, versioned dataclasses, strict required-field decoding, optional-field compatibility, and deterministic SHA-256 evidence fingerprints. I will first inspect existing models, enum, serialization, and test conventions, then implement focused tests and run the prescribed checks.
 ---
 <!-- COMMENTS:END -->
