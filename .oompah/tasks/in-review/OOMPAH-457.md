@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-07-28T21:05:35.701043Z'
+updated_at: '2026-07-28T21:06:47.065498Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -90,5 +90,10 @@ author: oompah
 created: 2026-07-28 21:05
 ---
 Understanding: I will inspect the failed GitHub Actions jobs for MR #565 on epic-OOMPAH-457, reproduce the reported errors locally, apply only the minimal covered CI fix, run focused tests, push the same branch, and verify checks restart.
+---
+author: oompah
+created: 2026-07-28 21:06
+---
+Discovery: GitHub Actions run 30397110118 failed only on Python 3.11 in tests/test_state_branch_e2e.py::TestCheckpointCoalescingE2E::test_multiple_mutations_coalesced_into_single_commit: the manual flush saw 1 mutation instead of 5. The test configures a real 100 ms debounce timer while performing five git-backed creates, so on the slower CI worker the timer flushed the first four before the explicit assertion. The focused test passes locally on Python 3.12, confirming timing sensitivity; Python 3.13 CI passed and 3.12 was canceled. The production queue behavior is correct; the test needs to prevent auto-flush while testing explicit coalesced flush.
 ---
 <!-- COMMENTS:END -->
