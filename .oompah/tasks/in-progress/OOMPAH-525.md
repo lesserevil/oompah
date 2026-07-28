@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:35:17.053073Z'
+updated_at: '2026-07-28T19:37:50.081819Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -184,5 +184,32 @@ author: oompah
 created: 2026-07-28 19:35
 ---
 Understanding: Security Auditor focus. I will audit the security design for OOMPAH-525 (Basic auth client support for task/admin CLIs and Makefile lifecycle commands), then implement the feature with security properties verified throughout. Attack vectors I will address: (1) credential leakage in URLs, process args, logs, errors; (2) password-file unsafe permissions (world-readable secrets); (3) 401 responses reflecting back auth data; (4) URL injection via OOMPAH_SERVER_URL with embedded userinfo; (5) forced restart escalation on auth failure; (6) timing side-channels in file permission checks; (7) symlink attacks on password files. I will implement: oompah/client_auth.py (shared resolver), task_cli.py/admin_cli.py integration, Makefile auth plumbing, and focused tests.
+---
+author: oompah
+created: 2026-07-28 19:37
+---
+Discovery: Completed codebase analysis. Key findings:
+
+1. Server-side auth (OOMPAH-522/523): FULLY IMPLEMENTED in oompah/http_auth.py (htpasswd loader/verifier) and oompah/server.py (_BasicAuthMiddleware). /healthz is public; /api/v1/state and other routes require auth.
+
+2. Client-side auth: NOT YET IMPLEMENTED. task_cli.py uses httpx without auth; admin_cli.py uses urllib.request without auth.
+
+3. Makefile: status/restart/graceful call curl for /api/v1/state and /api/v1/orchestrator/restart without auth. /healthz probe is already there but state calls lack auth.
+
+4. Security attack vectors identified:
+   - URL credential injection (OOMPAH_SERVER_URL with userinfo)
+   - Password in curl argv (visible in /proc/*/cmdline)
+   - Symlink attacks on password files
+   - World-readable password files
+   - 401 responses must not echo back credentials
+   - Auth failure must not escalate to force-restart
+
+Implementation plan:
+- oompah/client_auth.py (new): shared resolver with URL sanitization, symlink rejection, permission warnings
+- task_cli.py: add --username/--password-file, pass httpx BasicAuth, handle 401
+- admin_cli.py: add auth via urllib.request, handle 401
+- scripts/oompah_http.py (new): auth-aware helper for Makefile (avoids password in argv)
+- Makefile: replace curl state/restart calls with scripts/oompah_http.py
+- tests/test_client_auth.py (new): full credential resolver test suite
 ---
 <!-- COMMENTS:END -->
