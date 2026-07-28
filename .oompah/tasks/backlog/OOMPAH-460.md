@@ -6,12 +6,18 @@ priority: 1
 title: Expose terminal audits in the UI, observability, migration, and end-to-end
   tests
 parent: null
-children: []
+children:
+- OOMPAH-484
+- OOMPAH-485
+- OOMPAH-486
+- OOMPAH-487
+- OOMPAH-488
+- OOMPAH-489
 blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:47.776498Z'
-updated_at: '2026-07-28T13:03:47.776498Z'
+updated_at: '2026-07-28T13:08:28.364269Z'
 work_branch: null
 target_branch: null
 review_url: null
