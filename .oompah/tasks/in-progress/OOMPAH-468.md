@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T21:33:26.713340Z'
+updated_at: '2026-07-28T21:49:45.535839Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -165,5 +165,10 @@ author: oompah
 created: 2026-07-28 21:33
 ---
 **Implementation:** Three components delivered:\n\n1. **oompah/work_contributors.py** (new): WorkContributor dataclass (run_id, provider_id, provider_name, model_id, focus, source_branch, source_sha, completed_at), merge_contributor_records(), load_contributors(), sha_is_ancestor() for git ancestry check, and collect_epic_contributors() for epic union with recursive nested-epic traversal, commit-SHA filtering, deduplication by run_id, and cycle guard.\n\n2. **oompah/orchestrator.py** (modified): Added _build_work_contributor_record(), _write_work_contributor_record(), and _fire_work_contributor_record() following existing task_costs pattern. Call in _on_worker_exit() only when reason=='normal' (successful completion).\n\n3. **tests/test_work_contributors.py** (new, 72 tests): Covers API worker, ACP SDK-managed unknown model, CLI worker, retries (separate records), multiple workers accumulation, shared epic children, nested epics, commits excluded from current SHA, restart rereads, and redaction (no credentials/prompts/logs/costs).\n\nModel IDs: None stored for ACP 'default' and CLI 'cli-managed' to indicate SDK-managed unknowns. Source SHA from _worktree_head() at exit. Run ID from agent_log_path basename.
+---
+author: oompah
+created: 2026-07-28 21:49
+---
+Verification: 151 tests pass — test_work_contributors.py (72 new tests), test_task_cost_telemetry.py (41), test_telemetry_comment.py (38). No regressions. Branch epic-OOMPAH-458 pushed to origin.
 ---
 <!-- COMMENTS:END -->
