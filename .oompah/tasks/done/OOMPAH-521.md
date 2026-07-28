@@ -17,7 +17,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-07-28T21:21:32.830560Z'
+updated_at: '2026-07-28T21:21:34.899452Z'
 work_branch: epic-OOMPAH-521
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/567
@@ -123,5 +123,10 @@ Rebase complete. Rebased epic-OOMPAH-521 (10 commits) onto origin/main.
 - Neighboring suites: 179 tests pass (test_task_cli, test_admin_cli, test_config_agent_profile_store, test_gitlab_bootstrap_readiness).
 
 Branch force-pushed to origin/epic-OOMPAH-521 (head 0f3a7bfd1). All 10 original commits preserved; no commits dropped or squashed except the uv.lock fixup.
+---
+author: oompah
+created: 2026-07-28 21:21
+---
+Merge conflict resolution complete. Rebased epic-OOMPAH-521 onto origin/main (all 10 OOMPAH-522/523/524/525/526 commits preserved). Resolved conflicts in .env.example, oompah/bootstrap.py, and tests/test_granian_bootstrap.py by keeping both sides' additions. Folded uncommitted uv.lock (bcrypt/passlib deps for OOMPAH-522) into commit 59f266727 via autosquash. Focused test suites pass: 597 auth/config/bootstrap/mcp tests + 179 CLI/lifecycle tests. Branch force-pushed to origin (head 0f3a7bfd1).
 ---
 <!-- COMMENTS:END -->
