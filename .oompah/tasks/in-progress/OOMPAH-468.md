@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-468
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Persist worker and epic contributor provider-model provenance
 parent: OOMPAH-458
@@ -13,12 +13,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T18:09:12.829014Z'
-work_branch: null
+updated_at: '2026-07-28T21:10:04.570151Z'
+work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: d67d60ba-3924-4ac8-80a7-939687ba33b6
+oompah.work_branch: epic-OOMPAH-458
 ---
 ## Summary
 
@@ -40,3 +42,16 @@ The audit evidence collector can identify every provider/model that contributed 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 21:10
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 21:10
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
