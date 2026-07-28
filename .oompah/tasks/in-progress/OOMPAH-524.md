@@ -13,7 +13,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:17:31.202357Z'
+updated_at: '2026-07-28T19:19:03.971293Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -269,5 +269,10 @@ author: oompah
 created: 2026-07-28 19:17
 ---
 Understanding: As Refactoring Specialist, my role is to improve code quality without changing behavior. Previous agents confirmed this is distinct work (no duplicate) and defined the security architecture needed - but no feature code was written yet. I will first read the current codebase state to determine if there is any refactoring work to do on the existing code, run baseline tests, and if the feature implementation is still pending I will hand off to a feature agent with full context.
+---
+author: oompah
+created: 2026-07-28 19:19
+---
+Discovery: Reviewed all relevant files. Current state: (1) _BasicAuthMiddleware in server.py is sound and strips Authorization headers after verification. (2) build_mcp_gateway in mcp_gateway.py inlines the ASGI dispatch inside a nested closure, making it untestable and hard to extend for auth bypass. (3) discovery_document() returns a hardcoded 'none; local service access only' auth value. The feature agent will need to: add a sentinel-based auth bypass mechanism, update discovery_document to reflect runtime auth mode, and add integration tests. As Refactoring Specialist I will: extract the inline ASGI dispatch into a standalone _dispatch_api_call() helper to make it independently testable and easy for the feature agent to adapt. All 69 existing tests pass (baseline confirmed).
 ---
 <!-- COMMENTS:END -->
