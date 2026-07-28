@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:42:08.661968Z'
+updated_at: '2026-07-28T19:48:26.531571Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -626,5 +626,10 @@ author: oompah
 created: 2026-07-28 19:42
 ---
 Implementation: Integrated the coordinator into Orchestrator and bootstrap. It now resolves project-specific trackers, exposes request_terminal_transition with deterministic fallback fingerprints, and is returned in Services. Added project-factory, bootstrap wiring, and orchestrator routing tests.
+---
+author: oompah
+created: 2026-07-28 19:48
+---
+Verification: Focused coordinator suite 41 passed; directly affected terminal-audit/status suites 142 passed; bootstrap/orchestrator suites 280 passed. Full available-environment pytest: 12,724 passed, 7 skipped, 7 unrelated ACP-agent failures caused by read-only /home/shedwards/agent-logs writes. make test could not start because astral-uv failed with DBus transient-scope error.
 ---
 <!-- COMMENTS:END -->
