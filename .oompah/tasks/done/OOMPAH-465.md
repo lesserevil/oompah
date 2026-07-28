@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-465
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Implement idempotent terminal-transition staging and audit chains
 parent: OOMPAH-457
@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:35:24.191571Z'
+updated_at: '2026-07-28T19:35:38.927735Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -463,5 +463,36 @@ Acceptance criteria verified:
   ✓ Every request has one durable chain (persisted atomically before status write)
   ✓ Direct Merged cannot skip completion auditing (Done queued first if not completed)
   ✓ Retries/events cannot create duplicate auditor work (coalescing by fingerprint)
+---
+author: oompah
+created: 2026-07-28 19:35
+---
+Completion: OOMPAH-465 implementation complete.
+
+DELIVERABLES:
+1. oompah/terminal_transition_coordinator.py
+   - TerminalTransitionCoordinator class with async request_transition()
+   - TransitionResult dataclass with fields: success, audit_id, queued_targets, coalesced, superseded_audit_id, reason
+   - Module helpers: _build_new_entries, _build_merged_entries, _make_record, _generate_audit_id
+   - Full docstring coverage
+
+2. tests/test_terminal_transition_coordinator.py
+   - 40 comprehensive tests covering all scenarios from the design spec
+
+ACCEPTANCE CRITERIA MET:
+✓ No terminal status written by staging — coordinator only moves to IN_VALIDATION
+✓ Every request has one durable chain — persisted atomically before status write
+✓ Direct Merged cannot skip completion auditing — Done is queued first when no completed Done exists
+✓ Retries/events cannot create duplicate auditor work — coalescing by (target, fingerprint)
+✓ Changed fingerprint supersedes pending work
+✓ Per-project async locking prevents races
+✓ Comment posted exactly once per task (persisted flag survives restarts)
+✓ Stale requests (already completed) rejected gracefully
+✓ Tracker write failure does not corrupt persisted chain (ordering guarantee)
+
+INTEGRATION NOTE:
+The coordinator is ready for integration into bootstrap.py/orchestrator.py.
+It takes (tracker: TrackerProtocol, project_store: ProjectWriteLockProvider) as constructor args.
+No changes to existing files were required.
 ---
 <!-- COMMENTS:END -->
