@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-468
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Persist worker and epic contributor provider-model provenance
 parent: OOMPAH-458
@@ -14,13 +14,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T21:50:34.244920Z'
+updated_at: '2026-07-28T21:55:18.910787Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: ea9c98e0-e253-494f-baf4-3d9933e24143
+oompah.agent_run_id: 7d2020e3-a918-4e5f-b160-25e41793641b
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 576
@@ -233,5 +233,15 @@ Steps to resolve:
   git push origin epic-OOMPAH-458
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-28 21:55
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 21:55
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
