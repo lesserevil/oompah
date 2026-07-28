@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:45:00.181877Z'
+updated_at: '2026-07-28T18:45:09.914019Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
