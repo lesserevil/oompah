@@ -159,25 +159,36 @@ make stop
 Sends `SIGTERM` to the process group, then waits up to 30 seconds for the
 process to exit and the port to be released.
 
-### Hard restart (after code or dependency changes)
+### Normal draining restart (after code, dependency, or config changes)
 
 ```bash
 make restart
 ```
 
-Equivalent to `make stop && make start`. Use this after pulling new commits,
-changing Python dependencies, or modifying `oompah/*.py` files.
+Requests a graceful process restart, pauses new dispatch, waits for active
+agents to finish, loads the updated code in-place, and verifies that a new
+healthy service instance is answering before returning. The default one-hour
+drain deadline is configurable with
+`OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS` in `.env`. If the deadline expires,
+undrained task identities are persisted once and reopened after restart.
 
-### Graceful restart (after template or configuration changes)
+### Graceful alias
 
 ```bash
 make graceful
 ```
 
-Calls `POST /api/v1/orchestrator/restart` with a 60-second drain timeout.
-Running agents finish their current turn, then the orchestrator reloads
-in-place without dropping the HTTP server. Use this for minor config changes
-where you want to minimize disruption to running agents.
+This is an alias for `make restart`.
+
+### Emergency force restart
+
+```bash
+make force-restart
+```
+
+This explicitly performs a hard stop/start and may interrupt active agents.
+Use it only when the running process is unhealthy and cannot accept the normal
+restart API request. A normal restart never silently falls back to this path.
 
 ---
 
@@ -273,6 +284,30 @@ A passing test returns `"ok": true` with the response to the test prompt `"What
 is 2 + 2?"`. Failures include an `error_reason` field with a normalized category
 such as `auth_failed`, `rate_limited`, `budget_blocked`, `timeout`, or
 `invalid_model`.
+
+### Storage cleanup
+
+The `storage_cleanup` maintenance job scans Oompah's configured private temp
+root and `*.jsonl` agent logs once per day. It runs additional bounded batches
+when free bytes or free percentage falls below the configured pressure
+threshold. Registered worktrees are removed only through the tracker-aware
+Merged/Archived cleanup; active, Done/conflict, valid unregistered, and unknown
+paths are preserved. Symlinks and VM image formats are never cleanup targets.
+
+Inspect the latest trigger, reclaimed bytes, skipped entries, pressure samples,
+and errors:
+
+```bash
+curl -s http://localhost:8080/api/v1/state |
+  jq '.orchestrator_metrics.maintenance.storage_cleanup,
+      .maintenance.jobs.storage_cleanup'
+```
+
+Tune the cadence, pressure thresholds, minimum age, batch/byte caps, and log
+retention with the `OOMPAH_STORAGE_CLEANUP_*` variables in `.env.example`.
+Cleanup failures are recorded in maintenance state and do not stop scheduling.
+If an atomic deletion is interrupted, a `.oompah-cleanup-*` entry may remain
+inside the same owned root; a later scan retries it after the minimum age.
 
 ---
 
@@ -550,7 +585,7 @@ If a stale process is found, stop it and do a hard restart:
 
 ```bash
 kill <stale-pid>
-make restart
+make force-restart
 ```
 
 **Permanent fix:**
@@ -631,8 +666,9 @@ make start
 | `make setup` | Install server runtime into `.venv` (idempotent) |
 | `make start` | Start oompah in the background |
 | `make stop` | Stop the background process |
-| `make restart` | Hard stop + start (for code or dependency changes) |
-| `make graceful` | In-place orchestrator reload (drain agents, then reload) |
+| `make restart` | Drain agents, restart in-place, verify new instance health |
+| `make graceful` | Alias for the normal draining restart |
+| `make force-restart` | Emergency hard stop + start; interrupts active agents |
 | `make status` | Print PID, dashboard URL, and state JSON |
 | `make logs` | Tail `oompah.log` |
 | `make test` | Run the full pytest suite |

@@ -77,6 +77,11 @@ from oompah.statuses import (
     is_terminal_status,
     more_advanced_status,
 )
+from oompah.storage_cleanup import (
+    StoragePressure,
+    cleanup_owned_storage,
+    inspect_storage_pressure,
+)
 from oompah.focus import (
     _MIN_SCORE_TO_FLAG,
     analyze_completed_issue,
@@ -86,7 +91,13 @@ from oompah.focus import (
     select_focus,
     select_focus_async,
 )
-from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
+from oompah.prompt import (
+    PromptError,
+    build_continuation_prompt,
+    compact_prompt_comments,
+    render_prompt,
+)
+from oompah.quality_gate import BranchQualityGate, QualityGateResult
 from oompah.repo_map_prompt import build_repo_map_context
 from oompah.projects import (
     ProjectError,
@@ -671,6 +682,10 @@ class Orchestrator:
         self._candidate_selector = CandidateSelector(
             path=os.path.join(_state_dir, "role_usage.json")
         )
+        self._branch_quality_gate = BranchQualityGate(
+            os.path.join(_state_dir, "quality_gates.json"),
+            timeout_seconds=config.quality_gate_timeout_seconds,
+        )
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         self.state = OrchestratorState(
             poll_interval_ms=config.poll_interval_ms,
@@ -706,7 +721,12 @@ class Orchestrator:
         # service restarts. Previously _paused was always initialized to False.
         self._paused = self._load_paused_state()
         self._restore_budget_state()
+        self._service_instance_id = str(uuid.uuid4())
         self._restart_requested = False
+        self._restart_in_progress = False
+        self._restart_request_id: str | None = None
+        self._restart_requested_at: str | None = None
+        self._restart_initial_running = 0
         self._alerts: list[
             dict[str, str]
         ] = []  # {"level": "warning", "message": "..."}
@@ -1674,6 +1694,9 @@ class Orchestrator:
         self._prompt_template = prompt_template
         self.state.poll_interval_ms = config.poll_interval_ms
         self.state.max_concurrent_agents = config.max_concurrent_agents
+        self._branch_quality_gate.timeout_seconds = (
+            config.quality_gate_timeout_seconds
+        )
         self.tracker = self._new_tracker()
         # Clear cached per-project trackers so they pick up new state config
         self._project_trackers.clear()
@@ -1835,7 +1858,12 @@ class Orchestrator:
         self.event_bus.emit(EventType.ORCHESTRATOR_RESUMED, {})
         self._notify_observers()
 
-    async def graceful_restart(self, drain_timeout_s: float = 60) -> None:
+    async def graceful_restart(
+        self,
+        drain_timeout_s: float | None = None,
+        *,
+        request_id: str | None = None,
+    ) -> None:
         """Drain running agents and restart the process.
 
         1. Pause dispatch (no new agents)
@@ -1843,7 +1871,27 @@ class Orchestrator:
         3. Save any still-running issue IDs for re-dispatch after restart
         4. Signal the main loop to stop (which triggers os.execv in __main__)
         """
-        logger.info("Graceful restart requested (drain_timeout=%.0fs)", drain_timeout_s)
+        if self._restart_in_progress:
+            if request_id != self._restart_request_id:
+                logger.info(
+                    "Graceful restart request coalesced into %s",
+                    self._restart_request_id,
+                )
+                return
+        else:
+            self._restart_in_progress = True
+            self._restart_request_id = request_id or str(uuid.uuid4())
+            self._restart_requested_at = datetime.now(timezone.utc).isoformat()
+            self._restart_initial_running = len(self.state.running)
+        if drain_timeout_s is None:
+            drain_timeout_s = self.config.restart_drain_timeout_seconds
+        drain_timeout_s = max(float(drain_timeout_s), 0.0)
+        logger.info(
+            "Graceful restart %s requested (drain_timeout=%.0fs, running=%d)",
+            self._restart_request_id,
+            drain_timeout_s,
+            self._restart_initial_running,
+        )
         # Capture whether the user had explicitly paused before this call.
         # We pause internally for the drain regardless, but on the new boot
         # we should respect the user's pre-existing intent — overwriting
@@ -1861,7 +1909,7 @@ class Orchestrator:
                 remaining,
                 deadline - time.monotonic(),
             )
-            await asyncio.sleep(2)
+            await asyncio.sleep(min(2.0, max(deadline - time.monotonic(), 0.0)))
 
         # Save issue IDs of anything still running for re-dispatch
         restart_issues = []
@@ -2788,6 +2836,96 @@ class Orchestrator:
                 self._cleanup_error_last = str(exc)
                 logger.warning("Terminal worktree cleanup failed during maintenance: %s", exc)
 
+    def _storage_cleanup_paths(self) -> tuple[str, str, list[str]]:
+        log_root = os.environ.get("OOMPAH_AGENT_LOG_DIR") or os.path.join(
+            os.path.expanduser("~"), ".oompah", "agent-logs"
+        )
+        pressure_paths = [
+            self.config.temp_root,
+            log_root,
+            os.path.join(os.path.expanduser("~"), ".oompah"),
+        ]
+        return self.config.temp_root, log_root, pressure_paths
+
+    def _maybe_cleanup_storage(self) -> None:
+        """Run the comprehensive scan daily, or repeatedly under pressure."""
+        _, _, pressure_paths = self._storage_cleanup_paths()
+        pressure = inspect_storage_pressure(
+            pressure_paths,
+            min_free_bytes=self.config.storage_cleanup_pressure_min_free_bytes,
+            min_free_percent=(
+                self.config.storage_cleanup_pressure_min_free_percent
+            ),
+        )
+        state = self._get_or_create_job_state("storage_cleanup")
+        if pressure.pressured:
+            # Pressure overrides a daily next-run timestamp. The zero interval
+            # lets bounded batches repeat on subsequent scheduler ticks.
+            state.next_run_monotonic = 0.0
+        self._storage_cleanup_trigger = (
+            "storage_pressure" if pressure.pressured else "daily"
+        )
+        self._storage_cleanup_pressure = pressure
+        self._run_maintenance_job(
+            "storage_cleanup",
+            self._do_cleanup_storage,
+            min_interval_s=(
+                0
+                if pressure.pressured
+                else self.config.storage_cleanup_interval_seconds
+            ),
+        )
+
+    def _do_cleanup_storage(self) -> None:
+        temp_root, log_root, pressure_paths = self._storage_cleanup_paths()
+        protected_logs = {
+            entry.agent_log_path
+            for entry in list(self.state.running.values())
+            if entry.agent_log_path
+        }
+        result = cleanup_owned_storage(
+            temp_root=temp_root,
+            agent_log_root=log_root,
+            protected_paths=protected_logs,
+            min_age_seconds=self.config.storage_cleanup_min_age_seconds,
+            log_retention_seconds=(
+                self.config.storage_cleanup_log_retention_seconds
+            ),
+            batch_limit=self.config.storage_cleanup_batch_size,
+            byte_limit=self.config.storage_cleanup_max_bytes,
+        )
+        # Reuse the tracker-aware cleanup for registered terminal worktrees and
+        # ProjectStore's validation of stale unregistered worktree directories.
+        # It deliberately preserves Done/conflict and active worktrees.
+        worktrees_cleaned = self._cleanup_terminal_worktrees(
+            self.project_store.list_all()
+        )
+        pressure_before = getattr(
+            self,
+            "_storage_cleanup_pressure",
+            StoragePressure(False, 0, 0.0),
+        )
+        pressure_after = inspect_storage_pressure(
+            pressure_paths,
+            min_free_bytes=self.config.storage_cleanup_pressure_min_free_bytes,
+            min_free_percent=(
+                self.config.storage_cleanup_pressure_min_free_percent
+            ),
+        )
+        self._maintenance_status["storage_cleanup"] = {
+            "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "trigger": getattr(self, "_storage_cleanup_trigger", "daily"),
+            "pressure_before": pressure_before.__dict__,
+            "pressure_after": pressure_after.__dict__,
+            "cleaned_count": result.cleaned_count,
+            "worktrees_cleaned": worktrees_cleaned,
+            "reclaimed_bytes": result.reclaimed_bytes,
+            "scanned_count": result.scanned_count,
+            "skipped_count": result.skipped_count,
+            "deferred": result.deferred or pressure_after.pressured,
+            "errors": [*pressure_before.errors, *result.errors, *pressure_after.errors],
+        }
+
     def _run_step5b_maintenance(self) -> None:
         """Combined fire-and-forget maintenance wrapper for ``_tick`` step 5b.
 
@@ -2814,6 +2952,7 @@ class Orchestrator:
         """
         self._maybe_heal_repos()
         self._maybe_cleanup_worktrees()
+        self._maybe_cleanup_storage()
         self._auto_archive()
         self._maybe_open_deferred_done_reviews()
         self._maybe_run_merged_labels()
@@ -3007,7 +3146,16 @@ class Orchestrator:
                 await full_sync_task
             except (asyncio.CancelledError, Exception):
                 pass
-            self._dispatch_loop = None
+            try:
+                # The executor futures below belong to this scheduler loop.
+                # Drain them before ``asyncio.run()`` closes the loop so the
+                # HTTP loop never has to await a foreign-loop Future during
+                # restart cleanup.
+                await self._drain_background_work()
+            except Exception:  # noqa: BLE001 -- shutdown must remain observable
+                logger.exception("Failed to drain orchestrator background work")
+            finally:
+                self._dispatch_loop = None
 
     async def stop(self) -> None:
         """Gracefully stop the orchestrator."""
@@ -3039,11 +3187,58 @@ class Orchestrator:
             )
             if future is not None
         ]
-        if futures:
+        current_loop = asyncio.get_running_loop()
+        local_futures: list[asyncio.Future[None]] = []
+        foreign_futures: list[asyncio.Future[None]] = []
+        for future in futures:
+            if future.done():
+                try:
+                    future.result()
+                except Exception:  # noqa: BLE001 -- maintenance failure is logged
+                    logger.exception("Background maintenance failed during shutdown")
+                continue
+            try:
+                owner_loop = future.get_loop()
+            except AttributeError:
+                owner_loop = current_loop
+            if owner_loop is current_loop:
+                local_futures.append(future)
+            else:
+                foreign_futures.append(future)
+
+        if local_futures:
             await asyncio.gather(
-                *(asyncio.shield(future) for future in futures),
+                *(asyncio.shield(future) for future in local_futures),
                 return_exceptions=True,
             )
+        for future in foreign_futures:
+            owner_loop = future.get_loop()
+            if owner_loop.is_running():
+
+                async def _wait_on_owner(
+                    owned_future: asyncio.Future[None] = future,
+                ) -> None:
+                    await asyncio.shield(owned_future)
+
+                bridge = asyncio.run_coroutine_threadsafe(
+                    _wait_on_owner(),
+                    owner_loop,
+                )
+                try:
+                    await asyncio.wrap_future(bridge)
+                except Exception:  # noqa: BLE001 -- preserve restart progress
+                    logger.exception(
+                        "Background maintenance failed on its owning loop"
+                    )
+            else:
+                # This is the defensive path for a scheduler loop that exited
+                # before an older service version drained its executor
+                # futures. Pool shutdown below still waits for the underlying
+                # worker without attaching the asyncio Future to this loop.
+                logger.warning(
+                    "Skipping pending background Future from a closed foreign loop; "
+                    "waiting for its executor during pool shutdown"
+                )
 
         # shutdown(wait=True) also accounts for short auxiliary submissions
         # that are not represented by the two maintenance future attributes.
@@ -4944,6 +5139,231 @@ class Orchestrator:
         return self._epic_rollup_children_block_reason(epic, children)
 
     @staticmethod
+    def _quality_gate_command(project: Project) -> str:
+        """Return the one full command for a review-ready branch."""
+        for raw in (
+            getattr(project, "test_command_full", None),
+            getattr(project, "test_command", None),
+        ):
+            if isinstance(raw, str) and raw.strip():
+                return raw.strip()
+        return ""
+
+    @staticmethod
+    def _worktree_head(path: str) -> str:
+        """Return ``path``'s exact git HEAD or an empty string."""
+        if not path or not os.path.isdir(path):
+            return ""
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return ""
+        return result.stdout.strip() if result.returncode == 0 else ""
+
+    def _quality_gate_worktree(
+        self,
+        project: Project,
+        issue: Issue,
+        branch: str,
+        *,
+        preferred_path: str | None = None,
+    ) -> str:
+        """Find an existing checkout whose HEAD is the review branch tip."""
+        project_id = str(project.id)
+        candidates: list[str] = []
+        if preferred_path:
+            candidates.append(preferred_path)
+        try:
+            if _is_epic_issue(issue) or self._issue_has_children(issue):
+                candidates.append(
+                    self.project_store.epic_worktree_path_for(
+                        project_id,
+                        issue.identifier,
+                    )
+                )
+            else:
+                candidates.append(
+                    self.project_store.worktree_path_for(
+                        project_id,
+                        issue.identifier,
+                    )
+                )
+        except (AttributeError, ProjectError):
+            pass
+        if project.repo_path:
+            candidates.append(project.repo_path)
+
+        branch_head = ""
+        if project.repo_path:
+            for ref in (
+                f"refs/heads/{branch}",
+                f"refs/remotes/origin/{branch}",
+            ):
+                try:
+                    resolved = subprocess.run(
+                        ["git", "rev-parse", "--verify", "--quiet", ref],
+                        cwd=project.repo_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=15,
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    continue
+                if resolved.returncode == 0:
+                    branch_head = resolved.stdout.strip()
+                    break
+        if not branch_head:
+            return ""
+
+        seen: set[str] = set()
+        for candidate in candidates:
+            path = os.path.abspath(str(candidate or ""))
+            if not path or path in seen:
+                continue
+            seen.add(path)
+            head = self._worktree_head(path)
+            if head == branch_head:
+                return path
+        return ""
+
+    def _record_quality_gate_failure(
+        self,
+        issue: Issue,
+        project_id: str,
+        branch: str,
+        target_branch: str,
+        result: QualityGateResult,
+        *,
+        post_comment: bool = True,
+    ) -> None:
+        """Route a failed pre-review gate to the normal CI repair workflow."""
+        try:
+            tracker = self._tracker_for_project(project_id)
+            tracker.update_issue(
+                issue.identifier,
+                status=NEEDS_CI_FIX,
+                **{"add-label": "ci-fix"},
+            )
+            output = result.output_tail.strip()
+            if len(output) > 4000:
+                output = output[-4000:]
+            lines = [
+                "Branch quality gate blocked review creation.",
+                "",
+                f"Branch: `{branch}`",
+                f"Target: `{target_branch}`",
+                f"Head: `{result.head_sha or 'unknown'}`",
+                f"Command: `{result.command or 'unavailable'}`",
+                f"Result: `{result.status}`",
+                "",
+                "Required: run the command in the task worktree, fix the "
+                "failure, commit and push the repair, then leave the task in "
+                "Done. Oompah will rerun the gate for the new head before "
+                "creating the PR/MR.",
+            ]
+            if output:
+                lines.extend(["", "Output tail:", "```text", output, "```"])
+            if post_comment:
+                tracker.add_comment(
+                    issue.identifier,
+                    "\n".join(lines),
+                    author="oompah",
+                )
+        except Exception as exc:  # noqa: BLE001 - gate still fails closed
+            logger.warning(
+                "Failed to route quality-gate failure for %s: %s",
+                issue.identifier,
+                exc,
+            )
+
+    def _review_quality_gate_passes(
+        self,
+        project: Project,
+        issue: Issue,
+        branch: str,
+        target_branch: str,
+        *,
+        preferred_path: str | None = None,
+    ) -> bool:
+        """Run or reuse the exact-head full check before creating a review."""
+        command = self._quality_gate_command(project)
+        if not command:
+            logger.debug(
+                "No branch quality command configured for %s; review gate skipped",
+                project.name,
+            )
+            return True
+
+        worktree = self._quality_gate_worktree(
+            project,
+            issue,
+            branch,
+            preferred_path=preferred_path,
+        )
+        if not worktree:
+            result = QualityGateResult(
+                status="error",
+                head_sha="",
+                command=command,
+                output_tail=(
+                    "No existing worktree matched the review branch tip. "
+                    "Recreate the task worktree before retrying."
+                ),
+            )
+        else:
+            result = self._branch_quality_gate.run(
+                repo_path=worktree,
+                repo_identity=project.repo_url or project.repo_path or str(project.id),
+                target_branch=target_branch,
+                work_branch=branch,
+                command=command,
+            )
+        if not result.passed:
+            log = logger.debug if result.cached else logger.warning
+            log(
+                "Branch quality gate %s for %s at %s%s",
+                result.status,
+                issue.identifier,
+                result.head_sha or "unknown",
+                " (cached)" if result.cached else "",
+            )
+            self._record_quality_gate_failure(
+                issue,
+                str(project.id),
+                branch,
+                target_branch,
+                result,
+                post_comment=not result.cached,
+            )
+            return False
+
+        if not result.cached:
+            try:
+                tracker = self._tracker_for_project(str(project.id))
+                tracker.add_comment(
+                    issue.identifier,
+                    "Branch quality gate passed for "
+                    f"`{result.head_sha}` using `{result.command}` "
+                    f"in {result.duration_seconds:.1f}s. Review creation may proceed.",
+                    author="oompah",
+                )
+            except Exception as exc:  # noqa: BLE001 - evidence is persisted
+                logger.debug(
+                    "Failed to post quality-gate pass comment for %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+        return True
+
+    @staticmethod
     def _resolve_git_branch_refs(repo_path: str, branch: str) -> tuple[str, ...]:
         """Return available local refs for ``branch`` without fetching.
 
@@ -6177,6 +6597,13 @@ class Orchestrator:
                 epic_branch,
             )
             if existing_review is not None:
+                if not self._review_quality_gate_passes(
+                    project,
+                    issue,
+                    epic_branch,
+                    target_branch,
+                ):
+                    continue
                 self._ensure_epic_in_review_metadata(
                     project_id,
                     issue,
@@ -6258,6 +6685,14 @@ class Orchestrator:
                     issue.identifier,
                     pre_create_block_reason,
                 )
+                continue
+
+            if not self._review_quality_gate_passes(
+                project,
+                issue,
+                epic_branch,
+                target_branch,
+            ):
                 continue
 
             title = (
@@ -6501,7 +6936,24 @@ class Orchestrator:
                 project,
                 epic_branch,
                 child,
+                tracker=tracker,
             ):
+                if not (child.work_branch or "").strip():
+                    try:
+                        tracker.set_metadata_field(
+                            child.identifier,
+                            "oompah.work_branch",
+                            epic_branch,
+                        )
+                        child.work_branch = epic_branch
+                    except Exception as exc:  # noqa: BLE001 - durable evidence is best effort
+                        logger.warning(
+                            "Failed to persist epic branch coverage for child "
+                            "%s on %s: %s",
+                            child.identifier,
+                            epic_branch,
+                            exc,
+                        )
                 # Shared-mode children are already complete once their work is
                 # on the epic branch; the epic owns the review/CI/rebase state.
                 logger.info(
@@ -6550,6 +7002,8 @@ class Orchestrator:
         project: Project,
         epic_branch: str,
         child: Issue,
+        *,
+        tracker: TrackerProtocol | None = None,
     ) -> bool:
         """Return True when the epic review branch contains this child work."""
         if child.work_branch or getattr(child, "review_url", None):
@@ -6585,6 +7039,125 @@ class Orchestrator:
             for line in result.stdout.splitlines():
                 if needle in line.lower():
                     return True
+
+        if tracker is None:
+            try:
+                tracker = self._tracker_for_project(project.id)
+            except Exception:  # noqa: BLE001 - optional historical evidence
+                tracker = None
+        fetch_comments = getattr(tracker, "fetch_comments", None)
+        if not callable(fetch_comments):
+            return False
+        try:
+            comments = fetch_comments(child.identifier)
+        except Exception:  # noqa: BLE001 - fail closed on tracker evidence errors
+            return False
+
+        branch_refs = self._resolve_git_branch_refs(repo_path, epic_branch)
+        if not branch_refs:
+            return False
+        for commit_sha in self._trusted_completion_commit_shas(comments):
+            if self._reported_commit_landed_on_refs(
+                repo_path,
+                commit_sha,
+                branch_refs,
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def _trusted_completion_commit_shas(comments: Any) -> tuple[str, ...]:
+        """Extract explicitly reported commit SHAs from Oompah comments only."""
+        if not isinstance(comments, list):
+            return ()
+        pattern = re.compile(
+            r"(?i)\b(?:commit|checkpoint|head)"
+            r"(?:\s+(?:is|at))?\s+`?([0-9a-f]{7,40})\b"
+        )
+        found: list[str] = []
+        for comment in comments:
+            if not isinstance(comment, dict):
+                continue
+            author = str(comment.get("author") or "").strip().lower()
+            if author != "oompah":
+                continue
+            text = str(comment.get("text") or comment.get("body") or "")
+            for match in pattern.finditer(text):
+                sha = match.group(1).lower()
+                if sha not in found:
+                    found.append(sha)
+        return tuple(found)
+
+    @staticmethod
+    def _reported_commit_landed_on_refs(
+        repo_path: str,
+        commit_sha: str,
+        branch_refs: tuple[str, ...],
+    ) -> bool:
+        """Prove that a reported commit or a patch-equivalent rebase landed."""
+        try:
+            exists = subprocess.run(
+                [
+                    "git",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"{commit_sha}^{{commit}}",
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        if exists.returncode != 0:
+            return False
+
+        for branch_ref in branch_refs:
+            try:
+                ancestor = subprocess.run(
+                    ["git", "merge-base", "--is-ancestor", commit_sha, branch_ref],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return False
+            if ancestor.returncode == 0:
+                return True
+
+            try:
+                equivalent = subprocess.run(
+                    [
+                        "git",
+                        "cherry",
+                        branch_ref,
+                        commit_sha,
+                        f"{commit_sha}^",
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return False
+            lines = [
+                line.strip()
+                for line in equivalent.stdout.splitlines()
+                if line.strip()
+            ]
+            if (
+                equivalent.returncode == 0
+                and len(lines) == 1
+                and lines[0].startswith("- ")
+            ):
+                return True
         return False
 
     def _remote_epic_branch_has_unmerged_work(
@@ -8685,6 +9258,19 @@ class Orchestrator:
                 )
                 return True
 
+        if (
+            review_required
+            and entry.issue is not None
+            and not self._review_quality_gate_passes(
+                project,
+                entry.issue,
+                branch,
+                target_branch,
+                preferred_path=entry.workspace_path,
+            )
+        ):
+            return False
+
         # Create the review
         try:
             title = (
@@ -8747,6 +9333,29 @@ class Orchestrator:
                 )
                 return False
 
+        return True
+
+    def _defer_review_gate_to_maintenance(
+        self,
+        entry: RunningEntry,
+        project_id: str | None,
+    ) -> bool:
+        """Return True when standalone review handoff must run off-loop.
+
+        Worker exits execute on the scheduler event loop. A configured full
+        quality command can take minutes, so standalone Done tasks are left
+        for ``deferred_done_reviews``, which already runs in the maintenance
+        thread pool. Epic rollups use their own off-loop maintenance job.
+        """
+        if not project_id or entry.issue is None or entry.issue.parent_id:
+            return False
+        project = self.project_store.get(project_id)
+        if not project or not self._quality_gate_command(project):
+            return False
+        logger.info(
+            "Deferred review handoff for %s to the branch-quality maintenance lane",
+            entry.identifier,
+        )
         return True
 
     def _mark_task_in_review(
@@ -13485,16 +14094,25 @@ class Orchestrator:
 
         return sorted(issues, key=sort_key)
 
+    def _comments_for_prompt(
+        self, issue: Issue, comments: list[dict] | None
+    ) -> list[dict]:
+        """Return bounded startup context without altering tracker history."""
+        return compact_prompt_comments(
+            issue,
+            comments,
+            max_comments=self.config.prompt_max_comments,
+            max_bytes=self.config.prompt_max_comment_bytes,
+        )
+
     def _apply_duplicate_detection(self, candidates: list[Issue]) -> list[Issue]:
         """Run similarity-based duplicate detection on candidates (runs in thread pool).
 
-        For each candidate issue, scans against the project's open+closed issue pool.
+        For each candidate issue, scans against the project's active issue pool.
         When a high-similarity match (score >= _MIN_SCORE_TO_FLAG) is found:
 
-        * If the matching issue is OPEN → adds ``duplicate-candidate`` label and posts
-          a comment linking to the existing issue, so `_should_dispatch` will reject it.
-        * If the matching issue is CLOSED → adds ``needs:duplicate_detector`` label so
-          the ``duplicate_detector`` focus will be selected for agent investigation.
+        * Moves the candidate to ``Duplicate Candidate`` and posts a comment linking
+          to the existing active issue, so `_should_dispatch` will reject it.
 
         Also updates the in-memory candidate's ``labels`` list so that subsequent
         checks in this tick (like ``_should_dispatch``) see the new labels without
@@ -13528,9 +14146,6 @@ class Orchestrator:
                 limit,
             )
 
-        projects = self.project_store.list_all()
-        project_by_id: dict[str, Project] = {p.id: p for p in projects}
-
         # Group candidates by project so we can batch queries
         by_project: dict[str | None, list[Issue]] = {}
         for c in detection_candidates:
@@ -13543,19 +14158,25 @@ class Orchestrator:
                 else self.tracker
             )
             try:
-                # Fetch the full issue pool for this project (open + closed for comparison)
+                # Ask the tracker only for active issues. Filter the result too:
+                # some external trackers may return a broader state set than
+                # requested, and terminal work must never trigger duplicate
+                # detection.
                 all_pool = tracker.fetch_issues_by_states(
                     _dispatch_active_state_names(self.config.tracker_active_states)
-                    + list(self.config.tracker_terminal_states)
                 )
+                all_pool = [
+                    issue
+                    for issue in all_pool
+                    if not _is_terminal_state(
+                        issue.state, self.config.tracker_terminal_states
+                    )
+                ]
             except Exception:
                 logger.debug("Failed to fetch issue pool for duplicate detection on %s", project_id)
                 continue
 
             for candidate in proj_candidates:
-                # A completed duplicate-investigation focus is handed to a
-                # fresh agent. Do not rediscover the same closed match and
-                # route it back to that already-completed focus.
                 if "focus-complete:duplicate_detector" in {
                     label.lower() for label in (candidate.labels or [])
                 }:
@@ -13567,60 +14188,32 @@ class Orchestrator:
                     continue
 
                 for match_issue, score in similar:
-                    if not _is_terminal_state(
-                        match_issue.state, self.config.tracker_terminal_states
-                    ):
-                        # Match is OPEN — reject candidate as duplicate of existing open issue
-                        if "duplicate-candidate" not in (candidate.labels or []):
-                            try:
-                                tracker.update_issue(
-                                    candidate.identifier,
-                                    status=DUPLICATE_CANDIDATE,
-                                )
-                                # Update in-memory candidate so subsequent checks in this
-                                # tick (_should_dispatch) see the new label without a re-fetch.
-                                if candidate.labels is None:
-                                    candidate.labels = []
-                                candidate.state = DUPLICATE_CANDIDATE
-                                self._post_comment(
-                                    candidate.identifier,
-                                    f"Potential duplicate detected (similarity={score:.2f}): "
-                                    f"this issue appears similar to existing open issue "
-                                    f"{match_issue.identifier}.\n"
-                                    f"See {match_issue.identifier} for existing work.",
-                                    project_id=project_id,
-                                )
-                                logger.info(
-                                    "Duplicate detection: flagged %s as duplicate-candidate "
-                                    "(score=%.2f, matches %s)",
-                                    candidate.identifier, score, match_issue.identifier,
-                                )
-                            except Exception as exc:
-                                logger.debug(
-                                    "Failed to label/comment duplicate candidate %s: %s",
-                                    candidate.identifier, exc,
-                                )
-                        break  # only flag the highest-scoring match
-                    else:
-                        # Match is CLOSED — route to duplicate_detector focus
-                        if "needs:duplicate_detector" not in (candidate.labels or []):
-                            try:
-                                tracker.add_label(candidate.identifier, "needs:duplicate_detector")
-                                # Update in-memory candidate for same reason.
-                                if candidate.labels is None:
-                                    candidate.labels = []
-                                candidate.labels.append("needs:duplicate_detector")
-                                logger.info(
-                                    "Duplicate detection: added needs:duplicate_detector to %s "
-                                    "(score=%.2f, matches closed %s)",
-                                    candidate.identifier, score, match_issue.identifier,
-                                )
-                            except Exception as exc:
-                                logger.debug(
-                                    "Failed to add label for closed-match candidate %s: %s",
-                                    candidate.identifier, exc,
-                                )
-                        break  # only flag the highest-scoring match
+                    if "duplicate-candidate" not in (candidate.labels or []):
+                        try:
+                            tracker.update_issue(
+                                candidate.identifier,
+                                status=DUPLICATE_CANDIDATE,
+                            )
+                            candidate.state = DUPLICATE_CANDIDATE
+                            self._post_comment(
+                                candidate.identifier,
+                                f"Potential duplicate detected (similarity={score:.2f}): "
+                                f"this issue appears similar to existing active issue "
+                                f"{match_issue.identifier}.\n"
+                                f"See {match_issue.identifier} for existing work.",
+                                project_id=project_id,
+                            )
+                            logger.info(
+                                "Duplicate detection: flagged %s as duplicate-candidate "
+                                "(score=%.2f, matches %s)",
+                                candidate.identifier, score, match_issue.identifier,
+                            )
+                        except Exception as exc:
+                            logger.debug(
+                                "Failed to label/comment duplicate candidate %s: %s",
+                                candidate.identifier, exc,
+                            )
+                    break  # only flag the highest-scoring match
 
         self._last_duplicate_detection_metrics = {
             "candidate_count": len(candidates),
@@ -16552,7 +17145,7 @@ class Orchestrator:
                     self._prompt_template,
                     issue,
                     attempt,
-                    comments=comments,
+                    comments=self._comments_for_prompt(issue, comments),
                     focus_text=focus.render(project_obj),
                     workspace_path=wp,
                     memories=memories,
@@ -16917,7 +17510,7 @@ class Orchestrator:
                     self._prompt_template,
                     issue,
                     attempt,
-                    comments=comments,
+                    comments=self._comments_for_prompt(issue, comments),
                     focus_text=focus.render(project_obj),
                     workspace_path=wp,
                     memories=memories,
@@ -16956,9 +17549,9 @@ class Orchestrator:
             )
 
             # Update running entry session + telemetry snapshot. The
-            # provider/model fields are diagnostic for ACP runs (the
-            # SDK picks the actual model from the subscription) but
-            # they're still what the operator sees in task comments.
+            # provider/model fields report the requested ACP model (or
+            # backend default when empty) so operators can audit role
+            # resolution in running state and task comments.
             # See task oompah-zlz_2-y3fy.
             if issue.id in self.state.running:
                 running_entry_acp = self.state.running[issue.id]
@@ -17161,7 +17754,7 @@ class Orchestrator:
                 # at best, an error at worst.
                 if model and any(
                     marker in model.lower()
-                    for marker in ("claude", "haiku", "sonnet", "opus")
+                    for marker in ("claude", "fable", "haiku", "sonnet", "opus")
                 ):
                     acp_model = model
             else:
@@ -17482,7 +18075,9 @@ class Orchestrator:
                             self._prompt_template,
                             current_issue,
                             attempt,
-                            comments=cli_comments,
+                            comments=self._comments_for_prompt(
+                                current_issue, cli_comments
+                            ),
                             focus_text=cli_focus.render(cli_project_obj),
                             workspace_path=workspace_path,
                             memories=cli_memories,
@@ -18632,7 +19227,11 @@ class Orchestrator:
                                     )
                                     self.state.completed.add(issue_id)
                                     self._clear_reopen_count(issue_id)
-                                    self._ensure_review_exists(entry, project_id)
+                                    if not self._defer_review_gate_to_maintenance(
+                                        entry,
+                                        project_id,
+                                    ):
+                                        self._ensure_review_exists(entry, project_id)
                                 else:
                                     try:
                                         self._post_comment(
@@ -18691,10 +19290,16 @@ class Orchestrator:
                                 # If review handoff fails for unmerged work,
                                 # the task is reopened and should not be
                                 # recorded as cleanly completed.
-                                review_ready = self._ensure_review_exists(
+                                if self._defer_review_gate_to_maintenance(
                                     entry,
                                     project_id,
-                                )
+                                ):
+                                    review_ready = True
+                                else:
+                                    review_ready = self._ensure_review_exists(
+                                        entry,
+                                        project_id,
+                                    )
                                 if review_ready:
                                     self.state.completed.add(issue_id)
                                     self._clear_reopen_count(issue_id)
@@ -20167,6 +20772,18 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "json",
             ),
             "rate_limits": self.state.rate_limits,
+            "service_instance_id": getattr(self, "_service_instance_id", None),
+            "restart": {
+                "in_progress": getattr(self, "_restart_in_progress", False),
+                "request_id": getattr(self, "_restart_request_id", None),
+                "requested_at": getattr(self, "_restart_requested_at", None),
+                "initial_running": getattr(self, "_restart_initial_running", 0),
+                "remaining_running": (
+                    len(self.state.running)
+                    if getattr(self, "_restart_in_progress", False)
+                    else 0
+                ),
+            },
             "projects": [p.to_safe_dict() for p in self.project_store.list_all()],
             "open_reviews_by_project": {
                 pid: self._count_open_reviews(pid)

@@ -18,7 +18,8 @@ import pytest
 from oompah.config import ServiceConfig
 from oompah.models import Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
-from oompah.statuses import IN_REVIEW, OPEN
+from oompah.quality_gate import QualityGateResult
+from oompah.statuses import IN_REVIEW, NEEDS_CI_FIX, OPEN
 
 
 # ------------------------------------------------------------------ helpers
@@ -323,6 +324,91 @@ class TestMarkTaskInReview:
 
 
 class TestEnsureReviewExistsPassesDescription:
+    @pytest.mark.parametrize(
+        "repo_url",
+        [
+            "https://github.com/org/repo",
+            "https://gitlab.com/org/repo",
+        ],
+    )
+    def test_configured_gate_blocks_review_provider_neutrally(
+        self,
+        tmp_path,
+        repo_url,
+    ):
+        proj = _make_project(repo_url=repo_url)
+        proj.test_command = "make test"
+        proj.test_command_full = None
+        orch = _make_orchestrator(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        orch._review_quality_gate_passes = MagicMock(return_value=False)
+        provider = MagicMock()
+        issue = _make_github_issue(work_branch="work")
+        entry = _make_entry(issue)
+
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(1, ["abc work"], ""),
+            ),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is False
+        orch._review_quality_gate_passes.assert_called_once_with(
+            proj,
+            issue,
+            "work",
+            "main",
+            preferred_path=None,
+        )
+        provider.create_review.assert_not_called()
+
+    def test_full_command_wins_and_worker_exit_defers_to_maintenance(self, tmp_path):
+        proj = _make_project()
+        proj.test_command = "make test"
+        proj.test_command_full = "make test-full"
+        orch = _make_orchestrator(tmp_path, projects=[proj])
+        issue = _make_github_issue(work_branch="work")
+        entry = _make_entry(issue)
+
+        assert orch._quality_gate_command(proj) == "make test-full"
+        assert orch._defer_review_gate_to_maintenance(entry, "proj-1") is True
+
+    def test_gate_failure_routes_task_to_ci_fix_with_instructions(self, tmp_path):
+        proj = _make_project()
+        proj.test_command = "make test"
+        proj.test_command_full = None
+        orch = _make_orchestrator(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        issue = _make_github_issue(work_branch="work")
+        result = QualityGateResult(
+            status="failed",
+            head_sha="abc123",
+            command="make test",
+            output_tail="1 failed",
+        )
+
+        orch._record_quality_gate_failure(
+            issue,
+            "proj-1",
+            "work",
+            "main",
+            result,
+        )
+
+        tracker.update_issue.assert_called_once_with(
+            issue.identifier,
+            status=NEEDS_CI_FIX,
+            **{"add-label": "ci-fix"},
+        )
+        comment = tracker.add_comment.call_args.args[1]
+        assert "Required: run the command" in comment
+        assert "1 failed" in comment
+
     def test_github_issue_description_passed_to_create_review(self, tmp_path):
         """create_review receives a non-empty description with the hub link."""
         proj = _make_project()

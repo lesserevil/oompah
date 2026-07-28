@@ -594,7 +594,11 @@ class TestAcpBackendsEndpoint:
         claude_desc = body["descriptors"]["claude"]
         # Claude SDK has no model catalog hook today.
         assert claude_desc["has_catalog"] is False
-        assert claude_desc["supports_model_selection"] is False
+        assert claude_desc["supports_manual_model_selection"] is True
+        assert claude_desc["supports_model_selection"] is True
+        codex_desc = body["descriptors"]["codex"]
+        assert codex_desc["has_catalog"] is False
+        assert codex_desc["supports_manual_model_selection"] is True
 
     def test_claude_descriptor_subscription_note(self, api_client):
         r = api_client.get("/api/v1/acp-backends")
@@ -602,7 +606,7 @@ class TestAcpBackendsEndpoint:
         note = body["descriptors"]["claude"]["fetch_note"]
         # The dashboard surfaces this verbatim when the operator clicks
         # Fetch Models on an ACP-mode provider backed by Claude SDK.
-        assert "subscription" in note.lower()
+        assert "manually" in note.lower()
 
 
 class TestFetchModelsAcpAware:
@@ -619,8 +623,9 @@ class TestFetchModelsAcpAware:
         assert r.status_code == 200
         body = r.json()
         assert body["models"] == []
-        assert "subscription" in body.get("note", "").lower()
-        assert body.get("supports_model_selection") is False
+        assert "manually" in body.get("note", "").lower()
+        assert body.get("supports_manual_model_selection") is True
+        assert body.get("supports_model_selection") is True
 
     def test_acp_unknown_backend_returns_empty_with_note(self, api_client):
         r = api_client.post(
@@ -633,6 +638,7 @@ class TestFetchModelsAcpAware:
         body = r.json()
         assert body["models"] == []
         assert "doesnotexist" in body.get("note", "") or "Unknown" in body.get("note", "")
+        assert body.get("supports_manual_model_selection") is False
 
     def test_api_mode_still_requires_base_url(self, api_client):
         # api-mode (the OpenAI-compatible path) keeps its legacy 400-

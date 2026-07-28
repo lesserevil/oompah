@@ -629,6 +629,30 @@ class TestRunEventDrivenLoop:
         # Should complete without hanging
         event_loop.run_until_complete(asyncio.wait_for(_run(), timeout=5.0))
 
+    def test_run_drains_background_work_before_releasing_owner_loop(
+        self,
+        tmp_path,
+        event_loop,
+    ):
+        """Scheduler-owned futures are drained before asyncio.run closes its loop."""
+        orch = self._make_orch_with_mocked_tick(tmp_path)
+        orch._drain_background_work = AsyncMock()
+
+        async def _run():
+            async def _stop():
+                await asyncio.sleep(0.01)
+                orch._stopping = True
+                orch._post_event(
+                    DispatchEvent(event_type=DispatchEventType.SHUTDOWN)
+                )
+
+            await asyncio.gather(orch.run(), _stop())
+
+        event_loop.run_until_complete(_run())
+
+        orch._drain_background_work.assert_awaited_once()
+        assert orch._dispatch_loop is None
+
     def test_full_sync_loop_posts_full_sync_events(self, tmp_path, event_loop):
         """_full_sync_loop() posts FULL_SYNC events at the configured interval."""
         # Use a very short interval so the test doesn't take long
@@ -702,6 +726,74 @@ class TestRunEventDrivenLoop:
         assert orch._tick.call_count <= 3, (
             f"Expected event-driven loop (max 3 ticks), but got {orch._tick.call_count}. "
             "The old poll loop may still be active."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Shutdown cleanup: executor Futures remain bound to their scheduler loop
+# ---------------------------------------------------------------------------
+
+class TestDrainBackgroundWork:
+    """Restart cleanup never awaits an asyncio Future from the wrong loop."""
+
+    @pytest.fixture
+    def event_loop(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        yield loop
+        loop.close()
+        asyncio.set_event_loop(None)
+
+    def _mock_pools(self, orch):
+        orch._tick_pool = MagicMock()
+        orch._refresh_pool = MagicMock()
+
+    def test_awaits_pending_futures_on_current_loop(self, tmp_path, event_loop):
+        orch = _make_orchestrator(tmp_path)
+        self._mock_pools(orch)
+
+        async def _drain():
+            future = event_loop.create_future()
+            orch._maintenance_future = future
+            orch._epic_maintenance_future = None
+            event_loop.call_soon(future.set_result, None)
+            await orch._drain_background_work()
+
+        event_loop.run_until_complete(_drain())
+
+        orch._tick_pool.shutdown.assert_called_once_with(
+            wait=True,
+            cancel_futures=False,
+        )
+        orch._refresh_pool.shutdown.assert_called_once_with(
+            wait=True,
+            cancel_futures=False,
+        )
+
+    def test_closed_foreign_loop_future_does_not_block_restart(
+        self,
+        tmp_path,
+        event_loop,
+        caplog,
+    ):
+        orch = _make_orchestrator(tmp_path)
+        self._mock_pools(orch)
+        foreign_loop = asyncio.new_event_loop()
+        foreign_future = foreign_loop.create_future()
+        foreign_loop.close()
+        orch._maintenance_future = foreign_future
+        orch._epic_maintenance_future = None
+
+        event_loop.run_until_complete(orch._drain_background_work())
+
+        assert "closed foreign loop" in caplog.text
+        orch._tick_pool.shutdown.assert_called_once_with(
+            wait=True,
+            cancel_futures=False,
+        )
+        orch._refresh_pool.shutdown.assert_called_once_with(
+            wait=True,
+            cancel_futures=False,
         )
 
 
@@ -870,6 +962,42 @@ class TestGracefulRestartShutdownEvent:
             f"got {len(restart_issues)}"
         )
         assert restart_issues[0]["issue_id"] == issue_id
+
+    def test_running_agents_that_complete_during_drain_are_not_requeued(
+        self, tmp_path, event_loop
+    ):
+        from datetime import datetime, timezone
+        from oompah.models import Issue, RunningEntry
+
+        orch = _make_orchestrator(tmp_path)
+        for number in range(2):
+            issue_id = f"finishes-{number}"
+            issue = Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Finishes while draining",
+                state="In Progress",
+            )
+            orch.state.running[issue_id] = RunningEntry(
+                worker_task=MagicMock(),
+                identifier=issue_id,
+                issue=issue,
+                session=None,
+                retry_attempt=0,
+                started_at=datetime.now(timezone.utc),
+            )
+
+        async def finish_agents(_delay):
+            orch.state.running.clear()
+
+        with patch("oompah.orchestrator.asyncio.sleep", side_effect=finish_agents):
+            event_loop.run_until_complete(
+                orch.graceful_restart(drain_timeout_s=30)
+            )
+
+        assert orch._load_state().get("restart_issues", []) == []
+        assert orch.wants_restart is True
+        assert orch._paused is True
 
 
 # ---------------------------------------------------------------------------

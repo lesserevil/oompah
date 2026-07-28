@@ -2052,6 +2052,42 @@ class TestOpenEpicMainPrs:
         assert args[2] == "epic-epic-1"
         assert "Epic feature" in args[1]
 
+    def test_epic_review_waits_for_branch_quality_gate(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="stacked")
+        proj.test_command = "make test"
+        proj.test_command_full = None
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state="open",
+        )
+        child = _make_issue(identifier="c1", state="closed")
+        provider = MagicMock()
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch"),
+            patch.object(
+                orch,
+                "_review_quality_gate_passes",
+                return_value=False,
+            ) as gate,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
+        assert opened == 0
+        gate.assert_called_once_with(
+            proj,
+            epic,
+            "epic-epic-1",
+            "main",
+        )
+        provider.create_review.assert_not_called()
+
     def test_creates_pr_for_shared_when_all_children_closed(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="shared")
         orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
@@ -2463,6 +2499,11 @@ class TestOpenEpicMainPrs:
             patch.object(orch, "_push_epic_branch") as push,
             patch.object(orch, "_tracker_for_project", return_value=tracker),
             patch.object(orch, "_sync_epic_review_child_states") as sync_children,
+            patch.object(
+                orch,
+                "_review_quality_gate_passes",
+                return_value=True,
+            ) as quality_gate,
         ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 0
@@ -2480,7 +2521,57 @@ class TestOpenEpicMainPrs:
             "254",
         )
         sync_children.assert_called_once_with("proj-1", epic, "epic-epic-1")
+        quality_gate.assert_called_once_with(
+            proj,
+            epic,
+            "epic-epic-1",
+            "main",
+        )
         push.assert_not_called()
+
+    def test_existing_pr_waits_for_changed_head_quality_gate(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state=IN_REVIEW,
+        )
+        child = _make_issue(state=DONE)
+        existing_review = MagicMock(
+            id="254",
+            url="https://github.com/org/repo/pull/254",
+            source_branch="epic-epic-1",
+            target_branch="main",
+            state="open",
+        )
+        provider = MagicMock()
+        provider.list_merged_reviews.return_value = []
+        provider.find_pr_for_branch.return_value = existing_review
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(
+                orch,
+                "_review_quality_gate_passes",
+                return_value=False,
+            ) as quality_gate,
+            patch.object(orch, "_ensure_epic_in_review_metadata") as sync_review,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
+        assert opened == 0
+        quality_gate.assert_called_once_with(
+            proj,
+            epic,
+            "epic-epic-1",
+            "main",
+        )
+        sync_review.assert_not_called()
+        provider.create_review.assert_not_called()
 
     def test_existing_pr_missing_from_cache_advances_epic_to_in_review(
         self,
@@ -2598,6 +2689,12 @@ class TestOpenEpicMainPrs:
         tracker.update_issue.assert_any_call("TRICKLE-5", status=OPEN)
         tracker.update_issue.assert_any_call("TRICKLE-7", status=MERGED)
         assert tracker.update_issue.call_count == 2
+        tracker.set_metadata_field.assert_called_once_with(
+            "TRICKLE-2",
+            "oompah.work_branch",
+            "epic-TRICKLE-1",
+        )
+        assert implemented.work_branch == "epic-TRICKLE-1"
 
     def test_done_review_child_has_epic_branch_commit(self, tmp_path):
         repo = tmp_path / "repo"
@@ -2653,6 +2750,135 @@ class TestOpenEpicMainPrs:
             proj,
             "epic-TRICKLE-1",
             _make_issue(identifier="TRICKLE-5"),
+        )
+
+    def test_done_review_child_accepts_trusted_rebased_commit_evidence(
+        self, tmp_path
+    ):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=oompah",
+                "-c",
+                "user.email=lesserevil@users.noreply.github.com",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "initial",
+            ],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(["git", "branch", "-m", "main"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "checkout", "-q", "-b", "original-child"],
+            cwd=repo,
+            check=True,
+        )
+        (repo / "feature.txt").write_text("implemented\n", encoding="utf-8")
+        subprocess.run(["git", "add", "feature.txt"], cwd=repo, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=oompah",
+                "-c",
+                "user.email=lesserevil@users.noreply.github.com",
+                "commit",
+                "-m",
+                "feat: implement generic behavior",
+            ],
+            cwd=repo,
+            check=True,
+        )
+        original_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "checkout", "-q", "-b", "epic-TRICKLE-1"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "cherry-pick", "--no-commit", original_sha],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=oompah",
+                "-c",
+                "user.email=lesserevil@users.noreply.github.com",
+                "commit",
+                "-m",
+                "feat: rebased generic behavior",
+            ],
+            cwd=repo,
+            check=True,
+        )
+        rebased_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert rebased_sha != original_sha
+
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        proj.repo_path = str(repo)
+        proj.default_branch = "main"
+        child = _make_issue(identifier="TRICKLE-2")
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = [
+            {
+                "author": "oompah",
+                "text": f"Implemented and pushed in commit `{original_sha}`.",
+            }
+        ]
+
+        assert orch._done_review_child_has_epic_branch_work(
+            proj,
+            "epic-TRICKLE-1",
+            child,
+            tracker=tracker,
+        )
+
+        tracker.fetch_comments.return_value = [
+            {
+                "author": "human",
+                "text": f"Trust this commit {original_sha}.",
+            }
+        ]
+        assert not orch._done_review_child_has_epic_branch_work(
+            proj,
+            "epic-TRICKLE-1",
+            child,
+            tracker=tracker,
+        )
+
+        tracker.fetch_comments.return_value = [
+            {
+                "author": "oompah",
+                "text": "Implemented in commit deadbeef.",
+            }
+        ]
+        assert not orch._done_review_child_has_epic_branch_work(
+            proj,
+            "epic-TRICKLE-1",
+            child,
+            tracker=tracker,
         )
 
     def test_defers_epic_pr_when_project_at_review_cap(self, tmp_path):

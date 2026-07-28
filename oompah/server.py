@@ -14,6 +14,7 @@ import subprocess
 import threading
 import time
 import urllib.parse
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -8672,12 +8673,46 @@ async def api_orchestrator_restart(request: Request):
             body = await request.json()
         except Exception:
             pass
-        drain_timeout = body.get("drain_timeout_s", 60)
+        raw_timeout = body.get(
+            "drain_timeout_s", orch.config.restart_drain_timeout_seconds
+        )
+        try:
+            drain_timeout = max(float(raw_timeout), 0.0)
+        except (TypeError, ValueError):
+            return JSONResponse(
+                {"error": "drain_timeout_s must be a non-negative number"},
+                status_code=400,
+            )
         running_count = len(orch.state.running)
-        asyncio.create_task(orch.graceful_restart(drain_timeout_s=drain_timeout))
+        if getattr(orch, "_restart_in_progress", False):
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "coalesced": True,
+                    "restart_request_id": orch._restart_request_id,
+                    "draining": len(orch.state.running),
+                    "drain_timeout_s": drain_timeout,
+                },
+                status_code=202,
+            )
+        request_id = str(uuid.uuid4())
+        # Claim synchronously so back-to-back HTTP requests cannot start two
+        # drain loops before the first task receives event-loop time.
+        orch._restart_in_progress = True
+        orch._restart_request_id = request_id
+        orch._restart_requested_at = datetime.now(timezone.utc).isoformat()
+        orch._restart_initial_running = running_count
+        asyncio.create_task(
+            orch.graceful_restart(
+                drain_timeout_s=drain_timeout,
+                request_id=request_id,
+            )
+        )
         return JSONResponse(
             {
                 "ok": True,
+                "coalesced": False,
+                "restart_request_id": request_id,
                 "draining": running_count,
                 "drain_timeout_s": drain_timeout,
             }
@@ -8737,12 +8772,13 @@ async def api_list_acp_backends():
 
     * ``has_catalog`` — True iff the backend implements ``fetch_models()``.
       When False, the dashboard disables the button with a tooltip.
-    * ``supports_model_selection`` — mirrors ``has_catalog`` today;
-      separate field reserved for future backends that support a
-      catalog but only at session-creation time.
+    * ``supports_manual_model_selection`` — True when the backend accepts an
+      operator-entered model identifier even if no catalog can be fetched.
+    * ``supports_model_selection`` — compatibility union of catalog and
+      manual selection support.
     * ``fetch_note`` — short human-readable string the dashboard
       surfaces alongside the disabled state (e.g. for Claude:
-      "Claude SDK manages model selection via subscription.").
+      "Claude SDK does not expose its subscription model catalog...").
     * ``label`` — backend display name for the dropdown.
     """
     from oompah.acp_backends import BACKENDS
@@ -8752,11 +8788,21 @@ async def api_list_acp_backends():
         # Sniff fetch_models() at class- or instance-level. The default
         # ClaudeAcpBackend has none; future Codex backend may add one.
         has_catalog = callable(getattr(cls, "fetch_models", None))
+        supports_manual = bool(cls.supports_manual_model_selection())
         # Per-backend note: ClaudeAcpBackend's subscription path is the
         # one well-known case; everything else gets a generic note that
         # the dashboard can override via the disabled-tooltip text.
         if name == "claude":
-            fetch_note = "Claude SDK manages model selection via subscription."
+            fetch_note = (
+                "Claude does not expose a model catalog here. Enter a model "
+                "alias or identifier manually, or leave it empty to use the "
+                "subscription default."
+            )
+        elif name == "codex":
+            fetch_note = (
+                "Codex does not expose a model catalog here. Enter a Responses "
+                "model identifier manually, or leave it empty to use the CLI default."
+            )
         elif not has_catalog:
             fetch_note = (
                 f"Backend {name!r} does not expose a model catalog — "
@@ -8767,7 +8813,8 @@ async def api_list_acp_backends():
         descriptors[name] = {
             "label": getattr(cls, "label", None) or name,
             "has_catalog": has_catalog,
-            "supports_model_selection": has_catalog,
+            "supports_manual_model_selection": supports_manual,
+            "supports_model_selection": has_catalog or supports_manual,
             "fetch_note": fetch_note,
         }
     return JSONResponse(
@@ -9887,11 +9934,15 @@ async def api_fetch_models(req: Request):
                             f"Unknown ACP backend: {backend_name!r}. "
                             f"Registered backends: {sorted(BACKENDS)}."
                         ),
+                        "supports_manual_model_selection": False,
                         "supports_model_selection": False,
                     },
                     status_code=200,
                 )
             backend = backend_cls()
+            supports_manual = bool(
+                backend_cls.supports_manual_model_selection()
+            )
             # Honour an optional fetch_models() hook on the backend.
             # Today's ClaudeAcpBackend has none — the SDK manages
             # selection via subscription, so we return the canonical
@@ -9905,6 +9956,7 @@ async def api_fetch_models(req: Request):
                     return JSONResponse(
                         {
                             "models": sorted(str(m) for m in models),
+                            "supports_manual_model_selection": supports_manual,
                             "supports_model_selection": True,
                         }
                     )
@@ -9913,16 +9965,20 @@ async def api_fetch_models(req: Request):
                         {"models": [], "error": str(exc)},
                         status_code=502,
                     )
-            # No catalog hook — Claude SDK et al. The dashboard
-            # disables the Fetch Models button and surfaces this note.
-            note = "Claude SDK manages model selection via subscription."
-            if backend_name != "claude":
-                note = f"Backend {backend_name!r} does not expose a model catalog."
+            # No catalog hook. Manual model entry and catalog discovery are
+            # separate capabilities; the dashboard disables only Fetch Models.
+            note = f"Backend {backend_name!r} does not expose a model catalog."
+            if supports_manual:
+                note += (
+                    " Enter a model identifier manually, or leave it empty "
+                    "to use the backend default."
+                )
             return JSONResponse(
                 {
                     "models": [],
                     "note": note,
-                    "supports_model_selection": False,
+                    "supports_manual_model_selection": supports_manual,
+                    "supports_model_selection": supports_manual,
                 }
             )
         except Exception as exc:

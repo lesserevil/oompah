@@ -663,6 +663,10 @@ class ClaudeAcpBackend(AcpBackend):
     def name(cls) -> str:
         return "claude"
 
+    @classmethod
+    def supports_manual_model_selection(cls) -> bool:
+        return True
+
     def start_session(self, options: AcpBackendOptions) -> AcpBackendSession:
         return ClaudeAcpBackendSession(options)
 

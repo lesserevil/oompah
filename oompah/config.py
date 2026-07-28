@@ -272,7 +272,7 @@ def _parse_repo_map_languages(
     return parsed
 
 
-def _parse_repo_map_positive_int(env_key: str, default: int) -> int:
+def _parse_positive_env_int(env_key: str, default: int) -> int:
     """Read *env_key* as a positive integer (≥ 1).
 
     Falls back to *default* for a missing, non-numeric, or non-positive value
@@ -518,6 +518,15 @@ class ServiceConfig:
     auto_archive_batch_size: int = 25
     auto_archive_interval_seconds: int = 300
     worktree_cleanup_batch_size: int = 25
+    storage_cleanup_interval_seconds: int = 24 * 60 * 60
+    storage_cleanup_pressure_min_free_bytes: int = 5 * 1024 * 1024 * 1024
+    storage_cleanup_pressure_min_free_percent: float = 5.0
+    storage_cleanup_min_age_seconds: int = 24 * 60 * 60
+    storage_cleanup_batch_size: int = 50
+    storage_cleanup_max_bytes: int = 50 * 1024 * 1024 * 1024
+    storage_cleanup_log_retention_seconds: int = 7 * 24 * 60 * 60
+    restart_drain_timeout_seconds: int = 60 * 60
+    quality_gate_timeout_seconds: int = 60 * 60
     maintenance_startup_delay_seconds: int = 60
     release_pick_max_runtime_seconds: int = 15
     merged_labels_max_runtime_seconds: int = 15
@@ -561,6 +570,11 @@ class ServiceConfig:
     # the scheduler or prevent the service from stopping.
     # Configurable via OOMPAH_WORKER_TERMINATION_TIMEOUT_MS.
     worker_termination_timeout_ms: int = 10000
+
+    # Initial agent prompt comment-history budgets. These are environment-only
+    # because they are operational tuning, not workflow structure.
+    prompt_max_comments: int = 20
+    prompt_max_comment_bytes: int = 32 * 1024
 
     # Dispatch-loop heartbeat staleness detection (lesserevil/oompah#305).
     # The threshold and recovery grace are independent of the full-sync
@@ -627,6 +641,33 @@ class ServiceConfig:
         )
         self.worktree_cleanup_batch_size = max(
             int(self.worktree_cleanup_batch_size), 0
+        )
+        self.storage_cleanup_interval_seconds = max(
+            int(self.storage_cleanup_interval_seconds), 60
+        )
+        self.storage_cleanup_pressure_min_free_bytes = max(
+            int(self.storage_cleanup_pressure_min_free_bytes), 0
+        )
+        self.storage_cleanup_pressure_min_free_percent = max(
+            float(self.storage_cleanup_pressure_min_free_percent), 0.0
+        )
+        self.storage_cleanup_min_age_seconds = max(
+            int(self.storage_cleanup_min_age_seconds), 60
+        )
+        self.storage_cleanup_batch_size = max(
+            int(self.storage_cleanup_batch_size), 0
+        )
+        self.storage_cleanup_max_bytes = max(
+            int(self.storage_cleanup_max_bytes), 0
+        )
+        self.storage_cleanup_log_retention_seconds = max(
+            int(self.storage_cleanup_log_retention_seconds), 60
+        )
+        self.restart_drain_timeout_seconds = max(
+            int(self.restart_drain_timeout_seconds), 0
+        )
+        self.quality_gate_timeout_seconds = max(
+            int(self.quality_gate_timeout_seconds), 1
         )
         self.maintenance_startup_delay_seconds = max(
             int(self.maintenance_startup_delay_seconds), 0
@@ -921,6 +962,39 @@ class ServiceConfig:
             worktree_cleanup_batch_size=_env_int(
                 "OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", None, 25
             ),
+            storage_cleanup_interval_seconds=_env_int(
+                "OOMPAH_STORAGE_CLEANUP_INTERVAL_SECONDS", None, 24 * 60 * 60
+            ),
+            storage_cleanup_pressure_min_free_bytes=_env_int(
+                "OOMPAH_STORAGE_CLEANUP_PRESSURE_MIN_FREE_BYTES",
+                None,
+                5 * 1024 * 1024 * 1024,
+            ),
+            storage_cleanup_pressure_min_free_percent=_env_float(
+                "OOMPAH_STORAGE_CLEANUP_PRESSURE_MIN_FREE_PERCENT", None, 5.0
+            ),
+            storage_cleanup_min_age_seconds=_env_int(
+                "OOMPAH_STORAGE_CLEANUP_MIN_AGE_SECONDS", None, 24 * 60 * 60
+            ),
+            storage_cleanup_batch_size=_env_int(
+                "OOMPAH_STORAGE_CLEANUP_BATCH_SIZE", None, 50
+            ),
+            storage_cleanup_max_bytes=_env_int(
+                "OOMPAH_STORAGE_CLEANUP_MAX_BYTES",
+                None,
+                50 * 1024 * 1024 * 1024,
+            ),
+            storage_cleanup_log_retention_seconds=_env_int(
+                "OOMPAH_STORAGE_CLEANUP_LOG_RETENTION_SECONDS",
+                None,
+                7 * 24 * 60 * 60,
+            ),
+            restart_drain_timeout_seconds=_env_int(
+                "OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS", None, 60 * 60
+            ),
+            quality_gate_timeout_seconds=_env_int(
+                "OOMPAH_QUALITY_GATE_TIMEOUT_SECONDS", None, 60 * 60
+            ),
             maintenance_startup_delay_seconds=_env_int(
                 "OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", None, 60
             ),
@@ -952,6 +1026,15 @@ class ServiceConfig:
             worker_termination_timeout_ms=_env_int(
                 "OOMPAH_WORKER_TERMINATION_TIMEOUT_MS", None, 10000
             ),
+            prompt_max_comments=max(
+                5, _parse_positive_env_int("OOMPAH_PROMPT_MAX_COMMENTS", 20)
+            ),
+            prompt_max_comment_bytes=max(
+                1024,
+                _parse_positive_env_int(
+                    "OOMPAH_PROMPT_MAX_COMMENT_BYTES", 32 * 1024
+                ),
+            ),
             dispatch_stale_threshold_ms=_env_int(
                 "OOMPAH_DISPATCH_STALE_THRESHOLD_MS", None, 120000
             ),
@@ -966,20 +1049,20 @@ class ServiceConfig:
             # Repository-map feature (OOMPAH-293 / OOMPAH-299).
             # All settings are environment-only; do not expose them in WORKFLOW.md.
             repo_map_enabled=_env_bool("OOMPAH_REPO_MAP_ENABLED", None, False),
-            repo_map_token_budget=_parse_repo_map_positive_int(
+            repo_map_token_budget=_parse_positive_env_int(
                 "OOMPAH_REPO_MAP_TOKEN_BUDGET", 2000
             ),
             repo_map_languages=_parse_repo_map_languages(
                 os.environ.get("OOMPAH_REPO_MAP_LANGUAGES"),
                 _REPO_MAP_SUPPORTED_LANGUAGES,
             ),
-            repo_map_max_file_size=_parse_repo_map_positive_int(
+            repo_map_max_file_size=_parse_positive_env_int(
                 "OOMPAH_REPO_MAP_MAX_FILE_SIZE", 1_000_000
             ),
-            repo_map_generation_timeout=_parse_repo_map_positive_int(
+            repo_map_generation_timeout=_parse_positive_env_int(
                 "OOMPAH_REPO_MAP_GENERATION_TIMEOUT", 120
             ),
-            repo_map_retained_artifacts=_parse_repo_map_positive_int(
+            repo_map_retained_artifacts=_parse_positive_env_int(
                 "OOMPAH_REPO_MAP_RETAINED_ARTIFACTS", 5
             ),
         )

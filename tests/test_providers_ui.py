@@ -224,9 +224,68 @@ class TestFetchModelsAcpAware:
         assert re.search(r"data\.note", script)
 
     def test_claude_descriptor_has_subscription_note(self, script):
-        # The hardcoded fallback descriptor for "claude" carries the
-        # subscription-managed note required by issue §3.
-        assert "Claude SDK manages model selection via subscription." in script
+        assert "Claude has no discoverable catalog here." in script
+
+    def test_manual_selection_is_separate_from_catalog_discovery(self, script):
+        assert "supports_manual_model_selection" in script
+        assert "function providerSupportsManualModels" in script
+        assert 'placeholder="SDK default (optional)"' in script
+        assert "operator-entered model" in script
+
+    def test_claude_descriptor_separates_catalog_from_manual_selection(
+        self, script
+    ):
+        assert re.search(
+            r"'claude'\s*:\s*\{.*?has_catalog:\s*false.*?"
+            r"supports_manual_model_selection:\s*true",
+            script,
+            re.DOTALL,
+        )
+
+
+class TestManualAcpModelEntry:
+    """Catalog-less ACP backends can still accept operator-entered models."""
+
+    def test_capability_helper_defined(self, script):
+        assert "function providerSupportsManualModels" in script
+        assert "desc.supports_manual_model_selection" in script
+
+    def test_manual_control_is_text_input(self, script):
+        assert re.search(
+            r"modelList\.length\s*===\s*0\s*&&\s*supportsManualModel"
+            r".*?<input type=\"text\"",
+            script,
+            re.DOTALL,
+        )
+
+    def test_manual_control_preserves_configured_value(self, script):
+        assert 'value="${escAttr(cand.model)}"' in script
+
+    def test_manual_control_explains_optional_sdk_default(self, script):
+        assert 'placeholder="SDK default (optional)"' in script
+
+    def test_manual_control_has_accessible_name(self, script):
+        assert 'aria-label="${escAttr(modelLabel)}"' in script
+        assert "Model for ${role} candidate ${idx + 1}" in script
+
+    def test_manual_control_disables_browser_text_mutation(self, script):
+        assert 'autocomplete="off"' in script
+        assert 'spellcheck="false"' in script
+
+    def test_manual_model_has_distinct_resolved_status(self, script):
+        assert "operator-entered model" in script
+        assert "label: 'manual'" in script
+
+    def test_blank_model_retains_sdk_default_fallback(self, script):
+        assert "label: supportsManualModel ? 'SDK default' : 'SDK-managed'" in script
+
+    def test_descriptor_load_rerenders_matrix(self, script):
+        # Backend capabilities load independently from providers. Once
+        # available, the matrix must replace its fallback selector with
+        # the manual input without requiring a page refresh.
+        descriptor_merge = script.index("Object.entries(data.descriptors)")
+        rerender = script.index("renderRoleMatrix();", descriptor_merge)
+        assert rerender > descriptor_merge
 
 
 class TestSubmitProvider:

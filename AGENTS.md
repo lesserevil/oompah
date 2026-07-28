@@ -111,6 +111,8 @@ comments.
 - Record blockers with `oompah task set-dependency`; do not hand-write
   dependency metadata.
 - Always pass `--author oompah` when posting progress comments through the CLI.
+- Use `$TMPDIR` or `mktemp` for scratch files. Never hard-code `/tmp`; Oompah
+  redirects the standard temp environment to its private, quota-safe root.
 - Do not edit `.oompah/tasks` files directly unless you are repairing a tracker
   bug and have checked with the project owner.
 - Do not edit GitHub `oompah:*`, `type:*`, `priority:*`, `parent:*`, or
@@ -120,7 +122,8 @@ comments.
 When ending a work session, complete all of these steps:
 
 1. File follow-up tasks with `oompah task create` for remaining work.
-2. Run the relevant quality gates for the code you changed.
+2. Run focused checks for the code you changed. Oompah runs the configured
+   complete branch gate once for the exact review-ready head.
 3. Update the current oompah task status or leave a clear handoff comment.
 4. Push all committed work:
    ```bash
@@ -146,6 +149,10 @@ make restart          # NOT: killing and restarting manually
 make graceful         # NOT: sending signals directly
 make test             # NOT: pytest directly
 ```
+
+`make restart` and `make graceful` both drain active agents and verify that a
+new healthy service instance is running. Use `make force-restart` only for an
+operator-approved emergency where interrupting active agents is acceptable.
 
 If unsure whether a target exists, run `make help` or `grep` the Makefile.
 
@@ -173,7 +180,8 @@ Quick test: if the doc tells the reader "what to do with oompah," it goes in `do
 
 - New functions/methods require unit tests
 - Bug fixes require a test that reproduces the bug
-- Run `make test` before committing to verify tests pass
+- Run focused tests before each specialist handoff. Oompah runs the configured
+  full Makefile gate once when the complete branch is ready for review.
 - Tests go in `tests/` following existing patterns (pytest, unittest.mock)
 
 ## Commit Attribution

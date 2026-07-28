@@ -353,15 +353,12 @@ class Project:
     # if neither the global nor the project's pause is set.
     paused: bool = False
     # Per-project pre-push verification command. When set, agents (especially
-    # the merge_conflict focus) run this exact command instead of inferring a
-    # test target from repo layout. Example: "cargo test --workspace --lib"
-    # for a Rust workspace where --workspace alone would pull in flaky
-    # platform-specific or network-dependent crates.  When None/empty, the
-    # agent falls back to its prior best-guess inference.
+    # the orchestrator runs this command as the full branch quality gate once
+    # an exact head is ready for review. Workers run focused tests at
+    # intermediate handoffs. Example: "cargo test --workspace --lib".
     test_command: str | None = None
-    # Optional broader pre-merge-queue verification command. Used when an
-    # agent wants more coverage than test_command before a final push (e.g.
-    # integration tests). When None/empty, agents only see test_command.
+    # Optional broader review-ready verification command. When set, this wins
+    # over test_command for the orchestrator's exact-head branch gate.
     test_command_full: str | None = None
     # Optional glob-style paths to exclude from testing (e.g. flaky,
     # hardware-dependent, or network-dependent suites). Surfaced to agents

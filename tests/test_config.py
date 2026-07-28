@@ -89,6 +89,17 @@ class TestServiceConfig:
         assert cfg.duplicate_detection_candidate_limit == 64
         assert cfg.auto_archive_batch_size == 25
         assert cfg.worktree_cleanup_batch_size == 25
+        assert cfg.storage_cleanup_interval_seconds == 86400
+        assert cfg.storage_cleanup_pressure_min_free_bytes == 5 * 1024**3
+        assert cfg.storage_cleanup_pressure_min_free_percent == 5.0
+        assert cfg.storage_cleanup_min_age_seconds == 86400
+        assert cfg.storage_cleanup_batch_size == 50
+        assert cfg.storage_cleanup_max_bytes == 50 * 1024**3
+        assert cfg.storage_cleanup_log_retention_seconds == 604800
+        assert cfg.restart_drain_timeout_seconds == 3600
+        assert cfg.quality_gate_timeout_seconds == 3600
+        assert cfg.prompt_max_comments == 20
+        assert cfg.prompt_max_comment_bytes == 32 * 1024
         assert cfg.release_pick_max_runtime_seconds == 15
         assert cfg.merged_labels_max_runtime_seconds == 15
         assert cfg.close_gate_enabled is True
@@ -101,6 +112,116 @@ class TestServiceConfig:
         )
         cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="test"))
         assert cfg.gitlab_webhook_public_url == "https://oompah.example.com/"
+
+    def test_prompt_history_budgets_come_from_environment(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_PROMPT_MAX_COMMENTS", "12")
+        monkeypatch.setenv("OOMPAH_PROMPT_MAX_COMMENT_BYTES", "8192")
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.prompt_max_comments == 12
+        assert cfg.prompt_max_comment_bytes == 8192
+
+    @pytest.mark.parametrize(
+        ("name", "value", "attribute", "minimum"),
+        [
+            ("OOMPAH_PROMPT_MAX_COMMENTS", "1", "prompt_max_comments", 5),
+            (
+                "OOMPAH_PROMPT_MAX_COMMENT_BYTES",
+                "12",
+                "prompt_max_comment_bytes",
+                1024,
+            ),
+        ],
+    )
+    def test_prompt_history_budgets_enforce_retention_minimums(
+        self, monkeypatch, name, value, attribute, minimum
+    ):
+        monkeypatch.setenv(name, value)
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert getattr(cfg, attribute) == minimum
+
+    def test_prompt_history_settings_are_documented_in_env_example(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        content = env_example.read_text(encoding="utf-8")
+
+        assert "OOMPAH_PROMPT_MAX_COMMENTS=" in content
+        assert "OOMPAH_PROMPT_MAX_COMMENT_BYTES=" in content
+
+    def test_storage_cleanup_settings_come_from_environment(self, monkeypatch):
+        values = {
+            "OOMPAH_STORAGE_CLEANUP_INTERVAL_SECONDS": "7200",
+            "OOMPAH_STORAGE_CLEANUP_PRESSURE_MIN_FREE_BYTES": "123456",
+            "OOMPAH_STORAGE_CLEANUP_PRESSURE_MIN_FREE_PERCENT": "7.5",
+            "OOMPAH_STORAGE_CLEANUP_MIN_AGE_SECONDS": "3600",
+            "OOMPAH_STORAGE_CLEANUP_BATCH_SIZE": "9",
+            "OOMPAH_STORAGE_CLEANUP_MAX_BYTES": "987654",
+            "OOMPAH_STORAGE_CLEANUP_LOG_RETENTION_SECONDS": "172800",
+        }
+        for name, value in values.items():
+            monkeypatch.setenv(name, value)
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.storage_cleanup_interval_seconds == 7200
+        assert cfg.storage_cleanup_pressure_min_free_bytes == 123456
+        assert cfg.storage_cleanup_pressure_min_free_percent == 7.5
+        assert cfg.storage_cleanup_min_age_seconds == 3600
+        assert cfg.storage_cleanup_batch_size == 9
+        assert cfg.storage_cleanup_max_bytes == 987654
+        assert cfg.storage_cleanup_log_retention_seconds == 172800
+
+    def test_storage_cleanup_settings_are_documented_in_env_example(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        content = env_example.read_text(encoding="utf-8")
+        for name in (
+            "OOMPAH_STORAGE_CLEANUP_INTERVAL_SECONDS",
+            "OOMPAH_STORAGE_CLEANUP_PRESSURE_MIN_FREE_BYTES",
+            "OOMPAH_STORAGE_CLEANUP_PRESSURE_MIN_FREE_PERCENT",
+            "OOMPAH_STORAGE_CLEANUP_MIN_AGE_SECONDS",
+            "OOMPAH_STORAGE_CLEANUP_BATCH_SIZE",
+            "OOMPAH_STORAGE_CLEANUP_MAX_BYTES",
+            "OOMPAH_STORAGE_CLEANUP_LOG_RETENTION_SECONDS",
+        ):
+            assert f"{name}=" in content
+
+    def test_restart_drain_timeout_comes_from_environment(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS", "5400")
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.restart_drain_timeout_seconds == 5400
+
+    def test_restart_drain_timeout_is_documented(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        assert "OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS=" in env_example.read_text(
+            encoding="utf-8"
+        )
+
+    def test_quality_gate_timeout_comes_from_environment(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_QUALITY_GATE_TIMEOUT_SECONDS", "5400")
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.quality_gate_timeout_seconds == 5400
+
+    def test_quality_gate_timeout_is_documented(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        assert "OOMPAH_QUALITY_GATE_TIMEOUT_SECONDS=" in env_example.read_text(
+            encoding="utf-8"
+        )
 
 
 class TestRepoMapEnvironmentConfiguration(TestServiceConfig):

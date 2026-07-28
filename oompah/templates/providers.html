@@ -301,7 +301,8 @@
       font-weight: 600;
       color: var(--accent);
     }
-    .role-matrix select {
+    .role-matrix select,
+    .role-matrix input[type="text"] {
       width: 100%;
       background: var(--bg);
       color: var(--text);
@@ -312,7 +313,8 @@
       font-family: inherit;
       outline: none;
     }
-    .role-matrix select:focus { border-color: var(--accent); }
+    .role-matrix select:focus,
+    .role-matrix input[type="text"]:focus { border-color: var(--accent); }
     .role-matrix select:disabled { opacity: 0.55; }
     .role-matrix .matrix-mode {
       font-family: 'SF Mono', 'Fira Code', monospace;
@@ -718,15 +720,36 @@ function renderRoleMatrix() {
         .join('');
 
       const modelList = provider && Array.isArray(provider.models) ? provider.models : [];
-      let modelOpts;
+      const supportsManualModel = providerSupportsManualModels(provider);
+      const modelLabel = `Model for ${role} candidate ${idx + 1}`;
+      let modelControl;
       if (!provider) {
-        modelOpts = '<option value="">— pick a provider first —</option>';
+        modelControl = `
+          <select aria-label="${escAttr(modelLabel)}" data-role="${esc(role)}" data-field="model" data-idx="${idx}" onchange="onRoleMatrixChange(this)">
+            <option value="">— pick a provider first —</option>
+          </select>`;
+      } else if (modelList.length === 0 && supportsManualModel) {
+        modelControl = `
+          <input type="text"
+            value="${escAttr(cand.model)}"
+            placeholder="SDK default (optional)"
+            aria-label="${escAttr(modelLabel)}"
+            autocomplete="off"
+            spellcheck="false"
+            data-role="${esc(role)}"
+            data-field="model"
+            data-idx="${idx}"
+            onchange="onRoleMatrixChange(this)">`;
       } else if (modelList.length === 0) {
-        modelOpts = (provider.mode === 'acp')
+        const modelOpts = (provider.mode === 'acp')
           ? '<option value="">— SDK-managed —</option>'
           : '<option value="">— provider has no models —</option>';
+        modelControl = `
+          <select aria-label="${escAttr(modelLabel)}" data-role="${esc(role)}" data-field="model" data-idx="${idx}" onchange="onRoleMatrixChange(this)">
+            ${modelOpts}
+          </select>`;
       } else {
-        modelOpts = ['<option value="">— select model —</option>']
+        let modelOpts = ['<option value="">— select model —</option>']
           .concat(modelList.map(m =>
             `<option value="${esc(m)}"${m === cand.model ? ' selected' : ''}>${esc(m)}</option>`,
           ))
@@ -737,6 +760,10 @@ function renderRoleMatrix() {
         if (cand.model && !modelList.includes(cand.model)) {
           modelOpts += `<option value="${esc(cand.model)}" selected>${esc(cand.model)} (not in catalog)</option>`;
         }
+        modelControl = `
+          <select aria-label="${escAttr(modelLabel)}" data-role="${esc(role)}" data-field="model" data-idx="${idx}" onchange="onRoleMatrixChange(this)">
+            ${modelOpts}
+          </select>`;
       }
 
       const statusClass =
@@ -757,9 +784,7 @@ function renderRoleMatrix() {
           </select>
         </td>
         <td>
-          <select data-role="${esc(role)}" data-field="model" data-idx="${idx}" onchange="onRoleMatrixChange(this)">
-            ${modelOpts}
-          </select>
+          ${modelControl}
         </td>
         <td><span class="matrix-billing" title="${esc(billing.tooltip)}">${billing.html}</span></td>
         <td>
@@ -834,6 +859,7 @@ function computeRoleMatrixStatus(role, row, provider) {
   }
   const catalog = Array.isArray(provider.models) ? provider.models : [];
   const isAcpSdkManaged = provider.mode === 'acp' && catalog.length === 0;
+  const supportsManualModel = providerSupportsManualModels(provider);
   if (catalog.length === 0 && !isAcpSdkManaged) {
     return {
       kind: 'warn',
@@ -841,11 +867,20 @@ function computeRoleMatrixStatus(role, row, provider) {
       message: `provider "${provider.name}" has no models in its catalog`,
     };
   }
+  if (isAcpSdkManaged && supportsManualModel && row.model) {
+    return {
+      kind: 'resolved',
+      label: 'manual',
+      message: `${provider.name} → ${row.model} (operator-entered model)`,
+    };
+  }
   if (isAcpSdkManaged) {
     return {
       kind: 'resolved',
-      label: 'SDK-managed',
-      message: `${provider.name}: model selection managed by the SDK`,
+      label: supportsManualModel ? 'SDK default' : 'SDK-managed',
+      message: supportsManualModel
+        ? `${provider.name}: using the SDK default; enter a model to override it`
+        : `${provider.name}: model selection managed by the SDK`,
     };
   }
   if (!row.model) {
@@ -1217,15 +1252,17 @@ let acpBackendsDefault = 'claude';
 // Cached per-backend descriptors so the Fetch Models button can decide
 // whether to call the backend's fetch_models() or surface the
 // disabled-with-tooltip state. Keys are backend names, values are
-// {has_catalog, fetch_note, label, supports_model_selection}. The
+// {has_catalog, supports_manual_model_selection, fetch_note, label,
+// supports_model_selection}. The
 // claude entry is hardcoded as the back-compat fallback when /api/v1
 // /acp-backends is unreachable. (oompah-zlz_2-zvm0 §3.)
 let acpBackendDescriptors = {
   'claude': {
     label: 'Claude SDK',
     has_catalog: false,
-    supports_model_selection: false,
-    fetch_note: 'Claude SDK manages model selection via subscription.',
+    supports_manual_model_selection: true,
+    supports_model_selection: true,
+    fetch_note: 'Claude has no discoverable catalog here. Enter a model alias or identifier manually, or leave it empty for the subscription default.',
   },
 };
 
@@ -1245,7 +1282,16 @@ async function loadAcpBackends() {
     // hardcoded claude descriptor when missing — the back-compat path
     // for a server that doesn't speak the §3 protocol yet.
     if (data && data.descriptors && typeof data.descriptors === 'object') {
-      acpBackendDescriptors = Object.assign({}, acpBackendDescriptors, data.descriptors);
+      Object.entries(data.descriptors).forEach(([name, desc]) => {
+        acpBackendDescriptors[name] = Object.assign(
+          {},
+          acpBackendDescriptors[name] || {},
+          desc,
+        );
+      });
+      // The role matrix may have rendered while this request was in
+      // flight. Re-render now that manual-selection capability is known.
+      renderRoleMatrix();
     }
   } catch (e) {
     // Network or parse failure — fall back to the static ["claude"]
@@ -1293,6 +1339,13 @@ function renderBackendOptions(selectedValue) {
   // Refresh Fetch Models state since the backend choice may have
   // changed (e.g. switching to a backend with no model catalog).
   updateFetchModelsButtonState();
+}
+
+function providerSupportsManualModels(provider) {
+  if (!provider || provider.mode !== 'acp') return false;
+  const backend = provider.backend || acpBackendsDefault || 'claude';
+  const desc = acpBackendDescriptors[backend];
+  return !!(desc && desc.supports_manual_model_selection);
 }
 
 function openProviderDialog(provider) {
@@ -1370,7 +1423,7 @@ function applyProviderModeVisibility() {
 }
 
 // Update the Fetch Models button's enabled-state + tooltip based on
-// current provider type + selected backend's supports_model_selection.
+// current provider type + selected backend's catalog capability.
 // Called from applyProviderModeVisibility() and the Backend dropdown's
 // onchange handler. (oompah-zlz_2-zvm0 §3.)
 function updateFetchModelsButtonState() {
@@ -1387,14 +1440,13 @@ function updateFetchModelsButtonState() {
   const backendSel = document.getElementById('prov-backend');
   const backendName = backendSel ? backendSel.value : 'claude';
   const desc = acpBackendDescriptors[backendName];
-  // If the registry hasn't loaded yet OR the backend has no model
-  // catalog, surface the disabled-with-tooltip state from the issue's
-  // §3 acceptance criteria.
+  // Catalog discovery and manual model selection are independent. A backend
+  // may accept an operator-entered model while Fetch Models remains disabled.
   if (!desc || !desc.has_catalog) {
     btn.disabled = true;
     btn.title = desc && desc.fetch_note
       ? desc.fetch_note
-      : "This backend doesn't support model selection — leave the Models field empty or enter the names manually if needed.";
+      : "This backend doesn't expose a model catalog. Enter model names manually if supported.";
   } else {
     btn.disabled = false;
     btn.title = '';
@@ -2167,7 +2219,7 @@ document.addEventListener('keydown', e => {
     <div class="tag-input-wrap" id="prov-models-wrap" onclick="document.getElementById('prov-models-input').focus()">
       <input type="text" id="prov-models-input" placeholder="Type model name and press Enter">
     </div>
-    <div class="hint">Press Enter or comma to add a model, or click Fetch Models to auto-discover</div>
+    <div class="hint">Press Enter or comma to add a model manually. Fetch Models is available only when the selected backend exposes a catalog.</div>
     <label for="prov-default-model">Default Model</label>
     <select id="prov-default-model">
       <option value="">— none —</option>
