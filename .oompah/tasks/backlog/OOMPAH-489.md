@@ -6,11 +6,16 @@ priority: 1
 title: Validate nested epic auditing, repair planning, races, and cross-tracker behavior
 parent: OOMPAH-460
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-452
+- OOMPAH-478
+- OOMPAH-482
+- OOMPAH-483
+- OOMPAH-488
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-07-28T13:08:28.198709Z'
+updated_at: '2026-07-28T13:10:12.458499Z'
 work_branch: null
 target_branch: null
 review_url: null
