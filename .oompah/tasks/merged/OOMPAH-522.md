@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-522
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Load and verify optional htpasswd credentials safely
 parent: OOMPAH-521
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:34.097786Z'
-updated_at: '2026-07-28T18:42:10.792576Z'
+updated_at: '2026-07-28T21:31:07.384021Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
