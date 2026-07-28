@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-465
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Implement idempotent terminal-transition staging and audit chains
 parent: OOMPAH-457
@@ -10,10 +10,11 @@ blocked_by:
 - OOMPAH-461
 - OOMPAH-462
 - OOMPAH-463
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:18:35.751218Z'
+updated_at: '2026-07-28T19:19:47.114218Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -22,13 +23,13 @@ merged_at: null
 oompah.agent_run_id: db14d7ba-d32c-4ab5-85d2-122ca5d38607
 oompah.work_branch: epic-OOMPAH-457
 oompah.task_costs:
-  total_input_tokens: 154
-  total_output_tokens: 4775
+  total_input_tokens: 292873
+  total_output_tokens: 7494
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 154
-      output_tokens: 4775
+      input_tokens: 292873
+      output_tokens: 7494
       cost_usd: 0.0
   runs:
   - profile: default
@@ -37,6 +38,12 @@ oompah.task_costs:
     output_tokens: 4775
     cost_usd: 0.0
     recorded_at: '2026-07-28T19:18:20.345054+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 292719
+    output_tokens: 2719
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T19:19:37.758578+00:00'
 ---
 ## Summary
 
@@ -119,5 +126,25 @@ author: oompah
 created: 2026-07-28 19:18
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 19:19
+---
+Agent completed successfully in 64s (295438 tokens)
+---
+author: oompah
+created: 2026-07-28 19:19
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 4
+- Tokens: 292.7K in / 2.7K out [295.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 4s
+- Log: OOMPAH-465__20260728T191835Z.jsonl
+---
+author: oompah
+created: 2026-07-28 19:19
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
