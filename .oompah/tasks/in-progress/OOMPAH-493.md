@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:28.451050Z'
-updated_at: '2026-07-28T15:19:04.023547Z'
+updated_at: '2026-07-28T15:19:26.797107Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-07-28 15:19
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 15:19
+---
+Understanding: duplicate-detector focus will search existing tasks and project records for prior coverage of GitHub tracker mutation tests that incur real retry sleeps, inspect close candidates in full, and either archive this task as a confirmed duplicate or hand it off without code changes.
 ---
 <!-- COMMENTS:END -->
