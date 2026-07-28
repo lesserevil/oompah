@@ -13,7 +13,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:34:11.248227Z'
+updated_at: '2026-07-28T14:36:59.934570Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -279,5 +279,10 @@ author: oompah
 created: 2026-07-28 14:34
 ---
 Understanding: Resuming backend feature implementation for OOMPAH-456. Previous agents completed: (1) frontend UI routing through /state-branch/migrate endpoint, (2) security hardening (PATCH bypass rejection, transition state machine, JSON boolean enforcement). My scope: implement ephemeral GIT_ASKPASS forge-aware credential mechanism, route all state-branch Git ops through it, add remote-ref/tree verification before config flip, per-project migration locking via asyncio.to_thread, forge-neutral diagnostics, and comprehensive GitLab+GitHub regression tests. Starting by reading current state of state_branch_migration.py, project_bootstrap/__init__.py, and test files.
+---
+author: oompah
+created: 2026-07-28 14:36
+---
+Discovery: Current state after security+frontend passes. The git_credentials.py module is already implemented (GIT_ASKPASS ephemeral helper, redact_git_output, forge_display_name). state_branch_migration.py already imports these and has _network_git/_network_git_check helpers and verify_state_branch(). project_bootstrap/__init__.py already uses git_credential_environment for network ops and handles local-only branch retry.\n\nRemaining gaps:\n1. migrate_stage_a/b/c and rollback_migration missing access_token/forge_kind params; their network git calls are unauthenticated\n2. server.py api_state_branch_migrate passes no forge credentials to migration functions\n3. After Stage A, server flips state_branch_enabled=True without calling verify_state_branch() first\n4. No asyncio.to_thread — blocking git ops run on the async event loop\n5. No per-project migration lock (project_write_lock exists but not used by migrate endpoint)\n6. docs/state-branch-migration.md has 3 GITHUB_TOKEN/GitHub-specific references that need forge-neutral text\n7. No GitLab-specific integration tests for forge credentials, auth failure rollback, remote verify before config flip
 ---
 <!-- COMMENTS:END -->
