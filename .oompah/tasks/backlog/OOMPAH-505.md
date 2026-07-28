@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:46:07.357108Z'
+updated_at: '2026-07-28T15:48:33.457291Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -225,5 +225,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 2s
 - Log: OOMPAH-505__20260728T154307Z.jsonl
+---
+author: oompah
+created: 2026-07-28 15:48
+---
+Discovery: The managed runtime is /home/shedwards/src/oompah, not this agent worktree. Its PID file predates both feature commits (runtime started 14:33 UTC; commits 23d1c043b and 020199d32 landed 15:22/15:38), so the running process has not loaded the feature. The live RoleStore still has blank-model round-robin Claude/Codex candidates for fast/standard/deep. Non-secret provider metadata confirms Claude=prov-651d553c (ACP/claude, empty catalog) and Codex=prov-52e94e83 (ACP/codex, empty catalog). This worktree has no runtime .env/PID/store and the managed checkout is read-only to this session; starting here would create an unconfigured shadow service. Loopback HTTP restart/config calls are explicitly prohibited in managed ACP sessions. I am validating the exact six-role transaction and rollback against isolated copies, then will record the required operator action if no in-process role/restart tool is available.
 ---
 <!-- COMMENTS:END -->
