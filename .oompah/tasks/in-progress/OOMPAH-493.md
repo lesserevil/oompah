@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:28.451050Z'
-updated_at: '2026-07-28T15:21:32.289042Z'
+updated_at: '2026-07-28T15:21:43.877541Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -118,5 +118,10 @@ author: oompah
 created: 2026-07-28 15:21
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-28 15:21
+---
+Understanding: As the Test Engineer, I will patch tracker._client._sleep in test_remove_label_re_raises_non_404_errors so the 500-error retry path does not incur real sleeps. I'll assert TrackerError is raised after retry exhaustion, check that retries occurred (request attempt count), and verify sleep was called with expected arguments — all without actual waiting. I'll also scan neighboring mutation error tests in TestGitHubIssueTrackerMutations for the same always-transient-500 pattern and apply the same treatment. No production retry constants will be changed.
 ---
 <!-- COMMENTS:END -->
