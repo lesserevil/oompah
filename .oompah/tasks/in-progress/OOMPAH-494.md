@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-494
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Consolidate Granian subprocess tests into complete scenarios
 parent: OOMPAH-490
@@ -11,12 +11,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:29.472352Z'
-updated_at: '2026-07-28T14:35:26.356634Z'
-work_branch: null
+updated_at: '2026-07-28T15:29:47.489005Z'
+work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: e394b507-8596-4301-851f-21abd01a88fc
+oompah.work_branch: epic-OOMPAH-490
 ---
 ## Summary
 
@@ -38,3 +40,16 @@ All documented Granian E2E contracts remain asserted, collected cases fall from 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 15:29
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 15:29
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-512
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Route managed tracker mutations through project-scoped trackers
 parent: OOMPAH-511
@@ -10,16 +10,15 @@ blocked_by: []
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:refactor
-- needs:feature
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T15:29:36.690128Z'
+updated_at: '2026-07-28T15:29:52.063577Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: dd1cee87-1d63-4c55-9859-00124acfaad0
+oompah.agent_run_id: f88436a6-9ae5-4a18-9430-a6a18eb27a2b
 oompah.work_branch: epic-OOMPAH-511
 oompah.task_costs:
   total_input_tokens: 48
@@ -166,5 +165,25 @@ Focus handoff: refactor
 3. Remaining work and risks: Introduce one resolver whose contract is explicit project_id to _tracker_for_project; empty project store to standalone tracker; managed store plus missing project_id to actionable error. Route every direct fallback and mutation through it, including startup migrations, error reporting, maintenance, release delivery, worker-exit gates, reconciliation, and config-error filing. Prevent construction or exposure of a writable os.getcwd tracker in managed mode. Decide how unscoped backend log errors behave in managed mode; they must not guess a project. Preserve dynamic standalone compatibility and project-name lookup. Add regressions in project-scoped orchestrator/server/watcher tests plus existing tests/test_oompah_md_tracker_state_branch.py and tests/test_release_pick_migration_startup.py patterns.
 
 4. Recommended next focus: feature. This is a bug fix with observable fail-closed routing behavior, followed by focused orchestrator/server/error-watcher tests and make test.
+---
+author: oompah
+created: 2026-07-28 15:29
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/default]
+- Turns: 0, Tool calls: 56
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 0s
+- Log: OOMPAH-512__20260728T152049Z.jsonl
+---
+author: oompah
+created: 2026-07-28 15:29
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-28 15:29
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
