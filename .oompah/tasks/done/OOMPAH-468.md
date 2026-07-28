@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T22:03:40.999848Z'
+updated_at: '2026-07-28T22:03:54.079967Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -268,5 +268,20 @@ author: oompah
 created: 2026-07-28 22:03
 ---
 Completion: landing confirmed for commit 0115bfaaa on origin/epic-OOMPAH-458. It adds oompah.work_contributors persistence for successful API/ACP/CLI worker runs, revision-scoped epic contributor union with nested traversal and SHA filtering, and 72 acceptance-focused tests. Pull/rebase, push, and clean status all succeeded.
+---
+author: oompah
+created: 2026-07-28 22:03
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 52
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 37s
+- Log: OOMPAH-468__20260728T215519Z.jsonl
+---
+author: oompah
+created: 2026-07-28 22:03
+---
+Implemented and pushed work_contributors persistence for successful API, ACP, and CLI workers, including unknown-model handling, retry/restart-safe accumulation, redacted records, and revision-filtered nested epic contributor collection. Focused tests pass; full make test was blocked by the environment uv DBus error.
 ---
 <!-- COMMENTS:END -->
