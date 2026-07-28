@@ -396,7 +396,13 @@ async def _run(
     """
     from oompah.bootstrap import StartupError, setup_services
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
-    from oompah.server import app, set_api_event_loop, set_gitlab_hook_manager, set_orchestrator
+    from oompah.server import (
+        app,
+        set_api_event_loop,
+        set_gitlab_hook_manager,
+        set_http_credentials,
+        set_orchestrator,
+    )
     from watchfiles import awatch
 
     try:
@@ -410,6 +416,9 @@ async def _run(
 
     set_orchestrator(orchestrator)
     set_gitlab_hook_manager(gitlab_hook_manager)
+    # The uvicorn path does not run the embedded ASGI service lifespan, so
+    # wire the credentials here before the server starts accepting requests.
+    set_http_credentials(services.http_credentials)
     set_api_event_loop(asyncio.get_running_loop())
 
     # Start webhook forwarder (runs gh webhook forward per project)

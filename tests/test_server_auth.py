@@ -205,6 +205,40 @@ class TestAuthEnabled_ValidCredentials:
         resp = auth_client.get("/redoc", headers=valid_auth_header)
         assert resp.status_code != 401
 
+    @pytest.mark.asyncio
+    async def test_authorization_is_redacted_before_downstream_app(self):
+        """Downstream logging/exception paths cannot see Basic credentials."""
+        captured = {}
+
+        async def downstream(scope, receive, send):
+            captured.update(scope)
+            await send({"type": "http.response.start", "status": 204, "headers": []})
+            await send({"type": "http.response.body", "body": b""})
+
+        middleware = server_module._BasicAuthMiddleware(downstream)
+        auth_value = _basic("admin", "secret").encode()
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/private",
+            "raw_path": b"/private",
+            "headers": [(b"authorization", auth_value), (b"x-test", b"kept")],
+        }
+        sent = []
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        with _auth_enabled():
+            await middleware(scope, receive, send)
+
+        assert (b"authorization", auth_value) not in captured["headers"]
+        assert (b"x-test", b"kept") in captured["headers"]
+        assert sent[0]["status"] == 204
+
 
 # ---------------------------------------------------------------------------
 # Auth enabled: invalid credentials denied
@@ -240,6 +274,22 @@ class TestAuthEnabled_InvalidCredentials:
 
     def test_malformed_base64(self, auth_client):
         resp = auth_client.get("/api/v1/state", headers={"Authorization": "Basic not-valid-base64!!!"})
+        self._check_401(resp)
+
+    @pytest.mark.parametrize(
+        "authorization",
+        [
+            "Basic YWRtaW46c2VjcmV0!",  # ignored punctuation must not decode
+            "Basic YWRtaW46c2VjcmV0 ",  # trailing whitespace is malformed
+            "Basic YWRtaW46c2VjcmV0===",  # excessive padding
+        ],
+    )
+    def test_malformed_base64_that_decodes_permissively_is_rejected(
+        self, auth_client, authorization
+    ):
+        resp = auth_client.get(
+            "/api/v1/state", headers={"Authorization": authorization}
+        )
         self._check_401(resp)
 
     def test_decoded_without_colon(self, auth_client):
@@ -567,6 +617,32 @@ class TestAntiBypass:
         if resp.status_code == 200:
             # TestClient follows redirects by default; check it didn't bypass
             pytest.fail(f"Path /api/v1/state/ should not reach 200 without auth")
+
+    @pytest.mark.parametrize("path", ["/%68ealthz", "/health%7A"])
+    def test_encoded_healthz_path_requires_auth(self, auth_client, path):
+        """Encoded spellings of the public endpoint are not exemptions."""
+        resp = auth_client.get(path)
+        assert resp.status_code == 401
+
+    def test_encoded_webhook_path_requires_auth(self, auth_client):
+        """Encoded spellings of an exempt webhook path remain protected."""
+        resp = auth_client.post(
+            "/api%2Fv1/webhooks/github",
+            content=b"{}",
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 401
+
+    def test_duplicate_authorization_headers_require_auth(self, auth_client):
+        """Ambiguous duplicate Authorization fields fail closed."""
+        resp = auth_client.get(
+            "/api/v1/state",
+            headers=[
+                ("Authorization", _basic("admin", "secret")),
+                ("authorization", _basic("admin", "wrong")),
+            ],
+        )
+        assert resp.status_code == 401
 
     def test_put_on_healthz_requires_auth(self, auth_client):
         """Only GET /healthz is exempt; other methods must be blocked."""

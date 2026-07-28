@@ -474,17 +474,30 @@ class _BasicAuthMiddleware:
 
         if scope_type == "http":
             method = scope.get("method", "").upper()
-            # Normalise path: strip trailing slash unless it is the root "/".
-            path = scope.get("path", "/")
+            # Use the raw path for exemptions when the server supplies it.
+            # ``scope['path']`` is percent-decoded by ASGI servers, so using
+            # it alone would make encoded spellings such as /health%7A look
+            # like the public /healthz endpoint.  Only the literal wire path
+            # is exempt; query strings are not part of ASGI ``raw_path``.
+            raw_path = scope.get("raw_path")
+            if raw_path is not None:
+                path = raw_path
+            else:
+                path = scope.get("path", "/")
 
             # Exempt routes bypass Basic auth entirely.
+            if isinstance(path, bytes):
+                try:
+                    path = path.decode("ascii")
+                except UnicodeDecodeError:
+                    path = ""
             if (method, path) in self._AUTH_EXEMPT:
-                await self._app(scope, receive, send)
+                await self._app(self._redact_scope(scope), receive, send)
                 return
 
             # Check Authorization header.
             if self._verify_scope(scope, creds):
-                await self._app(scope, receive, send)
+                await self._app(self._redact_scope(scope), receive, send)
                 return
 
             # Deny with 401 Basic challenge — no credential disclosure.
@@ -511,7 +524,7 @@ class _BasicAuthMiddleware:
             # ws.accept() internally), so that an unauthenticated connection
             # is never added to _ws_clients.
             if self._verify_scope(scope, creds):
-                await self._app(scope, receive, send)
+                await self._app(self._redact_scope(scope), receive, send)
                 return
 
             # Consume the connect event, then close with Policy Violation (1008).
@@ -528,12 +541,39 @@ class _BasicAuthMiddleware:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _redact_scope(scope):  # noqa: ANN001
+        """Remove Basic credentials before forwarding to application code.
+
+        This keeps request logging and exception handling in downstream ASGI
+        applications from accidentally retaining the Authorization value.
+        Authentication has already been completed by this middleware, and
+        auth-disabled requests bypass this helper to preserve their behavior.
+        """
+        headers = scope.get("headers", [])
+        redacted_headers = [
+            (key, value)
+            for key, value in headers
+            if key.lower() != b"authorization"
+        ]
+        if len(redacted_headers) == len(headers):
+            return scope
+        redacted_scope = dict(scope)
+        redacted_scope["headers"] = redacted_headers
+        return redacted_scope
+
+    @staticmethod
     def _verify_scope(scope, creds) -> bool:
         """Return True if the Authorization header in *scope* is valid."""
-        headers: dict[bytes, bytes] = {
-            k.lower(): v for k, v in scope.get("headers", [])
-        }
-        auth_bytes = headers.get(b"authorization", b"")
+        auth_values = [
+            value
+            for key, value in scope.get("headers", [])
+            if key.lower() == b"authorization"
+        ]
+        # Multiple Authorization fields are ambiguous.  Fail closed instead
+        # of letting header ordering choose which credentials are verified.
+        if len(auth_values) != 1:
+            return False
+        auth_bytes = auth_values[0]
         return _BasicAuthMiddleware._check_basic(auth_bytes, creds)
 
     @staticmethod
@@ -557,8 +597,19 @@ class _BasicAuthMiddleware:
             return False
 
         try:
-            # Add padding to tolerate base64 without trailing "="
-            decoded_bytes = base64.b64decode(parts[1].strip() + "==")
+            encoded = parts[1]
+            # RFC 7617's credentials are base64 token data.  Reject
+            # whitespace, punctuation, bad padding, and impossible lengths;
+            # the default b64decode behavior silently ignores non-alphabet
+            # characters and could turn a malformed header into valid creds.
+            if not encoded or not re.fullmatch(r"[A-Za-z0-9+/]*={0,2}", encoded):
+                return False
+            padding = len(encoded) % 4
+            if padding == 1:
+                return False
+            if padding:
+                encoded += "=" * (4 - padding)
+            decoded_bytes = base64.b64decode(encoded, validate=True)
             decoded = decoded_bytes.decode("utf-8")
         except Exception:  # noqa: BLE001
             return False
@@ -576,7 +627,9 @@ class _BasicAuthMiddleware:
         except VerificationError:
             return False
         except Exception:  # noqa: BLE001 — unexpected error → deny
-            logger.debug("Unexpected error during credential verification", exc_info=True)
+            # Do not log exception details: a custom verifier's exception
+            # could contain the supplied username or password.
+            logger.debug("Unexpected error during credential verification")
             return False
 
 

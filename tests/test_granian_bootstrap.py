@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import importlib
 import sys
+from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -488,6 +489,54 @@ class TestMainServerArgument:
             import oompah.__main__ as main_mod
 
             main_mod.main()
+
+
+class TestUvicornHttpAuthWiring:
+    """The default uvicorn startup path must install loaded credentials."""
+
+    @pytest.mark.asyncio
+    async def test_run_registers_http_credentials_before_server_start(self):
+        from oompah import __main__ as main_mod
+
+        class _Orchestrator:
+            wants_restart = True
+
+            async def run(self):
+                return None
+
+            async def stop(self):
+                return None
+
+            def stop_threadsafe(self):
+                return None
+
+        credentials = object()
+        services = SimpleNamespace(
+            port=None,
+            orchestrator=_Orchestrator(),
+            webhook_forwarder=SimpleNamespace(
+                start=AsyncMock(), stop=AsyncMock()
+            ),
+            gitlab_hook_manager=SimpleNamespace(
+                start=AsyncMock(), stop=AsyncMock()
+            ),
+            http_credentials=credentials,
+        )
+
+        async def _setup_services(*args, **kwargs):
+            return services
+
+        with (
+            patch("oompah.bootstrap.setup_services", side_effect=_setup_services),
+            patch("oompah.server.set_orchestrator"),
+            patch("oompah.server.set_gitlab_hook_manager"),
+            patch("oompah.server.set_http_credentials") as set_credentials,
+            patch("oompah.server.set_api_event_loop"),
+        ):
+            result = await main_mod._run("WORKFLOW.md", None)
+
+        assert result is True
+        set_credentials.assert_called_once_with(credentials)
 
 
 # ---------------------------------------------------------------------------
