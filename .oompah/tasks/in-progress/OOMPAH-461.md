@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:03.234325Z'
-updated_at: '2026-07-28T18:13:03.591385Z'
+updated_at: '2026-07-28T18:15:56.234503Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -170,5 +170,10 @@ author: oompah
 created: 2026-07-28 18:13
 ---
 Implementation: added IN_VALIDATION to canonical constants, aliases, rank order, native Markdown status directories, and GitHub bootstrap labels. GitHub, GitLab, Markdown, and orchestrator candidate/state filters explicitly keep In Validation out of ordinary worker dispatch while preserving existing configured In Progress behavior.
+---
+author: oompah
+created: 2026-07-28 18:15
+---
+Verification: focused status, dispatch, label-auth/bootstrap, GitHub, GitLab, and native Markdown suites pass: 681 tests passed. The first pytest invocation hit an environment import-path mismatch; rerunning with python -m pytest --import-mode=importlib passed cleanly.
 ---
 <!-- COMMENTS:END -->
