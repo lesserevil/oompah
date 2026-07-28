@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-511
 type: epic
-status: In Progress
+status: In Review
 priority: 1
 title: Prevent managed task writes from bypassing state branches
 parent: null
@@ -13,7 +13,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:09.831740Z'
-updated_at: '2026-07-28T16:02:30.219821Z'
+updated_at: '2026-07-28T16:17:26.685961Z'
 work_branch: epic-OOMPAH-511
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/562
