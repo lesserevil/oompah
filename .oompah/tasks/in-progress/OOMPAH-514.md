@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-514
 type: chore
-status: Backlog
+status: In Progress
 priority: 1
 title: Prove maintenance cannot dirty or push the server code checkout
 parent: OOMPAH-511
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:44.915690Z'
-updated_at: '2026-07-28T15:17:20.375843Z'
+updated_at: '2026-07-28T15:38:01.683651Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,3 +43,11 @@ Maintenance and server helpers cannot write or push task metadata to the code br
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 15:38
+---
+Claimed in the OOMPAH-511 isolated worktree. Added disposable-remote regression coverage for state-only maintenance writes and orchestrator shutdown drainage; the full project test suite is running.
+---
+<!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-513
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Fail closed on task writes from a managed code checkout
 parent: OOMPAH-511
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:43.939778Z'
-updated_at: '2026-07-28T15:17:19.456282Z'
+updated_at: '2026-07-28T15:37:59.517412Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,3 +42,11 @@ A misrouted managed-project task write cannot create or modify .oompah/tasks, ca
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 15:37
+---
+Claimed in the OOMPAH-511 isolated worktree. Implemented a tracker-level fail-closed guard covering all public native task mutation families while preserving explicit standalone/legacy writes and non-task release ledgers.
+---
+<!-- COMMENTS:END -->
