@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-457
 type: epic
-status: In Review
+status: Done
 priority: 0
 title: Build the terminal-audit state model and transition coordinator
 parent: null
@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-07-28T21:07:31.781594Z'
+updated_at: '2026-07-28T21:08:25.387884Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -105,5 +105,10 @@ author: oompah
 created: 2026-07-28 21:07
 ---
 Verification: Focused checkpoint coverage passes locally on Python 3.12.12: TestCheckpointCoalescingE2E alone 3/3, then tests/test_checkpoint_coalescing.py plus tests/test_state_branch_e2e.py 105/105 in 11.08s. git diff --check also passes. Per CI-fixer instructions I did not rerun the already-passed full make test gate.
+---
+author: oompah
+created: 2026-07-28 21:08
+---
+Completion: Pushed minimal CI repair commit 63c36e380aaee3ccf1bc09b72e5bf17bc71e8b16 to the existing epic-OOMPAH-457 branch for PR #565. The branch is clean and up to date with origin. GitHub Actions rerun 30399368777 is confirmed on the new head, with Python 3.11/3.12/3.13 jobs pending. Focused local suites passed 105/105.
 ---
 <!-- COMMENTS:END -->
