@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-511
 type: epic
-status: In Progress
+status: In Review
 priority: 1
 title: Prevent managed task writes from bypassing state branches
 parent: null
@@ -13,7 +13,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:09.831740Z'
-updated_at: '2026-07-28T15:17:21.278021Z'
+updated_at: '2026-07-28T15:41:12.859441Z'
 work_branch: null
 target_branch: null
 review_url: null
