@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T20:19:05.137984Z'
+updated_at: '2026-07-28T20:35:52.590297Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -253,5 +253,10 @@ author: oompah
 created: 2026-07-28 20:19
 ---
 Discovery: Runtime confirms the exact Basic-auth exemptions are GET /healthz and POST /api/v1/webhooks/github plus POST /api/v1/webhooks/gitlab; /api/v1/webhooks/gitlab/status, OpenAPI, dashboard, REST, WebSocket, and /.well-known/mcp remain protected. Relative OOMPAH_HTPASSWD_FILE paths resolve beside the selected .env, empty/unset discovers .htpasswd there, and explicit missing/invalid files fail closed. MCP discovery advertises /.well-known/mcp and /api/mcp/v1 with http-basic when enabled. Existing docs need safer curl examples, explicit chmod/umask deployment steps, accurate public-URL/TLS distinctions, and contract coverage.
+---
+author: oompah
+created: 2026-07-28 20:35
+---
+Implementation: Added the operator authentication guide and linked it from the runbook, bootstrap docs, CLI docs, and docs index. Aligned .env.example, CLI/admin help, and discovery guidance; added documentation contract tests for the exact route boundary and secret-safe examples. Also fixed bootstrap test compatibility for the optional credential bundle and pinned bcrypt below 5 to preserve passlib hash verification.
 ---
 <!-- COMMENTS:END -->
