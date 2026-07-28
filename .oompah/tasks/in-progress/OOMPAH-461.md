@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-461
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Add the canonical In Validation lifecycle status
 parent: OOMPAH-457
@@ -11,14 +11,30 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:03.234325Z'
-updated_at: '2026-07-28T18:08:54.730751Z'
+updated_at: '2026-07-28T18:09:26.578986Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 1268a29c-34db-4073-b938-5a68cf9c7644
+oompah.agent_run_id: 9f091fa6-25ed-4357-8487-f68351e2a7ea
 oompah.work_branch: epic-OOMPAH-457
+oompah.task_costs:
+  total_input_tokens: 354
+  total_output_tokens: 8226
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 354
+      output_tokens: 8226
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 354
+    output_tokens: 8226
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T18:09:00.904036+00:00'
 ---
 ## Summary
 
@@ -109,5 +125,40 @@ Focus handoff: duplicate_detector
 **Remaining work**: Full implementation as described in task scope. No blockers identified.
 
 **Recommended next focus**: feature (implement the new IN_VALIDATION status constant and integrate across all trackers)
+---
+author: oompah
+created: 2026-07-28 18:09
+---
+Agent completed successfully in 161s (8580 tokens)
+---
+author: oompah
+created: 2026-07-28 18:09
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 100, Tool calls: 53
+- Tokens: 354 in / 8.2K out [8.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 41s
+- Log: OOMPAH-461__20260728T180629Z.jsonl
+---
+author: oompah
+created: 2026-07-28 18:09
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 18:09
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 18:09
+---
+Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-28 18:09
+---
+Understanding: add the canonical In Validation lifecycle status, preserve its nonterminal/non-working/non-dispatchable semantics, integrate tracker round-tripping, add focused tests, and verify with focused checks plus make test.
 ---
 <!-- COMMENTS:END -->
