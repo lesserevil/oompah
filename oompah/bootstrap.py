@@ -72,6 +72,7 @@ class Services:
     role_store: "RoleStore"
     webhook_forwarder: "WebhookForwarder"
     gitlab_hook_manager: "GitLabHookManager"
+    http_credentials: "oompah.http_auth.HtpasswdCredentials"
     port: int | None
     workflow_path: str
     workflow: object  # oompah.config.WorkflowDefinition, typed loosely
@@ -135,6 +136,7 @@ async def setup_services(
     workflow_path: str,
     cli_port: int | None = None,
     start_paused: bool = False,
+    env_file_dir: str = "",
 ) -> "Services":
     """Load config, validate, and create all service objects.
 
@@ -157,6 +159,8 @@ async def setup_services(
     start_paused:
         When ``True`` force the orchestrator to boot in paused state,
         overriding any persisted state.
+    env_file_dir:
+        Directory of the selected --env-file (for credential path discovery).
 
     Returns
     -------
@@ -171,6 +175,8 @@ async def setup_services(
     """
     # Keep imports local so this module can be imported cheaply (e.g. from
     # tests) without pulling in the whole app immediately.
+    import os
+
     from oompah.agent_profile_store import AgentProfileStore
     from oompah.config import (
         ServiceConfig,
@@ -178,6 +184,7 @@ async def setup_services(
         load_workflow,
         validate_dispatch_config,
     )
+    from oompah.http_auth import AuthError, load_credentials
     from oompah.orchestrator import Orchestrator
     from oompah.projects import ProjectStore
     from oompah.providers import ProviderStore
@@ -196,6 +203,9 @@ async def setup_services(
 
     config = ServiceConfig.from_workflow(workflow)
 
+    # Preserve env_file_dir for credential discovery
+    config.env_file_dir = env_file_dir or os.getcwd()
+
     # ------------------------------------------------------------------
     # 2. Validate dispatch config
     # ------------------------------------------------------------------
@@ -204,6 +214,23 @@ async def setup_services(
         for err in errors:
             logger.error("Config validation error: %s", err)
         raise StartupError("Config validation failed: " + "; ".join(errors))
+
+    # ------------------------------------------------------------------
+    # 2.5. Load and validate HTTP Basic auth credentials (if configured)
+    # ------------------------------------------------------------------
+    try:
+        http_credentials = load_credentials(config.htpasswd_file, config.env_file_dir)
+        if http_credentials.enabled:
+            logger.info(
+                "HTTP Basic authentication enabled (htpasswd: %s)",
+                http_credentials.htpasswd_path,
+            )
+        # Credentials are loaded into http_credentials.verifier; they will be
+        # stored in config or passed to the server for use on protected routes
+        # (see OOMPAH-523 for route enforcement).
+    except AuthError as exc:
+        logger.error("HTTP auth config error: %s", exc)
+        raise StartupError(f"HTTP auth config error: {exc}") from exc
 
     # ------------------------------------------------------------------
     # 3. Load managed-project config
@@ -361,6 +388,7 @@ async def setup_services(
         role_store=role_store,
         webhook_forwarder=webhook_forwarder,
         gitlab_hook_manager=gitlab_hook_manager,
+        http_credentials=http_credentials,
         port=port,
         workflow_path=workflow_path,
         workflow=workflow,
