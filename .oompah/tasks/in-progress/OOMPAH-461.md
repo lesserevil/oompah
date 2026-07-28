@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:03.234325Z'
-updated_at: '2026-07-28T18:09:56.787357Z'
+updated_at: '2026-07-28T18:13:03.591385Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -165,5 +165,10 @@ author: oompah
 created: 2026-07-28 18:09
 ---
 Discovery: status vocabulary and rank live in oompah/statuses.py; GitHub label auth derives its slug map from CANONICAL_STATUSES, and label bootstrap derives required labels from the same tuple. Markdown/GitLab/GitHub adapters need targeted review for hard-coded defaults and state filters.
+---
+author: oompah
+created: 2026-07-28 18:13
+---
+Implementation: added IN_VALIDATION to canonical constants, aliases, rank order, native Markdown status directories, and GitHub bootstrap labels. GitHub, GitLab, Markdown, and orchestrator candidate/state filters explicitly keep In Validation out of ordinary worker dispatch while preserving existing configured In Progress behavior.
 ---
 <!-- COMMENTS:END -->
