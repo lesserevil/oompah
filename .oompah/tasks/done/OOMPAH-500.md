@@ -19,7 +19,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:35.430103Z'
-updated_at: '2026-07-28T16:57:13.487575Z'
+updated_at: '2026-07-28T16:59:18.229551Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -204,5 +204,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 5m 53s
 - Log: OOMPAH-500__20260728T165120Z.jsonl
+---
+author: oompah
+created: 2026-07-28 16:59
+---
+Correction to comments #13-15: the final run created no additional Granian process, but the pre-existing PID 3361788 was still alive when the task was marked Done, so the contemporaneous 'zero leaks' statement was not accurate. I terminated that exact recorded orphan (TERM with bounded wait, then KILL because it did not exit) and verified no command containing the generated Granian E2E subprocess marker remains. Current process-leak count is now zero; the 4/4 targeted rerun demonstrates the consolidated current fixture does not reproduce the leak during a normal run.
 ---
 <!-- COMMENTS:END -->
