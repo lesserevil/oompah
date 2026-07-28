@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-467
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Add explicit authorized owner overrides for terminal audits
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T20:10:13.816046Z'
+updated_at: '2026-07-28T20:10:35.394745Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -19,6 +19,22 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 0888bf70-257e-428e-839e-40de2770175b
 oompah.work_branch: epic-OOMPAH-457
+oompah.task_costs:
+  total_input_tokens: 530
+  total_output_tokens: 25891
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 530
+      output_tokens: 25891
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 530
+    output_tokens: 25891
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T20:10:31.916584+00:00'
 ---
 ## Summary
 
@@ -159,5 +175,38 @@ author: oompah
 created: 2026-07-28 20:10
 ---
 Implemented explicit authorized owner overrides for terminal audits. Added override_transition() method to TerminalTransitionCoordinator with project-owner authorization, evidence validation, audit record persistence, and comprehensive test coverage (17 new tests passing, 147 existing tests still passing).
+---
+author: oompah
+created: 2026-07-28 20:10
+---
+Agent completed successfully in 329s (26421 tokens)
+---
+author: oompah
+created: 2026-07-28 20:10
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 140, Tool calls: 65
+- Tokens: 530 in / 25.9K out [26.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 29s
+- Log: OOMPAH-467__20260728T200508Z.jsonl
+---
+author: oompah
+created: 2026-07-28 20:10
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-457` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-457
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-457
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
