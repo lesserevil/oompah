@@ -13,7 +13,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-28T21:18:51.634942Z'
-updated_at: '2026-07-28T21:36:06.660077Z'
+updated_at: '2026-07-28T21:36:39.716610Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -210,5 +210,10 @@ Key findings:
 3. Tracker write-lock usage: Each claim operation calls tracker.set_metadata_field() which acquires the per-repo RLock, ensuring atomic metadata mutations across concurrent threads.
 
 4. Next: Integrate mutual exclusion checks into orchestrator.py dispatch logic and test end-to-end blocking behavior.
+---
+author: oompah
+created: 2026-07-28 21:36
+---
+Implementation: the prior partial commit added a claim record/store but explicitly left dispatch integration pending. I’m now replacing optimistic claim mutations with lock-scoped re-read/CAS operations, adding revision-safe completion and recovery, and wiring preflight claims into implementation eligibility/worker cleanup while preserving Open status.
 ---
 <!-- COMMENTS:END -->
