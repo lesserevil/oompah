@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-491
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Block network Git remotes during pytest sessions
 parent: OOMPAH-490
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-07-28T14:56:15.360245Z'
+updated_at: '2026-07-28T14:56:29.088705Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -157,5 +157,20 @@ Verification: All tests pass.
 - 44/44 tests in test_state_branch_e2e.py pass (no regression)
 - Full suite: 12341 passed, 7 skipped, 0 failures, 11 warnings (pre-existing)
 The barrier correctly blocks HTTPS/HTTP/SSH/SCP/git:// while leaving absolute-path and file:// remotes fully usable.
+---
+author: oompah
+created: 2026-07-28 14:56
+---
+Completion: Delivered a pytest-session Git network safety barrier on branch epic-OOMPAH-490.
+
+Files changed:
+- tests/conftest.py: Added build_network_barrier_env() helper + _block_network_git_remotes() session-scoped autouse fixture. Uses GIT_CONFIG_COUNT/KEY_N/VALUE_N to inject url.*.insteadOf rules that redirect https://, http://, ssh://, git://, and git@ to /OOMPAH-TEST-NETWORK-BARRIER/<scheme>/. Pre-existing numbered entries are preserved. No global/repo git config is touched. Clean teardown restores the original env.
+- tests/test_git_remote_safety.py: 17 tests across 4 sections proving blocked schemes fail, local transports succeed, config-count preservation logic is correct, and the session fixture is active.
+
+Acceptance criteria met:
+- pytest cannot contact network Git remotes (blocked via process-local env)
+- Local bare-remote coverage still passes (12341 tests, 0 failures)
+- No persistent git configuration changes
+- Error messages include OOMPAH-TEST-NETWORK-BARRIER marker identifying the blocked URL
 ---
 <!-- COMMENTS:END -->
