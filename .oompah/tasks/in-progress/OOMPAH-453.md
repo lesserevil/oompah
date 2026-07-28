@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-07-28T13:09:00.586079Z'
+updated_at: '2026-07-28T13:10:56.835161Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -51,5 +51,18 @@ author: oompah
 created: 2026-07-28 13:09
 ---
 Understanding (Duplicate Investigator): Investigating whether OOMPAH-453 (route webhook lifecycle by forge, stop gh forwarder churn for GitLab projects) is a duplicate of any existing issue. Will search for related tasks around WebhookForwarder, GitLabHookManager, forge filtering, and webhook lifecycle before any implementation work.
+---
+author: oompah
+created: 2026-07-28 13:10
+---
+Discovery: Duplicate screening found no confirmed duplicate for OOMPAH-453.
+
+**Candidate tasks reviewed in full:**
+- OOMPAH-341 (Merged): Implemented GitLabHookManager with OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL config. Cherry-picked onto epic-OOMPAH-451 as commit f6c4ef88d by the OOMPAH-452 Maintenance Engineer. Adds _is_gitlab_project() to GitLabHookManager but does NOT add forge filtering to WebhookForwarder._poll_and_restart.
+- OOMPAH-342 (Merged): Wired GitLabHookManager into project lifecycle (reconcile/remove/dedup). Cherry-picked onto epic-OOMPAH-451 as commit 4c5420f7d. Again does NOT filter WebhookForwarder by forge.
+- OOMPAH-452 (Done): Recovery epic child that cherry-picked commits from stranded epic-OOMPAH-318 branch onto current main (via epic-OOMPAH-451). PR #558 is open.
+
+**Why OOMPAH-453 is distinct:**
+Current oompah/webhooks.py line 1908: `projects = (self.project_store.list_all() if self.project_store else [])` — WebhookForwarder._poll_and_restart processes ALL projects with zero forge filtering. The recovered 341/342 commits only added GitLabHookManager with its own _is_gitlab_project() helper; neither patched WebhookForwarder to skip GitLab projects. The bug (gh webhook forward churn against GitLab repos) is still present on the current branch.
 ---
 <!-- COMMENTS:END -->
