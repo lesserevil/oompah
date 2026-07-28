@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-514
 type: chore
-status: Open
+status: Done
 priority: 1
 title: Prove maintenance cannot dirty or push the server code checkout
 parent: OOMPAH-511
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:44.915690Z'
-updated_at: '2026-07-28T15:41:55.409908Z'
+updated_at: '2026-07-28T15:41:58.105288Z'
 work_branch: null
 target_branch: null
 review_url: null
