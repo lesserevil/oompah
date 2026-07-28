@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:04.307001Z'
-updated_at: '2026-07-28T18:26:39.019125Z'
+updated_at: '2026-07-28T18:26:50.500806Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -77,5 +77,44 @@ Closest reviewed candidates (NOT duplicates):
 3. OOMPAH-205 (Archived): Dashboard board fingerprinting — UI optimization, not audit domain
 
 Conclusion: OOMPAH-462 is a unique, original feature implementation task. No prior implementation or duplicate found.
+---
+author: oompah
+created: 2026-07-28 18:26
+---
+Focus handoff: duplicate_detector
+
+**Outcome**: No duplicate found. OOMPAH-462 is a unique, original feature task.
+
+**Investigation Details**:
+- Searched all .oompah/tasks directories (200+ tasks) and docs/plans for terminal-audit, audit records, evidence fingerprints, verdict, contributor identity concepts
+- Source code review: no existing Audit/Record/Fingerprint/Evidence domain classes in oompah/ or src/
+- Git history: no references to terminal-audit infrastructure or prior attempts
+- Examined existing dataclass patterns in oompah/models.py (EpicRebaseStateEntry, SharedAbsorptionEvidence, etc.) for implementation reference
+
+**Context & Related Tasks**:
+- Parent epic: OOMPAH-457 (Build the terminal-audit state model and transition coordinator) — defines the overall state machine foundation
+- Sibling OOMPAH-461 (Done): Added In Validation status — orthogonal scope, already completed
+- Next sibling tasks OOMPAH-463..467: Will consume the domain models defined in this task
+
+**Files & patterns to follow**:
+- oompah/models.py: Pattern for versioned to_dict/from_dict (see EpicRebaseStateEntry lines 56–95, SharedAbsorptionEvidence lines 116–153)
+- tests/test_models.py: Existing dataclass test patterns
+- oompah/statuses.py: Enum patterns (see EpicRebaseState enum lines 32–54)
+
+**Implementation Scope** (from task):
+- New terminal_audit domain module with typed enums/dataclasses
+- Enums: TargetState (Done, Merged, Archived), RequestState, Verdict, FailureClassification
+- Records: ContributorIdentity, EvidenceFingerprint, AuditAttempt, TerminalAuditRecord
+- Deterministic SHA-256 fingerprint from normalized: requirements text, project/task identity, source/target branch names/SHAs, review identity/state, child-audit digest, contributor identities (order-independent)
+- Never include: credentials, full diffs, model prose
+- Versioned to_dict/from_dict with strict required-field validation, forward-compatible optional fields
+- Tests: deterministic hashing, order-independent inputs, changed evidence producing new fingerprint, malformed enum rejection, legacy missing optional fields
+
+**Acceptance Criteria**:
+- Other tasks can construct, persist, compare without tracker-specific logic
+- Identical evidence → same fingerprint
+- Material evidence change → different fingerprint
+
+**Recommended next focus**: feature
 ---
 <!-- COMMENTS:END -->
