@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:46:15.484123Z'
+updated_at: '2026-07-28T18:49:53.923657Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -185,5 +185,10 @@ author: oompah
 created: 2026-07-28 18:46
 ---
 Understanding (Frontend): Reviewed the task scope and codebase. OOMPAH-523 requires adding ASGI middleware to oompah/server.py that enforces HTTP Basic authentication (using the htpasswd verifier from OOMPAH-522/oompah/http_auth.py) at the ASGI boundary. Work includes: (1) an auth middleware class wrapping the FastAPI app, (2) exempting GET /healthz, POST /api/v1/webhooks/github, POST /api/v1/webhooks/gitlab with exact-method+path matching, (3) WebSocket auth before accept(), (4) a minimal /healthz endpoint, (5) request log redaction of Authorization headers, and (6) focused integration tests. This is entirely Python/backend work — no HTML templates, JavaScript, or CSS changes are required. Handing off to the feature specialist.
+---
+author: oompah
+created: 2026-07-28 18:49
+---
+Discovery: This task is entirely backend Python work. Key findings: (1) oompah/http_auth.py (OOMPAH-522) is complete with HtpasswdCredentials.verifier callable, (2) oompah/bootstrap.py loads credentials at startup into Services.http_credentials, (3) oompah/server.py has app=FastAPI(...) at line 424, WebSocket endpoint at line 1792, webhook endpoints at lines 13867/13970, (4) no middleware exists yet — credentials are loaded but not applied, (5) the module-level pattern (_orchestrator, _gitlab_hook_manager, etc.) with set_* functions is the right pattern for sharing credentials with request handlers. Plan: add _BasicAuthMiddleware ASGI class, add _http_credentials module var + set_http_credentials(), add /healthz endpoint, wire in lifespan, add tests in tests/test_server_auth.py.
 ---
 <!-- COMMENTS:END -->
