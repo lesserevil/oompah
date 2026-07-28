@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-526
 type: chore
-status: In Progress
+status: Done
 priority: 1
 title: Document and validate secure htpasswd deployment and recovery
 parent: OOMPAH-521
@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T20:39:19.688520Z'
+updated_at: '2026-07-28T20:39:56.438820Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -263,5 +263,10 @@ author: oompah
 created: 2026-07-28 20:39
 ---
 Verification: Focused auth, MCP, CLI/admin, bootstrap/lifespan, and documentation-contract suites pass (341 passed). The complete Makefile gate passes via the repository test target: 12,610 passed, 39 skipped, 39 warnings. make check-secrets passes (only the existing null-byte warning). Disposable TestClient smoke checks covered auth-off, protected API/OpenAPI/MCP, public health, and unauthenticated GitHub/GitLab webhook receivers; no credential values were printed. make status reports the service stopped cleanly.
+---
+author: oompah
+created: 2026-07-28 20:39
+---
+Completion: Secure htpasswd deployment and recovery documentation is landed and pushed in commit 4a15c3ecb. The guide covers HTTPS/TLS boundaries, Oompah-vs-GitLab URLs, bcrypt file lifecycle, client/MCP/CLI credentials, exact webhook exemptions, rotation, disablement, recovery, rollback, and troubleshooting. Links and setting precedence are aligned across .env.example, operator/bootstrap/CLI docs, help, and discovery; contract tests and full verification are green.
 ---
 <!-- COMMENTS:END -->
