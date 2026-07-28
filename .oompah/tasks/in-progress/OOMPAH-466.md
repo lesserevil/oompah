@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-466
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Apply audit verdicts and route failures without fail-open behavior
 parent: OOMPAH-457
@@ -11,12 +11,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:08.204164Z'
-updated_at: '2026-07-28T18:06:21.069555Z'
-work_branch: null
+updated_at: '2026-07-28T19:50:00.084070Z'
+work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 67d03a9f-96d2-4968-a2a1-bf68faaf08f1
+oompah.work_branch: epic-OOMPAH-457
 ---
 ## Summary
 
@@ -38,3 +40,16 @@ Only a matching PASS reaches the requested terminal state; every failure has a d
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 19:49
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-28 19:50
+---
+Focus: CI Failure Fixer
+---
+<!-- COMMENTS:END -->
