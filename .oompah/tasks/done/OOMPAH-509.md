@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-509
 type: feature
-status: Backlog
+status: Done
 priority: 2
 title: Parallelize pytest safely on isolated workers
 parent: OOMPAH-502
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:10.253754Z'
-updated_at: '2026-07-28T17:29:14.891912Z'
+updated_at: '2026-07-28T17:34:10.992707Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-07-28 17:29
 ---
 Authoritative repeated parallel validation now passes on aa93fa639 with four isolated workers: 12,616 passed, 7 skipped in 70.52s and 69.12s. The prior clean serial baseline on the same product code was 12,614 passed, 7 skipped in 274.81s; the two additional passes are isolation regression tests. A full exact-head serial confirmation is now running. The xdist work also found and fixed two real runner isolation defects (tilde temp-root expansion and legacy tests clearing OOMPAH_PYTEST_RUN_ROOT). No pytest run roots or child processes leaked after either successful run.
+---
+author: oompah
+created: 2026-07-28 17:34
+---
+Completed exact-head validation on aa93fa639. Serial: 12,616 passed, 7 skipped in 271.98s. Parallel with OOMPAH_PYTEST_WORKERS=4: the same 12,616 passed and 7 skipped in 70.52s and 69.12s on consecutive runs, a stable 3.9x speedup. The serial fallback and both parallel runs removed their private run roots and leaked no pytest or Granian child process. The branch is clean and pushed. make test now uses bounded four-worker isolation; make test-serial remains the reliable diagnostic fallback.
 ---
 <!-- COMMENTS:END -->
