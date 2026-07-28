@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-466
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Apply audit verdicts and route failures without fail-open behavior
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:08.204164Z'
-updated_at: '2026-07-28T20:04:39.638381Z'
+updated_at: '2026-07-28T20:04:50.548936Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -112,5 +112,10 @@ author: oompah
 created: 2026-07-28 20:04
 ---
 Verification: tests/test_terminal_transition_coordinator.py — 100 passed (41 pre-existing + 59 new result-handling cases). Focused suites tests/test_terminal_audit.py, tests/test_terminal_audit_metadata.py, tests/test_terminal_audit_enforcement.py, tests/test_transition_gate.py, tests/test_granian_bootstrap.py — 195 passed total across the terminal-audit stack with no regressions. Table-driven parametrisation covers every FailureClassification -> status mapping, every verdict (PASS, FAIL, NEEDS_HUMAN, ERROR), stale audit_id/target/fingerprint rejection, issue-not-in-validation rejection, record-already-completed rejection, duplicate attempt_id idempotency, Done->Merged chain advance (issue stays in In Validation, advanced_target reported), unsafe-archive restoration and its Needs Human fallback, actionable Needs Human comment fallback via the tracker validator, and every never-honour path (ERROR, MALFORMED_RESULT, INFRASTRUCTURE_ERROR, and stubbed validate_needs_human_comment rejection). Full make test gate is deferred to the orchestrator branch gate per project handoff policy.
+---
+author: oompah
+created: 2026-07-28 20:04
+---
+Completion: Delivered TerminalTransitionCoordinator.apply_audit_result with compare-and-set on audit_id/target_state/evidence_fingerprint plus In Validation guard, central classify_failure_to_status() failure router, PASS terminal application with chain advance, actionable Needs Human comment composition, and durable pending-record retention for every non-terminal path (ERROR, MALFORMED_RESULT, INFRASTRUCTURE_ERROR, retry ceiling, non-actionable NEEDS_HUMAN). Acceptance criteria met: only a matching PASS reaches the requested terminal state; every failure has a deterministic repair state and durable actionable explanation; malformed or infrastructure results leave the item nonterminal in In Validation. Commit 63b904e09 on epic-OOMPAH-457.
 ---
 <!-- COMMENTS:END -->
