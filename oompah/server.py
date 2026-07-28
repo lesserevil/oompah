@@ -10842,6 +10842,7 @@ async def api_state_branch_migrate(project_id: str, request: Request):
     """
     try:
         from oompah.state_branch_migration import (
+            MigrationResult,
             migrate_stage_a,
             migrate_stage_b,
             migrate_stage_c,
@@ -10939,138 +10940,194 @@ async def api_state_branch_migrate(project_id: str, request: Request):
                 }
             )
 
-        # Serialize migration against other concurrent tracker writes.
-        current_stage = getattr(project, "state_branch_migration_stage", "") or ""
+        # Serialize migration against other concurrent tracker writes using the
+        # per-project write lock.  All blocking git work is dispatched to a
+        # thread pool via asyncio.to_thread so the async event loop stays
+        # responsive during push/fetch/verify operations.
+        from oompah.state_branch_migration import verify_state_branch
 
-        if action == "A":
-            if current_stage not in ("", "A"):
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "validation",
-                            "message": (
-                                "Stage A can only start an unmigrated project; "
-                                f"current stage is {current_stage!r}"
-                            ),
-                        }
-                    },
-                    status_code=400,
-                )
-            # Check idempotency.
-            if current_stage == "A":
-                return JSONResponse(
-                    {
-                        "stage": "A",
-                        "ok": True,
-                        "already_done": True,
-                        "message": "Project is already at Stage A (shadow writes active).",
-                        "error": "",
-                    }
-                )
-            result = migrate_stage_a(
-                repo_path,
-                project.id,
-                default_branch=default_branch,
-                push=True,
-            )
-            if result.ok:
-                # Invalidate tracker cache so new instances pick up config changes.
-                _invalidate_project_tracker_cache(orch, project_id)
-                orch.project_store.update(
-                    project_id,
-                    state_branch_enabled=True,
-                    state_branch_shadow_write=True,
-                    state_branch_migration_stage="A",
-                )
+        forge_kind = project.forge_kind or "github"
+        forge_base_url = project.forge_base_url or None
+        access_token = project.access_token or None
 
-        elif action == "B":
-            if current_stage not in ("A", "B"):
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "validation",
-                            "message": (
-                                f"Stage B requires Stage A to be completed first. "
-                                f"Current stage: {current_stage!r}"
-                            ),
-                        }
-                    },
-                    status_code=400,
-                )
-            if current_stage == "B":
-                return JSONResponse(
-                    {
-                        "stage": "B",
-                        "ok": True,
-                        "already_done": True,
-                        "message": "Project is already at Stage B (state-branch only).",
-                        "error": "",
-                    }
-                )
-            result = migrate_stage_b(
-                repo_path,
-                project.id,
-                default_branch=default_branch,
-            )
-            if result.ok:
-                _invalidate_project_tracker_cache(orch, project_id)
-                orch.project_store.update(
-                    project_id,
-                    state_branch_shadow_write=False,
-                    state_branch_migration_stage="B",
-                )
+        lock = orch.project_store.project_write_lock(project_id)
 
-        elif action == "C":
-            if current_stage != "B":
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "validation",
-                            "message": (
-                                "Stage C requires Stage B to be completed first; "
-                                f"current stage is {current_stage!r}"
-                            ),
-                        }
-                    },
-                    status_code=400,
-                )
-            result = migrate_stage_c(
-                repo_path,
-                project.id,
-                default_branch=default_branch,
-                push=True,
-            )
-            # Stage C does not change project config.
+        def _run_migration() -> "tuple[MigrationResult | None, JSONResponse | None]":
+            """Blocking migration body executed in a thread-pool thread."""
+            with lock:
+                current_stage = getattr(project, "state_branch_migration_stage", "") or ""
 
-        elif action == "ROLLBACK":
-            if current_stage not in ("A", "B"):
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "validation",
-                            "message": (
-                                "Rollback requires an active Stage A or Stage B "
-                                f"migration; current stage is {current_stage!r}"
-                            ),
-                        }
-                    },
-                    status_code=400,
-                )
-            result = rollback_migration(
-                repo_path,
-                project.id,
-                default_branch=default_branch,
-                current_stage=current_stage,
-                push=True,
-            )
-            if result.ok:
-                _invalidate_project_tracker_cache(orch, project_id)
-                orch.project_store.update(
-                    project_id,
-                    state_branch_enabled=False,
-                    state_branch_shadow_write=False,
-                    state_branch_migration_stage="",
-                )
+                if action == "A":
+                    if current_stage not in ("", "A"):
+                        return None, JSONResponse(
+                            {
+                                "error": {
+                                    "code": "validation",
+                                    "message": (
+                                        "Stage A can only start an unmigrated project; "
+                                        f"current stage is {current_stage!r}"
+                                    ),
+                                }
+                            },
+                            status_code=400,
+                        )
+                    # Check idempotency.
+                    if current_stage == "A":
+                        return None, JSONResponse(
+                            {
+                                "stage": "A",
+                                "ok": True,
+                                "already_done": True,
+                                "message": "Project is already at Stage A (shadow writes active).",
+                                "error": "",
+                            }
+                        )
+                    result = migrate_stage_a(
+                        repo_path,
+                        project.id,
+                        default_branch=default_branch,
+                        push=True,
+                        access_token=access_token,
+                        forge_kind=forge_kind,
+                        forge_base_url=forge_base_url,
+                    )
+                    if result.ok:
+                        # Independently verify the remote state-branch ref and
+                        # canonical task layout before enabling state tracking.
+                        # This ensures a failed push cannot leave the project
+                        # enabled — state_branch_enabled stays False until the
+                        # remote branch is confirmed.
+                        v = verify_state_branch(
+                            repo_path,
+                            project.id,
+                            require_remote=True,
+                            access_token=access_token,
+                            forge_kind=forge_kind,
+                            forge_base_url=forge_base_url,
+                        )
+                        if not v.ok:
+                            result = MigrationResult(
+                                stage="A",
+                                ok=False,
+                                error=(
+                                    "State branch was created but remote verification "
+                                    f"failed — state_branch_enabled left False: {v.error}"
+                                ),
+                            )
+                        else:
+                            # Config update happens last, under the lock,
+                            # only after remote verification succeeds.
+                            _invalidate_project_tracker_cache(orch, project_id)
+                            orch.project_store.update(
+                                project_id,
+                                state_branch_enabled=True,
+                                state_branch_shadow_write=True,
+                                state_branch_migration_stage="A",
+                            )
+
+                elif action == "B":
+                    if current_stage not in ("A", "B"):
+                        return None, JSONResponse(
+                            {
+                                "error": {
+                                    "code": "validation",
+                                    "message": (
+                                        f"Stage B requires Stage A to be completed first. "
+                                        f"Current stage: {current_stage!r}"
+                                    ),
+                                }
+                            },
+                            status_code=400,
+                        )
+                    if current_stage == "B":
+                        return None, JSONResponse(
+                            {
+                                "stage": "B",
+                                "ok": True,
+                                "already_done": True,
+                                "message": "Project is already at Stage B (state-branch only).",
+                                "error": "",
+                            }
+                        )
+                    result = migrate_stage_b(
+                        repo_path,
+                        project.id,
+                        default_branch=default_branch,
+                        access_token=access_token,
+                        forge_kind=forge_kind,
+                        forge_base_url=forge_base_url,
+                    )
+                    if result.ok:
+                        _invalidate_project_tracker_cache(orch, project_id)
+                        orch.project_store.update(
+                            project_id,
+                            state_branch_shadow_write=False,
+                            state_branch_migration_stage="B",
+                        )
+
+                elif action == "C":
+                    if current_stage != "B":
+                        return None, JSONResponse(
+                            {
+                                "error": {
+                                    "code": "validation",
+                                    "message": (
+                                        "Stage C requires Stage B to be completed first; "
+                                        f"current stage is {current_stage!r}"
+                                    ),
+                                }
+                            },
+                            status_code=400,
+                        )
+                    result = migrate_stage_c(
+                        repo_path,
+                        project.id,
+                        default_branch=default_branch,
+                        push=True,
+                        access_token=access_token,
+                        forge_kind=forge_kind,
+                        forge_base_url=forge_base_url,
+                    )
+                    # Stage C does not change project config.
+
+                elif action == "ROLLBACK":
+                    if current_stage not in ("A", "B"):
+                        return None, JSONResponse(
+                            {
+                                "error": {
+                                    "code": "validation",
+                                    "message": (
+                                        "Rollback requires an active Stage A or Stage B "
+                                        f"migration; current stage is {current_stage!r}"
+                                    ),
+                                }
+                            },
+                            status_code=400,
+                        )
+                    result = rollback_migration(
+                        repo_path,
+                        project.id,
+                        default_branch=default_branch,
+                        current_stage=current_stage,
+                        push=True,
+                        access_token=access_token,
+                        forge_kind=forge_kind,
+                        forge_base_url=forge_base_url,
+                    )
+                    if result.ok:
+                        _invalidate_project_tracker_cache(orch, project_id)
+                        orch.project_store.update(
+                            project_id,
+                            state_branch_enabled=False,
+                            state_branch_shadow_write=False,
+                            state_branch_migration_stage="",
+                        )
+
+                return result, None
+
+        result, early_response = await asyncio.to_thread(_run_migration)
+        if early_response is not None:
+            return early_response
 
         if result.ok:
             return JSONResponse(result.to_dict())

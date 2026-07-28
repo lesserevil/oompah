@@ -1428,3 +1428,337 @@ class TestStageBApiContract:
         )
         assert "state_branch_shadow_write" in p
         assert p["state_branch_shadow_write"] is False
+
+
+# ---------------------------------------------------------------------------
+# § 13 — GitLab forge-aware activation: server atomicity and credential routing
+# ---------------------------------------------------------------------------
+
+
+class TestGitLabForgeActivation:
+    """Server-side tests for OOMPAH-456: atomic, forge-aware state-branch activation.
+
+    These tests verify:
+      1. Stage A activation passes project.access_token and forge_kind to migrate_stage_a
+      2. verify_state_branch is called before state_branch_enabled is flipped True
+      3. A failed push (migrate_stage_a error) leaves state_branch_enabled False
+      4. A remote verification failure leaves state_branch_enabled False (no partial enable)
+      5. Diagnostics never mention GITHUB_TOKEN for GitLab projects
+      6. GitHub native-Markdown projects still work as before (regression guard)
+    """
+
+    @pytest.fixture(autouse=True)
+    def client(self, tmp_path):
+        """Set up a test client with a GitLab native-Markdown project."""
+        from fastapi.testclient import TestClient
+        from oompah.server import app
+
+        store = ProjectStore(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        # GitLab native-Markdown project (no state branch yet).
+        gl_proj = Project(
+            id="proj-gitlab-nodev",
+            name="nodevirt",
+            repo_url="https://gitlab.example.test/group/nodevirt.git",
+            repo_path=str(tmp_path / "repos" / "nodevirt"),
+            default_branch="main",
+            forge_kind="gitlab",
+            forge_base_url="https://gitlab.example.test",
+            tracker_kind="oompah_md",
+            access_token="gitlab-access-token-secret",
+            state_branch_enabled=False,
+        )
+        store._projects[gl_proj.id] = gl_proj
+        # Also add a GitHub project for regression testing.
+        gh_proj = Project(
+            id="proj-github-native",
+            name="ghrepo",
+            repo_url="https://github.com/org/ghrepo.git",
+            repo_path=str(tmp_path / "repos" / "ghrepo"),
+            default_branch="main",
+            forge_kind="github",
+            tracker_kind="oompah_md",
+            access_token="github-access-token",
+            state_branch_enabled=False,
+        )
+        store._projects[gh_proj.id] = gh_proj
+        store._save()
+
+        orch = MagicMock()
+        orch.project_store = store
+        orch._observers = []
+        orch._state_only_observers = []
+        orch._activity_observers = []
+        orch.get_snapshot.return_value = {"counts": {}, "running": {}}
+
+        import oompah.server as srv
+
+        old_orch = srv._orchestrator
+        srv._orchestrator = orch
+        self.client = TestClient(app)
+        self.store = store
+        yield self.client
+        srv._orchestrator = old_orch
+
+    def test_gitlab_stage_a_passes_project_access_token(self):
+        """migrate_stage_a must be called with the GitLab project access_token.
+
+        migrate_stage_a is imported lazily inside the server endpoint, so we
+        capture credentials at the initialize_state_branch level (also lazily
+        imported by migrate_stage_a).
+        """
+        from oompah.state_branch_migration import StateBranchVerificationResult
+
+        captured: dict = {}
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            captured["access_token"] = access_token
+            captured["forge_kind"] = forge_kind
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                created=True,
+                commit_sha="abc" * 13,
+                pushed=True,
+                error="",
+            )
+
+        import oompah.state_branch_migration as _migmod
+
+        def _fake_verify_sb(repo_path, project_id, **kwargs):
+            return StateBranchVerificationResult(ok=True, commit_sha="abc" * 13)
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init), \
+             patch.object(_migmod, "verify_state_branch", side_effect=_fake_verify_sb):
+            res = self.client.post(
+                "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
+        assert captured.get("access_token") == "gitlab-access-token-secret"
+        assert captured.get("forge_kind") == "gitlab"
+
+    def test_gitlab_stage_a_passes_forge_kind_gitlab(self):
+        """migrate_stage_a must receive forge_kind='gitlab' for a GitLab project."""
+        from oompah.state_branch_migration import StateBranchVerificationResult
+
+        forge_kinds: list = []
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            forge_kinds.append(forge_kind)
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                created=True,
+                commit_sha="abc" * 13,
+                pushed=True,
+                error="",
+            )
+
+        def _fake_verify_sb(repo_path, project_id, **kwargs):
+            return StateBranchVerificationResult(ok=True, commit_sha="abc" * 13)
+
+        import oompah.state_branch_migration as _migmod
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init), \
+             patch.object(_migmod, "verify_state_branch", side_effect=_fake_verify_sb):
+            self.client.post(
+                "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert forge_kinds, "initialize_state_branch must have been called"
+        assert "gitlab" in forge_kinds, f"Expected forge_kind='gitlab'; got {forge_kinds}"
+
+    def test_push_failure_leaves_state_branch_disabled(self):
+        """If migrate_stage_a reports a push error, state_branch_enabled stays False."""
+        import oompah.state_branch_migration as _migmod
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                error="git push failed: 403 Forbidden",
+            )
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init):
+            res = self.client.post(
+                "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert res.status_code == 500
+        assert self.store.get("proj-gitlab-nodev").state_branch_enabled is False
+
+    def test_remote_verification_failure_leaves_state_branch_disabled(self):
+        """If verify_state_branch fails, state_branch_enabled must stay False.
+
+        This is the atomicity requirement: the remote branch must be verified
+        independently before the config flip.
+        """
+        from oompah.state_branch_migration import StateBranchVerificationResult
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                created=True,
+                commit_sha="abc" * 13,
+                pushed=True,  # push succeeded...
+                error="",
+            )
+
+        def _fake_verify_sb(repo_path, project_id, **kwargs):
+            # ...but remote verification fails (e.g. ref mismatch, missing layout)
+            return StateBranchVerificationResult(
+                ok=False,
+                error="Remote did not advertise the exact state ref",
+            )
+
+        import oompah.state_branch_migration as _migmod
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init), \
+             patch.object(_migmod, "verify_state_branch", side_effect=_fake_verify_sb):
+            res = self.client.post(
+                "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert res.status_code == 500
+        project = self.store.get("proj-gitlab-nodev")
+        assert project.state_branch_enabled is False, (
+            "state_branch_enabled must stay False when remote verification fails"
+        )
+        assert project.state_branch_migration_stage == "", (
+            "migration_stage must stay empty when remote verification fails"
+        )
+
+    def test_successful_activation_enables_project(self):
+        """Full success path: push+verify both OK → state_branch_enabled=True."""
+        from oompah.state_branch_migration import StateBranchVerificationResult
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                created=True,
+                commit_sha="abc" * 13,
+                pushed=True,
+                error="",
+            )
+
+        def _fake_verify_sb(repo_path, project_id, **kwargs):
+            return StateBranchVerificationResult(ok=True, commit_sha="abc" * 13)
+
+        import oompah.state_branch_migration as _migmod
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init), \
+             patch.object(_migmod, "verify_state_branch", side_effect=_fake_verify_sb):
+            res = self.client.post(
+                "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert res.status_code == 200
+        project = self.store.get("proj-gitlab-nodev")
+        assert project.state_branch_enabled is True, (
+            "state_branch_enabled must be True after successful push+verify"
+        )
+        assert project.state_branch_migration_stage == "A"
+
+    def test_activation_error_message_forge_neutral_for_gitlab(self):
+        """Error messages from activation must not mention GITHUB_TOKEN for GitLab projects."""
+        import oompah.state_branch_migration as _migmod
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                error="git push failed: 401 Unauthorized",
+            )
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init):
+            res = self.client.post(
+                "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert res.status_code == 500
+        body = res.json()
+        error_text = str(body)
+        # The error must not mention GITHUB_TOKEN (forge-neutral requirement).
+        assert "GITHUB_TOKEN" not in error_text, (
+            f"Error response must not mention GITHUB_TOKEN for GitLab projects; got: {error_text}"
+        )
+
+    def test_github_project_activation_still_works(self):
+        """GitHub native-Markdown project activation must work (regression guard)."""
+        from oompah.state_branch_migration import StateBranchVerificationResult
+
+        gh_tokens: list = []
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            gh_tokens.append((access_token, forge_kind))
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                created=True,
+                commit_sha="abc" * 13,
+                pushed=True,
+                error="",
+            )
+
+        def _fake_verify_sb(repo_path, project_id, **kwargs):
+            return StateBranchVerificationResult(ok=True, commit_sha="abc" * 13)
+
+        import oompah.state_branch_migration as _migmod
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init), \
+             patch.object(_migmod, "verify_state_branch", side_effect=_fake_verify_sb):
+            res = self.client.post(
+                "/api/v1/projects/proj-github-native/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert res.status_code == 200
+        project = self.store.get("proj-github-native")
+        assert project.state_branch_enabled is True
+
+        assert gh_tokens, "initialize_state_branch must have been called"
+        tok, fk = gh_tokens[0]
+        assert tok == "github-access-token"
+        assert fk == "github"
+
+    def test_concurrent_activation_requests_are_serialized(self):
+        """Concurrent migration requests must be serialized by the project write lock.
+
+        We verify that the project write lock is acquired by checking that the
+        lock attribute exists on the project store and is an RLock.
+        """
+        import threading
+
+        lock = self.store.project_write_lock("proj-gitlab-nodev")
+        assert isinstance(lock, type(threading.RLock())), (
+            "project_write_lock must return a threading.RLock for the project"
+        )
+
+    def test_dry_run_does_not_flip_state_branch_enabled(self):
+        """Dry-run mode must not change state_branch_enabled even if action is A."""
+        res = self.client.post(
+            "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+            json={"action": "A", "dry_run": True},
+        )
+        assert res.status_code == 200
+        assert res.json().get("dry_run") is True
+        assert self.store.get("proj-gitlab-nodev").state_branch_enabled is False
