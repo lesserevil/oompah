@@ -998,3 +998,859 @@ class TestTransitionResultShape:
         assert result.success is False
         assert result.reason is not None
         assert result.audit_id == "audit-c"
+
+
+# =============================================================================
+# apply_audit_result — OOMPAH-466
+# =============================================================================
+
+
+from oompah.terminal_audit import (  # noqa: E402
+    AuditAttempt,
+    FailureClassification,
+    Verdict,
+)
+from oompah.terminal_transition_coordinator import (  # noqa: E402
+    AuditResult,
+    ResultOutcome,
+    ResultRejection,
+    classify_failure_to_status,
+    route_failure_status,
+)
+from oompah.statuses import (  # noqa: E402
+    IN_REVIEW,
+    NEEDS_CI_FIX,
+    NEEDS_HUMAN,
+    NEEDS_REBASE,
+    OPEN,
+)
+
+
+def _pending_record(
+    *,
+    audit_id: str = "audit-pending-1",
+    target: TargetState = TargetState.DONE,
+    fingerprint: EvidenceFingerprint | None = None,
+    state: RequestState = RequestState.PENDING,
+    previous: str | None = "In Progress",
+    project_id: str = PROJECT_ID,
+    task_id: str = TASK_ID,
+) -> TerminalAuditRecord:
+    return TerminalAuditRecord(
+        audit_id=audit_id,
+        project_id=project_id,
+        task_id=task_id,
+        target_state=target,
+        evidence_fingerprint=fingerprint or _fingerprint(),
+        request_state=state,
+        previous_state=previous,
+        created_at="2026-07-28T00:00:00Z",
+    )
+
+
+def _pass_result(record: TerminalAuditRecord, **overrides) -> AuditResult:
+    defaults: dict[str, Any] = {
+        "audit_id": record.audit_id,
+        "target_state": record.target_state,
+        "evidence_fingerprint": record.evidence_fingerprint,
+        "verdict": Verdict.PASS,
+        "message": "All acceptance criteria met.",
+        "attempt_id": "attempt-pass-1",
+        "auditor": ContributorIdentity("auditor-bot", "oompah"),
+        "safe_evidence": {"tests": "13 passed", "commit": "abc123"},
+    }
+    defaults.update(overrides)
+    return AuditResult(**defaults)
+
+
+def _fail_result(
+    record: TerminalAuditRecord,
+    classification: FailureClassification,
+    *,
+    message: str = "Coverage regressed; three tests missing.",
+    attempt_id: str = "attempt-fail-1",
+) -> AuditResult:
+    return AuditResult(
+        audit_id=record.audit_id,
+        target_state=record.target_state,
+        evidence_fingerprint=record.evidence_fingerprint,
+        verdict=Verdict.FAIL,
+        failure_classification=classification,
+        message=message,
+        attempt_id=attempt_id,
+        auditor=ContributorIdentity("auditor-bot", "oompah"),
+    )
+
+
+def _needs_human_result(
+    record: TerminalAuditRecord,
+    *,
+    message: str = "",
+    attempt_id: str = "attempt-nh-1",
+) -> AuditResult:
+    return AuditResult(
+        audit_id=record.audit_id,
+        target_state=record.target_state,
+        evidence_fingerprint=record.evidence_fingerprint,
+        verdict=Verdict.NEEDS_HUMAN,
+        message=message,
+        attempt_id=attempt_id,
+        auditor=ContributorIdentity("auditor-bot", "oompah"),
+    )
+
+
+def _apply(coord: TerminalTransitionCoordinator, issue: Issue, result: AuditResult,
+           project_id: str = PROJECT_ID) -> ResultOutcome:
+    return _run(coord.apply_audit_result(issue, result, project_id))
+
+
+def _seed_and_validation(
+    tracker: _MemoryTracker,
+    chain: list[TerminalAuditRecord],
+    task_id: str = TASK_ID,
+) -> Issue:
+    _seed_metadata(tracker, chain, task_id)
+    return Issue(id=task_id, identifier=task_id, title="Test task", state=IN_VALIDATION)
+
+
+# ---------------------------------------------------------------------------
+# TestClassifyFailureToStatus
+# ---------------------------------------------------------------------------
+
+
+class TestClassifyFailureToStatus:
+    @pytest.mark.parametrize(
+        "classification,expected",
+        [
+            (FailureClassification.INCOMPLETE, OPEN),
+            (FailureClassification.MISSING_TESTS, OPEN),
+            (FailureClassification.UNPUSHED, OPEN),
+            (FailureClassification.MISSING_EVIDENCE, OPEN),
+            (FailureClassification.CI_FAILURE, NEEDS_CI_FIX),
+            (FailureClassification.CONFLICT, NEEDS_REBASE),
+            (FailureClassification.OUT_OF_DATE, NEEDS_REBASE),
+            (FailureClassification.HEALTHY_UNMERGED_REVIEW, IN_REVIEW),
+            (FailureClassification.AMBIGUOUS_REQUIREMENTS, NEEDS_HUMAN),
+            (FailureClassification.EXTERNAL_CAPABILITY, NEEDS_HUMAN),
+            (FailureClassification.NO_AUDITOR, NEEDS_HUMAN),
+        ],
+    )
+    def test_terminal_classifications_route_deterministically(
+        self, classification: FailureClassification, expected: str
+    ) -> None:
+        assert classify_failure_to_status(classification) == expected
+
+    def test_malformed_result_returns_none_for_nonterminal(self) -> None:
+        assert classify_failure_to_status(FailureClassification.MALFORMED_RESULT) is None
+
+    def test_infrastructure_error_returns_none_for_nonterminal(self) -> None:
+        assert (
+            classify_failure_to_status(FailureClassification.INFRASTRUCTURE_ERROR)
+            is None
+        )
+
+    def test_unsafe_archive_restores_pre_audit_state(self) -> None:
+        assert (
+            classify_failure_to_status(
+                FailureClassification.UNSAFE_ARCHIVE, previous_state="In Progress"
+            )
+            == "In Progress"
+        )
+
+    def test_unsafe_archive_without_previous_state_routes_to_needs_human(self) -> None:
+        assert (
+            classify_failure_to_status(FailureClassification.UNSAFE_ARCHIVE)
+            == NEEDS_HUMAN
+        )
+
+    def test_unsafe_archive_previous_terminal_routes_to_needs_human(self) -> None:
+        assert (
+            classify_failure_to_status(
+                FailureClassification.UNSAFE_ARCHIVE, previous_state="Done"
+            )
+            == NEEDS_HUMAN
+        )
+
+    def test_route_failure_status_alias(self) -> None:
+        assert route_failure_status(FailureClassification.CI_FAILURE) == NEEDS_CI_FIX
+
+
+# ---------------------------------------------------------------------------
+# TestApplyPassSingleTarget
+# ---------------------------------------------------------------------------
+
+
+class TestApplyPassSingleTarget:
+    def test_pass_marks_record_completed(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, issue, _pass_result(record))
+
+        assert outcome.success is True
+        assert outcome.applied_status == DONE
+        assert outcome.audit_id == record.audit_id
+
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        doc = store.read(TASK_ID)
+        assert doc.pending_chain[0].request_state == RequestState.COMPLETED
+        assert len(doc.pending_chain[0].attempts) == 1
+        assert doc.pending_chain[0].attempts[0].verdict == Verdict.PASS
+
+    def test_pass_applies_only_audited_terminal_status(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        _apply(coord, issue, _pass_result(record))
+
+        assert tracker.current_status(TASK_ID) == DONE
+
+    def test_pass_posts_result_comment_referencing_target(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.MERGED)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, issue, _pass_result(record))
+
+        assert outcome.posted_comment is True
+        posted = tracker.comment_calls[-1][1]
+        assert "PASS" in posted
+        assert TargetState.MERGED.value in posted
+
+    def test_pass_records_safe_evidence_in_comment(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        _apply(coord, issue, _pass_result(record))
+
+        comment = tracker.comment_calls[-1][1]
+        assert "tests: 13 passed" in comment
+        assert "commit: abc123" in comment
+
+    def test_pass_archived_target_routes_to_archived_status(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.ARCHIVED)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, issue, _pass_result(record))
+
+        assert outcome.applied_status == ARCHIVED
+        assert tracker.current_status(TASK_ID) == ARCHIVED
+
+
+# ---------------------------------------------------------------------------
+# TestApplyPassChainedTargets
+# ---------------------------------------------------------------------------
+
+
+class TestApplyPassChainedTargets:
+    def _done_merged_chain(self) -> list[TerminalAuditRecord]:
+        return [
+            _pending_record(
+                audit_id="audit-done",
+                target=TargetState.DONE,
+                fingerprint=_fingerprint(),
+            ),
+            _pending_record(
+                audit_id="audit-merged",
+                target=TargetState.MERGED,
+                fingerprint=_fingerprint(),
+            ),
+        ]
+
+    def test_pass_on_done_keeps_issue_in_validation_until_merged(self) -> None:
+        tracker = _MemoryTracker()
+        chain = self._done_merged_chain()
+        issue = _seed_and_validation(tracker, chain)
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, issue, _pass_result(chain[0]))
+
+        assert outcome.success is True
+        assert outcome.advanced_target == TargetState.MERGED
+        assert outcome.applied_status == IN_VALIDATION
+        assert tracker.current_status(TASK_ID) == IN_VALIDATION
+
+    def test_pass_on_final_chain_item_reaches_terminal_state(self) -> None:
+        tracker = _MemoryTracker()
+        chain = self._done_merged_chain()
+        # Mark Done already completed
+        chain[0] = replace(chain[0], request_state=RequestState.COMPLETED)
+        issue = _seed_and_validation(tracker, chain)
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, issue, _pass_result(chain[1]))
+
+        assert outcome.applied_status == MERGED
+        assert outcome.advanced_target is None
+        assert tracker.current_status(TASK_ID) == MERGED
+
+    def test_pass_only_marks_audited_record_completed(self) -> None:
+        tracker = _MemoryTracker()
+        chain = self._done_merged_chain()
+        issue = _seed_and_validation(tracker, chain)
+        coord = _coordinator(tracker)
+
+        _apply(coord, issue, _pass_result(chain[0]))
+
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        doc = store.read(TASK_ID)
+        assert doc.pending_chain[0].request_state == RequestState.COMPLETED
+        assert doc.pending_chain[1].request_state == RequestState.PENDING
+
+
+# ---------------------------------------------------------------------------
+# TestApplyFailRouting
+# ---------------------------------------------------------------------------
+
+
+class TestApplyFailRouting:
+    @pytest.mark.parametrize(
+        "classification,expected_status",
+        [
+            (FailureClassification.INCOMPLETE, OPEN),
+            (FailureClassification.MISSING_TESTS, OPEN),
+            (FailureClassification.UNPUSHED, OPEN),
+            (FailureClassification.MISSING_EVIDENCE, OPEN),
+            (FailureClassification.CI_FAILURE, NEEDS_CI_FIX),
+            (FailureClassification.CONFLICT, NEEDS_REBASE),
+            (FailureClassification.OUT_OF_DATE, NEEDS_REBASE),
+            (FailureClassification.HEALTHY_UNMERGED_REVIEW, IN_REVIEW),
+        ],
+    )
+    def test_fail_classification_routes_to_repair_status(
+        self,
+        classification: FailureClassification,
+        expected_status: str,
+    ) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, issue, _fail_result(record, classification))
+
+        assert outcome.success is True
+        assert outcome.applied_status == expected_status
+        assert tracker.current_status(TASK_ID) == expected_status
+        assert outcome.posted_comment is True
+        posted = tracker.comment_calls[-1][1]
+        assert "FAIL" in posted
+
+    def test_fail_records_classification_in_attempt(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        _apply(coord, issue, _fail_result(record, FailureClassification.CI_FAILURE))
+
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        doc = store.read(TASK_ID)
+        attempt = doc.pending_chain[0].attempts[-1]
+        assert attempt.verdict == Verdict.FAIL
+        assert attempt.failure_classification == FailureClassification.CI_FAILURE
+        assert doc.pending_chain[0].request_state == RequestState.COMPLETED
+
+    def test_fail_missing_classification_is_rejected(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        result = AuditResult(
+            audit_id=record.audit_id,
+            target_state=record.target_state,
+            evidence_fingerprint=record.evidence_fingerprint,
+            verdict=Verdict.FAIL,
+            failure_classification=None,
+            message="Something went wrong",
+            attempt_id="attempt-nofail",
+        )
+        outcome = _apply(coord, issue, result)
+
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.MISSING_CLASSIFICATION
+        assert tracker.current_status(TASK_ID) is None
+
+    def test_fail_needs_human_class_routes_to_needs_human_with_actionable(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(
+            coord,
+            issue,
+            _fail_result(
+                record,
+                FailureClassification.AMBIGUOUS_REQUIREMENTS,
+                message="Please clarify the acceptance criteria for section 3.",
+            ),
+        )
+        assert outcome.applied_status == NEEDS_HUMAN
+        assert tracker.current_status(TASK_ID) == NEEDS_HUMAN
+
+
+# ---------------------------------------------------------------------------
+# TestApplyUnsafeArchive
+# ---------------------------------------------------------------------------
+
+
+class TestApplyUnsafeArchive:
+    def test_unsafe_archive_restores_previous_state(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(
+            target=TargetState.ARCHIVED, previous="In Progress"
+        )
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(
+            coord, issue, _fail_result(record, FailureClassification.UNSAFE_ARCHIVE)
+        )
+
+        assert outcome.success is True
+        assert outcome.applied_status == "In Progress"
+        assert tracker.current_status(TASK_ID) == "In Progress"
+
+    def test_unsafe_archive_without_previous_state_routes_to_needs_human(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.ARCHIVED, previous=None)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(
+            coord,
+            issue,
+            _fail_result(
+                record,
+                FailureClassification.UNSAFE_ARCHIVE,
+                message="Cannot safely archive — please review and decide.",
+            ),
+        )
+        assert outcome.applied_status == NEEDS_HUMAN
+
+
+# ---------------------------------------------------------------------------
+# TestApplyNeedsHuman
+# ---------------------------------------------------------------------------
+
+
+class TestApplyNeedsHuman:
+    def test_needs_human_with_actionable_message_routes_correctly(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(
+            coord,
+            issue,
+            _needs_human_result(
+                record,
+                message="Please review the branch and decide whether it is safe to close.",
+            ),
+        )
+        assert outcome.success is True
+        assert outcome.applied_status == NEEDS_HUMAN
+        assert tracker.current_status(TASK_ID) == NEEDS_HUMAN
+        posted = tracker.comment_calls[-1][1]
+        # Comment ends with an actionable direction/question
+        from oompah.tracker import validate_needs_human_comment
+        validate_needs_human_comment(posted)
+
+    def test_needs_human_without_message_gets_fallback_instructions(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(
+            coord,
+            issue,
+            _needs_human_result(record, message=""),
+        )
+        # Fallback tail includes actionable instructions; coordinator applies.
+        assert outcome.success is True
+        assert outcome.applied_status == NEEDS_HUMAN
+        posted = tracker.comment_calls[-1][1]
+        assert "Please review" in posted
+
+    def test_needs_human_ends_with_question_is_accepted(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(
+            coord,
+            issue,
+            _needs_human_result(record, message="Should this branch be archived?"),
+        )
+        assert outcome.applied_status == NEEDS_HUMAN
+
+    def test_needs_human_with_only_status_report_is_upgraded_to_actionable(self) -> None:
+        """A message that lacks actionable content is still made actionable
+        via the coordinator's fallback so we never leave a Needs Human
+        comment that a human cannot act on."""
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(
+            coord,
+            issue,
+            _needs_human_result(record, message="Situation observed."),
+        )
+        assert outcome.success is True
+        posted = tracker.comment_calls[-1][1]
+        # Either the original message was already actionable, or the fallback
+        # was appended so the tracker validator accepts it.
+        from oompah.tracker import validate_needs_human_comment
+        validate_needs_human_comment(posted)
+
+
+# ---------------------------------------------------------------------------
+# TestApplyError / TestApplyNonterminalFailures
+# ---------------------------------------------------------------------------
+
+
+class TestApplyError:
+    def test_error_verdict_leaves_record_pending(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        result = AuditResult(
+            audit_id=record.audit_id,
+            target_state=record.target_state,
+            evidence_fingerprint=record.evidence_fingerprint,
+            verdict=Verdict.ERROR,
+            message="Auditor crashed during evaluation.",
+            attempt_id="attempt-error-1",
+        )
+        outcome = _apply(coord, issue, result)
+
+        assert outcome.success is True
+        assert outcome.applied_status is None
+        # Issue stays in In Validation
+        assert tracker.current_status(TASK_ID) is None
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        doc = store.read(TASK_ID)
+        assert doc.pending_chain[0].request_state == RequestState.PENDING
+
+    def test_malformed_result_class_leaves_record_pending(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(
+            coord,
+            issue,
+            _fail_result(record, FailureClassification.MALFORMED_RESULT),
+        )
+        assert outcome.success is True
+        assert outcome.applied_status is None
+        assert tracker.current_status(TASK_ID) is None
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        doc = store.read(TASK_ID)
+        assert doc.pending_chain[0].request_state == RequestState.PENDING
+
+    def test_infrastructure_error_leaves_record_pending(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(
+            coord,
+            issue,
+            _fail_result(record, FailureClassification.INFRASTRUCTURE_ERROR),
+        )
+        assert outcome.success is True
+        assert outcome.applied_status is None
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        doc = store.read(TASK_ID)
+        assert doc.pending_chain[0].request_state == RequestState.PENDING
+
+
+# ---------------------------------------------------------------------------
+# TestApplyStaleRejection (CAS)
+# ---------------------------------------------------------------------------
+
+
+class TestApplyStaleRejection:
+    def test_wrong_audit_id_is_rejected(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        stale = AuditResult(
+            audit_id="audit-nonexistent",
+            target_state=record.target_state,
+            evidence_fingerprint=record.evidence_fingerprint,
+            verdict=Verdict.PASS,
+            message="ok",
+            attempt_id="attempt-x",
+        )
+        outcome = _apply(coord, issue, stale)
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.AUDIT_NOT_FOUND
+        # No terminal status applied
+        assert tracker.current_status(TASK_ID) is None
+
+    def test_wrong_target_state_is_rejected(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        stale = AuditResult(
+            audit_id=record.audit_id,
+            target_state=TargetState.MERGED,
+            evidence_fingerprint=record.evidence_fingerprint,
+            verdict=Verdict.PASS,
+            message="ok",
+            attempt_id="attempt-x",
+        )
+        outcome = _apply(coord, issue, stale)
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.TARGET_MISMATCH
+
+    def test_wrong_fingerprint_is_rejected(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE, fingerprint=_fingerprint("a"))
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        stale = AuditResult(
+            audit_id=record.audit_id,
+            target_state=record.target_state,
+            evidence_fingerprint=_fingerprint("b"),
+            verdict=Verdict.PASS,
+            message="ok",
+            attempt_id="attempt-x",
+        )
+        outcome = _apply(coord, issue, stale)
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.FINGERPRINT_MISMATCH
+
+    def test_record_already_completed_is_rejected(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE, state=RequestState.COMPLETED)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, issue, _pass_result(record))
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.STATE_MISMATCH
+
+    def test_record_superseded_is_rejected(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE, state=RequestState.SUPERSEDED)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, issue, _pass_result(record))
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.STATE_MISMATCH
+
+    def test_issue_not_in_validation_is_rejected(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        _seed_metadata(tracker, [record])
+        issue = Issue(id=TASK_ID, identifier=TASK_ID, title="T", state="Open")
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, issue, _pass_result(record))
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.ISSUE_NOT_IN_VALIDATION
+
+
+# ---------------------------------------------------------------------------
+# TestApplyDuplicateIdempotency
+# ---------------------------------------------------------------------------
+
+
+class TestApplyDuplicateIdempotency:
+    def test_duplicate_attempt_id_is_idempotent(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        first = _apply(coord, issue, _pass_result(record))
+        assert first.success is True and first.applied_status == DONE
+        first_updates = len(tracker.update_calls)
+        first_comments = len(tracker.comment_calls)
+
+        # Second call with the same attempt_id must not repeat side effects.
+        second = _apply(coord, issue, _pass_result(record))
+        assert second.success is True
+        assert second.idempotent is True
+        assert second.applied_status == DONE
+        assert len(tracker.update_calls) == first_updates
+        assert len(tracker.comment_calls) == first_comments
+
+    def test_different_attempt_id_same_audit_is_rejected_after_completion(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        first = _apply(coord, issue, _pass_result(record, attempt_id="a1"))
+        assert first.success is True
+        # A different attempt id on the same (now completed) audit must not
+        # apply again — it is rejected as stale (record no longer pending).
+        second_outcome = _apply(
+            coord,
+            issue,
+            _pass_result(record, attempt_id="a2"),
+        )
+        assert second_outcome.success is False
+        assert second_outcome.reason == ResultRejection.STATE_MISMATCH
+
+
+# ---------------------------------------------------------------------------
+# TestApplyCommentFailures / TestApplyStatusFailures
+# ---------------------------------------------------------------------------
+
+
+class _CommentFailingTracker(_MemoryTracker):
+    def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
+        raise RuntimeError("comment write failed")
+
+
+class _StatusFailingTracker(_MemoryTracker):
+    def update_issue(self, identifier: str, **kwargs: Any) -> None:
+        raise RuntimeError("status write failed")
+
+
+class TestApplyCommentAndStatusFailures:
+    def test_comment_failure_does_not_lose_audit_completion(self) -> None:
+        tracker = _CommentFailingTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = TerminalTransitionCoordinator(
+            tracker=tracker, project_store=_LockStore(), post_comments=True
+        )
+
+        outcome = _run(coord.apply_audit_result(issue, _pass_result(record), PROJECT_ID))
+        # Audit record still completed and status still applied.
+        assert outcome.success is True
+        assert outcome.applied_status == DONE
+        assert outcome.posted_comment is False
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        doc = store.read(TASK_ID)
+        assert doc.pending_chain[0].request_state == RequestState.COMPLETED
+
+    def test_status_write_failure_still_persists_completed_record(self) -> None:
+        tracker = _StatusFailingTracker()
+        record = _pending_record(target=TargetState.DONE)
+        _seed_metadata(tracker, [record])
+        # We have to manually set the status because _StatusFailingTracker.update_issue raises.
+        with tracker._lock:
+            tracker._statuses[TASK_ID] = IN_VALIDATION
+        issue = Issue(id=TASK_ID, identifier=TASK_ID, title="T", state=IN_VALIDATION)
+        coord = TerminalTransitionCoordinator(
+            tracker=tracker, project_store=_LockStore(), post_comments=False
+        )
+
+        outcome = _run(coord.apply_audit_result(issue, _pass_result(record), PROJECT_ID))
+        # The audit chain has completed; tracker status write failed but the
+        # coordinator still returns success with applied_status telling the
+        # caller what it tried to set.
+        assert outcome.success is True
+        assert outcome.applied_status == DONE
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        doc = store.read(TASK_ID)
+        assert doc.pending_chain[0].request_state == RequestState.COMPLETED
+
+
+# ---------------------------------------------------------------------------
+# TestApplyNoFailOpenPaths
+# ---------------------------------------------------------------------------
+
+
+class TestApplyNoFailOpenPaths:
+    """These tests guard against every path that must never reach a
+    terminal status."""
+
+    @pytest.mark.parametrize(
+        "verdict",
+        [Verdict.ERROR],
+    )
+    def test_error_verdict_never_applies_terminal(self, verdict: Verdict) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        result = AuditResult(
+            audit_id=record.audit_id,
+            target_state=record.target_state,
+            evidence_fingerprint=record.evidence_fingerprint,
+            verdict=verdict,
+            message="Timed out",
+            attempt_id="attempt-error",
+        )
+        outcome = _apply(coord, issue, result)
+        # Non-terminal outcome — no status applied.
+        assert outcome.applied_status is None
+        assert tracker.current_status(TASK_ID) is None
+
+    @pytest.mark.parametrize(
+        "classification",
+        [
+            FailureClassification.MALFORMED_RESULT,
+            FailureClassification.INFRASTRUCTURE_ERROR,
+        ],
+    )
+    def test_fail_nonterminal_class_never_applies_terminal(
+        self, classification: FailureClassification
+    ) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, issue, _fail_result(record, classification))
+        assert outcome.applied_status is None
+        assert tracker.current_status(TASK_ID) is None
+
+    def test_needs_human_without_actionable_content_and_fallback_disabled_fails_closed(
+        self,
+    ) -> None:
+        """If a caller sends a NEEDS_HUMAN with an obviously non-actionable
+        message and the tracker's validator rejects it, the coordinator must
+        not apply Needs Human status."""
+
+        # We artificially patch validate_needs_human_comment inside the module
+        # under test to always raise, simulating a stricter validator that
+        # rejects the composed message.
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        with patch(
+            "oompah.terminal_transition_coordinator.validate_needs_human_comment",
+            side_effect=RuntimeError("no action"),
+        ):
+            outcome = _apply(coord, issue, _needs_human_result(record, message=""))
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.NEEDS_HUMAN_NOT_ACTIONABLE
+        assert tracker.current_status(TASK_ID) is None

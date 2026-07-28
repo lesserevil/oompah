@@ -1,6 +1,6 @@
 # Terminal-Transition Coordinator
 
-**Status:** Implemented (OOMPAH-465)
+**Status:** Implemented (OOMPAH-465 staging, OOMPAH-466 result routing)
 **Epic:** OOMPAH-457  
 **Prerequisites:** OOMPAH-461 (In Validation status), OOMPAH-462 (Terminal audits), OOMPAH-463 (Metadata persistence), OOMPAH-464 (Grandfather recovery)
 
@@ -330,8 +330,67 @@ The coordinator stages requests; the **auditor** (`oompah/auditor.py` or similar
 
 1. Load all `PENDING` audits for the project
 2. Execute the audit for each target state
-3. Update the audit record with `verdict`, `failure_classification`, and `request_state` (→ `COMPLETED` or `FAILED`)
-4. If all audits in a chain are `COMPLETED`, apply the final terminal status to the task
+3. Submit the verdict to `TerminalTransitionCoordinator.apply_audit_result(issue, result, project_id)` — the coordinator (not the auditor) marks the record `COMPLETED`, applies the tracker status, and posts the result comment
+4. On a passing Done in a Done→Merged chain the coordinator keeps the task in `In Validation` and reports `advanced_target=Merged` so the auditor drives the next audit
+
+## Result Application (OOMPAH-466)
+
+`apply_audit_result` accepts an `AuditResult` submitted by an auditor and turns it into a durable tracker state change with no fail-open path.
+
+### AuditResult inputs
+
+- `audit_id`, `target_state`, `evidence_fingerprint` — CAS keys; must match the pending record exactly
+- `verdict` — `PASS`, `FAIL`, `NEEDS_HUMAN`, or `ERROR`
+- `failure_classification` — required for `FAIL` verdicts
+- `message` — human-oriented explanation (assumed pre-redacted)
+- `safe_evidence` — small map of scalar evidence keys the coordinator may echo in the result comment
+- `auditor` — `ContributorIdentity` of the writer
+- `attempt_id` — idempotency key; duplicate submissions are recognised and re-applied without side effects
+
+### Compare-and-set
+
+The coordinator rejects any result whose:
+
+- `audit_id` is not present in the chain (`ResultRejection.AUDIT_NOT_FOUND`)
+- `target_state` differs from the persisted record (`TARGET_MISMATCH`)
+- `evidence_fingerprint` differs from the persisted record (`FINGERPRINT_MISMATCH`)
+- Record is no longer `PENDING`/`IN_PROGRESS` (`STATE_MISMATCH`)
+- Issue is not in `In Validation` on the tracker (`ISSUE_NOT_IN_VALIDATION`)
+
+A rejected result leaves the record unchanged and never applies a tracker status.
+
+### Verdict routing
+
+| Verdict | Behaviour |
+|---------|-----------|
+| `PASS` | Mark record `COMPLETED`, record safe evidence in the attempt, apply the audited target's terminal status, advance to next chain item (or keep `In Validation` when a later target is pending). |
+| `FAIL` (with classification) | Mark record `COMPLETED`, route to a repair state via the central classification map, post an explanation comment. |
+| `NEEDS_HUMAN` | Compose an actionable comment (fallback text appended when the message is not actionable); refuse to apply the status if the tracker's `validate_needs_human_comment` still rejects it. |
+| `ERROR` | Leave the record non-terminal; the task stays in `In Validation`. |
+
+### Central failure-classification map
+
+`classify_failure_to_status(classification, previous_state)` is the only place that maps `FailureClassification` values to statuses:
+
+| Classification | Status |
+|----------------|--------|
+| `INCOMPLETE`, `MISSING_TESTS`, `UNPUSHED`, `MISSING_EVIDENCE` | `Open` |
+| `CI_FAILURE` | `Needs CI Fix` |
+| `CONFLICT`, `OUT_OF_DATE` | `Needs Rebase` |
+| `HEALTHY_UNMERGED_REVIEW` | `In Review` |
+| `AMBIGUOUS_REQUIREMENTS`, `EXTERNAL_CAPABILITY`, `NO_AUDITOR` | `Needs Human` |
+| `UNSAFE_ARCHIVE` | Restore recorded `previous_state`; `Needs Human` when the pre-audit state is missing or terminal |
+| `MALFORMED_RESULT`, `INFRASTRUCTURE_ERROR` | `None` — coordinator keeps the record non-terminal |
+
+Unknown classifications raise `ValueError` — the switch fails closed for any new failure mode that has not been explicitly routed.
+
+### No fail-open paths
+
+- `ERROR` verdicts and unparseable payloads never apply a status.
+- `MALFORMED_RESULT` and `INFRASTRUCTURE_ERROR` classifications never apply a status.
+- Retry ceilings never apply a status.
+- `NEEDS_HUMAN` results whose comment is not actionable are rejected — the coordinator will not move the task to `Needs Human` without an actionable explanation.
+- A tracker write failure for the status or the comment logs the failure but does not roll back the audit record — the persisted attempt is durable, so a retry can reapply the tracker state without reopening the verdict.
 
 ## Testing Strategy
 
