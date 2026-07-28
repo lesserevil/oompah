@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-504
 type: feature
-status: Done
+status: Open
 priority: 1
 title: Compact agent prompt history around actionable handoffs
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:00.486812Z'
-updated_at: '2026-07-28T15:16:50.195952Z'
+updated_at: '2026-07-28T17:43:13.665996Z'
 work_branch: null
 target_branch: null
 review_url: null

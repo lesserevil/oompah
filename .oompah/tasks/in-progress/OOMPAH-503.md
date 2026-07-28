@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-503
 type: bug
-status: Done
+status: In Progress
 priority: 1
 title: Limit automatic duplicate detection to nonterminal tasks
 parent: OOMPAH-502
@@ -10,12 +10,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:05:59.013552Z'
-updated_at: '2026-07-28T15:10:29.944487Z'
-work_branch: null
+updated_at: '2026-07-28T17:43:21.545439Z'
+work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 97f1c0a8-978f-4528-98ed-ac08e35f86c1
+oompah.work_branch: epic-OOMPAH-502
 ---
 ## Summary
 
@@ -54,5 +56,15 @@ author: oompah
 created: 2026-07-28 15:10
 ---
 Terminal tasks are excluded from automatic duplicate detection at query and filtering boundaries; regression tests pass.
+---
+author: oompah
+created: 2026-07-28 17:43
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 17:43
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
