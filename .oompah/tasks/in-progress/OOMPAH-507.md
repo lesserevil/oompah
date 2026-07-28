@@ -7,10 +7,11 @@ title: Drain active agents before deployment restarts
 parent: OOMPAH-502
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:07.476394Z'
-updated_at: '2026-07-28T17:47:04.797518Z'
+updated_at: '2026-07-28T17:48:36.120005Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -61,5 +62,21 @@ author: oompah
 created: 2026-07-28 17:47
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 17:48
+---
+Duplicate Investigator: No duplicate found.
+
+Investigation scope: Searched .oompah/tasks (open/archived/merged/backlog), docs/, plans/, and git log for tasks with keywords: graceful, drain, restart, agent-restart, active-agent, service, orchestrator, deployment.
+
+Findings:
+- OOMPAH-507 is a discrete child task under epic OOMPAH-502 (Reduce agent wall-clock latency without weakening delivery gates)
+- Sequential sibling tasks verified (OOMPAH-506, OOMPAH-508, OOMPAH-517, OOMPAH-518) — all are follow-ups or prerequisites, not duplicates
+- OOMPAH-518 explicitly references OOMPAH-507 as the source implementation it depends on (Fix the graceful restart shutdown path introduced under OOMPAH-507)
+- No other tasks in the tracker cover 'graceful deployment restart with agent drain' functionality
+- Implementation already completed in commit 7bce3acbd (feat: make normal restarts drain agents) per previous session
+
+Conclusion: OOMPAH-507 is a unique, non-duplicate task with distinct scope within OOMPAH-502 epic. The implementation is complete and merged. Ready for next focus phase.
 ---
 <!-- COMMENTS:END -->
