@@ -1217,6 +1217,10 @@ class TestStatusLabelHelpers:
     def test_label_to_status_in_progress(self):
         assert _label_to_status("oompah:status:in-progress") == "In Progress"
 
+    def test_in_validation_status_label_round_trip(self):
+        assert _status_to_label("In Validation") == "oompah:status:in-validation"
+        assert _label_to_status("oompah:status:in-validation") == "In Validation"
+
     def test_label_to_status_done(self):
         assert _label_to_status("oompah:status:done") == "Done"
 
@@ -1795,6 +1799,20 @@ class TestGitHubIssueTrackerFetch:
         tracker.active_states.append("Proposed")
         gh_issues = [
             _make_gh_issue(number=1, labels=["oompah:status:proposed"]),
+            _make_gh_issue(number=2, labels=["oompah:status:open"]),
+        ]
+        resp = _mock_response(200, json_data=gh_issues)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_candidate_issues()
+
+        assert [issue.issue_number for issue in result] == ["2"]
+
+    def test_fetch_candidate_issues_excludes_in_validation_even_if_configured_active(self):
+        """In Validation is visible but never an ordinary worker candidate."""
+        tracker = self._make_tracker()
+        tracker.active_states.append("In Validation")
+        gh_issues = [
+            _make_gh_issue(number=1, labels=["oompah:status:in-validation"]),
             _make_gh_issue(number=2, labels=["oompah:status:open"]),
         ]
         resp = _mock_response(200, json_data=gh_issues)
@@ -2384,6 +2402,24 @@ class TestGitHubIssueTrackerMutations:
         call_kwargs = m.call_args[1]
         labels_sent = call_kwargs["json"]["labels"]
         assert "oompah:status:open" in labels_sent
+
+    def test_create_issue_sends_in_validation_status_label(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(
+            number=103,
+            labels=["oompah:status:in-validation"],
+            state="open",
+        )
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            issue = tracker.create_issue(
+                "Validation task", initial_status="In Validation"
+            )
+
+        assert m.call_args[1]["json"]["labels"] == [
+            "oompah:status:in-validation"
+        ]
+        assert issue.state == "In Validation"
 
     def test_create_issue_done_status_does_not_close_github_issue(self):
         """New Done issues keep GitHub state=open for review reconciliation."""

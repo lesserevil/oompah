@@ -28,6 +28,7 @@ from oompah.statuses import (
     DONE,
     IN_PROGRESS,
     IN_REVIEW,
+    IN_VALIDATION,
     MERGED,
     OPEN,
     PROPOSED,
@@ -102,6 +103,7 @@ _STATUS_DIRS: dict[str, str] = {
     "needs ci fix": "needs-ci-fix",
     "needs rebase": "needs-rebase",
     "in review": "in-review",
+    "in validation": "in-validation",
     "decomposed": "decomposed",
     "duplicate candidate": "duplicate-candidate",
     "done": "done",
@@ -534,12 +536,13 @@ class OompahMarkdownTracker:
         active = {
             status_key(state)
             for state in self.active_states
-            if canonicalize_status(state) != PROPOSED
+            if canonicalize_status(state) not in {PROPOSED, IN_VALIDATION}
         }
         issues = [
             issue
             for issue in self.fetch_all_issues()
-            if status_key(issue.state) in active and issue.state != PROPOSED
+            if status_key(issue.state) in active
+            and canonicalize_status(issue.state) not in {PROPOSED, IN_VALIDATION}
         ]
         return _sort_issues_for_dispatch(issues)
 

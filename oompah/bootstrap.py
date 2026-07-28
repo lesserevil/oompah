@@ -75,6 +75,7 @@ class Services:
     port: int | None
     workflow_path: str
     workflow: object  # oompah.config.WorkflowDefinition, typed loosely
+    terminal_transition_coordinator: object | None = None
 
 
 def attach_webhook_forwarder_alerts(
@@ -181,6 +182,7 @@ async def setup_services(
     from oompah.projects import ProjectStore
     from oompah.providers import ProviderStore
     from oompah.roles import RoleStore, migrate_agent_profiles_to_roles
+    from oompah.terminal_transition_coordinator import TerminalTransitionCoordinator
     from oompah.webhooks import GitLabHookManager, WebhookForwarder
 
     # ------------------------------------------------------------------
@@ -319,6 +321,14 @@ async def setup_services(
         agent_profile_store=agent_profile_store,
         role_store=role_store,
     )
+    # The bootstrap owns the long-lived coordinator instance exposed through
+    # Services.  Resolve trackers through the orchestrator so each managed
+    # project gets its own adapter and metadata writes remain project-scoped.
+    terminal_transition_coordinator = TerminalTransitionCoordinator(
+        tracker=orchestrator._tracker_for_project,
+        project_store=project_store,
+    )
+    orchestrator.terminal_transition_coordinator = terminal_transition_coordinator
     orchestrator.set_prompt_template(workflow.prompt_template)
     attach_webhook_forwarder_alerts(orchestrator, webhook_forwarder)
     attach_gitlab_hook_alerts(orchestrator, gitlab_hook_manager)
@@ -354,4 +364,5 @@ async def setup_services(
         port=port,
         workflow_path=workflow_path,
         workflow=workflow,
+        terminal_transition_coordinator=terminal_transition_coordinator,
     )

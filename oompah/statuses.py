@@ -14,6 +14,7 @@ NEEDS_HUMAN = "Needs Human"
 NEEDS_CI_FIX = "Needs CI Fix"
 NEEDS_REBASE = "Needs Rebase"
 IN_REVIEW = "In Review"
+IN_VALIDATION = "In Validation"
 DECOMPOSED = "Decomposed"
 DUPLICATE_CANDIDATE = "Duplicate Candidate"
 DONE = "Done"
@@ -30,6 +31,7 @@ CANONICAL_STATUSES: tuple[str, ...] = (
     NEEDS_CI_FIX,
     NEEDS_REBASE,
     IN_REVIEW,
+    IN_VALIDATION,
     DECOMPOSED,
     DUPLICATE_CANDIDATE,
     DONE,
@@ -85,6 +87,8 @@ _ALIASES = {
     "needs rebase": NEEDS_REBASE,
     "in review": IN_REVIEW,
     "review": IN_REVIEW,
+    "in validation": IN_VALIDATION,
+    "validation": IN_VALIDATION,
     "decomposed": DECOMPOSED,
     "duplicate candidate": DUPLICATE_CANDIDATE,
     "duplicate-candidate": DUPLICATE_CANDIDATE,

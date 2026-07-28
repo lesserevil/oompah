@@ -65,6 +65,7 @@ from oompah.statuses import (
     DONE,
     IN_PROGRESS,
     IN_REVIEW,
+    IN_VALIDATION,
     MERGED,
     NEEDS_ANSWER,
     NEEDS_CI_FIX,
@@ -81,6 +82,17 @@ from oompah.storage_cleanup import (
     StoragePressure,
     cleanup_owned_storage,
     inspect_storage_pressure,
+)
+from oompah.terminal_audit import (
+    ContributorIdentity,
+    EvidenceFingerprint,
+    TargetState,
+    compute_evidence_fingerprint,
+)
+from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
+from oompah.terminal_transition_coordinator import (
+    TerminalTransitionCoordinator,
+    TransitionResult,
 )
 from oompah.focus import (
     _MIN_SCORE_TO_FLAG,
@@ -263,7 +275,11 @@ def _terminal_state_keys(terminal_states: list[str] | tuple[str, ...]) -> set[st
 
 def _dispatch_active_state_names(active_states: list[str] | tuple[str, ...]) -> list[str]:
     """Return configured dispatch-active states excluding pre-work intake states."""
-    return [s for s in active_states if canonicalize_status(s) != PROPOSED]
+    return [
+        s
+        for s in active_states
+        if canonicalize_status(s) not in {PROPOSED, IN_VALIDATION}
+    ]
 
 
 def _dispatch_active_state_keys(active_states: list[str] | tuple[str, ...]) -> set[str]:
@@ -687,6 +703,18 @@ class Orchestrator:
             timeout_seconds=config.quality_gate_timeout_seconds,
         )
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
+        # Terminal-audit enforcement is initialized at the start of ``run``
+        # once all project trackers are available.  Its state lives inside the
+        # existing service-state document so unrelated service state remains
+        # intact across restarts.
+        self._terminal_audit_enforcement = TerminalAuditEnforcement(
+            terminal_states=config.tracker_terminal_states,
+            project_store=self.project_store,
+            load_state=self._load_state_for_terminal_audit,
+            save_state=self._save_state_for_terminal_audit,
+        )
+        self._terminal_audit_started = False
+        self._terminal_audit_last_scan: float = 0.0
         self.state = OrchestratorState(
             poll_interval_ms=config.poll_interval_ms,
             max_concurrent_agents=config.max_concurrent_agents,
@@ -698,6 +726,13 @@ class Orchestrator:
         self.tracker = self._new_tracker()
         # Per-project trackers, keyed by project_id
         self._project_trackers: dict[str, TrackerProtocol] = {}
+        # Terminal transition staging is a long-lived orchestrator service.
+        # Pass the project-aware factory so metadata and tracker writes never
+        # fall back to the unscoped management tracker in managed mode.
+        self.terminal_transition_coordinator = TerminalTransitionCoordinator(
+            tracker=self._tracker_for_project,
+            project_store=self.project_store,
+        )
         # Per-project branch-to-issue index: maps work_branch → identifier.
         # Built lazily the first time _resolve_task_for_branch needs it for
         # a project and cleared with tracker read caches each tick so the
@@ -719,6 +754,7 @@ class Orchestrator:
         self._stopping = False
         # Bug fix: load persisted paused state from disk so it survives
         # service restarts. Previously _paused was always initialized to False.
+        self._state_load_failed = False
         self._paused = self._load_paused_state()
         self._restore_budget_state()
         self._service_instance_id = str(uuid.uuid4())
@@ -1156,10 +1192,89 @@ class Orchestrator:
             with open(self._state_path, "r") as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError) as exc:
+            # Keep a process-local marker so feature-specific startup
+            # migrations can fail closed instead of mistaking a corrupt file
+            # for a first-ever deployment.
+            self._state_load_failed = True
             logger.warning(
                 "Failed to load service state from %s: %s", self._state_path, exc
             )
             return {}
+
+    def _load_state_for_terminal_audit(self) -> dict[str, Any]:
+        """Load state for terminal-audit startup with corruption visibility."""
+        if getattr(self, "_state_load_failed", False):
+            raise ValueError("service state was previously unreadable")
+        data = self._load_state()
+        if not isinstance(data, dict):
+            raise ValueError("service state root must be a mapping")
+        return data
+
+    def _save_state_for_terminal_audit(self, updates: dict[str, Any]) -> None:
+        """Merge the terminal-audit record through the normal state writer."""
+        self._save_state(**updates)
+
+    def _terminal_audit_scopes(self) -> list[tuple[str, TrackerProtocol]]:
+        """Return all tracker scopes with project identity attached."""
+        projects = self.project_store.list_all()
+        if not projects:
+            # The unscoped tracker is retained for legacy task operations, but
+            # it points at the service checkout in tests and in pre-managed
+            # deployments.  Auditing that checkout's own task ledger during
+            # every server startup is both surprising and needlessly costly;
+            # managed projects are the authoritative enforcement scopes.
+            return []
+        scopes: list[tuple[str, TrackerProtocol]] = []
+        for project in projects:
+            project_id = str(project.id)
+            try:
+                scopes.append((project_id, self._tracker_for_project(project_id)))
+            except Exception as exc:  # noqa: BLE001 - one project must not hide others
+                logger.error(
+                    "terminal-audit enforcement: tracker unavailable for project %s: %s",
+                    project_id,
+                    type(exc).__name__,
+                )
+        return scopes
+
+    def _run_terminal_audit_enforcement(self) -> None:
+        """Initialize or reconcile the terminal-audit enforcement record."""
+        try:
+            result = self._terminal_audit_enforcement.initialize(
+                self._terminal_audit_scopes()
+            )
+            self._maintenance_status["terminal_audit_enforcement"] = result
+            if result.get("errors") and not any(
+                alert.get("source") == "terminal_audit_enforcement"
+                for alert in self._alerts
+            ):
+                self._alerts.append(
+                    {
+                        "level": "error",
+                        "source": "terminal_audit_enforcement",
+                        "message": "Terminal-audit enforcement requires operator attention",
+                    }
+                )
+        except Exception as exc:  # noqa: BLE001 - startup must remain observable
+            logger.exception("terminal-audit enforcement startup failed")
+            self._maintenance_status["terminal_audit_enforcement"] = {
+                "quarantined": True,
+                "errors": [type(exc).__name__],
+            }
+            if not any(
+                alert.get("source") == "terminal_audit_enforcement"
+                for alert in self._alerts
+            ):
+                self._alerts.append(
+                    {
+                        "level": "error",
+                        "source": "terminal_audit_enforcement",
+                        "message": "Terminal-audit enforcement startup failed closed",
+                    }
+                )
+        finally:
+            self._terminal_audit_started = True
+            self._terminal_audit_last_scan = time.monotonic()
 
     def _load_paused_state(self) -> bool:
         """Load persisted paused state from disk. Returns False if not found."""
@@ -2156,6 +2271,56 @@ class Orchestrator:
         self._project_trackers[project.id] = tracker
         return tracker
 
+    async def request_terminal_transition(
+        self,
+        current_issue: Issue,
+        requested_target: TargetState,
+        trigger_identity: ContributorIdentity,
+        project_id: str | None = None,
+        evidence_fingerprint: EvidenceFingerprint | None = None,
+    ) -> TransitionResult:
+        """Stage a terminal transition through the server-owned coordinator.
+
+        ``project_id`` defaults to the issue's managed project.  Callers may
+        provide an explicit fingerprint when they have richer evidence than
+        the normalized issue fields; otherwise a deterministic fingerprint is
+        derived from the issue description and repository/review context.
+        """
+        effective_project_id = project_id or current_issue.project_id
+        if not effective_project_id:
+            raise ProjectError(
+                f"Terminal transition for {current_issue.identifier!r} "
+                "requires a managed project_id"
+            )
+
+        if evidence_fingerprint is None:
+            contributors = getattr(current_issue, "contributors", ()) or ()
+            if isinstance(contributors, str):
+                contributors = (contributors,)
+            evidence_fingerprint = compute_evidence_fingerprint(
+                requirements_text=str(current_issue.description or ""),
+                project_id=str(effective_project_id),
+                task_id=str(current_issue.identifier),
+                source_branch=str(
+                    getattr(current_issue, "source_branch", None)
+                    or current_issue.work_branch
+                    or current_issue.branch_name
+                    or ""
+                ),
+                target_branch=str(current_issue.target_branch or ""),
+                review_id=str(current_issue.review_number or ""),
+                review_state=str(getattr(current_issue, "review_state", "") or ""),
+                contributors=contributors,
+            )
+
+        return await self.terminal_transition_coordinator.request_transition(
+            current_issue=current_issue,
+            requested_target=requested_target,
+            trigger_identity=trigger_identity,
+            project_id=str(effective_project_id),
+            evidence_fingerprint=evidence_fingerprint,
+        )
+
     def _tracker_for_issue(self, issue: Issue) -> TrackerProtocol:
         """Get the appropriate tracker for an issue."""
         if issue.project_id:
@@ -3063,6 +3228,13 @@ class Orchestrator:
         the loop contract).
         """
         self._dispatch_loop = asyncio.get_running_loop()
+        # Establish the grandfather baseline and recover tracker-backed
+        # validation work before the first dispatch tick.  This is deliberately
+        # a one-shot startup operation; later scans are tied to the existing
+        # full-sync safety net below.
+        await asyncio.get_running_loop().run_in_executor(
+            self._tick_pool, self._run_terminal_audit_enforcement
+        )
         await self.startup_cleanup()
         await self._recover_restart_issues()
         full_sync_interval_s = self.config.full_sync_interval_ms / 1000.0
@@ -3304,6 +3476,21 @@ class Orchestrator:
         # full-corpus read+parse is the dominant tick cost). Writes during
         # the tick re-invalidate, so reads never go stale.
         self._invalidate_tracker_read_caches()
+
+        # Detect terminal -> non-terminal -> terminal transitions after the
+        # process has started.  Keep this scan on the full-sync cadence so
+        # ordinary event-driven ticks remain cheap.
+        terminal_audit_interval = max(
+            1.0, self.config.full_sync_interval_ms / 1000.0
+        )
+        if (
+            self._terminal_audit_started
+            and time.monotonic() - self._terminal_audit_last_scan
+            >= terminal_audit_interval
+        ):
+            await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool, self._run_terminal_audit_enforcement
+            )
 
         # Release addendum leases are independent of source-task lifecycle.
         # Run their durable recovery on every event/full-sync tick so a worker
@@ -20789,6 +20976,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 pid: self._count_open_reviews(pid)
                 for pid in (getattr(self, "_reviews_cache", None) or {})
             },
+            "terminal_audit_enforcement": dict(
+                getattr(self._terminal_audit_enforcement, "last_result", {}) or {}
+            ),
             "alerts": list(self._alerts) + self._credential_error_alerts(),
             "reviews_summary": self._reviews_summary(),
             "orchestrator_metrics": {

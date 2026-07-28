@@ -25,7 +25,10 @@ from oompah.config import ServiceConfig
 from oompah.focus import Focus
 from oompah.models import AgentProfile, Issue, ModelProvider, RetryEntry, RunningEntry
 from oompah.orchestrator import Orchestrator
+from oompah.projects import ProjectError
 from oompah.scm import ReviewRequest
+from oompah.terminal_audit import ContributorIdentity, EvidenceFingerprint, TargetState
+from oompah.terminal_transition_coordinator import TransitionResult
 
 def _make_config() -> ServiceConfig:
     return ServiceConfig(tracker_kind="oompah_md")
@@ -89,6 +92,68 @@ def _make_review(
         needs_rebase=needs_rebase,
         draft=draft,
     )
+
+
+@pytest.mark.asyncio
+async def test_request_terminal_transition_routes_to_server_coordinator(tmp_path):
+    orch = _make_orchestrator(tmp_path, projects=[_make_project("proj-1")])
+    coordinator = AsyncMock()
+    expected = TransitionResult(success=True, audit_id="audit-1")
+    coordinator.request_transition.return_value = expected
+    orch.terminal_transition_coordinator = coordinator
+    issue = _make_issue("OOMPAH-1", project_id="proj-1")
+    fingerprint = EvidenceFingerprint("a" * 64)
+    trigger = ContributorIdentity("auditor", "oompah")
+
+    result = await orch.request_terminal_transition(
+        issue,
+        TargetState.DONE,
+        trigger,
+        evidence_fingerprint=fingerprint,
+    )
+
+    assert result is expected
+    coordinator.request_transition.assert_awaited_once_with(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        trigger_identity=trigger,
+        project_id="proj-1",
+        evidence_fingerprint=fingerprint,
+    )
+
+
+@pytest.mark.asyncio
+async def test_request_terminal_transition_derives_fingerprint_when_omitted(tmp_path):
+    orch = _make_orchestrator(tmp_path, projects=[_make_project("proj-1")])
+    coordinator = AsyncMock()
+    coordinator.request_transition.return_value = TransitionResult(success=True)
+    orch.terminal_transition_coordinator = coordinator
+    issue = _make_issue("OOMPAH-2", project_id="proj-1")
+
+    await orch.request_terminal_transition(
+        issue,
+        TargetState.ARCHIVED,
+        ContributorIdentity("auditor", "oompah"),
+    )
+
+    fingerprint = coordinator.request_transition.await_args.kwargs[
+        "evidence_fingerprint"
+    ]
+    assert isinstance(fingerprint, EvidenceFingerprint)
+    assert fingerprint.digest
+
+
+@pytest.mark.asyncio
+async def test_request_terminal_transition_requires_project_context(tmp_path):
+    orch = _make_orchestrator(tmp_path)
+    issue = _make_issue("OOMPAH-3")
+
+    with pytest.raises(ProjectError, match="requires a managed project_id"):
+        await orch.request_terminal_transition(
+            issue,
+            TargetState.DONE,
+            ContributorIdentity("auditor", "oompah"),
+        )
 
 
 def _make_orchestrator(tmp_path, projects=None, yolo_projects=None):

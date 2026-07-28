@@ -196,6 +196,16 @@ class TestSetupServicesSuccess:
         assert services.port == 9090
         assert services.orchestrator is mocks["orchestrator"]
         assert services.webhook_forwarder is mocks["forwarder"]
+        from oompah.terminal_transition_coordinator import TerminalTransitionCoordinator
+
+        assert isinstance(
+            services.terminal_transition_coordinator,
+            TerminalTransitionCoordinator,
+        )
+        assert (
+            mocks["orchestrator"].terminal_transition_coordinator
+            is services.terminal_transition_coordinator
+        )
         mock_forwarder_cls.assert_called_once_with(
             project_store=mocks["projects"],
             server_port=9090,

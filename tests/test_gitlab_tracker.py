@@ -34,6 +34,8 @@ from oompah.gitlab_tracker import (
     GitLabClient,
     GitLabIssueTracker,
     _parse_description_metadata,
+    _status_from_labels,
+    _status_label,
     _update_description_metadata,
     parse_gitlab_identifier,
 )
@@ -352,6 +354,18 @@ class TestReadPath:
         assert "group/sub/project#1" in identifiers
         assert "group/sub/project#2" in identifiers
 
+    def test_fetch_candidate_issues_excludes_in_validation_even_if_configured_active(
+        self, tracker
+    ):
+        instance, client = tracker
+        instance.active_states.append("In Validation")
+        client.issue = _issue(2, labels=["oompah:status:in-validation"])
+
+        candidates = instance.fetch_candidate_issues()
+        assert [issue.identifier for issue in candidates] == [
+            "group/sub/project#1"
+        ]
+
     def test_fetch_all_issues_returns_all_issues(self, tracker):
         instance, _ = tracker
         assert len(instance.fetch_all_issues()) == 2
@@ -542,6 +556,18 @@ class TestCreateAndUpdateIssue:
         post_call = next(c for c in client.calls if c[0] == "POST")
         labels = post_call[2]["json"]["labels"].split(",")
         assert any(l.startswith("oompah:status:") for l in labels)
+
+    def test_in_validation_status_label_round_trips(self, tracker):
+        instance, client = tracker
+        created = instance.create_issue(
+            "Validation task", initial_status="In Validation"
+        )
+
+        post_call = next(c for c in client.calls if c[0] == "POST")
+        labels = post_call[2]["json"]["labels"].split(",")
+        assert _status_label("In Validation") in labels
+        assert _status_from_labels(labels, "opened") == "In Validation"
+        assert created.state == "In Validation"
 
     def test_create_issue_with_parent_adds_parent_label(self, tracker):
         instance, client = tracker

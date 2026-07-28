@@ -1269,9 +1269,10 @@ class TestCheckpointCoalescingE2E:
             state_branch_enabled=True,
             state_branch_name=state_branch,
             git_sync=True,
-            # debounce=100ms, max_delay=5000ms satisfies max_delay >= debounce + 1000
-            state_branch_checkpoint_debounce_ms=100,
-            state_branch_checkpoint_max_delay_ms=5000,
+            # Keep the real timer out of this explicit-flush assertion.  A short
+            # debounce can fire while the git-backed creates run on slower CI.
+            state_branch_checkpoint_debounce_ms=30000,
+            state_branch_checkpoint_max_delay_ms=60000,
         )
         with patch.object(tracker, "_has_remote", return_value=False):
             for i in range(5):

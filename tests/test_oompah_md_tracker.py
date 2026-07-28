@@ -18,6 +18,7 @@ from oompah.statuses import (
     DUPLICATE_CANDIDATE,
     IN_PROGRESS,
     IN_REVIEW,
+    IN_VALIDATION,
     MERGED,
     NEEDS_ANSWER,
     NEEDS_CI_FIX,
@@ -858,6 +859,7 @@ class TestOompahMarkdownTrackerAllStatusDirectories:
         (NEEDS_CI_FIX,       "needs-ci-fix"),
         (NEEDS_REBASE,       "needs-rebase"),
         (IN_REVIEW,          "in-review"),
+        (IN_VALIDATION,      "in-validation"),
         (DECOMPOSED,         "decomposed"),
         (DUPLICATE_CANDIDATE, "duplicate-candidate"),
         (DONE,               "done"),
@@ -1045,6 +1047,21 @@ class TestOompahMarkdownTrackerProposedStatus:
 
         assert len(proposed) == 1
         assert proposed[0].state == PROPOSED
+
+    def test_in_validation_tasks_are_visible_but_excluded_from_dispatch(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        tracker.active_states.append(IN_VALIDATION)
+        validation = tracker.create_issue(
+            "Validation task", initial_status=IN_VALIDATION
+        )
+        open_issue = tracker.create_issue("Open task", initial_status=OPEN)
+
+        candidates = tracker.fetch_candidate_issues()
+
+        candidate_ids = {issue.identifier for issue in candidates}
+        assert validation.identifier not in candidate_ids
+        assert open_issue.identifier in candidate_ids
+        assert tracker.fetch_issue_detail(validation.identifier).state == IN_VALIDATION
 
 
 class TestOompahMarkdownTrackerDecomposedAndDuplicateStatuses:
