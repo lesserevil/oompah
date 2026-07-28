@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-535
 type: bug
-status: In Review
+status: Merged
 priority: 1
 title: Prevent orphaned duplicate-preflight workers and phantom claims
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T23:18:01.725169Z'
-updated_at: '2026-07-28T23:40:31.389489Z'
+updated_at: '2026-07-28T23:46:56.181118Z'
 work_branch: OOMPAH-535
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/569
