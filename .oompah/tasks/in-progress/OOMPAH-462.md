@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:04.307001Z'
-updated_at: '2026-07-28T18:27:58.623867Z'
+updated_at: '2026-07-28T18:34:26.730288Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -172,5 +172,15 @@ author: oompah
 created: 2026-07-28 18:27
 ---
 Discovery: No terminal-audit implementation exists. Existing models.py uses dataclass to_dict/from_dict, while statuses.py defines Done, Merged, and Archived. The new module will be tracker-independent and will enforce its own schema/version and enum validation.
+---
+author: oompah
+created: 2026-07-28 18:34
+---
+Implementation: Added oompah/terminal_audit.py with TargetState, RequestState, Verdict, FailureClassification, ContributorIdentity, EvidenceFingerprint, AuditAttempt, and TerminalAuditRecord. Serialization is versioned and strict for required fields/enums while ignoring unknown future keys; fingerprinting uses normalized labeled JSON evidence, SHA-256, and sorted contributors/child digests. Added tests/test_terminal_audit.py covering round trips, legacy optionals, malformed input, deterministic order-independent hashing, and material evidence changes.
+---
+author: oompah
+created: 2026-07-28 18:34
+---
+Verification: Focused terminal-audit, models, and SCM suites pass: 346 passed. git diff --check is clean. The standalone fingerprint tests cover deterministic serialization/hashing, order-independent contributors and child audits, changed requirements/project/task/branches/SHAs/review/children, strict versions/enums/required fields, and legacy optional fields.
 ---
 <!-- COMMENTS:END -->
