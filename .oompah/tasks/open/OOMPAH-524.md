@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-524
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Integrate htpasswd authentication with the embedded MCP gateway
 parent: OOMPAH-521
@@ -11,9 +11,11 @@ blocked_by:
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:security
+- focus-complete:refactor
+- needs:feature
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:20:46.070369Z'
+updated_at: '2026-07-28T19:21:09.220444Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -284,5 +286,31 @@ author: oompah
 created: 2026-07-28 19:20
 ---
 Verification: .venv/bin/pytest -q tests/test_mcp_gateway.py tests/test_server_auth.py → 74 passed (69 original + 5 new _dispatch_api_call unit tests). No regressions.
+---
+author: oompah
+created: 2026-07-28 19:21
+---
+Focus handoff: refactor
+
+Outcome: Preparatory refactoring complete. Extracted the inline ASGI dispatch from build_mcp_gateway() into a standalone _dispatch_api_call() helper, with 5 new unit tests. All 74 tests pass.
+
+Evidence:
+- Commit 159e09110 on epic-OOMPAH-521
+- Changed files: oompah/mcp_gateway.py, tests/test_mcp_gateway.py
+- Test command: .venv/bin/pytest -q tests/test_mcp_gateway.py tests/test_server_auth.py → 74 passed
+
+Remaining work for the feature agent (OOMPAH-524 full feature):
+1. Add an in-memory sentinel (object identity, not a string) that _BasicAuthMiddleware stamps onto the ASGI scope after successful Basic auth verification. The scope key should be a private module-level object in server.py so it cannot be spoofed by inbound request headers.
+2. In build_mcp_gateway, gate tool invocation: if auth is enabled, check that the MCP ASGI scope carries the sentinel before proceeding. Pass a second private sentinel to _dispatch_api_call (or wrap api_app in a thin ASGI shim that skips auth on dispatch) so the internal call succeeds without forwarding Authorization.
+3. Update discovery_document() (and the mcp_discovery endpoint in server.py) to report 'http-basic' when auth is enabled, 'none; local service access only' when disabled.
+4. Extend tests/test_mcp_gateway.py with the integration tests described in OOMPAH-524 acceptance criteria: auth-enabled discovery, initialize/list/call with valid Basic auth, missing/invalid credentials returning 401, protected tool calls succeeding through the gateway, direct REST endpoints staying protected, spoofed internal marker test.
+5. Verify DNS-rebinding protection remains intact in local mode and auth is required in network mode.
+
+Risks:
+- The sentinel approach must use object identity (is, not ==) to prevent spoofing from inbound headers.
+- Direct calls to /api/v1/* must not be bypassable by mimicking internal traffic.
+- Authorization values must never appear in logs, exceptions, or tool responses.
+
+Recommended next focus: feature
 ---
 <!-- COMMENTS:END -->
