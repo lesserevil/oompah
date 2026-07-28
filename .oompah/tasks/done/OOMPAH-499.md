@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-499
 type: chore
-status: In Progress
+status: Done
 priority: 2
 title: Remove exact duplicate tests and resolve shadowed definitions
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:34.407060Z'
-updated_at: '2026-07-28T16:44:37.524262Z'
+updated_at: '2026-07-28T16:49:02.473383Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -139,5 +139,17 @@ Implementation complete:
 4. test_webhooks.py: removed duplicate _FakeProjectStore class definition (kept factory function)
 5. tests/test_duplicate_names.py: created AST-based check for duplicate test names within classes/modules
 All collection checks pass, all modified tests pass.
+---
+author: oompah
+created: 2026-07-28 16:48
+---
+Verification: All tests pass
+- Full test suite: 12,239 tests passed
+- Duplicate-name check: Passes (test_duplicate_names.py)
+- Collection checks: All modified files collect without errors
+- Modified files verified: test_epic_strategy.py, test_label_auth.py, test_orchestrator_merged.py, test_webhooks.py
+- Unique test cases preserved: .oompah/tasks dirty-worktree case in test_epic_strategy.py preserved with new name
+- No test module contains shadowed test definitions
+- Changes committed and pushed to epic-OOMPAH-490
 ---
 <!-- COMMENTS:END -->
