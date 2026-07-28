@@ -7,11 +7,10 @@ title: Deploy OOMPAH-505 and apply live Claude/Codex tier roles
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:human
+labels: []
 assignee: null
 created_at: '2026-07-28T15:52:20.003932Z'
-updated_at: '2026-07-28T17:28:55.301450Z'
+updated_at: '2026-07-28T17:29:09.788320Z'
 work_branch: null
 target_branch: null
 review_url: null

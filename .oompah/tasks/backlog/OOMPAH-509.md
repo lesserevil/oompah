@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:10.253754Z'
-updated_at: '2026-07-28T16:08:35.851705Z'
+updated_at: '2026-07-28T17:29:14.891912Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-07-28 16:08
 ---
 Checkpoint c25b592c5 is pushed on epic-OOMPAH-502: pytest-xdist 3.8.0; bounded OOMPAH_PYTEST_WORKERS=1..16 with default 4; make test-serial; private per-run and per-worker HOME/TMP/XDG cache trees under OOMPAH_TEMP_ROOT; one xdist group for process-owning tests; docs and contract tests. Focused results: 10 runner/plugin contracts passed; 97 process integration cases passed serially in 27.76s; 108 cases passed with four isolated workers in 37.28s before grouping optimization; the corrected live grouping check passed and put both selected process modules on gw0. No run directories or subprocesses leaked. Full repeated parallel-suite timing remains blocked on whole-epic OOMPAH-490 merge as recorded by the dependency.
+---
+author: oompah
+created: 2026-07-28 17:29
+---
+Authoritative repeated parallel validation now passes on aa93fa639 with four isolated workers: 12,616 passed, 7 skipped in 70.52s and 69.12s. The prior clean serial baseline on the same product code was 12,614 passed, 7 skipped in 274.81s; the two additional passes are isolation regression tests. A full exact-head serial confirmation is now running. The xdist work also found and fixed two real runner isolation defects (tilde temp-root expansion and legacy tests clearing OOMPAH_PYTEST_RUN_ROOT). No pytest run roots or child processes leaked after either successful run.
 ---
 <!-- COMMENTS:END -->
