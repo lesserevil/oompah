@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-507
 type: bug
-status: Open
+status: Done
 priority: 1
 title: Drain active agents before deployment restarts
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:07.476394Z'
-updated_at: '2026-07-28T15:32:32.796080Z'
+updated_at: '2026-07-28T15:34:38.682034Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-28 15:06
 ---
 Claimed for manual implementation by the current Codex session. Held in Backlog while the shared epic branch is built so Oompah does not dispatch another agent; status will move to In Progress and Done as this session completes the slice.
+---
+author: oompah
+created: 2026-07-28 15:34
+---
+Implemented and pushed in commit 8e9455a92. make restart now calls the drain API, waits up to the env-configured deadline, and verifies a new service_instance_id before success; make graceful aliases it, while make force-restart is the explicit interrupting path. Restart requests are atomically coalesced and expose drain state; existing timeout recovery and pause preservation remain intact. Focused API/orchestrator/Make/config tests: 180 passed.
 ---
 <!-- COMMENTS:END -->
