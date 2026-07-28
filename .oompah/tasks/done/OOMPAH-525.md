@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-525
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Add Basic auth support to Oompah CLIs and lifecycle commands
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T19:50:32.863139Z'
+updated_at: '2026-07-28T19:50:46.401001Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -244,5 +244,19 @@ Verification: All focused tests pass.
 - Full focused suite: 201 passed in 2.08s, 0 failures
 
 Test coverage includes: env-var resolution, password-file reading, symlink rejection, TOCTOU race protection, permission warnings, URL sanitization, 401 remediation, httpx.BasicAuth wiring, embedded-URL rejection, CLI flag parsing, Makefile recipe security properties (no bare curl for protected APIs, /healthz as public probe, exit 1 on auth failure without force-restart escalation, no literal credentials in Makefile).
+---
+author: oompah
+created: 2026-07-28 19:50
+---
+Completion: OOMPAH-525 implementation complete and pushed.
+
+All acceptance criteria met:
+1. Task and admin CLI calls succeed with OOMPAH_SERVER_USERNAME + OOMPAH_SERVER_PASSWORD or OOMPAH_SERVER_PASSWORD_FILE.
+2. No supported path places a plaintext password in URL, process argv, logs, errors, or normal output — Makefile uses scripts/oompah_http.py which reads credentials from env in-process.
+3. Missing, inconsistent, unreadable, or rejected credentials produce actionable errors naming the relevant env vars, without credential disclosure.
+4. make status, make restart, make graceful work with auth enabled; /healthz probe is unauthenticated; state and restart APIs use the authenticated Python helper.
+5. Failed authentication in make restart halts with exit 1; never escalates to force-restart.
+6. Unauthenticated workflows unchanged when OOMPAH_SERVER_USERNAME is unset.
+7. 201 focused tests pass.
 ---
 <!-- COMMENTS:END -->
