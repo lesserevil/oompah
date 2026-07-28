@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-516
 type: chore
-status: Backlog
+status: Needs Human
 priority: 1
 title: Deploy OOMPAH-505 and apply live Claude/Codex tier roles
 parent: null
@@ -11,7 +11,7 @@ labels:
 - needs:human
 assignee: null
 created_at: '2026-07-28T15:52:20.003932Z'
-updated_at: '2026-07-28T15:52:20.003932Z'
+updated_at: '2026-07-28T15:52:36.979115Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,16 @@ Operator-access follow-up from OOMPAH-505. Scope: deploy commit 020199d32 (or it
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 15:52
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-516 (Deploy OOMPAH-505 and apply live Claude/Codex tier roles), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-28 15:52
+---
+Requires operator write/restart access to the managed runtime; the agent sandbox exposes only read-only runtime metadata and prohibits loopback self-calls.
+---
+<!-- COMMENTS:END -->
