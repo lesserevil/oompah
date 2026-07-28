@@ -8,10 +8,12 @@ parent: OOMPAH-521
 children: []
 blocked_by:
 - OOMPAH-522
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:44:14.333050Z'
+updated_at: '2026-07-28T18:45:00.181877Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -144,5 +146,20 @@ author: oompah
 created: 2026-07-28 18:44
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 18:44
+---
+Focus handoff: duplicate_detector
+
+Outcome: No duplicate confirmed; OOMPAH-523 is distinct implementation work.
+
+Evidence: Searched .oompah/tasks, docs, plans, README.md, and WORKFLOW.md for Basic auth, HTTP auth, htpasswd, auth middleware, healthz, and WebSocket enforcement. Reviewed OOMPAH-522 in full: it implements optional htpasswd configuration/loading and verification, explicitly does not apply authentication to routes. Reviewed OOMPAH-339 in full: it implements GitLab status-label authorization/audit/revert, unrelated to HTTP authentication. Git history confirms OOMPAH-522 is the only htpasswd implementation and no OOMPAH-523 enforcement commit exists.
+
+Relevant implementation context: use oompah/http_auth.py verifier and startup credentials from OOMPAH-522; enforce at the ASGI boundary in oompah/server.py, covering HTTP, mounts, and /ws while preserving exact webhook POST and /healthz exemptions. Protect adjacent methods/path variants and redact Authorization values. Add focused integration coverage for disabled/enabled auth, challenge behavior, WebSocket handshakes, health, and webhook validation.
+
+Remaining work/risk: full OOMPAH-523 middleware and test implementation remains. Preserve forge signature/token checks and ensure invalid WebSockets are rejected before _ws_clients registration.
+
+Recommended next focus: feature.
 ---
 <!-- COMMENTS:END -->
