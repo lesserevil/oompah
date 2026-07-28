@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-495
 type: chore
-status: Open
+status: In Progress
 priority: 2
 title: Retire pre-implementation state-branch design tests
 parent: OOMPAH-490
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T15:56:41.418418Z'
+updated_at: '2026-07-28T15:56:56.096498Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: e4daa2ff-9c64-47a2-807e-c3eb76814086
+oompah.agent_run_id: 360de98d-5111-4fec-966e-8753a0f5dbba
 oompah.work_branch: epic-OOMPAH-490
 oompah.task_costs:
   total_input_tokens: 17
