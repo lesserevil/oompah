@@ -141,6 +141,9 @@ password hashes. `OOMPAH_SERVER_PASSWORD` and `OOMPAH_SERVER_PASSWORD_FILE`
 are client plaintext credential sources; they are not htpasswd files or server
 configuration values. Never put credentials in `OOMPAH_SERVER_URL`.
 
+For complete setup, user management, password rotation, troubleshooting, and
+security details, see [`docs/authentication.md`](authentication.md).
+
 ## Upgrading an existing install
 
 If you installed oompah before the `project-bootstrap` subcommand was shipped,
