@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-254
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Define state-branch format, configuration contract, and migration design
 parent: OOMPAH-253
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T16:29:10.225678Z'
-updated_at: '2026-07-20T21:59:45.628826Z'
+updated_at: '2026-07-28T13:39:12.561594Z'
 work_branch: null
 target_branch: null
 review_url: null
