@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:32.426575Z'
-updated_at: '2026-07-28T16:09:28.786415Z'
+updated_at: '2026-07-28T16:09:38.566694Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -81,5 +81,19 @@ author: oompah
 created: 2026-07-28 16:09
 ---
 Understanding: Screening OOMPAH-497 for duplicates before any implementation. The task targets cross-file duplication among tests/test_dashboard_release_delivery_ui.py, tests/test_release_delivery_page.py, and tests/test_dashboard_release_addendums_ui.py to assign canonical ownership of page/navigation/accessibility contracts vs. dialog controls. I will search task records and project documentation for any prior equivalent work before proceeding.
+---
+author: oompah
+created: 2026-07-28 16:09
+---
+Discovery: No duplicate confirmed. Searched .oompah/tasks (archived, backlog, open, merged) and docs/plans/README.md/WORKFLOW.md for: release_delivery, test_release_delivery, canonical ownership, addendums, overlapping tests. No existing task matches OOMPAH-497's specific scope of mapping and removing cross-file duplication among these three UI test files and establishing module-level ownership.
+
+Closest tasks reviewed:
+- OOMPAH-490 (parent epic): assigns OOMPAH-497 uniquely as the canonical-ownership step; OOMPAH-498 explicitly depends on OOMPAH-497 completing first ('After canonical ownership is established...')
+- OOMPAH-498: a FOLLOW-UP task (Open) that groups granular assertions after ownership is set — distinct scope, not a duplicate
+- OOMPAH-496: consolidates draft-epic/epic-strategy UI files — different files entirely
+- OOMPAH-499: removes exact duplicates and resolves Python name shadowing — different scope (no ownership categorization)
+- OOMPAH-495: retired pre-implementation state-branch design tests — different scope
+
+The three target files (test_dashboard_release_delivery_ui.py, test_release_delivery_page.py, test_dashboard_release_addendums_ui.py) all exist in tests/. OOMPAH-497 is the unique task in the epic that establishes the ownership boundary between them.
 ---
 <!-- COMMENTS:END -->
