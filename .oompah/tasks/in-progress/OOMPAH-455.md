@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:33:19.409191Z'
+updated_at: '2026-07-28T13:33:30.599455Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-07-28 13:33
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-28 13:33
+---
+Understanding: As the Frontend Developer focus, my job is to fix oompah/templates/projects.html to send only ONE canonical forge-neutral intake field (external_issue_intake_enabled) instead of both github_issue_intake_enabled and external_issue_intake_enabled simultaneously. ProjectStore rejects payloads with both fields. I will also check what else the form submits that may trigger cross-forge API calls. Plan: (1) read projects.html to understand the current form structure, (2) identify where both intake fields are submitted, (3) update the form/JS to submit only external_issue_intake_enabled, (4) ensure the UI still shows correctly for GitHub and GitLab projects, (5) run make test.
 ---
 <!-- COMMENTS:END -->
