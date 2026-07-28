@@ -638,6 +638,7 @@ class TestFetchModelsAcpAware:
         body = r.json()
         assert body["models"] == []
         assert "doesnotexist" in body.get("note", "") or "Unknown" in body.get("note", "")
+        assert body.get("supports_manual_model_selection") is False
 
     def test_api_mode_still_requires_base_url(self, api_client):
         # api-mode (the OpenAI-compatible path) keeps its legacy 400-

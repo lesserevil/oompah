@@ -8778,7 +8778,7 @@ async def api_list_acp_backends():
       manual selection support.
     * ``fetch_note`` — short human-readable string the dashboard
       surfaces alongside the disabled state (e.g. for Claude:
-      "Claude SDK manages model selection via subscription.").
+      "Claude SDK does not expose its subscription model catalog...").
     * ``label`` — backend display name for the dropdown.
     """
     from oompah.acp_backends import BACKENDS
