@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-455
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Make GitLab project edits use one intake alias and forge-aware identity resolution
 parent: OOMPAH-451
@@ -9,9 +9,10 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:30:49.048003Z'
+updated_at: '2026-07-28T13:31:02.353951Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
