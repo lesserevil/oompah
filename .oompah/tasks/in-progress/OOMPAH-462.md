@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:04.307001Z'
-updated_at: '2026-07-28T18:34:26.730288Z'
+updated_at: '2026-07-28T18:37:17.705039Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -182,5 +182,10 @@ author: oompah
 created: 2026-07-28 18:34
 ---
 Verification: Focused terminal-audit, models, and SCM suites pass: 346 passed. git diff --check is clean. The standalone fingerprint tests cover deterministic serialization/hashing, order-independent contributors and child audits, changed requirements/project/task/branches/SHAs/review/children, strict versions/enums/required fields, and legacy optional fields.
+---
+author: oompah
+created: 2026-07-28 18:37
+---
+Verification update: make test could not initialize because the astral-uv launcher fails in this environment with a DBus transient-scope error. Reproducing the Makefile pytest invocation with the required OOMPAH_PYTEST_RUN_ROOT set completed successfully: 12,659 passed, 7 skipped (14 pre-existing warnings).
 ---
 <!-- COMMENTS:END -->
