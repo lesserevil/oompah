@@ -1526,6 +1526,21 @@ class TestGitLabHookManager:
         assert client.calls[1][1].endswith("/hooks/3")
 
     @pytest.mark.asyncio
+    async def test_remove_without_access_token_skips_gitlab_api(self):
+        project = self._project()
+        project.access_token = None
+        client = _FakeGitLabClient([])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            public_url="https://oompah.example.com",
+            http_client=client,
+        )
+
+        await manager.remove(project)
+
+        assert client.calls == []
+
+    @pytest.mark.asyncio
     async def test_missing_or_non_https_public_url_does_not_call_gitlab(self):
         project = self._project()
         client = _FakeGitLabClient([])
@@ -1541,6 +1556,53 @@ class TestGitLabHookManager:
         await manager.reconcile()
         assert client.calls == []
         assert "HTTPS" in manager.status["detail"]
+
+    @pytest.mark.asyncio
+    async def test_missing_project_credentials_degrades_without_api_retry(self):
+        project = self._project()
+        project.access_token = None
+        project.webhook_secret = None
+        client = _FakeGitLabClient([])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            public_url="https://oompah.example.com",
+            http_client=client,
+        )
+
+        await manager.reconcile()
+        await manager.reconcile()
+
+        assert client.calls == []
+        project_status = manager.status["projects"][project.id]
+        assert project_status["configured"] is False
+        assert project_status["healthy"] is False
+        assert "access_token" in project_status["last_error"]
+        assert "webhook_secret" in project_status["last_error"]
+
+    @pytest.mark.asyncio
+    async def test_project_configuration_recovers_and_secrets_are_redacted(self):
+        project = self._project()
+        project.access_token = None
+        project.webhook_secret = None
+        client = _FakeGitLabClient([(200, []), (201, {"id": 12})])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            public_url="https://oompah.example.com",
+            http_client=client,
+        )
+
+        await manager.reconcile()
+        project.access_token = "private-api-token"
+        project.webhook_secret = "private-hook-secret"
+        await manager.reconcile()
+
+        project_status = manager.status["projects"][project.id]
+        assert project_status["configured"] is True
+        assert project_status["healthy"] is True
+        assert project_status["last_error"] == ""
+        serialized_status = str(manager.status)
+        assert "private-api-token" not in serialized_status
+        assert "private-hook-secret" not in serialized_status
 
 
 class TestForwarderProcess:
@@ -1681,6 +1743,89 @@ class TestWebhookForwarderPoll:
         assert fp.repo_slug == "org/repo"
         assert fp.access_token == "project-token"
         assert fp.process is None  # gh not available, so not started
+
+    @pytest.mark.asyncio
+    async def test_mixed_forges_only_launch_github_forwarder(self, tmp_path):
+        github_repo = tmp_path / "github"
+        gitlab_repo = tmp_path / "gitlab"
+        github_repo.mkdir()
+        gitlab_repo.mkdir()
+        (github_repo / ".git").mkdir()
+        (gitlab_repo / ".git").mkdir()
+        github = Project(
+            id="proj-github",
+            name="github-repo",
+            repo_url="https://github.com/org/shared.git",
+            repo_path=str(github_repo),
+            forge_kind="github",
+        )
+        gitlab = Project(
+            id="proj-gitlab",
+            name="gitlab-repo",
+            repo_url="https://gitlab.example.com/org/shared.git",
+            repo_path=str(gitlab_repo),
+            forge_kind="gitlab",
+        )
+        fwd = WebhookForwarder(
+            project_store=_FakeProjectStore([github, gitlab])
+        )
+        fwd._extension_available = True
+
+        class _FakeProcess:
+            pid = 123
+            returncode = None
+            stderr = None
+
+            async def wait(self):
+                return 0
+
+            def terminate(self):
+                self.returncode = 0
+
+        with patch.object(
+            fwd,
+            "_run_gh_api",
+            new_callable=AsyncMock,
+            return_value=(0, "", ""),
+        ) as gh_api:
+            with patch(
+                "asyncio.create_subprocess_exec",
+                new_callable=AsyncMock,
+                return_value=_FakeProcess(),
+            ) as create_process:
+                await fwd._poll_and_restart()
+
+        assert set(fwd._processes) == {"proj-github"}
+        gh_api.assert_awaited_once()
+        assert gh_api.await_args.args[0].project_id == "proj-github"
+        create_process.assert_awaited_once()
+        argv = create_process.await_args.args
+        assert argv[:3] == ("gh", "webhook", "forward")
+        assert argv[argv.index("--repo") + 1] == "org/shared"
+        assert all("gitlab" not in str(arg).lower() for arg in argv)
+        await fwd._kill_all()
+
+    @pytest.mark.asyncio
+    async def test_project_moved_to_gitlab_is_removed_from_forwarder(self):
+        project = Project(
+            id="proj-1",
+            name="repo",
+            repo_url="https://github.com/org/repo.git",
+            repo_path="/tmp/repo",
+            forge_kind="github",
+        )
+        fwd = WebhookForwarder(
+            project_store=_FakeProjectStore([project])
+        )
+        fwd._extension_available = False
+        await fwd._poll_and_restart()
+        assert "proj-1" in fwd._processes
+
+        project.forge_kind = "gitlab"
+        project.repo_url = "https://gitlab.example.com/org/repo.git"
+        await fwd._poll_and_restart()
+
+        assert "proj-1" not in fwd._processes
 
     @pytest.mark.asyncio
     async def test_existing_project_refreshes_forwarder_metadata(self):

@@ -13727,7 +13727,8 @@ async def api_gitlab_webhook_status():
     * ``detail`` — human-readable configuration error, or ``""`` on success.
     * ``webhook_url`` — the URL registered as the GitLab hook target.
     * ``projects`` — per-project health map keyed by project ID.  Each
-      entry has ``name``, ``hook_id``, ``healthy``, and ``last_error``.
+      entry has ``name``, ``hook_id``, ``configured``, ``healthy``, and
+      ``last_error``.
     """
     if _gitlab_hook_manager is None:
         return JSONResponse({"running": False, "configured": False, "detail": "GitLab hook manager not initialised", "webhook_url": "", "projects": {}})

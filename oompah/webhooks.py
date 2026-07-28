@@ -1049,6 +1049,7 @@ class _GitLabHookState:
     project_id: str
     project_name: str
     hook_id: int | None = None
+    configured: bool = False
     healthy: bool = False
     last_error: str = ""
 
@@ -1102,6 +1103,7 @@ class GitLabHookManager:
                 pid: {
                     "name": state.project_name,
                     "hook_id": state.hook_id,
+                    "configured": state.configured,
                     "healthy": state.healthy,
                     "last_error": state.last_error,
                 }
@@ -1190,6 +1192,22 @@ class GitLabHookManager:
         token = str(getattr(project, "access_token", "") or "").strip()
         return {"PRIVATE-TOKEN": token} if token else {}
 
+    @staticmethod
+    def _project_configuration_error(project: Any) -> str:
+        """Return an actionable error for missing per-project hook settings."""
+        missing: list[str] = []
+        if not str(getattr(project, "access_token", "") or "").strip():
+            missing.append("access_token")
+        if not str(getattr(project, "webhook_secret", "") or "").strip():
+            missing.append("webhook_secret")
+        if not missing:
+            return ""
+        fields = " and ".join(missing)
+        return (
+            f"GitLab hook configuration is missing {fields}; "
+            "configure the project setting(s) to enable real-time events"
+        )
+
     async def _request(self, method: str, project: Any, path: str, **kwargs: Any) -> httpx.Response:
         url = f"{self._api_base_url(project)}{path}"
         if self._http_client is not None:
@@ -1226,6 +1244,14 @@ class GitLabHookManager:
             project_id,
             _GitLabHookState(project_id=project_id, project_name=str(project.name)),
         )
+        state.project_name = str(project.name)
+        configuration_error = self._project_configuration_error(project)
+        if configuration_error:
+            state.configured = False
+            state.healthy = False
+            state.last_error = configuration_error
+            return
+        state.configured = True
         slug = self._project_slug(project)
         if not slug:
             state.last_error = "could not determine GitLab project path"
@@ -1264,6 +1290,8 @@ class GitLabHookManager:
     async def remove(self, project: Any) -> None:
         """Delete only this manager's hook from a GitLab project."""
         if self._configuration_error():
+            return
+        if not str(getattr(project, "access_token", "") or "").strip():
             return
         slug = self._project_slug(project)
         if not slug:
@@ -1816,6 +1844,15 @@ class WebhookForwarder:
         except Exception as exc:  # pragma: no cover — defensive
             logger.warning("WebhookForwarder status_callback raised: %s", exc)
 
+    @staticmethod
+    def _is_github_project(project: Any) -> bool:
+        """Return whether a project belongs in the GitHub-only forwarder."""
+        forge_kind = str(
+            getattr(project, "forge_kind", None) or "github"
+        ).strip().lower()
+        repo_url = str(getattr(project, "repo_url", "") or "").lower()
+        return forge_kind == "github" and "gitlab" not in repo_url
+
     def _record_project_error(
         self,
         fp: _ForwarderProcess,
@@ -1905,7 +1942,14 @@ class WebhookForwarder:
 
     async def _poll_and_restart(self) -> None:
         """Check each project's process and restart any that have exited."""
-        projects = (self.project_store.list_all() if self.project_store else [])
+        all_projects = (
+            self.project_store.list_all() if self.project_store else []
+        )
+        projects = [
+            project
+            for project in all_projects
+            if self._is_github_project(project)
+        ]
         live_ids = {p.id for p in projects}
 
         # Ensure a _ForwarderProcess exists for every project.
