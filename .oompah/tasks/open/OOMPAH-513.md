@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-513
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Fail closed on task writes from a managed code checkout
 parent: OOMPAH-511
@@ -13,7 +13,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-28T15:16:43.939778Z'
-updated_at: '2026-07-28T15:46:14.312687Z'
+updated_at: '2026-07-28T15:46:26.010754Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -21,6 +21,22 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 7d1f7dd7-46fa-4ae9-ad9b-95a4e3c24178
 oompah.work_branch: epic-OOMPAH-511
+oompah.task_costs:
+  total_input_tokens: 997011
+  total_output_tokens: 5585
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 997011
+      output_tokens: 5585
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 997011
+    output_tokens: 5585
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T15:46:22.967410+00:00'
 ---
 ## Summary
 
@@ -105,5 +121,25 @@ Focus handoff: duplicate_detector
 3. Remaining work/risks: The implementation and prior full-suite result are recorded as complete, but this focus did not run tests. The local epic-OOMPAH-511 ref is clean but stale at e7f3e9370 and tracks origin/main; origin/epic-OOMPAH-511 is 6533e235e. A verifier must safely align/test the remote epic commit without losing work, then close the task if results hold.
 
 4. Recommended next focus: test, for independent focused/full-suite verification and task closure. No further implementation is indicated by duplicate screening.
+---
+author: oompah
+created: 2026-07-28 15:46
+---
+Agent completed successfully in 183s (1002596 tokens)
+---
+author: oompah
+created: 2026-07-28 15:46
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 19
+- Tokens: 997.0K in / 5.6K out [1.0M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 3s
+- Log: OOMPAH-513__20260728T154323Z.jsonl
+---
+author: oompah
+created: 2026-07-28 15:46
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
