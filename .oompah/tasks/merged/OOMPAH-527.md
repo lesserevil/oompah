@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T20:16:36.783511Z'
-updated_at: '2026-07-28T20:44:19.257106Z'
+updated_at: '2026-07-28T20:44:21.359834Z'
 work_branch: OOMPAH-527
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/566
@@ -216,5 +216,10 @@ author: oompah
 created: 2026-07-28 20:37
 ---
 Manual implementation is complete and pushed at 384a4a928. PR #566 is open: https://github.com/lesserevil/oompah/pull/566. Validation passed: make check-secrets; make test (12,635 passed, 7 skipped). The implementation reconciles the earlier automated commit and adds deterministic UDP route discovery, explicit-URL precedence, per-project readiness/status, route-change hook updates, safe polling fallback, and operator documentation.
+---
+author: oompah
+created: 2026-07-28 20:44
+---
+YOLO: merged PR #566.
 ---
 <!-- COMMENTS:END -->
