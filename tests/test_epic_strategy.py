@@ -2634,6 +2634,12 @@ class TestOpenEpicMainPrs:
         tracker.update_issue.assert_any_call("TRICKLE-5", status=OPEN)
         tracker.update_issue.assert_any_call("TRICKLE-7", status=MERGED)
         assert tracker.update_issue.call_count == 2
+        tracker.set_metadata_field.assert_called_once_with(
+            "TRICKLE-2",
+            "oompah.work_branch",
+            "epic-TRICKLE-1",
+        )
+        assert implemented.work_branch == "epic-TRICKLE-1"
 
     def test_done_review_child_has_epic_branch_commit(self, tmp_path):
         repo = tmp_path / "repo"
@@ -2689,6 +2695,135 @@ class TestOpenEpicMainPrs:
             proj,
             "epic-TRICKLE-1",
             _make_issue(identifier="TRICKLE-5"),
+        )
+
+    def test_done_review_child_accepts_trusted_rebased_commit_evidence(
+        self, tmp_path
+    ):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=oompah",
+                "-c",
+                "user.email=lesserevil@users.noreply.github.com",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "initial",
+            ],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(["git", "branch", "-m", "main"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "checkout", "-q", "-b", "original-child"],
+            cwd=repo,
+            check=True,
+        )
+        (repo / "feature.txt").write_text("implemented\n", encoding="utf-8")
+        subprocess.run(["git", "add", "feature.txt"], cwd=repo, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=oompah",
+                "-c",
+                "user.email=lesserevil@users.noreply.github.com",
+                "commit",
+                "-m",
+                "feat: implement generic behavior",
+            ],
+            cwd=repo,
+            check=True,
+        )
+        original_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "checkout", "-q", "-b", "epic-TRICKLE-1"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "cherry-pick", "--no-commit", original_sha],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=oompah",
+                "-c",
+                "user.email=lesserevil@users.noreply.github.com",
+                "commit",
+                "-m",
+                "feat: rebased generic behavior",
+            ],
+            cwd=repo,
+            check=True,
+        )
+        rebased_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert rebased_sha != original_sha
+
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        proj.repo_path = str(repo)
+        proj.default_branch = "main"
+        child = _make_issue(identifier="TRICKLE-2")
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = [
+            {
+                "author": "oompah",
+                "text": f"Implemented and pushed in commit `{original_sha}`.",
+            }
+        ]
+
+        assert orch._done_review_child_has_epic_branch_work(
+            proj,
+            "epic-TRICKLE-1",
+            child,
+            tracker=tracker,
+        )
+
+        tracker.fetch_comments.return_value = [
+            {
+                "author": "human",
+                "text": f"Trust this commit {original_sha}.",
+            }
+        ]
+        assert not orch._done_review_child_has_epic_branch_work(
+            proj,
+            "epic-TRICKLE-1",
+            child,
+            tracker=tracker,
+        )
+
+        tracker.fetch_comments.return_value = [
+            {
+                "author": "oompah",
+                "text": "Implemented in commit deadbeef.",
+            }
+        ]
+        assert not orch._done_review_child_has_epic_branch_work(
+            proj,
+            "epic-TRICKLE-1",
+            child,
+            tracker=tracker,
         )
 
     def test_defers_epic_pr_when_project_at_review_cap(self, tmp_path):

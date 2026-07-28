@@ -6929,7 +6929,24 @@ class Orchestrator:
                 project,
                 epic_branch,
                 child,
+                tracker=tracker,
             ):
+                if not (child.work_branch or "").strip():
+                    try:
+                        tracker.set_metadata_field(
+                            child.identifier,
+                            "oompah.work_branch",
+                            epic_branch,
+                        )
+                        child.work_branch = epic_branch
+                    except Exception as exc:  # noqa: BLE001 - durable evidence is best effort
+                        logger.warning(
+                            "Failed to persist epic branch coverage for child "
+                            "%s on %s: %s",
+                            child.identifier,
+                            epic_branch,
+                            exc,
+                        )
                 # Shared-mode children are already complete once their work is
                 # on the epic branch; the epic owns the review/CI/rebase state.
                 logger.info(
@@ -6978,6 +6995,8 @@ class Orchestrator:
         project: Project,
         epic_branch: str,
         child: Issue,
+        *,
+        tracker: TrackerProtocol | None = None,
     ) -> bool:
         """Return True when the epic review branch contains this child work."""
         if child.work_branch or getattr(child, "review_url", None):
@@ -7013,6 +7032,125 @@ class Orchestrator:
             for line in result.stdout.splitlines():
                 if needle in line.lower():
                     return True
+
+        if tracker is None:
+            try:
+                tracker = self._tracker_for_project(project.id)
+            except Exception:  # noqa: BLE001 - optional historical evidence
+                tracker = None
+        fetch_comments = getattr(tracker, "fetch_comments", None)
+        if not callable(fetch_comments):
+            return False
+        try:
+            comments = fetch_comments(child.identifier)
+        except Exception:  # noqa: BLE001 - fail closed on tracker evidence errors
+            return False
+
+        branch_refs = self._resolve_git_branch_refs(repo_path, epic_branch)
+        if not branch_refs:
+            return False
+        for commit_sha in self._trusted_completion_commit_shas(comments):
+            if self._reported_commit_landed_on_refs(
+                repo_path,
+                commit_sha,
+                branch_refs,
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def _trusted_completion_commit_shas(comments: Any) -> tuple[str, ...]:
+        """Extract explicitly reported commit SHAs from Oompah comments only."""
+        if not isinstance(comments, list):
+            return ()
+        pattern = re.compile(
+            r"(?i)\b(?:commit|checkpoint|head)"
+            r"(?:\s+(?:is|at))?\s+`?([0-9a-f]{7,40})\b"
+        )
+        found: list[str] = []
+        for comment in comments:
+            if not isinstance(comment, dict):
+                continue
+            author = str(comment.get("author") or "").strip().lower()
+            if author != "oompah":
+                continue
+            text = str(comment.get("text") or comment.get("body") or "")
+            for match in pattern.finditer(text):
+                sha = match.group(1).lower()
+                if sha not in found:
+                    found.append(sha)
+        return tuple(found)
+
+    @staticmethod
+    def _reported_commit_landed_on_refs(
+        repo_path: str,
+        commit_sha: str,
+        branch_refs: tuple[str, ...],
+    ) -> bool:
+        """Prove that a reported commit or a patch-equivalent rebase landed."""
+        try:
+            exists = subprocess.run(
+                [
+                    "git",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"{commit_sha}^{{commit}}",
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        if exists.returncode != 0:
+            return False
+
+        for branch_ref in branch_refs:
+            try:
+                ancestor = subprocess.run(
+                    ["git", "merge-base", "--is-ancestor", commit_sha, branch_ref],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return False
+            if ancestor.returncode == 0:
+                return True
+
+            try:
+                equivalent = subprocess.run(
+                    [
+                        "git",
+                        "cherry",
+                        branch_ref,
+                        commit_sha,
+                        f"{commit_sha}^",
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return False
+            lines = [
+                line.strip()
+                for line in equivalent.stdout.splitlines()
+                if line.strip()
+            ]
+            if (
+                equivalent.returncode == 0
+                and len(lines) == 1
+                and lines[0].startswith("- ")
+            ):
+                return True
         return False
 
     def _remote_epic_branch_has_unmerged_work(
