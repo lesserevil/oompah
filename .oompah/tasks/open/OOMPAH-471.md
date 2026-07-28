@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-471
 type: feature
-status: Needs Human
+status: Open
 priority: 1
 title: Collect stable evidence for Done completion audits
 parent: OOMPAH-458
@@ -10,11 +10,10 @@ blocked_by:
 - OOMPAH-462
 - OOMPAH-468
 - OOMPAH-457
-labels:
-- focus-complete:duplicate_detector
+labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-28T22:29:04.296371Z'
+updated_at: '2026-07-28T23:48:34.572801Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -171,5 +170,10 @@ author: oompah
 created: 2026-07-28 22:29
 ---
 Duplicate screening was inconclusive 3 times. Human action required: review the latest duplicate-screening comments, then either identify the active canonical duplicate or confirm that no active duplicate exists and move the task back to Open.
+---
+author: oompah
+created: 2026-07-28 23:48
+---
+The earlier Needs Human transition was caused by OOMPAH-535: three conclusive no-duplicate results were not parsed from agent output. PR #569 is now deployed, the evidence already confirms no active duplicate, and this task has been returned to Open for qualification under the corrected read-only screening lifecycle.
 ---
 <!-- COMMENTS:END -->
