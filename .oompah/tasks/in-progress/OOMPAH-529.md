@@ -7,10 +7,11 @@ title: Persist revision-aware duplicate-screening evidence
 parent: OOMPAH-528
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:18:31.077035Z'
-updated_at: '2026-07-28T21:23:31.771781Z'
+updated_at: '2026-07-28T21:23:43.533305Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -82,5 +83,10 @@ author: oompah
 created: 2026-07-28 21:23
 ---
 Discovery: No confirmed duplicate found. Full records reviewed: OOMPAH-528 (parent epic) and siblings OOMPAH-530 through OOMPAH-534; OOMPAH-217 (duplicate-focus handoff workflow), OOMPAH-156 (error_watcher fingerprint deduplication), and OOMPAH-160 (corrupt native-task/intake protection). These cover orchestration workflow, event-task deduplication, and file/intake recovery respectively; none provides revision-aware duplicate-screening evidence, task-field fingerprinting, or generic Tracker metadata persistence.
+---
+author: oompah
+created: 2026-07-28 21:23
+---
+Focus handoff: duplicate_detector\n\n1. Outcome: No duplicate confirmed; OOMPAH-529 is a distinct implementation child of OOMPAH-528.\n2. Evidence/decisions: Searched .oompah/tasks, docs, and plans for duplicate-screening, detector, fingerprint, and metadata matches. Read full task records for OOMPAH-528 through OOMPAH-534, OOMPAH-217, OOMPAH-156, and OOMPAH-160 with oompah task view. The parent and siblings split claims, scheduling, verdicts, API/UI, and end-to-end work; historical candidates address focus handoff, error-watcher deduplication, or corrupt-file intake protection. None covers typed revision-aware screening evidence persisted through Tracker metadata.\n3. Remaining work/risks: Implement the domain record, canonical fingerprint, tolerant namespaced metadata round trip, state classification, legacy-label migration handling, and native Markdown tracker contract tests required by the description. Preserve unrelated metadata and ensure malformed/unknown-version records never unlock implementation. Relevant files include oompah/tracker.py, oompah/oompah_md_tracker.py, oompah/intake_schema.py, terminal audit metadata, and tests/test_orchestrator_duplicate_detection.py.\n4. Recommended next focus: feature.
 ---
 <!-- COMMENTS:END -->
