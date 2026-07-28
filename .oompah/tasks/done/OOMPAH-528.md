@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-528
 type: epic
-status: In Progress
+status: Done
 priority: 2
 title: Pre-dispatch duplicate screening for Open tasks
 parent: null
@@ -17,7 +17,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-28T21:18:12.111324Z'
-updated_at: '2026-07-28T21:20:40.251197Z'
+updated_at: '2026-07-28T21:54:45.407746Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -68,5 +68,10 @@ author: oompah
 created: 2026-07-28 21:20
 ---
 Claimed for implementation by the current interactive Codex session at the project owner's request. Oompah dispatch was paused before task creation; child tasks are dependency-ordered and will be claimed by this session before each predecessor is completed.
+---
+author: oompah
+created: 2026-07-28 21:54
+---
+All six children are complete on epic-OOMPAH-528 at c4c7f5dfa, rebased onto origin/main e9681a58d. The branch provides revision-aware screening evidence, atomic claims and recovery, spare-capacity scheduling, verified verdict transitions, safe API/dashboard state, and operator documentation. Final full quality gate after rebase: 13,070 passed, 7 skipped. The project is intentionally paused until the completed epic branch is handed to the single final review/merge workflow.
 ---
 <!-- COMMENTS:END -->
