@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:01:09.905490Z'
+updated_at: '2026-07-28T14:03:16.744018Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -113,5 +113,10 @@ author: oompah
 created: 2026-07-28 14:01
 ---
 Understanding: As Frontend Developer, my scope for OOMPAH-456 is the UI layer in oompah/templates/projects.html. The state_branch_enabled toggle is currently a plain PATCH boolean checkbox that bypasses the bootstrap/migration workflow entirely. My job: (1) replace the naked PATCH boolean with a dedicated activation button that calls a new /api/projects/:id/activate-state-branch endpoint, (2) show forge-neutral status and error messages in the UI (no hardcoded GitHub/GITHUB_TOKEN references), (3) add a loading/progress state during the activation workflow. Backend work (forge-aware git credentials, atomic activation logic, server-side endpoint) will be handed off to a feature agent after UI changes are complete. Starting by reading the current projects.html and related server code.
+---
+author: oompah
+created: 2026-07-28 14:03
+---
+Discovery: Found all relevant code.\n\n**Root cause (UI):**\n1. `projects.html` line 512: `state_branch_enabled` is a plain checkbox in the edit form\n2. `saveProject()` at line 801 reads it and sends it as `state_branch_enabled: stateBranchEnabled` in the PATCH body\n3. The PATCH handler at server.py:10601 accepts it as a bare config flip — no bootstrap, no git push, no credential check\n\n**What I will change:**\n1. Remove the `state_branch_enabled` checkbox from the edit form; replace with read-only status + dedicated 'Activate' / 'Deactivate' buttons\n2. Remove `state_branch_enabled` from the `saveProject()` PATCH body\n3. Add `activateStateBranch(id)` and `deactivateStateBranch(id)` JS functions that POST to the existing `/api/v1/projects/{id}/state-branch/migrate` endpoint with `{action: 'A', confirm: true}` or `{action: 'ROLLBACK', confirm: true}`\n4. Show forge-neutral loading/error UI (just relay server message, no hardcoded GitHub text)\n5. Update `TestProjectsHtmlUI` tests in test_state_branch_project_config.py to match new pattern\n\n**Backend note:** The forge-aware credential injection and forge-neutral server messages still need a backend agent (the migrate endpoint is called correctly, but server.py/state_branch_migration.py still use GITHUB_TOKEN diagnostics and no GitLab token for git push).
 ---
 <!-- COMMENTS:END -->
