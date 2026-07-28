@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:05:59.013552Z'
-updated_at: '2026-07-28T17:53:56.728555Z'
+updated_at: '2026-07-28T17:53:59.318927Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -92,5 +92,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 58s
 - Log: OOMPAH-503__20260728T174321Z.jsonl
+---
+author: oompah
+created: 2026-07-28 17:53
+---
+Restored after patch-equivalent commit 91d6c4344 was verified on the rebased epic branch; terminal-task duplicate filtering remains fully implemented.
 ---
 <!-- COMMENTS:END -->
