@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T14:10:09.292572Z'
+updated_at: '2026-07-28T14:10:22.559886Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -22,13 +22,13 @@ merged_at: null
 oompah.agent_run_id: d4d597a1-1df0-4cbc-aef1-fa240970426c
 oompah.work_branch: epic-OOMPAH-451
 oompah.task_costs:
-  total_input_tokens: 41
-  total_output_tokens: 8727
+  total_input_tokens: 88
+  total_output_tokens: 24490
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 41
-      output_tokens: 8727
+      input_tokens: 88
+      output_tokens: 24490
       cost_usd: 0.0
   runs:
   - profile: default
@@ -37,6 +37,12 @@ oompah.task_costs:
     output_tokens: 8727
     cost_usd: 0.0
     recorded_at: '2026-07-28T14:00:40.122348+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 47
+    output_tokens: 15763
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T14:10:19.195598+00:00'
 ---
 ## Summary
 
@@ -135,5 +141,25 @@ author: oompah
 created: 2026-07-28 14:10
 ---
 Focus handoff: frontend\n\n1. **Outcome**: Frontend scope complete. The UI no longer allows a naked PATCH boolean to enable state_branch_enabled. The Activate/Deactivate buttons route through the /state-branch/migrate endpoint.\n\n2. **Files changed:**\n   - `oompah/templates/projects.html`: removed checkbox, added Activate/Deactivate buttons with aria-labels, live-region error area, forge-neutral error relay, button disabled state during in-flight ops\n   - `tests/test_state_branch_project_config.py`: updated TestProjectsHtmlUI — 11 new assertions replacing 4 old checkbox-centric ones; all 15 UI tests pass\n   - Commit: `OOMPAH-456: Route state-branch activation through migrate endpoint in UI` on branch `epic-OOMPAH-451`\n\n3. **Remaining work (backend):**\n   a. `oompah/state_branch_migration.py` — the `migrate_stage_a()` function (called by the Activate button's endpoint) runs `git push --dry-run` without using the project's GitLab access token. For GitLab projects this fails auth and reports the wrong credential name.\n   b. `oompah/state_branch_migration.py` and `docs/state-branch-migration.md` — validation/remediation messages say 'Update GITHUB_TOKEN' — these must be forge-neutral (use the project's forge_kind to say 'project access token' or similar).\n   c. `oompah/server.py` PATCH handler at line 10601 — the `state_branch_enabled` plain PATCH path is still accepted server-side; it should be rejected (400) or guarded so a stale client cannot bypass the migration flow.\n   d. New tests per the acceptance criteria: GitLab native-Markdown project with only main; assert preflight and activation use project access token; verify remote state branch before config flip; cover auth/push failures with rollback and no partial enablement.\n\n4. **Recommended next focus**: `feature` (backend — forge-aware git credentials, forge-neutral diagnostics, server-side guard on PATCH bypass)
+---
+author: oompah
+created: 2026-07-28 14:10
+---
+Agent completed successfully in 567s (15810 tokens)
+---
+author: oompah
+created: 2026-07-28 14:10
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
+- Turns: 86, Tool calls: 62
+- Tokens: 47 in / 15.8K out [15.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 27s
+- Log: OOMPAH-456__20260728T140055Z.jsonl
+---
+author: oompah
+created: 2026-07-28 14:10
+---
+Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
