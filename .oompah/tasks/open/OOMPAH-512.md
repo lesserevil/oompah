@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-512
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Route managed tracker mutations through project-scoped trackers
 parent: OOMPAH-511
@@ -10,9 +10,10 @@ blocked_by: []
 labels:
 - focus-complete:duplicate_detector
 - focus-complete:refactor
+- needs:feature
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T15:29:29.514374Z'
+updated_at: '2026-07-28T15:29:36.690128Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
