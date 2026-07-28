@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-281
 type: task
-status: Merged
+status: Archived
 priority: 0
 title: Run Oompah CI on a containerized self-hosted GitHub Actions runner
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-20T21:39:55.510108Z'
-updated_at: '2026-07-21T04:00:15.012608Z'
+updated_at: '2026-07-28T04:55:54.275728Z'
 work_branch: OOMPAH-281
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/458
