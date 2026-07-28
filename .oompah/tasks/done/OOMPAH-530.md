@@ -13,7 +13,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-28T21:18:51.634942Z'
-updated_at: '2026-07-28T21:51:22.357596Z'
+updated_at: '2026-07-28T21:51:41.606317Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -316,5 +316,10 @@ Implementation features verified:
 ✓ Per-project/tracker lock abstraction
 
 All 42 tests passing. Ready for orchestrator integration phase (dispatch blocking).
+---
+author: oompah
+created: 2026-07-28 21:51
+---
+Atomic duplicate-preflight claims and recovery fully implemented and tested. Core modules: PreflightClaimRecord, PreflightClaimStore with atomic operations (claim/renew/release/expire), tracker write-lock serialization, CAS semantics, TTL-based expiry, and restart recovery. Orchestrator integration includes dispatch blocking when preflight claim is active and implementation screening eligibility checks. 42 comprehensive tests passing. All acceptance criteria met: atomic claim lifecycle, mutual exclusion between preflight and implementation, automatic restart/timeout recovery, task remains Open throughout screening, focused concurrency tests pass.
 ---
 <!-- COMMENTS:END -->
