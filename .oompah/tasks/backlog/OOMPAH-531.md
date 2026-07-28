@@ -6,11 +6,12 @@ priority: 2
 title: Schedule duplicate preflight from spare agent capacity
 parent: OOMPAH-528
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-530
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-07-28T21:19:12.151334Z'
+updated_at: '2026-07-28T21:20:15.447636Z'
 work_branch: null
 target_branch: null
 review_url: null

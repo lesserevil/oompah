@@ -6,11 +6,12 @@ priority: 3
 title: Add end-to-end duplicate-preflight regressions and operator documentation
 parent: OOMPAH-528
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-533
 labels: []
 assignee: null
 created_at: '2026-07-28T21:20:02.804008Z'
-updated_at: '2026-07-28T21:20:02.804008Z'
+updated_at: '2026-07-28T21:20:18.711932Z'
 work_branch: null
 target_branch: null
 review_url: null

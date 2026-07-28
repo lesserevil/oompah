@@ -6,11 +6,12 @@ priority: 3
 title: Expose duplicate-screening state in the API and dashboard
 parent: OOMPAH-528
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-532
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:45.110386Z'
-updated_at: '2026-07-28T21:19:45.110386Z'
+updated_at: '2026-07-28T21:20:17.606776Z'
 work_branch: null
 target_branch: null
 review_url: null

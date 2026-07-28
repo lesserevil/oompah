@@ -6,11 +6,12 @@ priority: 2
 title: Add atomic duplicate-preflight claims and recovery
 parent: OOMPAH-528
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-529
 labels: []
 assignee: null
 created_at: '2026-07-28T21:18:51.634942Z'
-updated_at: '2026-07-28T21:18:51.634942Z'
+updated_at: '2026-07-28T21:20:14.262810Z'
 work_branch: null
 target_branch: null
 review_url: null
