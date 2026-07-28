@@ -31,6 +31,7 @@ from oompah.acp_backends.base import (
 )
 from oompah.acp_backends.registry import register_backend
 from oompah.agent import AgentEvent
+from oompah.client_auth import agent_environment
 
 if TYPE_CHECKING:
     from oompah.models import ModelProvider
@@ -352,9 +353,9 @@ class ClaudeAcpBackendSession(AcpBackendSession):
             return
 
         # Compose the env we want claude to see.
-        agent_env = dict(os.environ)
-        if self._options.env:
-            agent_env.update(self._options.env)
+        agent_env = agent_environment(
+            {**os.environ, **(self._options.env or {})}
+        )
 
         async def _can_use_tool(
             tool_name: str,

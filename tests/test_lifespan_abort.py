@@ -63,6 +63,7 @@ class TestSetupServicesRaisesStartupError:
                     workflow_has_profiles_block=False,
                     agent_profiles_drift=False,
                     server_port=None,
+                    htpasswd_file=None,
                 ),
             ),
         ):
@@ -91,6 +92,7 @@ class TestSetupServicesRaisesStartupError:
                     workflow_has_profiles_block=True,
                     agent_profiles_drift=False,
                     server_port=None,
+                    htpasswd_file=None,
                 ),
             ),
         ):

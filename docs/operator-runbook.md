@@ -59,6 +59,20 @@ $EDITOR .env
 
 Per-project `access_token`, `forge_kind`, `forge_base_url`, and `webhook_secret` are stored in `.oompah/projects.json` and configured through the dashboard or API rather than `.env`. See `docs/project-bootstrap.md` § GitLab Projects for token scope requirements and webhook setup.
 
+**HTTP Basic authentication** (optional):
+
+Oompah supports optional HTTP Basic authentication to protect the dashboard, API, and WebSocket endpoints. When enabled, all requests (except webhook deliveries and health checks) require credentials.
+
+The exact unauthenticated boundary is `GET /healthz` and the two webhook
+receivers `POST /api/v1/webhooks/github` and `POST /api/v1/webhooks/gitlab`.
+Webhook status, dashboards, REST/OpenAPI, WebSocket, and MCP remain protected.
+See [HTTP Basic Authentication](authentication.md) for setup, user management,
+rotation, recovery, HTTPS proxying, and client configuration guidance.
+
+`OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` is the public HTTPS **Oompah** URL that
+GitLab calls; it is not the GitLab forge/API URL and is independent of
+`OOMPAH_HTPASSWD_FILE`. TLS is terminated by the reverse proxy, not by Oompah.
+
 **Commonly tuned settings:**
 
 | Variable | Default | Description |

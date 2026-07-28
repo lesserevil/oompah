@@ -14,6 +14,11 @@ works inside or how it might work in the future, see [`../plans/`](../plans/).
   epics, dispatch, review repair, and the shared epic branch.
 - [Release Addendums](release-addendums.md) - configure supported release
   lines and deliver already-merged work to them.
+- [HTTP Basic Authentication](authentication.md) - securely deploy, rotate,
+  disable, and recover optional htpasswd authentication.
+- [Operator Runbook](operator-runbook.md) - configure and operate the service.
+- [CLI Installation](cli-install.md) - install the task CLI and configure
+  client credentials.
 
 ## Keeping Docs In Sync
 

@@ -28,8 +28,11 @@ build/
 # for operators looking up where the console persists state.
 .oompah/console/
 
-# Environment variables — never commit secrets
+# Environment variables and credential files — never commit secrets
 .env
+.env.*
+.htpasswd
+.htpasswd.*
 
 *.log
 *.pid

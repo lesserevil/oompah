@@ -36,6 +36,7 @@ from oompah.acp_backends.base import (
 )
 from oompah.acp_backends.registry import register_backend
 from oompah.agent import AgentEvent
+from oompah.client_auth import agent_environment
 
 if TYPE_CHECKING:
     from oompah.models import ModelProvider
@@ -312,9 +313,9 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         # Compose env. opencode serve reads OPENAI_API_KEY from the
         # process env; if the provider configured a custom api_key it
         # will already be in options.env.
-        agent_env = dict(os.environ)
-        if self._options.env:
-            agent_env.update(self._options.env)
+        agent_env = agent_environment(
+            {**os.environ, **(self._options.env or {})}
+        )
         # Forward api_key into the process env if present.
         api_key = agent_env.get("OOMPAH_OPENCODE_API_KEY")
         if api_key:

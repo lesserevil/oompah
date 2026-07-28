@@ -12,6 +12,11 @@ additional setup is required for new projects. See
 [State Branch](#state-branch) below and `docs/state-branch-migration.md` for
 background on existing projects.
 
+For service-level HTTP Basic authentication, including protected routes,
+htpasswd deployment, HTTPS proxying, client credentials, and recovery, see the
+[HTTP Basic Authentication guide](authentication.md). Project bootstrap does
+not create or commit credential files.
+
 ## What Oompah Manages
 
 Project bootstrap covers these files:

@@ -35,11 +35,24 @@ try:
 except ImportError:  # pragma: no cover
     _httpx = None  # type: ignore[assignment]
 
+from oompah.client_auth import (
+    ClientCredentials,
+    CredentialError,
+    format_auth_error,
+    resolve_client_credentials,
+    sanitize_server_url,
+)
+
 __all__ = ["main", "build_parser"]
 
 
 _DEFAULT_HTTP_TIMEOUT_SECONDS = 600.0
 _HTTP_TIMEOUT_ENV = "OOMPAH_TASK_CLI_TIMEOUT_SECONDS"
+
+# Module-level auth slot: set by main() before dispatching to subcommands.
+# None means unauthenticated (backward-compatible).  This is a CLI tool that
+# runs in a single thread, so a module-level variable is safe.
+_session_auth: ClientCredentials | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -55,15 +68,23 @@ def _resolve_server_url(
 
     Priority: explicit --server flag > --port flag > OOMPAH_SERVER_URL env
     variable > default ``http://127.0.0.1:8080``.
+
+    The selected URL is passed through :func:`~oompah.client_auth.sanitize_server_url`
+    to reject URLs that embed credentials in the userinfo component.
     """
     if server_override:
-        return server_override.rstrip("/")
-    if port_override is not None:
+        raw = server_override
+    elif port_override is not None:
         return f"http://127.0.0.1:{port_override}"
-    env_url = os.environ.get("OOMPAH_SERVER_URL", "").strip()
-    if env_url:
-        return env_url.rstrip("/")
-    return "http://127.0.0.1:8080"
+    else:
+        raw = os.environ.get("OOMPAH_SERVER_URL", "").strip()
+        if not raw:
+            return "http://127.0.0.1:8080"
+
+    try:
+        return sanitize_server_url(raw)
+    except CredentialError as exc:
+        sys.exit(f"ERROR: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -91,12 +112,25 @@ def _http(
     *,
     data: dict[str, Any] | None = None,
     params: dict[str, str] | None = None,
+    auth: ClientCredentials | None = None,
 ) -> dict[str, Any]:
     """Make an HTTP request to the oompah API and return the JSON body.
 
     Exits with an actionable error message when the server is unreachable
     (connection refused, DNS failure, timeout) or returns a non-2xx status.
+    A 401 response produces a distinct remediation message that never echoes
+    credential values or Authorization header content.
+
     Never raises — callers can rely on the return value being a valid dict.
+
+    Args:
+        method: HTTP method (GET, POST, PATCH, DELETE).
+        url:    Full request URL.
+        data:   JSON-serializable request body for POST/PATCH.
+        params: URL query parameters.
+        auth:   Optional :class:`~oompah.client_auth.ClientCredentials` to
+                send as HTTP Basic auth.  When *None*, no Authorization
+                header is sent (backward-compatible unauthenticated mode).
     """
     if _httpx is None:
         sys.exit(
@@ -104,11 +138,29 @@ def _http(
             "Install it with: pip install httpx"
         )
 
+    # Sanitize at the request boundary as well as when resolving the base URL.
+    # This keeps internal callers from accidentally putting userinfo into a
+    # request and ensures connection errors cannot echo a plaintext password.
+    try:
+        url = sanitize_server_url(url)
+    except CredentialError as exc:
+        sys.exit(f"ERROR: {exc}")
+
     # Derive base URL for error messages (strip everything after /api/).
+    # Never include the auth object in error output.
     base_url = url.split("/api/")[0] if "/api/" in url else url
 
+    # Use explicit auth if provided; fall back to the session-level auth set
+    # by main().  Tests that patch _http directly bypass this entirely.
+    effective_auth = auth if auth is not None else _session_auth
+    httpx_auth = (
+        _httpx.BasicAuth(username=effective_auth.username, password=effective_auth.password)
+        if effective_auth is not None
+        else None
+    )
+
     try:
-        with _httpx.Client(timeout=_resolve_http_timeout()) as client:
+        with _httpx.Client(timeout=_resolve_http_timeout(), auth=httpx_auth) as client:
             if method == "GET":
                 resp = client.get(url, params=params)
             elif method == "POST":
@@ -137,6 +189,10 @@ def _http(
         body = {"_raw": resp.text}
 
     if not resp.is_success:
+        # 401: authentication required — never echo credentials or auth data.
+        if resp.status_code == 401:
+            sys.exit(format_auth_error(base_url))
+
         err = body.get("error", {}) if isinstance(body, dict) else {}
         msg = (
             err.get("message")
@@ -477,7 +533,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Tracker-neutral task operations.\n\n"
             "Calls the local oompah server API and works with supported oompah "
             "trackers.  Set OOMPAH_SERVER_URL or use "
-            "--server/--port to point at a non-default server."
+            "--server/--port to point at a non-default server.\n\n"
+            "For HTTP Basic auth, set OOMPAH_SERVER_USERNAME and exactly one "
+            "of OOMPAH_SERVER_PASSWORD_FILE (preferred) or "
+            "OOMPAH_SERVER_PASSWORD. Never put credentials in the server URL; "
+            "there is no plaintext --password option."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -487,7 +547,8 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="URL",
         help=(
             "oompah server base URL, e.g. http://127.0.0.1:8080. "
-            "Overrides --port and OOMPAH_SERVER_URL."
+            "Overrides --port and OOMPAH_SERVER_URL. "
+            "Must not contain embedded credentials (user:pass@host)."
         ),
     )
     parser.add_argument(
@@ -496,6 +557,29 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="N",
         help="oompah server port on localhost (default: 8080)",
+    )
+    parser.add_argument(
+        "--username",
+        default=None,
+        metavar="USER",
+        help=(
+            "Username for HTTP Basic auth. Overrides OOMPAH_SERVER_USERNAME. "
+            "Non-secret; combine with --password-file or "
+            "OOMPAH_SERVER_PASSWORD_FILE."
+        ),
+    )
+    parser.add_argument(
+        "--password-file",
+        default=None,
+        metavar="PATH",
+        dest="password_file",
+        help=(
+            "Path to a file containing the client plaintext password. "
+            "Overrides OOMPAH_SERVER_PASSWORD_FILE. "
+            "Must be a regular (non-symlink) readable file. "
+            "Preferred over OOMPAH_SERVER_PASSWORD for unattended use; "
+            "no plaintext --password option exists."
+        ),
     )
 
     sub = parser.add_subparsers(dest="subcommand", required=True)
@@ -760,6 +844,17 @@ def main(argv: list[str] | None = None) -> None:
         getattr(args, "port", None),
     )
 
+    # Resolve client credentials (env vars + optional CLI overrides).
+    # Exits with a clear error on misconfiguration (missing username,
+    # conflicting sources, unreadable password file, etc.).
+    try:
+        _auth = resolve_client_credentials(
+            username_override=getattr(args, "username", None),
+            password_file_override=getattr(args, "password_file", None),
+        )
+    except CredentialError as exc:
+        sys.exit(f"ERROR: {exc}")
+
     # Build dispatch at call time so module-level patches in tests take effect.
     dispatch = {
         "view": _cmd_view,
@@ -777,4 +872,15 @@ def main(argv: list[str] | None = None) -> None:
     fn = dispatch.get(args.subcommand)
     if fn is None:  # pragma: no cover  – argparse already guards this
         parser.error(f"Unknown subcommand: {args.subcommand!r}")
-    fn(base_url, args)
+
+    # Store the resolved auth in the module-level slot so _http picks it up.
+    # The slot is restored on exit so tests that patch _http directly remain
+    # unaffected.  This CLI is single-threaded, so the module-level variable
+    # is safe; no concurrent calls share state.
+    global _session_auth
+    _prev_auth = _session_auth
+    _session_auth = _auth
+    try:
+        fn(base_url, args)
+    finally:
+        _session_auth = _prev_auth

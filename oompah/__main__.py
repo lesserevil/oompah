@@ -276,12 +276,14 @@ def main() -> None:
         return
 
     # --- uvicorn path (default) ---
+    # Preserve env file directory for credential discovery
+    env_file_dir = os.path.dirname(env_path)
     while True:
         restart = False
         try:
             restart = asyncio.run(
                 _run(workflow_path, args.port, start_paused=args.paused,
-                     server_backend=server_backend, workers=workers)
+                     server_backend=server_backend, workers=workers, env_file_dir=env_file_dir)
             )
         except KeyboardInterrupt:
             logger.info("Shutting down")
@@ -385,6 +387,7 @@ async def _run(
     start_paused: bool = False,
     server_backend: str = "uvicorn",
     workers: int = 1,
+    env_file_dir: str = "",
 ) -> bool:
     """Run oompah under uvicorn (the default server path).
 
@@ -393,11 +396,17 @@ async def _run(
     """
     from oompah.bootstrap import StartupError, setup_services
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
-    from oompah.server import app, set_api_event_loop, set_gitlab_hook_manager, set_orchestrator
+    from oompah.server import (
+        app,
+        set_api_event_loop,
+        set_gitlab_hook_manager,
+        set_http_credentials,
+        set_orchestrator,
+    )
     from watchfiles import awatch
 
     try:
-        services = await setup_services(workflow_path, cli_port, start_paused)
+        services = await setup_services(workflow_path, cli_port, start_paused, env_file_dir=env_file_dir)
     except StartupError:
         sys.exit(1)
     port = services.port
@@ -407,6 +416,9 @@ async def _run(
 
     set_orchestrator(orchestrator)
     set_gitlab_hook_manager(gitlab_hook_manager)
+    # The uvicorn path does not run the embedded ASGI service lifespan, so
+    # wire the credentials here before the server starts accepting requests.
+    set_http_credentials(services.http_credentials)
     set_api_event_loop(asyncio.get_running_loop())
 
     # Start webhook forwarder (runs gh webhook forward per project)

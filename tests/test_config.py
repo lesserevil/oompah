@@ -552,6 +552,49 @@ class TestHelpers:
         del os.environ["_OOMPAH_TEST_VAR"]
 
 
+class TestHTTPAuthConfiguration:
+    """Tests for HTTP Basic auth configuration (OOMPAH-522)."""
+
+    def setup_method(self):
+        """Clear OOMPAH_* auth env vars so tests run in a clean environment."""
+        for key in list(os.environ):
+            if key.startswith("OOMPAH_HTPASSWD"):
+                os.environ.pop(key, None)
+
+    def teardown_method(self):
+        """Restore clean environment after each test."""
+        for key in list(os.environ):
+            if key.startswith("OOMPAH_HTPASSWD"):
+                os.environ.pop(key, None)
+
+    def test_htpasswd_file_defaults_to_none(self):
+        cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="test"))
+        assert cfg.htpasswd_file is None
+
+    def test_htpasswd_file_from_environment(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_HTPASSWD_FILE", "/etc/oompah/.htpasswd")
+        cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="test"))
+        assert cfg.htpasswd_file == "/etc/oompah/.htpasswd"
+
+    def test_htpasswd_file_from_environment_relative_path(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_HTPASSWD_FILE", "creds.htpasswd")
+        cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="test"))
+        assert cfg.htpasswd_file == "creds.htpasswd"
+
+    def test_env_file_dir_defaults_to_empty(self):
+        cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="test"))
+        # env_file_dir is set by __main__.py, not from workflow
+        assert cfg.env_file_dir == ""
+
+    def test_htpasswd_file_documented_in_env_example(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        content = env_example.read_text(encoding="utf-8")
+        # Verify OOMPAH_HTPASSWD_FILE is documented
+        assert "OOMPAH_HTPASSWD_FILE" in content
+        # Verify it appears in the HTTP Basic Authentication section
+        assert "HTTP Basic" in content and "OOMPAH_HTPASSWD_FILE" in content
+
+
 class TestValidateDispatchConfig:
     def test_valid(self):
         cfg = ServiceConfig()

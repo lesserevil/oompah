@@ -629,6 +629,24 @@ class ServiceConfig:
     # Configurable via OOMPAH_REPO_MAP_RETAINED_ARTIFACTS.
     repo_map_retained_artifacts: int = 5
 
+    # -----------------------------------------------------------------------
+    # HTTP Basic Authentication (optional, OOMPAH-521 epic)
+    # -----------------------------------------------------------------------
+
+    # Path to Apache htpasswd file for optional HTTP Basic authentication.
+    # When set, Oompah verifies credentials at startup and enforces
+    # authentication on HTTP routes (see OOMPAH-523).
+    # Relative paths are resolved against the selected .env file's directory;
+    # absolute paths are accepted for container secret mounts.
+    # Default: unset (discovery mode tries .htpasswd beside .env file).
+    # Configurable via OOMPAH_HTPASSWD_FILE.
+    htpasswd_file: str | None = None
+
+    # Absolute directory of the selected --env-file, preserved for credential
+    # discovery. Set by __main__.py during startup to enable path resolution
+    # of relative OOMPAH_HTPASSWD_FILE values. Should not be set in WORKFLOW.md.
+    env_file_dir: str = ""
+
     def __post_init__(self):
         self.tracker_kind = _parse_tracker_kind(self.tracker_kind)
         self.dispatch_scan_limit = max(int(self.dispatch_scan_limit), 0)
@@ -1066,6 +1084,10 @@ class ServiceConfig:
             repo_map_retained_artifacts=_parse_positive_env_int(
                 "OOMPAH_REPO_MAP_RETAINED_ARTIFACTS", 5
             ),
+            # HTTP Basic auth: htpasswd_file comes from env only
+            # env_file_dir is set by __main__.py after loading the env file
+            htpasswd_file=os.environ.get("OOMPAH_HTPASSWD_FILE") or None,
+            env_file_dir="",  # Set by __main__.py before bootstrap
         )
 
 

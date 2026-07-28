@@ -501,5 +501,178 @@ sys.exit(0 if s.connect_ex(('127.0.0.1', int(sys.argv[1]))) == 0 else 1)
         )
 
 
+class TestMakefileAuthSecurity:
+    """Verify that Makefile lifecycle recipes handle auth credentials securely."""
+
+    def _read_makefile(self) -> str:
+        makefile_path = os.path.join(os.path.dirname(__file__), "..", "Makefile")
+        with open(makefile_path) as f:
+            return f.read()
+
+    def _read_helper(self) -> str:
+        helper_path = os.path.join(
+            os.path.dirname(__file__), "..", "scripts", "oompah_http.py"
+        )
+        with open(helper_path) as f:
+            return f.read()
+
+    def test_status_recipe_uses_python_helper_for_state(self):
+        """make status must use the Python helper for /api/v1/state, not bare curl."""
+        content = self._read_makefile()
+        # Find the status target block
+        status_idx = content.find("\nstatus:")
+        assert status_idx != -1, "status target not found in Makefile"
+        # Look at content after status target up to next target
+        after_status = content[status_idx:]
+        next_target = after_status.find("\n\n", 1)
+        status_block = after_status[:next_target] if next_target != -1 else after_status
+        assert "oompah_http.py" in status_block, (
+            "make status should call scripts/oompah_http.py for state API"
+        )
+
+    def test_restart_recipe_uses_python_helper_for_state(self):
+        """make restart must use the Python helper for /api/v1/state."""
+        content = self._read_makefile()
+        restart_idx = content.find("\nrestart:")
+        assert restart_idx != -1, "restart target not found in Makefile"
+        after_restart = content[restart_idx:]
+        next_target = after_restart.find("\ngraceful:", 1)
+        restart_block = after_restart[:next_target] if next_target != -1 else after_restart
+        assert "oompah_http.py" in restart_block, (
+            "make restart should call scripts/oompah_http.py for state API"
+        )
+
+    def test_restart_recipe_uses_python_helper_for_restart_api(self):
+        """make restart must use the Python helper for /api/v1/orchestrator/restart."""
+        content = self._read_makefile()
+        restart_idx = content.find("\nrestart:")
+        assert restart_idx != -1, "restart target not found in Makefile"
+        after_restart = content[restart_idx:]
+        next_target = after_restart.find("\ngraceful:", 1)
+        restart_block = after_restart[:next_target] if next_target != -1 else after_restart
+        # The restart request must go through the Python helper
+        assert "/api/v1/orchestrator/restart" in restart_block, (
+            "make restart recipe should reference /api/v1/orchestrator/restart path"
+        )
+        # Verify there's no bare curl call to that endpoint
+        import re
+        bare_curl = re.search(
+            r"curl\b.*?/api/v1/orchestrator/restart", restart_block, re.DOTALL
+        )
+        assert bare_curl is None, (
+            "make restart must not use bare curl for /api/v1/orchestrator/restart"
+        )
+
+    def test_no_bare_curl_for_state_api_in_status(self):
+        """make status must not use bare curl for /api/v1/state."""
+        content = self._read_makefile()
+        status_idx = content.find("\nstatus:")
+        assert status_idx != -1, "status target not found in Makefile"
+        after_status = content[status_idx:]
+        next_target = after_status.find("\n\n", 1)
+        status_block = after_status[:next_target] if next_target != -1 else after_status
+        import re
+        bare_curl = re.search(r"curl\b.*?/api/v1/state", status_block, re.DOTALL)
+        assert bare_curl is None, (
+            "make status must not use bare curl for /api/v1/state"
+        )
+
+    def test_healthz_probe_present_in_restart(self):
+        """make restart may use the public /healthz endpoint without credentials."""
+        content = self._read_makefile()
+        restart_idx = content.find("\nrestart:")
+        assert restart_idx != -1, "restart target not found in Makefile"
+        after_restart = content[restart_idx:]
+        next_target = after_restart.find("\ngraceful:", 1)
+        restart_block = after_restart[:next_target] if next_target != -1 else after_restart
+        assert "/healthz" in restart_block, (
+            "make restart should use the public /healthz probe for initial health check"
+        )
+
+    def test_auth_failure_exits_without_force_restart(self):
+        """Auth failures in restart must halt with exit 1, not escalate to force-restart."""
+        import re
+        content = self._read_makefile()
+        restart_idx = content.find("\nrestart:")
+        assert restart_idx != -1, "restart target not found in Makefile"
+        after_restart = content[restart_idx:]
+        next_target = after_restart.find("\ngraceful:", 1)
+        restart_block = after_restart[:next_target] if next_target != -1 else after_restart
+        # Must have an exit 1 on failure
+        assert "exit 1" in restart_block, (
+            "make restart should exit 1 on failure, not attempt a force restart"
+        )
+        # Must not call force-restart as a make target or shell command
+        # (mentioning it in an echo for user guidance is allowed)
+        actual_calls = re.findall(r"(?<!\becho\b)[^\n]*\bforce-restart\b", restart_block)
+        # Filter out lines that are purely echo messages (guidance to user)
+        non_echo_calls = [
+            line for line in actual_calls
+            if not re.match(r"\s*(echo|printf)\b", line.strip())
+        ]
+        assert not non_echo_calls, (
+            f"make restart recipe must not call force-restart automatically: {non_echo_calls}"
+        )
+
+    def test_no_literal_plaintext_password_in_makefile(self):
+        """Makefile must not contain any literal plaintext password."""
+        content = self._read_makefile()
+        # These should never appear as literal values
+        suspicious_patterns = ["password=", "passwd=", ":hunter2", ":correcthorse"]
+        for pattern in suspicious_patterns:
+            assert pattern.lower() not in content.lower(), (
+                f"Suspicious credential pattern {pattern!r} found in Makefile"
+            )
+        # No -u user:pass style curl credential flags
+        import re
+        curl_cred = re.search(r"curl\b.*?-u\s+\S+:\S+", content)
+        assert curl_cred is None, (
+            "Makefile must not have curl -u user:pass credential in recipes"
+        )
+
+    def test_oompah_http_helper_exists(self):
+        """The scripts/oompah_http.py helper file must exist."""
+        helper_path = os.path.join(
+            os.path.dirname(__file__), "..", "scripts", "oompah_http.py"
+        )
+        assert os.path.isfile(helper_path), (
+            "scripts/oompah_http.py helper must exist for authenticated Makefile calls"
+        )
+
+    def test_helper_reads_credentials_from_env_not_argv(self):
+        """The helper must read credentials from environment variables, not argv."""
+        content = self._read_helper()
+        # Must reference env var names
+        assert "OOMPAH_SERVER_PASSWORD" in content, (
+            "Helper should read OOMPAH_SERVER_PASSWORD from environment"
+        )
+        assert "OOMPAH_SERVER_PASSWORD_FILE" in content, (
+            "Helper should read OOMPAH_SERVER_PASSWORD_FILE from environment"
+        )
+        # Must not use argparse for password (argv would expose it in /proc)
+        assert "add_argument" not in content or "--password" not in content, (
+            "Helper must not accept --password via CLI args (process table exposure)"
+        )
+
+    def test_lifecycle_helper_uses_makefile_configured_port(self):
+        """Auth-protected lifecycle requests must follow PORT, not a hard-coded 8080."""
+        content = self._read_makefile()
+        assert "LOCAL_HTTP_URL := http://127.0.0.1:$(PORT)" in content
+        assert 'OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)"' in content
+
+    def test_restart_checks_state_failure_before_posting_restart(self):
+        """A failed authenticated state probe must stop before the drain POST."""
+        content = self._read_makefile()
+        restart = content[content.index("\nrestart:"):content.index("\ngraceful:")]
+        assert "if ! BEFORE=$$(OOMPAH_SERVER_URL=" in restart
+        assert "|| true);" not in restart.split("Requesting draining restart", 1)[0]
+
+    def test_status_surfaces_state_auth_failure(self):
+        content = self._read_makefile()
+        status = content[content.index("\nstatus:"):]
+        assert "Could not fetch state" in status
+        assert "OOMPAH_SERVER_PASSWORD_FILE" in status
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

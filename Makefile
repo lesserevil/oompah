@@ -7,6 +7,7 @@ LOG_FILE := oompah.log
 # oompah actually listens on, even when the operator hasn't exported the var.
 _ENV_PORT := $(shell grep -E '^OOMPAH_SERVER_PORT[[:space:]]*=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' \t\r\n')
 PORT ?= $(if $(OOMPAH_SERVER_PORT),$(OOMPAH_SERVER_PORT),$(if $(_ENV_PORT),$(_ENV_PORT),8080))
+LOCAL_HTTP_URL := http://127.0.0.1:$(PORT)
 _ENV_DRAIN_TIMEOUT := $(shell grep -E '^OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS[[:space:]]*=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' \t\r\n')
 DRAIN_TIMEOUT ?= $(if $(OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS),$(OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS),$(if $(_ENV_DRAIN_TIMEOUT),$(_ENV_DRAIN_TIMEOUT),3600))
 RESTART_HEALTH_TIMEOUT ?= $(shell expr $(DRAIN_TIMEOUT) + 60)
@@ -140,25 +141,30 @@ stop:
 
 restart: setup
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
-		STATE_URL="http://127.0.0.1:$(PORT)/api/v1/state"; \
-		RESTART_URL="http://127.0.0.1:$(PORT)/api/v1/orchestrator/restart"; \
-		if ! curl -sf "$$STATE_URL" >/dev/null; then \
-			echo "ERROR: oompah PID is running but its health API is unavailable."; \
+		HEALTHZ_URL="http://127.0.0.1:$(PORT)/healthz"; \
+		STATE_PATH="/api/v1/state"; \
+		RESTART_PATH="/api/v1/orchestrator/restart"; \
+		if ! curl -sf "$$HEALTHZ_URL" >/dev/null; then \
+			echo "ERROR: oompah PID is running but /healthz is unavailable."; \
 			echo "Refusing to interrupt agents. Inspect logs, or use 'make force-restart' for an emergency."; \
 			exit 1; \
 		fi; \
-		BEFORE=$$(curl -sf "$$STATE_URL" | python3 -c "import json,sys; print(json.load(sys.stdin).get('service_instance_id') or '')" 2>/dev/null || true); \
+		if ! BEFORE=$$(OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)" $(PYTHON) scripts/oompah_http.py GET "$$STATE_PATH" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('service_instance_id') or '')"); then \
+			echo "ERROR: Cannot reach state API (authentication may be required or server is unhealthy)."; \
+			echo "Check OOMPAH_SERVER_USERNAME / OOMPAH_SERVER_PASSWORD_FILE and 'make logs'."; \
+			echo "Refusing to restart. No force restart attempted."; \
+			exit 1; \
+		fi; \
 		echo "Requesting draining restart (agent drain timeout: $(DRAIN_TIMEOUT)s)..."; \
-		RESPONSE=$$(curl -sf -X POST "$$RESTART_URL" \
-			-H 'Content-Type: application/json' \
-			-d '{"drain_timeout_s": $(DRAIN_TIMEOUT)}') || { \
-				echo "ERROR: graceful restart request failed; active agents were not interrupted."; \
-				exit 1; \
-			}; \
-		echo "$$RESPONSE" | python3 -m json.tool; \
+		OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)" $(PYTHON) scripts/oompah_http.py POST "$$RESTART_PATH" '{"drain_timeout_s": $(DRAIN_TIMEOUT)}' | python3 -m json.tool || { \
+			echo "ERROR: graceful restart request failed; active agents were not interrupted."; \
+			echo "Check OOMPAH_SERVER_USERNAME / OOMPAH_SERVER_PASSWORD_FILE and 'make logs'."; \
+			echo "No force restart attempted."; \
+			exit 1; \
+		}; \
 		ELAPSED=0; \
 		while [ $$ELAPSED -lt $(RESTART_HEALTH_TIMEOUT) ]; do \
-			AFTER=$$(curl -sf "$$STATE_URL" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('service_instance_id') or '')" 2>/dev/null || true); \
+			AFTER=$$(OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)" $(PYTHON) scripts/oompah_http.py GET "$$STATE_PATH" 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('service_instance_id') or '')" 2>/dev/null || true); \
 			if [ -n "$$AFTER" ] && { [ -z "$$BEFORE" ] || [ "$$AFTER" != "$$BEFORE" ]; }; then \
 				echo "oompah restarted successfully and passed its health check (instance $$AFTER)."; \
 				exit 0; \
@@ -198,7 +204,10 @@ status:
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
 		echo "oompah is running (pid $$(cat $(PID_FILE)))"; \
 		echo "Dashboard: http://0.0.0.0:$(PORT)"; \
-		curl -s http://0.0.0.0:$(PORT)/api/v1/state 2>/dev/null | python3 -m json.tool || true; \
+		if ! OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)" $(PYTHON) scripts/oompah_http.py GET /api/v1/state | python3 -m json.tool; then \
+			echo "ERROR: Could not fetch state (check OOMPAH_SERVER_USERNAME / OOMPAH_SERVER_PASSWORD_FILE)."; \
+			exit 1; \
+		fi; \
 	else \
 		rm -f $(PID_FILE); \
 		echo "oompah is not running"; \

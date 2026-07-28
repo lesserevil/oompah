@@ -1239,6 +1239,21 @@ class TestUnknownToolHelpfulErrorWhenLooksShellish:
 # ---------------------------------------------------------------------------
 
 class TestRunCommandEnvOverrides:
+    def test_client_auth_values_are_not_inherited_by_agent_command(self, tmp_path, monkeypatch):
+        from oompah.api_agent import _exec_run_command
+
+        monkeypatch.setenv("OOMPAH_SERVER_USERNAME", "operator")
+        monkeypatch.setenv("OOMPAH_SERVER_PASSWORD", "client-secret")
+        monkeypatch.setenv("OOMPAH_SERVER_PASSWORD_FILE", "/run/secrets/client-pass")
+        result = _exec_run_command(
+            tmp_path,
+            {"command": "env | grep '^OOMPAH_SERVER_' || true"},
+        )
+
+        assert "OOMPAH_SERVER_USERNAME" not in result
+        assert "OOMPAH_SERVER_PASSWORD" not in result
+        assert "client-secret" not in result
+
     def test_no_overrides_inherits_env(self, tmp_path, monkeypatch):
         from oompah.api_agent import _exec_run_command
         # Echoes whatever's in OOMPAH_TEST_OVERRIDE (or "unset" if missing) so we can

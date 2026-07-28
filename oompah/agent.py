@@ -11,6 +11,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from oompah.client_auth import agent_environment
+
 logger = logging.getLogger(__name__)
 
 # Max line size for safe buffering (10 MB)
@@ -97,6 +99,7 @@ class AgentSession:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=agent_environment(),
                 start_new_session=(os.name == "posix"),
             )
         except FileNotFoundError:

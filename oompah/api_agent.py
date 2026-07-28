@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from oompah.prompt import RenderedPrompt
+from oompah.client_auth import agent_environment
 
 logger = logging.getLogger(__name__)
 
@@ -539,10 +540,11 @@ def _exec_run_command(
     if cd_err:
         return f"Error: {cd_err}"
     # Build env from the agent's own env, layering caller-supplied overrides
-    # on top.
-    env = None
-    if env_overrides:
-        env = {**os.environ, **env_overrides}
+    # on top, then remove client-only Basic-auth inputs before spawning a
+    # command.  This applies even when no explicit overrides are supplied,
+    # because ``env=None`` would otherwise inherit the server's full env.
+    inherited_env = {**os.environ, **(env_overrides or {})}
+    env = agent_environment(inherited_env)
 
     def _terminate_process_tree(process: subprocess.Popen[str]) -> tuple[str, str]:
         if os.name == "posix":
