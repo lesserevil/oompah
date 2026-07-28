@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:35:09.006013Z'
+updated_at: '2026-07-28T19:35:24.191571Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -431,5 +431,37 @@ Key design decisions:
 - Per-project asyncio.Lock serializes concurrent request_transition calls; inner threading.RLock in TerminalAuditMetadataStore protects tracker reads/writes
 - Tracker update_issue failure logged but non-fatal: audit chain already persisted, so crash recovery works
 - _MemoryTracker test double tracks metadata per-identifier (not globally) to allow multi-project tests
+---
+author: oompah
+created: 2026-07-28 19:35
+---
+Verification: 40/40 tests pass; adjacent test suites also pass.
+
+Focused test run:
+  python -m pytest tests/test_terminal_transition_coordinator.py -v → 40 passed
+  python -m pytest tests/test_terminal_audit.py tests/test_terminal_audit_metadata.py tests/test_terminal_audit_enforcement.py -v → 58 passed
+  python -m pytest tests/test_statuses.py tests/test_transition_gate.py -v → 43 passed
+
+Coverage by test class:
+  TestDoneChain (4): one audit, previous_state, In Validation move, terminal issue not moved
+  TestMergedChain (4): queues both without Done, cannot skip completion audit, reuses completed Done, pending Done case
+  TestArchivedChain (2): creates one audit, appended after existing pending
+  TestCoalescing (2): identical requests coalesce, no duplicate status write
+  TestSuperseding (2): changed fingerprint marks SUPERSEDED, retains both records
+  TestStaleRejection (2): already-completed target fails, no new entries added
+  TestCommentDeduplication (4): posted once, not re-posted on supersede, mentions target, persisted across instances
+  TestTrackerWriteFailureOrdering (2): chain persisted before status write, recoverable after failure
+  TestRestartRecovery (2): coalesces with persisted chain, no duplicate comments
+  TestSimultaneousRequests (2): same fingerprint coalesces, different projects don't block each other
+  TestPerProjectLocking (2): independent per-project locks, same project reuses lock
+  TestQuarantineHandling (1): quarantined metadata → failure result
+  TestBuildNewEntries (8): unit tests for module helper
+  TestTransitionResultShape (3): success/coalesced/failure field shapes
+
+Acceptance criteria verified:
+  ✓ No terminal status written by staging (only IN_VALIDATION set by coordinator)
+  ✓ Every request has one durable chain (persisted atomically before status write)
+  ✓ Direct Merged cannot skip completion auditing (Done queued first if not completed)
+  ✓ Retries/events cannot create duplicate auditor work (coalescing by fingerprint)
 ---
 <!-- COMMENTS:END -->
