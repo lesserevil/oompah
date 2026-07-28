@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-453
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Route webhook lifecycle by forge and stop gh forwarder churn for GitLab projects
 parent: OOMPAH-451
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-07-28T13:22:29.284687Z'
+updated_at: '2026-07-28T13:23:16.432806Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -155,5 +155,10 @@ author: oompah
 created: 2026-07-28 13:22
 ---
 Verification: Focused webhook and lifecycle coverage passed (168 tests). The full repository suite passed (12,328 passed, 39 skipped). The Makefile uv launcher could not enter its Snap DBus transient scope in this sandbox, so the identical full pytest suite was run from the existing virtualenv. git diff --check is clean.
+---
+author: oompah
+created: 2026-07-28 13:23
+---
+Completion: Delivered commit cf1f6e6ed on epic-OOMPAH-451 and pushed it to origin. GitLab projects are excluded from gh api/webhook subprocess lifecycle, existing forwarders are retired when a project becomes GitLab, configured GitLab hooks continue to reconcile, and missing per-project token/secret now produces one redacted actionable health state with polling fallback and no API retry churn. Full suite: 12,328 passed, 39 skipped; branch HEAD matches origin.
 ---
 <!-- COMMENTS:END -->
