@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-514
 type: chore
-status: In Progress
+status: Done
 priority: 1
 title: Prove maintenance cannot dirty or push the server code checkout
 parent: OOMPAH-511
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:44.915690Z'
-updated_at: '2026-07-28T16:15:06.285272Z'
+updated_at: '2026-07-28T16:16:14.893604Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-07-28 16:15
 ---
 Verification: focused state-branch regression passes 19/19 across three consecutive runs; related suites pass 440/440 except two environment-overridden full-sync config assertions; equivalent full pytest passes 12,631 with 7 skipped and one unrelated read-only agent-log failure, which passes when OOMPAH_AGENT_LOG_DIR points to /tmp. make check-secrets passes. make test itself cannot start because uv transient-scope DBus setup error (exit 46).
+---
+author: oompah
+created: 2026-07-28 16:16
+---
+Completion: pushed 5397b7a82 to origin/epic-OOMPAH-511. The regression now covers server ErrorWatcher routing, scheduler archive writes, exact code HEAD/worktree/index/origin-main/remote-main invariants, remote state-branch task contents, ambiguous/missing-project fail-closed behavior, and stop() drainage of maintenance futures and owned executor threads. Focused tests pass 19/19 in three repeats; full equivalent pytest passes 12,631 with the documented read-only agent-log environment failure resolved via OOMPAH_AGENT_LOG_DIR=/tmp; make check-secrets passes.
 ---
 <!-- COMMENTS:END -->
