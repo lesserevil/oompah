@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:33.437818Z'
-updated_at: '2026-07-28T16:27:00.046016Z'
+updated_at: '2026-07-28T16:27:17.832317Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -114,5 +114,25 @@ author: oompah
 created: 2026-07-28 16:27
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-28 16:27
+---
+## Understanding
+
+I'm the Maintenance Engineer taking over from the Duplicate Investigator focus. I will implement grouped assertions in the Release Delivery UI test files.
+
+**Plan:**
+1. Baseline both test files (collection count + duration)
+2. Analyze granular assertions to identify patterns by contract type (controls/structure, URL-refresh lifecycle, status, selection/queue payload, drawer/evidence, accessibility, XSS)
+3. Create helper assertion functions and table-loop structures with descriptive failure messages
+4. Consolidate granular ID/CSS/JS-variable checks into grouped contracts
+5. Preserve behavioral route tests and function-body checks
+6. Verify test count reduction and duration before/after
+7. Run full test suite to ensure coverage is maintained
+
+**Target files:** tests/test_dashboard_release_delivery_ui.py, tests/test_release_delivery_page.py
+
+**Acceptance criteria:** Reduce test count, improve maintainability, preserve all security/queueing/accessibility behavior contracts.
 ---
 <!-- COMMENTS:END -->
