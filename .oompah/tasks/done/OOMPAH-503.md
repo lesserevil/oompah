@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-503
 type: bug
-status: In Progress
+status: Done
 priority: 1
 title: Limit automatic duplicate detection to nonterminal tasks
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:05:59.013552Z'
-updated_at: '2026-07-28T15:07:34.740385Z'
+updated_at: '2026-07-28T15:10:26.690834Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-07-28 15:07
 ---
 Understanding: automatic duplicate detection will become active-work collision detection only. I will fetch only configured active states, defensively filter any terminal records returned by a tracker, remove the closed-match auto-handoff path, and retain explicit/manual duplicate_detector focus support.
+---
+author: oompah
+created: 2026-07-28 15:10
+---
+Implemented on epic-OOMPAH-502 in commit 91d6c4344. Automatic duplicate detection now requests only configured active states and defensively removes terminal records returned by over-broad trackers; the former terminal-match duplicate-detector handoff was removed. Focused regression suite: 160 passed.
 ---
 <!-- COMMENTS:END -->
