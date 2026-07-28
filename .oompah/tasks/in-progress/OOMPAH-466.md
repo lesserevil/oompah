@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:08.204164Z'
-updated_at: '2026-07-28T20:03:52.097352Z'
+updated_at: '2026-07-28T20:04:39.638381Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -107,5 +107,10 @@ author: oompah
 created: 2026-07-28 20:03
 ---
 Discovery + Implementation: Extended oompah/terminal_transition_coordinator.py with (1) AuditResult submission surface, ResultOutcome, and ResultRejection reason constants; (2) classify_failure_to_status() as the single central mapping from FailureClassification -> canonical status (Open/Needs CI Fix/Needs Rebase/In Review/Needs Human, and pre-audit state restore for UNSAFE_ARCHIVE); (3) TerminalTransitionCoordinator.apply_audit_result() that CAS-checks audit_id/target_state/evidence_fingerprint AND that the tracker still holds the issue in In Validation, records the auditor's attempt into the audit chain, and only then routes the verdict; (4) idempotency via a bounded applied_result_attempts log in metadata; (5) actionable Needs Human comment composition with an always-appended fallback so validate_needs_human_comment cannot reject the composed message. Never-honor guarantees: ERROR verdicts, unparseable payloads, MALFORMED_RESULT, INFRASTRUCTURE_ERROR, retry ceilings, and rejected NEEDS_HUMAN messages all leave the record PENDING and the task in In Validation. Files: oompah/terminal_transition_coordinator.py, plans/terminal-transition-coordinator.md (added Result Application section), tests/test_terminal_transition_coordinator.py (added 59 result-handling tests, 100 total in this suite).
+---
+author: oompah
+created: 2026-07-28 20:04
+---
+Verification: tests/test_terminal_transition_coordinator.py — 100 passed (41 pre-existing + 59 new result-handling cases). Focused suites tests/test_terminal_audit.py, tests/test_terminal_audit_metadata.py, tests/test_terminal_audit_enforcement.py, tests/test_transition_gate.py, tests/test_granian_bootstrap.py — 195 passed total across the terminal-audit stack with no regressions. Table-driven parametrisation covers every FailureClassification -> status mapping, every verdict (PASS, FAIL, NEEDS_HUMAN, ERROR), stale audit_id/target/fingerprint rejection, issue-not-in-validation rejection, record-already-completed rejection, duplicate attempt_id idempotency, Done->Merged chain advance (issue stays in In Validation, advanced_target reported), unsafe-archive restoration and its Needs Human fallback, actionable Needs Human comment fallback via the tracker validator, and every never-honour path (ERROR, MALFORMED_RESULT, INFRASTRUCTURE_ERROR, and stubbed validate_needs_human_comment rejection). Full make test gate is deferred to the orchestrator branch gate per project handoff policy.
 ---
 <!-- COMMENTS:END -->
