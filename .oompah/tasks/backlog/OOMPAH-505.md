@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:52:00.774337Z'
+updated_at: '2026-07-28T15:52:07.940220Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -235,5 +235,10 @@ author: oompah
 created: 2026-07-28 15:52
 ---
 Implementation: No additional repository edit was needed in the DevOps slice; commits 23d1c043b and 020199d32 already contain the backend/UI/documentation implementation. I built and exercised the rollout transaction against isolated copies of the live providers.json/roles.json using the production ProviderStore and RoleStore APIs: resolve Claude/Codex by ACP backend, set fast=fable/luna, standard=sonnet/terra, deep=opus/sol with round_robin, preserve default and provider configuration, reject invalid input atomically, and restore the exact pre-change snapshot. I intentionally did not start a shadow service or mutate the read-only managed checkout.
+---
+author: oompah
+created: 2026-07-28 15:52
+---
+Verification: Isolated live-config transaction passed for all six mappings with round-robin, unchanged default role/provider store, atomic rejection of unknown provider and invalid catalog model, and exact snapshot rollback. Focused tests passed: 200 passed (test_acp_agent, test_acp_backends, test_providers, test_providers_ui). JavaScript syntax passed and make check-secrets passed. make test could not start because Snap uv fails DBus transient-scope creation (same environment-only failure documented previously); the Python pytest fallback succeeded. Live verification remains impossible in this session because the managed runtime/config is read-only and no in-process restart/role mutation tool is exposed.
 ---
 <!-- COMMENTS:END -->
