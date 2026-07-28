@@ -10,6 +10,10 @@ PORT ?= $(if $(OOMPAH_SERVER_PORT),$(OOMPAH_SERVER_PORT),$(if $(_ENV_PORT),$(_EN
 _ENV_DRAIN_TIMEOUT := $(shell grep -E '^OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS[[:space:]]*=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' \t\r\n')
 DRAIN_TIMEOUT ?= $(if $(OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS),$(OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS),$(if $(_ENV_DRAIN_TIMEOUT),$(_ENV_DRAIN_TIMEOUT),3600))
 RESTART_HEALTH_TIMEOUT ?= $(shell expr $(DRAIN_TIMEOUT) + 60)
+_ENV_PYTEST_WORKERS := $(shell grep -E '^OOMPAH_PYTEST_WORKERS[[:space:]]*=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' \t\r\n')
+PYTEST_WORKERS ?= $(if $(OOMPAH_PYTEST_WORKERS),$(OOMPAH_PYTEST_WORKERS),$(if $(_ENV_PYTEST_WORKERS),$(_ENV_PYTEST_WORKERS),4))
+_ENV_TEMP_ROOT := $(shell grep -E '^OOMPAH_TEMP_ROOT[[:space:]]*=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' \t\r\n')
+PYTEST_TEMP_ROOT ?= $(if $(OOMPAH_TEMP_ROOT),$(OOMPAH_TEMP_ROOT),$(if $(_ENV_TEMP_ROOT),$(_ENV_TEMP_ROOT),~/.oompah/tmp))
 # Timeout (seconds) for waiting on process exit and port release during stop/restart.
 STOP_TIMEOUT ?= 30
 
@@ -56,7 +60,7 @@ define port_in_use
 	[ $$? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | grep -q .)
 endef
 
-.PHONY: help setup start stop restart graceful force-restart status logs test clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
+.PHONY: help setup start stop restart graceful force-restart status logs test test-serial clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
 
 help:
 	@echo "oompah — make targets:"
@@ -68,7 +72,8 @@ help:
 	@echo "  force-restart  Emergency hard stop + start; interrupts active agents"
 	@echo "  status         Print PID + state JSON if running"
 	@echo "  logs           Tail $(LOG_FILE)"
-	@echo "  test           Run the pytest suite"
+	@echo "  test           Run pytest in parallel (OOMPAH_PYTEST_WORKERS, default: 4)"
+	@echo "  test-serial    Run pytest serially for race/debug diagnostics"
 	@echo "  run-granian    Run oompah in the foreground using the Granian ASGI server (opt-in; see TASK-472)"
 	@echo "  install-hooks  Install pre-commit hooks (idempotent) — runs gitleaks + secret scan on commit"
 	@echo "  check-secrets  Run the paranoid secret scan over the whole tree (use before pushing)"
@@ -200,7 +205,13 @@ status:
 	fi
 
 test: setup
-	uv run pytest tests/ -v
+	@OOMPAH_PYTEST_WORKERS="$(PYTEST_WORKERS)" \
+		OOMPAH_PYTEST_TEMP_ROOT="$(PYTEST_TEMP_ROOT)" \
+		scripts/run-tests.sh parallel
+
+test-serial: setup
+	@OOMPAH_PYTEST_TEMP_ROOT="$(PYTEST_TEMP_ROOT)" \
+		scripts/run-tests.sh serial
 
 logs:
 	@tail -f $(LOG_FILE)
