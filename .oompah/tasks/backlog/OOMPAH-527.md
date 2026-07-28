@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-527
 type: feature
-status: In Progress
+status: Backlog
 priority: 2
 title: Derive GitLab webhook callback URL from the GitLab route
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T20:16:36.783511Z'
-updated_at: '2026-07-28T20:25:16.471204Z'
+updated_at: '2026-07-28T20:28:57.493856Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -192,5 +192,10 @@ author: oompah
 created: 2026-07-28 20:23
 ---
 Understanding: review the existing GitLab callback URL derivation implementation against explicit override precedence, socket-only route discovery, IPv4/IPv6 formatting, per-project routes, safe polling fallback, status exposure, reconcile/remove behavior, bootstrap wiring, and documentation. I will fix any gaps, run focused checks plus required repository checks, then commit, push, and close the task.
+---
+author: oompah
+created: 2026-07-28 20:28
+---
+Manual ownership: this Codex workspace session is implementing and validating OOMPAH-527. Stop automated dispatch for this task; the existing agent branch commit will be reconciled into the manual implementation before review.
 ---
 <!-- COMMENTS:END -->
