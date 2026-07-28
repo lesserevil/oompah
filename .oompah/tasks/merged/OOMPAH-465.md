@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-465
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Implement idempotent terminal-transition staging and audit chains
 parent: OOMPAH-457
@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:49:20.570768Z'
+updated_at: '2026-07-28T21:16:12.965325Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
