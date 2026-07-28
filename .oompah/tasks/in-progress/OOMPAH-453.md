@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-07-28T13:11:41.432748Z'
+updated_at: '2026-07-28T13:12:04.062403Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -135,5 +135,10 @@ author: oompah
 created: 2026-07-28 13:11
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-28 13:12
+---
+Understanding: The recovered GitLab hook manager and lifecycle wiring are already present, but WebhookForwarder still treats every managed project as GitHub. I will add a minimal forge-aware eligibility check, cover mixed GitHub/GitLab forwarding and expected lifecycle/backoff behavior using existing test patterns, run Makefile tests, then commit, push, and close the task.
 ---
 <!-- COMMENTS:END -->
