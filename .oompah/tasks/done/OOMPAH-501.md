@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-501
 type: bug
-status: In Review
+status: Done
 priority: 1
 title: Prevent premature epic rollup PR/MR creation from child close handoffs
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:21:06.270706Z'
+updated_at: '2026-07-28T14:21:20.018512Z'
 work_branch: OOMPAH-501
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/559
@@ -210,5 +210,23 @@ Key tests added:
 4. test_rollup_creator_no_provider_call_while_nested_epic_not_merged: Done nested epic (not Merged) blocks rollup PR
 5. test_rollup_creator_no_provider_call_while_landing_evidence_missing: stranded child blocks rollup PR
 6. test_rollup_creator_creates_exactly_one_review_when_ready: all children Done with evidence → exactly one create_review call
+---
+author: oompah
+created: 2026-07-28 14:21
+---
+Completion: Delivered fix and tests for premature epic rollup PR prevention.
+
+Root fix: oompah/close_gate.py — Added 'shared_epic_child' skip rule. Children of epics (parent_id set) are now allowed to close without a PR requirement. The epic branch being ahead of main is expected; the rollup gate handles the eventual PR.
+
+Tests: 11 new tests across tests/test_close_gate.py and tests/test_epic_strategy.py, reproducing the OOMPAH-452/PR #558 scenario and asserting all acceptance criteria:
+- Child completion on shared branch never requires a review ✓
+- No PR/MR from epic branch to target branch before all children are ready ✓
+- Nested epic readiness (Done != Merged) is honored ✓
+- Landing evidence required ✓
+- Rollup creates exactly one review when ready ✓
+- Standalone task close/review handoff preserved ✓
+- All 12,123 tests pass ✓
+
+Commit: 4f8fae82e pushed to origin/OOMPAH-501
 ---
 <!-- COMMENTS:END -->
