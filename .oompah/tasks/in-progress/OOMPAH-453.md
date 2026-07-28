@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-07-28T13:13:57.078946Z'
+updated_at: '2026-07-28T13:16:05.119047Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -145,5 +145,10 @@ author: oompah
 created: 2026-07-28 13:13
 ---
 Discovery: WebhookForwarder._poll_and_restart derives live_ids and process state from project_store.list_all() without forge filtering, so a forge_kind=gitlab project reaches both gh api cleanup and gh webhook forward. The recovered GitLabHookManager/lifecycle wiring is present and already covers create/update/delete, health alerts, dedup, polling fallback, and capped restart backoff. One remaining configuration gap is that GitLabHookManager currently calls the API without requiring each project's access_token and webhook_secret; I will make missing per-project credentials a stable degraded health state with no API retry.
+---
+author: oompah
+created: 2026-07-28 13:16
+---
+Implementation: WebhookForwarder now filters its managed set to GitHub projects before creating, polling, or retiring process state, including cleanup when a project changes forge. GitLabHookManager now requires both project access_token and webhook_secret before API reconciliation, exposes per-project configured health, skips expected missing-credential API calls, and recovers on the next reconcile after configuration is supplied. Added mixed-forge subprocess/API regression coverage plus degradation, recovery, and secret-redaction tests.
 ---
 <!-- COMMENTS:END -->
