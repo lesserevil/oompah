@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:32.426575Z'
-updated_at: '2026-07-28T16:24:50.484226Z'
+updated_at: '2026-07-28T16:24:52.795399Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -244,5 +244,10 @@ ACCEPTANCE CRITERIA MET:
 ✓ Module descriptions updated (overlay -> page)
 ✓ All three focused suites pass
 ✓ Contract ownership table added at top of legacy file
+---
+author: oompah
+created: 2026-07-28 16:24
+---
+Consolidated cross-file test duplication and assigned canonical ownership. Removed 39 duplicate tests across three test files, established ownership boundaries (page structure -> test_release_delivery_page.py, dialog controls -> test_dashboard_release_addendums_ui.py, backlog/selection -> test_dashboard_release_delivery_ui.py), updated docstrings from 'overlay' to 'page', added contract-ownership table. All 536 focused tests pass. OOMPAH-498 can now proceed with granular assertion consolidation.
 ---
 <!-- COMMENTS:END -->
