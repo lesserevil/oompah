@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:07.476394Z'
-updated_at: '2026-07-28T17:54:04.380496Z'
+updated_at: '2026-07-28T17:54:07.300529Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -133,5 +133,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 38s
 - Log: OOMPAH-507__20260728T175310Z.jsonl
+---
+author: oompah
+created: 2026-07-28 17:54
+---
+Restored after patch-equivalent commit 8e9455a92 was verified on the rebased epic branch; graceful draining restart remains fully implemented and live-validated.
 ---
 <!-- COMMENTS:END -->
