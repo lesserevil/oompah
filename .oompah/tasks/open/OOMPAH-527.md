@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-527
 type: feature
-status: In Progress
+status: Open
 priority: 2
 title: Derive GitLab webhook callback URL from the GitLab route
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T20:16:36.783511Z'
-updated_at: '2026-07-28T20:16:47.560052Z'
+updated_at: '2026-07-28T20:17:06.978174Z'
 work_branch: null
 target_branch: null
 review_url: null
