@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:37:31.626352Z'
+updated_at: '2026-07-28T19:38:58.976885Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -616,5 +616,10 @@ author: oompah
 created: 2026-07-28 19:37
 ---
 Understanding: I will verify the existing TerminalTransitionCoordinator implementation against the current repository, run focused and project-prescribed checks, then commit/push the complete change and close the task.
+---
+author: oompah
+created: 2026-07-28 19:38
+---
+Discovery: The coordinator/tests are present, but setup_services() does not construct or expose TerminalTransitionCoordinator and Orchestrator has no request wrapper. I will integrate it with the existing per-project tracker factory, add the orchestrator API, and cover bootstrap/orchestrator wiring while preserving the tested standalone API.
 ---
 <!-- COMMENTS:END -->
