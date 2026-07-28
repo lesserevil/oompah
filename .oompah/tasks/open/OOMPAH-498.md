@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-498
 type: chore
-status: Backlog
+status: Open
 priority: 2
 title: Group granular Release Delivery template assertions by behavior
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:33.437818Z'
-updated_at: '2026-07-28T13:54:00.052164Z'
+updated_at: '2026-07-28T14:35:37.175988Z'
 work_branch: null
 target_branch: null
 review_url: null

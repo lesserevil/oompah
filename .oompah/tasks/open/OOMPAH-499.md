@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-499
 type: chore
-status: Backlog
+status: Open
 priority: 2
 title: Remove exact duplicate tests and resolve shadowed definitions
 parent: OOMPAH-490
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:34.407060Z'
-updated_at: '2026-07-28T13:53:59.104331Z'
+updated_at: '2026-07-28T14:35:38.922930Z'
 work_branch: null
 target_branch: null
 review_url: null

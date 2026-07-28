@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-494
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Consolidate Granian subprocess tests into complete scenarios
 parent: OOMPAH-490
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:29.472352Z'
-updated_at: '2026-07-28T13:53:53.987279Z'
+updated_at: '2026-07-28T14:35:26.356634Z'
 work_branch: null
 target_branch: null
 review_url: null

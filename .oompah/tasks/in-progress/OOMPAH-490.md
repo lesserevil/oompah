@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-490
 type: epic
-status: Backlog
+status: In Progress
 priority: 1
 title: Prune redundant tests and isolate the suite from live infrastructure
 parent: null
@@ -20,7 +20,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:51:11.052512Z'
-updated_at: '2026-07-28T13:53:35.593205Z'
+updated_at: '2026-07-28T14:35:32.708033Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-500
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Measure the pruned suite and enforce the no-network final gate
 parent: OOMPAH-490
@@ -18,7 +18,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:35.430103Z'
-updated_at: '2026-07-28T13:54:08.108596Z'
+updated_at: '2026-07-28T14:35:27.732647Z'
 work_branch: null
 target_branch: null
 review_url: null

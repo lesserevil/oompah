@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-491
 type: feature
-status: Backlog
+status: In Progress
 priority: 1
 title: Block network Git remotes during pytest sessions
 parent: OOMPAH-490
@@ -10,12 +10,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-07-28T13:53:26.578514Z'
-work_branch: null
+updated_at: '2026-07-28T14:35:35.354581Z'
+work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 504c86b2-5f4c-4633-80da-9bd16c6f9c43
+oompah.work_branch: epic-OOMPAH-490
 ---
 ## Summary
 
@@ -37,3 +39,16 @@ Running pytest cannot contact or push to a public/private network Git remote, lo
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 14:35
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 14:35
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

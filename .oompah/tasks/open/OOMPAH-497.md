@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-497
 type: task
-status: Backlog
+status: Open
 priority: 2
 title: Assign canonical ownership for overlapping Release Delivery UI tests
 parent: OOMPAH-490
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:32.426575Z'
-updated_at: '2026-07-28T13:53:57.039082Z'
+updated_at: '2026-07-28T14:35:36.006050Z'
 work_branch: null
 target_branch: null
 review_url: null

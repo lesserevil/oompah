@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-492
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Isolate worker-exit and epic-rebase tests from the live tracker
 parent: OOMPAH-490
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:27.511520Z'
-updated_at: '2026-07-28T13:53:51.942034Z'
+updated_at: '2026-07-28T14:35:24.279468Z'
 work_branch: null
 target_branch: null
 review_url: null
