@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-528
 type: epic
-status: In Review
+status: In Progress
 priority: 2
 title: Pre-dispatch duplicate screening for Open tasks
 parent: null
@@ -17,7 +17,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-28T21:18:12.111324Z'
-updated_at: '2026-07-28T21:56:46.221686Z'
+updated_at: '2026-07-28T21:57:02.281671Z'
 work_branch: epic-OOMPAH-528
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/568
