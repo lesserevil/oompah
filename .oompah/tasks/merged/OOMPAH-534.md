@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-534
 type: task
-status: Done
+status: Merged
 priority: 3
 title: Add end-to-end duplicate-preflight regressions and operator documentation
 parent: OOMPAH-528
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:20:02.804008Z'
-updated_at: '2026-07-28T22:13:54.822960Z'
+updated_at: '2026-07-28T22:17:24.960498Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null

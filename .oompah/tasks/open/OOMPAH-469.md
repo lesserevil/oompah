@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:09.346734Z'
-updated_at: '2026-07-28T22:14:50.347749Z'
+updated_at: '2026-07-28T22:17:12.746621Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -34,6 +34,22 @@ oompah.duplicate_screening:
   claim_expires_at: '2026-07-28T22:44:32.988036+00:00'
   retry_count: 0
   retry_after: null
+oompah.task_costs:
+  total_input_tokens: 56
+  total_output_tokens: 1511
+  total_cost_usd: 0.0
+  by_model:
+    sonnet:
+      input_tokens: 56
+      output_tokens: 1511
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: sonnet
+    input_tokens: 56
+    output_tokens: 1511
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T22:17:11.398503+00:00'
 ---
 ## Summary
 
@@ -106,5 +122,15 @@ author: oompah
 created: 2026-07-28 22:14
 ---
 Understanding: Implementing the reserved read-only auditor focus and prompt contract. Plan: (1) explore existing focus/agent infrastructure to understand patterns, (2) add the auditor focus definition excluded from normal triage, (3) add its prompt contract with untrusted delimiters, target contract, and tool schema, (4) add capability policy denying mutating Git/task actions, (5) add tests covering exclusion from triage, required prompt sections, prompt-injection resistance, and tool authorization.
+---
+author: oompah
+created: 2026-07-28 22:17
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 32
+- Tokens: 56 in / 1.5K out [1.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 36s
+- Log: OOMPAH-469__20260728T221438Z.jsonl
 ---
 <!-- COMMENTS:END -->
