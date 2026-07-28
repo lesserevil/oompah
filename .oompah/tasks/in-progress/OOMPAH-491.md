@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-07-28T14:38:19.981650Z'
+updated_at: '2026-07-28T14:44:58.710943Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -122,5 +122,10 @@ author: oompah
 created: 2026-07-28 14:38
 ---
 Understanding: Implementing a pytest-session safety barrier in tests/conftest.py to block network Git remotes (HTTP/HTTPS/SSH/SCP/git:// protocol). The mechanism uses GIT_CONFIG_COUNT/GIT_CONFIG_KEY_N/GIT_CONFIG_VALUE_N env vars to inject url.*.insteadOf rewrite rules that redirect network URLs to a nonexistent local path. Existing GIT_CONFIG_COUNT entries will be preserved. Absolute-path and file:// bare remotes remain usable. Also adding tests/test_git_remote_safety.py to prove blocking works and local transports still pass. Will run existing state-branch tests to verify no regressions.
+---
+author: oompah
+created: 2026-07-28 14:44
+---
+Discovery: Verified the approach works. Git's url.<base>.insteadOf mechanism via GIT_CONFIG_COUNT/KEY_N/VALUE_N env vars correctly blocks network URLs and leaves absolute-path/file:// local remotes usable. Quick shell tests confirmed: (1) https:// fetch redirected to /OOMPAH-TEST-BLOCKED/https/<rest> and fails immediately; (2) SCP-style git@host:path redirected to /OOMPAH-TEST-BLOCKED/scp/<rest> and fails; (3) absolute-path bare remote ls-remote returns exit 0. Plan: add session-scoped autouse fixture to conftest.py + new test_git_remote_safety.py.
 ---
 <!-- COMMENTS:END -->
