@@ -11,7 +11,7 @@ case "${configured_root}" in
         configured_root="${HOME}"
         ;;
     "~/"*)
-        configured_root="${HOME}/${configured_root#~/}"
+        configured_root="${HOME}/${configured_root:2}"
         ;;
 esac
 

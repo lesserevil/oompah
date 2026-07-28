@@ -55,6 +55,34 @@ def test_dotenv_documents_conservative_default():
     assert "Accepted range: 1-16" in text
 
 
+def test_runner_expands_tilde_temp_root_under_home(tmp_path: Path):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_uv = fake_bin / "uv"
+    fake_uv.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    fake_uv.chmod(0o755)
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    env = os.environ.copy()
+    env["HOME"] = str(fake_home)
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["OOMPAH_PYTEST_TEMP_ROOT"] = "~/.oompah/tmp"
+
+    result = subprocess.run(
+        [str(RUNNER), "serial", "tests/not-run-by-fake-uv.py"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    expected_parent = fake_home / ".oompah" / "tmp" / "pytest"
+    assert result.returncode == 0
+    assert f"under {expected_parent}/run." in result.stdout
+    assert not (fake_home / "~").exists()
+
+
 @pytest.mark.parametrize("workers", ["0", "17", "auto", "-1", ""])
 def test_runner_rejects_unsafe_worker_counts(tmp_path: Path, workers: str):
     env = os.environ.copy()
