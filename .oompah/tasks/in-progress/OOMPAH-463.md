@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:05.235115Z'
-updated_at: '2026-07-28T18:42:30.137860Z'
+updated_at: '2026-07-28T18:50:34.548554Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -119,5 +119,10 @@ author: oompah
 created: 2026-07-28 18:42
 ---
 Understanding: I will add a tracker-neutral terminal-audit metadata helper backed by oompah.terminal_audit, use the project write lock for serialized read-modify-write operations, preserve unknown fields, quarantine malformed data, redact persisted values, and cover native/GitHub/GitLab behavior with focused tests before committing and closing the task.
+---
+author: oompah
+created: 2026-07-28 18:50
+---
+Implementation: Added oompah/terminal_audit_metadata.py. TerminalAuditMetadataStore persists one versioned oompah.terminal_audit envelope with pending_chain and bounded attempt_history, updates it under ProjectStore.project_write_lock, skips unchanged writes, preserves forward-compatible fields (including nested record fields), and quarantines malformed payloads using only a SHA-256 marker. It never reads comments and redacts credentials/model-response-like data before persistence. Added adapter contract tests for native Markdown, GitHub body, and GitLab metadata.
 ---
 <!-- COMMENTS:END -->
