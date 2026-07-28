@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-529
 type: task
-status: Needs Human
+status: Done
 priority: 2
 title: Persist revision-aware duplicate-screening evidence
 parent: OOMPAH-528
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:18:31.077035Z'
-updated_at: '2026-07-28T22:05:08.716844Z'
+updated_at: '2026-07-28T22:13:19.190963Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -213,5 +213,10 @@ author: oompah
 created: 2026-07-28 22:05
 ---
 The parent epic OOMPAH-528 merged from epic-OOMPAH-528, but this task was Needs Human with work branch epic-OOMPAH-528. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-28 22:13
+---
+Resolved: this was a false unlanded-work alert from the stale managed epic worktree. PR #568 merged verified head c4c7f5dfa into main as 70771b4e9. The flagged 92aa5e5c2 commit was a separate incomplete scheduler attempt that explicitly left dispatch integration pending; it was intentionally rejected before review and is not required task work. The stale local worktree/branch has now been removed, while origin/epic-OOMPAH-528 and all completed implementation remain preserved in main. Final branch validation was 13,070 passed, 7 skipped. No human recovery action is required.
 ---
 <!-- COMMENTS:END -->
