@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-465
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Implement idempotent terminal-transition staging and audit chains
 parent: OOMPAH-457
@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:35:41.218666Z'
+updated_at: '2026-07-28T19:35:55.423459Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -24,13 +24,17 @@ merged_at: null
 oompah.agent_run_id: 16c87247-9e70-44b6-b214-0b085ceea7fc
 oompah.work_branch: epic-OOMPAH-457
 oompah.task_costs:
-  total_input_tokens: 293179
-  total_output_tokens: 27433
+  total_input_tokens: 293219
+  total_output_tokens: 68331
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 293179
       output_tokens: 27433
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 40
+      output_tokens: 40898
       cost_usd: 0.0
   runs:
   - profile: default
@@ -51,6 +55,12 @@ oompah.task_costs:
     output_tokens: 19939
     cost_usd: 0.0
     recorded_at: '2026-07-28T19:24:19.420709+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 40
+    output_tokens: 40898
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T19:35:51.715470+00:00'
 ---
 ## Summary
 
@@ -499,5 +509,38 @@ author: oompah
 created: 2026-07-28 19:35
 ---
 Implemented TerminalTransitionCoordinator (oompah/terminal_transition_coordinator.py) with 40 comprehensive tests. All acceptance criteria met: atomic staging, idempotent coalescing, Done-before-Merged chain enforcement, stale rejection, per-project locking, and comment deduplication persisted across restarts.
+---
+author: oompah
+created: 2026-07-28 19:35
+---
+Agent completed successfully in 681s (40938 tokens)
+---
+author: oompah
+created: 2026-07-28 19:35
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 75, Tool calls: 47
+- Tokens: 40 in / 40.9K out [40.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 21s
+- Log: OOMPAH-465__20260728T192435Z.jsonl
+---
+author: oompah
+created: 2026-07-28 19:35
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-457` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-457
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-457
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
