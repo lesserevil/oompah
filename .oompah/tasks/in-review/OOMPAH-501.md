@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:16:35.545252Z'
+updated_at: '2026-07-28T14:20:56.288829Z'
 work_branch: OOMPAH-501
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/559
@@ -182,5 +182,14 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 8s
 - Log: OOMPAH-501__20260728T141229Z.jsonl
+---
+author: oompah
+created: 2026-07-28 14:20
+---
+Implementation: Added 'shared_epic_child' skip rule in oompah/close_gate.py check_close_gate().
+
+Change: 8 lines added before the git/forge check in check_close_gate(). When issue.parent_id is non-empty, the function returns CloseGateResult(allowed=True, skip_reason='shared_epic_child') immediately without querying git or the forge. This prevents the 'gh pr create --base main --head epic-OOMPAH-451 ...' diagnostic from being emitted for children of epics.
+
+No changes needed to orchestrator.py — _ensure_review_exists() already skips per-child PRs when parent_id is set, and _open_epic_main_prs() already guards rollup PR creation with _epic_rollup_children_block_reason(). The fix is purely in the close gate's skip rules.
 ---
 <!-- COMMENTS:END -->
