@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-465
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Implement idempotent terminal-transition staging and audit chains
 parent: OOMPAH-457
@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:36:47.089665Z'
+updated_at: '2026-07-28T19:36:59.316399Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -24,13 +24,13 @@ merged_at: null
 oompah.agent_run_id: 1958ce73-ef9d-4082-8b5a-c74f3152a393
 oompah.work_branch: epic-OOMPAH-457
 oompah.task_costs:
-  total_input_tokens: 293219
-  total_output_tokens: 68331
+  total_input_tokens: 293309
+  total_output_tokens: 70670
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 293179
-      output_tokens: 27433
+      input_tokens: 293269
+      output_tokens: 29772
       cost_usd: 0.0
     sonnet:
       input_tokens: 40
@@ -61,6 +61,12 @@ oompah.task_costs:
     output_tokens: 40898
     cost_usd: 0.0
     recorded_at: '2026-07-28T19:35:51.715470+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 90
+    output_tokens: 2339
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T19:36:55.888105+00:00'
 ---
 ## Summary
 
@@ -562,5 +568,38 @@ author: oompah
 created: 2026-07-28 19:36
 ---
 Implemented TerminalTransitionCoordinator with atomic staging, idempotent coalescing, per-project locking, and comprehensive audit chains. All 40 tests pass; adjacent suites verified. Ready for integration into bootstrap.py/orchestrator.py.
+---
+author: oompah
+created: 2026-07-28 19:36
+---
+Agent completed successfully in 47s (2429 tokens)
+---
+author: oompah
+created: 2026-07-28 19:36
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 32, Tool calls: 10
+- Tokens: 90 in / 2.3K out [2.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 47s
+- Log: OOMPAH-465__20260728T193612Z.jsonl
+---
+author: oompah
+created: 2026-07-28 19:36
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-457` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-457
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-457
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
