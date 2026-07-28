@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-531
 type: task
-status: In Progress
+status: Open
 priority: 2
 title: Schedule duplicate preflight from spare agent capacity
 parent: OOMPAH-528
@@ -11,9 +11,11 @@ blocked_by:
 labels:
 - focus-complete:duplicate_detector
 - 'focus-complete:'
+- focus-complete:chore
+- needs:feature
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-07-28T22:01:40.419461Z'
+updated_at: '2026-07-28T22:02:05.168184Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -22,13 +24,13 @@ merged_at: null
 oompah.agent_run_id: 8eefbe5f-99c2-43ec-93ba-280304771a9a
 oompah.work_branch: epic-OOMPAH-528
 oompah.task_costs:
-  total_input_tokens: 210
-  total_output_tokens: 6408
+  total_input_tokens: 260
+  total_output_tokens: 9189
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 210
-      output_tokens: 6408
+      input_tokens: 260
+      output_tokens: 9189
       cost_usd: 0.0
   runs:
   - profile: default
@@ -37,6 +39,12 @@ oompah.task_costs:
     output_tokens: 6408
     cost_usd: 0.0
     recorded_at: '2026-07-28T21:58:49.799298+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 50
+    output_tokens: 2781
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T22:02:03.075494+00:00'
 ---
 ## Summary
 
@@ -223,5 +231,33 @@ author: oompah
 created: 2026-07-28 22:01
 ---
 UNDERSTANDING: This is a feature implementation task requiring per-tick duplicate preflight scheduling, configurable capacity management, and implementation-lane reservation logic. The Duplicate Investigator correctly identified that OOMPAH-530 (claim infrastructure) is complete and OOMPAH-531 implementation is ready to begin. This is beyond maintenance scope and requires feature-focus implementation.
+---
+author: oompah
+created: 2026-07-28 22:01
+---
+Focus handoff: chore
+
+Outcome: Assessment complete - this task requires feature implementation, not maintenance work.
+
+Evidence: Task requires implementing per-tick duplicate preflight scheduling logic in orchestrator._handle_dispatch_needed_locked, configurable capacity cap in ServiceConfig/.env.example, implementation-lane reservation, focus dispatch integration, comprehensive metrics, and full test coverage. Previous Duplicate Investigator focus confirmed OOMPAH-530 claim infrastructure is merged and ready, with no duplicate found.
+
+Remaining work: All feature implementation work as described in task requirements. Prerequisites (OOMPAH-530 atomic claims) are complete.
+
+Next focus: feature
+---
+author: oompah
+created: 2026-07-28 22:02
+---
+Agent completed successfully in 46s (2831 tokens)
+---
+author: oompah
+created: 2026-07-28 22:02
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 15, Tool calls: 13
+- Tokens: 50 in / 2.8K out [2.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 46s
+- Log: OOMPAH-531__20260728T220118Z.jsonl
 ---
 <!-- COMMENTS:END -->
