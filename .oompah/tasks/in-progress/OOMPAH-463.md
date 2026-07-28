@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:05.235115Z'
-updated_at: '2026-07-28T18:50:34.548554Z'
+updated_at: '2026-07-28T18:53:19.111064Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -124,5 +124,10 @@ author: oompah
 created: 2026-07-28 18:50
 ---
 Implementation: Added oompah/terminal_audit_metadata.py. TerminalAuditMetadataStore persists one versioned oompah.terminal_audit envelope with pending_chain and bounded attempt_history, updates it under ProjectStore.project_write_lock, skips unchanged writes, preserves forward-compatible fields (including nested record fields), and quarantines malformed payloads using only a SHA-256 marker. It never reads comments and redacts credentials/model-response-like data before persistence. Added adapter contract tests for native Markdown, GitHub body, and GitLab metadata.
+---
+author: oompah
+created: 2026-07-28 18:53
+---
+Verification: New metadata contract suite passes (19 tests), including native Markdown, GitHub, and GitLab round trips/no-op writes/unknown-field retention/quarantine/redaction; adjacent terminal-audit and tracker suites pass (633 tests). make test was attempted but cannot initialize uv in this sandbox due DBus transient-scope failure; the equivalent final parallel pytest gate passed (12,685 tests, 7 skipped). make check-secrets passed (with an existing null-byte shell warning).
 ---
 <!-- COMMENTS:END -->
