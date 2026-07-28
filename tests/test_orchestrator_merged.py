@@ -2431,6 +2431,12 @@ class TestProjectHasOpenReview:
         }
         assert orch._project_has_open_review("proj-1") is True
 
+    def test_unknown_project_returns_false(self, tmp_path):
+        """A project not in the reviews cache is below capacity."""
+        orch = self._make_orchestrator(tmp_path)
+        orch._reviews_cache = {"proj-2": [_make_review("1", "feat-1", ci_status="passed")]}
+        assert orch._project_has_open_review("proj-1") is False
+
 
 class TestDispatchSerializationByProject:
     """Tests that open reviews no longer serialize agent dispatch."""
@@ -2505,161 +2511,6 @@ class TestDispatchSerializationByProject:
 
         # Legacy issue should not be blocked by project reviews
         assert orch._should_dispatch(issue) is True
-
-
-class TestProjectHasOpenReview:
-    """Tests for _project_has_open_review."""
-
-    def _make_orchestrator(self, tmp_path):
-        orch = Orchestrator(
-            config=_make_config(),
-            workflow_path="WORKFLOW.md",
-            state_path=str(tmp_path / "state.json"),
-        )
-        return orch
-
-    def test_no_project_id_returns_false(self, tmp_path):
-        """Issues without a project_id are never at review capacity."""
-        orch = self._make_orchestrator(tmp_path)
-        orch._reviews_cache = {"proj-1": [_make_review("1", "feat-1", ci_status="passed")]}
-        assert orch._project_has_open_review(None) is False
-
-    def test_no_reviews_cache_returns_false(self, tmp_path):
-        """If the reviews cache is absent, capacity is not full."""
-        orch = self._make_orchestrator(tmp_path)
-        # _reviews_cache not set — should fall back gracefully
-        assert orch._project_has_open_review("proj-1") is False
-
-    def test_empty_project_reviews_returns_false(self, tmp_path):
-        """A project with no open reviews is below capacity."""
-        orch = self._make_orchestrator(tmp_path)
-        orch._reviews_cache = {"proj-1": []}
-        assert orch._project_has_open_review("proj-1") is False
-
-    def test_unknown_project_returns_false(self, tmp_path):
-        """A project not in the reviews cache is below capacity."""
-        orch = self._make_orchestrator(tmp_path)
-        orch._reviews_cache = {"proj-2": [_make_review("1", "feat-1", ci_status="passed")]}
-        assert orch._project_has_open_review("proj-1") is False
-
-    def test_one_open_review_returns_true(self, tmp_path):
-        """A project with one open non-draft review is at the default cap."""
-        orch = self._make_orchestrator(tmp_path)
-        orch._reviews_cache = {
-            "proj-1": [_make_review("1", "feat-1", ci_status="passed")]
-        }
-        assert orch._project_has_open_review("proj-1") is True
-
-    def test_only_draft_reviews_returns_false(self, tmp_path):
-        """Draft reviews don't count as blocking — they're not ready to merge."""
-        orch = self._make_orchestrator(tmp_path)
-        orch._reviews_cache = {
-            "proj-1": [_make_review("1", "feat-1", ci_status="passed", draft=True)]
-        }
-        assert orch._project_has_open_review("proj-1") is False
-
-    def test_mix_of_draft_and_non_draft_returns_true(self, tmp_path):
-        """If any non-draft review is open, dispatch is blocked."""
-        orch = self._make_orchestrator(tmp_path)
-        orch._reviews_cache = {
-            "proj-1": [
-                _make_review("1", "feat-1", draft=True),
-                _make_review("2", "feat-2", ci_status="passed"),
-            ]
-        }
-        assert orch._project_has_open_review("proj-1") is True
-
-
-class TestDispatchSerializationByProject:
-    """Tests that open reviews no longer gate new work dispatch."""
-
-    def _make_orchestrator(self, tmp_path, projects=None):
-        project_store = MagicMock()
-        project_store.list_all.return_value = projects or []
-        project_store.get.side_effect = lambda pid: next(
-            (p for p in (projects or []) if p.id == pid), None
-        )
-        orch = Orchestrator(
-            config=_make_config(),
-            workflow_path="WORKFLOW.md",
-            project_store=project_store,
-            state_path=str(tmp_path / "state.json"),
-        )
-        return orch
-
-    def _make_project_issue(self, identifier: str, project_id: str = "proj-1",
-                             state: str = "open", priority=None) -> Issue:
-        return Issue(
-            id=identifier,
-            identifier=identifier,
-            title=f"Issue {identifier}",
-            description="body — passes the empty-description gate.",
-            state=state,
-            project_id=project_id,
-            priority=priority,
-        )
-
-    def test_open_review_allows_dispatch(self, tmp_path):
-        """When a project has an open PR, new issues still dispatch."""
-        orch = self._make_orchestrator(tmp_path)
-        issue = self._make_project_issue("feat-2", project_id="proj-1", state="open")
-        orch._reviews_cache = {
-            "proj-1": [_make_review("1", "feat-1", ci_status="passed")]
-        }
-        assert orch._should_dispatch(issue) is True
-
-    def test_no_reviews_allows_dispatch(self, tmp_path):
-        """When a project has no open PRs, dispatch proceeds normally."""
-        orch = self._make_orchestrator(tmp_path)
-        issue = self._make_project_issue("feat-2", project_id="proj-1", state="open")
-        orch._reviews_cache = {"proj-1": []}
-        assert orch._should_dispatch(issue) is True
-
-    def test_different_project_not_affected(self, tmp_path):
-        """An open review in project A does not block dispatch for project B."""
-        orch = self._make_orchestrator(tmp_path)
-        issue = self._make_project_issue("feat-b", project_id="proj-2", state="open")
-        orch._reviews_cache = {
-            "proj-1": [_make_review("1", "feat-a", ci_status="passed")],
-            "proj-2": [],
-        }
-        assert orch._should_dispatch(issue) is True
-
-    def test_p0_issue_dispatches_with_open_review(self, tmp_path):
-        """P0 issues dispatch when a project has an open review."""
-        orch = self._make_orchestrator(tmp_path)
-        issue = self._make_project_issue("feat-2", project_id="proj-1",
-                                          state="open", priority=0)
-        orch._reviews_cache = {
-            "proj-1": [_make_review("1", "feat-1", ci_status="passed")]
-        }
-        assert orch._should_dispatch(issue) is True
-
-    def test_draft_only_reviews_allow_dispatch(self, tmp_path):
-        """Draft PRs don't block dispatch — the pipeline is not truly in-flight."""
-        orch = self._make_orchestrator(tmp_path)
-        issue = self._make_project_issue("feat-2", project_id="proj-1", state="open")
-        orch._reviews_cache = {
-            "proj-1": [_make_review("1", "feat-1", draft=True)]
-        }
-        assert orch._should_dispatch(issue) is True
-
-    def test_legacy_issue_no_project_id_not_blocked(self, tmp_path):
-        """Issues without a project_id are not affected by the review gate."""
-        orch = self._make_orchestrator(tmp_path)
-        issue = Issue(
-            id="legacy-1",
-            identifier="legacy-1",
-            title="Legacy issue",
-            description="legacy body",
-            state="open",
-            project_id=None,
-        )
-        orch._reviews_cache = {
-            "proj-1": [_make_review("1", "feat-1", ci_status="passed")]
-        }
-        assert orch._should_dispatch(issue) is True
-
 
 class TestBudgetWindowPersistence:
     """Tests for the rolling budget window: spend persists across restart

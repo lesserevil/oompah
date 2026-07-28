@@ -3782,7 +3782,7 @@ class TestPushEpicBranch:
         assert calls[3][1]["cwd"] == str(wt_path)
         assert calls[-1][1]["cwd"] == str(wt_path)
 
-    def test_shared_mode_skips_fast_forward_for_dirty_worktree(self, tmp_path):
+    def test_shared_mode_skips_fast_forward_for_dirty_src_file(self, tmp_path):
         repo_path = tmp_path / "repo"
         repo_path.mkdir()
         wt_path = tmp_path / "worktree"

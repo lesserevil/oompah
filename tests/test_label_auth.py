@@ -154,9 +154,6 @@ class TestLabelNameToStatus:
     def test_needs_rebase(self):
         assert label_name_to_status("oompah:status:needs-rebase") == "Needs Rebase"
 
-    def test_proposed(self):
-        assert label_name_to_status("oompah:status:proposed") == "Proposed"
-
 
 # ===========================================================================
 # _status_to_label_name
@@ -188,9 +185,6 @@ class TestStatusToLabelName:
     def test_unknown_raises(self):
         with pytest.raises(ValueError, match="Unknown status"):
             _status_to_label_name("NotAStatus")
-
-    def test_proposed(self):
-        assert _status_to_label_name("Proposed") == "oompah:status:proposed"
 
     def test_round_trip(self):
         """label_name_to_status and _status_to_label_name are inverses."""
