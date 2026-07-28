@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T19:06:06.627295Z'
+updated_at: '2026-07-28T19:07:39.996934Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -353,5 +353,10 @@ author: oompah
 created: 2026-07-28 19:06
 ---
 Verification: 66 focused auth/uvicorn-wiring tests pass. Directly affected suites pass: 923 tests matching tests/test_server_*.py plus WebSocket lifecycle, and 176 webhook/WebSocket/favicon tests. The checks include strict malformed Base64, encoded-path bypasses, duplicate headers, downstream Authorization redaction, valid/invalid WebSocket handshakes, exact webhook exemptions, and forge validation preservation.
+---
+author: oompah
+created: 2026-07-28 19:07
+---
+Completion: Hardened and landed OOMPAH-523 on epic-OOMPAH-521. The existing ASGI middleware now enforces strict Basic credentials across HTTP/mounted/WebSocket surfaces, exact literal webhook/health exemptions, encoded-path and duplicate-header fail-closed behavior, downstream Authorization redaction, and uvicorn startup credential wiring. Added regression coverage; focused auth tests (66), server-pattern tests (923), and webhook/WS/favicon tests (176) pass. make check-secrets passes. make test was attempted but cannot start in this environment because the uv launcher fails with a DBus transient-scope error before pytest. Commit e115fed59 is pushed and the branch is clean and tracking origin.
 ---
 <!-- COMMENTS:END -->
