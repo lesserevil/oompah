@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-532
 type: task
-status: Done
+status: Merged
 priority: 2
 title: Apply duplicate-preflight verdicts without implementation transitions
 parent: OOMPAH-528
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:28.624983Z'
-updated_at: '2026-07-28T22:13:45.096785Z'
+updated_at: '2026-07-28T22:14:49.647893Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:09.346734Z'
-updated_at: '2026-07-28T22:14:37.837002Z'
+updated_at: '2026-07-28T22:14:50.347749Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -101,5 +101,10 @@ author: oompah
 created: 2026-07-28 22:14
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 22:14
+---
+Understanding: Implementing the reserved read-only auditor focus and prompt contract. Plan: (1) explore existing focus/agent infrastructure to understand patterns, (2) add the auditor focus definition excluded from normal triage, (3) add its prompt contract with untrusted delimiters, target contract, and tool schema, (4) add capability policy denying mutating Git/task actions, (5) add tests covering exclusion from triage, required prompt sections, prompt-injection resistance, and tool authorization.
 ---
 <!-- COMMENTS:END -->
