@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:34.407060Z'
-updated_at: '2026-07-28T16:39:17.594754Z'
+updated_at: '2026-07-28T16:39:27.515303Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -113,5 +113,10 @@ author: oompah
 created: 2026-07-28 16:39
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-28 16:39
+---
+Understanding: I will identify and remove exact duplicate tests across 8 test files, resolve Python name shadowing, and add an AST-based duplicate-name guard. Approach: (1) inspect each file to find duplicates, (2) preserve distinct cases (especially the .oompah/tasks case in test_epic_strategy.py), (3) remove or merge identical tests, (4) add AST guard check, (5) run collection checks and full test suite.
 ---
 <!-- COMMENTS:END -->
