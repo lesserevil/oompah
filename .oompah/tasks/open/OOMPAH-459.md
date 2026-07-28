@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-28T18:07:28.604322Z'
+updated_at: '2026-07-28T18:10:05.464653Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,3 +56,11 @@ Every known terminal producer is covered by the coordinator, unaudited future te
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 18:10
+---
+Queued for execution. Every child explicitly depends on OOMPAH-458, so no epic-OOMPAH-459 branch/worktree will be created until OOMPAH-458 has landed. Its first dispatch will therefore branch from the then-latest main.
+---
+<!-- COMMENTS:END -->

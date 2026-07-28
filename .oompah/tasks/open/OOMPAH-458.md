@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-28T18:07:27.112912Z'
+updated_at: '2026-07-28T18:10:04.291584Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,3 +55,11 @@ A persisted In Validation request can be recovered after restart, dispatched to 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 18:10
+---
+Queued for execution. Every child explicitly depends on OOMPAH-457, so no epic-OOMPAH-458 branch/worktree will be created until OOMPAH-457 has landed. Its first dispatch will therefore branch from the then-latest main.
+---
+<!-- COMMENTS:END -->

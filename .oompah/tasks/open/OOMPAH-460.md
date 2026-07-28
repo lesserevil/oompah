@@ -18,7 +18,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:47.776498Z'
-updated_at: '2026-07-28T18:07:31.434682Z'
+updated_at: '2026-07-28T18:10:06.553659Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,3 +54,11 @@ Operators can see why a task is waiting, which evidence was audited, what action
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 18:10
+---
+Queued for execution. Every child explicitly depends on OOMPAH-459, so no epic-OOMPAH-460 branch/worktree will be created until OOMPAH-459 has landed. Its first dispatch will therefore branch from the then-latest main.
+---
+<!-- COMMENTS:END -->
