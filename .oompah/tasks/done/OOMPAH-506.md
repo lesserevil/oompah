@@ -10,12 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:06.576042Z'
-updated_at: '2026-07-28T16:18:06.628246Z'
-work_branch: null
+updated_at: '2026-07-28T17:53:10.007073Z'
+work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.work_branch: epic-OOMPAH-502
 ---
 ## Summary
 

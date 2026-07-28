@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-504
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Compact agent prompt history around actionable handoffs
 parent: OOMPAH-502
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:00.486812Z'
-updated_at: '2026-07-28T17:52:35.139501Z'
+updated_at: '2026-07-28T17:53:15.030507Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null

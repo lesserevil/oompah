@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-507
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Drain active agents before deployment restarts
 parent: OOMPAH-502
@@ -10,13 +10,13 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:07.476394Z'
-updated_at: '2026-07-28T17:48:49.349316Z'
+updated_at: '2026-07-28T17:53:10.586323Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 787b84ba-73b5-4af0-8412-82a6f7f35d83
+oompah.agent_run_id: 043c813c-e0d1-459f-af02-6e7a329ab491
 oompah.work_branch: epic-OOMPAH-502
 oompah.task_costs:
   total_input_tokens: 146
@@ -113,5 +113,15 @@ author: oompah
 created: 2026-07-28 17:48
 ---
 Focus handoff required before leaving `duplicate_detector`. Add a comment headed `Focus handoff: duplicate_detector` with outcome, evidence, remaining work, and next focus.
+---
+author: oompah
+created: 2026-07-28 17:53
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 17:53
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
