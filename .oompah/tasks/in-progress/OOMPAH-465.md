@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-465
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Implement idempotent terminal-transition staging and audit chains
 parent: OOMPAH-457
@@ -13,12 +13,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T18:06:18.952856Z'
-work_branch: null
+updated_at: '2026-07-28T19:17:07.220875Z'
+work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: ca99560e-6794-4d78-a222-ff3deec2c557
+oompah.work_branch: epic-OOMPAH-457
 ---
 ## Summary
 
@@ -40,3 +42,16 @@ No terminal status is written by staging, every request has one durable chain, d
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 19:17
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 19:17
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

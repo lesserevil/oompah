@@ -13,22 +13,26 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:16:49.439020Z'
+updated_at: '2026-07-28T19:17:11.898269Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: c83d7663-f84e-4e66-ae35-c881ddd0b8f0
+oompah.agent_run_id: ffc358af-3f6e-4cda-a4cf-deb983c464b5
 oompah.work_branch: epic-OOMPAH-521
 oompah.task_costs:
-  total_input_tokens: 374387
-  total_output_tokens: 9954
+  total_input_tokens: 1335101
+  total_output_tokens: 18739
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 374387
       output_tokens: 9954
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 960714
+      output_tokens: 8785
       cost_usd: 0.0
   runs:
   - profile: default
@@ -43,6 +47,12 @@ oompah.task_costs:
     output_tokens: 2627
     cost_usd: 0.0
     recorded_at: '2026-07-28T19:13:25.968473+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 960714
+    output_tokens: 8785
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T19:16:55.186716+00:00'
 ---
 ## Summary
 
@@ -224,5 +234,35 @@ author: oompah
 created: 2026-07-28 19:16
 ---
 Focus handoff: security\n\nOutcome: The security architecture is defined and the existing auth middleware/exposure policy are sound, but OOMPAH-524 still needs feature implementation.\n\nEvidence: Reviewed oompah/server.py (_BasicAuthMiddleware and mounted gateway), oompah/mcp_gateway.py (credential-free ASGI dispatch), oompah/mcp_exposure_policy.py, and focused gateway/auth tests. Valid authenticated MCP initialize works; an allowed tool returns 401 because the inner ASGI request lacks auth. Focused test command passed: .venv/bin/pytest -q tests/test_mcp_gateway.py tests/test_server_auth.py (69 passed).\n\nRemaining work/risk: Implement effective discovery authentication mode; preserve Basic auth for initialize/list/call/stream/session cleanup; add an unforgeable ASGI-scope sentinel capability to connect a verified MCP request to its private inner dispatch without forwarding Authorization; ensure direct REST and spoofed Host/path/headers stay 401; test enabled network mode, redaction, and denied tool absence. Do not use inbound internal marker headers.\n\nRecommended next focus: feature.
+---
+author: oompah
+created: 2026-07-28 19:16
+---
+Agent completed successfully in 196s (969499 tokens)
+---
+author: oompah
+created: 2026-07-28 19:16
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 33
+- Tokens: 960.7K in / 8.8K out [969.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 16s
+- Log: OOMPAH-524__20260728T191342Z.jsonl
+---
+author: oompah
+created: 2026-07-28 19:16
+---
+Focus handoff from `security` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 19:17
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-28 19:17
+---
+Focus: Refactoring Specialist
 ---
 <!-- COMMENTS:END -->
