@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T19:03:35.405119Z'
+updated_at: '2026-07-28T19:06:06.627295Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -348,5 +348,10 @@ author: oompah
 created: 2026-07-28 19:03
 ---
 Implementation: Tightened _BasicAuthMiddleware parsing with strict Base64 validation and duplicate-header rejection; exemptions now use ASGI raw_path so percent-encoded spellings cannot inherit public-route access. Wired set_http_credentials() into the normal uvicorn startup path in oompah/__main__.py. Added auth regressions for permissive Base64 inputs, encoded health/webhook paths, duplicate headers, and startup credential registration.
+---
+author: oompah
+created: 2026-07-28 19:06
+---
+Verification: 66 focused auth/uvicorn-wiring tests pass. Directly affected suites pass: 923 tests matching tests/test_server_*.py plus WebSocket lifecycle, and 176 webhook/WebSocket/favicon tests. The checks include strict malformed Base64, encoded-path bypasses, duplicate headers, downstream Authorization redaction, valid/invalid WebSocket handshakes, exact webhook exemptions, and forge validation preservation.
 ---
 <!-- COMMENTS:END -->
