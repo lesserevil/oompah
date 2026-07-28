@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T20:05:56.977488Z'
+updated_at: '2026-07-28T20:09:53.729982Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -93,5 +93,46 @@ Will add a new override_transition() method to coordinator that:
 5. Persists override metadata before applying terminal status
 6. Returns typed OverrideResult with success/error codes
 7. Includes comprehensive tests for all scenarios listed in acceptance criteria
+---
+author: oompah
+created: 2026-07-28 20:09
+---
+**Implementation: Terminal Override Authorization**
+
+Delivered complete override_transition() feature with:
+
+1. **Override Record** (terminal_audit.py):
+   - OverrideRecord dataclass with override_id, authorized_by, reason, target_state, fingerprint
+   - Serialization/deserialization support
+   - Validates non-empty reason and ContributorIdentity authorization
+
+2. **Coordinator Method** (terminal_transition_coordinator.py):
+   - async override_transition() with project-owner authorization
+   - Uses existing is_authorized_status_actor() model (respects status_label_authorized_logins, status_actor_login, tracker_owner)
+   - Validates fingerprint against pending audits (rejects stale overrides)
+   - Persists override record in metadata before applying status
+   - Posts explanatory comment with owner identity + reason
+   - Returns typed OverrideResult with success/error tracking
+
+3. **Authorization Model**:
+   - Respects existing project-owner authorization rules
+   - Never treats oompah bot or auditor agent as owner unless explicitly authorized
+   - Enforces non-empty reason (blank reasons rejected)
+   - Requires valid evidence fingerprint (stale overrides rejected)
+
+4. **Comprehensive Tests** (17 passing):
+   - Authorized owner override successful
+   - Additional authorized login support
+   - Unauthorized actor rejected
+   - Bot-only actor cannot override
+   - Blank reason validation
+   - Stale fingerprint detection
+   - Repeated override support
+   - Metadata persistence + retrieval
+   - Terminal target variants (Done, Merged, Archived)
+   - Quarantine handling
+   - Record serialization
+
+Ready for branch testing. All focused tests pass.
 ---
 <!-- COMMENTS:END -->
