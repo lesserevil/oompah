@@ -16,11 +16,12 @@ children:
 - OOMPAH-510
 - OOMPAH-517
 - OOMPAH-518
+- OOMPAH-519
 blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:03:45.331314Z'
-updated_at: '2026-07-28T17:43:20.837427Z'
+updated_at: '2026-07-28T17:46:48.717880Z'
 work_branch: epic-OOMPAH-502
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/564
