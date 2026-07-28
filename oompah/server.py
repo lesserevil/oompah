@@ -609,15 +609,45 @@ def set_orchestrator(orch: Orchestrator) -> None:
 
     _agent_profile_store.set_reload_callback(_on_profiles_changed)
     # Draft-label compatibility migration: strip any 'draft' labels left on
-    # epics from the old automatic lifecycle (OOMPAH-171).  Idempotent.
-    try:
-        _n_migrated = remove_draft_labels_from_epics(orch.tracker)
-        if _n_migrated:
-            logger.info(
-                "draft-label migration: removed 'draft' label from %d epic(s)", _n_migrated
+    # epics from the old automatic lifecycle (OOMPAH-171).  Managed mode must
+    # resolve every tracker by project ID; consulting orch.tracker here can
+    # otherwise write the migration into the server's code checkout.
+    projects = orch.project_store.list_all()
+    draft_migration_scopes = []
+    if projects:
+        for project in projects:
+            try:
+                draft_migration_scopes.append(
+                    (
+                        str(project.id),
+                        orch._tracker_for_project(str(project.id)),
+                    )
+                )
+            except Exception:
+                logger.warning(
+                    "draft-label migration: project=%s tracker resolution "
+                    "failed (non-fatal)",
+                    project.id,
+                    exc_info=True,
+                )
+    else:
+        draft_migration_scopes.append((None, orch.tracker))
+    for project_id, tracker in draft_migration_scopes:
+        try:
+            _n_migrated = remove_draft_labels_from_epics(tracker)
+            if _n_migrated:
+                logger.info(
+                    "draft-label migration: project=%s removed 'draft' label "
+                    "from %d epic(s)",
+                    project_id or "legacy",
+                    _n_migrated,
+                )
+        except Exception:
+            logger.warning(
+                "draft-label migration: project=%s failed (non-fatal)",
+                project_id or "legacy",
+                exc_info=True,
             )
-    except Exception:
-        logger.warning("draft-label migration: failed (non-fatal)", exc_info=True)
     # Release-pick to release-addendum migration (OOMPAH-183).  Idempotent.
     # Converts oompah.backports entries to oompah.release_addendums and
     # archives child backport tasks with redirect comments.
@@ -625,12 +655,31 @@ def set_orchestrator(orch: Orchestrator) -> None:
         _migrate_release_picks_on_startup(orch)
     except Exception:
         logger.warning("release-pick migration: failed (non-fatal)", exc_info=True)
-    # Error watcher: creates tasks for backend/frontend errors
-    _error_watcher = ErrorWatcher(orch.tracker)
-    _error_watcher.install_log_handler("oompah")
-    # Register so the orchestrator can ask it to auto-close transient
-    # error tasks when an issue's retry path succeeds (oompah-zlz_2-0nc).
-    orch.register_error_watcher(_error_watcher, project_id=None)
+    # Error watcher: creates tasks for backend/frontend errors.  Its logical
+    # scope remains global, but in managed mode its destination must be the
+    # explicitly resolved Oompah management project rather than orch.tracker.
+    try:
+        if projects:
+            management_tracker, management_project_id = (
+                orch._management_tracker_scope()
+            )
+        else:
+            management_tracker, management_project_id = orch.tracker, None
+        _error_watcher = ErrorWatcher(
+            management_tracker,
+            project_id=management_project_id,
+        )
+        _error_watcher.install_log_handler("oompah")
+        # Register globally so retry recovery for any source project can close
+        # its corresponding operational error task.
+        orch.register_error_watcher(_error_watcher, project_id=None)
+    except Exception:
+        _error_watcher = None
+        logger.warning(
+            "error watcher: no safe management tracker; backend/frontend "
+            "error task creation is disabled",
+            exc_info=True,
+        )
 
     # Project log watcher manager: watches log files for projects that set log_path.
     # Each project gets its own ErrorWatcher backed by the project's tracker so

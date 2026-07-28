@@ -274,6 +274,7 @@ class OompahMarkdownTracker:
         state_branch_push_retry_count: int = 3,
         state_branch_push_retry_backoff_ms: int = 1000,
         state_branch_shadow_write: bool = False,
+        allow_default_branch_task_writes: bool = True,
         _checkpoint_timer_factory: Any = None,
         _on_checkpoint_flushed: Any = None,
     ) -> None:
@@ -286,6 +287,9 @@ class OompahMarkdownTracker:
         self.state_branch_enabled = bool(state_branch_enabled)
         self.state_branch_name = (state_branch_name or "").strip() or None
         self.state_branch_shadow_write = bool(state_branch_shadow_write)
+        self.allow_default_branch_task_writes = bool(
+            allow_default_branch_task_writes
+        )
         # Optional callback invoked after each successful state-branch checkpoint
         # flush. Used by server.py to invalidate the issues snapshot cache so
         # clients receive fresh data without waiting for the 60-second TTL.
@@ -904,7 +908,7 @@ class OompahMarkdownTracker:
         """
         full_path = self._root / relative_path
         with self._write_lock:
-            self._prepare_default_branch_for_write()
+            self._prepare_default_branch_for_write(task_state=False)
             full_path.parent.mkdir(parents=True, exist_ok=True)
             _atomic_write(full_path, content)
             if not self._git_sync_requested() or not self._is_git_repo():
@@ -1003,6 +1007,7 @@ class OompahMarkdownTracker:
             index = self._read_import_index()
             if index.get(eid) == tid:
                 return  # Already recorded — nothing to do.
+            self._assert_task_writes_allowed()
             index[eid] = tid
             payload = yaml.safe_dump(dict(sorted(index.items())), allow_unicode=False)
             try:
@@ -1643,7 +1648,34 @@ class OompahMarkdownTracker:
             # Non-fatal: the primary state-branch write succeeded; the shadow
             # write failure means rollback would need to pull from state branch.
 
-    def _prepare_default_branch_for_write(self) -> None:
+    def _assert_task_writes_allowed(self) -> None:
+        """Reject task mutations through an unscoped managed-mode tracker.
+
+        A project with a dedicated state branch must be reached through the
+        project-aware tracker factory.  The legacy/global tracker deliberately
+        has no state-branch identity, so allowing it to write would put native
+        task commits on whichever code checkout happens to be the service
+        process working directory.
+
+        Run this check before any task path is resolved or file is changed.
+        State-branch trackers are always allowed because their task root is the
+        dedicated state worktree.  Explicit legacy/standalone trackers retain
+        their historical default-branch behavior.
+        """
+        if (
+            not self.state_branch_enabled
+            and not self.allow_default_branch_task_writes
+        ):
+            raise TrackerError(
+                "Refusing an unscoped native task write on the code/default "
+                "branch. Managed projects must resolve task mutations through "
+                "Orchestrator._tracker_for_project(project_id) so the "
+                "project's configured state branch is used."
+            )
+
+    def _prepare_default_branch_for_write(self, *, task_state: bool = True) -> None:
+        if task_state:
+            self._assert_task_writes_allowed()
         if not self._git_sync_requested() or not self._is_git_repo():
             return
         if self.state_branch_enabled:
@@ -1857,6 +1889,7 @@ def _oompah_md_factory(
     state_branch_push_retry_count: int = 3,
     state_branch_push_retry_backoff_ms: int = 1000,
     state_branch_shadow_write: bool = False,
+    allow_default_branch_task_writes: bool = True,
     **kwargs: Any,
 ) -> OompahMarkdownTracker:
     return OompahMarkdownTracker(
@@ -1871,4 +1904,5 @@ def _oompah_md_factory(
         state_branch_push_retry_count=state_branch_push_retry_count,
         state_branch_push_retry_backoff_ms=state_branch_push_retry_backoff_ms,
         state_branch_shadow_write=state_branch_shadow_write,
+        allow_default_branch_task_writes=allow_default_branch_task_writes,
     )
