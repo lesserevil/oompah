@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-495
 type: chore
-status: Open
+status: In Progress
 priority: 2
 title: Retire pre-implementation state-branch design tests
 parent: OOMPAH-490
@@ -10,16 +10,15 @@ blocked_by:
 - OOMPAH-491
 labels:
 - focus-complete:duplicate_detector
-- needs:chore
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T15:44:38.774698Z'
+updated_at: '2026-07-28T15:44:50.468552Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 6a57a446-e7d4-481a-b0e3-574f474d8ca1
+oompah.agent_run_id: e4daa2ff-9c64-47a2-807e-c3eb76814086
 oompah.work_branch: epic-OOMPAH-490
 oompah.task_costs:
   total_input_tokens: 17
@@ -118,5 +117,15 @@ author: oompah
 created: 2026-07-28 15:44
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 15:44
+---
+Agent dispatched (profile: quick)
+---
+author: oompah
+created: 2026-07-28 15:44
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
