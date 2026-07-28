@@ -13,7 +13,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-28T21:18:51.634942Z'
-updated_at: '2026-07-28T21:43:04.444939Z'
+updated_at: '2026-07-28T21:45:14.257666Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -251,5 +251,10 @@ author: oompah
 created: 2026-07-28 21:43
 ---
 Atomic preflight claim lifecycle implemented and pushed in 7a2e467fb.
+---
+author: oompah
+created: 2026-07-28 21:45
+---
+Verification update: 113 focused tests pass across claims, revision metadata, duplicate detection, dispatch-close races, scheduler lane serialization, and project locks. The new concurrency test uses two stores sharing one tracker lock and confirms exactly one winner; revision edits reject completion and leave stale evidence while preserving Open status.
 ---
 <!-- COMMENTS:END -->
