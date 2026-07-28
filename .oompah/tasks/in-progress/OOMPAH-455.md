@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:52:17.900906Z'
+updated_at: '2026-07-28T13:52:35.134576Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -260,5 +260,10 @@ author: oompah
 created: 2026-07-28 13:52
 ---
 Implementation: Updated ProjectStore intake-alias normalization to keep the legacy persisted field while accepting neutral-only, legacy-only, or matching dual-alias PATCHes and returning an explicit conflict error for differing values. Updated project create/PATCH identity fallback so _resolve_github_token_owner runs only for the effective github forge; GitLab blank actors remain unset and GitLab token changes never invoke GitHub. Added CRUD regressions for the GitLab UI state-branch edit, GitLab create/token update, both client aliases, matching values, conflicts, and invalid neutral values; refreshed the frontend comment to describe the canonical single-field payload.
+---
+author: oompah
+created: 2026-07-28 13:52
+---
+Verification: The Makefile test target could not start because the installed snap-backed uv failed to create a transient DBus scope (exit 46), so I ran the target's equivalent command with the repository virtualenv. Full suite passed: 12,342 passed, 39 skipped, 12 warnings in 239.14s. Focused project CRUD/GitLab UI suite then passed: 233 passed, 1 warning in 2.07s. No test failures.
 ---
 <!-- COMMENTS:END -->
