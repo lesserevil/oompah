@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:34.407060Z'
-updated_at: '2026-07-28T16:49:02.473383Z'
+updated_at: '2026-07-28T16:49:08.072552Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -151,5 +151,10 @@ Verification: All tests pass
 - Unique test cases preserved: .oompah/tasks dirty-worktree case in test_epic_strategy.py preserved with new name
 - No test module contains shadowed test definitions
 - Changes committed and pushed to epic-OOMPAH-490
+---
+author: oompah
+created: 2026-07-28 16:49
+---
+Removed exact duplicate tests and resolved shadowed definitions in 4 test files (test_epic_strategy.py, test_label_auth.py, test_orchestrator_merged.py, test_webhooks.py). Added AST-based duplicate-name guard (test_duplicate_names.py). All 12,239 tests pass. Unique test cases preserved. No shadowing remains.
 ---
 <!-- COMMENTS:END -->
