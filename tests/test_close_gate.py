@@ -46,6 +46,7 @@ def _make_issue(
     identifier: str = "test-001",
     issue_id: str = "iss-1",
     issue_type: str = "feature",
+    parent_id: str | None = None,
     labels: list[str] | None = None,
     branch_name: str | None = None,
     work_branch: str | None = None,
@@ -61,6 +62,7 @@ def _make_issue(
         priority=2,
         issue_type=issue_type,
         project_id=project_id,
+        parent_id=parent_id,
         branch_name=branch_name,
         work_branch=work_branch,
     )
@@ -132,6 +134,29 @@ class TestCheckCloseGate:
         )
         assert result.allowed is True
         assert result.skip_reason == "epic"
+
+    def test_parent_owned_branch_skips_review_requirement(self):
+        """A child never opens the parent epic's rollup review."""
+        issue = _make_issue(
+            identifier="OOMPAH-452",
+            parent_id="OOMPAH-451",
+            work_branch="epic-OOMPAH-451",
+        )
+        with (
+            patch("oompah.close_gate._count_commits_ahead") as mock_git,
+            patch("oompah.close_gate._query_prs_for_branch") as mock_reviews,
+        ):
+            result = check_close_gate(
+                issue,
+                repo_path="/tmp/repo",
+                slug="owner/repo",
+                base_branch="main",
+            )
+
+        assert result.allowed is True
+        assert result.skip_reason == "parent_owned_branch"
+        mock_git.assert_not_called()
+        mock_reviews.assert_not_called()
 
     def test_decomposed_label_skipped(self):
         """Issues with 'decomposed' label are always allowed."""
@@ -759,6 +784,46 @@ class TestOrchestratorCloseGateWiring:
         assert call_kwargs[1]["entry_focus"] == "feature"
         assert call_kwargs[1]["entry_attempt"] == 2
         assert mock_check.call_args.args[0].work_branch == "oompah/repo/gh-42"
+
+    def test_child_close_uses_entry_parent_and_emits_no_review_instruction(
+        self, tmp_path
+    ):
+        """OOMPAH-452 regression: shared child completion needs no rollup PR."""
+        orch = _make_orch(tmp_path, close_gate_enabled=True)
+        issue = _make_issue(
+            identifier="OOMPAH-452",
+            parent_id="OOMPAH-451",
+            project_id="proj-1",
+            work_branch="epic-OOMPAH-451",
+        )
+        entry = _make_entry(issue)
+        # Reproduce a tracker close response that omits dispatch-only branch
+        # and parent context. _run_close_gate must restore both from the entry.
+        current = _closed_issue(issue.identifier)
+
+        project = MagicMock()
+        project.repo_path = "/tmp/repo"
+        project.default_branch = "main"
+        project.repo_url = "https://github.com/owner/repo.git"
+        project.access_token = None
+        orch.project_store.get = MagicMock(return_value=project)
+        orch._post_comment = MagicMock()
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        with (
+            patch("oompah.close_gate._count_commits_ahead") as mock_git,
+            patch("oompah.close_gate._query_prs_for_branch") as mock_reviews,
+        ):
+            result = orch._run_close_gate(entry, current, "proj-1")
+
+        assert result is True
+        assert current.parent_id == "OOMPAH-451"
+        assert current.work_branch == "epic-OOMPAH-451"
+        mock_git.assert_not_called()
+        mock_reviews.assert_not_called()
+        orch._post_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
 
     def test_gate_refused_posts_comment_and_reopens(self, tmp_path):
         """When gate refuses, a comment is posted and the task is reopened."""

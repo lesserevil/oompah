@@ -39,7 +39,7 @@ from oompah.project_bootstrap.gitlab_readiness import (
 # ---------------------------------------------------------------------------
 
 _BASE_URL = "https://gitlab.example.com"
-_TOKEN = "glpat-REDACTED-for-testing"
+_TOKEN = "glpat-REDACTED-for-testing"  # pragma: allowlist secret
 _NS = "my-group"
 _PROJ = "my-repo"
 _ENCODED = "my-group%2Fmy-repo"
@@ -648,7 +648,7 @@ class TestTokenSecurityNeverLeaked:
     """Token values must never appear in error messages or remediation strings."""
 
     def test_token_not_in_api_access_failure(self):
-        secret_token = "glpat-SUPER-SECRET-DO-NOT-LOG"
+        secret_token = "glpat-SUPER-SECRET-DO-NOT-LOG"  # pragma: allowlist secret
         with patch(
             "oompah.project_bootstrap.gitlab_readiness._gitlab_get",
             return_value=(401, {}),
@@ -658,7 +658,7 @@ class TestTokenSecurityNeverLeaked:
         assert secret_token not in result.remediation
 
     def test_token_not_in_any_result_on_full_failure(self):
-        secret_token = "glpat-SUPER-SECRET-DO-NOT-LOG"
+        secret_token = "glpat-SUPER-SECRET-DO-NOT-LOG"  # pragma: allowlist secret
         with patch(
             "oompah.project_bootstrap.gitlab_readiness._gitlab_get",
             return_value=(401, {}),
