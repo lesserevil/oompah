@@ -9,12 +9,13 @@ children:
 - OOMPAH-529
 - OOMPAH-530
 - OOMPAH-531
+- OOMPAH-532
 blocked_by: []
 labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-28T21:18:12.111324Z'
-updated_at: '2026-07-28T21:19:12.290998Z'
+updated_at: '2026-07-28T21:19:28.757877Z'
 work_branch: null
 target_branch: null
 review_url: null
