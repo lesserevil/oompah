@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:46:48.581634Z'
-updated_at: '2026-07-28T17:54:08.702878Z'
+updated_at: '2026-07-28T17:54:12.534742Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-28 17:53
 ---
 Implemented and pushed in commit e654aad1b. Review coverage now reads only Oompah-authored completion commit evidence, proves exact ancestry or git-cherry patch equivalence against the current epic ref, rejects human/unverifiable SHAs, and persists the canonical epic work branch after proof. Live reproducer SHAs 91d6c4344, 85be456eb, and 8e9455a92 each resolve as patch-equivalent to the rebased PR branch. Focused epic suite passed 202 tests; exact-head full suite later passed 12,618 with 7 skipped.
+---
+author: oompah
+created: 2026-07-28 17:54
+---
+Made epic review coverage rebase-stable with trusted patch-equivalence evidence and durable canonical branch metadata.
 ---
 <!-- COMMENTS:END -->
