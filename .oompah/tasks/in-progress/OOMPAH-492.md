@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:27.511520Z'
-updated_at: '2026-07-28T14:57:08.191296Z'
+updated_at: '2026-07-28T14:58:00.100637Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -56,5 +56,10 @@ author: oompah
 created: 2026-07-28 14:57
 ---
 Understanding: Screening OOMPAH-492 for an existing task covering the same live-tracker/origin leakage in worker-exit, ACP billing, and epic-rebase tests. I will search task history and project decisions, inspect plausible candidates in full, and either archive as a confirmed duplicate or hand off for implementation without changing code.
+---
+author: oompah
+created: 2026-07-28 14:58
+---
+Discovery: Duplicate screening found no confirmed duplicate. Exact searches across .oompah/tasks, docs, plans, README.md, and WORKFLOW.md found no prior task covering TestWorkerExitPostsEvent/test_acp_billing/test_persists_on_clear live-tracker leakage or the missing project_id pattern. Closest tasks reviewed in full: OOMPAH-491 adds the suite-wide Git transport barrier but explicitly identifies OOMPAH-492 as distinct targeted leak-site isolation; OOMPAH-500 is the downstream clean-checkout/no-network audit; parent OOMPAH-490 assigns this fixture-isolation scope uniquely to OOMPAH-492.
 ---
 <!-- COMMENTS:END -->
