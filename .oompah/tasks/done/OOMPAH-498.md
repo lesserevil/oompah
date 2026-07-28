@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-498
 type: chore
-status: In Progress
+status: Done
 priority: 2
 title: Group granular Release Delivery template assertions by behavior
 parent: OOMPAH-490
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:33.437818Z'
-updated_at: '2026-07-28T16:32:15.945164Z'
+updated_at: '2026-07-28T16:37:05.732327Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -187,5 +187,45 @@ created: 2026-07-28 16:32
 ✓ XSS, security, accessibility contracts preserved
 
 Next: consolidate test_release_delivery_page.py patterns, verify full suite, commit and close.
+---
+author: oompah
+created: 2026-07-28 16:37
+---
+## Verification
+
+**Test Results:**
+✓ 442 Release Delivery tests pass in 1.24s
+✓ All 12237 project tests pass in 235s
+✓ No regressions in any test suites
+
+**Consolidation Summary:**
+
+test_dashboard_release_delivery_ui.py:
+- Legacy CSS tests (8 methods) → parametrized group
+- New RDI CSS tests (12 methods) → parametrized group  
+- Status cell CSS tests (10 methods) → parametrized group
+- Outcome banner CSS tests (3 methods) → parametrized group
+- State variable tests (18 methods) → 2 parametrized groups
+- Function definition tests (36 methods) → 2 parametrized groups
+- Async refresh tests (27 methods) → 4 parametrized groups
+
+test_release_delivery_page.py: Retained as-is (behavioral/functional focus)
+
+**Metrics:**
+- Source code reduction: 313 → 216 test methods (31% fewer definitions)
+- File size: 2429 → 2192 lines (-8%)
+- Test coverage: maintained all 442 test cases via parametrize
+- Execution time: 1.24s (unchanged)
+
+**Contracts Preserved:**
+✓ Controls/structure (CSS classes, HTML elements)
+✓ URL-refresh lifecycle (URL persistence, data loading)
+✓ Status rendering (all state variants, ancestry/delivery distinction)
+✓ Selection/queue payload (identifier tracking, payload shape)
+✓ Drawer/evidence (rendering, accessibility, data display)
+✓ Accessibility (roles, labels, keyboard navigation)
+✓ XSS boundaries (no text interpolation in event handlers)
+
+Ready for merge.
 ---
 <!-- COMMENTS:END -->
