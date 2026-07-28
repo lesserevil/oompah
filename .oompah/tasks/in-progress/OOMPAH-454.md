@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:52.642232Z'
-updated_at: '2026-07-28T13:25:34.163007Z'
+updated_at: '2026-07-28T13:25:38.895102Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-07-28 13:25
 ---
 Verification: read-only duplicate verification passed. Stable patch IDs for stranded 2b3312672 and recovered 4c215500f are identical; git log main..HEAD includes recovered OOMPAH-340/341/342 commits; source and tests enumerate all required GitLab hook types, deduplication, and tracked-branch refresh behavior. No new tests were run because this focus made no code changes; OOMPAH-452 recorded 12,324 passed, 39 skipped after recovery.
+---
+author: oompah
+created: 2026-07-28 13:25
+---
+Completion: OOMPAH-454 is a duplicate of OOMPAH-452, which already recovered the exact GitLab webhook parity patch and dependencies onto epic-OOMPAH-451 and included them in PR #558. Archiving as duplicate-of:OOMPAH-452; no code, commit, or push is needed from this duplicate-detector run.
 ---
 <!-- COMMENTS:END -->
