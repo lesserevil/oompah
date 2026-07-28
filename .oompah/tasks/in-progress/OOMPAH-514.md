@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-514
 type: chore
-status: Open
+status: In Progress
 priority: 1
 title: Prove maintenance cannot dirty or push the server code checkout
 parent: OOMPAH-511
@@ -12,13 +12,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:44.915690Z'
-updated_at: '2026-07-28T16:07:29.613169Z'
+updated_at: '2026-07-28T16:07:53.443162Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 4be0098b-01c3-44d1-bab0-13cf862fbea5
+oompah.agent_run_id: 695b9b0e-146c-419d-a026-9b0adefe1d92
 oompah.work_branch: epic-OOMPAH-511
 ---
 ## Summary
@@ -111,5 +111,20 @@ Run #2 [attempt=2, profile=quick, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 40s
 - Log: OOMPAH-514__20260728T160250Z.jsonl
+---
+author: oompah
+created: 2026-07-28 16:07
+---
+Implementation: expanded tests/test_managed_tracker_state_branch_guard.py with full code HEAD/worktree/index/local-origin/remote-main snapshots, explicit ambiguous unscoped-issue fail-closed coverage, actual server.set_orchestrator ErrorWatcher routing plus scheduler archive mutation, state-branch diff assertions, and a blocked _tick() maintenance future that stop() must drain before owned executor threads disappear.
+---
+author: oompah
+created: 2026-07-28 16:07
+---
+Agent dispatched (profile: quick)
+---
+author: oompah
+created: 2026-07-28 16:07
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
