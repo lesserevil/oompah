@@ -14,7 +14,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:21:41.893497Z'
+updated_at: '2026-07-28T19:25:44.237242Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -352,5 +352,10 @@ author: oompah
 created: 2026-07-28 19:21
 ---
 Understanding: I will complete the htpasswd-aware MCP gateway flow by inspecting the current refactor, adding only request-scoped server-private authentication propagation, updating discovery metadata, and covering the authenticated transport and spoofing cases with focused tests before committing and pushing.
+---
+author: oompah
+created: 2026-07-28 19:25
+---
+Discovery: FastMCP preserves the source HTTP ASGI request in its injected tool Context. I used that scope to gate dispatch with private object-identity capabilities; neither client headers, Host values, paths, tool arguments, nor Authorization values participate in the bypass.
 ---
 <!-- COMMENTS:END -->
