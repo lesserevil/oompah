@@ -1,7 +1,7 @@
-"""Tests for the Release delivery overlay (OOMPAH-236).
+"""Tests for the Release delivery page (OOMPAH-236) (OOMPAH-236).
 
 This module covers the item-centric release delivery backlog introduced in
-OOMPAH-236. The overlay was previously commit-centric (OOMPAH-200); these
+OOMPAH-236. The page was previously commit-centric (OOMPAH-200); these
 tests verify the new item-centric design requirements.
 
 Covers:
@@ -18,8 +18,8 @@ Covers:
   - Button has id="btn-release-delivery"
   - Button label is "Release delivery"
 
-  HTML overlay:
-  - .rdi-overlay with correct id, role, aria attributes
+  HTML page structure:
+  - .rdi-page with correct id, role, aria attributes
   - Project selector AND branch selector (branch-first selection model)
   - Filter controls (radio group) and search input
   - No "rdi-branch-filters" checkbox group (replaced by rdi-branch-select dropdown)
@@ -28,7 +28,7 @@ Covers:
   - Outcome banner element (hidden by default)
   - Table body wrapper with aria-live
   - Bulk action bar with queue button and item count
-  - Evidence drawer overlay titled "Item details"
+  - Evidence drawer page titled "Item details"
 
   State variables:
   - _rdiProjectId, _rdiSelectedBranch, _rdiFilter, _rdiQuery
@@ -42,7 +42,7 @@ Covers:
 
   openReleaseDelivery():
   - Defined and stores opener element for focus restoration
-  - Adds 'open' class to overlay
+  - Adds 'open' class to page
   - Calls _rdiPopulateProject
   - Registers keydown listener
 
@@ -53,8 +53,8 @@ Covers:
   - Restores focus to _rdiOpener
 
   Escape key handler:
-  - _rdiKeyHandler closes overlay on Escape
-  - If drawer is open, closes drawer first before closing overlay
+  - _rdiKeyHandler closes page on Escape
+  - If drawer is open, closes drawer first before closing page
 
   Branch-first selection:
   - _rdiPopulateBranchSelector populates branch <select> from project config
@@ -218,6 +218,37 @@ def _function_body(script: str, name: str, is_async: bool = False) -> str:
             if depth == 0:
                 return script[brace : pos + 1]
     raise ValueError(f"Could not find end of function {name!r}")
+
+
+# ===========================================================================
+# Test Contract Ownership (OOMPAH-497)
+# ===========================================================================
+#
+# This module tests the Release Delivery page and related dashboard integration.
+# The following contracts are assigned to canonical test modules:
+#
+# Contract Category                          | Canonical Test Module
+# -------------------------------------------|------------------------------------------
+# Page route, navigation, structure          | test_release_delivery_page.py
+# URL persistence (_rdiReadUrl, etc)         | test_release_delivery_page.py
+# Page bootstrap (_rdiInit on page load)     | test_release_delivery_page.py
+# Page accessibility (ARIA, roles, labels)   | test_release_delivery_page.py
+# Live delivery status polling               | test_release_delivery_page.py
+# Add-release-branches dialog controls       | test_dashboard_release_addendums_ui.py
+# Release addendums section rendering        | test_dashboard_release_addendums_ui.py
+# Backlog rendering and UI updates           | test_dashboard_release_delivery_ui.py
+# Item selection and queuing behavior        | test_dashboard_release_delivery_ui.py
+# Status cell CSS and rendering variants     | test_dashboard_release_delivery_ui.py
+# Evidence drawer (item details panel)       | test_dashboard_release_delivery_ui.py
+# XSS prevention (onclick, innerHTML safety) | test_dashboard_release_delivery_ui.py
+# Async refresh progress and polling         | test_dashboard_release_delivery_ui.py
+#
+# Duplicates removed by OOMPAH-497:
+# - 25 tests from TestRDIOverlayHTML (page structure tests duplicated in test_release_delivery_page.py)
+# - 2 drawer role/aria tests from TestRDIDrawerHTML (accessibility duplicated in test_release_delivery_page.py)
+# - 5 retained-control tests for add-release-branches dialog (logic tests duplicated in test_dashboard_release_addendums_ui.py)
+#
+# ===========================================================================
 
 
 # ===========================================================================
@@ -427,125 +458,6 @@ class TestToolbarButton:
 # ===========================================================================
 
 
-class TestRDIOverlayHTML:
-    """Verify the Release delivery page HTML structure (OOMPAH-252: page, not overlay)."""
-
-    def test_page_controls_present(self):
-        """OOMPAH-252: dedicated page has controls section, not an rdi-overlay div."""
-        html = _load_release_delivery_html()
-        assert 'id="rdi-controls"' in html or 'class="rdi-controls"' in html
-
-    def test_drawer_has_role_dialog(self):
-        """The evidence drawer is the accessible dialog on the page."""
-        html = _load_release_delivery_html()
-        assert 'role="dialog"' in html
-
-    def test_drawer_aria_modal(self):
-        """Drawer has aria-modal=true."""
-        html = _load_release_delivery_html()
-        assert 'aria-modal="true"' in html
-
-    def test_page_has_accessible_heading(self):
-        """Page-level heading is in the toolbar (not aria-labelledby on rdi-overlay)."""
-        html = _load_release_delivery_html()
-        assert 'Release Delivery' in html
-
-    def test_no_overlay_backdrop_click_handler(self):
-        """OOMPAH-252: dedicated page has no backdrop click-to-close handler."""
-        html = _load_release_delivery_html()
-        assert "closeReleaseDelivery()" not in html
-
-    def test_project_selector_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-project-select"' in html
-
-    def test_project_selector_has_onchange(self):
-        html = _load_release_delivery_html()
-        assert '_rdiOnProjectChange()' in html
-
-    def test_branch_selector_present(self):
-        """Branch is now selected via a <select> dropdown, not checkbox filters."""
-        html = _load_release_delivery_html()
-        assert 'id="rdi-branch-select"' in html
-
-    def test_branch_selector_has_onchange(self):
-        html = _load_release_delivery_html()
-        assert '_rdiOnBranchChange()' in html
-
-    def test_no_branch_filters_checkbox_group(self):
-        """Old commit-centric branch filter checkboxes must be removed."""
-        html = _load_release_delivery_html()
-        assert 'id="rdi-branch-filters"' not in html
-
-    def test_no_target_list_element(self):
-        """Old target-branch list for multi-selection must be removed."""
-        html = _load_release_delivery_html()
-        assert 'id="rdi-target-list"' not in html
-
-    def test_no_pagination_element(self):
-        """No 'Load next page' pagination control exists in the item-centric view."""
-        html = _load_release_delivery_html()
-        assert 'id="rdi-pagination"' not in html
-
-    def test_filter_radio_needs_delivery(self):
-        html = _load_release_delivery_html()
-        assert 'value="needs_delivery"' in html
-        assert 'name="rdi-filter"' in html
-
-    def test_filter_radio_all(self):
-        html = _load_release_delivery_html()
-        assert "value=\"all\"" in html or "'all'" in html
-
-    def test_search_input_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-search"' in html
-
-    def test_search_input_has_oninput(self):
-        html = _load_release_delivery_html()
-        assert '_rdiOnSearchInput()' in html
-
-    def test_outcome_banner_present_and_hidden(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-outcome"' in html
-        assert 'hidden' in html
-
-    def test_body_wrapper_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-body"' in html
-
-    def test_body_wrapper_aria_live(self):
-        html = _load_release_delivery_html()
-        assert 'aria-live="polite"' in html
-
-    def test_action_bar_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-action-bar"' in html
-
-    def test_action_bar_initially_hidden(self):
-        html = _load_release_delivery_html()
-        idx = html.index('id="rdi-action-bar"')
-        context = html[max(0, idx - 50) : idx + 150]
-        assert "hidden" in context
-
-    def test_selected_count_element(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-action-count"' in html
-
-    def test_queue_button_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-queue-btn"' in html
-        assert '_rdiQueueSelected()' in html
-
-    def test_clear_selection_button(self):
-        html = _load_release_delivery_html()
-        assert '_rdiClearSelection()' in html
-
-    def test_drawer_title_is_item_details(self):
-        """Drawer title should say 'Item details', not 'Commit details'."""
-        html = _load_release_delivery_html()
-        assert "Item details" in html
-
-
 class TestRDIDrawerHTML:
     """Verify the evidence drawer HTML structure."""
 
@@ -553,20 +465,6 @@ class TestRDIDrawerHTML:
         html = _load_release_delivery_html()
         assert 'id="rdi-drawer"' in html
 
-    def test_drawer_role_dialog(self):
-        html = _load_release_delivery_html()
-        drawer_idx = html.index('id="rdi-drawer"')
-        context = html[max(0, drawer_idx - 100) : drawer_idx + 200]
-        assert 'role="dialog"' in context
-
-    def test_drawer_aria_modal(self):
-        html = _load_release_delivery_html()
-        drawer_idx = html.index('id="rdi-drawer"')
-        context = html[max(0, drawer_idx - 100) : drawer_idx + 200]
-        assert 'aria-modal="true"' in context
-
-    def test_drawer_body_element(self):
-        html = _load_release_delivery_html()
         assert 'id="rdi-drawer-body"' in html
 
     def test_drawer_close_button(self):
@@ -1943,28 +1841,6 @@ class TestEmptyErrorStates:
 class TestRetainedControls:
     """Verify that task/epic release controls are retained (not removed)."""
 
-    def test_open_add_release_branches_dialog_retained(self):
-        script = _load_dashboard_script()
-        assert "function openAddReleaseBranchesDialog(" in script or \
-               "async function openAddReleaseBranchesDialog(" in script
-
-    def test_close_add_release_branches_dialog_retained(self):
-        script = _load_dashboard_script()
-        assert "function closeAddReleaseBranchesDialog(" in script
-
-    def test_submit_add_release_branches_dialog_retained(self):
-        script = _load_dashboard_script()
-        assert "function submitAddReleaseBranchesDialog(" in script or \
-               "async function submitAddReleaseBranchesDialog(" in script
-
-    def test_add_release_branches_dialog_html_retained(self):
-        html = _load_dashboard_html()
-        assert 'id="add-release-branches-dialog"' in html
-
-    def test_render_release_addendums_section_retained(self):
-        script = _load_dashboard_script()
-        assert "function renderReleaseAddendumsSection(" in script or \
-               "renderReleaseAddendumsSection" in script
 
     def test_render_epic_release_addendums_section_retained(self):
         script = _load_dashboard_script()
