@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:58:38.309455Z'
+updated_at: '2026-07-28T18:58:40.544439Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -268,5 +268,21 @@ author: oompah
 created: 2026-07-28 18:58
 ---
 Completion verified: All 57 auth integration tests pass, all 171 WebSocket and webhook tests pass. Implementation is complete and fully tested. Closing task.
+---
+author: oompah
+created: 2026-07-28 18:58
+---
+OOMPAH-523: Enforce Basic authentication across HTTP and WebSocket surfaces
+
+Completed implementation:
+- _BasicAuthMiddleware ASGI class enforces HTTP Basic auth at the ASGI boundary
+- Covers all HTTP routes, static assets, mounted apps, and WebSocket /ws
+- Exact exemptions for GET /healthz, POST /api/v1/webhooks/github, POST /api/v1/webhooks/gitlab
+- GET /healthz endpoint returns only {status, instance_id} with no operational data
+- 57 comprehensive integration tests covering all acceptance criteria
+- All existing tests pass (171 WebSocket/webhook tests)
+- WebSocket auth checked before accept() - rejected connections never enter _ws_clients
+- Forge signature/token validation preserved on exempt webhook POST routes
+- Auth transparent when disabled; credential disclosure impossible
 ---
 <!-- COMMENTS:END -->
