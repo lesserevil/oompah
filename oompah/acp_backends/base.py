@@ -208,6 +208,16 @@ class AcpBackend(abc.ABC):
         persisted in ModelProvider.backend on disk."""
         raise NotImplementedError
 
+    @classmethod
+    def supports_manual_model_selection(cls) -> bool:
+        """Whether sessions accept an operator-supplied model identifier.
+
+        This is deliberately independent of an optional ``fetch_models``
+        catalog hook. Subscription-backed CLIs commonly accept a model flag
+        without exposing a discoverable catalog.
+        """
+        return False
+
     @abc.abstractmethod
     def start_session(self, options: AcpBackendOptions) -> AcpBackendSession:
         """Construct a backend-specific session handle.

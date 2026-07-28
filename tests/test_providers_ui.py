@@ -224,9 +224,13 @@ class TestFetchModelsAcpAware:
         assert re.search(r"data\.note", script)
 
     def test_claude_descriptor_has_subscription_note(self, script):
-        # The hardcoded fallback descriptor for "claude" carries the
-        # subscription-managed note required by issue §3.
-        assert "Claude SDK manages model selection via subscription." in script
+        assert "Claude has no discoverable catalog here." in script
+
+    def test_manual_selection_is_separate_from_catalog_discovery(self, script):
+        assert "supports_manual_model_selection" in script
+        assert "function providerSupportsManualModels" in script
+        assert 'placeholder="backend default or model ID"' in script
+        assert "manual model" in script
 
 
 class TestSubmitProvider:

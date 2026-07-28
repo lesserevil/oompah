@@ -16945,9 +16945,9 @@ class Orchestrator:
             )
 
             # Update running entry session + telemetry snapshot. The
-            # provider/model fields are diagnostic for ACP runs (the
-            # SDK picks the actual model from the subscription) but
-            # they're still what the operator sees in task comments.
+            # provider/model fields report the requested ACP model (or
+            # backend default when empty) so operators can audit role
+            # resolution in running state and task comments.
             # See task oompah-zlz_2-y3fy.
             if issue.id in self.state.running:
                 running_entry_acp = self.state.running[issue.id]
@@ -17150,7 +17150,7 @@ class Orchestrator:
                 # at best, an error at worst.
                 if model and any(
                     marker in model.lower()
-                    for marker in ("claude", "haiku", "sonnet", "opus")
+                    for marker in ("claude", "fable", "haiku", "sonnet", "opus")
                 ):
                     acp_model = model
             else:

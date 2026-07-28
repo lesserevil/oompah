@@ -56,6 +56,15 @@ confirm the selection.
 2. A new row appears with provider and model selectors.
 3. Choose a provider and model from the dropdowns.
 
+ACP backends may accept explicit model identifiers without exposing a
+discoverable catalog. For those providers, the model control is a text field:
+enter the backend's model alias or identifier, or leave it empty to use the
+backend default. The disabled **Fetch Models** button means only that automatic
+catalog discovery is unavailable; it does not mean manual model selection is
+unsupported. Invalid manual identifiers are reported by the backend at session
+startup, while an operator-populated provider catalog remains an optional
+allowlist validated when roles are saved.
+
 ### Reordering candidates
 
 Use the **↑** / **↓** buttons on each candidate row to change the order.

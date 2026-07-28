@@ -47,6 +47,7 @@ class TestRegistry:
         assert BACKENDS["claude"] is ClaudeAcpBackend
         # Also reachable through the public lookup helpers.
         assert get_backend("claude") is ClaudeAcpBackend
+        assert ClaudeAcpBackend.supports_manual_model_selection() is True
 
     def test_opencode_registered_at_import(self):
         """The OpenCode backend registers as ``"opencode"`` at import
@@ -60,6 +61,12 @@ class TestRegistry:
         assert get_backend("opencode") is OpencodeAcpBackend
         # Also reachable through the convenience raise-variant.
         assert get_backend_or_raise("opencode") is OpencodeAcpBackend
+        assert OpencodeAcpBackend.supports_manual_model_selection() is False
+
+    def test_codex_supports_manual_model_selection_without_catalog(self):
+        from oompah.acp_backends.codex import CodexAcpBackend
+
+        assert CodexAcpBackend.supports_manual_model_selection() is True
 
     def test_get_backend_unknown_returns_none(self):
         assert get_backend("does-not-exist") is None

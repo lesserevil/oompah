@@ -1167,6 +1167,10 @@ class CodexAcpBackend(AcpBackend):
     def name(cls) -> str:
         return "codex"
 
+    @classmethod
+    def supports_manual_model_selection(cls) -> bool:
+        return True
+
     def start_session(self, options: AcpBackendOptions) -> AcpBackendSession:
         return CodexAcpBackendSession(options)
 

@@ -755,8 +755,7 @@ class TestRunWorkerRouting:
 
 
 class TestAcpWorkerModelHandoff:
-    def test_codex_subscription_omits_synthetic_default_model(self, tmp_path):
-        """Codex OAuth should choose its default when no role model is configured."""
+    def _run_handoff(self, tmp_path, *, backend: str, model: str):
         from oompah.config import ServiceConfig
         from oompah.orchestrator import DispatchTarget, Orchestrator
 
@@ -798,22 +797,22 @@ class TestAcpWorkerModelHandoff:
         orch._tracker_for_issue = MagicMock(return_value=tracker)
 
         provider = ModelProvider(
-            id="codex",
-            name="Codex",
+            id=backend,
+            name=backend.title(),
             base_url="",
             api_key="",
             models=[],
             default_model=None,
             provider_type="acp",
-            backend="codex",
+            backend=backend,
             mode="acp",
             billing_model="subscription",
         )
         target = DispatchTarget(
             role_name="fast",
             provider=provider,
-            model="",
-            candidate_key="codex/",
+            model=model,
+            candidate_key=f"{backend}/{model}",
             source="role:fast[1]",
         )
         issue = Issue(
@@ -853,10 +852,41 @@ class TestAcpWorkerModelHandoff:
                 )
             )
 
+        return captured, orch
+
+    def test_codex_subscription_omits_synthetic_default_model(self, tmp_path):
+        """Codex OAuth should choose its default when no role model is configured."""
+        captured, orch = self._run_handoff(
+            tmp_path, backend="codex", model=""
+        )
+
         assert captured["backend_name"] == "codex"
         assert captured["billing_model"] == "subscription"
         assert captured["model"] is None
-        orch._on_worker_exit.assert_awaited_once_with(issue.id, "normal", None)
+        orch._on_worker_exit.assert_awaited_once_with("issue-1", "normal", None)
+
+    @pytest.mark.parametrize(
+        ("backend", "model"),
+        [
+            ("claude", "fable"),
+            ("claude", "sonnet"),
+            ("claude", "opus"),
+            ("codex", "gpt-5.6-luna"),
+            ("codex", "gpt-5.6-terra"),
+            ("codex", "gpt-5.6-sol"),
+        ],
+    )
+    def test_explicit_role_model_reaches_acp_session(
+        self, tmp_path, backend, model
+    ):
+        captured, orch = self._run_handoff(
+            tmp_path, backend=backend, model=model
+        )
+
+        assert captured["backend_name"] == backend
+        assert captured["model"] == model
+        assert captured["billing_model"] == "subscription"
+        orch._on_worker_exit.assert_awaited_once()
 
 
 # ----------------------------------------------------------------------
