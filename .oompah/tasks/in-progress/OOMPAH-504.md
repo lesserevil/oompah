@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-504
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Compact agent prompt history around actionable handoffs
 parent: OOMPAH-502
@@ -9,16 +9,15 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
-- needs:feature
 assignee: null
 created_at: '2026-07-28T15:06:00.486812Z'
-updated_at: '2026-07-28T17:49:27.911275Z'
+updated_at: '2026-07-28T17:49:38.154978Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 6c39897d-af45-4246-8a49-4b9f1e005720
+oompah.agent_run_id: 17064e28-3674-428b-9136-b50d49aa289f
 oompah.work_branch: epic-OOMPAH-502
 oompah.task_costs:
   total_input_tokens: 1542009
@@ -157,5 +156,15 @@ author: oompah
 created: 2026-07-28 17:49
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 17:49
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-28 17:49
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
