@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-508
 type: feature
-status: Backlog
+status: In Progress
 priority: 1
 title: Run focused checks at handoff and one full quality gate per ready branch
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:08.389229Z'
-updated_at: '2026-07-28T15:06:57.132774Z'
+updated_at: '2026-07-28T15:36:22.651940Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-28 15:06
 ---
 Claimed for manual implementation by the current Codex session. Held in Backlog while the shared epic branch is built so Oompah does not dispatch another agent; status will move to In Progress and Done as this session completes the slice.
+---
+author: oompah
+created: 2026-07-28 15:36
+---
+Implementation started on epic-OOMPAH-502. Adding persistent branch-head quality-gate evidence at the review-creation boundary, changing worker guidance to focused checks, and covering idempotence, invalidation, failure, timeout, recovery, concurrency, and provider-neutral review flows.
 ---
 <!-- COMMENTS:END -->
