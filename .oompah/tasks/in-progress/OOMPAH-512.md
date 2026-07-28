@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T15:17:38.453553Z'
+updated_at: '2026-07-28T15:17:48.418053Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-07-28 15:17
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 15:17
+---
+Understanding (Duplicate Investigator): This issue describes a bug where managed-project runtime paths incorrectly use a legacy/global cwd-derived tracker instead of resolving the tracker through a project-scoped helper (_tracker_for_project). The fix requires auditing orch.tracker/self.tracker consumers in orchestrator.py, server.py, error_watcher.py, and related files. My role is to determine whether this issue is a duplicate of an existing task before any implementation begins.
 ---
 <!-- COMMENTS:END -->
