@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:10:50.132818Z'
+updated_at: '2026-07-28T14:11:42.517390Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,5 +77,10 @@ author: oompah
 created: 2026-07-28 14:10
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 14:11
+---
+Discovery: Duplicate screening found no confirmed duplicate. OOMPAH-443 added the canonical child-state/landing-evidence gate used by _open_epic_main_prs and the final YOLO merge check, but it did not make check_close_gate parent-aware. OOMPAH-309/OOMPAH-404 hardened the separate automatic review-handoff path when parent resolution fails, but did not change the generic close gate or its gh-specific refusal diagnostic. OOMPAH-165 addressed premature parent Merged state/target validation, and OOMPAH-219 addressed shared-worktree commit absorption; neither covers review creation during child close. OOMPAH-452 confirms the new path-specific regression: its Done child close on epic-OOMPAH-451 was refused while OOMPAH-456 remained Open, inducing PR #558. OOMPAH-501 is therefore distinct follow-up work.
 ---
 <!-- COMMENTS:END -->
