@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-467
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Add explicit authorized owner overrides for terminal audits
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T20:24:29.127363Z'
+updated_at: '2026-07-28T20:24:38.692361Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -20,13 +20,17 @@ merged_at: null
 oompah.agent_run_id: 8f250a1f-8176-413d-911e-9965b2a5ee1e
 oompah.work_branch: epic-OOMPAH-457
 oompah.task_costs:
-  total_input_tokens: 6715537
-  total_output_tokens: 46574
+  total_input_tokens: 6715546
+  total_output_tokens: 48197
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 6715537
       output_tokens: 46574
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 9
+      output_tokens: 1623
       cost_usd: 0.0
   runs:
   - profile: default
@@ -41,6 +45,12 @@ oompah.task_costs:
     output_tokens: 20683
     cost_usd: 0.0
     recorded_at: '2026-07-28T20:23:25.852416+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 9
+    output_tokens: 1623
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T20:24:34.955856+00:00'
 ---
 ## Summary
 
@@ -282,5 +292,38 @@ author: oompah
 created: 2026-07-28 20:24
 ---
 Added override_transition() to TerminalTransitionCoordinator with project-owner authorization, non-empty reason enforcement, evidence fingerprint validation, comment-before-status ordering, reason redaction, and 23 comprehensive tests covering all acceptance criteria.
+---
+author: oompah
+created: 2026-07-28 20:24
+---
+Agent completed successfully in 46s (1632 tokens)
+---
+author: oompah
+created: 2026-07-28 20:24
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 15, Tool calls: 8
+- Tokens: 9 in / 1.6K out [1.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 46s
+- Log: OOMPAH-467__20260728T202352Z.jsonl
+---
+author: oompah
+created: 2026-07-28 20:24
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-457` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-457
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-457
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
