@@ -9,9 +9,10 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:34:13.631201Z'
+updated_at: '2026-07-28T15:39:19.453032Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -160,5 +161,18 @@ author: oompah
 created: 2026-07-28 15:34
 ---
 Verification: Focused provider/backend/role-matrix tests pass (241). Full pytest fallback completed with 12,638 passed, 7 skipped and one sandbox-only failure writing ~/.oompah/agent-logs; that exact test passes when OOMPAH_AGENT_LOG_DIR points to writable /tmp. JavaScript syntax check and make check-secrets also pass. make test itself could not start because the environment's Snap-packaged uv fails DBus transient-scope creation.
+---
+author: oompah
+created: 2026-07-28 15:39
+---
+Focus handoff: frontend
+
+Outcome: Completed and pushed the frontend/API presentation slice. The role matrix now shows an accessible free-text model input for manual-capable catalog-less ACP backends, preserves blank SDK-default fallback, distinguishes manual vs SDK-default status, and rerenders when async backend descriptors arrive. This is commit 020199d32 on epic-OOMPAH-502, rebased on the existing feature implementation 23d1c043b.
+
+Relevant files/evidence: oompah/templates/providers.html and tests/test_providers_ui.py contain the material increment; the rebase retained upstream descriptor, fable, dispatch, telemetry, and documentation work. Focused provider/backend/role matrix suite: 241 passed. Full suite fallback: 12,638 passed, 7 skipped, with one sandbox-only ~/.oompah/agent-logs write failure that passes under a writable OOMPAH_AGENT_LOG_DIR. JavaScript syntax and make check-secrets pass.
+
+Remaining work/risk: Deploy/restart the updated service, apply the six live round-robin role candidates (fast Claude/fable + Codex/gpt-5.6-luna; standard Claude/sonnet + Codex/gpt-5.6-terra; deep Claude/opus + Codex/gpt-5.6-sol), verify provider IDs/credentials/project whitelist and running telemetry, then close the task. Do not hardcode local provider IDs in production defaults.
+
+Recommended next focus: devops.
 ---
 <!-- COMMENTS:END -->
