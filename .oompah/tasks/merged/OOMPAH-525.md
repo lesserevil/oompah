@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-525
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Add Basic auth support to Oompah CLIs and lifecycle commands
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T20:08:19.396619Z'
+updated_at: '2026-07-28T21:32:52.413989Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
