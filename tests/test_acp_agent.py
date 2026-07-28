@@ -868,7 +868,7 @@ class TestAcpWorkerModelHandoff:
     @pytest.mark.parametrize(
         ("backend", "model"),
         [
-            ("claude", "fable"),
+            ("claude", "haiku"),
             ("claude", "sonnet"),
             ("claude", "opus"),
             ("codex", "gpt-5.6-luna"),
