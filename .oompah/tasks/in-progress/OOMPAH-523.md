@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:55:28.217084Z'
+updated_at: '2026-07-28T18:55:42.983425Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -21,13 +21,17 @@ merged_at: null
 oompah.agent_run_id: 24f1f162-6d1b-4c1d-bbe6-44de270e765a
 oompah.work_branch: epic-OOMPAH-521
 oompah.task_costs:
-  total_input_tokens: 234
-  total_output_tokens: 5929
+  total_input_tokens: 301
+  total_output_tokens: 38100
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 234
       output_tokens: 5929
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 67
+      output_tokens: 32171
       cost_usd: 0.0
   runs:
   - profile: default
@@ -36,6 +40,12 @@ oompah.task_costs:
     output_tokens: 5929
     cost_usd: 0.0
     recorded_at: '2026-07-28T18:43:59.738818+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 67
+    output_tokens: 32171
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T18:55:39.424563+00:00'
 ---
 ## Summary
 
@@ -210,5 +220,38 @@ author: oompah
 created: 2026-07-28 18:55
 ---
 Implemented _BasicAuthMiddleware ASGI class enforcing HTTP Basic auth at the ASGI boundary. Covers all HTTP routes, static assets, mounted apps, and WebSocket /ws. Exact exemptions for GET /healthz, POST /api/v1/webhooks/github, POST /api/v1/webhooks/gitlab. Added GET /healthz endpoint (unauthenticated, minimal). 57 new integration tests pass; all 875 existing server tests pass.
+---
+author: oompah
+created: 2026-07-28 18:55
+---
+Agent completed successfully in 613s (32238 tokens)
+---
+author: oompah
+created: 2026-07-28 18:55
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 133, Tool calls: 87
+- Tokens: 67 in / 32.2K out [32.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 13s
+- Log: OOMPAH-523__20260728T184530Z.jsonl
+---
+author: oompah
+created: 2026-07-28 18:55
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-521` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-521
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-521
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
