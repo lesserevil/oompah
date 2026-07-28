@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T15:27:59.673003Z'
+updated_at: '2026-07-28T15:28:08.483075Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -141,5 +141,10 @@ author: oompah
 created: 2026-07-28 15:27
 ---
 Discovery (refactor): Root cause is not missing tracker construction but ambiguous selection. Orchestrator.__init__ and reload_config always create self.tracker via _new_tracker(), whose OompahMarkdownTracker defaults cwd to os.getcwd(); managed paths then reach it whenever project_id is absent. High-risk consumers: server.set_orchestrator draft-label migration and global ErrorWatcher (server.py:614,629), frontend /api/v1/errors (projectless global watcher), Orchestrator._tracker_for_issue and repeated  mutation paths, release_addendum_queue, config-error task creation at orchestrator.py:10495, and server legacy fallbacks. Per-project startup release migration and project log watchers already route correctly. _new_tracker_for_project passes repo_path plus enabled/name/shadow-write, but does not represent state_branch_migration_stage. Required contract: one resolver must return a project tracker for explicit project_id; allow the cwd standalone tracker only when the project store has no projects; and raise an actionable error for missing/ambiguous project context in managed mode.
+---
+author: oompah
+created: 2026-07-28 15:28
+---
+Discovery correction (refactor): Root cause is ambiguous tracker selection, not missing project tracker construction. Orchestrator.__init__ and reload_config always create self.tracker through _new_tracker; OompahMarkdownTracker then defaults cwd to os.getcwd. Managed paths reach that tracker whenever project_id is absent. High-risk consumers are server.set_orchestrator draft-label migration and the global ErrorWatcher (server.py:614 and 629), frontend POST /api/v1/errors, Orchestrator._tracker_for_issue and repeated project_id-else-self.tracker mutations, release_addendum_queue, config-error task creation at orchestrator.py:10495, and server legacy fallbacks. Per-project startup release migration and project log watchers already route correctly. _new_tracker_for_project passes repo_path and state-branch enabled/name/shadow-write, but does not represent state_branch_migration_stage. Required contract: explicit project_id resolves only its project tracker; cwd standalone tracker is allowed only when the project store is empty; missing project context in managed mode raises an actionable error.
 ---
 <!-- COMMENTS:END -->
