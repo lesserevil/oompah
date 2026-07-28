@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-283
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Expose active state-branch identity and checkpoint health in project APIs
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-20T22:54:50.695408Z'
-updated_at: '2026-07-21T04:04:50.463617Z'
+updated_at: '2026-07-28T04:55:58.784716Z'
 work_branch: OOMPAH-283
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/461
