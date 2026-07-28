@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-519
 type: task
-status: Done
+status: Merged
 priority: null
 title: Recognize rebased child commits in epic review coverage
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:46:48.581634Z'
-updated_at: '2026-07-28T17:54:40.142724Z'
+updated_at: '2026-07-28T18:01:58.181255Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null

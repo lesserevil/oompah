@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:06:49.891505Z'
-updated_at: '2026-07-28T18:01:54.076315Z'
+updated_at: '2026-07-28T18:01:57.030294Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -44,5 +44,10 @@ author: oompah
 created: 2026-07-28 17:12
 ---
 Fixed cross-loop graceful restart cleanup; 96 focused tests and a live instance-changing drain restart pass.
+---
+author: oompah
+created: 2026-07-28 18:01
+---
+Landed in merged epic PR #564 on main.
 ---
 <!-- COMMENTS:END -->
