@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-508
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Run focused checks at handoff and one full quality gate per ready branch
 parent: OOMPAH-502
@@ -10,12 +10,14 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:08.389229Z'
-updated_at: '2026-07-28T15:41:45.506277Z'
-work_branch: null
+updated_at: '2026-07-28T15:46:37.910040Z'
+work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 8ff14fbc-cb6e-4168-b77e-4f4e6eb88f8b
+oompah.work_branch: epic-OOMPAH-502
 ---
 ## Summary
 
@@ -44,5 +46,15 @@ author: oompah
 created: 2026-07-28 15:36
 ---
 Implementation started on epic-OOMPAH-502. Adding persistent branch-head quality-gate evidence at the review-creation boundary, changing worker guidance to focused checks, and covering idempotence, invalidation, failure, timeout, recovery, concurrency, and provider-neutral review flows.
+---
+author: oompah
+created: 2026-07-28 15:46
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-28 15:46
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

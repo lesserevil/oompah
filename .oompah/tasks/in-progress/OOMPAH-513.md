@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-513
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Fail closed on task writes from a managed code checkout
 parent: OOMPAH-511
@@ -10,16 +10,15 @@ blocked_by:
 - OOMPAH-512
 labels:
 - focus-complete:duplicate_detector
-- needs:test
 assignee: null
 created_at: '2026-07-28T15:16:43.939778Z'
-updated_at: '2026-07-28T15:46:26.010754Z'
+updated_at: '2026-07-28T15:46:41.395251Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 7d1f7dd7-46fa-4ae9-ad9b-95a4e3c24178
+oompah.agent_run_id: 9d4a430d-c8f7-4795-ac4b-d09a8d5a955b
 oompah.work_branch: epic-OOMPAH-511
 oompah.task_costs:
   total_input_tokens: 997011
@@ -141,5 +140,15 @@ author: oompah
 created: 2026-07-28 15:46
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 15:46
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-28 15:46
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
