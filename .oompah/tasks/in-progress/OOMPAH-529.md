@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-529
 type: task
-status: Backlog
+status: In Progress
 priority: 2
 title: Persist revision-aware duplicate-screening evidence
 parent: OOMPAH-528
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T21:18:31.077035Z'
-updated_at: '2026-07-28T21:18:31.077035Z'
+updated_at: '2026-07-28T21:20:42.982531Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,3 +54,11 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 21:20
+---
+Claimed by the current interactive Codex session. Implementation will begin on epic branch epic-OOMPAH-528; do not dispatch another agent for this task.
+---
+<!-- COMMENTS:END -->
