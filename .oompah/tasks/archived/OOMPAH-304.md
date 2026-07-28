@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-304
 type: bug
-status: Merged
+status: Archived
 priority: 0
 title: Make Release Delivery show live delivery status consistently
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-21T16:20:03.352434Z'
-updated_at: '2026-07-21T21:52:08.307725Z'
+updated_at: '2026-07-28T22:04:48.542485Z'
 work_branch: OOMPAH-304
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/469
