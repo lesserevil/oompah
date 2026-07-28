@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-498
 type: chore
-status: Open
+status: In Progress
 priority: 2
 title: Group granular Release Delivery template assertions by behavior
 parent: OOMPAH-490
@@ -12,12 +12,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:53:33.437818Z'
-updated_at: '2026-07-28T14:35:37.175988Z'
-work_branch: null
+updated_at: '2026-07-28T16:25:16.959470Z'
+work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: de5d565e-2d74-4e87-be92-9366cc6c3a82
+oompah.work_branch: epic-OOMPAH-490
 ---
 ## Summary
 
@@ -39,3 +41,16 @@ Every listed behavior category remains protected, failures identify the missing 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 16:25
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 16:25
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

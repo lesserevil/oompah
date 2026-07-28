@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:32.426575Z'
-updated_at: '2026-07-28T16:24:52.795399Z'
+updated_at: '2026-07-28T16:25:09.786155Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -21,13 +21,17 @@ merged_at: null
 oompah.agent_run_id: 5e430d0e-86e9-40e7-8f20-0889f0d0751f
 oompah.work_branch: epic-OOMPAH-490
 oompah.task_costs:
-  total_input_tokens: 17
-  total_output_tokens: 4238
+  total_input_tokens: 547
+  total_output_tokens: 21476
   total_cost_usd: 0.0
   by_model:
     sonnet:
       input_tokens: 17
       output_tokens: 4238
+      cost_usd: 0.0
+    haiku:
+      input_tokens: 530
+      output_tokens: 17238
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -36,6 +40,12 @@ oompah.task_costs:
     output_tokens: 4238
     cost_usd: 0.0
     recorded_at: '2026-07-28T16:09:58.845853+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 530
+    output_tokens: 17238
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T16:25:07.500911+00:00'
 ---
 ## Summary
 
@@ -249,5 +259,20 @@ author: oompah
 created: 2026-07-28 16:24
 ---
 Consolidated cross-file test duplication and assigned canonical ownership. Removed 39 duplicate tests across three test files, established ownership boundaries (page structure -> test_release_delivery_page.py, dialog controls -> test_dashboard_release_addendums_ui.py, backlog/selection -> test_dashboard_release_delivery_ui.py), updated docstrings from 'overlay' to 'page', added contract-ownership table. All 536 focused tests pass. OOMPAH-498 can now proceed with granular assertion consolidation.
+---
+author: oompah
+created: 2026-07-28 16:25
+---
+Agent completed successfully in 540s (17768 tokens)
+---
+author: oompah
+created: 2026-07-28 16:25
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 137, Tool calls: 65
+- Tokens: 530 in / 17.2K out [17.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 0s
+- Log: OOMPAH-497__20260728T161609Z.jsonl
 ---
 <!-- COMMENTS:END -->
