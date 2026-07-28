@@ -89,6 +89,13 @@ class TestServiceConfig:
         assert cfg.duplicate_detection_candidate_limit == 64
         assert cfg.auto_archive_batch_size == 25
         assert cfg.worktree_cleanup_batch_size == 25
+        assert cfg.storage_cleanup_interval_seconds == 86400
+        assert cfg.storage_cleanup_pressure_min_free_bytes == 5 * 1024**3
+        assert cfg.storage_cleanup_pressure_min_free_percent == 5.0
+        assert cfg.storage_cleanup_min_age_seconds == 86400
+        assert cfg.storage_cleanup_batch_size == 50
+        assert cfg.storage_cleanup_max_bytes == 50 * 1024**3
+        assert cfg.storage_cleanup_log_retention_seconds == 604800
         assert cfg.prompt_max_comments == 20
         assert cfg.prompt_max_comment_bytes == 32 * 1024
         assert cfg.release_pick_max_runtime_seconds == 15
@@ -144,6 +151,45 @@ class TestServiceConfig:
 
         assert "OOMPAH_PROMPT_MAX_COMMENTS=" in content
         assert "OOMPAH_PROMPT_MAX_COMMENT_BYTES=" in content
+
+    def test_storage_cleanup_settings_come_from_environment(self, monkeypatch):
+        values = {
+            "OOMPAH_STORAGE_CLEANUP_INTERVAL_SECONDS": "7200",
+            "OOMPAH_STORAGE_CLEANUP_PRESSURE_MIN_FREE_BYTES": "123456",
+            "OOMPAH_STORAGE_CLEANUP_PRESSURE_MIN_FREE_PERCENT": "7.5",
+            "OOMPAH_STORAGE_CLEANUP_MIN_AGE_SECONDS": "3600",
+            "OOMPAH_STORAGE_CLEANUP_BATCH_SIZE": "9",
+            "OOMPAH_STORAGE_CLEANUP_MAX_BYTES": "987654",
+            "OOMPAH_STORAGE_CLEANUP_LOG_RETENTION_SECONDS": "172800",
+        }
+        for name, value in values.items():
+            monkeypatch.setenv(name, value)
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.storage_cleanup_interval_seconds == 7200
+        assert cfg.storage_cleanup_pressure_min_free_bytes == 123456
+        assert cfg.storage_cleanup_pressure_min_free_percent == 7.5
+        assert cfg.storage_cleanup_min_age_seconds == 3600
+        assert cfg.storage_cleanup_batch_size == 9
+        assert cfg.storage_cleanup_max_bytes == 987654
+        assert cfg.storage_cleanup_log_retention_seconds == 172800
+
+    def test_storage_cleanup_settings_are_documented_in_env_example(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        content = env_example.read_text(encoding="utf-8")
+        for name in (
+            "OOMPAH_STORAGE_CLEANUP_INTERVAL_SECONDS",
+            "OOMPAH_STORAGE_CLEANUP_PRESSURE_MIN_FREE_BYTES",
+            "OOMPAH_STORAGE_CLEANUP_PRESSURE_MIN_FREE_PERCENT",
+            "OOMPAH_STORAGE_CLEANUP_MIN_AGE_SECONDS",
+            "OOMPAH_STORAGE_CLEANUP_BATCH_SIZE",
+            "OOMPAH_STORAGE_CLEANUP_MAX_BYTES",
+            "OOMPAH_STORAGE_CLEANUP_LOG_RETENTION_SECONDS",
+        ):
+            assert f"{name}=" in content
 
 
 class TestRepoMapEnvironmentConfiguration(TestServiceConfig):

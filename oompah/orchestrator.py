@@ -77,6 +77,11 @@ from oompah.statuses import (
     is_terminal_status,
     more_advanced_status,
 )
+from oompah.storage_cleanup import (
+    StoragePressure,
+    cleanup_owned_storage,
+    inspect_storage_pressure,
+)
 from oompah.focus import (
     _MIN_SCORE_TO_FLAG,
     analyze_completed_issue,
@@ -2793,6 +2798,96 @@ class Orchestrator:
                 self._cleanup_error_last = str(exc)
                 logger.warning("Terminal worktree cleanup failed during maintenance: %s", exc)
 
+    def _storage_cleanup_paths(self) -> tuple[str, str, list[str]]:
+        log_root = os.environ.get("OOMPAH_AGENT_LOG_DIR") or os.path.join(
+            os.path.expanduser("~"), ".oompah", "agent-logs"
+        )
+        pressure_paths = [
+            self.config.temp_root,
+            log_root,
+            os.path.join(os.path.expanduser("~"), ".oompah"),
+        ]
+        return self.config.temp_root, log_root, pressure_paths
+
+    def _maybe_cleanup_storage(self) -> None:
+        """Run the comprehensive scan daily, or repeatedly under pressure."""
+        _, _, pressure_paths = self._storage_cleanup_paths()
+        pressure = inspect_storage_pressure(
+            pressure_paths,
+            min_free_bytes=self.config.storage_cleanup_pressure_min_free_bytes,
+            min_free_percent=(
+                self.config.storage_cleanup_pressure_min_free_percent
+            ),
+        )
+        state = self._get_or_create_job_state("storage_cleanup")
+        if pressure.pressured:
+            # Pressure overrides a daily next-run timestamp. The zero interval
+            # lets bounded batches repeat on subsequent scheduler ticks.
+            state.next_run_monotonic = 0.0
+        self._storage_cleanup_trigger = (
+            "storage_pressure" if pressure.pressured else "daily"
+        )
+        self._storage_cleanup_pressure = pressure
+        self._run_maintenance_job(
+            "storage_cleanup",
+            self._do_cleanup_storage,
+            min_interval_s=(
+                0
+                if pressure.pressured
+                else self.config.storage_cleanup_interval_seconds
+            ),
+        )
+
+    def _do_cleanup_storage(self) -> None:
+        temp_root, log_root, pressure_paths = self._storage_cleanup_paths()
+        protected_logs = {
+            entry.agent_log_path
+            for entry in list(self.state.running.values())
+            if entry.agent_log_path
+        }
+        result = cleanup_owned_storage(
+            temp_root=temp_root,
+            agent_log_root=log_root,
+            protected_paths=protected_logs,
+            min_age_seconds=self.config.storage_cleanup_min_age_seconds,
+            log_retention_seconds=(
+                self.config.storage_cleanup_log_retention_seconds
+            ),
+            batch_limit=self.config.storage_cleanup_batch_size,
+            byte_limit=self.config.storage_cleanup_max_bytes,
+        )
+        # Reuse the tracker-aware cleanup for registered terminal worktrees and
+        # ProjectStore's validation of stale unregistered worktree directories.
+        # It deliberately preserves Done/conflict and active worktrees.
+        worktrees_cleaned = self._cleanup_terminal_worktrees(
+            self.project_store.list_all()
+        )
+        pressure_before = getattr(
+            self,
+            "_storage_cleanup_pressure",
+            StoragePressure(False, 0, 0.0),
+        )
+        pressure_after = inspect_storage_pressure(
+            pressure_paths,
+            min_free_bytes=self.config.storage_cleanup_pressure_min_free_bytes,
+            min_free_percent=(
+                self.config.storage_cleanup_pressure_min_free_percent
+            ),
+        )
+        self._maintenance_status["storage_cleanup"] = {
+            "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "trigger": getattr(self, "_storage_cleanup_trigger", "daily"),
+            "pressure_before": pressure_before.__dict__,
+            "pressure_after": pressure_after.__dict__,
+            "cleaned_count": result.cleaned_count,
+            "worktrees_cleaned": worktrees_cleaned,
+            "reclaimed_bytes": result.reclaimed_bytes,
+            "scanned_count": result.scanned_count,
+            "skipped_count": result.skipped_count,
+            "deferred": result.deferred or pressure_after.pressured,
+            "errors": [*pressure_before.errors, *result.errors, *pressure_after.errors],
+        }
+
     def _run_step5b_maintenance(self) -> None:
         """Combined fire-and-forget maintenance wrapper for ``_tick`` step 5b.
 
@@ -2819,6 +2914,7 @@ class Orchestrator:
         """
         self._maybe_heal_repos()
         self._maybe_cleanup_worktrees()
+        self._maybe_cleanup_storage()
         self._auto_archive()
         self._maybe_open_deferred_done_reviews()
         self._maybe_run_merged_labels()

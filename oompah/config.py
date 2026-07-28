@@ -518,6 +518,13 @@ class ServiceConfig:
     auto_archive_batch_size: int = 25
     auto_archive_interval_seconds: int = 300
     worktree_cleanup_batch_size: int = 25
+    storage_cleanup_interval_seconds: int = 24 * 60 * 60
+    storage_cleanup_pressure_min_free_bytes: int = 5 * 1024 * 1024 * 1024
+    storage_cleanup_pressure_min_free_percent: float = 5.0
+    storage_cleanup_min_age_seconds: int = 24 * 60 * 60
+    storage_cleanup_batch_size: int = 50
+    storage_cleanup_max_bytes: int = 50 * 1024 * 1024 * 1024
+    storage_cleanup_log_retention_seconds: int = 7 * 24 * 60 * 60
     maintenance_startup_delay_seconds: int = 60
     release_pick_max_runtime_seconds: int = 15
     merged_labels_max_runtime_seconds: int = 15
@@ -632,6 +639,27 @@ class ServiceConfig:
         )
         self.worktree_cleanup_batch_size = max(
             int(self.worktree_cleanup_batch_size), 0
+        )
+        self.storage_cleanup_interval_seconds = max(
+            int(self.storage_cleanup_interval_seconds), 60
+        )
+        self.storage_cleanup_pressure_min_free_bytes = max(
+            int(self.storage_cleanup_pressure_min_free_bytes), 0
+        )
+        self.storage_cleanup_pressure_min_free_percent = max(
+            float(self.storage_cleanup_pressure_min_free_percent), 0.0
+        )
+        self.storage_cleanup_min_age_seconds = max(
+            int(self.storage_cleanup_min_age_seconds), 60
+        )
+        self.storage_cleanup_batch_size = max(
+            int(self.storage_cleanup_batch_size), 0
+        )
+        self.storage_cleanup_max_bytes = max(
+            int(self.storage_cleanup_max_bytes), 0
+        )
+        self.storage_cleanup_log_retention_seconds = max(
+            int(self.storage_cleanup_log_retention_seconds), 60
         )
         self.maintenance_startup_delay_seconds = max(
             int(self.maintenance_startup_delay_seconds), 0
@@ -925,6 +953,33 @@ class ServiceConfig:
             ),
             worktree_cleanup_batch_size=_env_int(
                 "OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", None, 25
+            ),
+            storage_cleanup_interval_seconds=_env_int(
+                "OOMPAH_STORAGE_CLEANUP_INTERVAL_SECONDS", None, 24 * 60 * 60
+            ),
+            storage_cleanup_pressure_min_free_bytes=_env_int(
+                "OOMPAH_STORAGE_CLEANUP_PRESSURE_MIN_FREE_BYTES",
+                None,
+                5 * 1024 * 1024 * 1024,
+            ),
+            storage_cleanup_pressure_min_free_percent=_env_float(
+                "OOMPAH_STORAGE_CLEANUP_PRESSURE_MIN_FREE_PERCENT", None, 5.0
+            ),
+            storage_cleanup_min_age_seconds=_env_int(
+                "OOMPAH_STORAGE_CLEANUP_MIN_AGE_SECONDS", None, 24 * 60 * 60
+            ),
+            storage_cleanup_batch_size=_env_int(
+                "OOMPAH_STORAGE_CLEANUP_BATCH_SIZE", None, 50
+            ),
+            storage_cleanup_max_bytes=_env_int(
+                "OOMPAH_STORAGE_CLEANUP_MAX_BYTES",
+                None,
+                50 * 1024 * 1024 * 1024,
+            ),
+            storage_cleanup_log_retention_seconds=_env_int(
+                "OOMPAH_STORAGE_CLEANUP_LOG_RETENTION_SECONDS",
+                None,
+                7 * 24 * 60 * 60,
             ),
             maintenance_startup_delay_seconds=_env_int(
                 "OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", None, 60

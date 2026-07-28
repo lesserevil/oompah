@@ -274,6 +274,30 @@ is 2 + 2?"`. Failures include an `error_reason` field with a normalized category
 such as `auth_failed`, `rate_limited`, `budget_blocked`, `timeout`, or
 `invalid_model`.
 
+### Storage cleanup
+
+The `storage_cleanup` maintenance job scans Oompah's configured private temp
+root and `*.jsonl` agent logs once per day. It runs additional bounded batches
+when free bytes or free percentage falls below the configured pressure
+threshold. Registered worktrees are removed only through the tracker-aware
+Merged/Archived cleanup; active, Done/conflict, valid unregistered, and unknown
+paths are preserved. Symlinks and VM image formats are never cleanup targets.
+
+Inspect the latest trigger, reclaimed bytes, skipped entries, pressure samples,
+and errors:
+
+```bash
+curl -s http://localhost:8080/api/v1/state |
+  jq '.orchestrator_metrics.maintenance.storage_cleanup,
+      .maintenance.jobs.storage_cleanup'
+```
+
+Tune the cadence, pressure thresholds, minimum age, batch/byte caps, and log
+retention with the `OOMPAH_STORAGE_CLEANUP_*` variables in `.env.example`.
+Cleanup failures are recorded in maintenance state and do not stop scheduling.
+If an atomic deletion is interrupted, a `.oompah-cleanup-*` entry may remain
+inside the same owned root; a later scan retries it after the minimum age.
+
 ---
 
 ## 5. Managed Repository Soundness Checks
