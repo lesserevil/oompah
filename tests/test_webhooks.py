@@ -1531,18 +1531,176 @@ class TestGitLabHookManager:
     async def test_missing_or_non_https_public_url_does_not_call_gitlab(self):
         project = self._project()
         client = _FakeGitLabClient([])
-        manager = GitLabHookManager(_FakeProjectStore([project]), http_client=client)
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            server_port=None,
+            http_client=client,
+        )
         await manager.reconcile()
         assert client.calls == []
         assert manager.status["configured"] is False
-        assert "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL" in manager.status["detail"]
+        assert "OOMPAH_SERVER_PORT" in manager.status["detail"]
 
         manager = GitLabHookManager(
-            _FakeProjectStore([project]), public_url="http://oompah.example.com", http_client=client,
+            _FakeProjectStore([project]),
+            public_url="http://oompah.example.com",
+            server_port=8080,
+            http_client=client,
         )
         await manager.reconcile()
         assert client.calls == []
         assert "HTTPS" in manager.status["detail"]
+
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            public_url="https://operator:secret@oompah.example.com",
+            server_port=8080,
+            http_client=client,
+        )
+        await manager.reconcile()
+        assert client.calls == []
+        assert manager.status["configured"] is False
+        assert manager.status["webhook_url"] == ""
+        assert "operator" not in str(manager.status)
+        assert "secret" not in str(manager.status)
+
+    @pytest.mark.asyncio
+    async def test_missing_public_url_derives_callback_from_gitlab_route(self):
+        project = self._project()
+        client = _FakeGitLabClient([(200, []), (201, {"id": 12})])
+        resolver = MagicMock(return_value="10.42.0.7")
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            server_port=8090,
+            http_client=client,
+            route_resolver=resolver,
+        )
+
+        await manager.reconcile()
+
+        callback = "http://10.42.0.7:8090/api/v1/webhooks/gitlab"
+        assert client.calls[1][2]["json"]["url"] == callback
+        assert manager.status["configured"] is True
+        assert manager.status["webhook_url"] == callback
+        project_status = manager.status["projects"][project.id]
+        assert project_status["webhook_url"] == callback
+        assert project_status["webhook_url_source"] == "route"
+        assert project_status["healthy"] is True
+        resolver.assert_called_once_with("gitlab.example.com", 443)
+
+    @pytest.mark.asyncio
+    async def test_route_failure_degrades_project_to_polling_without_api_call(self):
+        project = self._project()
+        client = _FakeGitLabClient([])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            server_port=8090,
+            http_client=client,
+            route_resolver=MagicMock(side_effect=OSError("no route to host")),
+        )
+
+        await manager.reconcile()
+
+        assert client.calls == []
+        project_status = manager.status["projects"][project.id]
+        assert project_status["configured"] is False
+        assert project_status["healthy"] is False
+        assert "no route to host" in project_status["last_error"]
+
+    @pytest.mark.asyncio
+    async def test_multiple_projects_use_their_own_route_selected_addresses(self):
+        project_a = self._project(project_id="gitlab-a")
+        project_a.forge_base_url = "https://gitlab-a.internal"
+        project_b = self._project(project_id="gitlab-b")
+        project_b.forge_base_url = "https://gitlab-b.internal:8443"
+        addresses = {
+            "gitlab-a.internal": "10.1.0.5",
+            "gitlab-b.internal": "192.168.40.5",
+        }
+        resolver = MagicMock(
+            side_effect=lambda host, _port: addresses[host]
+        )
+        client = _FakeGitLabClient(
+            [(200, []), (201, {"id": 1}), (200, []), (201, {"id": 2})]
+        )
+        manager = GitLabHookManager(
+            _FakeProjectStore([project_a, project_b]),
+            server_port=8080,
+            http_client=client,
+            route_resolver=resolver,
+        )
+
+        await manager.reconcile()
+
+        posts = [call for call in client.calls if call[0] == "POST"]
+        assert posts[0][2]["json"]["url"].startswith("http://10.1.0.5:8080/")
+        assert posts[1][2]["json"]["url"].startswith(
+            "http://192.168.40.5:8080/"
+        )
+        assert resolver.call_args_list[0].args == ("gitlab-a.internal", 443)
+        assert resolver.call_args_list[1].args == ("gitlab-b.internal", 8443)
+
+    @pytest.mark.asyncio
+    async def test_route_change_updates_the_previously_managed_hook(self):
+        project = self._project()
+        old_url = "http://10.42.0.7:8090/api/v1/webhooks/gitlab"
+        new_url = "http://10.43.0.7:8090/api/v1/webhooks/gitlab"
+        client = _FakeGitLabClient(
+            [
+                (200, []),
+                (201, {"id": 12}),
+                (200, [{"id": 12, "url": old_url}]),
+                (200, {"id": 12}),
+            ]
+        )
+        resolver = MagicMock(side_effect=["10.42.0.7", "10.43.0.7"])
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            server_port=8090,
+            http_client=client,
+            route_resolver=resolver,
+        )
+
+        await manager.reconcile()
+        await manager.reconcile()
+
+        assert [call[0] for call in client.calls] == [
+            "GET",
+            "POST",
+            "GET",
+            "PUT",
+        ]
+        assert client.calls[-1][1].endswith("/hooks/12")
+        assert client.calls[-1][2]["json"]["url"] == new_url
+        assert manager.status["projects"][project.id]["webhook_url"] == new_url
+
+    @pytest.mark.asyncio
+    async def test_remove_deletes_route_derived_hook_only(self):
+        project = self._project()
+        target = "http://10.42.0.7:8090/api/v1/webhooks/gitlab"
+        client = _FakeGitLabClient(
+            [
+                (
+                    200,
+                    [
+                        {"id": 3, "url": target},
+                        {"id": 9, "url": "https://other.example/hook"},
+                    ],
+                ),
+                (204, None),
+            ]
+        )
+        manager = GitLabHookManager(
+            _FakeProjectStore([project]),
+            server_port=8090,
+            http_client=client,
+            route_resolver=MagicMock(return_value="10.42.0.7"),
+        )
+
+        await manager.remove(project)
+
+        assert [call[0] for call in client.calls] == ["GET", "DELETE"]
+        assert client.calls[1][1].endswith("/hooks/3")
 
     @pytest.mark.asyncio
     async def test_missing_project_credentials_degrades_without_api_retry(self):
@@ -3246,394 +3404,3 @@ class TestGitLabHookManagerStatusCallback:
         # Callback is fired even when there's a config error
         assert len(fired) == 1
         assert fired[0]["configured"] is False
-
-
-# ---------------------------------------------------------------------------
-# Route Discovery Tests
-# ---------------------------------------------------------------------------
-
-
-class TestDiscoverLocalAddress:
-    """Tests for _discover_local_address() route discovery."""
-
-    def test_discover_local_address_ipv4_localhost(self):
-        """Test discovering local address for localhost (127.0.0.1)."""
-        from oompah.webhooks import _discover_local_address
-        
-        # Port 443 likely isn't open on localhost, so this tests failure handling
-        result = _discover_local_address("127.0.0.1", 443)
-        # Result might be None (port closed) or an IP (if somehow reachable)
-        assert result is None or isinstance(result, str)
-
-    def test_discover_local_address_google_dns(self):
-        """Test discovering local address for a well-known external host."""
-        from oompah.webhooks import _discover_local_address
-        
-        # This should succeed with an actual local address
-        result = _discover_local_address("8.8.8.8", 443)
-        # Should return some IP (could be localhost if no network available)
-        assert result is None or (isinstance(result, str) and len(result) > 0)
-
-    def test_discover_local_address_invalid_hostname(self):
-        """Test route discovery with invalid hostname."""
-        from oompah.webhooks import _discover_local_address
-        
-        result = _discover_local_address("this-hostname-definitely-does-not-exist-12345.invalid", 443)
-        assert result is None
-
-    def test_discover_local_address_invalid_port(self):
-        """Test route discovery with invalid port."""
-        from oompah.webhooks import _discover_local_address
-        
-        # Non-numeric port should be handled gracefully
-        result = _discover_local_address("example.com", "not-a-port")
-        assert result is None
-
-    def test_discover_local_address_ipv6_if_available(self):
-        """Test that IPv6 addresses are wrapped in brackets."""
-        from oompah.webhooks import _discover_local_address
-        
-        # Try IPv6 localhost
-        result = _discover_local_address("::1", 443)
-        if result is not None and ":" in result:
-            # IPv6 should be wrapped in brackets
-            assert result.startswith("[") and result.endswith("]")
-
-
-class TestExtractHostFromUrl:
-    """Tests for _extract_host_from_url()."""
-
-    def test_extract_host_from_url(self):
-        """Test extracting hostname from HTTPS URL."""
-        from oompah.webhooks import _extract_host_from_url
-        
-        result = _extract_host_from_url("https://gitlab.example.com")
-        assert result == "gitlab.example.com"
-
-    def test_extract_host_from_url_with_port(self):
-        """Test extracting hostname from HTTPS URL with port."""
-        from oompah.webhooks import _extract_host_from_url
-        
-        result = _extract_host_from_url("https://gitlab.example.com:2222")
-        assert result == "gitlab.example.com:2222"
-
-    def test_extract_host_from_ssh_url(self):
-        """Test extracting hostname from SSH URL."""
-        from oompah.webhooks import _extract_host_from_url
-        
-        result = _extract_host_from_url("git@gitlab.example.com:group/project.git")
-        assert result == "gitlab.example.com"
-
-    def test_extract_host_from_ssh_url_with_port(self):
-        """Test extracting hostname from SSH URL with custom port."""
-        from oompah.webhooks import _extract_host_from_url
-        
-        result = _extract_host_from_url("git@gitlab.example.com:2222:group/project.git")
-        # Should handle the colon-delimited path correctly
-        assert result is not None
-
-    def test_extract_host_from_malformed_url(self):
-        """Test extracting hostname from malformed URL."""
-        from oompah.webhooks import _extract_host_from_url
-        
-        result = _extract_host_from_url("not-a-valid-url!!!")
-        assert result is None or isinstance(result, str)
-
-    def test_extract_host_from_empty_url(self):
-        """Test extracting hostname from empty string."""
-        from oompah.webhooks import _extract_host_from_url
-        
-        result = _extract_host_from_url("")
-        assert result is None
-
-    def test_extract_host_gitlab_com_default(self):
-        """Test extracting hostname when it defaults to gitlab.com."""
-        from oompah.webhooks import _extract_host_from_url
-        
-        # Just a path without URL scheme
-        result = _extract_host_from_url("group/project")
-        assert result is None
-
-
-class TestDeriveGitLabWebhookUrl:
-    """Tests for _derive_gitlab_webhook_url()."""
-
-    def test_explicit_url_always_wins(self):
-        """Test that explicit public_url takes precedence over route discovery."""
-        from oompah.webhooks import _derive_gitlab_webhook_url
-        
-        project = _make_project(
-            repo_url="https://gitlab.example.com/group/project.git",
-        )
-        project.forge_base_url = "https://gitlab.example.com"
-        
-        url, source = _derive_gitlab_webhook_url(
-            project,
-            server_port=8080,
-            fallback_public_url="https://my-oompah.example.com",
-        )
-        assert url == "https://my-oompah.example.com/api/v1/webhooks/gitlab"
-        assert source == "explicit"
-
-    def test_explicit_url_precedence_over_no_port(self):
-        """Test explicit URL works even when server_port is None."""
-        from oompah.webhooks import _derive_gitlab_webhook_url
-        
-        project = _make_project(
-            repo_url="https://gitlab.example.com/group/project.git",
-        )
-        project.forge_base_url = "https://gitlab.example.com"
-        
-        url, source = _derive_gitlab_webhook_url(
-            project,
-            server_port=None,
-            fallback_public_url="https://my-oompah.example.com",
-        )
-        assert url == "https://my-oompah.example.com/api/v1/webhooks/gitlab"
-        assert source == "explicit"
-
-    def test_derivation_fails_without_port(self):
-        """Test that derivation fails gracefully when server_port is None."""
-        from oompah.webhooks import _derive_gitlab_webhook_url
-        
-        project = _make_project(
-            repo_url="https://gitlab.example.com/group/project.git",
-        )
-        project.forge_base_url = "https://gitlab.example.com"
-        
-        url, source = _derive_gitlab_webhook_url(
-            project,
-            server_port=None,
-            fallback_public_url=None,
-        )
-        assert url == ""
-        assert source == "error"
-
-    def test_derivation_fails_without_gitlab_host(self):
-        """Test derivation fails when GitLab host cannot be determined."""
-        from oompah.webhooks import _derive_gitlab_webhook_url
-        
-        project = _make_project(
-            repo_url="invalid-repo-url",
-        )
-        project.forge_base_url = ""
-        
-        url, source = _derive_gitlab_webhook_url(
-            project,
-            server_port=8080,
-            fallback_public_url=None,
-        )
-        # Since we can't reach gitlab.example.com, this should fail gracefully
-        assert source in ("error", "derived")  # Could succeed if localhost routing works
-
-    def test_derivation_with_forge_base_url(self):
-        """Test derivation uses forge_base_url when repo_url doesn't work."""
-        from oompah.webhooks import _derive_gitlab_webhook_url
-        
-        project = _make_project(
-            repo_url="git@old-host.com:group/project.git",
-        )
-        project.forge_base_url = "https://gitlab.example.com"
-        
-        url, source = _derive_gitlab_webhook_url(
-            project,
-            server_port=8080,
-            fallback_public_url=None,
-        )
-        # Should attempt to derive from forge_base_url
-        # The exact result depends on network, but source should be set
-        assert source in ("derived", "error")
-        if source == "derived":
-            assert "8080" in url
-
-
-class TestGitLabHookManagerWithRouteDiscovery:
-    """Tests for GitLabHookManager with route discovery enabled."""
-
-    def _project(self, **kwargs):
-        project = _make_project(
-            repo_url="https://gitlab.example.com/group/project.git",
-            webhook_secret="hook-secret",
-            **kwargs,
-        )
-        project.forge_kind = "gitlab"
-        project.forge_base_url = "https://gitlab.example.com"
-        project.access_token = "api-token"
-        return project
-
-    @pytest.mark.asyncio
-    async def test_explicit_url_in_status(self):
-        """Test that status shows explicit URL when configured."""
-        from oompah.webhooks import GitLabHookManager
-        
-        project = self._project()
-        client = _FakeGitLabClient([(200, []), (201, {"id": 12})])
-        manager = GitLabHookManager(
-            _FakeProjectStore([project]),
-            public_url="https://oompah.example.com",
-            server_port=8080,
-            http_client=client,
-        )
-
-        await manager.reconcile()
-
-        status = manager.status
-        proj_status = status["projects"][project.id]
-        assert proj_status["webhook_url"] == "https://oompah.example.com/api/v1/webhooks/gitlab"
-        assert proj_status["url_source"] == "explicit"
-
-    @pytest.mark.asyncio
-    async def test_derivation_failure_in_status(self):
-        """Test that status shows error when derivation fails."""
-        from oompah.webhooks import GitLabHookManager
-        
-        project = self._project()
-        # No public_url and no server_port: configuration error at manager level
-        manager = GitLabHookManager(
-            _FakeProjectStore([project]),
-            public_url=None,
-            server_port=None,
-            http_client=None,
-        )
-
-        await manager.reconcile()
-
-        status = manager.status
-        assert status["configured"] is False
-        assert "configured" in status["detail"].lower() or "server_port" in status["detail"].lower()
-
-    @pytest.mark.asyncio
-    async def test_removes_unrelated_hooks_only(self):
-        """Test that remove only deletes this manager's hook."""
-        from oompah.webhooks import GitLabHookManager
-        
-        project = self._project()
-        target = "https://oompah.example.com/api/v1/webhooks/gitlab"
-        unrelated = "https://other-webhook.example.com/hook"
-        
-        client = _FakeGitLabClient([
-            (200, [{"id": 1, "url": target}, {"id": 2, "url": unrelated}]),
-            (204, None),
-        ])
-        manager = GitLabHookManager(
-            _FakeProjectStore([project]),
-            public_url="https://oompah.example.com",
-            server_port=8080,
-            http_client=client,
-        )
-
-        await manager.remove(project)
-
-        # Should only DELETE the matching hook (id=1), not the unrelated one
-        assert len(client.calls) == 2
-        assert client.calls[0][0] == "GET"  # List hooks
-        assert client.calls[1][0] == "DELETE"  # Delete only matching
-        assert "/hooks/1" in client.calls[1][1]
-
-    @pytest.mark.asyncio
-    async def test_reconcile_with_server_port_but_no_explicit_url(self):
-        """Test reconciliation attempts derivation when server_port is available."""
-        from oompah.webhooks import GitLabHookManager
-        
-        project = self._project()
-        client = _FakeGitLabClient([(200, []), (201, {"id": 12})])
-        manager = GitLabHookManager(
-            _FakeProjectStore([project]),
-            public_url=None,  # No explicit URL
-            server_port=8080,  # But server port is available
-            http_client=client,
-        )
-
-        await manager.reconcile()
-
-        status = manager.status
-        proj_status = status["projects"][project.id]
-        # Should attempt derivation (result depends on network availability)
-        assert proj_status["url_source"] in ("derived", "error")
-        if proj_status["url_source"] == "error":
-            assert proj_status["healthy"] is False
-
-    @pytest.mark.asyncio
-    async def test_configuration_error_requires_explicit_or_port(self):
-        """Test that configuration error is raised when neither explicit URL nor port is available."""
-        from oompah.webhooks import GitLabHookManager
-        
-        manager = GitLabHookManager(
-            _FakeProjectStore([]),
-            public_url=None,
-            server_port=None,
-        )
-
-        error = manager._configuration_error()
-        assert error != ""
-        assert "OOMPAH_SERVER_PORT" in error or "configured" in error
-
-    @pytest.mark.asyncio
-    async def test_explicit_https_validation(self):
-        """Test that explicit URL must be HTTPS."""
-        from oompah.webhooks import GitLabHookManager
-        
-        manager = GitLabHookManager(
-            _FakeProjectStore([]),
-            public_url="http://oompah.example.com",  # HTTP, not HTTPS
-            server_port=None,
-        )
-
-        error = manager._configuration_error()
-        assert error != ""
-        assert "HTTPS" in error
-
-    def test_explicit_url_stripping(self):
-        """Test that explicit URL is stripped of trailing slashes."""
-        from oompah.webhooks import GitLabHookManager
-        
-        manager = GitLabHookManager(
-            _FakeProjectStore([]),
-            public_url="https://oompah.example.com/",  # Trailing slash
-            server_port=8080,
-        )
-
-        assert manager._public_url == "https://oompah.example.com"
-
-    @pytest.mark.asyncio
-    async def test_multiple_projects_independent_urls(self):
-        """Test that multiple GitLab projects can have different derived URLs."""
-        from oompah.webhooks import GitLabHookManager
-        
-        project1 = _make_project(
-            project_id="proj-1",
-            repo_url="https://gitlab1.example.com/group/project1.git",
-            webhook_secret="secret1",
-        )
-        project1.forge_kind = "gitlab"
-        project1.forge_base_url = "https://gitlab1.example.com"
-        project1.access_token = "token1"
-
-        project2 = _make_project(
-            project_id="proj-2",
-            repo_url="https://gitlab2.example.com/group/project2.git",
-            webhook_secret="secret2",
-        )
-        project2.forge_kind = "gitlab"
-        project2.forge_base_url = "https://gitlab2.example.com"
-        project2.access_token = "token2"
-
-        client = _FakeGitLabClient([
-            (200, []), (201, {"id": 1}),  # Project 1
-            (200, []), (201, {"id": 2}),  # Project 2
-        ])
-        manager = GitLabHookManager(
-            _FakeProjectStore([project1, project2]),
-            public_url=None,
-            server_port=8080,
-            http_client=client,
-        )
-
-        await manager.reconcile()
-
-        status = manager.status
-        # Both projects should have their own URLs (or both error, depending on network)
-        proj1_status = status["projects"]["proj-1"]
-        proj2_status = status["projects"]["proj-2"]
-        assert proj1_status["url_source"] in ("derived", "error")
-        assert proj2_status["url_source"] in ("derived", "error")

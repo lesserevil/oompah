@@ -517,6 +517,19 @@ class TestWebhookURLCheck:
         result = _check_webhook_url("https://oompah.example.com/hooks")
         assert result.status == CapabilityStatus.ok
 
+    def test_route_derived_url_requires_ip_literal_and_port(self):
+        result = _check_webhook_url(
+            "http://oompah.internal:8080/api/v1/webhooks/gitlab",
+            route_derived=True,
+        )
+        assert result.status == CapabilityStatus.failed
+
+        result = _check_webhook_url(
+            "http://10.1.2.3:8080/api/v1/webhooks/gitlab",
+            route_derived=True,
+        )
+        assert result.status == CapabilityStatus.ok
+
     def test_url_without_hostname_fails(self):
         result = _check_webhook_url("https://")
         assert result.status == CapabilityStatus.failed
@@ -733,6 +746,74 @@ class TestWebhookURLFromEnvironment:
         webhook_cap = next(c for c in result.capabilities if c.name == "webhook_url")
         assert webhook_cap.status == CapabilityStatus.ok
         assert "env-hook.example.com" in webhook_cap.message
+
+    def test_route_selected_url_is_used_when_no_explicit_url(self, monkeypatch):
+        monkeypatch.delenv("OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL", raising=False)
+        get_responses = {
+            "/api/v4/user": (200, {"id": 1, "username": "bot"}),
+            "/labels": (200, []),
+            "/issues": (200, []),
+            "/merge_requests": (200, []),
+            "/pipelines": (200, []),
+            "/api/v4/projects/": (
+                200,
+                {
+                    "permissions": {
+                        "project_access": {"access_level": 40},
+                        "group_access": None,
+                    }
+                },
+            ),
+            "/protected_branches": (200, []),
+            "/hooks": (200, []),
+            "/branches": (200, []),
+        }
+        resolver = MagicMock(return_value="10.55.0.8")
+        with patch(
+            "oompah.project_bootstrap.gitlab_readiness._gitlab_get",
+            side_effect=_mock_get(get_responses),
+        ):
+            result = check_gitlab_readiness(
+                forge_base_url=_BASE_URL,
+                token=_TOKEN,
+                namespace=_NS,
+                project_name=_PROJ,
+                server_port=8090,
+                route_resolver=resolver,
+                dry_run=True,
+            )
+
+        webhook_cap = next(
+            c for c in result.capabilities if c.name == "webhook_url"
+        )
+        assert webhook_cap.status == CapabilityStatus.ok
+        assert "10.55.0.8:8090" in webhook_cap.message
+        resolver.assert_called_once_with("gitlab.example.com", 443)
+
+    def test_route_failure_reports_explicit_url_remediation(self, monkeypatch):
+        monkeypatch.delenv("OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL", raising=False)
+        with patch(
+            "oompah.project_bootstrap.gitlab_readiness._gitlab_get",
+            return_value=(503, {}),
+        ):
+            result = check_gitlab_readiness(
+                forge_base_url=_BASE_URL,
+                token=_TOKEN,
+                namespace=_NS,
+                project_name=_PROJ,
+                server_port=8090,
+                route_resolver=MagicMock(
+                    side_effect=OSError("network is unreachable")
+                ),
+                dry_run=True,
+            )
+
+        webhook_cap = next(
+            c for c in result.capabilities if c.name == "webhook_url"
+        )
+        assert webhook_cap.status == CapabilityStatus.failed
+        assert "network is unreachable" in webhook_cap.message
+        assert "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL" in webhook_cap.remediation
 
 
 # ---------------------------------------------------------------------------

@@ -96,8 +96,10 @@ access-controlled.
 In the dashboard go to **Project → Settings → External Issue Intake**, select
 the project's forge, and toggle **Enable**. Alternatively set the forge-neutral
 project API field. The older GitHub-named field remains accepted for existing
-automation. For GitLab, also configure the GitLab webhook secret and public
-HTTPS webhook URL before enabling intake.
+automation. For GitLab, also configure the GitLab webhook secret and verify
+that GitLab can reach the route-derived callback. Set the optional
+`OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` HTTPS override when direct private-network
+delivery is unsuitable.
 
 ```bash
 curl -X PATCH http://localhost:8080/api/v1/projects/<project-id> \

@@ -113,6 +113,7 @@ class TestSetupServicesSuccess:
 
         mock_config = MagicMock(name="config")
         mock_config.server_port = 8080
+        mock_config.gitlab_webhook_public_url = None
         mock_config.strict_profile_source = "warn"
         mock_config.workflow_has_profiles_block = False
         mock_config.agent_profiles_drift = False
@@ -152,6 +153,7 @@ class TestSetupServicesSuccess:
         "RoleStore": "oompah.roles.RoleStore",
         "migrate_agent_profiles_to_roles": "oompah.roles.migrate_agent_profiles_to_roles",
         "WebhookForwarder": "oompah.webhooks.WebhookForwarder",
+        "GitLabHookManager": "oompah.webhooks.GitLabHookManager",
         "Orchestrator": "oompah.orchestrator.Orchestrator",
     }
 
@@ -177,6 +179,10 @@ class TestSetupServicesSuccess:
                 return_value=mocks["forwarder"],
             ) as mock_forwarder_cls,
             patch(
+                self._PATCHES["GitLabHookManager"],
+                return_value=MagicMock(name="gitlab_hook_manager"),
+            ) as mock_gitlab_hook_manager_cls,
+            patch(
                 self._PATCHES["Orchestrator"],
                 return_value=mocks["orchestrator"],
             ),
@@ -192,6 +198,11 @@ class TestSetupServicesSuccess:
         assert services.webhook_forwarder is mocks["forwarder"]
         mock_forwarder_cls.assert_called_once_with(
             project_store=mocks["projects"],
+            server_port=9090,
+        )
+        mock_gitlab_hook_manager_cls.assert_called_once_with(
+            project_store=mocks["projects"],
+            public_url=None,
             server_port=9090,
         )
 

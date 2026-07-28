@@ -13954,13 +13954,14 @@ async def api_gitlab_webhook_status():
     Returns a JSON object with the following fields:
 
     * ``running`` — whether the manager's background loop is active.
-    * ``configured`` — whether ``OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL`` is set
-      and valid.
+    * ``configured`` — whether the explicit URL or route-derived fallback can
+      provide a callback URL.
     * ``detail`` — human-readable configuration error, or ``""`` on success.
-    * ``webhook_url`` — the URL registered as the GitLab hook target.
+    * ``webhook_url`` — the explicit URL, or the route-derived URL when all
+      projects share one.
+    * ``webhook_url_source`` — ``"explicit"`` or ``"route"``.
     * ``projects`` — per-project health map keyed by project ID.  Each
-      entry has ``name``, ``hook_id``, ``configured``, ``healthy``, and
-      ``last_error``.
+      entry also reports its effective ``webhook_url`` and source.
     """
     if _gitlab_hook_manager is None:
         return JSONResponse({"running": False, "configured": False, "detail": "GitLab hook manager not initialised", "webhook_url": "", "projects": {}})

@@ -183,7 +183,9 @@ Via the dashboard: go to **Projects → [your project] → Settings**, select th
 forge, and turn on **External Issue Intake**. Set **Tracker owner** and
 **Tracker repo** to the GitHub organization/repository or GitLab
 namespace/project where customers file issues. GitLab intake also requires a
-configured public HTTPS webhook URL and webhook secret.
+reachable webhook callback and webhook secret. Oompah derives the callback
+from the OS route to GitLab by default; configure
+`OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL` when an explicit HTTPS address is required.
 
 Via the API:
 
@@ -221,7 +223,8 @@ If the label does not appear, check:
 
 - GitHub webhook forwarding: `ps -ef | grep "gh webhook" | grep -v grep` —
   expect one `gh webhook forward` line per GitHub project. For GitLab, verify
-  the project hook points at the configured public HTTPS endpoint.
+  the project hook points at the effective route-derived or explicit callback
+  shown by Oompah's GitLab hook status.
 - Service logs: `make logs | grep -i webhook`.
 - GitHub token scopes: the token must have `write:org` or `repo` scope to
   apply labels. GitLab tokens require `api` scope (or equivalent project

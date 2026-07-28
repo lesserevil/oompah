@@ -9,8 +9,8 @@ minimum capabilities required to run oompah against a GitLab project:
 4. **mr_access** — the token may read merge requests.
 5. **pipeline_read** — the token may read pipeline/CI status.
 6. **state_branch_push** — the token may push branches (needed for state branch).
-7. **webhook_url** — ``OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL`` is set and is an
-   HTTPS URL reachable by GitLab.
+7. **webhook_url** — an explicit HTTPS override or a callback derived from
+   the local IP selected by the operating-system route to GitLab is available.
 8. **hook_create** — the token may create project hooks.
 9. **polling_fallback** — polling via the API is available when webhooks are not.
 
@@ -20,21 +20,28 @@ Security design
 ---------------
 - Token values are **never** included in log output or returned error messages.
   Error messages describe the *capability* that failed, not the credential.
-- The webhook URL reachability check is intentionally limited to a DNS/TLS
-  sanity check rather than a full HTTP round-trip, because the oompah server
-  is typically behind a firewall or tunnel during bootstrap.
+- Route discovery asks the kernel to select a local source address without
+  sending application data. The webhook URL check does not make an HTTP
+  round-trip because the Oompah server may be behind a firewall or tunnel.
 - All HTTP requests use explicit timeouts so the readiness check cannot hang
   indefinitely when GitLab is unreachable.
 """
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 from urllib.parse import urlsplit
+
+from oompah.gitlab_webhook_url import (
+    RouteSourceResolver,
+    resolve_gitlab_webhook_url,
+    route_source_address,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -528,14 +535,18 @@ def _push_remediation() -> str:
     )
 
 
-def _check_webhook_url(webhook_public_url: str | None) -> CapabilityResult:
-    """Verify the configured public webhook URL is an HTTPS URL.
+def _check_webhook_url(
+    webhook_public_url: str | None,
+    *,
+    route_derived: bool = False,
+    resolution_error: str = "",
+) -> CapabilityResult:
+    """Verify an explicit or route-derived webhook URL.
 
     This check does NOT make an outbound HTTP request, because oompah is
-    typically behind a tunnel during bootstrap.  It validates that the URL:
-    - is non-empty
-    - uses the HTTPS scheme
-    - has a non-empty hostname
+    typically behind a tunnel during bootstrap. Explicit operator URLs must
+    use HTTPS. Route-derived URLs use the Oompah server's direct HTTP listener
+    and an IP selected by the operating system's route to GitLab.
 
     Operators must separately verify that GitLab can reach this URL.
     """
@@ -543,16 +554,51 @@ def _check_webhook_url(webhook_public_url: str | None) -> CapabilityResult:
         return CapabilityResult(
             name="webhook_url",
             status=CapabilityStatus.failed,
-            message="OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL is not set",
+            message=(
+                resolution_error
+                or (
+                    "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL is not set and the "
+                    "GitLab route-derived callback URL was not resolved"
+                )
+            ),
             remediation=(
-                "Set OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL in .env to the public HTTPS base URL "
-                "where oompah is reachable from the internet, e.g. "
-                "'https://oompah.example.com'.  If running locally, use a tunnel such as "
-                "ngrok or cloudflared to expose the service. "
-                "GitLab requires HTTPS for webhook delivery."
+                "Verify OOMPAH_SERVER_PORT is enabled and that this host has a "
+                "route to the configured GitLab server. If GitLab cannot reach "
+                "the route-selected local address, set "
+                "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL in .env to the public HTTPS "
+                "base URL where Oompah is reachable."
             ),
         )
     parsed = urlsplit(webhook_public_url)
+    if route_derived:
+        try:
+            route_host = (
+                ipaddress.ip_address(parsed.hostname)
+                if parsed.hostname
+                else None
+            )
+            route_port = parsed.port
+        except ValueError:
+            route_host = None
+            route_port = None
+        if parsed.scheme != "http" or route_host is None or route_port is None:
+            return CapabilityResult(
+                name="webhook_url",
+                status=CapabilityStatus.failed,
+                message="Route-derived webhook URL is malformed",
+                remediation=(
+                    "Verify OOMPAH_SERVER_PORT and the route to the configured "
+                    "GitLab server, or set OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL."
+                ),
+            )
+        return CapabilityResult(
+            name="webhook_url",
+            status=CapabilityStatus.ok,
+            message=(
+                "Webhook URL uses the route-selected Oompah address "
+                f"({parsed.scheme}://{route_host}:{route_port}…)"
+            ),
+        )
     if parsed.scheme != "https":
         return CapabilityResult(
             name="webhook_url",
@@ -723,6 +769,8 @@ def check_gitlab_readiness(
     namespace: str,
     project_name: str,
     webhook_public_url: str | None = None,
+    server_port: int | str | None = None,
+    route_resolver: RouteSourceResolver = route_source_address,
     dry_run: bool = False,
 ) -> GitLabReadinessResult:
     """Run all GitLab bootstrap readiness checks.
@@ -741,10 +789,14 @@ def check_gitlab_readiness(
     project_name:
         GitLab project name within the namespace.
     webhook_public_url:
-        Public HTTPS URL where oompah is reachable from the internet.
-        If ``None``, the webhook URL and hook-create checks are skipped
-        (or failed depending on configuration).  Defaults to the value of
-        ``OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL`` when not set explicitly.
+        Optional public HTTPS URL where Oompah is reachable from GitLab.
+        Defaults to ``OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL``. When absent,
+        readiness derives a direct callback from the route-selected local IP.
+    server_port:
+        Active Oompah HTTP server port used by route-derived callbacks.
+        Defaults to ``OOMPAH_SERVER_PORT`` or 8080.
+    route_resolver:
+        Injectable route-source resolver used by tests.
     dry_run:
         When ``True``, avoid state-mutating API calls (label create,
         hook create).  Read-only equivalents are used instead.
@@ -760,10 +812,31 @@ def check_gitlab_readiness(
             f"forge_base_url must be an https:// URL, got {forge_base_url!r}"
         )
 
-    # Resolve webhook URL from env if not explicitly supplied.
+    # Resolve an explicit URL from the environment first. If there is no
+    # override, use the local IP selected by the OS route to this GitLab.
     effective_webhook_url = webhook_public_url
     if effective_webhook_url is None:
-        effective_webhook_url = os.environ.get("OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL") or None
+        effective_webhook_url = (
+            os.environ.get("OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL", "").strip()
+            or None
+        )
+    route_derived = False
+    webhook_resolution_error = ""
+    if not effective_webhook_url:
+        effective_port = (
+            server_port
+            if server_port is not None
+            else os.environ.get("OOMPAH_SERVER_PORT", "8080")
+        )
+        resolution = resolve_gitlab_webhook_url(
+            forge_url=forge_base_url,
+            explicit_public_url=None,
+            server_port=effective_port,
+            route_resolver=route_resolver,
+        )
+        effective_webhook_url = resolution.url or None
+        route_derived = True
+        webhook_resolution_error = resolution.error
 
     encoded_project = _encode_project_path(namespace, project_name)
     capabilities: list[CapabilityResult] = []
@@ -791,7 +864,13 @@ def check_gitlab_readiness(
                     message="Skipped: API access failed",
                 )
             )
-        capabilities.append(_check_webhook_url(effective_webhook_url))
+        capabilities.append(
+            _check_webhook_url(
+                effective_webhook_url,
+                route_derived=route_derived,
+                resolution_error=webhook_resolution_error,
+            )
+        )
         return GitLabReadinessResult(
             all_ok=False,
             capabilities=capabilities,
@@ -820,7 +899,13 @@ def check_gitlab_readiness(
     )
 
     # 7. Webhook URL
-    capabilities.append(_check_webhook_url(effective_webhook_url))
+    capabilities.append(
+        _check_webhook_url(
+            effective_webhook_url,
+            route_derived=route_derived,
+            resolution_error=webhook_resolution_error,
+        )
+    )
 
     # 8. Hook create
     capabilities.append(

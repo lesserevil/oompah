@@ -428,9 +428,10 @@ class ServiceConfig:
     escalate_after_attempts: int = 1  # escalate profile after N failed attempts (stall or max_turns)
     decompose_after_attempts: int = 2
     server_port: int | None = DEFAULT_SERVER_PORT
-    # Public HTTPS base URL used for GitLab Project Hooks.  This is kept in
-    # environment configuration rather than WORKFLOW.md because it is an
-    # operator-facing deployment setting.
+    # Optional public HTTPS base URL override used for GitLab Project Hooks.
+    # Without it, the manager derives a callback from the route-selected local
+    # IP and server_port. This remains environment configuration rather than
+    # WORKFLOW.md because it is an operator-facing deployment setting.
     gitlab_webhook_public_url: str | None = None
     agent_profiles: list[AgentProfile] = field(default_factory=list)
     # Resolved source for the effective agent_profiles list:
