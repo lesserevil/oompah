@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-463
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Persist terminal-audit state through the tracker metadata contract
 parent: OOMPAH-457
@@ -11,16 +11,15 @@ blocked_by:
 - OOMPAH-452
 labels:
 - focus-complete:duplicate_detector
-- needs:feature
 assignee: null
 created_at: '2026-07-28T13:05:05.235115Z'
-updated_at: '2026-07-28T18:42:02.698831Z'
+updated_at: '2026-07-28T18:42:19.286707Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: c1135c8e-b69c-4657-84b0-9e2baac7fbb2
+oompah.agent_run_id: 6b481f50-63b9-4f13-b105-3bb0e917194f
 oompah.work_branch: epic-OOMPAH-457
 oompah.task_costs:
   total_input_tokens: 884025
@@ -105,5 +104,15 @@ author: oompah
 created: 2026-07-28 18:42
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 18:42
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-28 18:42
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->

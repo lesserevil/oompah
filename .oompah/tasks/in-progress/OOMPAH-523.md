@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -11,12 +11,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:32:34.916720Z'
-work_branch: null
+updated_at: '2026-07-28T18:42:22.093862Z'
+work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 0f5b9f78-c77c-415e-b67f-a4a888d0615e
+oompah.work_branch: epic-OOMPAH-521
 ---
 ## Summary
 
@@ -66,3 +68,16 @@ Add integration tests for disabled mode; valid credentials; missing, malformed, 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 18:42
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 18:42
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
