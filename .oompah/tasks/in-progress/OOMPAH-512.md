@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T15:20:48.938493Z'
+updated_at: '2026-07-28T15:21:24.238661Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-07-28 15:20
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-07-28 15:21
+---
+Understanding (refactor): Managed runtime paths currently retain a cwd-derived global tracker alongside project-scoped trackers. I will inventory every orch.tracker/self.tracker consumer and the project tracker construction contract, run baseline focused tests, then make only behavior-preserving structural changes that clarify/centralize tracker resolution. Any mutation-routing behavior change will be handed to a feature focus with exact remaining call sites and regression requirements.
 ---
 <!-- COMMENTS:END -->

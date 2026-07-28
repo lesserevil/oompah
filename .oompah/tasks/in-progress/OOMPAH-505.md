@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:21:07.651601Z'
+updated_at: '2026-07-28T15:21:23.417086Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -135,5 +135,10 @@ author: oompah
 created: 2026-07-28 15:21
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-28 15:21
+---
+Understanding: I am implementing the frontend slice by tracing ACP backend capability metadata into the role configuration UI, separating catalog discovery from manual model entry, adding an accessible framework-consistent control for catalog-less backends, and covering behavior with existing UI/API tests. I will verify whether backend/configuration work remains and hand off with evidence if needed.
 ---
 <!-- COMMENTS:END -->
