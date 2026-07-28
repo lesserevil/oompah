@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-467
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Add explicit authorized owner overrides for terminal audits
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T20:28:17.512611Z'
+updated_at: '2026-07-28T20:28:29.127591Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ merged_at: null
 oompah.agent_run_id: 8390d197-7700-4700-acf1-f66a0c0ceaef
 oompah.work_branch: epic-OOMPAH-457
 oompah.task_costs:
-  total_input_tokens: 6715546
-  total_output_tokens: 48197
+  total_input_tokens: 6715684
+  total_output_tokens: 51379
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 6715537
-      output_tokens: 46574
+      input_tokens: 6715675
+      output_tokens: 49756
       cost_usd: 0.0
     sonnet:
       input_tokens: 9
@@ -51,6 +51,12 @@ oompah.task_costs:
     output_tokens: 1623
     cost_usd: 0.0
     recorded_at: '2026-07-28T20:24:34.955856+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 138
+    output_tokens: 3182
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T20:28:25.664562+00:00'
 ---
 ## Summary
 
@@ -361,5 +367,38 @@ author: oompah
 created: 2026-07-28 20:28
 ---
 Explicit authorized owner overrides for terminal audits implemented, tested, and verified. All 23 override tests and 128 coordinator tests passing.
+---
+author: oompah
+created: 2026-07-28 20:28
+---
+Agent completed successfully in 215s (3320 tokens)
+---
+author: oompah
+created: 2026-07-28 20:28
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 42, Tool calls: 16
+- Tokens: 138 in / 3.2K out [3.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 35s
+- Log: OOMPAH-467__20260728T202452Z.jsonl
+---
+author: oompah
+created: 2026-07-28 20:28
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-457` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-457
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-457
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
