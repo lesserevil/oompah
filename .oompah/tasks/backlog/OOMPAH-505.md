@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:52:07.940220Z'
+updated_at: '2026-07-28T15:53:28.789285Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -240,5 +240,10 @@ author: oompah
 created: 2026-07-28 15:52
 ---
 Verification: Isolated live-config transaction passed for all six mappings with round-robin, unchanged default role/provider store, atomic rejection of unknown provider and invalid catalog model, and exact snapshot rollback. Focused tests passed: 200 passed (test_acp_agent, test_acp_backends, test_providers, test_providers_ui). JavaScript syntax passed and make check-secrets passed. make test could not start because Snap uv fails DBus transient-scope creation (same environment-only failure documented previously); the Python pytest fallback succeeded. Live verification remains impossible in this session because the managed runtime/config is read-only and no in-process restart/role mutation tool is exposed.
+---
+author: oompah
+created: 2026-07-28 15:53
+---
+Completion: Feature code/documentation is complete and pushed on epic-OOMPAH-502 at 020199d32; the branch is clean and exactly up to date with origin. DevOps validation proved the six exact round-robin mappings, unchanged default/provider configuration, atomic invalid-input behavior, and exact rollback; focused tests (200), JS syntax, and secret scanning pass. The managed service cannot be safely mutated from this sandbox: its checkout/config is read-only, its running instance predates the feature, and managed ACP forbids loopback restart/API calls. The required production rollout, live role update, health checks, and telemetry confirmation are therefore tracked with full rollback criteria in OOMPAH-516, set to Needs Human for operator execution. No shadow service or unsafe production change was made.
 ---
 <!-- COMMENTS:END -->
