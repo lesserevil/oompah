@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:32.426575Z'
-updated_at: '2026-07-28T16:18:09.157499Z'
+updated_at: '2026-07-28T16:24:38.946919Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -182,5 +182,33 @@ Page contracts duplicated: ~12 tests from TestRDIOverlayHTML + drawer tests = ~1
 Retained-control duplicates: 5 exact duplicates
 
 Plan: Remove TestRDIOverlayHTML class entirely, remove drawer role/aria tests from TestRDIDrawerHTML, remove all five retained-* tests, update docstrings from 'overlay' to 'page'. Baseline counts: 348/131/96 tests.
+---
+author: oompah
+created: 2026-07-28 16:24
+---
+Implementation: Successfully removed cross-file test duplication:
+
+CHANGES:
+1. Removed TestRDIOverlayHTML class (25 tests) - page structure tests duplicated in test_release_delivery_page.py
+2. Removed 2 drawer role/aria tests from TestRDIDrawerHTML - accessibility duplicates  
+3. Removed 5 retained-control tests for add-release-branches dialog (now owned by test_dashboard_release_addendums_ui.py):
+   - test_open_add_release_branches_dialog_retained
+   - test_close_add_release_branches_dialog_retained
+   - test_submit_add_release_branches_dialog_retained
+   - test_add_release_branches_dialog_html_retained
+   - test_render_release_addendums_section_retained
+4. Updated module docstring from 'overlay' to 'page' references
+5. Added contract-ownership table at top of test_dashboard_release_delivery_ui.py
+
+CONTRACT OWNERSHIP ESTABLISHED:
+- Page route/navigation/structure: test_release_delivery_page.py (canonical)
+- URL persistence & bootstrap: test_release_delivery_page.py (canonical)
+- Accessibility (ARIA, labels, roles): test_release_delivery_page.py (canonical)
+- Live delivery status polling: test_release_delivery_page.py (canonical)
+- Add-release-branches dialog: test_dashboard_release_addendums_ui.py (canonical)
+- Release addendums rendering: test_dashboard_release_addendums_ui.py (canonical)
+- Backlog rendering/selection/queuing: test_dashboard_release_delivery_ui.py (retained)
+- Status variants & drawer: test_dashboard_release_delivery_ui.py (retained)
+- XSS prevention & refresh: test_dashboard_release_delivery_ui.py (retained)
 ---
 <!-- COMMENTS:END -->
