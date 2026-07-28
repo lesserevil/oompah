@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-464
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Persist the upgrade grandfather baseline and recover pending audits
 parent: OOMPAH-457
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:06.169316Z'
-updated_at: '2026-07-28T19:11:38.662904Z'
+updated_at: '2026-07-28T19:16:24.061859Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -171,5 +171,10 @@ author: oompah
 created: 2026-07-28 19:11
 ---
 Verification: focused terminal-audit/domain/metadata and orchestrator startup/restart/event-loop tests pass (82 tests). Added coverage for first/second startup, unchanged baselines, evidence changes, terminal transitions, metadata recovery and duplicate attempt suppression, corrupt/legacy state, overlapping project IDs, quarantine observability, audit completion, and startup wiring. Ruff and git diff checks are clean.
+---
+author: oompah
+created: 2026-07-28 19:16
+---
+Completion: delivered and pushed commit 1f77c82a0 on epic-OOMPAH-457. Terminal-audit enforcement now persists a versioned grandfather baseline, invalidates it on state/evidence changes, recovers In Validation pending work with attempt deduplication, handles corrupt state/metadata fail-closed with logs/alerts, and scopes overlapping task IDs by project. Focused tests pass; full isolated suite passes 12,689 tests with 7 skips. The make test wrapper could not initialize uv in this environment due DBus transient-scope setup, while the equivalent isolated pytest gate passed. Branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
