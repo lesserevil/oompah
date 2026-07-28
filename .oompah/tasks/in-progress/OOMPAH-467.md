@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-467
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Add explicit authorized owner overrides for terminal audits
 parent: OOMPAH-457
@@ -11,12 +11,14 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T18:06:25.463487Z'
-work_branch: null
+updated_at: '2026-07-28T20:05:07.309116Z'
+work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: 0888bf70-257e-428e-839e-40de2770175b
+oompah.work_branch: epic-OOMPAH-457
 ---
 ## Summary
 
@@ -38,3 +40,16 @@ A verified project owner can deliberately bypass auditing with a durable reason;
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 20:05
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 20:05
+---
+Focus: Api Oompah Integration Specialist
+---
+<!-- COMMENTS:END -->

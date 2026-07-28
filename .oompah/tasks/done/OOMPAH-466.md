@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:08.204164Z'
-updated_at: '2026-07-28T20:04:52.774942Z'
+updated_at: '2026-07-28T20:05:00.878668Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -20,13 +20,17 @@ merged_at: null
 oompah.agent_run_id: 310715ad-27ac-4a75-a8f1-dba49637df2a
 oompah.work_branch: epic-OOMPAH-457
 oompah.task_costs:
-  total_input_tokens: 390282
-  total_output_tokens: 5073
+  total_input_tokens: 390392
+  total_output_tokens: 8251
   total_cost_usd: 0.0
   by_model:
     sonnet:
       input_tokens: 390282
       output_tokens: 5073
+      cost_usd: 0.0
+    opus:
+      input_tokens: 110
+      output_tokens: 3178
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -35,6 +39,12 @@ oompah.task_costs:
     output_tokens: 5073
     cost_usd: 0.0
     recorded_at: '2026-07-28T19:52:43.775139+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 110
+    output_tokens: 3178
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T20:04:58.585212+00:00'
 ---
 ## Summary
 
@@ -122,5 +132,15 @@ author: oompah
 created: 2026-07-28 20:04
 ---
 Coordinator apply_audit_result with CAS, central failure routing, PASS/FAIL/NEEDS_HUMAN/ERROR handling, actionable Needs Human comments, and no fail-open paths. 100 tests in the coordinator suite (195 across the terminal-audit stack).
+---
+author: oompah
+created: 2026-07-28 20:05
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 72
+- Tokens: 110 in / 3.2K out [3.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 55s
+- Log: OOMPAH-466__20260728T195305Z.jsonl
 ---
 <!-- COMMENTS:END -->
