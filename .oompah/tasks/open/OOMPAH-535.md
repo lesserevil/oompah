@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-535
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Prevent orphaned duplicate-preflight workers and phantom claims
 parent: null
@@ -12,12 +12,26 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-28T23:18:01.725169Z'
-updated_at: '2026-07-28T23:18:13.976771Z'
+updated_at: '2026-07-28T23:18:33.125574Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: aea7127676deee29c860f285d1e41a2c6ea3eeb1912c36c1ed408c5bdcd96e84
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: fc8d5169-2484-45f7-9402-efc70fdccbda
+  claim_owner: 8e692a0c-71f6-4607-8341-3faedd0fb344
+  claimed_at: '2026-07-28T23:18:32.518579+00:00'
+  claim_expires_at: '2026-07-28T23:48:32.518579+00:00'
+  retry_count: 0
+  retry_after: null
 ---
 ## Summary
 
