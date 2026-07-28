@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-533
 type: task
-status: Done
+status: Merged
 priority: 3
 title: Expose duplicate-screening state in the API and dashboard
 parent: OOMPAH-528
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:45.110386Z'
-updated_at: '2026-07-28T22:13:50.111381Z'
+updated_at: '2026-07-28T22:14:52.441681Z'
 work_branch: null
 target_branch: null
 review_url: null
