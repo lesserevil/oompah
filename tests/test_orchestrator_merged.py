@@ -22,7 +22,7 @@ from oompah.statuses import (
 
 
 def _make_config() -> ServiceConfig:
-    return ServiceConfig()
+    return ServiceConfig(duplicate_preflight_max_agents=0)
 
 
 def _make_issue(identifier: str, state: str = "closed", labels: list | None = None,
@@ -2522,7 +2522,7 @@ class TestBudgetWindowPersistence:
     00:00) — see also TestBudgetWindowCalendarBoundaries."""
 
     def _make_orchestrator(self, tmp_path, window: str = "day", tz: str = "UTC"):
-        cfg = ServiceConfig()
+        cfg = ServiceConfig(duplicate_preflight_max_agents=0)
         cfg.budget_limit = 10.0
         cfg.budget_window = window
         cfg.budget_timezone = tz
@@ -3005,7 +3005,7 @@ class TestBudgetGateFreeTierBypass:
         from oompah.models import ModelProvider, AgentProfile
         from unittest.mock import MagicMock
 
-        cfg = ServiceConfig()
+        cfg = ServiceConfig(duplicate_preflight_max_agents=0)
         cfg.budget_limit = 10.0
         cfg.agent_profiles = [
             AgentProfile(name="default", command="claude", model_role="fast"),

@@ -24,6 +24,21 @@ from oompah.agent import AgentError, AgentEvent, AgentSession
 from oompah.agent_profile_store import AgentProfileStore
 from oompah.api_agent import AgentActivity, ApiAgentSession
 from oompah.completion_verifier import VerifierResult, verify_completion
+from oompah.duplicate_screening import (
+    DEFAULT_CLAIM_TTL_SECONDS,
+    DETECTOR_VERSION as DUPLICATE_DETECTOR_VERSION,
+    DuplicateScreeningRecord,
+    ScreeningState,
+    ScreeningVerdict,
+    assess_screening,
+    complete_claim_record,
+    compute_task_fingerprint,
+    eligible_for_model_screening,
+    inconclusive_record,
+    load_record as load_duplicate_screening_record,
+    new_claim_record,
+    save_record as save_duplicate_screening_record,
+)
 from oompah.config import (
     ServiceConfig,
     WorkflowError,
@@ -156,6 +171,14 @@ import os
 from oompah.ipc import OrchestratorIPC, get_ipc
 
 _DISPATCH_DUPLICATE_SUPPRESSION_SCORE = 0.75
+_DUPLICATE_PREFLIGHT_MAX_RETRIES = 3
+_DUPLICATE_PREFLIGHT_VERDICT_RE = re.compile(
+    r"(?im)^\s*duplicate preflight verdict:\s*"
+    r"(no_duplicate|duplicate_candidate|inconclusive)\s*$"
+)
+_DUPLICATE_PREFLIGHT_MATCHES_RE = re.compile(
+    r"(?im)^\s*matches:\s*(.+?)\s*$"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -3858,6 +3881,14 @@ class Orchestrator:
         await _timed("pre_resolve_blockers", self._pre_resolve_blockers, candidates)
         timings["blocker_pre_resolution"] = metrics["pre_resolve_blockers_ms"]
 
+        # Renew any long-running model-backed screening claims before choosing
+        # new work. This is normally a no-op; writes happen only near half-life.
+        renewed_preflight = await _timed(
+            "renew_duplicate_preflight",
+            self._renew_duplicate_preflight_claims,
+        )
+        metrics["duplicate_preflight_renewed_count"] = renewed_preflight
+
         # 3. Duplicate detection — pattern-based de-dup (add-label, add-comment).
         # Tracker calls run off the event loop. This detects pattern-based
         # duplicates like "rogers-*" that share a topic prefix even when suffixes differ.
@@ -3909,6 +3940,43 @@ class Orchestrator:
         timings["epic_planning"] = (time.monotonic() - _t_epic) * 1000
         metrics["epics_to_plan_count"] = len(epics_to_plan)
         metrics["epics_dispatched_count"] = planned
+
+        # 8. Model-backed duplicate preflight uses only capacity left after
+        # implementation work and epic planning.  Each task receives a
+        # tracker-backed claim before _dispatch starts its worker, and remains
+        # Open for the duration of screening.
+        preflight_candidates = await _timed(
+            "select_duplicate_preflight",
+            self._select_duplicate_preflight_candidates,
+            candidates,
+        )
+        preflight_started = 0
+        claim_race_lost = 0
+        for issue in preflight_candidates:
+            if self._available_slots() <= 0:
+                break
+            claim = await loop.run_in_executor(
+                self._tick_pool,
+                self._claim_duplicate_preflight,
+                issue,
+            )
+            if claim is None:
+                claim_race_lost += 1
+                continue
+            await self._dispatch(
+                issue,
+                attempt=None,
+                duplicate_preflight_claim=claim,
+            )
+            preflight_started += 1
+        timings["duplicate_preflight_dispatch"] = (
+            metrics.get("select_duplicate_preflight_ms", 0.0)
+        )
+        metrics["duplicate_preflight"] = {
+            **getattr(self, "_last_duplicate_preflight_metrics", {}),
+            "started_count": preflight_started,
+            "claim_race_lost_count": claim_race_lost,
+        }
 
         # Epic close / PR maintenance, staleness checks, rebase filing, orphan
         # reset (also), and proactive rebase pruning have been moved to the MAINTENANCE
@@ -4588,6 +4656,264 @@ class Orchestrator:
 
     def _available_slots(self) -> int:
         return max(self.state.max_concurrent_agents - len(self.state.running), 0)
+
+    def _duplicate_preflight_limit(self) -> int:
+        config = getattr(self, "config", None)
+        return max(
+            int(getattr(config, "duplicate_preflight_max_agents", 0) or 0),
+            0,
+        )
+
+    def _duplicate_screening_assessment(self, issue: Issue):
+        return assess_screening(
+            issue,
+            detector_version=DUPLICATE_DETECTOR_VERSION,
+        )
+
+    def _requires_duplicate_preflight(self, issue: Issue) -> bool:
+        return self._duplicate_preflight_limit() > 0 and eligible_for_model_screening(
+            issue
+        )
+
+    def _implementation_duplicate_screening_ready(self, issue: Issue) -> bool:
+        """Return whether an ordinary Open-task dispatch passed qualification."""
+
+        if not self._requires_duplicate_preflight(issue):
+            return True
+        return self._duplicate_screening_assessment(issue).implementation_eligible
+
+    def _duplicate_preflight_running_count(self) -> int:
+        return sum(
+            1
+            for entry in self.state.running.values()
+            if getattr(entry, "duplicate_preflight", False)
+        )
+
+    def _claim_duplicate_preflight(
+        self,
+        issue: Issue,
+    ) -> DuplicateScreeningRecord | None:
+        """Atomically persist and verify a duplicate-preflight claim.
+
+        The dispatch lane serializes local selection, while the per-project
+        lock serializes tracker mutations with maintenance work.  The
+        write-then-read verification is the same shared-tracker protection
+        used for implementation agent run IDs.
+        """
+
+        if not self._requires_duplicate_preflight(issue):
+            return None
+        project_key = str(issue.project_id or "__legacy_duplicate_preflight__")
+        lock = self._get_project_maintenance_lock(project_key)
+        try:
+            tracker = self._tracker_for_issue(issue)
+        except (ProjectError, TrackerError) as exc:
+            logger.debug(
+                "Duplicate preflight cannot resolve tracker for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return None
+        with lock:
+            if issue.id in self.state.running or issue.id in self.state.claimed:
+                return None
+            try:
+                tracker.invalidate_read_cache()
+            except Exception:
+                pass
+            fresh = tracker.fetch_issue_detail(issue.identifier)
+            if fresh is None:
+                return None
+            if not fresh.project_id:
+                fresh.project_id = issue.project_id
+            if not eligible_for_model_screening(fresh):
+                return None
+            assessment = self._duplicate_screening_assessment(fresh)
+            if assessment.state in {ScreeningState.RUNNING, ScreeningState.CHECKED}:
+                return None
+            if (
+                assessment.record is not None
+                and assessment.record.retry_after is not None
+                and assessment.record.retry_after > datetime.now(timezone.utc)
+            ):
+                return None
+
+            # A fresh preflight must leave fresh evidence.  Remove the legacy
+            # completion label before claiming so an old handoff cannot be
+            # mistaken for this run's verdict.
+            legacy_label = "focus-complete:duplicate_detector"
+            if legacy_label in {
+                str(label).strip().lower() for label in (fresh.labels or [])
+            }:
+                tracker.remove_label(fresh.identifier, legacy_label)
+                fresh.labels = [
+                    label
+                    for label in (fresh.labels or [])
+                    if str(label).strip().lower() != legacy_label
+                ]
+                issue.labels = [
+                    label
+                    for label in (issue.labels or [])
+                    if str(label).strip().lower() != legacy_label
+                ]
+
+            previous_retries = (
+                assessment.record.retry_count if assessment.record is not None else 0
+            )
+            claim = new_claim_record(
+                fresh,
+                owner=str(getattr(self, "_service_instance_id", "scheduler")),
+                detector_version=DUPLICATE_DETECTOR_VERSION,
+                ttl_seconds=DEFAULT_CLAIM_TTL_SECONDS,
+                retry_count=previous_retries,
+            )
+            save_duplicate_screening_record(tracker, fresh, claim)
+            verified = load_duplicate_screening_record(tracker, fresh)
+            if verified is None or verified.claim_id != claim.claim_id:
+                logger.info(
+                    "Duplicate preflight claim race lost for %s (claim=%s)",
+                    issue.identifier,
+                    claim.claim_id,
+                )
+                return None
+            issue.duplicate_screening = claim.to_dict()
+            return claim
+
+    def _clear_duplicate_preflight_claim(
+        self,
+        issue: Issue,
+        claim_id: str,
+        *,
+        reason: str,
+    ) -> bool:
+        """Release *claim_id* without clearing a newer replacement claim."""
+
+        project_key = str(issue.project_id or "__legacy_duplicate_preflight__")
+        lock = self._get_project_maintenance_lock(project_key)
+        tracker = self._tracker_for_issue(issue)
+        with lock:
+            try:
+                tracker.invalidate_read_cache()
+            except Exception:
+                pass
+            fresh = tracker.fetch_issue_detail(issue.identifier)
+            if fresh is None:
+                return False
+            if not fresh.project_id:
+                fresh.project_id = issue.project_id
+            record = load_duplicate_screening_record(tracker, fresh)
+            if record is None or record.claim_id != claim_id:
+                return False
+            cleared = inconclusive_record(
+                record,
+                retry_count=record.retry_count,
+                retry_after=datetime.now(timezone.utc),
+                evidence=reason,
+            )
+            save_duplicate_screening_record(tracker, fresh, cleared)
+            issue.duplicate_screening = cleared.to_dict()
+            return True
+
+    def _renew_duplicate_preflight_claims(self) -> int:
+        """Renew live claims near half-life; stale claims are left for retry."""
+
+        now = datetime.now(timezone.utc)
+        renewed = 0
+        for entry in list(self.state.running.values()):
+            if not getattr(entry, "duplicate_preflight", False):
+                continue
+            claim_id = getattr(entry, "duplicate_preflight_claim_id", None)
+            if not claim_id or entry.issue is None:
+                continue
+            project_key = str(
+                entry.issue.project_id or "__legacy_duplicate_preflight__"
+            )
+            lock = self._get_project_maintenance_lock(project_key)
+            tracker = self._tracker_for_issue(entry.issue)
+            with lock:
+                try:
+                    tracker.invalidate_read_cache()
+                except Exception:
+                    pass
+                fresh = tracker.fetch_issue_detail(entry.identifier)
+                if fresh is None:
+                    continue
+                if not fresh.project_id:
+                    fresh.project_id = entry.issue.project_id
+                record = load_duplicate_screening_record(tracker, fresh)
+                if (
+                    record is None
+                    or record.claim_id != claim_id
+                    or record.claim_expires_at is None
+                ):
+                    continue
+                remaining = (record.claim_expires_at - now).total_seconds()
+                if remaining > DEFAULT_CLAIM_TTL_SECONDS / 2:
+                    continue
+                renewed_record = replace(
+                    record,
+                    claim_expires_at=now
+                    + timedelta(seconds=DEFAULT_CLAIM_TTL_SECONDS),
+                )
+                save_duplicate_screening_record(tracker, fresh, renewed_record)
+                entry.issue.duplicate_screening = renewed_record.to_dict()
+                renewed += 1
+        return renewed
+
+    def _select_duplicate_preflight_candidates(
+        self,
+        candidates: list[Issue],
+    ) -> list[Issue]:
+        """Select unchecked/stale Open tasks for otherwise-spare capacity."""
+
+        limit = self._duplicate_preflight_limit()
+        running = self._duplicate_preflight_running_count()
+        capacity = min(
+            max(limit - running, 0),
+            self._available_slots(),
+        )
+        metrics = {
+            "candidate_count": len(candidates),
+            "running_count": running,
+            "limit": limit,
+            "selected_count": 0,
+            "skipped_no_capacity": 0,
+            "skipped_checked": 0,
+            "skipped_running": 0,
+            "skipped_backoff": 0,
+        }
+        if capacity <= 0:
+            metrics["skipped_no_capacity"] = len(candidates)
+            self._last_duplicate_preflight_metrics = metrics
+            return []
+
+        selected: list[Issue] = []
+        for issue in self._sort_for_dispatch(candidates):
+            if len(selected) >= capacity:
+                break
+            if not self._requires_duplicate_preflight(issue):
+                continue
+            assessment = self._duplicate_screening_assessment(issue)
+            if assessment.state == ScreeningState.CHECKED:
+                metrics["skipped_checked"] += 1
+                continue
+            if assessment.state == ScreeningState.RUNNING:
+                metrics["skipped_running"] += 1
+                continue
+            if (
+                assessment.record is not None
+                and assessment.record.retry_after is not None
+                and assessment.record.retry_after > datetime.now(timezone.utc)
+            ):
+                metrics["skipped_backoff"] += 1
+                continue
+            if not self._should_dispatch(issue, duplicate_preflight=True):
+                continue
+            selected.append(issue)
+
+        metrics["selected_count"] = len(selected)
+        self._last_duplicate_preflight_metrics = metrics
+        return selected
 
     def _auto_concurrency_limit(self) -> int:
         """Derive a conservative agent limit from current host capacity."""
@@ -8113,7 +8439,12 @@ class Orchestrator:
             clean_source or getattr(issue, "work_branch", None) or "<default>",
         )
 
-    def _should_dispatch(self, issue: Issue) -> bool:
+    def _should_dispatch(
+        self,
+        issue: Issue,
+        *,
+        duplicate_preflight: bool = False,
+    ) -> bool:
         def _reject(reason: str) -> bool:
             # Track consecutive rejections for stuck-issue detection
             key = issue.id
@@ -8194,6 +8525,12 @@ class Orchestrator:
         # Never dispatch candidates flagged as duplicates of existing open issues
         if canonicalize_status(issue.state) == DUPLICATE_CANDIDATE or "duplicate-candidate" in issue.labels:
             return _reject("duplicate_candidate")
+        if duplicate_preflight:
+            if not self._requires_duplicate_preflight(issue):
+                return _reject("duplicate_preflight_not_applicable")
+        elif not self._implementation_duplicate_screening_ready(issue):
+            assessment = self._duplicate_screening_assessment(issue)
+            return _reject(f"duplicate_screening_{assessment.state.value}")
         # Validate release-pick target branch against project branch patterns
         # (TASK-454.3). When an issue has a target_branch set, it must match
         # at least one of the project's configured patterns, and must not
@@ -14368,6 +14705,10 @@ class Orchestrator:
                     label.lower() for label in (candidate.labels or [])
                 }:
                     continue
+                if self._duplicate_screening_assessment(
+                    candidate
+                ).implementation_eligible:
+                    continue
                 try:
                     similar = find_similar_issues(candidate, all_pool, min_score=_MIN_SCORE_TO_FLAG)
                 except Exception as exc:
@@ -16661,10 +17002,45 @@ class Orchestrator:
                 return p
         return None
 
+    def _duplicate_preflight_focus(self, issue: Issue):
+        """Return the forced duplicate-detector focus for a preflight worker."""
+
+        entry = self.state.running.get(issue.id)
+        if entry is None or not getattr(entry, "duplicate_preflight", False):
+            return None
+        return next(
+            (
+                focus
+                for focus in load_foci()
+                if focus.status == "active"
+                and focus.name.strip().lower() == "duplicate_detector"
+            ),
+            None,
+        )
+
     async def _dispatch(
-        self, issue: Issue, attempt: int | None, override_profile: str | None = None
+        self,
+        issue: Issue,
+        attempt: int | None,
+        override_profile: str | None = None,
+        *,
+        duplicate_preflight_claim: DuplicateScreeningRecord | None = None,
     ) -> None:
         """Dispatch a worker for an issue."""
+        duplicate_preflight = duplicate_preflight_claim is not None
+
+        async def _release_preflight(reason: str) -> None:
+            if duplicate_preflight_claim is None or not duplicate_preflight_claim.claim_id:
+                return
+            await asyncio.get_event_loop().run_in_executor(
+                self._tick_pool,
+                lambda: self._clear_duplicate_preflight_claim(
+                    issue,
+                    duplicate_preflight_claim.claim_id or "",
+                    reason=reason,
+                ),
+            )
+
         # Belt-and-suspenders: the regular dispatch loop already checks
         # _paused via _should_dispatch, but the retry path
         # (_on_retry_timer -> _dispatch) bypasses that check. Reject here
@@ -16676,6 +17052,8 @@ class Orchestrator:
                 issue.identifier,
             )
             self.state.claimed.discard(issue.id)
+            self.state.claimed_issues.pop(issue.id, None)
+            await _release_preflight("dispatch aborted because orchestrator is paused")
             return
         self.state.reject_streak.pop(issue.id, None)
 
@@ -16804,27 +17182,71 @@ class Orchestrator:
                     cur_state,
                 )
                 self.state.claimed.discard(issue.id)
+                self.state.claimed_issues.pop(issue.id, None)
                 self.state.completed.add(issue.id)
+                await _release_preflight(
+                    "dispatch aborted because task became terminal"
+                )
                 # Drop any pending retry too — the issue is done.
                 rt = self.state.retry_attempts.pop(issue.id, None)
                 if rt and rt.timer_handle and not rt.timer_handle.cancelled():
                     rt.timer_handle.cancel()
                 return
 
-        # Move issue to in_progress (in thread to avoid blocking event loop)
-        try:
-            await asyncio.get_event_loop().run_in_executor(
-                self._tick_pool,
-                lambda: tracker.update_issue(issue.identifier, status=IN_PROGRESS),
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed to set in_progress for %s: %s — aborting dispatch",
-                issue.identifier,
-                exc,
-            )
-            self.state.claimed.discard(issue.id)
-            return
+            refreshed_issue = refreshed[0]
+            if not refreshed_issue.project_id:
+                refreshed_issue.project_id = issue.project_id
+            if duplicate_preflight:
+                current_record = DuplicateScreeningRecord.from_raw(
+                    getattr(refreshed_issue, "duplicate_screening", None)
+                )
+                expected_claim_id = duplicate_preflight_claim.claim_id
+                if (
+                    current_record is None
+                    or current_record.claim_id != expected_claim_id
+                    or current_record.task_fingerprint
+                    != compute_task_fingerprint(refreshed_issue)
+                ):
+                    logger.info(
+                        "Aborting duplicate preflight for %s: claim or task "
+                        "fingerprint changed before worker start",
+                        issue.identifier,
+                    )
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    await _release_preflight(
+                        "dispatch aborted because claim or task fingerprint changed"
+                    )
+                    return
+            elif not self._implementation_duplicate_screening_ready(
+                refreshed_issue
+            ):
+                logger.info(
+                    "Aborting implementation dispatch of %s: duplicate "
+                    "screening is no longer current",
+                    issue.identifier,
+                )
+                self.state.claimed.discard(issue.id)
+                self.state.claimed_issues.pop(issue.id, None)
+                return
+
+        # Implementation work moves to In Progress. Duplicate preflight is a
+        # qualification lane, so its tracker state remains Open.
+        if not duplicate_preflight:
+            try:
+                await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda: tracker.update_issue(issue.identifier, status=IN_PROGRESS),
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to set in_progress for %s: %s — aborting dispatch",
+                    issue.identifier,
+                    exc,
+                )
+                self.state.claimed.discard(issue.id)
+                self.state.claimed_issues.pop(issue.id, None)
+                return
 
         # Shared tracker claim-and-verify protocol (TASK-461.2).
         # For trackers with an external/default-branch source of truth, stamp a
@@ -16855,6 +17277,10 @@ class Orchestrator:
                         _confirmed_run_id,
                     )
                     self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    await _release_preflight(
+                        "dispatch aborted after shared tracker claim race"
+                    )
                     return
                 logger.debug(
                     "GitHub claim confirmed for %s run_id=%s",
@@ -16871,7 +17297,11 @@ class Orchestrator:
 
         running_issue = replace(
             issue,
-            state=_configured_in_progress_state(self.config.tracker_active_states),
+            state=(
+                issue.state
+                if duplicate_preflight
+                else _configured_in_progress_state(self.config.tracker_active_states)
+            ),
         )
         try:
             post_update = await asyncio.get_event_loop().run_in_executor(
@@ -16902,7 +17332,10 @@ class Orchestrator:
                     None,
                 ):
                     setattr(running_issue, attr, getattr(issue, attr))
-            if _state_key(running_issue.state) != "in_progress":
+            if (
+                not duplicate_preflight
+                and _state_key(running_issue.state) != "in_progress"
+            ):
                 running_issue = replace(
                     running_issue,
                     state=_configured_in_progress_state(
@@ -16930,14 +17363,31 @@ class Orchestrator:
             started_at=now,
             agent_profile_name=profile_name,
             natural_profile_name=natural_profile_name,
+            duplicate_preflight=duplicate_preflight,
+            duplicate_preflight_claim_id=(
+                duplicate_preflight_claim.claim_id
+                if duplicate_preflight_claim is not None
+                else None
+            ),
+            duplicate_preflight_fingerprint=(
+                duplicate_preflight_claim.task_fingerprint
+                if duplicate_preflight_claim is not None
+                else None
+            ),
         )
 
         # Post dispatch comment in thread to avoid blocking event loop
-        comment = (
-            f"Retrying (attempt #{attempt}, agent: {profile_name})"
-            if attempt and attempt > 1
-            else f"Agent dispatched (profile: {profile_name})"
-        )
+        if duplicate_preflight:
+            comment = (
+                "Duplicate screening dispatched "
+                f"(profile: {profile_name}, task remains Open)"
+            )
+        else:
+            comment = (
+                f"Retrying (attempt #{attempt}, agent: {profile_name})"
+                if attempt and attempt > 1
+                else f"Agent dispatched (profile: {profile_name})"
+            )
         loop = asyncio.get_event_loop()
         loop.run_in_executor(
             self._tick_pool,
@@ -16954,6 +17404,9 @@ class Orchestrator:
                 "identifier": issue.identifier,
                 "profile": profile_name,
                 "attempt": attempt,
+                "work_kind": (
+                    "duplicate_screening" if duplicate_preflight else "implementation"
+                ),
             },
         )
         self._notify_observers()
@@ -17131,7 +17584,9 @@ class Orchestrator:
         # plans/agentic-focus-triage.md. The async variant tries an LLM
         # call against the provider's default_model and falls back to
         # the deterministic scorer on any failure.
-        focus = await select_focus_async(issue, provider=provider)
+        focus = self._duplicate_preflight_focus(issue)
+        if focus is None:
+            focus = await select_focus_async(issue, provider=provider)
         logger.info(
             "Issue %s assigned focus: %s (%s)", issue.identifier, focus.name, focus.role
         )
@@ -17608,7 +18063,9 @@ class Orchestrator:
         startup_failover = False
         max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
 
-        focus = await select_focus_async(issue, provider=None)
+        focus = self._duplicate_preflight_focus(issue)
+        if focus is None:
+            focus = await select_focus_async(issue, provider=None)
         logger.info(
             "Issue %s assigned focus: %s (%s)",
             issue.identifier,
@@ -18188,7 +18645,7 @@ class Orchestrator:
                 current_issue = issue
 
                 # Select focus tailored to this issue
-                cli_focus = select_focus(issue)
+                cli_focus = self._duplicate_preflight_focus(issue) or select_focus(issue)
                 logger.info(
                     "Issue %s assigned focus: %s (%s)",
                     issue.identifier,
@@ -18917,6 +19374,267 @@ class Orchestrator:
                 return True
         return False
 
+    @staticmethod
+    def _parse_duplicate_preflight_verdict(
+        comments: list[dict],
+        *,
+        claimed_at: datetime | None,
+    ) -> tuple[ScreeningVerdict | None, list[str], str]:
+        """Parse the newest claim-era structured duplicate verdict comment."""
+
+        for comment in reversed(comments or []):
+            if not isinstance(comment, dict):
+                continue
+            text = str(comment.get("text") or "").strip()
+            match = _DUPLICATE_PREFLIGHT_VERDICT_RE.search(text)
+            if match is None:
+                continue
+            created_raw = comment.get("created_at") or comment.get("created")
+            if claimed_at is not None and isinstance(created_raw, str):
+                try:
+                    created = datetime.fromisoformat(
+                        created_raw.replace("Z", "+00:00")
+                    )
+                    if created.tzinfo is None:
+                        created = created.replace(tzinfo=timezone.utc)
+                    if created.astimezone(timezone.utc) < claimed_at:
+                        continue
+                except ValueError:
+                    pass
+            verdict = ScreeningVerdict(match.group(1).lower())
+            matches_line = _DUPLICATE_PREFLIGHT_MATCHES_RE.search(text)
+            identifiers: list[str] = []
+            if matches_line is not None:
+                raw_matches = matches_line.group(1).strip()
+                if raw_matches.casefold() not in {"none", "n/a", "no match"}:
+                    identifiers = [
+                        value
+                        for value in re.split(r"[\s,]+", raw_matches)
+                        if value
+                    ]
+            return verdict, identifiers, text[:4000]
+        return None, [], ""
+
+    def _finish_duplicate_preflight_sync(
+        self,
+        entry: RunningEntry,
+        reason: str,
+        error: str | None,
+    ) -> dict[str, Any]:
+        """Apply a preflight verdict under the project tracker write lock."""
+
+        issue = entry.issue
+        project_key = str(issue.project_id or "__legacy_duplicate_preflight__")
+        tracker = self._tracker_for_issue(issue)
+        lock = self._get_project_maintenance_lock(project_key)
+        now = datetime.now(timezone.utc)
+        with lock:
+            try:
+                tracker.invalidate_read_cache()
+            except Exception:
+                pass
+            current = tracker.fetch_issue_detail(entry.identifier)
+            if current is None:
+                return {"outcome": "missing_task", "terminal": False}
+            if not current.project_id:
+                current.project_id = issue.project_id
+            record = load_duplicate_screening_record(tracker, current)
+            claim_id = entry.duplicate_preflight_claim_id
+            if (
+                record is None
+                or not claim_id
+                or record.claim_id != claim_id
+            ):
+                logger.info(
+                    "Ignoring late duplicate preflight completion for %s: "
+                    "claim %s is no longer current",
+                    entry.identifier,
+                    claim_id,
+                )
+                return {"outcome": "stale_claim", "terminal": False}
+
+            current_fingerprint = compute_task_fingerprint(current)
+            expected_fingerprint = entry.duplicate_preflight_fingerprint
+            if (
+                canonicalize_status(current.state) != OPEN
+                or current_fingerprint != record.task_fingerprint
+                or current_fingerprint != expected_fingerprint
+                or record.detector_version != DUPLICATE_DETECTOR_VERSION
+            ):
+                cleared = inconclusive_record(
+                    record,
+                    retry_count=record.retry_count,
+                    retry_after=now,
+                    evidence=(
+                        "Task state or duplicate-relevant content changed while "
+                        "screening was running."
+                    ),
+                )
+                save_duplicate_screening_record(tracker, current, cleared)
+                return {"outcome": "stale_task", "terminal": False}
+
+            verdict: ScreeningVerdict | None = None
+            matched_identifiers: list[str] = []
+            evidence = str(error or "").strip()
+            labels = {
+                str(label).strip().lower() for label in (current.labels or [])
+            }
+            if reason == "normal" and "focus-complete:duplicate_detector" in labels:
+                comments = tracker.fetch_comments(entry.identifier)
+                verdict, matched_identifiers, evidence = (
+                    self._parse_duplicate_preflight_verdict(
+                        comments,
+                        claimed_at=record.claimed_at,
+                    )
+                )
+
+            if verdict == ScreeningVerdict.NO_DUPLICATE:
+                completed = complete_claim_record(
+                    record,
+                    verdict=verdict,
+                    evidence=evidence,
+                    now=now,
+                )
+                save_duplicate_screening_record(tracker, current, completed)
+                issue.duplicate_screening = completed.to_dict()
+                return {"outcome": "checked", "terminal": False}
+
+            if (
+                verdict == ScreeningVerdict.DUPLICATE_CANDIDATE
+                and matched_identifiers
+            ):
+                verified_matches: list[str] = []
+                invalid_matches: list[str] = []
+                for identifier in matched_identifiers:
+                    if identifier == entry.identifier:
+                        invalid_matches.append(identifier)
+                        continue
+                    candidate = tracker.fetch_issue_detail(identifier)
+                    if candidate is None or _is_terminal_state(
+                        candidate.state,
+                        self.config.tracker_terminal_states,
+                    ):
+                        invalid_matches.append(identifier)
+                        continue
+                    verified_matches.append(candidate.identifier)
+                if not invalid_matches and verified_matches:
+                    tracker.update_issue(
+                        entry.identifier,
+                        status=DUPLICATE_CANDIDATE,
+                    )
+                    completed = complete_claim_record(
+                        record,
+                        verdict=verdict,
+                        matched_identifiers=verified_matches,
+                        evidence=evidence,
+                        now=now,
+                    )
+                    save_duplicate_screening_record(tracker, current, completed)
+                    issue.state = DUPLICATE_CANDIDATE
+                    issue.duplicate_screening = completed.to_dict()
+                    return {
+                        "outcome": "duplicate_candidate",
+                        "terminal": False,
+                        "matches": verified_matches,
+                    }
+                evidence = (
+                    "Duplicate verdict referenced missing, self, or terminal "
+                    f"task(s): {', '.join(invalid_matches or matched_identifiers)}"
+                )
+
+            retry_count = record.retry_count + 1
+            retry_delay = min(60 * (2 ** max(retry_count - 1, 0)), 15 * 60)
+            failed = inconclusive_record(
+                record,
+                retry_count=retry_count,
+                retry_after=now + timedelta(seconds=retry_delay),
+                evidence=evidence
+                or f"Duplicate-screening worker exited with reason {reason}.",
+            )
+            save_duplicate_screening_record(tracker, current, failed)
+            issue.duplicate_screening = failed.to_dict()
+            if retry_count >= _DUPLICATE_PREFLIGHT_MAX_RETRIES:
+                self._mark_needs_human(
+                    tracker,
+                    entry.identifier,
+                    (
+                        f"Duplicate screening was inconclusive {retry_count} "
+                        "times. Human action required: review the latest "
+                        "duplicate-screening comments, then either identify the "
+                        "active canonical duplicate or confirm that no active "
+                        "duplicate exists and move the task back to Open."
+                    ),
+                )
+                issue.state = NEEDS_HUMAN
+                return {"outcome": "needs_human", "terminal": True}
+            return {
+                "outcome": "retry",
+                "terminal": False,
+                "retry_count": retry_count,
+                "retry_delay_seconds": retry_delay,
+            }
+
+    async def _handle_duplicate_preflight_exit(
+        self,
+        entry: RunningEntry,
+        reason: str,
+        error: str | None,
+    ) -> None:
+        issue_id = entry.issue.id
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                self._tick_pool,
+                self._finish_duplicate_preflight_sync,
+                entry,
+                reason,
+                error,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Failed to apply duplicate preflight result for %s",
+                entry.identifier,
+            )
+            result = {"outcome": "apply_error", "error": str(exc), "terminal": False}
+
+        self.state.claimed.discard(issue_id)
+        self.state.claimed_issues.pop(issue_id, None)
+        self.state.stall_counts.pop(issue_id, None)
+        if result.get("terminal"):
+            self.state.completed.add(issue_id)
+        else:
+            self.state.completed.discard(issue_id)
+        logger.info(
+            "Duplicate preflight finished for %s: %s",
+            entry.identifier,
+            result,
+        )
+        event_type = (
+            EventType.AGENT_COMPLETED
+            if result.get("outcome") in {"checked", "duplicate_candidate"}
+            else EventType.AGENT_FAILED
+        )
+        self.event_bus.emit(
+            event_type,
+            {
+                "issue_id": issue_id,
+                "identifier": entry.identifier,
+                "work_kind": "duplicate_screening",
+                **result,
+            },
+        )
+        self._notify_observers()
+        self._post_event(
+            DispatchEvent(
+                event_type=DispatchEventType.WORKER_EXIT,
+                issue_id=issue_id,
+                payload={
+                    "reason": reason,
+                    "work_kind": "duplicate_screening",
+                    "outcome": result.get("outcome"),
+                },
+            )
+        )
+
     async def _on_worker_exit(
         self, issue_id: str, reason: str, error: str | None
     ) -> None:
@@ -18987,6 +19705,10 @@ class Orchestrator:
             tokens_str = f" ({entry.session.total_tokens} tokens)"
 
         project_id = entry.issue.project_id if entry.issue else None
+
+        if getattr(entry, "duplicate_preflight", False):
+            await self._handle_duplicate_preflight_exit(entry, reason, error)
+            return
 
         if reason == "ask_question":
             # Agent asked a question — post it and move the issue to Needs Answer
@@ -20840,6 +21562,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "agent_profile": entry.agent_profile_name,
                 "focus_name": entry.focus_name,
                 "focus_role": entry.focus_role,
+                "work_kind": (
+                    "duplicate_screening"
+                    if getattr(entry, "duplicate_preflight", False)
+                    else "implementation"
+                ),
+                "duplicate_preflight": bool(
+                    getattr(entry, "duplicate_preflight", False)
+                ),
                 "provider_name": entry.provider_name,
                 "model_name": entry.model_name,
                 "turn_count": 0,

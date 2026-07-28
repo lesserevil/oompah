@@ -277,7 +277,8 @@ class GitLabIssueTracker:
 
     def _issue(self, data: dict[str, Any]) -> Issue:
         labels = [str(label) for label in data.get("labels") or []]
-        metadata = _parse_description_metadata(data.get("description"))
+        raw_description = data.get("description") or ""
+        metadata = _parse_description_metadata(raw_description)
         duplicate_screening = metadata.get("duplicate_screening")
         if not isinstance(duplicate_screening, dict):
             duplicate_screening = None
@@ -301,7 +302,9 @@ class GitLabIssueTracker:
             identifier=f"{self.project}#{iid}",
             display_identifier=f"{self.project.rsplit('/', 1)[-1]}#{iid}",
             title=data.get("title") or "",
-            description=data.get("description") or None,
+            description=(
+                _DESCRIPTION_METADATA_RE.sub("", raw_description).strip() or None
+            ),
             state=status,
             priority=next(
                 (

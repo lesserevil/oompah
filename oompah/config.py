@@ -516,6 +516,9 @@ class ServiceConfig:
     dispatch_scan_limit: int = 64
     dispatch_ready_buffer: int = 8
     duplicate_detection_candidate_limit: int = 64
+    # Maximum model-backed duplicate-screening workers that may consume spare
+    # capacity at once.  Zero disables Open-task preflight qualification.
+    duplicate_preflight_max_agents: int = 1
     auto_archive_batch_size: int = 25
     auto_archive_interval_seconds: int = 300
     worktree_cleanup_batch_size: int = 25
@@ -653,6 +656,9 @@ class ServiceConfig:
         self.dispatch_ready_buffer = max(int(self.dispatch_ready_buffer), 0)
         self.duplicate_detection_candidate_limit = max(
             int(self.duplicate_detection_candidate_limit), 0
+        )
+        self.duplicate_preflight_max_agents = max(
+            int(self.duplicate_preflight_max_agents), 0
         )
         self.auto_archive_batch_size = max(int(self.auto_archive_batch_size), 0)
         self.auto_archive_interval_seconds = max(
@@ -971,6 +977,9 @@ class ServiceConfig:
             dispatch_ready_buffer=_env_int("OOMPAH_DISPATCH_READY_BUFFER", None, 8),
             duplicate_detection_candidate_limit=_env_int(
                 "OOMPAH_DUPLICATE_DETECTION_CANDIDATE_LIMIT", None, 64
+            ),
+            duplicate_preflight_max_agents=_env_int(
+                "OOMPAH_DUPLICATE_PREFLIGHT_MAX_AGENTS", None, 1
             ),
             auto_archive_batch_size=_env_int(
                 "OOMPAH_AUTO_ARCHIVE_BATCH_SIZE", None, 25

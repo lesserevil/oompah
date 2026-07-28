@@ -87,7 +87,7 @@ class TestShouldDispatchRejectsDuplicateCandidate:
         from oompah.orchestrator import Orchestrator
         from oompah.config import ServiceConfig
 
-        config = ServiceConfig()
+        config = ServiceConfig(duplicate_preflight_max_agents=0)
         orch = Orchestrator.__new__(Orchestrator)
         orch.config = config
         orch._paused = False
@@ -521,6 +521,7 @@ class TestProposedDispatchFiltering:
             tracker_active_states=["Proposed", "Open"],
             dispatch_scan_limit=1,
             dispatch_ready_buffer=0,
+            duplicate_preflight_max_agents=0,
         )
         orch = Orchestrator.__new__(Orchestrator)
         orch.config = config
