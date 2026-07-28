@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T16:44:23.886600Z'
-updated_at: '2026-07-28T16:45:50.499089Z'
+updated_at: '2026-07-28T16:45:52.814761Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-28 16:45
 ---
 Implemented on epic-OOMPAH-502 at a2414d5ba. Cleanup now grants owner rwx only to real directories after atomic quarantine inside the owned root, then removes the tree without following symlinks. Regression covers nested 0555 directories, a 0400 file, and an external symlink target. Focused result: 10 passed in 0.83s; full branch gate remains assigned to OOMPAH-510 after prerequisite integration.
+---
+author: oompah
+created: 2026-07-28 16:45
+---
+Reclaimed restrictive-mode stale trees safely after quarantine; 10 focused storage cleanup tests pass.
 ---
 <!-- COMMENTS:END -->
