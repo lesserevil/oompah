@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T13:42:06.426268Z'
+updated_at: '2026-07-28T13:43:03.284268Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -189,5 +189,24 @@ author: oompah
 created: 2026-07-28 13:42
 ---
 Verification: make test passed — 12333 passed, 39 skipped in 236.81s. All 76 tests in test_projects_gitlab_ui.py pass including the 4 new TestSaveProjectIntakeAliasPayload tests. Frontend fix is complete. Backend work remaining (outside frontend scope): (1) server.py PATCH handler calls _resolve_github_token_owner() for GitLab projects when status_actor_login is blank — sends GitLab token to GitHub API generating 401 warnings; needs forge_kind check before calling (lines 10518-10530 and 10633-10637 in server.py); (2) tests that reproduce the GitLab project edit end-to-end via HTTP (server-level integration test with mock GitHub identity call assertion). These require a backend/feature focus.
+---
+author: oompah
+created: 2026-07-28 13:43
+---
+Focus handoff: frontend
+
+Outcome: Frontend fix complete and pushed. The core bug (Projects editor blocking any save with 'Specify only one' error) is resolved.
+
+Files changed:
+- oompah/templates/projects.html: Removed github_issue_intake_enabled from saveProject() PATCH body; now sends only external_issue_intake_enabled (canonical forge-neutral field). Added comment explaining the invariant.
+- tests/test_projects_gitlab_ui.py: Added TestSaveProjectIntakeAliasPayload class (4 tests) verifying the correct PATCH payload behavior including that the legacy alias is absent from the body.
+
+Evidence: make test passed (12333 passed, 39 skipped). All 76 tests in test_projects_gitlab_ui.py pass.
+
+Remaining work for backend focus:
+1. server.py forge-aware status_actor_login: Lines 10518-10530 and 10633-10637 call _resolve_github_token_owner() unconditionally when status_actor_login is blank or access_token is updated. For GitLab projects (forge_kind='gitlab'), this sends the GitLab token to GitHub's API generating 401 warnings. Fix: check effective forge_kind (fields.get('forge_kind', existing_project.forge_kind)) before calling _resolve_github_token_owner(); for non-github forges, leave status_actor_login as-is (None/unchanged) without calling the GitHub API.
+2. Server-level integration tests: reproduce editing a GitLab project with both intake aliases in stored data, enable state_branch_enabled, assert 200 response, assert _resolve_github_token_owner is never called. Cover legacy GitHub clients (send only github_issue_intake_enabled), conflicting aliases (send both with different values → precise error), GitLab blank status_actor_login (no GitHub call). Run make test.
+
+Recommended next focus: feature (backend + server integration tests).
 ---
 <!-- COMMENTS:END -->
