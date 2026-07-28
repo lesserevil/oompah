@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-536
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Route implementation away from completed duplicate preflight focus
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-28T23:51:54.516163Z'
-updated_at: '2026-07-28T23:51:54.516163Z'
+updated_at: '2026-07-28T23:52:03.072002Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,3 +44,11 @@ After a successful preflight, implementation cannot run with duplicate_detector;
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-28 23:52
+---
+Claimed directly during production verification of OOMPAH-535. The misfocused OOMPAH-469 run was stopped before any worktree change; the oompah project remains paused while this follow-up is implemented and tested.
+---
+<!-- COMMENTS:END -->
