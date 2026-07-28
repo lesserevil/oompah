@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-465
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Implement idempotent terminal-transition staging and audit chains
 parent: OOMPAH-457
@@ -14,13 +14,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:19:47.114218Z'
+updated_at: '2026-07-28T19:19:57.356666Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: db14d7ba-d32c-4ab5-85d2-122ca5d38607
+oompah.agent_run_id: f78f0011-7669-4aab-af85-e9505b4a000f
 oompah.work_branch: epic-OOMPAH-457
 oompah.task_costs:
   total_input_tokens: 292873
@@ -146,5 +146,15 @@ author: oompah
 created: 2026-07-28 19:19
 ---
 Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 19:19
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-28 19:19
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
