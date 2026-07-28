@@ -7,10 +7,12 @@ title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:19:11.927495Z'
+updated_at: '2026-07-28T15:20:49.661569Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -56,5 +58,37 @@ author: oompah
 created: 2026-07-28 15:19
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 15:20
+---
+Focus handoff: duplicate_detector
+
+**Outcome:** No duplicate confirmed. OOMPAH-505 is a unique, first-of-its-kind task.
+
+**Search performed:**
+- Scanned all .oompah/tasks/ states (open, backlog, merged, archived — 272+ task files)
+- grep patterns: model tier, model selection, fable, has_catalog, ClaudeAgent, CodexAgent, role candidate, RoleStore, gpt-5.6, fast/standard/deep, ACP backend
+- Checked sibling tasks of the parent epic OOMPAH-502 (503, 504, 506, 507, 508, 509, 510)
+- Searched plans/ and docs/ for any existing design docs on this feature
+
+**Closest candidates reviewed and ruled out:**
+- OOMPAH-503 (Done): limits automatic duplicate detection scope — unrelated
+- OOMPAH-504 (Done): compact agent prompt history — unrelated
+- OOMPAH-211 (Archived): deliver task comments to running agents — unrelated
+- No task in any state covers: has_catalog vs supports_manual_model_selection, ACP backend model tier configuration, Claude fable/sonnet/opus alias allowlist, Codex gpt-5.6-luna/terra/sol role mapping, or RoleStore validation with empty catalogs
+
+**Evidence:** All task titles and grep results searched show nothing overlapping with model tier dispatch or ACP backend manual model selection.
+
+**Remaining work:**
+1. Add supports_manual_model_selection field to ACP backend descriptors (separate from has_catalog)
+2. Expand Claude alias allowlist to include fable
+3. Add free-text model input to role UI for ACP backends without catalogs
+4. Configure role candidates: fast=Claude/fable+Codex/gpt-5.6-luna, standard=Claude/sonnet+Codex/gpt-5.6-terra, deep=Claude/opus+Codex/gpt-5.6-sol
+5. Write dispatch tests for all six tier mappings propagating through ACP sessions and telemetry
+6. Document manual ACP model entry
+7. Ensure backward-compatible fallback when no model is configured
+
+**Recommended next focus:** feature
 ---
 <!-- COMMENTS:END -->

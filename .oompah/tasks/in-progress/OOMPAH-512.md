@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-512
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Route managed tracker mutations through project-scoped trackers
 parent: OOMPAH-511
@@ -9,17 +9,32 @@ children: []
 blocked_by: []
 labels:
 - focus-complete:duplicate_detector
-- needs:refactor
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T15:20:26.987022Z'
+updated_at: '2026-07-28T15:20:48.938493Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: d32ba0bf-84f8-458c-b788-247ef7f2a525
+oompah.agent_run_id: dd1cee87-1d63-4c55-9859-00124acfaad0
 oompah.work_branch: epic-OOMPAH-511
+oompah.task_costs:
+  total_input_tokens: 48
+  total_output_tokens: 6883
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 48
+      output_tokens: 6883
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 48
+    output_tokens: 6883
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T15:20:34.953913+00:00'
 ---
 ## Summary
 
@@ -86,5 +101,35 @@ Focus handoff: duplicate_detector
 3. Remaining work: Full implementation as described in the task description — audit every orch.tracker/self.tracker consumer in oompah/orchestrator.py, oompah/server.py, oompah/error_watcher.py and related files; route each managed-project path through _tracker_for_project (or public helper); add unit regressions proving cwd tracker is not reachable on managed paths; prove standalone behavior still works.
 
 4. Recommended next focus: feature (or refactor) — production code changes in orchestrator, server, and error_watcher.
+---
+author: oompah
+created: 2026-07-28 15:20
+---
+Agent completed successfully in 180s (6931 tokens)
+---
+author: oompah
+created: 2026-07-28 15:20
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 62, Tool calls: 45
+- Tokens: 48 in / 6.9K out [6.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 0s
+- Log: OOMPAH-512__20260728T151738Z.jsonl
+---
+author: oompah
+created: 2026-07-28 15:20
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-28 15:20
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-28 15:20
+---
+Focus: Refactoring Specialist
 ---
 <!-- COMMENTS:END -->
