@@ -38,6 +38,7 @@ import hmac
 import logging
 import os
 import shutil
+import socket
 import urllib.parse
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
@@ -1042,6 +1043,149 @@ _GITLAB_HOOK_EVENT_FLAGS = {
 _GITLAB_HOOK_POLL_INTERVAL_S = 300.0
 
 
+def _discover_local_address(dest_host: str, dest_port: int) -> str | None:
+    """Discover the local address that would route to a destination host:port.
+
+    Uses OS route discovery by creating a socket to the destination without
+    sending data. Returns the source IP as a string (with IPv6 brackets if
+    needed), or None if discovery fails.
+
+    Args:
+        dest_host: Destination hostname or IP address.
+        dest_port: Destination port.
+
+    Returns:
+        The local IP address as a string (e.g. "192.0.2.1" for IPv4 or
+        "[2001:db8::1]" for IPv6), or None if discovery fails.
+    """
+    # Resolve the destination hostname to determine address family
+    try:
+        addrinfo = socket.getaddrinfo(dest_host, dest_port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+    except (socket.gaierror, OSError, TypeError, ValueError):
+        return None
+
+    if not addrinfo:
+        return None
+
+    # Try each address in order (prefer first match)
+    for family, socktype, proto, _canonname, sockaddr in addrinfo:
+        try:
+            sock = socket.socket(family, socktype, proto)
+            try:
+                # Set a short timeout to avoid hanging
+                sock.settimeout(2.0)
+                # Connect determines routing without sending data
+                sock.connect(sockaddr)
+                local_addr = sock.getsockname()
+                # For IPv6, getsockname() returns a 4-tuple (addr, port, flow, scope)
+                # For IPv4, it returns a 2-tuple (addr, port)
+                ip_addr = local_addr[0]
+                # Wrap IPv6 addresses in brackets for URL syntax
+                if family == socket.AF_INET6:
+                    return f"[{ip_addr}]"
+                else:
+                    return ip_addr
+            finally:
+                sock.close()
+        except (socket.error, OSError, TypeError, ValueError):
+            continue
+
+    return None
+
+
+def _extract_host_from_url(url: str) -> str | None:
+    """Extract hostname from a URL string.
+
+    Args:
+        url: A URL like "https://gitlab.example.com" or "git@gitlab.com:path".
+
+    Returns:
+        The hostname, or None if extraction fails.
+    """
+    url = str(url).strip()
+
+    # Handle SSH URLs like git@gitlab.com:group/project
+    if url.startswith("git@") and ":" in url:
+        try:
+            return url.split("@", 1)[1].split(":", 1)[0]
+        except (IndexError, ValueError):
+            return None
+
+    # Handle HTTP(S) URLs
+    try:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.netloc:
+            return parsed.netloc
+    except Exception:
+        pass
+
+    return None
+
+
+def _derive_gitlab_webhook_url(
+    project: Any,
+    server_port: int | None,
+    fallback_public_url: str | None = None,
+) -> tuple[str, str]:
+    """Derive the GitLab webhook callback URL for a project.
+
+    Builds the callback URL either from an explicit public URL (if provided)
+    or by discovering the local source IP for reaching the GitLab forge and
+    combining it with the server port.
+
+    Args:
+        project: A Project instance with forge_base_url and repo_url.
+        server_port: The Oompah server port (used for derived URLs).
+        fallback_public_url: If set, use this as the explicit base URL
+            (skipping route discovery). Should have no trailing slash.
+
+    Returns:
+        A tuple of (callback_url, url_source) where url_source is one of:
+        - "explicit": derived from fallback_public_url
+        - "derived": derived from route discovery
+        - "error": derivation failed (url is empty, should fall back to polling)
+    """
+    # Explicit public URL always wins
+    if fallback_public_url:
+        webhook_url = f"{fallback_public_url}/api/v1/webhooks/gitlab"
+        return webhook_url, "explicit"
+
+    # No explicit URL; try to derive from route discovery
+    if server_port is None:
+        return "", "error"
+
+    # Extract GitLab host from project config
+    forge_base = str(getattr(project, "forge_base_url", "") or "").strip().rstrip("/")
+    if forge_base:
+        gitlab_host = _extract_host_from_url(forge_base)
+    else:
+        repo_url = str(getattr(project, "repo_url", "") or "")
+        gitlab_host = _extract_host_from_url(repo_url)
+
+    if not gitlab_host:
+        return "", "error"
+
+    # Determine GitLab port (default 443 for HTTPS, 80 for HTTP)
+    # For route discovery, we use HTTPS port (443) as the default
+    gitlab_port = 443
+    if ":" in gitlab_host:
+        # Host includes port like "gitlab.example.com:2222"
+        try:
+            gitlab_host, port_str = gitlab_host.rsplit(":", 1)
+            gitlab_port = int(port_str)
+        except (ValueError, IndexError):
+            pass
+
+    # Discover local source IP for reaching GitLab
+    local_ip = _discover_local_address(gitlab_host, gitlab_port)
+    if not local_ip:
+        return "", "error"
+
+    # Build webhook URL from local IP + port
+    webhook_url = f"http://{local_ip}:{server_port}/api/v1/webhooks/gitlab"
+    return webhook_url, "derived"
+
+
 @dataclass
 class _GitLabHookState:
     """Latest reconciliation result for one GitLab managed project."""
@@ -1052,6 +1196,8 @@ class _GitLabHookState:
     configured: bool = False
     healthy: bool = False
     last_error: str = ""
+    webhook_url: str = ""
+    url_source: str = ""  # "explicit", "derived", or "error"
 
 
 class GitLabHookManager:
@@ -1068,14 +1214,13 @@ class GitLabHookManager:
         self,
         project_store: Any = None,
         public_url: str | None = None,
+        server_port: int | None = None,
         poll_interval_s: float = _GITLAB_HOOK_POLL_INTERVAL_S,
         http_client: Any = None,
     ) -> None:
         self.project_store = project_store
         self._public_url = (public_url or "").strip().rstrip("/")
-        self._webhook_url = (
-            f"{self._public_url}/api/v1/webhooks/gitlab" if self._public_url else ""
-        )
+        self._server_port = server_port
         self._poll_interval_s = poll_interval_s
         self._http_client = http_client
         self._states: dict[str, _GitLabHookState] = {}
@@ -1098,7 +1243,6 @@ class GitLabHookManager:
             "running": self.is_running,
             "configured": not bool(error),
             "detail": error,
-            "webhook_url": self._webhook_url,
             "projects": {
                 pid: {
                     "name": state.project_name,
@@ -1106,17 +1250,22 @@ class GitLabHookManager:
                     "configured": state.configured,
                     "healthy": state.healthy,
                     "last_error": state.last_error,
+                    "webhook_url": state.webhook_url,
+                    "url_source": state.url_source,
                 }
                 for pid, state in self._states.items()
             },
         }
 
     def _configuration_error(self) -> str:
-        if not self._public_url:
-            return "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL is not configured"
-        parsed = urllib.parse.urlparse(self._public_url)
-        if parsed.scheme != "https" or not parsed.netloc:
-            return "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL must be a public HTTPS base URL"
+        # Explicit URL must be HTTPS and valid if configured
+        if self._public_url:
+            parsed = urllib.parse.urlparse(self._public_url)
+            if parsed.scheme != "https" or not parsed.netloc:
+                return "OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL must be a public HTTPS base URL"
+        # If no explicit URL, route discovery requires a server port
+        elif not self._server_port:
+            return "Either OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL or OOMPAH_SERVER_PORT must be configured"
         return ""
 
     async def start(self) -> None:
@@ -1250,7 +1399,25 @@ class GitLabHookManager:
             state.configured = False
             state.healthy = False
             state.last_error = configuration_error
+            state.webhook_url = ""
+            state.url_source = "error"
             return
+
+        # Derive the webhook URL for this project
+        webhook_url, url_source = _derive_gitlab_webhook_url(
+            project,
+            self._server_port,
+            fallback_public_url=self._public_url,
+        )
+        state.webhook_url = webhook_url
+        state.url_source = url_source
+
+        if url_source == "error":
+            state.configured = False
+            state.healthy = False
+            state.last_error = "Could not derive webhook URL: route discovery failed or server port not configured"
+            return
+
         state.configured = True
         slug = self._project_slug(project)
         if not slug:
@@ -1263,8 +1430,8 @@ class GitLabHookManager:
             response = await self._request("GET", project, path)
             response.raise_for_status()
             hooks = response.json()
-            matching = [hook for hook in hooks if hook.get("url") == self._webhook_url]
-            payload = {"url": self._webhook_url, **_GITLAB_HOOK_EVENT_FLAGS}
+            matching = [hook for hook in hooks if hook.get("url") == webhook_url]
+            payload = {"url": webhook_url, **_GITLAB_HOOK_EVENT_FLAGS}
             secret = str(getattr(project, "webhook_secret", "") or "")
             if secret:
                 payload["token"] = secret
@@ -1289,24 +1456,40 @@ class GitLabHookManager:
 
     async def remove(self, project: Any) -> None:
         """Delete only this manager's hook from a GitLab project."""
-        if self._configuration_error():
-            return
         if not str(getattr(project, "access_token", "") or "").strip():
             return
         slug = self._project_slug(project)
         if not slug:
             return
+
+        # Get the webhook URL for this project (either from state or derive it)
+        project_id = str(project.id)
+        state = self._states.get(project_id)
+        if state and state.webhook_url:
+            webhook_url = state.webhook_url
+        else:
+            webhook_url, _ = _derive_gitlab_webhook_url(
+                project,
+                self._server_port,
+                fallback_public_url=self._public_url,
+            )
+        
+        if not webhook_url:
+            # Can't determine webhook URL, skip cleanup
+            self._states.pop(project_id, None)
+            return
+
         path = f"/projects/{urllib.parse.quote(slug, safe='')}/hooks"
         try:
             response = await self._request("GET", project, path)
             response.raise_for_status()
             for hook in response.json():
-                if hook.get("url") == self._webhook_url:
+                if hook.get("url") == webhook_url:
                     deleted = await self._request("DELETE", project, f"{path}/{int(hook['id'])}")
                     deleted.raise_for_status()
-            self._states.pop(str(project.id), None)
+            self._states.pop(project_id, None)
         except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
-            state = self._states.get(str(project.id))
+            state = self._states.get(project_id)
             if state:
                 state.healthy = False
                 state.last_error = _truncate_error_detail(str(exc))

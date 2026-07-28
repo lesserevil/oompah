@@ -272,6 +272,7 @@ async def setup_services(
     gitlab_hook_manager = GitLabHookManager(
         project_store=project_store,
         public_url=config.gitlab_webhook_public_url,
+        server_port=port,
     )
 
     # ------------------------------------------------------------------
