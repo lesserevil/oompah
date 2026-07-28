@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T19:07:47.513552Z'
+updated_at: '2026-07-28T19:08:00.783040Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -358,5 +358,20 @@ author: oompah
 created: 2026-07-28 19:07
 ---
 Completion: Hardened and landed OOMPAH-523 on epic-OOMPAH-521. The existing ASGI middleware now enforces strict Basic credentials across HTTP/mounted/WebSocket surfaces, exact literal webhook/health exemptions, encoded-path and duplicate-header fail-closed behavior, downstream Authorization redaction, and uvicorn startup credential wiring. Added regression coverage; focused auth tests (66), server-pattern tests (923), and webhook/WS/favicon tests (176) pass. make check-secrets passes. make test was attempted but cannot start in this environment because the uv launcher fails with a DBus transient-scope error before pytest. Commit e115fed59 is pushed and the branch is clean and tracking origin.
+---
+author: oompah
+created: 2026-07-28 19:08
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 59
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 48s
+- Log: OOMPAH-523__20260728T185913Z.jsonl
+---
+author: oompah
+created: 2026-07-28 19:08
+---
+Implemented and pushed Basic authentication enforcement across HTTP and WebSocket surfaces with exact exemptions, healthz, strict parsing, redaction, uvicorn wiring, and focused regression coverage.
 ---
 <!-- COMMENTS:END -->
