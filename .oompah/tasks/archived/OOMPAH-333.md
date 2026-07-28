@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-333
 type: task
-status: Merged
+status: Archived
 priority: 0
 title: 'merge conflict on PR #468 (fix-release-selected-commits)'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-21T21:02:27.066884Z'
-updated_at: '2026-07-21T21:56:00.749139Z'
+updated_at: '2026-07-28T22:04:58.869900Z'
 work_branch: null
 target_branch: null
 review_url: null
