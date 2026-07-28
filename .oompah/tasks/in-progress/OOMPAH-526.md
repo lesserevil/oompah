@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-526
 type: chore
-status: Done
+status: In Progress
 priority: 1
 title: Document and validate secure htpasswd deployment and recovery
 parent: OOMPAH-521
@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T20:16:39.009970Z'
+updated_at: '2026-07-28T20:16:57.480010Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -24,13 +24,13 @@ merged_at: null
 oompah.agent_run_id: b6b9862b-29cc-4c82-81ec-993ac87d955e
 oompah.work_branch: epic-OOMPAH-521
 oompah.task_costs:
-  total_input_tokens: 1067196
-  total_output_tokens: 5201
+  total_input_tokens: 1067518
+  total_output_tokens: 20796
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1067196
-      output_tokens: 5201
+      input_tokens: 1067518
+      output_tokens: 20796
       cost_usd: 0.0
   runs:
   - profile: default
@@ -39,6 +39,12 @@ oompah.task_costs:
     output_tokens: 5201
     cost_usd: 0.0
     recorded_at: '2026-07-28T20:12:05.483146+00:00'
+  - profile: quick
+    model: haiku
+    input_tokens: 322
+    output_tokens: 15595
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T20:16:54.043734+00:00'
 ---
 ## Summary
 
@@ -194,5 +200,38 @@ author: oompah
 created: 2026-07-28 20:16
 ---
 Delivered comprehensive HTTP Basic auth documentation (docs/authentication.md with setup, user management, rotation, disablement, recovery, client configuration, MCP setup, webhook exemptions, reverse proxy examples, troubleshooting). All 154 auth tests pass. Cross-referenced from operator-runbook.md and cli-install.md. Ready for cross-surface smoke tests with completed prerequisites.
+---
+author: oompah
+created: 2026-07-28 20:16
+---
+Agent completed successfully in 279s (15917 tokens)
+---
+author: oompah
+created: 2026-07-28 20:16
+---
+Run #1 [attempt=1, profile=quick, role=fast -> Claude/haiku]
+- Turns: 91, Tool calls: 44
+- Tokens: 322 in / 15.6K out [15.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 39s
+- Log: OOMPAH-526__20260728T201218Z.jsonl
+---
+author: oompah
+created: 2026-07-28 20:16
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-521` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-521
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-521
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
