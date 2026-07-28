@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:58:40.544439Z'
+updated_at: '2026-07-28T18:58:58.449719Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ merged_at: null
 oompah.agent_run_id: 055503e1-e1d0-4fa5-a142-a174c9a702e1
 oompah.work_branch: epic-OOMPAH-521
 oompah.task_costs:
-  total_input_tokens: 301
-  total_output_tokens: 38100
+  total_input_tokens: 423
+  total_output_tokens: 41019
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 234
-      output_tokens: 5929
+      input_tokens: 356
+      output_tokens: 8848
       cost_usd: 0.0
     sonnet:
       input_tokens: 67
@@ -46,6 +46,12 @@ oompah.task_costs:
     output_tokens: 32171
     cost_usd: 0.0
     recorded_at: '2026-07-28T18:55:39.424563+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 122
+    output_tokens: 2919
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T18:58:54.855865+00:00'
 ---
 ## Summary
 
@@ -284,5 +290,38 @@ Completed implementation:
 - WebSocket auth checked before accept() - rejected connections never enter _ws_clients
 - Forge signature/token validation preserved on exempt webhook POST routes
 - Auth transparent when disabled; credential disclosure impossible
+---
+author: oompah
+created: 2026-07-28 18:58
+---
+Agent completed successfully in 82s (3041 tokens)
+---
+author: oompah
+created: 2026-07-28 18:58
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 43, Tool calls: 14
+- Tokens: 122 in / 2.9K out [3.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 22s
+- Log: OOMPAH-523__20260728T185735Z.jsonl
+---
+author: oompah
+created: 2026-07-28 18:58
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-521` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-521
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-521
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
