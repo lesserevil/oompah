@@ -16,7 +16,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:22:59.980064Z'
+updated_at: '2026-07-28T19:23:52.643458Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -310,5 +310,44 @@ RISKS & NOTES:
 
 NEXT FOCUS: Feature agent for implementation.
 Recommended: Start with method stubs in API reference, implement chain logic, then add tests.
+---
+author: oompah
+created: 2026-07-28 19:23
+---
+Completion: Technical Writer phase finished. Documentation ready for implementation.
+
+DELIVERABLES:
+1. plans/terminal-transition-coordinator.md (14KB)
+   - Complete architecture, design principles, requirements
+   - Detailed 7-step request_transition algorithm
+   - State chains (Done, Merged, Archived) with pseudocode
+   - Coalescing, superseding, and restart recovery
+   - Testing strategy with 13+ test cases
+
+2. plans/terminal-transition-coordinator-api.md (18KB)
+   - Python class template with method stubs
+   - Integration with TerminalAuditMetadataStore (existing persistence layer)
+   - Bootstrap and orchestrator integration code
+   - Storage schema and JSON examples
+   - Test checklist and error handling table
+
+DESIGN HIGHLIGHTS:
+✓ Atomic persistence (via TerminalAuditMetadataStore) before status move
+✓ Per-project async locks for concurrent request safety
+✓ Coalescing by (target, fingerprint) deduplication
+✓ Fingerprint-based superseding with SUPERSEDED marking
+✓ Chain semantics: Done(1), Merged(1-2 with Done reuse), Archived(deferred)
+✓ Direct Merged cannot skip completion auditing
+✓ Queued comment posted once per task (persisted set)
+✓ Restart recovery from stored metadata
+✓ No terminal statuses written by coordinator (auditor applies)
+
+INTEGRATION READY:
+- Aligns with existing TerminalAuditMetadata and TerminalAuditMetadataStore patterns
+- Bootstrap integration point clear (setup_services in oompah/bootstrap.py)
+- Orchestrator usage pattern documented
+- Per-project write locks leverage existing ProjectStore locking
+
+STATUS: Handed off to feature implementation agent with focus:feature label.
 ---
 <!-- COMMENTS:END -->
