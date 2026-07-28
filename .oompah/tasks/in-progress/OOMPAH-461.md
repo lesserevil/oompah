@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:03.234325Z'
-updated_at: '2026-07-28T18:09:26.578986Z'
+updated_at: '2026-07-28T18:09:56.787357Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ author: oompah
 created: 2026-07-28 18:09
 ---
 Understanding: add the canonical In Validation lifecycle status, preserve its nonterminal/non-working/non-dispatchable semantics, integrate tracker round-tripping, add focused tests, and verify with focused checks plus make test.
+---
+author: oompah
+created: 2026-07-28 18:09
+---
+Discovery: status vocabulary and rank live in oompah/statuses.py; GitHub label auth derives its slug map from CANONICAL_STATUSES, and label bootstrap derives required labels from the same tuple. Markdown/GitLab/GitHub adapters need targeted review for hard-coded defaults and state filters.
 ---
 <!-- COMMENTS:END -->
