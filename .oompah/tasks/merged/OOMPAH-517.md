@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-517
 type: task
-status: Done
+status: Merged
 priority: null
 title: Reclaim quarantined cleanup trees with restrictive modes
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T16:44:23.886600Z'
-updated_at: '2026-07-28T17:53:13.051460Z'
+updated_at: '2026-07-28T18:00:10.968231Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
