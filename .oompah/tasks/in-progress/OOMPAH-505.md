@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T15:21:23.417086Z'
+updated_at: '2026-07-28T15:22:15.835794Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -140,5 +140,10 @@ author: oompah
 created: 2026-07-28 15:21
 ---
 Understanding: I am implementing the frontend slice by tracing ACP backend capability metadata into the role configuration UI, separating catalog discovery from manual model entry, adding an accessible framework-consistent control for catalog-less backends, and covering behavior with existing UI/API tests. I will verify whether backend/configuration work remains and hand off with evidence if needed.
+---
+author: oompah
+created: 2026-07-28 15:22
+---
+Code and documentation are implemented and pushed in commit 23d1c043b. ACP descriptors now separate catalog discovery from manual model selection; the role matrix accepts manual IDs for empty-catalog Claude/Codex providers; fable is forwarded; all six requested tier mappings reach the ACP session unchanged. Focused provider/role/backend suite: 402 passed. Keeping this task In Progress until the six live role candidates are applied after deployment.
 ---
 <!-- COMMENTS:END -->
