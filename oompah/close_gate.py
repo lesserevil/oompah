@@ -17,6 +17,7 @@ the gate automatically applies only to agent closes.
 
 Skip rules (fail-open without checking):
 * Issue is an epic.
+* Issue has a parent and therefore works on its parent-owned shared branch.
 * Issue has the ``decomposed`` label.
 * Branch is 0 commits ahead of the base branch (nothing to merge).
 * Forge API call fails or times out (fail-open, log WARNING).
@@ -326,6 +327,17 @@ def check_close_gate(
     # ------------------------------------------------------------------
     if (issue.issue_type or "").strip().lower() == "epic":
         return CloseGateResult(allowed=True, skip_reason="epic")
+
+    # Child work lands on its parent-owned shared branch. Requiring the child
+    # to have a review against the project default branch would create the
+    # epic rollup review before the rest of the branch is ready. The canonical
+    # epic rollup path owns review creation after every actionable child has
+    # the required state and landing evidence.
+    if str(getattr(issue, "parent_id", "") or "").strip():
+        return CloseGateResult(
+            allowed=True,
+            skip_reason="parent_owned_branch",
+        )
 
     labels = {(l or "").strip().lower() for l in (issue.labels or [])}
     if "decomposed" in labels:

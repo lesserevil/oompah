@@ -4811,6 +4811,34 @@ class Orchestrator:
             )
         return None
 
+    def _fresh_epic_rollup_creation_block_reason(self, epic: Issue) -> str | None:
+        """Return a freshly-read reason not to create ``epic``'s review.
+
+        The rollup sweep checks readiness before forge lookups, target-branch
+        preparation, and branch pushes. Those operations can take long enough
+        for a child to be reopened or added. Refresh the tracker and repeat the
+        canonical state-and-landing-evidence gate at the last possible point
+        before ``create_review`` so stale readiness cannot create a premature
+        PR/MR.
+        """
+        try:
+            tracker = (
+                self._tracker_for_project(epic.project_id)
+                if epic.project_id
+                else self.tracker
+            )
+            invalidate = getattr(tracker, "invalidate_read_cache", None)
+            if callable(invalidate):
+                invalidate()
+        except Exception as exc:  # noqa: BLE001 - readiness must fail closed
+            return (
+                f"child state for epic {epic.identifier} could not be "
+                f"refreshed ({exc}); refusing to create a rollup review"
+            )
+
+        children = self._fetch_epic_children(epic)
+        return self._epic_rollup_children_block_reason(epic, children)
+
     @staticmethod
     def _resolve_git_branch_refs(repo_path: str, branch: str) -> tuple[str, ...]:
         """Return available local refs for ``branch`` without fetching.
@@ -6112,6 +6140,21 @@ class Orchestrator:
                     issue.identifier,
                     exc,
                 )
+
+            # Re-check after all branch preparation and immediately before
+            # contacting the forge. A child may have been added or reopened
+            # since the first readiness check at the top of this loop.
+            pre_create_block_reason = (
+                self._fresh_epic_rollup_creation_block_reason(issue)
+            )
+            if pre_create_block_reason:
+                logger.info(
+                    "Cancelled epic PR creation for %s after readiness "
+                    "refresh: %s",
+                    issue.identifier,
+                    pre_create_block_reason,
+                )
+                continue
 
             title = (
                 f"{issue.identifier}: {issue.title}"
@@ -17541,6 +17584,8 @@ class Orchestrator:
                 current_issue.work_branch = getattr(entry.issue, "work_branch", None)
             if not getattr(current_issue, "branch_name", None):
                 current_issue.branch_name = getattr(entry.issue, "branch_name", None)
+            if not getattr(current_issue, "parent_id", None):
+                current_issue.parent_id = getattr(entry.issue, "parent_id", None)
 
         result = check_close_gate(
             current_issue,
