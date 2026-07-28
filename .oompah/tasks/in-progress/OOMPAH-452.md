@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:50.818103Z'
-updated_at: '2026-07-28T12:45:05.716124Z'
+updated_at: '2026-07-28T12:48:16.473548Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -132,5 +132,21 @@ Plan:
 3. Resolve any conflicts with current interfaces (tracker.py, server.py, webhooks.py have evolved)
 4. Run make test to verify no regressions
 5. Commit and push
+---
+author: oompah
+created: 2026-07-28 12:48
+---
+Discovery: Successfully cherry-picked commits 24ae25693 (OOMPAH-338) and 696d5bfaa (OOMPAH-339) onto current branch.
+
+Files recovered:
+- oompah/gitlab_tracker.py (792 lines) — GitLabIssueTracker full TrackerProtocol + status governance
+- tests/test_gitlab_tracker.py (1463 lines) — 115 tests covering lifecycle, authorization, pagination
+- oompah/tracker.py — 'gitlab_issues'/'gitlab-issues' registered in ADAPTER_REGISTRY
+- oompah/server.py — auto-merged cleanly; _is_status_label_governed_tracker_kind includes gitlab_issues
+- oompah/webhooks.py — minor conflict resolved (log message specificity); all parse_gitlab_* functions already present from OOMPAH-340
+- tests/test_webhooks.py — 3 new Issue Hook tests added from 696d5bfaa
+- tests/test_server_webhooks.py — auto-merged cleanly with additional GitLab server webhook tests
+
+No structural conflicts — the OOMPAH-340 commits (Push/Issue/Note/Pipeline/Job webhook parsing) were already in HEAD. Running tests now.
 ---
 <!-- COMMENTS:END -->
