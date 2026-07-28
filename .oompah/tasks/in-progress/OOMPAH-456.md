@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T13:57:03.196841Z'
+updated_at: '2026-07-28T14:00:03.464829Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-07-28 13:57
 ---
 Understanding: Investigating OOMPAH-456 as Duplicate Investigator. The issue describes two bugs: (1) the Projects editor treats state_branch_enabled as a plain PATCH boolean and can enable reads before the branch exists; (2) the migration preflight runs git push --dry-run without the configured GitLab project token, fails auth, and incorrectly tells operator to verify GITHUB_TOKEN instead of the GitLab token. Plan: search .oompah/tasks and docs for related issues about state_branch_enabled, GitLab forge credentials, state-branch bootstrap/migration, and credential/auth bugs in state branch activation.
+---
+author: oompah
+created: 2026-07-28 14:00
+---
+Discovery: Duplicate screening complete — OOMPAH-456 is NOT a duplicate.\n\nSearched all .oompah/tasks/ directories, docs/, and plans/ using keywords: state_branch, gitlab, forge_kind, GITHUB_TOKEN, atomic, preflight, dry-run, intake-alias, nodevirt, proj-bbba976d, forge-aware, forge-neutral, credential, activation, projects.html, PATCH boolean.\n\nClosest candidates reviewed (all confirmed distinct):\n\n1. OOMPAH-255 (Archived): Added state_branch_enabled as a plain PATCH checkbox to projects.html — this is the root-cause implementation that OOMPAH-456 identifies as a bug. OOMPAH-255 was intentionally building the checkbox; OOMPAH-456 is describing the bug that results.\n\n2. OOMPAH-259 (Archived): Implemented migration workflow for existing projects including validate_state_branch() with push-access preflight. Did NOT implement GitLab forge-aware credentials for git push, and did NOT make the projects.html UI route through this workflow instead of a raw PATCH.\n\n3. OOMPAH-258 (Archived): Bootstrap for new projects (initialize_state_branch). No GitLab credential handling.\n\n4. OOMPAH-282 (Backlog): Stage A migration failed with UnicodeEncodeError — different bug (encoding, not auth or atomicity).\n\n5. OOMPAH-6 (Archived): Auth error surfacing for GitHub intake bridge — different forge, different feature area.\n\nKey evidence: docs/state-branch-migration.md line 80 contains 'The GitHub token in .env does not have write access to the repository. Update GITHUB_TOKEN and restart.' — confirming the GitHub-specific diagnostic message that OOMPAH-456 identifies as the bug for GitLab projects.\n\nConclusion: OOMPAH-456 is a unique bug combining three new problems not covered by any prior task: (1) UI activation bypasses migration workflow via plain PATCH; (2) git push --dry-run in preflight doesn't use the GitLab project access token; (3) diagnostics incorrectly mention GITHUB_TOKEN for GitLab projects.
 ---
 <!-- COMMENTS:END -->
