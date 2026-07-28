@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-07-28T14:44:58.710943Z'
+updated_at: '2026-07-28T14:55:48.330073Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -127,5 +127,25 @@ author: oompah
 created: 2026-07-28 14:44
 ---
 Discovery: Verified the approach works. Git's url.<base>.insteadOf mechanism via GIT_CONFIG_COUNT/KEY_N/VALUE_N env vars correctly blocks network URLs and leaves absolute-path/file:// local remotes usable. Quick shell tests confirmed: (1) https:// fetch redirected to /OOMPAH-TEST-BLOCKED/https/<rest> and fails immediately; (2) SCP-style git@host:path redirected to /OOMPAH-TEST-BLOCKED/scp/<rest> and fails; (3) absolute-path bare remote ls-remote returns exit 0. Plan: add session-scoped autouse fixture to conftest.py + new test_git_remote_safety.py.
+---
+author: oompah
+created: 2026-07-28 14:55
+---
+Implementation: Added two files:
+
+1. tests/conftest.py — Added:
+   - build_network_barrier_env() helper that takes an env dict and appends GIT_CONFIG_KEY_N/VALUE_N entries for 5 URL schemes (https://, http://, ssh://, git://, git@), incrementing GIT_CONFIG_COUNT. Preserves pre-existing numbered entries.
+   - _block_network_git_remotes() session-scoped autouse fixture that calls this helper against os.environ and restores it on teardown.
+   - _BARRIER_BASE = '/OOMPAH-TEST-NETWORK-BARRIER' (root-level path, guaranteed to not exist without root)
+   - Each blocked URL gets a unique base (e.g. file:///OOMPAH-TEST-NETWORK-BARRIER/https/) so rules don't conflict.
+   - Absolute-path and file:// remotes are unaffected.
+
+2. tests/test_git_remote_safety.py — 17 tests across 4 sections:
+   - §1 Blocked schemes: HTTPS, HTTP, SSH URL, SCP-style git@, git:// all fail and error mentions barrier path
+   - §2 Allowed transports: absolute-path and file:// bare remotes support fetch and push
+   - §3 Config-count preservation: unit tests for build_network_barrier_env() logic
+   - §4 Session barrier active: verifies env vars are set and git subprocesses inherit the guard
+
+No changes to developer's global or repository git config.
 ---
 <!-- COMMENTS:END -->
