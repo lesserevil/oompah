@@ -716,7 +716,12 @@ class Orchestrator:
         # service restarts. Previously _paused was always initialized to False.
         self._paused = self._load_paused_state()
         self._restore_budget_state()
+        self._service_instance_id = str(uuid.uuid4())
         self._restart_requested = False
+        self._restart_in_progress = False
+        self._restart_request_id: str | None = None
+        self._restart_requested_at: str | None = None
+        self._restart_initial_running = 0
         self._alerts: list[
             dict[str, str]
         ] = []  # {"level": "warning", "message": "..."}
@@ -1845,7 +1850,12 @@ class Orchestrator:
         self.event_bus.emit(EventType.ORCHESTRATOR_RESUMED, {})
         self._notify_observers()
 
-    async def graceful_restart(self, drain_timeout_s: float = 60) -> None:
+    async def graceful_restart(
+        self,
+        drain_timeout_s: float | None = None,
+        *,
+        request_id: str | None = None,
+    ) -> None:
         """Drain running agents and restart the process.
 
         1. Pause dispatch (no new agents)
@@ -1853,7 +1863,27 @@ class Orchestrator:
         3. Save any still-running issue IDs for re-dispatch after restart
         4. Signal the main loop to stop (which triggers os.execv in __main__)
         """
-        logger.info("Graceful restart requested (drain_timeout=%.0fs)", drain_timeout_s)
+        if self._restart_in_progress:
+            if request_id != self._restart_request_id:
+                logger.info(
+                    "Graceful restart request coalesced into %s",
+                    self._restart_request_id,
+                )
+                return
+        else:
+            self._restart_in_progress = True
+            self._restart_request_id = request_id or str(uuid.uuid4())
+            self._restart_requested_at = datetime.now(timezone.utc).isoformat()
+            self._restart_initial_running = len(self.state.running)
+        if drain_timeout_s is None:
+            drain_timeout_s = self.config.restart_drain_timeout_seconds
+        drain_timeout_s = max(float(drain_timeout_s), 0.0)
+        logger.info(
+            "Graceful restart %s requested (drain_timeout=%.0fs, running=%d)",
+            self._restart_request_id,
+            drain_timeout_s,
+            self._restart_initial_running,
+        )
         # Capture whether the user had explicitly paused before this call.
         # We pause internally for the drain regardless, but on the new boot
         # we should respect the user's pre-existing intent — overwriting
@@ -1871,7 +1901,7 @@ class Orchestrator:
                 remaining,
                 deadline - time.monotonic(),
             )
-            await asyncio.sleep(2)
+            await asyncio.sleep(min(2.0, max(deadline - time.monotonic(), 0.0)))
 
         # Save issue IDs of anything still running for re-dispatch
         restart_issues = []
@@ -20254,6 +20284,18 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "json",
             ),
             "rate_limits": self.state.rate_limits,
+            "service_instance_id": getattr(self, "_service_instance_id", None),
+            "restart": {
+                "in_progress": getattr(self, "_restart_in_progress", False),
+                "request_id": getattr(self, "_restart_request_id", None),
+                "requested_at": getattr(self, "_restart_requested_at", None),
+                "initial_running": getattr(self, "_restart_initial_running", 0),
+                "remaining_running": (
+                    len(self.state.running)
+                    if getattr(self, "_restart_in_progress", False)
+                    else 0
+                ),
+            },
             "projects": [p.to_safe_dict() for p in self.project_store.list_all()],
             "open_reviews_by_project": {
                 pid: self._count_open_reviews(pid)

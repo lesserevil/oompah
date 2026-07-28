@@ -7,6 +7,9 @@ LOG_FILE := oompah.log
 # oompah actually listens on, even when the operator hasn't exported the var.
 _ENV_PORT := $(shell grep -E '^OOMPAH_SERVER_PORT[[:space:]]*=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' \t\r\n')
 PORT ?= $(if $(OOMPAH_SERVER_PORT),$(OOMPAH_SERVER_PORT),$(if $(_ENV_PORT),$(_ENV_PORT),8080))
+_ENV_DRAIN_TIMEOUT := $(shell grep -E '^OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS[[:space:]]*=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' \t\r\n')
+DRAIN_TIMEOUT ?= $(if $(OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS),$(OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS),$(if $(_ENV_DRAIN_TIMEOUT),$(_ENV_DRAIN_TIMEOUT),3600))
+RESTART_HEALTH_TIMEOUT ?= $(shell expr $(DRAIN_TIMEOUT) + 60)
 # Timeout (seconds) for waiting on process exit and port release during stop/restart.
 STOP_TIMEOUT ?= 30
 
@@ -53,15 +56,16 @@ define port_in_use
 	[ $$? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | grep -q .)
 endef
 
-.PHONY: help setup start stop restart graceful status logs test clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
+.PHONY: help setup start stop restart graceful force-restart status logs test clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
 
 help:
 	@echo "oompah — make targets:"
 	@echo "  setup          Install server dependencies into $(VENV) (idempotent)"
 	@echo "  start          Start oompah in the background (default port: $(PORT))"
 	@echo "  stop           Stop the background oompah process"
-	@echo "  restart        Hard restart (stop + start) — use for orchestrator/agent changes"
-	@echo "  graceful       Drain running agents and restart in-place — use for cosmetic/template changes"
+	@echo "  restart        Drain active agents, restart in-place, and verify new process health"
+	@echo "  graceful       Alias for the normal draining restart"
+	@echo "  force-restart  Emergency hard stop + start; interrupts active agents"
 	@echo "  status         Print PID + state JSON if running"
 	@echo "  logs           Tail $(LOG_FILE)"
 	@echo "  test           Run the pytest suite"
@@ -129,7 +133,46 @@ stop:
 		echo "oompah is not running"; \
 	fi
 
-restart: stop start
+restart: setup
+	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
+		STATE_URL="http://127.0.0.1:$(PORT)/api/v1/state"; \
+		RESTART_URL="http://127.0.0.1:$(PORT)/api/v1/orchestrator/restart"; \
+		if ! curl -sf "$$STATE_URL" >/dev/null; then \
+			echo "ERROR: oompah PID is running but its health API is unavailable."; \
+			echo "Refusing to interrupt agents. Inspect logs, or use 'make force-restart' for an emergency."; \
+			exit 1; \
+		fi; \
+		BEFORE=$$(curl -sf "$$STATE_URL" | python3 -c "import json,sys; print(json.load(sys.stdin).get('service_instance_id') or '')" 2>/dev/null || true); \
+		echo "Requesting draining restart (agent drain timeout: $(DRAIN_TIMEOUT)s)..."; \
+		RESPONSE=$$(curl -sf -X POST "$$RESTART_URL" \
+			-H 'Content-Type: application/json' \
+			-d '{"drain_timeout_s": $(DRAIN_TIMEOUT)}') || { \
+				echo "ERROR: graceful restart request failed; active agents were not interrupted."; \
+				exit 1; \
+			}; \
+		echo "$$RESPONSE" | python3 -m json.tool; \
+		ELAPSED=0; \
+		while [ $$ELAPSED -lt $(RESTART_HEALTH_TIMEOUT) ]; do \
+			AFTER=$$(curl -sf "$$STATE_URL" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('service_instance_id') or '')" 2>/dev/null || true); \
+			if [ -n "$$AFTER" ] && { [ -z "$$BEFORE" ] || [ "$$AFTER" != "$$BEFORE" ]; }; then \
+				echo "oompah restarted successfully and passed its health check (instance $$AFTER)."; \
+				exit 0; \
+			fi; \
+			sleep 1; \
+			ELAPSED=$$((ELAPSED + 1)); \
+		done; \
+		echo "ERROR: draining restart did not expose a new healthy instance within $(RESTART_HEALTH_TIMEOUT)s."; \
+		echo "Active tasks may still be draining; inspect 'make status' and 'make logs'. No force restart was attempted."; \
+		exit 1; \
+	else \
+		rm -f $(PID_FILE); \
+		echo "oompah is not running; starting it."; \
+		make --no-print-directory start; \
+	fi
+
+graceful: restart
+
+force-restart: stop start
 
 # Run oompah in the foreground using the Granian ASGI server.
 #
@@ -145,13 +188,6 @@ run-granian:
 		exit 1; \
 	fi
 	$(PYTHON) -m oompah server --server granian
-
-graceful:
-	@curl -sf -X POST http://0.0.0.0:$(PORT)/api/v1/orchestrator/restart \
-		-H 'Content-Type: application/json' -d '{"drain_timeout_s": 60}' \
-		| python3 -m json.tool \
-		&& echo "Graceful restart initiated" \
-		|| echo "Failed — is oompah running?"
 
 status:
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \

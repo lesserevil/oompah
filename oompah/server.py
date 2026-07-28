@@ -14,6 +14,7 @@ import subprocess
 import threading
 import time
 import urllib.parse
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -8672,12 +8673,46 @@ async def api_orchestrator_restart(request: Request):
             body = await request.json()
         except Exception:
             pass
-        drain_timeout = body.get("drain_timeout_s", 60)
+        raw_timeout = body.get(
+            "drain_timeout_s", orch.config.restart_drain_timeout_seconds
+        )
+        try:
+            drain_timeout = max(float(raw_timeout), 0.0)
+        except (TypeError, ValueError):
+            return JSONResponse(
+                {"error": "drain_timeout_s must be a non-negative number"},
+                status_code=400,
+            )
         running_count = len(orch.state.running)
-        asyncio.create_task(orch.graceful_restart(drain_timeout_s=drain_timeout))
+        if getattr(orch, "_restart_in_progress", False):
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "coalesced": True,
+                    "restart_request_id": orch._restart_request_id,
+                    "draining": len(orch.state.running),
+                    "drain_timeout_s": drain_timeout,
+                },
+                status_code=202,
+            )
+        request_id = str(uuid.uuid4())
+        # Claim synchronously so back-to-back HTTP requests cannot start two
+        # drain loops before the first task receives event-loop time.
+        orch._restart_in_progress = True
+        orch._restart_request_id = request_id
+        orch._restart_requested_at = datetime.now(timezone.utc).isoformat()
+        orch._restart_initial_running = running_count
+        asyncio.create_task(
+            orch.graceful_restart(
+                drain_timeout_s=drain_timeout,
+                request_id=request_id,
+            )
+        )
         return JSONResponse(
             {
                 "ok": True,
+                "coalesced": False,
+                "restart_request_id": request_id,
                 "draining": running_count,
                 "drain_timeout_s": drain_timeout,
             }

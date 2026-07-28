@@ -217,12 +217,26 @@ class TestMakefileStructure:
             "start: must clean up PID file in both the timeout and crash error paths"
         )
 
-    def test_restart_is_stop_then_start(self):
-        """restart: must be implemented as 'stop start' so port wait is enforced."""
+    def test_normal_restart_uses_drain_api_and_health_identity(self):
+        """Normal restart must drain and verify a newly loaded instance."""
         text = _makefile_text()
-        assert "restart: stop start" in text, (
-            "restart: must depend on stop (which waits) followed by start"
-        )
+        start = text.index("\nrestart:")
+        end = text.index("\ngraceful:", start)
+        recipe = text[start:end]
+
+        assert "/api/v1/orchestrator/restart" in recipe
+        assert "service_instance_id" in recipe
+        assert "make force-restart" in recipe
+        assert "$(call wait_for_stop" not in recipe
+        assert "kill -TERM" not in recipe
+
+    def test_force_restart_is_explicit_stop_then_start(self):
+        text = _makefile_text()
+
+        assert "force-restart: stop start" in text
+        assert "graceful: restart" in text
+        assert "DRAIN_TIMEOUT ?=" in text
+        assert "RESTART_HEALTH_TIMEOUT ?=" in text
 
     def test_port_in_use_uses_ss_with_lsof_fallback(self):
         """port_in_use must try ss first, fall back to lsof."""

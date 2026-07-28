@@ -871,6 +871,42 @@ class TestGracefulRestartShutdownEvent:
         )
         assert restart_issues[0]["issue_id"] == issue_id
 
+    def test_running_agents_that_complete_during_drain_are_not_requeued(
+        self, tmp_path, event_loop
+    ):
+        from datetime import datetime, timezone
+        from oompah.models import Issue, RunningEntry
+
+        orch = _make_orchestrator(tmp_path)
+        for number in range(2):
+            issue_id = f"finishes-{number}"
+            issue = Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Finishes while draining",
+                state="In Progress",
+            )
+            orch.state.running[issue_id] = RunningEntry(
+                worker_task=MagicMock(),
+                identifier=issue_id,
+                issue=issue,
+                session=None,
+                retry_attempt=0,
+                started_at=datetime.now(timezone.utc),
+            )
+
+        async def finish_agents(_delay):
+            orch.state.running.clear()
+
+        with patch("oompah.orchestrator.asyncio.sleep", side_effect=finish_agents):
+            event_loop.run_until_complete(
+                orch.graceful_restart(drain_timeout_s=30)
+            )
+
+        assert orch._load_state().get("restart_issues", []) == []
+        assert orch.wants_restart is True
+        assert orch._paused is True
+
 
 # ---------------------------------------------------------------------------
 # _on_retry_timer() resets stale In Progress after retry-claim release

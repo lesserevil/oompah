@@ -147,6 +147,10 @@ make graceful         # NOT: sending signals directly
 make test             # NOT: pytest directly
 ```
 
+`make restart` and `make graceful` both drain active agents and verify that a
+new healthy service instance is running. Use `make force-restart` only for an
+operator-approved emergency where interrupting active agents is acceptable.
+
 If unsure whether a target exists, run `make help` or `grep` the Makefile.
 
 ## Configuration via .env
