@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T15:44:50.468552Z'
+updated_at: '2026-07-28T15:45:03.258316Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -127,5 +127,10 @@ author: oompah
 created: 2026-07-28 15:44
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-28 15:45
+---
+Understanding: I will baseline collection, map the pre-implementation design assertions to the five production-backed state-branch suites, remove tests/test_state_branch_design.py and the duplicate TestXfailDesignContractNowPasses class, then run targeted suites and make test before committing, pushing, and closing the task.
 ---
 <!-- COMMENTS:END -->
