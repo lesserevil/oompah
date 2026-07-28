@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T20:05:07.309116Z'
+updated_at: '2026-07-28T20:05:21.612057Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -51,5 +51,22 @@ author: oompah
 created: 2026-07-28 20:05
 ---
 Focus: Api Oompah Integration Specialist
+---
+author: oompah
+created: 2026-07-28 20:05
+---
+**Understanding & Plan**
+
+This task adds an explicit coordinator override operation for terminal audits. The override will:
+- Require actor + project-owner authorization (via existing transition helpers)
+- Accept requested terminal target, evidence fingerprint, and non-empty reason
+- Reject implicit label changes and blank reasons
+- Persist override audit record + human-readable comment
+- Expose typed result/error for API/CLI integration
+- Never treat oompah bot or auditor agent as owner without independent authorization
+
+Tests must cover: authorized owner, additional authorized login, unauthorized actor, bot-only actor, blank reason, stale fingerprint, repeated override, metadata/comment failure ordering, and redaction.
+
+Starting exploration to understand current audit/terminal structure and existing authorization helpers.
 ---
 <!-- COMMENTS:END -->
