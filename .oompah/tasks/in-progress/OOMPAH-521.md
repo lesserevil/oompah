@@ -17,7 +17,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-07-28T21:21:07.028407Z'
+updated_at: '2026-07-28T21:21:16.359410Z'
 work_branch: epic-OOMPAH-521
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/567
@@ -103,5 +103,25 @@ author: oompah
 created: 2026-07-28 21:17
 ---
 Understanding: Task is to rebase epic-OOMPAH-521 (10 commits, OOMPAH-522/523/524/525/526) onto origin/main. Merge base is at 0237f7730 (Merge pull request #564). Main is 4 commits ahead (OOMPAH-457, OOMPAH-527). Will fetch, rebase, resolve conflicts, then run focused auth tests.
+---
+author: oompah
+created: 2026-07-28 21:21
+---
+Rebase complete. Rebased epic-OOMPAH-521 (10 commits) onto origin/main.
+
+## Conflicts resolved
+- **.env.example**: OOMPAH-527 rewrote OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL doc block to describe route-derived defaults; OOMPAH-526 added a note about independence from OOMPAH_HTPASSWD_FILE. Kept OOMPAH-527's newer text and appended the HTPASSWD independence note.
+- **oompah/bootstrap.py**: main added \`terminal_transition_coordinator\` field to Services; OOMPAH-526 added \`http_credentials\` field. Kept both fields in the dataclass.
+- **tests/test_granian_bootstrap.py**: main added mock_config.gitlab_webhook_public_url = None; OOMPAH-526 added mock_config.htpasswd_file = None. Kept both mock assignments.
+
+## Additional cleanup
+- Pre-existing uncommitted uv.lock update (bcrypt/passlib entries for OOMPAH-522) was folded into 59f266727 via git commit --fixup + autosquash. Without this, uv sync --frozen fails on the branch.
+
+## Verification
+- \`uv sync --frozen --extra server\` succeeds.
+- Focused suites: 597 tests pass (test_http_auth, test_config, test_granian_bootstrap, test_server_auth, test_client_auth, test_lifespan_abort, test_docs_authentication_contract, test_mcp_gateway, test_mcp_exposure_policy).
+- Neighboring suites: 179 tests pass (test_task_cli, test_admin_cli, test_config_agent_profile_store, test_gitlab_bootstrap_readiness).
+
+Branch force-pushed to origin/epic-OOMPAH-521 (head 0f3a7bfd1). All 10 original commits preserved; no commits dropped or squashed except the uv.lock fixup.
 ---
 <!-- COMMENTS:END -->
