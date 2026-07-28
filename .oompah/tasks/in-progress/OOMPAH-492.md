@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:27.511520Z'
-updated_at: '2026-07-28T14:58:38.788637Z'
+updated_at: '2026-07-28T14:58:50.230159Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -118,5 +118,10 @@ author: oompah
 created: 2026-07-28 14:58
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-28 14:58
+---
+Understanding: As the Test Engineer, I will isolate worker-exit and epic-rebase tests from the live tracker in three files: tests/test_event_driven_loop.py (TestWorkerExitPostsEvent), tests/test_acp_billing.py (worker-exit tests), and tests/test_epic_rebase_state.py (TestPersistence::test_persists_on_clear). Plan: (1) Read all three test files plus relevant source to understand patterns, (2) inject project-scoped mock trackers via _tracker_for_project, (3) add fail-fast git push guards, (4) assert expected tracker interactions, (5) run the three files with --durations=20, then make test.
 ---
 <!-- COMMENTS:END -->
