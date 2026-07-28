@@ -7,10 +7,12 @@ title: Block network Git remotes during pytest sessions
 parent: OOMPAH-490
 children: []
 blocked_by: []
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-07-28T14:37:28.937602Z'
+updated_at: '2026-07-28T14:37:40.192519Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
