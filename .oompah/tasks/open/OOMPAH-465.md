@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-465
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Implement idempotent terminal-transition staging and audit chains
 parent: OOMPAH-457
@@ -12,9 +12,11 @@ blocked_by:
 - OOMPAH-463
 labels:
 - focus-complete:duplicate_detector
+- focus-complete:docs
+- needs:feature
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T19:21:44.388145Z'
+updated_at: '2026-07-28T19:22:48.242820Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -210,5 +212,48 @@ Key design highlights:
 5. Comment dedup: Persisted set prevents duplicate notifications
 
 The design is ready for implementation. Next focus: Feature agent for implementation.
+---
+author: oompah
+created: 2026-07-28 19:22
+---
+Implementation: Documentation complete.
+
+Created two comprehensive reference documents:
+
+1. **plans/terminal-transition-coordinator.md** (14KB)
+   - Full architecture and design principles
+   - Detailed API specification with 7-step algorithm
+   - State chain logic (Done, Merged, Archived)
+   - Coalescing and superseding mechanics
+   - Per-project locking strategy
+   - Comment deduplication with persistence
+   - Recovery and restart semantics
+   - Integration points (bootstrap, orchestrator, auditor)
+   - 13 test case specifications
+   - Data schema and JSON storage format
+
+2. **plans/terminal-transition-coordinator-api.md** (18KB)
+   - Quick-reference Python class template
+   - Method signatures with docstrings
+   - Implementation stubs for each operation
+   - Bootstrap and orchestrator integration code
+   - Storage schema and JSON examples
+   - Testing checklist
+   - Error handling table
+   - Performance considerations
+
+These documents provide a complete specification for implementation. All requirements from OOMPAH-465 are covered:
+✓ request_transition API design
+✓ Atomic persistence before status move
+✓ Done/Merged/Archived chains with correct sequencing
+✓ Coalescing identical requests
+✓ Fingerprint-based superseding
+✓ Per-project locking
+✓ Concise queued comment (once per task)
+✓ Recovery semantics
+✓ Comment deduplication
+✓ Complete test strategy
+
+Ready for feature implementation agent.
 ---
 <!-- COMMENTS:END -->
