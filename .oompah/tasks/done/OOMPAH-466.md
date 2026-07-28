@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:08.204164Z'
-updated_at: '2026-07-28T20:04:50.548936Z'
+updated_at: '2026-07-28T20:04:52.774942Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -117,5 +117,10 @@ author: oompah
 created: 2026-07-28 20:04
 ---
 Completion: Delivered TerminalTransitionCoordinator.apply_audit_result with compare-and-set on audit_id/target_state/evidence_fingerprint plus In Validation guard, central classify_failure_to_status() failure router, PASS terminal application with chain advance, actionable Needs Human comment composition, and durable pending-record retention for every non-terminal path (ERROR, MALFORMED_RESULT, INFRASTRUCTURE_ERROR, retry ceiling, non-actionable NEEDS_HUMAN). Acceptance criteria met: only a matching PASS reaches the requested terminal state; every failure has a deterministic repair state and durable actionable explanation; malformed or infrastructure results leave the item nonterminal in In Validation. Commit 63b904e09 on epic-OOMPAH-457.
+---
+author: oompah
+created: 2026-07-28 20:04
+---
+Coordinator apply_audit_result with CAS, central failure routing, PASS/FAIL/NEEDS_HUMAN/ERROR handling, actionable Needs Human comments, and no fail-open paths. 100 tests in the coordinator suite (195 across the terminal-audit stack).
 ---
 <!-- COMMENTS:END -->
