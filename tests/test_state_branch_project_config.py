@@ -717,26 +717,29 @@ class TestServerPatchHTTP:
         srv._orchestrator = old_orch
         srv._log_watcher_manager = old_watcher
 
-    def test_http_patch_state_branch_enabled_true(self):
-        """HTTP PATCH with state_branch_enabled=true must return 200."""
+    def test_http_patch_state_branch_enabled_true_rejected(self):
+        """Generic PATCH cannot bypass state-branch activation checks."""
         res = self.client.patch(
             "/api/v1/projects/proj-testid",
             json={"state_branch_enabled": True},
         )
-        assert res.status_code == 200
-        assert res.json()["state_branch_enabled"] is True
+        assert res.status_code == 400
+        assert "migration endpoint" in res.json()["error"]["message"]
+        assert self.store.get("proj-testid").state_branch_enabled is False
 
-    def test_http_patch_state_branch_enabled_false(self):
-        """HTTP PATCH with state_branch_enabled=false must return 200."""
+    def test_http_patch_state_branch_enabled_false_rejected(self):
+        """Generic PATCH cannot bypass rollback checks when disabling."""
+        self.store.update("proj-testid", state_branch_enabled=True)
         res = self.client.patch(
             "/api/v1/projects/proj-testid",
             json={"state_branch_enabled": False},
         )
-        assert res.status_code == 200
-        assert res.json()["state_branch_enabled"] is False
+        assert res.status_code == 400
+        assert "migration endpoint" in res.json()["error"]["message"]
+        assert self.store.get("proj-testid").state_branch_enabled is True
 
     def test_http_patch_state_branch_enabled_string_rejected(self):
-        """HTTP PATCH with state_branch_enabled='true' (string) must return 400."""
+        """The operational field is rejected regardless of value type."""
         res = self.client.patch(
             "/api/v1/projects/proj-testid",
             json={"state_branch_enabled": "true"},
@@ -744,6 +747,18 @@ class TestServerPatchHTTP:
         assert res.status_code == 400
         err = res.json()["error"]["message"]
         assert "state_branch_enabled" in err
+
+    def test_http_patch_state_branch_rejection_is_atomic(self):
+        """A mixed request must not apply ordinary fields before rejection."""
+        original_name = self.store.get("proj-testid").name
+        res = self.client.patch(
+            "/api/v1/projects/proj-testid",
+            json={"name": "must-not-apply", "state_branch_enabled": True},
+        )
+        assert res.status_code == 400
+        project = self.store.get("proj-testid")
+        assert project.name == original_name
+        assert project.state_branch_enabled is False
 
     def test_http_patch_checkpoint_debounce_valid(self):
         """HTTP PATCH with valid debounce must return 200."""
@@ -816,6 +831,87 @@ class TestServerPatchHTTP:
 
 
 # ---------------------------------------------------------------------------
+# § 10b — Migration endpoint security validation
+# ---------------------------------------------------------------------------
+
+
+class TestServerMigrationSecurity:
+    """Reject coercion and invalid state transitions before Git mutations."""
+
+    @pytest.fixture(autouse=True)
+    def client(self, tmp_path):
+        from fastapi.testclient import TestClient
+        from oompah.server import app
+
+        store = _make_store(tmp_path)
+        orch = MagicMock()
+        orch.project_store = store
+        orch._observers = []
+        orch._state_only_observers = []
+        orch._activity_observers = []
+        orch.get_snapshot.return_value = {"counts": {}, "running": {}}
+
+        import oompah.server as srv
+
+        old_orch = srv._orchestrator
+        srv._orchestrator = orch
+        self.client = TestClient(app)
+        self.store = store
+        yield self.client
+        srv._orchestrator = old_orch
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("confirm", "true"),
+            ("confirm", 1),
+            ("dry_run", "false"),
+            ("dry_run", 0),
+        ],
+    )
+    def test_migration_flags_require_json_booleans(self, field, value):
+        res = self.client.post(
+            "/api/v1/projects/proj-testid/state-branch/migrate",
+            json={"action": "A", field: value},
+        )
+        assert res.status_code == 400
+        assert "must be booleans" in res.json()["error"]["message"]
+        assert self.store.get("proj-testid").state_branch_enabled is False
+
+    def test_stage_c_rejected_before_stage_b(self):
+        res = self.client.post(
+            "/api/v1/projects/proj-testid/state-branch/migrate",
+            json={"action": "C", "confirm": True},
+        )
+        assert res.status_code == 400
+        assert "requires Stage B" in res.json()["error"]["message"]
+        assert self.store.get("proj-testid").state_branch_enabled is False
+
+    def test_rollback_rejected_without_active_migration(self):
+        res = self.client.post(
+            "/api/v1/projects/proj-testid/state-branch/migrate",
+            json={"action": "rollback", "confirm": True},
+        )
+        assert res.status_code == 400
+        assert "requires an active" in res.json()["error"]["message"]
+
+    def test_stage_a_cannot_downgrade_stage_b(self):
+        self.store.update(
+            "proj-testid",
+            state_branch_enabled=True,
+            state_branch_migration_stage="B",
+        )
+        res = self.client.post(
+            "/api/v1/projects/proj-testid/state-branch/migrate",
+            json={"action": "A", "confirm": True},
+        )
+        assert res.status_code == 400
+        project = self.store.get("proj-testid")
+        assert project.state_branch_enabled is True
+        assert project.state_branch_migration_stage == "B"
+
+
+# ---------------------------------------------------------------------------
 # § 11 — Cache invalidation
 # ---------------------------------------------------------------------------
 
@@ -841,8 +937,8 @@ class TestCacheInvalidation:
 
         assert "state_branch_checkpoint_max_delay_ms" in _PROJECT_TRACKER_CACHE_FIELDS
 
-    def test_cache_invalidation_called_when_state_branch_enabled_changes(self, tmp_path):
-        """Updating state_branch_enabled must trigger cache invalidation via the server."""
+    def test_patch_bypass_does_not_invalidate_or_mutate(self, tmp_path):
+        """Rejected generic PATCH must not mutate config or invalidate caches."""
         from fastapi.testclient import TestClient
         from oompah.server import app
 
@@ -871,8 +967,9 @@ class TestCacheInvalidation:
                     "/api/v1/projects/proj-testid",
                     json={"state_branch_enabled": True},
                 )
-                assert res.status_code == 200
-                mock_inval.assert_called_once_with(orch, "proj-testid")
+                assert res.status_code == 400
+                assert store.get("proj-testid").state_branch_enabled is False
+                mock_inval.assert_not_called()
         finally:
             srv._orchestrator = old_orch
             srv._log_watcher_manager = old_watcher

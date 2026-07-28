@@ -10597,21 +10597,25 @@ async def api_update_project(project_id: str, request: Request):
                     },
                     status_code=400,
                 )
-        # State-branch configuration (OOMPAH-255).
+        # State-branch activation is an operational migration, not a plain
+        # configuration edit.  Reject it here so stale or crafted clients
+        # cannot enable reads before the remote branch has been bootstrapped
+        # and verified (OOMPAH-456).  Internal migration code still updates
+        # the ProjectStore directly after its checks succeed.
         if "state_branch_enabled" in body:
-            val = body["state_branch_enabled"]
-            if isinstance(val, bool):
-                fields["state_branch_enabled"] = val
-            else:
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "validation",
-                            "message": "state_branch_enabled must be a boolean",
-                        }
-                    },
-                    status_code=400,
-                )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": (
+                            "state_branch_enabled cannot be changed through the "
+                            "project PATCH endpoint; use the state-branch migration "
+                            "endpoint"
+                        ),
+                    }
+                },
+                status_code=400,
+            )
         for key in (
             "state_branch_checkpoint_debounce_ms",
             "state_branch_checkpoint_max_delay_ms",
@@ -10862,8 +10866,20 @@ async def api_state_branch_migrate(project_id: str, request: Request):
             body = {}
 
         action = str(body.get("action") or "").upper()
-        dry_run = bool(body.get("dry_run", False))
-        confirm = bool(body.get("confirm", False))
+        raw_dry_run = body.get("dry_run", False)
+        raw_confirm = body.get("confirm", False)
+        if not isinstance(raw_dry_run, bool) or not isinstance(raw_confirm, bool):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "dry_run and confirm must be booleans",
+                    }
+                },
+                status_code=400,
+            )
+        dry_run = raw_dry_run
+        confirm = raw_confirm
 
         # If neither confirm nor dry_run, treat as dry_run for safety.
         if not confirm and not dry_run:
@@ -10927,6 +10943,19 @@ async def api_state_branch_migrate(project_id: str, request: Request):
         current_stage = getattr(project, "state_branch_migration_stage", "") or ""
 
         if action == "A":
+            if current_stage not in ("", "A"):
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                "Stage A can only start an unmigrated project; "
+                                f"current stage is {current_stage!r}"
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
             # Check idempotency.
             if current_stage == "A":
                 return JSONResponse(
@@ -10992,6 +11021,19 @@ async def api_state_branch_migrate(project_id: str, request: Request):
                 )
 
         elif action == "C":
+            if current_stage != "B":
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                "Stage C requires Stage B to be completed first; "
+                                f"current stage is {current_stage!r}"
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
             result = migrate_stage_c(
                 repo_path,
                 project.id,
@@ -11001,6 +11043,19 @@ async def api_state_branch_migrate(project_id: str, request: Request):
             # Stage C does not change project config.
 
         elif action == "ROLLBACK":
+            if current_stage not in ("A", "B"):
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                "Rollback requires an active Stage A or Stage B "
+                                f"migration; current stage is {current_stage!r}"
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
             result = rollback_migration(
                 repo_path,
                 project.id,

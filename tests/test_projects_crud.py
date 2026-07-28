@@ -347,7 +347,7 @@ class TestProjectAPI:
         assert data["github_issue_intake_enabled"] is True
         assert data["external_issue_intake_enabled"] is True
 
-    def test_gitlab_ui_edit_enables_state_branch_without_github_identity_call(
+    def test_gitlab_ui_edit_rejects_direct_state_branch_activation(
         self,
         monkeypatch,
     ):
@@ -384,8 +384,9 @@ class TestProjectAPI:
             },
         )
 
-        assert response.status_code == 200
-        assert response.json()["state_branch_enabled"] is True
+        assert response.status_code == 400
+        assert "migration endpoint" in response.json()["error"]["message"]
+        assert self.store.get("proj-test1").state_branch_enabled is False
         assert self.store.get("proj-test1").status_actor_login is None
         resolve_owner.assert_not_called()
 
@@ -1587,13 +1588,11 @@ class TestProjectAPITrackerFields:
             json={
                 "github_issue_intake_enabled": True,
                 "external_issue_intake_enabled": True,
-                "state_branch_enabled": True,
             },
         )
 
         assert res.status_code == 200
         assert self.store.get("proj-tracker").github_issue_intake_enabled is True
-        assert self.store.get("proj-tracker").state_branch_enabled is True
 
     def test_patch_rejects_conflicting_intake_aliases_precisely(self):
         res = self.client.patch(
