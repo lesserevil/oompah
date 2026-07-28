@@ -931,7 +931,14 @@ def _load_projects_html() -> str:
 
 
 class TestProjectsHtmlUI:
-    """projects.html must expose state_branch_enabled in display and edit form."""
+    """projects.html must expose state_branch_enabled in display and edit form.
+
+    OOMPAH-456: state_branch_enabled must no longer be settable via a plain PATCH
+    boolean checkbox.  Activation must route through the /state-branch/migrate
+    endpoint so the branch is created, pushed, and verified before the config flag
+    is flipped.  The edit form therefore shows read-only status + dedicated
+    Activate / Deactivate buttons instead of a checkbox.
+    """
 
     @pytest.fixture(scope="class")
     def html(self):
@@ -945,29 +952,69 @@ class TestProjectsHtmlUI:
         """The edit form must have a 'State Branch Settings' section label."""
         assert "State Branch Settings" in html
 
-    def test_edit_checkbox_for_state_branch_enabled(self, html):
-        """A checkbox with data-field=state-branch-enabled-edit must be present."""
+    def test_edit_section_for_state_branch_enabled(self, html):
+        """A form section with data-field=state-branch-enabled-edit must be present."""
         assert "data-field=\"state-branch-enabled-edit\"" in html
 
-    def test_edit_checkbox_id_uses_project_id(self, html):
-        """The checkbox id must follow the pattern edit-state-branch-enabled-${p.id}."""
-        assert "edit-state-branch-enabled-${esc(p.id)}" in html
+    def test_no_plain_checkbox_for_state_branch_enabled(self, html):
+        """The state_branch_enabled checkbox must NOT be present (OOMPAH-456).
 
-    def test_saveproject_reads_state_branch_enabled(self, html):
-        """saveProject() must read the state_branch_enabled checkbox."""
-        assert "edit-state-branch-enabled-" in html
-        assert "stateBranchEnabled" in html or "state_branch_enabled" in html
+        Activation now goes through dedicated buttons / the migration endpoint,
+        not a plain boolean PATCH.
+        """
+        assert "edit-state-branch-enabled-${esc(p.id)}" not in html
 
-    def test_saveproject_sends_state_branch_enabled_in_body(self, html):
-        """saveProject() PATCH body must include state_branch_enabled."""
-        # Find the body object construction in saveProject
-        assert "state_branch_enabled: stateBranchEnabled" in html \
-            or "state_branch_enabled" in html
+    def test_saveproject_does_not_send_state_branch_enabled_in_body(self, html):
+        """saveProject() PATCH body must NOT include state_branch_enabled (OOMPAH-456).
+
+        The plain PATCH bypass is the root cause described in OOMPAH-456:
+        it could enable reads before the branch exists.  The field must be
+        absent from the saveProject body to prevent silent mis-activation.
+        """
+        assert "state_branch_enabled: stateBranchEnabled" not in html
+
+    def test_activate_state_branch_button_present(self, html):
+        """An 'Activate State Branch' button must be rendered for disabled projects."""
+        assert "activateStateBranch(" in html
+
+    def test_deactivate_state_branch_button_present(self, html):
+        """A 'Deactivate State Branch' button must be rendered for enabled projects."""
+        assert "deactivateStateBranch(" in html
+
+    def test_activate_calls_migrate_endpoint(self, html):
+        """activateStateBranch() must POST to the /state-branch/migrate endpoint."""
+        assert "/state-branch/migrate" in html
+
+    def test_activate_uses_confirm_true(self, html):
+        """activateStateBranch() must pass confirm:true to avoid dry-run mode."""
+        assert "confirm: true" in html
+
+    def test_activate_button_has_aria_label(self, html):
+        """Activate button must have an aria-label for accessibility."""
+        assert 'aria-label="Activate state branch for' in html
+
+    def test_deactivate_button_has_aria_label(self, html):
+        """Deactivate button must have an aria-label for accessibility."""
+        assert 'aria-label="Deactivate state branch for' in html
+
+    def test_state_branch_msg_area_exists(self, html):
+        """A live-region message area must exist for activation status feedback."""
+        assert "edit-state-branch-msg-" in html
+        assert 'aria-live="polite"' in html
 
     def test_state_branch_name_preview_shown_in_ui(self, html):
         """UI should show the derived state branch name (oompah/state/<id>)."""
         # The UI shows oompah/state/ prefix
         assert "oompah/state/" in html
+
+    def test_activate_button_disabled_during_operation(self, html):
+        """activateStateBranch() must disable the button while the request is in flight."""
+        assert "btn.disabled = true" in html
+
+    def test_error_message_is_relay_only(self, html):
+        """Error handling must relay the server message; no hardcoded credential names."""
+        # The UI must not inject GitHub-specific credential names into its own error text.
+        assert "GITHUB_TOKEN" not in html
 
 
 # ---------------------------------------------------------------------------

@@ -287,7 +287,11 @@ async function loadProjects() {
       </div>
       <div class="field-row" data-field="state-branch-enabled">
         <span class="field-label">State Branch:</span>
-        <span class="field-value" style="color:${p.state_branch_enabled ? 'var(--green)' : 'var(--text-muted)'};">${p.state_branch_enabled ? 'Enabled — writes task state to oompah/state/' + esc(p.id) : 'Disabled (default — writes to default branch)'}</span>
+        <span class="field-value" id="state-branch-status-${esc(p.id)}" style="color:${p.state_branch_enabled ? 'var(--green)' : 'var(--text-muted)'};">
+          ${p.state_branch_enabled ? 'Enabled — writes task state to oompah/state/' + esc(p.id) : 'Disabled (default — writes to default branch)'}
+          ${!p.state_branch_enabled && p.tracker_kind === 'oompah_md' ? `<button style="margin-left:0.6rem;font-size:0.7rem;" aria-label="Activate state branch for ${esc(p.name)}" onclick="activateStateBranch('${esc(p.id)}')">Activate</button>` : ''}
+          ${p.state_branch_enabled ? `<button class="btn-danger" style="margin-left:0.6rem;font-size:0.7rem;" aria-label="Deactivate state branch for ${esc(p.name)}" onclick="deactivateStateBranch('${esc(p.id)}')">Deactivate</button>` : ''}
+        </span>
       </div>
       <div class="field-row" data-field="forge-kind">
         <span class="field-label">Forge:</span>
@@ -508,10 +512,13 @@ async function loadProjects() {
         </div>
         <div class="form-group" data-field="state-branch-enabled-edit">
           <label>State Branch <span style="font-weight:400;color:var(--text-muted);">(native oompah_md only — write task state to oompah/state/&lt;project-id&gt; instead of the default branch)</span></label>
-          <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;color:var(--text);cursor:pointer;margin-bottom:0;">
-            <input type="checkbox" id="edit-state-branch-enabled-${esc(p.id)}" ${p.state_branch_enabled ? 'checked' : ''}>
-            <span>Enable state branch (writes task state to oompah/state/${esc(p.id)})</span>
-          </label>
+          <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+            <span id="edit-state-branch-status-text-${esc(p.id)}" style="font-size:0.8rem;color:${p.state_branch_enabled ? 'var(--green)' : 'var(--text-muted)'};">${p.state_branch_enabled ? 'Enabled — writing to oompah/state/' + esc(p.id) : 'Disabled'}</span>
+            ${!p.state_branch_enabled && p.tracker_kind === 'oompah_md' ? `<button id="edit-state-branch-activate-btn-${esc(p.id)}" aria-label="Activate state branch for ${esc(p.name)}" onclick="activateStateBranch('${esc(p.id)}')">Activate State Branch</button>` : ''}
+            ${p.state_branch_enabled ? `<button id="edit-state-branch-deactivate-btn-${esc(p.id)}" class="btn-danger" aria-label="Deactivate state branch for ${esc(p.name)}" onclick="deactivateStateBranch('${esc(p.id)}')">Deactivate State Branch</button>` : ''}
+          </div>
+          <div id="edit-state-branch-msg-${esc(p.id)}" style="font-size:0.75rem;margin-top:0.4rem;display:none;" role="status" aria-live="polite"></div>
+          ${p.tracker_kind !== 'oompah_md' ? '<span style="font-size:0.7rem;color:var(--text-muted);">State branch requires tracker type: native oompah_md</span>' : ''}
         </div>
         <div class="form-group" data-field="provider-whitelist-edit">
           <label id="edit-provider-whitelist-label-${esc(p.id)}">Provider Whitelist <span style="font-weight:400;color:var(--text-muted);">(leave all unchecked to allow all providers)</span></label>
@@ -735,6 +742,80 @@ async function deleteProject(id, name) {
   loadProjects();
 }
 
+// ---------------------------------------------------------------------------
+// State-branch activation (OOMPAH-456)
+// Routes through the migration endpoint rather than a plain PATCH boolean so
+// the branch is created, pushed, and verified before config is flipped.
+// Error messages are relayed from the server to stay forge-neutral.
+// ---------------------------------------------------------------------------
+
+function _setStateBranchMsg(id, msg, isError) {
+  const el = document.getElementById('edit-state-branch-msg-' + id);
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isError ? 'var(--red)' : 'var(--green)';
+  el.style.display = msg ? 'block' : 'none';
+}
+
+async function activateStateBranch(id) {
+  const msgEl = document.getElementById('edit-state-branch-msg-' + id);
+  const btn = document.getElementById('edit-state-branch-activate-btn-' + id);
+  if (btn) { btn.disabled = true; btn.textContent = 'Activating…'; }
+  _setStateBranchMsg(id, 'Creating and verifying state branch…', false);
+  if (msgEl) msgEl.style.color = 'var(--text-muted)';
+  let res, data;
+  try {
+    res = await fetch('/api/v1/projects/' + id + '/state-branch/migrate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'A', confirm: true}),
+    });
+    try { data = await res.json(); } catch (e) { data = {}; }
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Activate State Branch'; }
+    _setStateBranchMsg(id, 'Network error: ' + ((err && err.message) || String(err)), true);
+    return;
+  }
+  if (res.ok && data && data.ok) {
+    _setStateBranchMsg(id, '', false);
+    loadProjects();
+  } else {
+    if (btn) { btn.disabled = false; btn.textContent = 'Activate State Branch'; }
+    const detail = (data && data.error && data.error.message) || (data && data.message) || (res.status + ' ' + res.statusText);
+    _setStateBranchMsg(id, 'Activation failed: ' + detail, true);
+  }
+}
+
+async function deactivateStateBranch(id) {
+  if (!confirm('Deactivate the state branch for this project? Task state will revert to the default branch.')) return;
+  const btn = document.getElementById('edit-state-branch-deactivate-btn-' + id);
+  if (btn) { btn.disabled = true; btn.textContent = 'Deactivating…'; }
+  _setStateBranchMsg(id, 'Rolling back state branch…', false);
+  const msgEl = document.getElementById('edit-state-branch-msg-' + id);
+  if (msgEl) msgEl.style.color = 'var(--text-muted)';
+  let res, data;
+  try {
+    res = await fetch('/api/v1/projects/' + id + '/state-branch/migrate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'ROLLBACK', confirm: true}),
+    });
+    try { data = await res.json(); } catch (e) { data = {}; }
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Deactivate State Branch'; }
+    _setStateBranchMsg(id, 'Network error: ' + ((err && err.message) || String(err)), true);
+    return;
+  }
+  if (res.ok && data && data.ok) {
+    _setStateBranchMsg(id, '', false);
+    loadProjects();
+  } else {
+    if (btn) { btn.disabled = false; btn.textContent = 'Deactivate State Branch'; }
+    const detail = (data && data.error && data.error.message) || (data && data.message) || (res.status + ' ' + res.statusText);
+    _setStateBranchMsg(id, 'Deactivation failed: ' + detail, true);
+  }
+}
+
 function toggleEditForm(id) {
   const f = document.getElementById('edit-' + id);
   f.style.display = f.style.display === 'none' ? 'block' : 'none';
@@ -798,7 +879,10 @@ async function saveProject(id) {
   const statusLabelAuthorizedLogins = statusLabelAuthorizedLoginsRaw
     ? statusLabelAuthorizedLoginsRaw.split(',').map(s => s.trim()).filter(s => s.length > 0)
     : [];
-  const stateBranchEnabled = document.getElementById('edit-state-branch-enabled-' + id).checked;
+  // state_branch_enabled is NOT sent as a plain PATCH field — activation must
+  // go through the /state-branch/migrate endpoint to ensure the branch is
+  // created, pushed, and verified before the config flag is flipped.
+  // Use the Activate / Deactivate buttons in the State Branch section instead.
   const body = {name, branch, branches, default_branch: defaultBranch, max_in_flight_prs: maxInFlightPrs, provider_whitelist: providerWhitelist,
     forge_kind: forgeKind,
     tracker_kind: trackerKind, tracker_owner: trackerOwner, tracker_repo: trackerRepo,
@@ -808,8 +892,7 @@ async function saveProject(id) {
     github_project_node_id: githubProjectNodeId,
     status_actor_login: statusActorLogin,
     status_label_authorized_logins: statusLabelAuthorizedLogins,
-    supported_release_branches: supportedReleaseBranches,
-    state_branch_enabled: stateBranchEnabled};
+    supported_release_branches: supportedReleaseBranches};
   // Only include forge_base_url for GitLab projects.
   if (forgeKind === 'gitlab' && forgeBaseUrl) {
     body.forge_base_url = forgeBaseUrl;
