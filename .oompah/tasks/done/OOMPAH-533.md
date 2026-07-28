@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:45.110386Z'
-updated_at: '2026-07-28T21:44:11.150777Z'
+updated_at: '2026-07-28T21:44:14.601552Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-07-28 21:44
 ---
 Implemented and pushed in 209260174: safe board/detail/activity API fields, screening work_kind, accessible dashboard states, refresh fingerprint integration, and protection against optimistic In Progress movement. Server/dashboard result: 1716 passed.
+---
+author: oompah
+created: 2026-07-28 21:44
+---
+Duplicate-screening API/dashboard observability implemented and pushed in 209260174.
 ---
 <!-- COMMENTS:END -->
