@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -18,7 +18,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-28T13:09:53.444969Z'
+updated_at: '2026-07-28T18:07:01.061400Z'
 work_branch: null
 target_branch: null
 review_url: null

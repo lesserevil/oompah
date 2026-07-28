@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-485
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Add In Validation and terminal-audit details to the dashboard
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:24.220262Z'
-updated_at: '2026-07-28T13:09:55.116570Z'
+updated_at: '2026-07-28T18:07:05.362702Z'
 work_branch: null
 target_branch: null
 review_url: null

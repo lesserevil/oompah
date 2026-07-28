@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-488
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Validate the complete task Done-Merged-Archived audit lifecycle
 parent: OOMPAH-460
@@ -18,7 +18,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-28T13:10:07.780492Z'
+updated_at: '2026-07-28T18:07:15.513738Z'
 work_branch: null
 target_branch: null
 review_url: null

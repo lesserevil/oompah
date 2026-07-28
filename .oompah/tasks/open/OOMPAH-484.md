@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-484
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Expose safe terminal-audit state in project, task, and activity APIs
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:23.210919Z'
-updated_at: '2026-07-28T13:09:54.332517Z'
+updated_at: '2026-07-28T18:07:03.182740Z'
 work_branch: null
 target_branch: null
 review_url: null

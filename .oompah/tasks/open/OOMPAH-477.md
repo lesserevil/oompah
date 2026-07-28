@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-477
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Replace the post-worker completion verifier with Done audit staging
 parent: OOMPAH-459
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-28T13:09:38.757316Z'
+updated_at: '2026-07-28T18:07:07.195841Z'
 work_branch: null
 target_branch: null
 review_url: null
