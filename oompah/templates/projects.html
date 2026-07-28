@@ -802,8 +802,8 @@ async function saveProject(id) {
   const body = {name, branch, branches, default_branch: defaultBranch, max_in_flight_prs: maxInFlightPrs, provider_whitelist: providerWhitelist,
     forge_kind: forgeKind,
     tracker_kind: trackerKind, tracker_owner: trackerOwner, tracker_repo: trackerRepo,
-    github_issue_intake_enabled: githubIssueIntakeEnabled,
-    // Send external_issue_intake_enabled for forge-neutral API compatibility
+    // external_issue_intake_enabled is the canonical forge-neutral field.
+    // Do NOT also send github_issue_intake_enabled — ProjectStore rejects both.
     external_issue_intake_enabled: githubIssueIntakeEnabled,
     github_project_node_id: githubProjectNodeId,
     status_actor_login: statusActorLogin,
