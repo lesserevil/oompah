@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:13:51.701135Z'
+updated_at: '2026-07-28T19:14:46.778984Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -203,5 +203,10 @@ author: oompah
 created: 2026-07-28 19:13
 ---
 Understanding: I am reviewing the MCP authentication integration as a security auditor. I will trace discovery, streamable HTTP, and in-process API dispatch; test credential and header handling; verify direct REST endpoints cannot be bypassed; and preserve MCP exposure and DNS-rebinding protections.
+---
+author: oompah
+created: 2026-07-28 19:14
+---
+Discovery: MCP routes are covered by _BasicAuthMiddleware, which authenticates then strips Authorization. However build_mcp_gateway dispatches tools through a new ASGI HTTP client with no credentials, so protected REST tools will 401 under htpasswd. A fix needs a request-scoped server-private capability propagated only from a verified MCP request, not an inbound header/Host/path marker. Current discovery still always says authentication=none.
 ---
 <!-- COMMENTS:END -->
