@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:06.169316Z'
-updated_at: '2026-07-28T19:16:24.061859Z'
+updated_at: '2026-07-28T19:16:37.008156Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -176,5 +176,20 @@ author: oompah
 created: 2026-07-28 19:16
 ---
 Completion: delivered and pushed commit 1f77c82a0 on epic-OOMPAH-457. Terminal-audit enforcement now persists a versioned grandfather baseline, invalidates it on state/evidence changes, recovers In Validation pending work with attempt deduplication, handles corrupt state/metadata fail-closed with logs/alerts, and scopes overlapping task IDs by project. Focused tests pass; full isolated suite passes 12,689 tests with 7 skips. The make test wrapper could not initialize uv in this environment due DBus transient-scope setup, while the equivalent isolated pytest gate passed. Branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-07-28 19:16
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 81
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 11s
+- Log: OOMPAH-464__20260728T185727Z.jsonl
+---
+author: oompah
+created: 2026-07-28 19:16
+---
+Persisted terminal-audit grandfather baseline and recovered pending audits with duplicate-safe, fail-closed enforcement
 ---
 <!-- COMMENTS:END -->

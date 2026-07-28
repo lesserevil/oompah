@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T19:14:46.778984Z'
+updated_at: '2026-07-28T19:16:34.588091Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -208,5 +208,15 @@ author: oompah
 created: 2026-07-28 19:14
 ---
 Discovery: MCP routes are covered by _BasicAuthMiddleware, which authenticates then strips Authorization. However build_mcp_gateway dispatches tools through a new ASGI HTTP client with no credentials, so protected REST tools will 401 under htpasswd. A fix needs a request-scoped server-private capability propagated only from a verified MCP request, not an inbound header/Host/path marker. Current discovery still always says authentication=none.
+---
+author: oompah
+created: 2026-07-28 19:16
+---
+Verification: .venv/bin/pytest -q tests/test_mcp_gateway.py tests/test_server_auth.py passed (69 passed). An ad-hoc end-to-end call with enabled credentials successfully initialized MCP but the allowed api_state tool returned 401 from the internal ASGI request, confirming the identified propagation gap. uv run pytest was unavailable because its transient DBus scope could not be created; the project venv pytest completed normally.
+---
+author: oompah
+created: 2026-07-28 19:16
+---
+Implementation: Security review completed; no code was changed in this focus. Required secure implementation decision: annotate only a successfully Basic-authenticated MCP ASGI scope with an in-memory sentinel, require that sentinel before a tool creates internal dispatch, and have a private ASGI wrapper attach a distinct internal-dispatch sentinel. The Basic middleware may trust only object-identity sentinels in ASGI scope—never Host, path, or any HTTP header—and must continue to redact Authorization.
 ---
 <!-- COMMENTS:END -->
