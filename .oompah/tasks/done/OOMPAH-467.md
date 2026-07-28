@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T20:10:11.677581Z'
+updated_at: '2026-07-28T20:10:13.816046Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ Test coverage includes:
 - Record serialization/deserialization
 
 Changes pushed to epic-OOMPAH-457 branch. Ready for review.
+---
+author: oompah
+created: 2026-07-28 20:10
+---
+Implemented explicit authorized owner overrides for terminal audits. Added override_transition() method to TerminalTransitionCoordinator with project-owner authorization, evidence validation, audit record persistence, and comprehensive test coverage (17 new tests passing, 147 existing tests still passing).
 ---
 <!-- COMMENTS:END -->
