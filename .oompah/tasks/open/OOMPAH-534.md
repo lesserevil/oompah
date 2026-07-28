@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-534
 type: task
-status: In Progress
+status: Open
 priority: 3
 title: Add end-to-end duplicate-preflight regressions and operator documentation
 parent: OOMPAH-528
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:20:02.804008Z'
-updated_at: '2026-07-28T21:51:02.777122Z'
+updated_at: '2026-07-28T21:51:05.965630Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -192,5 +192,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 33s
 - Log: OOMPAH-534__20260728T215033Z.jsonl
+---
+author: oompah
+created: 2026-07-28 21:51
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
