@@ -7,12 +7,13 @@ title: Add optional htpasswd authentication to the Oompah service
 parent: null
 children:
 - OOMPAH-522
+- OOMPAH-523
 blocked_by: []
 labels:
 - security
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-07-28T18:11:34.263955Z'
+updated_at: '2026-07-28T18:11:58.543272Z'
 work_branch: null
 target_branch: null
 review_url: null
