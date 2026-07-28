@@ -8,10 +8,12 @@ parent: OOMPAH-528
 children: []
 blocked_by:
 - OOMPAH-530
-labels: []
+labels:
+- focus-complete:duplicate_detector
+- needs:feature
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-07-28T22:00:28.340610Z'
+updated_at: '2026-07-28T22:00:36.510782Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
