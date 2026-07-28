@@ -24,7 +24,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -251,6 +251,7 @@ def _make_issue(
     issue_type: str = "task",
     priority: int = 2,
     labels: list | None = None,
+    project_id: str | None = None,
 ) -> Issue:
     return Issue(
         id=identifier,
@@ -261,6 +262,7 @@ def _make_issue(
         issue_type=issue_type,
         priority=priority,
         labels=labels or [],
+        project_id=project_id,
     )
 
 
@@ -287,7 +289,13 @@ def _make_orchestrator(
     project_store = MagicMock()
     project_store.list_all.return_value = []
 
-    cfg = ServiceConfig(budget_limit=budget_limit)
+    cfg = ServiceConfig(
+        budget_limit=budget_limit,
+        # Disable close gates so _run_close_gate / _run_unpushed_gate return
+        # True immediately without touching git.  Billing tests never exercise
+        # the gate logic, so disabling it removes the need to stub git calls.
+        close_gate_enabled=False,
+    )
     pid = provider.id if provider else None
     cfg.agent_profiles = [
         AgentProfile(
@@ -477,6 +485,58 @@ class TestEstimateCostBillingAware:
         assert cost == 0.0
 
 
+def _inject_worker_exit_isolation(orch: Orchestrator, issue_id: str) -> MagicMock:
+    """Inject isolation mocks for _on_worker_exit tests.
+
+    Replaces tracker, telemetry, comment, and completion side-effects with
+    MagicMocks so tests exercise only the billing/event-publication logic
+    without reaching orch.tracker or the checkout's git origin.
+
+    Returns the mock tracker so callers can assert its interactions.
+    The tracker's fetch_issue_detail returns a terminal 'Done' issue so
+    the normal-exit path treats the task as successfully closed without
+    scheduling retries or performing git operations.
+
+    Also configures project_store.get to return None for the test project ID
+    so _is_project_paused and _ensure_review_exists do not see a MagicMock
+    "project" with truthy attributes (which would look paused or trigger
+    unexpected git operations).
+    """
+    mock_tracker = MagicMock()
+    mock_tracker.fetch_issue_detail.return_value = Issue(
+        id=issue_id,
+        identifier=issue_id,
+        title="Test Issue",
+        state="Done",
+    )
+    mock_tracker.fetch_comments.return_value = []
+    orch._tracker_for_project = MagicMock(return_value=mock_tracker)
+    # Make project_store.get return None for unknown test project IDs so
+    # _is_project_paused returns False and _ensure_review_exists exits early.
+    orch.project_store.get.return_value = None
+    # Silence fire-and-forget telemetry so no background threads escape.
+    orch._fire_task_cost_record = MagicMock()
+    orch._fire_telemetry_comment = MagicMock()
+    # Silence comment posting (not the target of these tests).
+    orch._post_comment = MagicMock()
+    # Silence completion-side-effects: review creation, epic close, focus
+    # analysis — these are orthogonal to billing and may trigger git I/O.
+    orch._ensure_review_exists = MagicMock(return_value=True)
+    orch._maybe_auto_close_parent_epic = MagicMock()
+    orch._analyze_focus_fit = MagicMock()
+    # Silence retry scheduling (prevents asyncio timer leakage).
+    orch._schedule_retry = MagicMock()
+    return mock_tracker
+
+
+def _no_git_push(*args, **kwargs):
+    """Fail-fast subprocess guard: raise if a git push command is attempted."""
+    cmd = args[0] if args else kwargs.get("args", [])
+    if isinstance(cmd, (list, tuple)) and "push" in cmd:
+        raise AssertionError(f"Test must not invoke git push: {cmd}")
+    return MagicMock(returncode=0, stdout=b"", stderr=b"")
+
+
 class TestOnWorkerExitCostAccumulation:
     """_on_worker_exit rolls cost through _estimate_cost; the
     billing_model gate flows through that helper."""
@@ -486,48 +546,67 @@ class TestOnWorkerExitCostAccumulation:
     ):
         provider = _make_subscription_acp_provider(with_costs=True)
         orch = _make_orchestrator(tmp_path, provider=provider)
-        issue = _make_issue()
+        # Give the issue a test project_id so _on_worker_exit routes through
+        # _tracker_for_project (mocked below) instead of the live tracker.
+        issue = _make_issue(project_id="proj-test")
         entry = _make_running_entry(issue)
         orch.state.running[issue.id] = entry
+        _inject_worker_exit_isolation(orch, issue.id)
 
         before = orch.state.agent_totals.estimated_cost
-        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+        with patch("subprocess.run", side_effect=_no_git_push), \
+             patch("subprocess.Popen", side_effect=_no_git_push):
+            asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
         # Subscription ACP must NOT contribute to estimated_cost.
         assert orch.state.agent_totals.estimated_cost == before
+        # The project-scoped mock tracker must have been used.
+        orch._tracker_for_project.assert_called_with("proj-test")
 
     def test_per_token_acp_increments_estimated_cost(self, tmp_path):
         provider = _make_per_token_acp_provider(
             cost_in=5.0, cost_out=20.0,
         )
         orch = _make_orchestrator(tmp_path, provider=provider)
-        issue = _make_issue()
+        # Give the issue a test project_id so _on_worker_exit routes through
+        # _tracker_for_project (mocked below) instead of the live tracker.
+        issue = _make_issue(project_id="proj-test")
         # 1000 input + 500 output → 5 + 10 = $15
         entry = _make_running_entry(
             issue, input_tokens=1000, output_tokens=500,
         )
         orch.state.running[issue.id] = entry
+        _inject_worker_exit_isolation(orch, issue.id)
 
         before = orch.state.agent_totals.estimated_cost
-        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+        with patch("subprocess.run", side_effect=_no_git_push), \
+             patch("subprocess.Popen", side_effect=_no_git_push):
+            asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
         delta = orch.state.agent_totals.estimated_cost - before
         assert delta == pytest.approx(15.0)
         # And surfaces in cost_by_profile so dashboards render it.
         assert orch.state.cost_by_profile.get("default", 0.0) == pytest.approx(15.0)
+        # The project-scoped mock tracker must have been used.
+        orch._tracker_for_project.assert_called_with("proj-test")
 
     def test_per_token_acp_sdk_cost_wins(self, tmp_path):
         provider = _make_per_token_acp_provider(
             cost_in=5.0, cost_out=20.0,
         )
         orch = _make_orchestrator(tmp_path, provider=provider)
-        issue = _make_issue()
+        # Give the issue a test project_id so _on_worker_exit routes through
+        # _tracker_for_project (mocked below) instead of the live tracker.
+        issue = _make_issue(project_id="proj-test")
         entry = _make_running_entry(
             issue, input_tokens=1000, output_tokens=500,
             sdk_cost_usd=2.25,
         )
         orch.state.running[issue.id] = entry
+        _inject_worker_exit_isolation(orch, issue.id)
 
         before = orch.state.agent_totals.estimated_cost
-        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+        with patch("subprocess.run", side_effect=_no_git_push), \
+             patch("subprocess.Popen", side_effect=_no_git_push):
+            asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
         delta = orch.state.agent_totals.estimated_cost - before
         # SDK number wins, not the $15 local calc.
         assert delta == pytest.approx(2.25)
@@ -608,11 +687,16 @@ class TestMissingRatesWarningLogged:
     def test_on_worker_exit_no_cost_no_crash(self, tmp_path):
         provider = _make_per_token_no_costs_provider()
         orch = _make_orchestrator(tmp_path, provider=provider)
-        issue = _make_issue()
+        # Give the issue a test project_id so _on_worker_exit routes through
+        # _tracker_for_project (mocked below) instead of the live tracker.
+        issue = _make_issue(project_id="proj-test")
         entry = _make_running_entry(issue)
         orch.state.running[issue.id] = entry
+        _inject_worker_exit_isolation(orch, issue.id)
 
         before = orch.state.agent_totals.estimated_cost
-        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+        with patch("subprocess.run", side_effect=_no_git_push), \
+             patch("subprocess.Popen", side_effect=_no_git_push):
+            asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
         # No cost added (defaults to 0 for missing rates).
         assert orch.state.agent_totals.estimated_cost == before

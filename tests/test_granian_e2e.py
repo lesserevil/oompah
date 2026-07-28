@@ -1,21 +1,25 @@
 """End-to-end tests for the Granian ASGI path (TASK-472.6).
 
 Boots oompah under Granian (subprocess, ASGI interface, workers=1) with a
-minimal stub orchestrator wired in, then exercises:
+minimal stub orchestrator wired in, then exercises four complete scenarios:
 
-    1. HTTP route — GET / returns 200 HTML
-    2. /api/v1/state — returns 200 JSON with a ``running`` field (stub orchestrator
-       present, so the server does *not* fall back to 503)
-    3. WS initial push — the first two WebSocket messages are ``state`` and ``issues``
-    4. orchestrator→_broadcast→WS client — Client A sends ``{action: refresh}``;
-       the resulting ``broadcast_issues()`` call reaches Client B (fan-out via
-       ``_broadcast``)
-    5. Restart — the server process can be stopped (SIGINT) and a fresh process
-       started on the same port; it serves HTTP correctly after restart
+    1. HTTP root/state contract — GET / and /api/v1/state shape, status codes,
+       content-types, JSON fields (running, api_metrics) asserted in one pass.
+    2. WebSocket connection and initial push — handshake accepted; exactly two
+       messages (``state`` and ``issues``) with correct structure.
+    3. Broadcast fan-out — Client A sends ``{action: refresh}``; Client B
+       receives the resulting ``broadcast_issues()`` message; requester also
+       gets a state reply.
+    4. Restart — server stops (SIGINT), a fresh process starts on the same
+       port; HTTP contract is preserved and the WS initial push works again.
 
 Skips cleanly if granian is not installed.
 
 Design notes:
+  • Each scenario uses the _granian_server() context manager which owns the
+    full process lifecycle: start → wait-ready → yield → SIGINT → terminate →
+    kill → pipe-drain. Cleanup runs even on assertion failure or
+    KeyboardInterrupt, leaving no orphaned subprocesses.
   • The subprocess runs a one-shot Python script that calls
     ``oompah.server.set_orchestrator(stub)`` *before* ``Granian.serve()``.
     Because Granian 2.x with ``workers=1`` and the ASGI interface keeps the
@@ -23,12 +27,13 @@ Design notes:
     reference is visible to the ASGI request handlers.
   • WebSocket tests use ``websockets.sync.client.connect`` (synchronous) to
     avoid nesting event loops inside the synchronous pytest runner.
-  • Each fixture uses a freshly allocated ephemeral port so parallel test
-    runs do not collide.
+  • Each scenario allocates a fresh ephemeral port so parallel test runs
+    do not collide.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import signal
 import socket
@@ -47,6 +52,7 @@ granian = pytest.importorskip("granian", reason="granian not installed")
 # uvicorn[standard]).  Skip the WS-specific tests if it's absent.
 try:
     from websockets.sync.client import connect as _ws_connect
+
     _WEBSOCKETS_SYNC_AVAILABLE = True
 except ImportError:
     _WEBSOCKETS_SYNC_AVAILABLE = False
@@ -149,6 +155,7 @@ Granian(
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _free_port() -> int:
     """Return an unused local TCP port."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -156,7 +163,7 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
-def _start_granian_server(port: int) -> subprocess.Popen:
+def _start_granian_proc(port: int) -> subprocess.Popen:
     """Launch the Granian e2e subprocess on *port* and return the Popen handle."""
     script = _GRANIAN_E2E_SCRIPT.format(port=port)
     return subprocess.Popen(
@@ -182,20 +189,65 @@ def _wait_ready(port: int, proc: subprocess.Popen, timeout: float = 12.0) -> boo
     return False
 
 
-def _stop_granian_server(proc: subprocess.Popen, timeout: float = 8.0) -> None:
-    """Gracefully stop the server; forcefully kill if it doesn't exit in time."""
-    if proc.poll() is not None:
-        return
-    proc.send_signal(signal.SIGINT)
-    try:
-        proc.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        proc.terminate()
+def _stop_proc(proc: subprocess.Popen) -> None:
+    """Bounded shutdown: SIGINT → terminate → kill, then drain pipes."""
+    if proc.poll() is None:
+        proc.send_signal(signal.SIGINT)
         try:
-            proc.wait(timeout=3)
+            proc.wait(timeout=8)
         except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait(timeout=2)
+            proc.terminate()
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass
+    # Always drain pipes to prevent ResourceWarning and blocked I/O
+    try:
+        proc.communicate(timeout=2)
+    except Exception:
+        pass
+
+
+@contextlib.contextmanager
+def _granian_server(port: int | None = None) -> Generator[str, None, None]:
+    """Context manager: start a Granian E2E server, yield its base URL, then clean up.
+
+    Process ownership is centralised here. Cleanup always executes bounded
+    SIGINT/terminate/kill and drains stdout/stderr pipes, even when the body
+    raises an assertion error or KeyboardInterrupt. This prevents orphaned
+    Granian subprocesses regardless of test outcome.
+
+    Args:
+        port: TCP port to bind. Allocates an ephemeral port when *None*.
+
+    Yields:
+        ``http://127.0.0.1:<port>`` — base URL of the running server.
+    """
+    if port is None:
+        port = _free_port()
+
+    proc = _start_granian_proc(port)
+    try:
+        if not _wait_ready(port, proc):
+            # Drain pipes before pytest.fail so they are not left open
+            stdout, stderr = b"", b""
+            try:
+                stdout, stderr = proc.communicate(timeout=3)
+            except Exception:
+                pass
+            pytest.fail(
+                f"Granian e2e server did not become ready on port {port}.\n"
+                f"stdout: {stdout.decode()[:400]}\n"
+                f"stderr: {stderr.decode()[:400]}"
+            )
+
+        yield f"http://127.0.0.1:{port}"
+    finally:
+        _stop_proc(proc)
 
 
 def _ws_recv_json(ws, timeout: float = _WS_RECV_TIMEOUT) -> dict:
@@ -204,233 +256,144 @@ def _ws_recv_json(ws, timeout: float = _WS_RECV_TIMEOUT) -> dict:
 
 
 def _drain_initial_ws_push(ws) -> list[dict]:
-    """Drain the server's initial state + issues push."""
+    """Drain the server's initial state + issues push (exactly two messages)."""
     return [_ws_recv_json(ws), _ws_recv_json(ws)]
 
 
 # ---------------------------------------------------------------------------
-# Function-scoped fixture: isolated server for each e2e test
+# Scenario 1: HTTP root/state contract
 # ---------------------------------------------------------------------------
 
-@pytest.fixture()
-def granian_e2e_base_url() -> Generator[str, None, None]:
-    """Start a Granian server with a stub orchestrator and yield its base URL.
 
-    Function-scoped so a WebSocket close or handshake edge case in one test
-    cannot leave the single-worker Granian subprocess stuck for the next test.
-    Restart tests still start their own servers because they need precise
-    control over process lifetime and port reuse.
+def test_http_root_and_state_contract() -> None:
+    """HTTP root and /api/v1/state contract — status codes, content-types, JSON fields.
+
+    Combines assertions from the former TestGranianHTTPRoutes class (7 tests)
+    into one scenario that starts a single Granian server:
+
+    • GET / → 200, text/html, non-trivially long body
+    • /api/v1/state → 200, application/json, contains ``running`` (empty list
+      from stub orchestrator) and ``api_metrics``
     """
-    port = _free_port()
-    proc = _start_granian_server(port)
-
-    if not _wait_ready(port, proc):
-        stdout, stderr = proc.communicate()
-        pytest.fail(
-            f"Granian e2e server did not become ready on port {port}.\n"
-            f"stdout: {stdout.decode()[:400]}\n"
-            f"stderr: {stderr.decode()[:400]}"
+    with _granian_server() as base_url:
+        # --- GET / ---
+        r_root = httpx.get(base_url + "/")
+        assert r_root.status_code == 200, (
+            f"Expected 200 from GET /; got {r_root.status_code}"
         )
-
-    base_url = f"http://127.0.0.1:{port}"
-    try:
-        yield base_url
-    finally:
-        _stop_granian_server(proc)
-
-
-# ---------------------------------------------------------------------------
-# 1. HTTP routes
-# ---------------------------------------------------------------------------
-
-class TestGranianHTTPRoutes:
-    """HTTP routes are reachable and return expected status codes under Granian."""
-
-    def test_root_returns_200(self, granian_e2e_base_url: str):
-        """GET / returns HTTP 200 under Granian (basic boot check)."""
-        r = httpx.get(granian_e2e_base_url + "/")
-        assert r.status_code == 200, (
-            f"Expected 200 from GET /; got {r.status_code}"
+        ct_root = r_root.headers.get("content-type", "")
+        assert "text/html" in ct_root, (
+            f"Expected text/html content-type for GET /; got {ct_root!r}"
         )
+        assert len(r_root.text) > 100, "Dashboard HTML body is unexpectedly short"
 
-    def test_root_returns_html(self, granian_e2e_base_url: str):
-        """GET / returns text/html content under Granian."""
-        r = httpx.get(granian_e2e_base_url + "/")
-        ct = r.headers.get("content-type", "")
-        assert "text/html" in ct, (
-            f"Expected text/html content-type for GET /; got {ct!r}"
-        )
-        assert len(r.text) > 100, "Dashboard HTML body is unexpectedly short"
-
-    def test_state_endpoint_returns_200(self, granian_e2e_base_url: str):
-        """/api/v1/state returns HTTP 200 with stub orchestrator wired under Granian."""
-        r = httpx.get(granian_e2e_base_url + "/api/v1/state")
-        assert r.status_code == 200, (
-            f"Expected 200 from /api/v1/state with stub orchestrator; got {r.status_code}. "
+        # --- /api/v1/state ---
+        r_state = httpx.get(base_url + "/api/v1/state")
+        assert r_state.status_code == 200, (
+            f"Expected 200 from /api/v1/state with stub orchestrator; got {r_state.status_code}. "
             "A 503 would mean the orchestrator was not wired into the worker process."
         )
-
-    def test_state_endpoint_returns_json(self, granian_e2e_base_url: str):
-        """/api/v1/state returns application/json under Granian."""
-        r = httpx.get(granian_e2e_base_url + "/api/v1/state")
-        ct = r.headers.get("content-type", "")
-        assert "application/json" in ct, (
-            f"/api/v1/state Content-Type is {ct!r}, expected JSON"
+        ct_state = r_state.headers.get("content-type", "")
+        assert "application/json" in ct_state, (
+            f"/api/v1/state Content-Type is {ct_state!r}, expected JSON"
         )
-
-    def test_state_response_has_running_field(self, granian_e2e_base_url: str):
-        """/api/v1/state response body contains a ``running`` field."""
-        r = httpx.get(granian_e2e_base_url + "/api/v1/state")
-        assert r.status_code == 200
-        body = r.json()
+        body = r_state.json()
         assert "running" in body, (
             f"/api/v1/state response is missing 'running' field. Got keys: {list(body.keys())}"
         )
-
-    def test_state_response_running_is_empty_list(self, granian_e2e_base_url: str):
-        """Stub orchestrator has no running tasks; /api/v1/state.running == []."""
-        r = httpx.get(granian_e2e_base_url + "/api/v1/state")
-        assert r.status_code == 200
-        body = r.json()
-        assert body.get("running") == [], (
-            f"Expected running=[] from stub orchestrator; got {body.get('running')!r}"
+        assert body["running"] == [], (
+            f"Expected running=[] from stub orchestrator; got {body['running']!r}"
         )
-
-    def test_state_response_has_api_metrics(self, granian_e2e_base_url: str):
-        """/api/v1/state response includes api_metrics from the server's telemetry."""
-        r = httpx.get(granian_e2e_base_url + "/api/v1/state")
-        assert r.status_code == 200
-        body = r.json()
         assert "api_metrics" in body, (
             f"/api/v1/state response is missing 'api_metrics'. Got keys: {list(body.keys())}"
         )
 
 
 # ---------------------------------------------------------------------------
-# 2. WebSocket initial push
+# Scenario 2: WebSocket connection and initial push
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skipif(not _WEBSOCKETS_SYNC_AVAILABLE, reason="websockets.sync.client unavailable")
-class TestGranianWebSocketInitialPush:
-    """Granian correctly handles the WebSocket upgrade and delivers the initial push."""
 
-    def _ws_uri(self, base_url: str) -> str:
-        return base_url.replace("http://", "ws://") + "/ws"
+@pytest.mark.skipif(
+    not _WEBSOCKETS_SYNC_AVAILABLE, reason="websockets.sync.client unavailable"
+)
+def test_ws_connection_and_initial_push() -> None:
+    """WebSocket handshake accepted; initial push delivers state + issues messages.
 
-    def test_ws_connection_is_accepted(self, granian_e2e_base_url: str):
-        """Granian upgrades the HTTP connection to WebSocket without error."""
-        uri = self._ws_uri(granian_e2e_base_url)
-        with _ws_connect(uri) as ws:
-            # If we get here the handshake succeeded. Drain the full initial
-            # state + issues push before closing so the single-worker Granian
-            # test server is ready for the next client.
-            _drain_initial_ws_push(ws)
+    Combines assertions from the former TestGranianWebSocketInitialPush class
+    (6 fixture-based tests) into one scenario with a single Granian server:
 
-    def test_ws_initial_push_sends_two_messages(self, granian_e2e_base_url: str):
-        """The WS endpoint sends exactly two messages immediately after connect."""
-        uri = self._ws_uri(granian_e2e_base_url)
-        with _ws_connect(uri) as ws:
-            msgs = _drain_initial_ws_push(ws)
-        assert len(msgs) == 2, (
-            f"Expected 2 initial messages; got {len(msgs)}: {msgs}"
-        )
-
-    def test_ws_initial_push_contains_state(self, granian_e2e_base_url: str):
-        """One of the two initial WS messages has type == 'state'."""
-        uri = self._ws_uri(granian_e2e_base_url)
-        with _ws_connect(uri) as ws:
-            types = {msg["type"] for msg in _drain_initial_ws_push(ws)}
-        assert "state" in types, (
-            f"Initial WS push did not include a 'state' message; got types: {types}"
-        )
-
-    def test_ws_initial_push_contains_issues(self, granian_e2e_base_url: str):
-        """One of the two initial WS messages has type == 'issues'."""
-        uri = self._ws_uri(granian_e2e_base_url)
-        with _ws_connect(uri) as ws:
-            types = {msg["type"] for msg in _drain_initial_ws_push(ws)}
-        assert "issues" in types, (
-            f"Initial WS push did not include an 'issues' message; got types: {types}"
-        )
-
-    def test_ws_state_message_has_running_field(self, granian_e2e_base_url: str):
-        """The state message from the initial push contains the 'running' key."""
-        uri = self._ws_uri(granian_e2e_base_url)
-        with _ws_connect(uri) as ws:
-            msgs = _drain_initial_ws_push(ws)
-        state_msg = next((m for m in msgs if m.get("type") == "state"), None)
-        assert state_msg is not None, "No state message in initial push"
-        assert "running" in state_msg.get("data", {}), (
-            f"state message data is missing 'running'. data keys: {list(state_msg.get('data', {}).keys())}"
-        )
-
-    def test_ws_messages_are_valid_json_objects(self, granian_e2e_base_url: str):
-        """Both initial push messages are well-formed JSON objects with 'type' and 'data'."""
-        uri = self._ws_uri(granian_e2e_base_url)
-        with _ws_connect(uri) as ws:
-            msgs = _drain_initial_ws_push(ws)
-        for msg in msgs:
-            assert isinstance(msg, dict), f"Message is not a dict: {msg!r}"
-            assert "type" in msg, f"Message missing 'type': {msg!r}"
-            assert "data" in msg, f"Message missing 'data': {msg!r}"
-
-    def test_multiple_sequential_clients_each_receive_initial_push(self):
-        """Three fresh WS clients each receive their own initial state + issues push."""
-        for i in range(3):
-            port = _free_port()
-            proc = _start_granian_server(port)
-            try:
-                if not _wait_ready(port, proc):
-                    stdout, stderr = proc.communicate()
-                    pytest.fail(
-                        f"Granian e2e server did not become ready on port {port}.\n"
-                        f"stdout: {stdout.decode()[:400]}\n"
-                        f"stderr: {stderr.decode()[:400]}"
-                    )
-
-                with _ws_connect(f"ws://127.0.0.1:{port}/ws") as ws:
-                    types = {msg["type"] for msg in _drain_initial_ws_push(ws)}
-            finally:
-                _stop_granian_server(proc)
-
-            assert "state" in types and "issues" in types, (
-                f"Client {i + 1}: expected state+issues in initial push; got {types}"
-            )
-
-
-# ---------------------------------------------------------------------------
-# 3. orchestrator → _broadcast → WS client (fan-out via refresh action)
-# ---------------------------------------------------------------------------
-
-@pytest.mark.skipif(not _WEBSOCKETS_SYNC_AVAILABLE, reason="websockets.sync.client unavailable")
-class TestGranianBroadcast:
-    """Verifies that _broadcast reaches all connected WS clients under Granian.
-
-    Strategy:
-        Client A and Client B connect to /ws.
-        Both drain their 2-message initial push.
-        Client A sends ``{action: refresh}``.
-        ``broadcast_issues()`` is called, which invokes ``_broadcast`` that
-        fans out to every client in ``_ws_clients``.
-        Client B must receive the broadcast (proving fan-out works under Granian).
+    • Handshake succeeds without error
+    • Exactly two messages are sent immediately after connect
+    • Both messages are well-formed JSON objects with ``type`` and ``data`` keys
+    • Message types include both ``state`` and ``issues``
+    • The ``state`` message's data contains a ``running`` key
     """
+    with _granian_server() as base_url:
+        uri = base_url.replace("http://", "ws://") + "/ws"
 
-    def _ws_uri(self, base_url: str) -> str:
-        return base_url.replace("http://", "ws://") + "/ws"
+        with _ws_connect(uri) as ws:
+            msgs = _drain_initial_ws_push(ws)
+            # Drain complete before closing so the single-worker Granian process
+            # is not stuck in a partial handshake state.
 
-    def test_orchestrator_broadcast_reaches_second_client(
-        self, granian_e2e_base_url: str
-    ):
-        """Client A refresh action triggers broadcast; Client B receives it."""
-        uri = self._ws_uri(granian_e2e_base_url)
+    # Two messages
+    assert len(msgs) == 2, (
+        f"Expected 2 initial messages; got {len(msgs)}: {msgs}"
+    )
+
+    # Both are well-formed JSON objects
+    for msg in msgs:
+        assert isinstance(msg, dict), f"Message is not a dict: {msg!r}"
+        assert "type" in msg, f"Message missing 'type': {msg!r}"
+        assert "data" in msg, f"Message missing 'data': {msg!r}"
+
+    # Both required types are present
+    types = {msg["type"] for msg in msgs}
+    assert "state" in types, (
+        f"Initial WS push did not include a 'state' message; got types: {types}"
+    )
+    assert "issues" in types, (
+        f"Initial WS push did not include an 'issues' message; got types: {types}"
+    )
+
+    # State message has the running field
+    state_msg = next(m for m in msgs if m["type"] == "state")
+    assert "running" in state_msg.get("data", {}), (
+        f"state message data is missing 'running'. data keys: {list(state_msg.get('data', {}).keys())}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 3: Broadcast fan-out (two concurrent clients)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(
+    not _WEBSOCKETS_SYNC_AVAILABLE, reason="websockets.sync.client unavailable"
+)
+def test_ws_broadcast_fan_out() -> None:
+    """orchestrator → _broadcast → WS client fan-out under Granian.
+
+    Combines assertions from the former TestGranianBroadcast class (3 tests)
+    into one scenario with a single Granian server:
+
+    • Client A's ``{action: refresh}`` triggers broadcast_issues(), which
+      fans out to all connected clients.
+    • Client B (connected concurrently) receives the broadcast as a valid JSON
+      object of type ``issues``.
+    • Client A (the requester) also receives a ``state`` or ``issues`` reply.
+    """
+    with _granian_server() as base_url:
+        uri = base_url.replace("http://", "ws://") + "/ws"
+
         client_b_received: list[dict] = []
         client_b_error: list[Exception] = []
 
-        def _run_client_b():
+        def _run_client_b() -> None:
             """Background thread: connect, drain initial push, collect broadcast."""
             try:
                 with _ws_connect(uri) as ws_b:
-                    # Drain initial 2 messages
                     _drain_initial_ws_push(ws_b)
                     # Wait up to 6 s for the broadcast triggered by client A
                     try:
@@ -453,148 +416,81 @@ class TestGranianBroadcast:
             # Trigger broadcast from client A
             ws_a.send(json.dumps({"action": "refresh"}))
 
-            t.join(timeout=8)
-
-        assert not t.is_alive(), "Client B thread did not finish"
-        assert not client_b_error, (
-            f"Client B raised an exception: {client_b_error[0]!r}"
-        )
-        assert len(client_b_received) > 0, (
-            "Client B did not receive any broadcast message after client A sent {action: refresh}. "
-            "This suggests _broadcast did not fan-out under Granian."
-        )
-        # The broadcast triggered by broadcast_issues() sends type=="issues"
-        received_type = client_b_received[0].get("type")
-        assert received_type == "issues", (
-            f"Client B expected to receive 'issues' broadcast; got type={received_type!r}"
-        )
-
-    def test_broadcast_message_is_valid_json(self, granian_e2e_base_url: str):
-        """Broadcast message received by client B is a valid JSON object."""
-        uri = self._ws_uri(granian_e2e_base_url)
-        client_b_msgs: list[dict] = []
-
-        def _run_client_b():
-            with _ws_connect(uri) as ws:
-                _drain_initial_ws_push(ws)
-                try:
-                    client_b_msgs.append(_ws_recv_json(ws))
-                except Exception:
-                    pass
-
-        with _ws_connect(uri) as ws_a:
-            _drain_initial_ws_push(ws_a)
-            t = threading.Thread(target=_run_client_b, daemon=True)
-            t.start()
-            time.sleep(0.4)
-            ws_a.send(json.dumps({"action": "refresh"}))
-            t.join(timeout=8)
-
-        assert not t.is_alive(), "Client B thread did not finish"
-        if not client_b_msgs:
-            pytest.skip("Client B received no message (timing); skipped to avoid flake")
-        msg = client_b_msgs[0]
-        assert isinstance(msg, dict), f"Broadcast message is not a dict: {msg!r}"
-        assert "type" in msg, f"Broadcast message missing 'type': {msg!r}"
-        assert "data" in msg, f"Broadcast message missing 'data': {msg!r}"
-
-    def test_refresh_action_sends_state_back_to_requester(
-        self, granian_e2e_base_url: str
-    ):
-        """The client that sends {action: refresh} receives a state reply."""
-        uri = self._ws_uri(granian_e2e_base_url)
-        with _ws_connect(uri) as ws:
-            # Drain initial push
-            _drain_initial_ws_push(ws)
-
-            ws.send(json.dumps({"action": "refresh"}))
-
-            # Collect messages triggered by the refresh
-            refresh_msgs: list[dict] = []
+            # Also collect what client A (the requester) receives
+            requester_msgs: list[dict] = []
             for _ in range(3):
                 try:
-                    refresh_msgs.append(_ws_recv_json(ws))
+                    requester_msgs.append(_ws_recv_json(ws_a))
                 except Exception:
                     break
 
-        refresh_types = {m.get("type") for m in refresh_msgs}
-        assert "state" in refresh_types or "issues" in refresh_types, (
-            f"Expected state or issues message after refresh; got types: {refresh_types}"
-        )
+            t.join(timeout=8)
+
+    # --- Client B assertions ---
+    assert not t.is_alive(), "Client B thread did not finish"
+    assert not client_b_error, (
+        f"Client B raised an exception: {client_b_error[0]!r}"
+    )
+    assert len(client_b_received) > 0, (
+        "Client B did not receive any broadcast message after client A sent "
+        "{action: refresh}. This suggests _broadcast did not fan-out under Granian."
+    )
+    broadcast_msg = client_b_received[0]
+    assert isinstance(broadcast_msg, dict), (
+        f"Broadcast message is not a dict: {broadcast_msg!r}"
+    )
+    assert "type" in broadcast_msg, f"Broadcast message missing 'type': {broadcast_msg!r}"
+    assert "data" in broadcast_msg, f"Broadcast message missing 'data': {broadcast_msg!r}"
+    assert broadcast_msg.get("type") == "issues", (
+        f"Client B expected to receive 'issues' broadcast; got type={broadcast_msg.get('type')!r}"
+    )
+
+    # --- Requester (client A) assertions ---
+    requester_types = {m.get("type") for m in requester_msgs}
+    assert "state" in requester_types or "issues" in requester_types, (
+        f"Expected state or issues message after refresh; got types: {requester_types}"
+    )
 
 
 # ---------------------------------------------------------------------------
-# 4. Restart: stop and restart the server process
+# Scenario 4: Restart — stop and start on same port, verify HTTP + WS
 # ---------------------------------------------------------------------------
 
-class TestGranianRestart:
-    """Verifies that the server can be stopped and restarted cleanly on the same port."""
 
-    def test_server_restarts_and_serves_http(self):
-        """Kill the server, start a new process on the same port, verify HTTP works."""
-        port = _free_port()
+def test_restart_http_and_ws_contract() -> None:
+    """Server restarts on the same port; HTTP contract and WS initial push preserved.
 
-        # --- First server ---------------------------------------------------
-        proc1 = _start_granian_server(port)
-        assert _wait_ready(port, proc1), (
-            "First Granian server did not become ready"
+    Combines assertions from the former TestGranianRestart class (3 tests):
+
+    • After stop + restart on the same port the server serves HTTP (200s).
+    • GET / and /api/v1/state status codes and content-types match first boot.
+    • /api/v1/state body still contains the ``running`` field.
+    • WebSocket initial push (state + issues) works on the restarted server.
+    """
+    port = _free_port()
+
+    # --- First server: record baseline HTTP contract ---
+    with _granian_server(port=port) as base_url_1:
+        r_root_1 = httpx.get(f"{base_url_1}/", timeout=2.0)
+        r_state_1 = httpx.get(f"{base_url_1}/api/v1/state", timeout=2.0)
+        assert r_root_1.status_code == 200, (
+            f"First server: expected 200 from GET /; got {r_root_1.status_code}"
         )
-
-        # Verify it's serving HTTP
-        r1 = httpx.get(f"http://127.0.0.1:{port}/api/v1/state", timeout=2.0)
-        assert r1.status_code == 200, (
-            f"First server: expected 200 from /api/v1/state; got {r1.status_code}"
+        assert r_state_1.status_code == 200, (
+            f"First server: expected 200 from /api/v1/state; got {r_state_1.status_code}"
         )
+        first_root_ct = r_root_1.headers.get("content-type")
+        first_state_ct = r_state_1.headers.get("content-type")
+    # _granian_server exits here: SIGINT → drain; port is released
 
-        # --- Stop -----------------------------------------------------------
-        _stop_granian_server(proc1)
-        # Brief pause so the OS releases the port
-        time.sleep(0.5)
+    # Brief pause so the OS releases the port
+    time.sleep(0.5)
 
-        # --- Second server on same port ------------------------------------
-        proc2 = _start_granian_server(port)
-        try:
-            assert _wait_ready(port, proc2), (
-                "Restarted Granian server did not become ready on same port"
-            )
-
-            r2 = httpx.get(f"http://127.0.0.1:{port}/api/v1/state", timeout=2.0)
-            assert r2.status_code == 200, (
-                f"Restarted server: expected 200 from /api/v1/state; got {r2.status_code}"
-            )
-
-            # Response must still have the expected shape
-            body = r2.json()
-            assert "running" in body, (
-                f"Restarted server: /api/v1/state missing 'running' field. Got: {list(body.keys())}"
-            )
-        finally:
-            _stop_granian_server(proc2)
-
-    def test_restart_preserves_http_contract(self):
-        """After restart the HTTP contract (status codes, content-types) is unchanged."""
-        port = _free_port()
-
-        proc = _start_granian_server(port)
-        assert _wait_ready(port, proc), "Server didn't start for restart contract test"
-
-        # Record first-boot responses
-        r_root_1 = httpx.get(f"http://127.0.0.1:{port}/", timeout=2.0)
-        r_state_1 = httpx.get(f"http://127.0.0.1:{port}/api/v1/state", timeout=2.0)
-        _stop_granian_server(proc)
-        time.sleep(0.5)
-
-        proc2 = _start_granian_server(port)
-        try:
-            assert _wait_ready(port, proc2), "Server didn't restart for contract test"
-
-            # Record second-boot responses
-            r_root_2 = httpx.get(f"http://127.0.0.1:{port}/", timeout=2.0)
-            r_state_2 = httpx.get(f"http://127.0.0.1:{port}/api/v1/state", timeout=2.0)
-        finally:
-            _stop_granian_server(proc2)
-
-        # Status codes must match
+    # --- Second server: verify HTTP preserved and WS works ---
+    with _granian_server(port=port) as base_url_2:
+        # HTTP status codes preserved
+        r_root_2 = httpx.get(f"{base_url_2}/", timeout=2.0)
+        r_state_2 = httpx.get(f"{base_url_2}/api/v1/state", timeout=2.0)
         assert r_root_2.status_code == r_root_1.status_code, (
             f"GET / status changed after restart: "
             f"{r_root_1.status_code} → {r_root_2.status_code}"
@@ -603,38 +499,27 @@ class TestGranianRestart:
             f"/api/v1/state status changed after restart: "
             f"{r_state_1.status_code} → {r_state_2.status_code}"
         )
-        # Content-type headers must match
-        assert (
-            r_root_2.headers.get("content-type")
-            == r_root_1.headers.get("content-type")
-        ), "GET / content-type changed after restart"
-        assert (
-            r_state_2.headers.get("content-type")
-            == r_state_1.headers.get("content-type")
-        ), "/api/v1/state content-type changed after restart"
 
-    @pytest.mark.skipif(
-        not _WEBSOCKETS_SYNC_AVAILABLE, reason="websockets.sync.client unavailable"
-    )
-    def test_ws_works_after_restart(self):
-        """WS initial push works correctly on the restarted server."""
-        port = _free_port()
+        # Content-type headers preserved
+        assert r_root_2.headers.get("content-type") == first_root_ct, (
+            "GET / content-type changed after restart"
+        )
+        assert r_state_2.headers.get("content-type") == first_state_ct, (
+            "/api/v1/state content-type changed after restart"
+        )
 
-        proc1 = _start_granian_server(port)
-        assert _wait_ready(port, proc1), "Server didn't start"
-        _stop_granian_server(proc1)
-        time.sleep(0.5)
+        # JSON body still has the running field
+        body = r_state_2.json()
+        assert "running" in body, (
+            f"Restarted server: /api/v1/state missing 'running' field. "
+            f"Got: {list(body.keys())}"
+        )
 
-        proc2 = _start_granian_server(port)
-        try:
-            assert _wait_ready(port, proc2), "Server didn't restart"
-
+        # WebSocket initial push still works after restart
+        if _WEBSOCKETS_SYNC_AVAILABLE:
             uri = f"ws://127.0.0.1:{port}/ws"
             with _ws_connect(uri) as ws:
-                types = {msg["type"] for msg in _drain_initial_ws_push(ws)}
-
-            assert "state" in types and "issues" in types, (
-                f"WS initial push after restart: expected state+issues; got {types}"
+                ws_types = {m["type"] for m in _drain_initial_ws_push(ws)}
+            assert "state" in ws_types and "issues" in ws_types, (
+                f"WS initial push after restart: expected state+issues; got {ws_types}"
             )
-        finally:
-            _stop_granian_server(proc2)

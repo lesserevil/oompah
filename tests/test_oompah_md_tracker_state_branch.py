@@ -10,29 +10,16 @@ tracker so that:
   - Legacy projects (``state_branch_enabled=False``) continue to work exactly
     as before: reads and writes use the configured default branch.
 
-Tests that exercise the not-yet-implemented state-branch routing are marked
-``@pytest.mark.xfail(strict=False)`` so that:
-
-  1. They are informative today — they document the expected contract and fail
-     with a clear reason when the feature is missing.
-  2. They automatically convert to passing tests once the feature agent adds
-     the ``state_branch_enabled`` / ``state_branch_name`` parameters to
-     ``OompahMarkdownTracker.__init__`` and implements the routing logic.
-  3. CI continues to pass in the meantime (``strict=False`` marks an xfail as
-     *expected* rather than a hard failure).
-
 Coverage areas:
-  § 1  Feature detection helpers
-  § 2  Integration fixture — state branch isolates writes from main
-  § 3  Legacy fixture — default-branch behavior is unchanged
-  § 4  Failure handling — missing branch, auth error, non-fast-forward push
-  § 5  Concurrency — simultaneous code fetch and tracker write
-  § 6  Orchestrator wiring — _new_tracker_for_project passes state-branch params
+  § 1  Integration fixture — state branch isolates writes from main
+  § 2  Legacy fixture — default-branch behavior is unchanged
+  § 3  Failure handling — missing branch, auth error, non-fast-forward push
+  § 4  Concurrency — simultaneous code fetch and tracker write
+  § 5  Orchestrator wiring — _new_tracker_for_project passes state-branch params
 """
 
 from __future__ import annotations
 
-import inspect
 import subprocess
 import threading
 import time
@@ -46,29 +33,6 @@ import yaml
 from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.statuses import DONE, IN_PROGRESS, IN_REVIEW, OPEN
 from oompah.tracker import TrackerError, TrackerStateBranchFetchError, TrackerStateBranchMissingError
-
-
-# ---------------------------------------------------------------------------
-# § 1 — Feature detection
-#
-# Detect whether the implementation has added state_branch_enabled to the
-# OompahMarkdownTracker constructor.  This drives the xfail markers below.
-# ---------------------------------------------------------------------------
-
-_TRACKER_SIG = inspect.signature(OompahMarkdownTracker.__init__)
-_STATE_BRANCH_TRACKER_IMPLEMENTED = (
-    "state_branch_enabled" in _TRACKER_SIG.parameters
-)
-
-#: Decorator: skip-on-fail if state-branch routing is not yet implemented.
-state_branch_not_implemented = pytest.mark.xfail(
-    not _STATE_BRANCH_TRACKER_IMPLEMENTED,
-    strict=False,
-    reason=(
-        "OompahMarkdownTracker.state_branch_enabled not yet implemented (OOMPAH-256). "
-        "Remove xfail once the feature agent adds the parameter and routing logic."
-    ),
-)
 
 
 # ---------------------------------------------------------------------------
@@ -152,19 +116,8 @@ def _make_tracker(
     git_sync: bool = False,
     default_branch: str = "main",
 ) -> OompahMarkdownTracker:
-    """Instantiate an OompahMarkdownTracker with optional state-branch support.
-
-    When state_branch_enabled=True, passes the appropriate kwargs to the
-    tracker constructor.  These kwargs are the expected future API:
-      - state_branch_enabled: bool
-      - state_branch_name: str  (e.g. "oompah/state/proj-test")
-    """
+    """Instantiate an OompahMarkdownTracker with optional state-branch support."""
     if state_branch_enabled:
-        if not _STATE_BRANCH_TRACKER_IMPLEMENTED:
-            pytest.xfail(
-                "OompahMarkdownTracker.state_branch_enabled not yet implemented "
-                "(OOMPAH-256)"
-            )
         return OompahMarkdownTracker(
             active_states=[OPEN],
             terminal_states=[DONE],
@@ -211,13 +164,8 @@ def state_branch_repo(tmp_path: Path) -> tuple[Path, str]:
 
 
 class TestStateBranchTrackerIntegration:
-    """Integration tests for state-branch-aware tracker routing.
+    """Integration tests for state-branch-aware tracker routing."""
 
-    All tests in this class require the feature implementation.  They are
-    marked xfail until OompahMarkdownTracker accepts state_branch_enabled.
-    """
-
-    @state_branch_not_implemented
     def test_task_creation_commits_only_to_state_branch_not_main(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:
@@ -271,7 +219,6 @@ class TestStateBranchTrackerIntegration:
             f"Found: {[f for f in main_files if task_id in f]}"
         )
 
-    @state_branch_not_implemented
     def test_status_update_commits_only_to_state_branch(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:
@@ -288,7 +235,6 @@ class TestStateBranchTrackerIntegration:
             "Status update must not change main branch HEAD"
         )
 
-    @state_branch_not_implemented
     def test_add_comment_commits_only_to_state_branch(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:
@@ -305,7 +251,6 @@ class TestStateBranchTrackerIntegration:
             "Adding a comment must not change main branch HEAD"
         )
 
-    @state_branch_not_implemented
     def test_add_label_commits_only_to_state_branch(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:
@@ -322,7 +267,6 @@ class TestStateBranchTrackerIntegration:
             "Adding a label must not change main branch HEAD"
         )
 
-    @state_branch_not_implemented
     def test_set_dependency_commits_only_to_state_branch(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:
@@ -340,7 +284,6 @@ class TestStateBranchTrackerIntegration:
             "Setting parent/dependency must not change main branch HEAD"
         )
 
-    @state_branch_not_implemented
     def test_main_branch_unchanged_after_multiple_mutations(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:
@@ -370,7 +313,6 @@ class TestStateBranchTrackerIntegration:
             "State-branch tracker must NEVER write to code main."
         )
 
-    @state_branch_not_implemented
     def test_reads_tasks_from_state_branch_only(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:
@@ -444,7 +386,6 @@ class TestStateBranchTrackerIntegration:
             f"Found: {identifiers}"
         )
 
-    @state_branch_not_implemented
     def test_state_branch_worktree_does_not_switch_main_checkout(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:
@@ -584,12 +525,9 @@ class TestLegacyTrackerWithoutStateBranch:
     ) -> None:
         """Explicitly setting state_branch_enabled=False must use legacy behavior.
 
-        When the feature is implemented, callers may pass state_branch_enabled=False
-        explicitly.  This must result in identical behavior to not passing the param.
+        Passing state_branch_enabled=False explicitly must result in identical
+        behavior to not passing the parameter.
         """
-        if not _STATE_BRANCH_TRACKER_IMPLEMENTED:
-            pytest.skip("state_branch_enabled not yet a tracker parameter")
-
         root = tmp_path / "repo"
         root.mkdir()
         tracker = OompahMarkdownTracker(
@@ -623,7 +561,6 @@ class TestLegacyTrackerWithoutStateBranch:
 class TestStateBranchTrackerFailures:
     """Failure-mode tests for state-branch-aware tracker routing."""
 
-    @state_branch_not_implemented
     def test_missing_state_branch_raises_actionable_error(
         self, tmp_path: Path
     ) -> None:
@@ -655,7 +592,6 @@ class TestStateBranchTrackerFailures:
             f"Error must be actionable (mention bootstrap/migrate/create); got: {error_msg!r}"
         )
 
-    @state_branch_not_implemented
     def test_missing_state_branch_raises_tracker_state_branch_missing_error(
         self, tmp_path: Path
     ) -> None:
@@ -678,7 +614,6 @@ class TestStateBranchTrackerFailures:
         with pytest.raises(TrackerStateBranchMissingError):
             tracker.fetch_all_issues()
 
-    @state_branch_not_implemented
     def test_tracker_state_branch_missing_error_is_tracker_error_subclass(
         self,
     ) -> None:
@@ -689,7 +624,6 @@ class TestStateBranchTrackerFailures:
         """
         assert issubclass(TrackerStateBranchMissingError, TrackerError)
 
-    @state_branch_not_implemented
     def test_task_data_not_corrupted_when_push_fails_with_auth_error(
         self, tmp_path: Path
     ) -> None:
@@ -748,7 +682,6 @@ class TestStateBranchTrackerFailures:
             "Task data must be preserved locally even when remote push fails"
         )
 
-    @state_branch_not_implemented
     def test_non_fast_forward_push_triggers_rebase_and_retry(
         self, tmp_path: Path
     ) -> None:
@@ -850,7 +783,6 @@ class TestStateBranchTrackerFailures:
             f"rebase calls: {rebase_calls}, all calls: {git_calls}"
         )
 
-    @state_branch_not_implemented
     def test_both_push_and_rebase_fail_raises_actionable_tracker_error(
         self, tmp_path: Path
     ) -> None:
@@ -932,7 +864,6 @@ class TestStateBranchTrackerFailures:
             f"found: {reset_hard_calls}"
         )
 
-    @state_branch_not_implemented
     def test_fetch_failure_raises_state_branch_fetch_error(
         self, tmp_path: Path
     ) -> None:
@@ -1044,7 +975,6 @@ class TestStateBranchTrackerFailures:
 class TestStateBranchTrackerConcurrency:
     """Tests for thread safety with state-branch tracker routing."""
 
-    @state_branch_not_implemented
     def test_concurrent_tracker_write_and_code_fetch_succeed(
         self, tmp_path: Path
     ) -> None:
@@ -1115,7 +1045,6 @@ class TestStateBranchTrackerConcurrency:
         # The tracker write must have produced a result
         assert results, "Tracker write thread must complete and produce an issue identifier"
 
-    @state_branch_not_implemented
     def test_concurrent_tracker_writes_are_serialized(
         self, tmp_path: Path
     ) -> None:
@@ -1257,9 +1186,6 @@ class TestOrchestratorStateBranchWiring:
         )
         assert tracker is not None
 
-    # --- Tests that require the feature implementation ---
-
-    @state_branch_not_implemented
     def test_orchestrator_passes_state_branch_enabled_to_oompah_md_factory(
         self, tmp_path: Path
     ) -> None:
@@ -1323,7 +1249,6 @@ class TestOrchestratorStateBranchWiring:
             f"got factory kwargs: {call_kwargs}"
         )
 
-    @state_branch_not_implemented
     def test_tracker_stores_state_branch_name_attribute(
         self, tmp_path: Path
     ) -> None:
@@ -1377,7 +1302,6 @@ class TestOrchestratorStateBranchWiring:
 class TestAcceptanceCriteria:
     """Direct verification of OOMPAH-256 acceptance criteria."""
 
-    @state_branch_not_implemented
     def test_ac1_task_mutations_commit_only_to_state_branch(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:
@@ -1410,7 +1334,6 @@ class TestAcceptanceCriteria:
             f"AC1 violated: no task commit found on state branch log: {state_log}"
         )
 
-    @state_branch_not_implemented
     def test_ac2_code_branch_heads_unchanged(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:
@@ -1474,8 +1397,4 @@ class TestAcceptanceCriteria:
         assert done is not None and done.state == DONE
 
         # AC3: No state branch interaction whatsoever
-        if _STATE_BRANCH_TRACKER_IMPLEMENTED:
-            state_branch_attr = getattr(tracker, "state_branch_enabled", None)
-            assert not state_branch_attr, (
-                "Legacy tracker must have state_branch_enabled=False (or unset)"
-            )
+        assert tracker.state_branch_enabled is False

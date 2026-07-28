@@ -430,8 +430,24 @@ class TestPersistence:
         tracker.fetch_issue_detail.return_value = None
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
-        orch._set_epic_rebase_state("epic-1", EpicRebaseState.STALE)
-        orch._clear_epic_rebase_state("epic-1")
+        def _no_git_push(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if isinstance(cmd, (list, tuple)) and "push" in cmd:
+                raise AssertionError(f"Test must not invoke git push: {cmd}")
+            import unittest.mock
+            return unittest.mock.MagicMock(returncode=0, stdout=b"", stderr=b"")
+
+        with patch("subprocess.run", side_effect=_no_git_push), \
+             patch("subprocess.Popen", side_effect=_no_git_push):
+            # Pass project_id so the already-injected mock tracker is used
+            # instead of falling back to the live orch.tracker.
+            orch._set_epic_rebase_state(
+                "epic-1", EpicRebaseState.STALE, project_id="proj-1"
+            )
+            orch._clear_epic_rebase_state("epic-1", project_id="proj-1")
+
+        # The already-injected tracker must have been used (not the live one).
+        orch._tracker_for_project.assert_called_with("proj-1")
 
         disk = json.loads((tmp_path / "state.json").read_text())
         assert "epic-1" not in disk.get("epic_rebase_states", {})

@@ -1409,19 +1409,6 @@ class TestWebhookEvent:
 # ---------------------------------------------------------------------------
 
 
-class _FakeProjectStore:
-    """Minimal ProjectStore stand-in for testing."""
-
-    def __init__(self, projects: list[Project] | None = None):
-        self._projects = {p.id: p for p in (projects or [])}
-
-    def list_all(self) -> list[Project]:
-        return list(self._projects.values())
-
-    def get(self, project_id: str) -> Project | None:
-        return self._projects.get(project_id)
-
-
 class _DummyProjectStore:
     """ProjectStore that always returns empty list."""
 

@@ -43,6 +43,20 @@ def _extract_script(html: str) -> str:
     return max(matches, key=len) if matches else ""
 
 
+# Keep the retired interface contract in one place so a reintroduced marker
+# fails with an assertion that identifies exactly which control returned.
+DRAFT_EPIC_FORBIDDEN_MARKERS = {
+    "draft-epic-badge CSS class": ".draft-epic-badge",
+    "swimlane-draft-badge CSS/HTML marker": "swimlane-draft-badge",
+    "hasDraftLabel() helper": "hasDraftLabel",
+    "toggleEpicDraft() helper": "toggleEpicDraft",
+    "draftEpicBadgeHtml variable": "draftEpicBadgeHtml",
+    "Mark as Draft control": "Mark as Draft",
+    "Finalize control": "Finalize",
+    "Draft Epic badge text": "Draft Epic",
+}
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -114,102 +128,28 @@ def client():
 
 
 # ---------------------------------------------------------------------------
-# CSS regression tests
+# Retired interface and surviving dashboard smoke coverage
 # ---------------------------------------------------------------------------
 
-class TestDraftEpicCSSRemoved:
-    """The .draft-epic-badge and .swimlane-draft-badge CSS must be gone."""
-
-    def test_draft_epic_badge_css_absent(self):
-        html = _load_dashboard_html()
-        assert ".draft-epic-badge" not in html, (
-            ".draft-epic-badge CSS must be removed (OOMPAH-171)"
-        )
-
-    def test_swimlane_draft_badge_css_absent(self):
-        html = _load_dashboard_html()
-        assert ".swimlane-draft-badge" not in html, (
-            ".swimlane-draft-badge CSS must be removed (OOMPAH-171)"
+def test_dashboard_draft_epic_markers_absent():
+    """Every retired draft-epic control marker remains absent from the page."""
+    html = _load_dashboard_html()
+    for marker_name, marker in DRAFT_EPIC_FORBIDDEN_MARKERS.items():
+        assert marker not in html, (
+            f"Retired draft-epic marker {marker_name} ({marker!r}) "
+            "must remain absent from dashboard.html (OOMPAH-171)"
         )
 
 
-# ---------------------------------------------------------------------------
-# JavaScript function regression tests
-# ---------------------------------------------------------------------------
-
-class TestDraftEpicJSRemoved:
-    """hasDraftLabel() and toggleEpicDraft() JS functions must be absent."""
-
-    def test_has_draft_label_function_absent(self):
-        html = _load_dashboard_html()
-        script = _extract_script(html)
-        assert "hasDraftLabel" not in script, (
-            "hasDraftLabel() JS function must be removed (OOMPAH-171)"
-        )
-
-    def test_toggle_epic_draft_function_absent(self):
-        html = _load_dashboard_html()
-        script = _extract_script(html)
-        assert "toggleEpicDraft" not in script, (
-            "toggleEpicDraft() JS function must be removed (OOMPAH-171)"
-        )
-
-    def test_should_show_issue_no_has_draft_check(self):
-        html = _load_dashboard_html()
-        script = _extract_script(html)
-        # shouldShowIssueAsWorkCard must not call hasDraftLabel
-        assert "hasDraftLabel" not in script, (
-            "shouldShowIssueAsWorkCard must not call hasDraftLabel (OOMPAH-171)"
-        )
-
-    def test_is_epic_merge_flow_no_draft_check(self):
-        html = _load_dashboard_html()
-        script = _extract_script(html)
-        # isEpicMergeFlowCard must not reference hasDraftLabel
-        assert "hasDraftLabel" not in script, (
-            "isEpicMergeFlowCard must not reference hasDraftLabel (OOMPAH-171)"
-        )
-
-    def test_draft_epic_badge_html_variable_absent(self):
-        html = _load_dashboard_html()
-        script = _extract_script(html)
-        assert "draftEpicBadgeHtml" not in script, (
-            "draftEpicBadgeHtml variable must be removed (OOMPAH-171)"
-        )
-
-
-# ---------------------------------------------------------------------------
-# HTML control regression tests
-# ---------------------------------------------------------------------------
-
-class TestDraftEpicHTMLControlsRemoved:
-    """Mark as Draft / Finalize buttons and swimlane-draft-badge spans must be absent."""
-
-    def test_mark_as_draft_button_absent(self):
-        html = _load_dashboard_html()
-        assert "Mark as Draft" not in html, (
-            "'Mark as Draft' button must be removed (OOMPAH-171)"
-        )
-
-    def test_finalize_button_absent(self):
-        html = _load_dashboard_html()
-        # "Finalize" should not appear as a draft-lifecycle control
-        # (it should only appear in merge/other contexts if at all)
-        assert "Finalize" not in html, (
-            "'Finalize' draft button must be removed (OOMPAH-171)"
-        )
-
-    def test_swimlane_draft_badge_span_absent(self):
-        html = _load_dashboard_html()
-        assert "swimlane-draft-badge" not in html, (
-            "swimlane-draft-badge span must be removed (OOMPAH-171)"
-        )
-
-    def test_draft_epic_badge_span_absent(self):
-        html = _load_dashboard_html()
-        assert "draft-epic-badge" not in html, (
-            "draft-epic-badge span must be removed (OOMPAH-171)"
-        )
+def test_dashboard_core_card_and_swimlane_smoke():
+    """Core card and swimlane rendering survive draft-control removal."""
+    html = _load_dashboard_html()
+    script = _extract_script(html)
+    assert "createCard" in script, "createCard() must remain available"
+    assert "card-id" in script, "Card identifiers must remain rendered"
+    assert "renderSwimlaneView" in script, "renderSwimlaneView() must remain available"
+    assert "swimlane" in html.lower(), "Swimlane structure must remain present"
+    assert "merged-badge" in html, "Merged card badge rendering must remain present"
 
 
 # ---------------------------------------------------------------------------

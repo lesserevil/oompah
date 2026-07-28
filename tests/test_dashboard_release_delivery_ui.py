@@ -1,7 +1,7 @@
-"""Tests for the Release delivery overlay (OOMPAH-236).
+"""Tests for the Release delivery page (OOMPAH-236) (OOMPAH-236).
 
 This module covers the item-centric release delivery backlog introduced in
-OOMPAH-236. The overlay was previously commit-centric (OOMPAH-200); these
+OOMPAH-236. The page was previously commit-centric (OOMPAH-200); these
 tests verify the new item-centric design requirements.
 
 Covers:
@@ -18,8 +18,8 @@ Covers:
   - Button has id="btn-release-delivery"
   - Button label is "Release delivery"
 
-  HTML overlay:
-  - .rdi-overlay with correct id, role, aria attributes
+  HTML page structure:
+  - .rdi-page with correct id, role, aria attributes
   - Project selector AND branch selector (branch-first selection model)
   - Filter controls (radio group) and search input
   - No "rdi-branch-filters" checkbox group (replaced by rdi-branch-select dropdown)
@@ -28,7 +28,7 @@ Covers:
   - Outcome banner element (hidden by default)
   - Table body wrapper with aria-live
   - Bulk action bar with queue button and item count
-  - Evidence drawer overlay titled "Item details"
+  - Evidence drawer page titled "Item details"
 
   State variables:
   - _rdiProjectId, _rdiSelectedBranch, _rdiFilter, _rdiQuery
@@ -42,7 +42,7 @@ Covers:
 
   openReleaseDelivery():
   - Defined and stores opener element for focus restoration
-  - Adds 'open' class to overlay
+  - Adds 'open' class to page
   - Calls _rdiPopulateProject
   - Registers keydown listener
 
@@ -53,8 +53,8 @@ Covers:
   - Restores focus to _rdiOpener
 
   Escape key handler:
-  - _rdiKeyHandler closes overlay on Escape
-  - If drawer is open, closes drawer first before closing overlay
+  - _rdiKeyHandler closes page on Escape
+  - If drawer is open, closes drawer first before closing page
 
   Branch-first selection:
   - _rdiPopulateBranchSelector populates branch <select> from project config
@@ -221,6 +221,37 @@ def _function_body(script: str, name: str, is_async: bool = False) -> str:
 
 
 # ===========================================================================
+# Test Contract Ownership (OOMPAH-497)
+# ===========================================================================
+#
+# This module tests the Release Delivery page and related dashboard integration.
+# The following contracts are assigned to canonical test modules:
+#
+# Contract Category                          | Canonical Test Module
+# -------------------------------------------|------------------------------------------
+# Page route, navigation, structure          | test_release_delivery_page.py
+# URL persistence (_rdiReadUrl, etc)         | test_release_delivery_page.py
+# Page bootstrap (_rdiInit on page load)     | test_release_delivery_page.py
+# Page accessibility (ARIA, roles, labels)   | test_release_delivery_page.py
+# Live delivery status polling               | test_release_delivery_page.py
+# Add-release-branches dialog controls       | test_dashboard_release_addendums_ui.py
+# Release addendums section rendering        | test_dashboard_release_addendums_ui.py
+# Backlog rendering and UI updates           | test_dashboard_release_delivery_ui.py
+# Item selection and queuing behavior        | test_dashboard_release_delivery_ui.py
+# Status cell CSS and rendering variants     | test_dashboard_release_delivery_ui.py
+# Evidence drawer (item details panel)       | test_dashboard_release_delivery_ui.py
+# XSS prevention (onclick, innerHTML safety) | test_dashboard_release_delivery_ui.py
+# Async refresh progress and polling         | test_dashboard_release_delivery_ui.py
+#
+# Duplicates removed by OOMPAH-497:
+# - 25 tests from TestRDIOverlayHTML (page structure tests duplicated in test_release_delivery_page.py)
+# - 2 drawer role/aria tests from TestRDIDrawerHTML (accessibility duplicated in test_release_delivery_page.py)
+# - 5 retained-control tests for add-release-branches dialog (logic tests duplicated in test_dashboard_release_addendums_ui.py)
+#
+# ===========================================================================
+
+
+# ===========================================================================
 # CSS Tests
 # ===========================================================================
 
@@ -228,163 +259,110 @@ def _function_body(script: str, name: str, is_async: bool = False) -> str:
 class TestLegacyCSSRemoved:
     """Verify all old Release branches inspector CSS is removed."""
 
-    def test_rbi_overlay_class_removed(self):
-        styles = _load_dashboard_styles()
-        assert ".release-branch-inspector-overlay" not in styles
+    # Consolidated table of legacy CSS classes that must be absent from dashboard.html
+    LEGACY_CLASSES = [
+        ".release-branch-inspector-overlay",
+        ".release-branch-inspector-panel",
+        ".rbi-header",
+        ".rbi-close-btn",
+        ".rbi-body",
+        ".rbi-loading",
+        ".rbi-entry",
+        ".rbi-group-section",
+    ]
 
-    def test_rbi_panel_class_removed(self):
+    @pytest.mark.parametrize("css_class", LEGACY_CLASSES)
+    def test_legacy_rbi_css_removed(self, css_class):
+        """Legacy Release Branch Inspector CSS class must not appear in dashboard."""
         styles = _load_dashboard_styles()
-        assert ".release-branch-inspector-panel" not in styles
-
-    def test_rbi_header_class_removed(self):
-        styles = _load_dashboard_styles()
-        assert ".rbi-header" not in styles
-
-    def test_rbi_close_btn_removed(self):
-        styles = _load_dashboard_styles()
-        assert ".rbi-close-btn" not in styles
-
-    def test_rbi_body_class_removed(self):
-        styles = _load_dashboard_styles()
-        assert ".rbi-body" not in styles
-
-    def test_rbi_loading_class_removed(self):
-        styles = _load_dashboard_styles()
-        assert ".rbi-loading" not in styles
-
-    def test_rbi_entry_class_removed(self):
-        styles = _load_dashboard_styles()
-        assert ".rbi-entry" not in styles
-
-    def test_rbi_group_section_removed(self):
-        styles = _load_dashboard_styles()
-        assert ".rbi-group-section" not in styles
+        assert css_class not in styles, f"Legacy CSS class {css_class} must not exist in dashboard"
 
 
 class TestNewRDICSSPresent:
     """Verify the Release delivery page CSS classes are present (OOMPAH-252: moved to dedicated page)."""
 
+    # Consolidated table of RDI CSS classes that must exist in release_delivery.html
+    REQUIRED_RDI_CLASSES = [
+        ".rdi-table",
+        ".rdi-table-wrap",
+        ".rdi-loading",
+        ".rdi-empty",
+        ".rdi-error",
+        ".rdi-cell",
+        ".rdi-action-bar",
+        ".rdi-drawer",
+        ".rdi-drawer-panel",
+        "rdi-unassoc",
+    ]
+
+    @pytest.mark.parametrize("css_class", REQUIRED_RDI_CLASSES)
+    def test_rdi_css_classes_present(self, css_class):
+        """Required Release Delivery CSS class must exist in release_delivery.html."""
+        styles = _load_release_delivery_styles()
+        assert css_class in styles, f"Required CSS class {css_class} missing from release_delivery.html"
+
     def test_rdi_page_body_class(self):
-        # OOMPAH-252: dedicated page uses .page-body instead of .rdi-overlay.
+        # OOMPAH-252: dedicated page uses .page-body instead of .rbi-overlay.
         styles = _load_release_delivery_styles()
         assert ".page-body" in styles or ".rdi-controls" in styles
-
-    def test_rdi_table_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-table" in styles
-
-    def test_rdi_table_wrap_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-table-wrap" in styles
-
-    def test_rdi_loading_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-loading" in styles
-
-    def test_rdi_empty_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-empty" in styles
-
-    def test_rdi_error_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-error" in styles
-
-    def test_rdi_cell_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-cell" in styles
-
-    def test_rdi_action_bar_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-action-bar" in styles
-
-    def test_rdi_drawer_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-drawer" in styles
-
-    def test_rdi_drawer_panel_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-drawer-panel" in styles
-
-    def test_rdi_unassoc_section_class(self):
-        """Unassociated commits get their own non-primary section CSS."""
-        styles = _load_release_delivery_styles()
-        assert "rdi-unassoc" in styles
 
     def test_rdi_css_absent_from_dashboard(self):
         """OOMPAH-252: RDI CSS must be absent from dashboard.html (moved to dedicated page)."""
         styles = _load_dashboard_styles()
-        assert ".rdi-table" not in styles
-        assert ".rdi-action-bar" not in styles
+        assert ".rdi-table" not in styles, "RDI table CSS must not be in dashboard"
+        assert ".rdi-action-bar" not in styles, "RDI action-bar CSS must not be in dashboard"
 
 
 class TestStatusCellCSS:
     """Verify CSS exists for all status cell states (OOMPAH-252: now in release_delivery.html)."""
 
-    def test_not_selected_cell(self):
-        styles = _load_release_delivery_styles()
-        assert "rdi-cell-not_selected" in styles
+    # Status cell state CSS classes that must be defined
+    CELL_STATES = [
+        "rdi-cell-not_selected",
+        "rdi-cell-open",
+        "rdi-cell-in_progress",
+        "rdi-cell-in_review",
+        "rdi-cell-blocked",
+        "rdi-cell-delivered",
+        "rdi-cell-archived",
+        "rdi-cell-delivered-ancestry",
+        "rdi-cell-clickable",
+    ]
 
-    def test_open_cell(self):
+    @pytest.mark.parametrize("cell_state", CELL_STATES)
+    def test_cell_state_css_defined(self, cell_state):
+        """CSS for each status cell state must be defined."""
         styles = _load_release_delivery_styles()
-        assert "rdi-cell-open" in styles
-
-    def test_in_progress_cell(self):
-        styles = _load_release_delivery_styles()
-        assert "rdi-cell-in_progress" in styles
-
-    def test_in_review_cell(self):
-        styles = _load_release_delivery_styles()
-        assert "rdi-cell-in_review" in styles
-
-    def test_blocked_cell(self):
-        styles = _load_release_delivery_styles()
-        assert "rdi-cell-blocked" in styles
-
-    def test_delivered_cell(self):
-        styles = _load_release_delivery_styles()
-        assert "rdi-cell-delivered" in styles
-
-    def test_archived_cell(self):
-        styles = _load_release_delivery_styles()
-        assert "rdi-cell-archived" in styles
-
-    def test_delivered_ancestry_has_distinct_css(self):
-        """Delivered-by-ancestry must have a distinct CSS class from delivered-by-cherry-pick."""
-        styles = _load_release_delivery_styles()
-        assert "rdi-cell-delivered-ancestry" in styles
+        assert cell_state in styles, f"Status cell CSS '{cell_state}' must be defined"
 
     def test_ancestry_css_differs_from_delivery_css(self):
         """The ancestry variant must visually differ from the cherry-pick variant."""
         styles = _load_release_delivery_styles()
         # Both classes must exist
-        assert ".rdi-cell-delivered" in styles
-        assert ".rdi-cell-delivered-ancestry" in styles
+        assert ".rdi-cell-delivered" in styles, "base delivered CSS required"
+        assert ".rdi-cell-delivered-ancestry" in styles, "ancestry variant CSS required"
         # Check that they define different styles
         ancestry_start = styles.index(".rdi-cell-delivered-ancestry")
         cherry_start = styles.index(".rdi-cell-delivered {")
         ancestry_rule = styles[ancestry_start : ancestry_start + 200]
         cherry_rule = styles[cherry_start : cherry_start + 200]
-        assert ancestry_rule != cherry_rule
-
-    def test_clickable_cell_class(self):
-        styles = _load_release_delivery_styles()
-        assert "rdi-cell-clickable" in styles
+        assert ancestry_rule != cherry_rule, "ancestry and delivery CSS variants must differ"
 
 
 class TestOutcomeCSS:
     """Verify outcome banner CSS classes (OOMPAH-252: now in release_delivery.html)."""
 
-    def test_outcome_banner_class(self):
-        styles = _load_release_delivery_styles()
-        assert "rdi-outcome-banner" in styles
+    OUTCOME_CLASSES = [
+        "rdi-outcome-banner",
+        "rdi-outcome-banner-success",
+        "rdi-outcome-banner-partial",
+    ]
 
-    def test_outcome_banner_success(self):
+    @pytest.mark.parametrize("css_class", OUTCOME_CLASSES)
+    def test_outcome_css_classes(self, css_class):
+        """Outcome banner CSS classes must be defined."""
         styles = _load_release_delivery_styles()
-        assert "rdi-outcome-banner-success" in styles
-
-    def test_outcome_banner_partial(self):
-        styles = _load_release_delivery_styles()
-        assert "rdi-outcome-banner-partial" in styles
+        assert css_class in styles, f"Outcome CSS class '{css_class}' must be defined"
 
 
 # ===========================================================================
@@ -427,125 +405,6 @@ class TestToolbarButton:
 # ===========================================================================
 
 
-class TestRDIOverlayHTML:
-    """Verify the Release delivery page HTML structure (OOMPAH-252: page, not overlay)."""
-
-    def test_page_controls_present(self):
-        """OOMPAH-252: dedicated page has controls section, not an rdi-overlay div."""
-        html = _load_release_delivery_html()
-        assert 'id="rdi-controls"' in html or 'class="rdi-controls"' in html
-
-    def test_drawer_has_role_dialog(self):
-        """The evidence drawer is the accessible dialog on the page."""
-        html = _load_release_delivery_html()
-        assert 'role="dialog"' in html
-
-    def test_drawer_aria_modal(self):
-        """Drawer has aria-modal=true."""
-        html = _load_release_delivery_html()
-        assert 'aria-modal="true"' in html
-
-    def test_page_has_accessible_heading(self):
-        """Page-level heading is in the toolbar (not aria-labelledby on rdi-overlay)."""
-        html = _load_release_delivery_html()
-        assert 'Release Delivery' in html
-
-    def test_no_overlay_backdrop_click_handler(self):
-        """OOMPAH-252: dedicated page has no backdrop click-to-close handler."""
-        html = _load_release_delivery_html()
-        assert "closeReleaseDelivery()" not in html
-
-    def test_project_selector_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-project-select"' in html
-
-    def test_project_selector_has_onchange(self):
-        html = _load_release_delivery_html()
-        assert '_rdiOnProjectChange()' in html
-
-    def test_branch_selector_present(self):
-        """Branch is now selected via a <select> dropdown, not checkbox filters."""
-        html = _load_release_delivery_html()
-        assert 'id="rdi-branch-select"' in html
-
-    def test_branch_selector_has_onchange(self):
-        html = _load_release_delivery_html()
-        assert '_rdiOnBranchChange()' in html
-
-    def test_no_branch_filters_checkbox_group(self):
-        """Old commit-centric branch filter checkboxes must be removed."""
-        html = _load_release_delivery_html()
-        assert 'id="rdi-branch-filters"' not in html
-
-    def test_no_target_list_element(self):
-        """Old target-branch list for multi-selection must be removed."""
-        html = _load_release_delivery_html()
-        assert 'id="rdi-target-list"' not in html
-
-    def test_no_pagination_element(self):
-        """No 'Load next page' pagination control exists in the item-centric view."""
-        html = _load_release_delivery_html()
-        assert 'id="rdi-pagination"' not in html
-
-    def test_filter_radio_needs_delivery(self):
-        html = _load_release_delivery_html()
-        assert 'value="needs_delivery"' in html
-        assert 'name="rdi-filter"' in html
-
-    def test_filter_radio_all(self):
-        html = _load_release_delivery_html()
-        assert "value=\"all\"" in html or "'all'" in html
-
-    def test_search_input_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-search"' in html
-
-    def test_search_input_has_oninput(self):
-        html = _load_release_delivery_html()
-        assert '_rdiOnSearchInput()' in html
-
-    def test_outcome_banner_present_and_hidden(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-outcome"' in html
-        assert 'hidden' in html
-
-    def test_body_wrapper_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-body"' in html
-
-    def test_body_wrapper_aria_live(self):
-        html = _load_release_delivery_html()
-        assert 'aria-live="polite"' in html
-
-    def test_action_bar_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-action-bar"' in html
-
-    def test_action_bar_initially_hidden(self):
-        html = _load_release_delivery_html()
-        idx = html.index('id="rdi-action-bar"')
-        context = html[max(0, idx - 50) : idx + 150]
-        assert "hidden" in context
-
-    def test_selected_count_element(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-action-count"' in html
-
-    def test_queue_button_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-queue-btn"' in html
-        assert '_rdiQueueSelected()' in html
-
-    def test_clear_selection_button(self):
-        html = _load_release_delivery_html()
-        assert '_rdiClearSelection()' in html
-
-    def test_drawer_title_is_item_details(self):
-        """Drawer title should say 'Item details', not 'Commit details'."""
-        html = _load_release_delivery_html()
-        assert "Item details" in html
-
-
 class TestRDIDrawerHTML:
     """Verify the evidence drawer HTML structure."""
 
@@ -553,20 +412,6 @@ class TestRDIDrawerHTML:
         html = _load_release_delivery_html()
         assert 'id="rdi-drawer"' in html
 
-    def test_drawer_role_dialog(self):
-        html = _load_release_delivery_html()
-        drawer_idx = html.index('id="rdi-drawer"')
-        context = html[max(0, drawer_idx - 100) : drawer_idx + 200]
-        assert 'role="dialog"' in context
-
-    def test_drawer_aria_modal(self):
-        html = _load_release_delivery_html()
-        drawer_idx = html.index('id="rdi-drawer"')
-        context = html[max(0, drawer_idx - 100) : drawer_idx + 200]
-        assert 'aria-modal="true"' in context
-
-    def test_drawer_body_element(self):
-        html = _load_release_delivery_html()
         assert 'id="rdi-drawer-body"' in html
 
     def test_drawer_close_button(self):
@@ -582,90 +427,57 @@ class TestRDIDrawerHTML:
 class TestStateVariables:
     """Verify state variables are initialized correctly."""
 
-    def test_project_id_initialized(self):
-        script = _load_release_delivery_script()
-        assert "let _rdiProjectId = null" in script
+    # State variables that must be initialized in the script
+    REQUIRED_INITIALIZATIONS = [
+        ("let _rdiProjectId = null", "project ID initialization"),
+        ("_rdiSelectedBranch = ''", "selected branch (single, not array)"),
+        ("_rdiFilter = 'needs_delivery'", "filter initialized to needs_delivery"),
+        ("_rdiQuery = ''", "query initialized to empty"),
+        ("_rdiSourceHead = null", "source head initialization"),
+        ("_rdiSelectedIdentifiers = new Set()", "selected identifiers as Set"),
+        ("_rdiGen = 0", "generation counter initialization"),
+        ("_rdiLoading = false", "loading flag initialization"),
+        ("_rdiCurrentData = null", "current data initialization"),
+        ("_rdiDrawerItem = null", "drawer item initialization"),
+    ]
 
-    def test_selected_branch_initialized(self):
-        """Single selected branch (replaces _rdiVisibleBranches array)."""
+    @pytest.mark.parametrize("init_pattern,description", REQUIRED_INITIALIZATIONS)
+    def test_state_variable_initialized(self, init_pattern, description):
+        """Required state variables must be initialized."""
         script = _load_release_delivery_script()
-        assert "_rdiSelectedBranch = ''" in script
+        assert init_pattern in script, f"State variable initialization missing: {description}"
 
-    def test_no_visible_branches_array(self):
-        """Old multi-branch filter array must be gone."""
-        script = _load_release_delivery_script()
-        assert "_rdiVisibleBranches = []" not in script
+    # Obsolete variables that must NOT exist
+    OBSOLETE_VARIABLES = [
+        ("_rdiVisibleBranches = []", "old multi-branch filter array"),
+        ("_rdiCursor = null", "old cursor pagination variable"),
+        ("_rdiSelectedSHAs = new Set()", "old SHA-based selection"),
+        ("_rdiCurrentPageData = null", "old per-page data variable"),
+        ("_rdiDrawerSHA = null", "old drawer SHA variable"),
+    ]
 
-    def test_no_cursor_variable(self):
-        """No commit-pagination cursor — this is an item-centric view."""
+    @pytest.mark.parametrize("obsolete_pattern,description", OBSOLETE_VARIABLES)
+    def test_obsolete_variables_removed(self, obsolete_pattern, description):
+        """Obsolete state variables must not exist."""
         script = _load_release_delivery_script()
-        assert "_rdiCursor = null" not in script
+        assert obsolete_pattern not in script, f"Obsolete variable must be removed: {description}"
 
-    def test_filter_initialized_to_needs_delivery(self):
+    def test_drawer_item_exists_not_drawer_sha(self):
+        """_rdiDrawerItem must exist (replaces old _rdiDrawerSHA)."""
         script = _load_release_delivery_script()
-        assert "_rdiFilter = 'needs_delivery'" in script
-
-    def test_query_initialized_to_empty(self):
-        script = _load_release_delivery_script()
-        assert "_rdiQuery = ''" in script
-
-    def test_source_head_initialized_to_null(self):
-        script = _load_release_delivery_script()
-        assert "_rdiSourceHead = null" in script
-
-    def test_selected_identifiers_initialized_as_set(self):
-        """Selection tracks item identifiers, not raw commit SHAs."""
-        script = _load_release_delivery_script()
-        assert "_rdiSelectedIdentifiers = new Set()" in script
-
-    def test_no_selected_shas_variable(self):
-        """Old SHA-set selection must be gone."""
-        script = _load_release_delivery_script()
-        assert "_rdiSelectedSHAs = new Set()" not in script
-
-    def test_generation_counter_initialized(self):
-        script = _load_release_delivery_script()
-        assert "_rdiGen = 0" in script
-
-    def test_loading_flag_initialized(self):
-        script = _load_release_delivery_script()
-        assert "_rdiLoading = false" in script
-
-    def test_current_data_initialized(self):
-        """_rdiCurrentData replaces the old _rdiCurrentPageData."""
-        script = _load_release_delivery_script()
-        assert "_rdiCurrentData = null" in script
-
-    def test_no_current_page_data_variable(self):
-        """Old per-page data variable must be gone."""
-        script = _load_release_delivery_script()
-        assert "_rdiCurrentPageData = null" not in script
-
-    def test_opener_initialized_to_null(self):
-        """OOMPAH-252: _rdiOpener no longer needed (no dialog focus restoration), but harmless if present."""
-        script = _load_release_delivery_script()
-        # On the dedicated page, _rdiOpener may or may not be present; check _rdiDrawerItem instead
-        assert "_rdiDrawerItem" in script
-
-    def test_drawer_item_initialized_to_null(self):
-        """_rdiDrawerItem tracks open item identifier, not commit SHA."""
-        script = _load_release_delivery_script()
-        assert "_rdiDrawerItem = null" in script
-
-    def test_no_drawer_sha_variable(self):
-        """Old _rdiDrawerSHA must be gone."""
-        script = _load_release_delivery_script()
-        assert "_rdiDrawerSHA = null" not in script
+        assert "_rdiDrawerItem" in script, "_rdiDrawerItem must be defined"
 
     def test_status_labels_map_present(self):
+        """_RDI_STATUS_LABELS map must be present."""
         script = _load_release_delivery_script()
-        assert "_RDI_STATUS_LABELS" in script
+        assert "_RDI_STATUS_LABELS" in script, "_RDI_STATUS_LABELS map must be defined"
 
     def test_status_labels_has_all_states(self):
+        """_RDI_STATUS_LABELS must include all status states."""
         script = _load_release_delivery_script()
-        for state in ["not_selected", "open", "in_progress", "in_review",
-                      "blocked", "delivered", "archived"]:
-            assert state in script
+        required_states = ["not_selected", "open", "in_progress", "in_review", "blocked", "delivered", "archived"]
+        for state in required_states:
+            assert state in script, f"Status state '{state}' must be in _RDI_STATUS_LABELS"
 
 
 # ===========================================================================
@@ -676,170 +488,61 @@ class TestStateVariables:
 class TestFunctionDefinitions:
     """Verify all required functions are defined."""
 
-    def test_open_release_delivery_absent(self):
-        """openReleaseDelivery belongs to the old dashboard dialog; must not exist on the page."""
-        script = _load_release_delivery_script()
-        assert "function openReleaseDelivery(" not in script
+    # Required functions that must be defined in the page script
+    REQUIRED_FUNCTIONS = [
+        "function _rdiInit(",
+        "function _rdiPopulateProject(",
+        "function _rdiOnProjectChange(",
+        "function _rdiPopulateBranchSelector(",
+        "function _rdiOnBranchChange(",
+        "function _rdiLoadBacklog(",
+        "function _rdiRefresh(",
+        "function _rdiRenderBacklog(",
+        "function _rdiRenderMeta(",
+        "function _rdiRenderItemRow(",
+        "function _rdiRenderStatusCell(",
+        "function _rdiRenderUnassocRow(",
+        "function _rdiToggleIdentifier(",
+        "function _rdiSelectAll(",
+        "function _rdiUpdateSelectAll(",
+        "function _rdiClearSelection(",
+        "function _rdiUpdateActionBar(",
+        "_rdiQueueSelected",
+        "function _rdiShowOutcomeSummary(",
+        "function _rdiShowOutcomeError(",
+        "function _rdiOpenItemDrawer(",
+        "function _rdiCloseDrawer(",
+        "function _rdiOnFilterChange(",
+        "function _rdiOnSearchInput(",
+        "function _rdiShowNoProject(",
+        "function _rdiShowNoBranch(",
+    ]
 
-    def test_close_release_delivery_absent(self):
-        """closeReleaseDelivery belongs to the old dashboard dialog; must not exist on the page."""
+    @pytest.mark.parametrize("function_pattern", REQUIRED_FUNCTIONS)
+    def test_required_function_defined(self, function_pattern):
+        """Required function must be defined."""
         script = _load_release_delivery_script()
-        assert "function closeReleaseDelivery(" not in script
+        assert function_pattern in script, f"Required function '{function_pattern}' must be defined"
 
-    def test_rdi_init_defined(self):
-        """_rdiInit() bootstraps the dedicated page (replaces openReleaseDelivery on the dashboard)."""
-        script = _load_release_delivery_script()
-        assert "function _rdiInit(" in script or "_rdiInit()" in script
+    # Obsolete functions that must NOT be defined
+    OBSOLETE_FUNCTIONS = [
+        "function openReleaseDelivery(",
+        "function closeReleaseDelivery(",
+        "function _rdiLoadPage(",
+        "function _rdiRenderPage(",
+        "function _rdiRenderRow(",
+        "function _rdiToggleSHA(",
+        "function _rdiOpenDrawer(",
+        "function _rdiBranchFilterChange(",
+        "function _rdiFindRow(",
+        "function _rdiRenderPagination(",
+    ]
 
-    def test_rdi_populate_project_defined(self):
+    @pytest.mark.parametrize("obsolete_pattern", OBSOLETE_FUNCTIONS)
+    def test_obsolete_function_removed(self, obsolete_pattern):
+        """Obsolete function must not exist."""
         script = _load_release_delivery_script()
-        assert "function _rdiPopulateProject(" in script
-
-    def test_rdi_on_project_change_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiOnProjectChange(" in script
-
-    def test_rdi_populate_branch_selector_defined(self):
-        """New branch selector function replaces the old branch filter renderer."""
-        script = _load_release_delivery_script()
-        assert "function _rdiPopulateBranchSelector(" in script
-
-    def test_rdi_on_branch_change_defined(self):
-        """New branch change handler replaces _rdiBranchFilterChange."""
-        script = _load_release_delivery_script()
-        assert "function _rdiOnBranchChange(" in script
-
-    def test_rdi_load_backlog_defined(self):
-        """New single-fetch function replaces cursor-based _rdiLoadPage."""
-        script = _load_release_delivery_script()
-        assert "function _rdiLoadBacklog(" in script
-
-    def test_no_rdi_load_page(self):
-        """Cursor-based load-page function must be removed."""
-        script = _load_release_delivery_script()
-        assert "function _rdiLoadPage(" not in script
-
-    def test_rdi_refresh_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiRefresh(" in script
-
-    def test_rdi_render_backlog_defined(self):
-        """New backlog renderer replaces old page renderer."""
-        script = _load_release_delivery_script()
-        assert "function _rdiRenderBacklog(" in script
-
-    def test_no_rdi_render_page(self):
-        """Old commit-page renderer must be removed."""
-        script = _load_release_delivery_script()
-        assert "function _rdiRenderPage(" not in script
-
-    def test_rdi_render_meta_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiRenderMeta(" in script
-
-    def test_rdi_render_item_row_defined(self):
-        """New item-row renderer replaces old commit-row renderer."""
-        script = _load_release_delivery_script()
-        assert "function _rdiRenderItemRow(" in script
-
-    def test_no_rdi_render_row(self):
-        """Old commit-row renderer (_rdiRenderRow) must be removed."""
-        script = _load_release_delivery_script()
-        assert "function _rdiRenderRow(" not in script
-
-    def test_rdi_render_status_cell_defined(self):
-        """Renamed from _rdiRenderCell."""
-        script = _load_release_delivery_script()
-        assert "function _rdiRenderStatusCell(" in script
-
-    def test_rdi_render_unassoc_row_defined(self):
-        """Renderer for unassociated commit rows in subordinate section."""
-        script = _load_release_delivery_script()
-        assert "function _rdiRenderUnassocRow(" in script
-
-    def test_rdi_toggle_identifier_defined(self):
-        """New identifier-based toggle replaces _rdiToggleSHA."""
-        script = _load_release_delivery_script()
-        assert "function _rdiToggleIdentifier(" in script
-
-    def test_no_rdi_toggle_sha(self):
-        """Old SHA-based toggle must be removed."""
-        script = _load_release_delivery_script()
-        assert "function _rdiToggleSHA(" not in script
-
-    def test_rdi_select_all_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiSelectAll(" in script
-
-    def test_rdi_update_select_all_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiUpdateSelectAll(" in script
-
-    def test_rdi_clear_selection_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiClearSelection(" in script
-
-    def test_rdi_update_action_bar_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiUpdateActionBar(" in script
-
-    def test_rdi_queue_selected_defined(self):
-        script = _load_release_delivery_script()
-        assert "_rdiQueueSelected" in script
-
-    def test_rdi_show_outcome_summary_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiShowOutcomeSummary(" in script
-
-    def test_rdi_show_outcome_error_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiShowOutcomeError(" in script
-
-    def test_rdi_open_item_drawer_defined(self):
-        """New item-drawer opener replaces old commit-drawer opener."""
-        script = _load_release_delivery_script()
-        assert "function _rdiOpenItemDrawer(" in script
-
-    def test_no_rdi_open_drawer(self):
-        """Old commit-specific drawer opener must be removed."""
-        script = _load_release_delivery_script()
-        assert "function _rdiOpenDrawer(" not in script
-
-    def test_rdi_close_drawer_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiCloseDrawer(" in script
-
-    def test_rdi_on_filter_change_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiOnFilterChange(" in script
-
-    def test_rdi_on_search_input_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiOnSearchInput(" in script
-
-    def test_no_rdi_branch_filter_change(self):
-        """Old branch-filter-checkbox handler must be removed."""
-        script = _load_release_delivery_script()
-        assert "function _rdiBranchFilterChange(" not in script
-
-    def test_rdi_show_no_project_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiShowNoProject(" in script
-
-    def test_rdi_show_no_branch_defined(self):
-        """Shows prompt when no branch selected yet."""
-        script = _load_release_delivery_script()
-        assert "function _rdiShowNoBranch(" in script
-
-    def test_no_rdi_find_row(self):
-        """Old commit SHA lookup function must be removed."""
-        script = _load_release_delivery_script()
-        assert "function _rdiFindRow(" not in script
-
-    def test_no_rdi_render_pagination(self):
-        """Pagination function must be removed from item-centric view."""
-        script = _load_release_delivery_script()
-        assert "function _rdiRenderPagination(" not in script
+        assert obsolete_pattern not in script, f"Obsolete function '{obsolete_pattern}' must be removed"
 
 
 # ===========================================================================
@@ -1104,217 +807,174 @@ class TestDataLoading:
 class TestAsyncRefreshProgressCSS:
     """Verify CSS for the async refresh progress banner is present."""
 
-    def test_rdi_refresh_status_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-refresh-status" in styles
+    REFRESH_CSS_CLASSES = [
+        ".rdi-refresh-status",
+        ".rdi-refresh-status.active",
+        ".rdi-refresh-spinner",
+        ".rdi-refresh-bar-track",
+        ".rdi-refresh-bar-fill",
+        ".rdi-refresh-error",
+        ".rdi-refresh-retry",
+        ".rdi-stale-badge",
+        ".rdi-refresh-progress",
+    ]
 
-    def test_rdi_refresh_status_active_variant(self):
+    @pytest.mark.parametrize("css_class", REFRESH_CSS_CLASSES)
+    def test_refresh_progress_css_defined(self, css_class):
+        """CSS for async refresh progress UI must be defined."""
         styles = _load_release_delivery_styles()
-        assert ".rdi-refresh-status.active" in styles
-
-    def test_rdi_refresh_spinner_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-refresh-spinner" in styles
-
-    def test_rdi_refresh_bar_track_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-refresh-bar-track" in styles
-
-    def test_rdi_refresh_bar_fill_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-refresh-bar-fill" in styles
-
-    def test_rdi_refresh_error_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-refresh-error" in styles
-
-    def test_rdi_refresh_retry_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-refresh-retry" in styles
-
-    def test_rdi_stale_badge_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-stale-badge" in styles
-
-    def test_rdi_refresh_progress_class(self):
-        styles = _load_release_delivery_styles()
-        assert ".rdi-refresh-progress" in styles
+        assert css_class in styles, f"Refresh CSS '{css_class}' must be defined"
 
 
 class TestAsyncRefreshProgressHTML:
-    """Verify the async refresh progress banner HTML element is present."""
+    """Verify the async refresh progress banner HTML elements are present."""
 
-    def test_rdi_refresh_status_element_present(self):
+    REFRESH_ELEMENT_IDS = [
+        'id="rdi-refresh-status"',
+        'id="rdi-refresh-phase"',
+        'id="rdi-refresh-bar-fill"',
+        'id="rdi-refresh-count"',
+        'id="rdi-refresh-elapsed"',
+        'id="rdi-stale-badge"',
+        'id="rdi-refresh-error"',
+        'id="rdi-refresh-retry"',
+    ]
+
+    @pytest.mark.parametrize("html_pattern", REFRESH_ELEMENT_IDS)
+    def test_refresh_element_present(self, html_pattern):
+        """Async refresh progress UI elements must be present."""
         html = _load_release_delivery_html()
-        assert 'id="rdi-refresh-status"' in html
+        assert html_pattern in html, f"Refresh element '{html_pattern}' must be present"
 
     def test_rdi_refresh_status_has_role_status(self):
+        """Refresh status element must have role='status' for accessibility."""
         html = _load_release_delivery_html()
-        assert 'role="status"' in html
+        assert 'role="status"' in html, "Refresh status must have role='status'"
 
     def test_rdi_refresh_status_has_aria_live(self):
+        """Refresh status banner must have aria-live for screen reader updates."""
         html = _load_release_delivery_html()
-        # Should be aria-live="polite" on the progress banner
-        assert 'aria-live="polite"' in html
-
-    def test_rdi_refresh_phase_element_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-refresh-phase"' in html
-
-    def test_rdi_refresh_bar_fill_element_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-refresh-bar-fill"' in html
-
-    def test_rdi_refresh_count_element_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-refresh-count"' in html
-
-    def test_rdi_refresh_elapsed_element_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-refresh-elapsed"' in html
-
-    def test_rdi_stale_badge_element_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-stale-badge"' in html
-
-    def test_rdi_refresh_error_element_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-refresh-error"' in html
-
-    def test_rdi_refresh_retry_element_present(self):
-        html = _load_release_delivery_html()
-        assert 'id="rdi-refresh-retry"' in html
+        assert 'aria-live="polite"' in html, "Refresh status must have aria-live='polite'"
 
     def test_rdi_refresh_retry_calls_force_refresh(self):
+        """Retry button must trigger force refresh."""
         html = _load_release_delivery_html()
-        assert '_rdiForceRefresh()' in html
+        assert '_rdiForceRefresh()' in html, "Retry button must call _rdiForceRefresh()"
 
     def test_rdi_refresh_status_before_outcome_banner(self):
         """Progress banner must appear before the outcome banner."""
         html = _load_release_delivery_html()
         rs_idx = html.index('id="rdi-refresh-status"')
         outcome_idx = html.index('id="rdi-outcome"')
-        assert rs_idx < outcome_idx
+        assert rs_idx < outcome_idx, "Refresh status must appear before outcome banner"
 
     def test_rdi_refresh_status_has_aria_label(self):
         """The banner must have an aria-label for screen reader context."""
         html = _load_release_delivery_html()
-        assert 'aria-label="Backlog refresh progress"' in html
+        assert 'aria-label="Backlog refresh progress"' in html, "Refresh status must have aria-label"
 
 
 class TestAsyncRefreshProgressFunctions:
     """Verify all async refresh management functions are defined."""
 
-    def test_rdi_update_refresh_status_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiUpdateRefreshStatus(" in script
+    REFRESH_FUNCTIONS = [
+        "function _rdiUpdateRefreshStatus(",
+        "function _rdiHideRefreshStatus(",
+        "function _rdiForceRefresh(",
+        "function _rdiPollStatus(",
+        "function _rdiStartPoll(",
+        "function _rdiStopPoll(",
+    ]
 
-    def test_rdi_hide_refresh_status_defined(self):
+    @pytest.mark.parametrize("func_pattern", REFRESH_FUNCTIONS)
+    def test_refresh_function_defined(self, func_pattern):
+        """Async refresh function must be defined."""
         script = _load_release_delivery_script()
-        assert "function _rdiHideRefreshStatus(" in script
+        assert func_pattern in script, f"Refresh function '{func_pattern}' must be defined"
 
-    def test_rdi_force_refresh_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiForceRefresh(" in script
+    PHASE_LABELS = [
+        "loading_merged",
+        "resolving_commits",
+        "comparing_ancestry",
+        "preparing_rows",
+        "diagnostics",
+    ]
 
-    def test_rdi_poll_status_defined(self):
+    @pytest.mark.parametrize("phase_label", PHASE_LABELS)
+    def test_phase_label_in_constants(self, phase_label):
+        """All refresh phases must be defined in _RDI_PHASE_LABELS."""
         script = _load_release_delivery_script()
-        assert "function _rdiPollStatus(" in script
-
-    def test_rdi_start_poll_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiStartPoll(" in script
-
-    def test_rdi_stop_poll_defined(self):
-        script = _load_release_delivery_script()
-        assert "function _rdiStopPoll(" in script
+        assert phase_label in script, f"Phase label '{phase_label}' must be in _RDI_PHASE_LABELS"
 
     def test_rdi_phase_labels_constant_defined(self):
         """_RDI_PHASE_LABELS maps phase names to human-readable strings."""
         script = _load_release_delivery_script()
-        assert "_RDI_PHASE_LABELS" in script
-
-    def test_rdi_phase_labels_includes_loading_merged(self):
-        script = _load_release_delivery_script()
-        assert "loading_merged" in script
-
-    def test_rdi_phase_labels_includes_resolving_commits(self):
-        script = _load_release_delivery_script()
-        assert "resolving_commits" in script
-
-    def test_rdi_phase_labels_includes_comparing_ancestry(self):
-        script = _load_release_delivery_script()
-        assert "comparing_ancestry" in script
-
-    def test_rdi_phase_labels_includes_preparing_rows(self):
-        script = _load_release_delivery_script()
-        assert "preparing_rows" in script
-
-    def test_rdi_phase_labels_includes_diagnostics(self):
-        script = _load_release_delivery_script()
-        assert "diagnostics" in script
+        assert "_RDI_PHASE_LABELS" in script, "_RDI_PHASE_LABELS constant must be defined"
 
     def test_poll_timer_state_variable_present(self):
         """_rdiPollTimer holds the setInterval handle."""
         script = _load_release_delivery_script()
-        assert "_rdiPollTimer = null" in script
+        assert "_rdiPollTimer = null" in script, "_rdiPollTimer state variable must be initialized"
 
     def test_rdi_force_refresh_posts_to_backlog_refresh(self):
         """_rdiForceRefresh must POST to /release-delivery/backlog/refresh."""
         script = _load_release_delivery_script()
         body = _function_body(script, "_rdiForceRefresh")
-        assert "backlog/refresh" in body
-        assert "POST" in body
+        assert "backlog/refresh" in body, "_rdiForceRefresh must POST to backlog/refresh endpoint"
+        assert "POST" in body, "_rdiForceRefresh must use POST method"
 
     def test_rdi_poll_status_hits_backlog_status(self):
         """_rdiPollStatus must GET from /release-delivery/backlog/status."""
         script = _load_release_delivery_script()
         body = _function_body(script, "_rdiPollStatus")
-        assert "backlog/status" in body
+        assert "backlog/status" in body, "_rdiPollStatus must GET from backlog/status endpoint"
 
     def test_rdi_start_poll_uses_set_interval(self):
         """_rdiStartPoll sets up polling via setInterval."""
         script = _load_release_delivery_script()
         body = _function_body(script, "_rdiStartPoll")
-        assert "setInterval" in body
+        assert "setInterval" in body, "_rdiStartPoll must use setInterval"
 
     def test_rdi_stop_poll_uses_clear_interval(self):
         """_rdiStopPoll clears the interval via clearInterval."""
         script = _load_release_delivery_script()
         body = _function_body(script, "_rdiStopPoll")
-        assert "clearInterval" in body
+        assert "clearInterval" in body, "_rdiStopPoll must use clearInterval"
 
     def test_rdi_update_refresh_status_shows_phase_text(self):
         """_rdiUpdateRefreshStatus writes phase text to the phase element."""
         script = _load_release_delivery_script()
         body = _function_body(script, "_rdiUpdateRefreshStatus")
-        assert "rdi-refresh-phase" in body
+        assert "rdi-refresh-phase" in body, "_rdiUpdateRefreshStatus must update phase element"
 
     def test_rdi_update_refresh_status_shows_progress_bar(self):
         """_rdiUpdateRefreshStatus updates the bar fill width."""
         script = _load_release_delivery_script()
         body = _function_body(script, "_rdiUpdateRefreshStatus")
-        assert "rdi-refresh-bar-fill" in body or "barFill" in body
+        assert ("rdi-refresh-bar-fill" in body or "barFill" in body), \
+            "_rdiUpdateRefreshStatus must update progress bar"
 
     def test_rdi_update_refresh_status_shows_elapsed(self):
         """_rdiUpdateRefreshStatus writes elapsed time."""
         script = _load_release_delivery_script()
         body = _function_body(script, "_rdiUpdateRefreshStatus")
-        assert "elapsed_s" in body
+        assert "elapsed_s" in body, "_rdiUpdateRefreshStatus must show elapsed time"
 
     def test_rdi_update_refresh_status_shows_retry_on_failure(self):
         """_rdiUpdateRefreshStatus shows the retry button when phase=failed."""
         script = _load_release_delivery_script()
         body = _function_body(script, "_rdiUpdateRefreshStatus")
-        assert "failed" in body
-        assert "retryBtn" in body or "rdi-refresh-retry" in body
+        assert "failed" in body, "_rdiUpdateRefreshStatus must handle failed phase"
+        assert ("retryBtn" in body or "rdi-refresh-retry" in body), \
+            "_rdiUpdateRefreshStatus must show retry button on failure"
 
     def test_rdi_update_refresh_status_shows_stale_badge(self):
         """_rdiUpdateRefreshStatus shows stale badge when result exists and refresh is running."""
         script = _load_release_delivery_script()
         body = _function_body(script, "_rdiUpdateRefreshStatus")
-        assert "has_result" in body
-        assert "staleBadge" in body or "rdi-stale-badge" in body
+        assert "has_result" in body, "_rdiUpdateRefreshStatus must check for existing results"
+        assert ("staleBadge" in body or "rdi-stale-badge" in body), \
+            "_rdiUpdateRefreshStatus must show stale badge"
 
     def test_page_unload_stops_poll(self):
         """OOMPAH-252: navigating away from the dedicated page must stop polling.
@@ -1323,8 +983,8 @@ class TestAsyncRefreshProgressFunctions:
         setInterval timer when the user navigates to another page.
         """
         script = _load_release_delivery_script()
-        assert "pagehide" in script
-        assert "_rdiStopPoll()" in script
+        assert "pagehide" in script, "pagehide event listener must be registered"
+        assert "_rdiStopPoll()" in script, "pagehide handler must call _rdiStopPoll()"
 
     def test_show_no_branch_hides_refresh_status(self):
         """_rdiShowNoBranch must hide the progress banner when no branch is selected."""
@@ -1943,28 +1603,6 @@ class TestEmptyErrorStates:
 class TestRetainedControls:
     """Verify that task/epic release controls are retained (not removed)."""
 
-    def test_open_add_release_branches_dialog_retained(self):
-        script = _load_dashboard_script()
-        assert "function openAddReleaseBranchesDialog(" in script or \
-               "async function openAddReleaseBranchesDialog(" in script
-
-    def test_close_add_release_branches_dialog_retained(self):
-        script = _load_dashboard_script()
-        assert "function closeAddReleaseBranchesDialog(" in script
-
-    def test_submit_add_release_branches_dialog_retained(self):
-        script = _load_dashboard_script()
-        assert "function submitAddReleaseBranchesDialog(" in script or \
-               "async function submitAddReleaseBranchesDialog(" in script
-
-    def test_add_release_branches_dialog_html_retained(self):
-        html = _load_dashboard_html()
-        assert 'id="add-release-branches-dialog"' in html
-
-    def test_render_release_addendums_section_retained(self):
-        script = _load_dashboard_script()
-        assert "function renderReleaseAddendumsSection(" in script or \
-               "renderReleaseAddendumsSection" in script
 
     def test_render_epic_release_addendums_section_retained(self):
         script = _load_dashboard_script()
