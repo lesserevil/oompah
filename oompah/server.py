@@ -10220,7 +10220,11 @@ async def api_create_project(request: Request):
             if isinstance(status_actor_raw, str) and status_actor_raw.strip()
             else None
         )
-        if status_actor_login is None and access_token:
+        if (
+            status_actor_login is None
+            and access_token
+            and forge_kind.strip().lower() == "github"
+        ):
             status_actor_login = _resolve_github_token_owner(access_token)
         status_label_authorized_logins_raw = body.get("status_label_authorized_logins")
         status_label_authorized_logins: list[str] = []
@@ -10370,6 +10374,14 @@ async def api_update_project(project_id: str, request: Request):
         ):
             if key in body:
                 fields[key] = body[key]
+        effective_forge_kind = fields.get(
+            "forge_kind",
+            getattr(existing_project, "forge_kind", "github"),
+        )
+        resolve_github_identity = (
+            isinstance(effective_forge_kind, str)
+            and effective_forge_kind.strip().lower() == "github"
+        )
         # The forge-neutral name is preferred when a new client sends it;
         # ProjectStore maps it back to the persisted legacy field name.
         if "external_issue_intake_enabled" in body:
@@ -10523,8 +10535,10 @@ async def api_update_project(project_id: str, request: Request):
                     if "access_token" in fields
                     else getattr(existing_project, "access_token", None)
                 )
-                fields["status_actor_login"] = _resolve_github_token_owner(
-                    token_for_actor
+                fields["status_actor_login"] = (
+                    _resolve_github_token_owner(token_for_actor)
+                    if resolve_github_identity
+                    else None
                 )
             elif isinstance(val, str):
                 fields["status_actor_login"] = val
@@ -10633,6 +10647,7 @@ async def api_update_project(project_id: str, request: Request):
             and "status_actor_login" not in fields
             and isinstance(fields["access_token"], str)
             and fields["access_token"].strip()
+            and resolve_github_identity
         ):
             fields["status_actor_login"] = _resolve_github_token_owner(
                 fields["access_token"]

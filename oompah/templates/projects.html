@@ -803,7 +803,7 @@ async function saveProject(id) {
     forge_kind: forgeKind,
     tracker_kind: trackerKind, tracker_owner: trackerOwner, tracker_repo: trackerRepo,
     // external_issue_intake_enabled is the canonical forge-neutral field.
-    // Do NOT also send github_issue_intake_enabled — ProjectStore rejects both.
+    // Send one alias so edits do not round-trip compatibility-only fields.
     external_issue_intake_enabled: githubIssueIntakeEnabled,
     github_project_node_id: githubProjectNodeId,
     status_actor_login: statusActorLogin,

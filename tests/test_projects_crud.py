@@ -347,6 +347,75 @@ class TestProjectAPI:
         assert data["github_issue_intake_enabled"] is True
         assert data["external_issue_intake_enabled"] is True
 
+    def test_gitlab_ui_edit_enables_state_branch_without_github_identity_call(
+        self,
+        monkeypatch,
+    ):
+        from unittest.mock import MagicMock
+
+        import oompah.server as srv
+
+        self.store.update(
+            "proj-test1",
+            repo_url="https://gitlab.example.test/group/repo.git",
+            forge_kind="gitlab",
+            forge_base_url="https://gitlab.example.test",
+            tracker_kind="gitlab_issues",
+            access_token="gitlab-token",
+            github_issue_intake_enabled=False,
+        )
+        project_data = self.client.get("/api/v1/projects/proj-test1").json()
+        assert project_data["github_issue_intake_enabled"] is False
+        assert project_data["external_issue_intake_enabled"] is False
+
+        resolve_owner = MagicMock(return_value="github-owner")
+        monkeypatch.setattr(srv, "_resolve_github_token_owner", resolve_owner)
+
+        response = self.client.patch(
+            "/api/v1/projects/proj-test1",
+            json={
+                "forge_kind": project_data["forge_kind"],
+                "tracker_kind": project_data["tracker_kind"],
+                "external_issue_intake_enabled": project_data[
+                    "external_issue_intake_enabled"
+                ],
+                "status_actor_login": None,
+                "state_branch_enabled": True,
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()["state_branch_enabled"] is True
+        assert self.store.get("proj-test1").status_actor_login is None
+        resolve_owner.assert_not_called()
+
+    def test_gitlab_token_update_does_not_resolve_github_identity(
+        self,
+        monkeypatch,
+    ):
+        from unittest.mock import MagicMock
+
+        import oompah.server as srv
+
+        self.store.update(
+            "proj-test1",
+            repo_url="https://gitlab.example.test/group/repo.git",
+            forge_kind="gitlab",
+            forge_base_url="https://gitlab.example.test",
+            tracker_kind="gitlab_issues",
+        )
+        resolve_owner = MagicMock(return_value="github-owner")
+        monkeypatch.setattr(srv, "_resolve_github_token_owner", resolve_owner)
+
+        response = self.client.patch(
+            "/api/v1/projects/proj-test1",
+            json={"access_token": "new-gitlab-token"},
+        )
+
+        assert response.status_code == 200
+        assert self.store.get("proj-test1").status_actor_login is None
+        resolve_owner.assert_not_called()
+
     def test_get_project_not_found(self):
         res = self.client.get("/api/v1/projects/proj-nonexistent")
         assert res.status_code == 404
@@ -612,6 +681,33 @@ class TestProjectCreateAPIDefaults:
         kwargs = self.project_store.create.call_args.kwargs
         assert kwargs["tracker_kind"] == "oompah_md"
         assert kwargs["github_issue_intake_enabled"] is True
+
+    def test_create_gitlab_project_does_not_resolve_github_token_owner(
+        self,
+        monkeypatch,
+    ):
+        from unittest.mock import MagicMock
+
+        import oompah.server as srv
+
+        resolve_owner = MagicMock(return_value="github-owner")
+        monkeypatch.setattr(srv, "_resolve_github_token_owner", resolve_owner)
+
+        res = self.client.post(
+            "/api/v1/projects",
+            json={
+                "repo_url": "https://gitlab.example.com/group/example-repo.git",
+                "forge_kind": "gitlab",
+                "forge_base_url": "https://gitlab.example.com",
+                "access_token": "gitlab-token",
+            },
+        )
+
+        assert res.status_code == 201
+        assert (
+            self.project_store.create.call_args.kwargs["status_actor_login"] is None
+        )
+        resolve_owner.assert_not_called()
 
     def test_create_preserves_explicit_github_tracker_kind_but_still_pauses(self):
         res = self.client.post(
@@ -1325,9 +1421,42 @@ class TestProjectStoreTrackerFieldUpdate:
         updated = self.store.update("proj-tr", github_issue_intake_enabled=True)
         assert updated.github_issue_intake_enabled is True
 
+    def test_update_external_issue_intake_enabled(self):
+        updated = self.store.update("proj-tr", external_issue_intake_enabled=True)
+        assert updated.github_issue_intake_enabled is True
+
+    def test_update_accepts_matching_intake_aliases(self):
+        updated = self.store.update(
+            "proj-tr",
+            external_issue_intake_enabled=True,
+            github_issue_intake_enabled=True,
+        )
+        assert updated.github_issue_intake_enabled is True
+
+    def test_update_rejects_conflicting_intake_aliases(self):
+        with pytest.raises(
+            ProjectError,
+            match=(
+                "Conflicting values for 'external_issue_intake_enabled' and "
+                "'github_issue_intake_enabled'"
+            ),
+        ):
+            self.store.update(
+                "proj-tr",
+                external_issue_intake_enabled=True,
+                github_issue_intake_enabled=False,
+            )
+
     def test_update_github_issue_intake_enabled_rejects_non_bool(self):
         with pytest.raises(ProjectError, match="must be a boolean"):
             self.store.update("proj-tr", github_issue_intake_enabled="yes")
+
+    def test_update_external_issue_intake_enabled_rejects_non_bool(self):
+        with pytest.raises(
+            ProjectError,
+            match="'external_issue_intake_enabled' must be a boolean",
+        ):
+            self.store.update("proj-tr", external_issue_intake_enabled="yes")
 
     def test_update_status_actor_login_trims_whitespace(self):
         updated = self.store.update("proj-tr", status_actor_login="  status-actor  ")
@@ -1451,6 +1580,35 @@ class TestProjectAPITrackerFields:
         )
         assert res.status_code == 200
         assert self.store.get("proj-tracker").github_issue_intake_enabled is True
+
+    def test_patch_accepts_matching_intake_aliases(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={
+                "github_issue_intake_enabled": True,
+                "external_issue_intake_enabled": True,
+                "state_branch_enabled": True,
+            },
+        )
+
+        assert res.status_code == 200
+        assert self.store.get("proj-tracker").github_issue_intake_enabled is True
+        assert self.store.get("proj-tracker").state_branch_enabled is True
+
+    def test_patch_rejects_conflicting_intake_aliases_precisely(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={
+                "github_issue_intake_enabled": False,
+                "external_issue_intake_enabled": True,
+            },
+        )
+
+        assert res.status_code == 400
+        assert res.json()["error"]["message"] == (
+            "Conflicting values for 'external_issue_intake_enabled' and "
+            "'github_issue_intake_enabled'; when both are provided they must match"
+        )
 
     def test_patch_github_tracker_updates_agents_md(self):
         project = self.store.get("proj-tracker")
