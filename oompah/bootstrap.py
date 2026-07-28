@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from oompah.providers import ProviderStore
     from oompah.roles import RoleStore
     from oompah.webhooks import WebhookForwarder
+    from oompah.webhooks import GitLabHookManager
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,7 @@ class Services:
     agent_profile_store: "AgentProfileStore"
     role_store: "RoleStore"
     webhook_forwarder: "WebhookForwarder"
+    gitlab_hook_manager: "GitLabHookManager"
     port: int | None
     workflow_path: str
     workflow: object  # oompah.config.WorkflowDefinition, typed loosely
@@ -94,6 +96,38 @@ def attach_webhook_forwarder_alerts(
         orchestrator._alerts.extend(build_webhook_forwarder_alerts(status))
 
     webhook_forwarder._status_callback = _on_forwarder_status
+
+
+def attach_gitlab_hook_alerts(
+    orchestrator: "Orchestrator",
+    gitlab_hook_manager: "GitLabHookManager",
+) -> None:
+    """Route GitLabHookManager health updates into orchestrator alerts.
+
+    Installs a status callback on *gitlab_hook_manager* that rebuilds the
+    ``gitlab_hook_manager`` family of alerts in the orchestrator's
+    ``_alerts`` list whenever the manager's reconciliation state changes.
+
+    Args:
+        orchestrator: The running :class:`~oompah.orchestrator.Orchestrator`
+            instance whose ``_alerts`` list will be updated.
+        gitlab_hook_manager: The :class:`~oompah.webhooks.GitLabHookManager`
+            instance to monitor.
+    """
+    from oompah.webhooks import build_gitlab_hook_alerts
+
+    def _on_hook_status(status: dict[str, Any]) -> None:
+        orchestrator._alerts = [
+            alert
+            for alert in orchestrator._alerts
+            if not (
+                str(alert.get("source", "")) == "gitlab_hook_manager"
+                or str(alert.get("source", "")).startswith("gitlab_hook_manager:")
+            )
+        ]
+        orchestrator._alerts.extend(build_gitlab_hook_alerts(status))
+
+    gitlab_hook_manager._status_callback = _on_hook_status
 
 
 async def setup_services(
@@ -147,7 +181,7 @@ async def setup_services(
     from oompah.projects import ProjectStore
     from oompah.providers import ProviderStore
     from oompah.roles import RoleStore, migrate_agent_profiles_to_roles
-    from oompah.webhooks import WebhookForwarder
+    from oompah.webhooks import GitLabHookManager, WebhookForwarder
 
     # ------------------------------------------------------------------
     # 1. Load and parse WORKFLOW.md
@@ -235,6 +269,10 @@ async def setup_services(
         project_store=project_store,
         server_port=port,
     )
+    gitlab_hook_manager = GitLabHookManager(
+        project_store=project_store,
+        public_url=config.gitlab_webhook_public_url,
+    )
 
     # ------------------------------------------------------------------
     # 9. Sync managed-project sources before dispatch
@@ -282,6 +320,7 @@ async def setup_services(
     )
     orchestrator.set_prompt_template(workflow.prompt_template)
     attach_webhook_forwarder_alerts(orchestrator, webhook_forwarder)
+    attach_gitlab_hook_alerts(orchestrator, gitlab_hook_manager)
     if label_bootstrap_results:
         from oompah.label_bootstrap import build_label_bootstrap_alerts
 
@@ -310,6 +349,7 @@ async def setup_services(
         agent_profile_store=agent_profile_store,
         role_store=role_store,
         webhook_forwarder=webhook_forwarder,
+        gitlab_hook_manager=gitlab_hook_manager,
         port=port,
         workflow_path=workflow_path,
         workflow=workflow,

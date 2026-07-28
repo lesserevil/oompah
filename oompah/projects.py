@@ -1338,16 +1338,43 @@ class ProjectStore:
 
         # external_issue_intake_enabled is the forge-neutral public alias.
         # Keep storing the existing field name so persisted records and old
-        # clients remain compatible.
-        if "external_issue_intake_enabled" in fields:
-            if "github_issue_intake_enabled" in fields:
-                raise ProjectError(
-                    "Specify only one of 'external_issue_intake_enabled' or "
-                    "'github_issue_intake_enabled'"
-                )
-            fields["github_issue_intake_enabled"] = fields.pop(
+        # clients remain compatible.  Clients which round-trip a GET response
+        # may send both aliases; accept that only when the values agree.
+        intake_aliases = (
+            "external_issue_intake_enabled",
+            "github_issue_intake_enabled",
+        )
+        normalized_intake_values = {}
+        for key in intake_aliases:
+            if key not in fields:
+                continue
+            val = fields[key]
+            if val is None:
+                normalized_intake_values[key] = False
+            elif isinstance(val, bool):
+                normalized_intake_values[key] = val
+            else:
+                raise ProjectError(f"'{key}' must be a boolean")
+
+        if len(normalized_intake_values) == 2:
+            external_value = normalized_intake_values[
                 "external_issue_intake_enabled"
+            ]
+            github_value = normalized_intake_values[
+                "github_issue_intake_enabled"
+            ]
+            if external_value != github_value:
+                raise ProjectError(
+                    "Conflicting values for 'external_issue_intake_enabled' and "
+                    "'github_issue_intake_enabled'; when both are provided they "
+                    "must match"
+                )
+
+        if normalized_intake_values:
+            fields["github_issue_intake_enabled"] = next(
+                iter(normalized_intake_values.values())
             )
+            fields.pop("external_issue_intake_enabled", None)
 
         # tracker_kind: optional string; None clears to global default.
         if "tracker_kind" in fields:
@@ -1371,15 +1398,6 @@ class ProjectStore:
                     fields[key] = s or None
                 else:
                     raise ProjectError(f"'{key}' must be a string or null")
-
-        if "github_issue_intake_enabled" in fields:
-            val = fields["github_issue_intake_enabled"]
-            if val is None:
-                fields["github_issue_intake_enabled"] = False
-            elif isinstance(val, bool):
-                fields["github_issue_intake_enabled"] = val
-            else:
-                raise ProjectError("'github_issue_intake_enabled' must be a boolean")
 
         # Validate forge configuration against the effective values after all
         # related fields have been normalized.  This prevents a PATCH from

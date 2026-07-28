@@ -393,7 +393,7 @@ async def _run(
     """
     from oompah.bootstrap import StartupError, setup_services
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
-    from oompah.server import app, set_api_event_loop, set_orchestrator
+    from oompah.server import app, set_api_event_loop, set_gitlab_hook_manager, set_orchestrator
     from watchfiles import awatch
 
     try:
@@ -403,12 +403,15 @@ async def _run(
     port = services.port
     orchestrator = services.orchestrator
     webhook_forwarder = services.webhook_forwarder
+    gitlab_hook_manager = services.gitlab_hook_manager
 
     set_orchestrator(orchestrator)
+    set_gitlab_hook_manager(gitlab_hook_manager)
     set_api_event_loop(asyncio.get_running_loop())
 
     # Start webhook forwarder (runs gh webhook forward per project)
     await webhook_forwarder.start()
+    await gitlab_hook_manager.start()
 
     # Start workflow file watcher
     async def _watch_workflow():
@@ -521,6 +524,7 @@ async def _run(
         else:
             await orchestrator.stop()
         await webhook_forwarder.stop()
+        await gitlab_hook_manager.stop()
         watch_task.cancel()
         supervise_task.cancel()
         if server:

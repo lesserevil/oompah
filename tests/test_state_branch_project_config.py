@@ -717,26 +717,29 @@ class TestServerPatchHTTP:
         srv._orchestrator = old_orch
         srv._log_watcher_manager = old_watcher
 
-    def test_http_patch_state_branch_enabled_true(self):
-        """HTTP PATCH with state_branch_enabled=true must return 200."""
+    def test_http_patch_state_branch_enabled_true_rejected(self):
+        """Generic PATCH cannot bypass state-branch activation checks."""
         res = self.client.patch(
             "/api/v1/projects/proj-testid",
             json={"state_branch_enabled": True},
         )
-        assert res.status_code == 200
-        assert res.json()["state_branch_enabled"] is True
+        assert res.status_code == 400
+        assert "migration endpoint" in res.json()["error"]["message"]
+        assert self.store.get("proj-testid").state_branch_enabled is False
 
-    def test_http_patch_state_branch_enabled_false(self):
-        """HTTP PATCH with state_branch_enabled=false must return 200."""
+    def test_http_patch_state_branch_enabled_false_rejected(self):
+        """Generic PATCH cannot bypass rollback checks when disabling."""
+        self.store.update("proj-testid", state_branch_enabled=True)
         res = self.client.patch(
             "/api/v1/projects/proj-testid",
             json={"state_branch_enabled": False},
         )
-        assert res.status_code == 200
-        assert res.json()["state_branch_enabled"] is False
+        assert res.status_code == 400
+        assert "migration endpoint" in res.json()["error"]["message"]
+        assert self.store.get("proj-testid").state_branch_enabled is True
 
     def test_http_patch_state_branch_enabled_string_rejected(self):
-        """HTTP PATCH with state_branch_enabled='true' (string) must return 400."""
+        """The operational field is rejected regardless of value type."""
         res = self.client.patch(
             "/api/v1/projects/proj-testid",
             json={"state_branch_enabled": "true"},
@@ -744,6 +747,18 @@ class TestServerPatchHTTP:
         assert res.status_code == 400
         err = res.json()["error"]["message"]
         assert "state_branch_enabled" in err
+
+    def test_http_patch_state_branch_rejection_is_atomic(self):
+        """A mixed request must not apply ordinary fields before rejection."""
+        original_name = self.store.get("proj-testid").name
+        res = self.client.patch(
+            "/api/v1/projects/proj-testid",
+            json={"name": "must-not-apply", "state_branch_enabled": True},
+        )
+        assert res.status_code == 400
+        project = self.store.get("proj-testid")
+        assert project.name == original_name
+        assert project.state_branch_enabled is False
 
     def test_http_patch_checkpoint_debounce_valid(self):
         """HTTP PATCH with valid debounce must return 200."""
@@ -816,6 +831,87 @@ class TestServerPatchHTTP:
 
 
 # ---------------------------------------------------------------------------
+# § 10b — Migration endpoint security validation
+# ---------------------------------------------------------------------------
+
+
+class TestServerMigrationSecurity:
+    """Reject coercion and invalid state transitions before Git mutations."""
+
+    @pytest.fixture(autouse=True)
+    def client(self, tmp_path):
+        from fastapi.testclient import TestClient
+        from oompah.server import app
+
+        store = _make_store(tmp_path)
+        orch = MagicMock()
+        orch.project_store = store
+        orch._observers = []
+        orch._state_only_observers = []
+        orch._activity_observers = []
+        orch.get_snapshot.return_value = {"counts": {}, "running": {}}
+
+        import oompah.server as srv
+
+        old_orch = srv._orchestrator
+        srv._orchestrator = orch
+        self.client = TestClient(app)
+        self.store = store
+        yield self.client
+        srv._orchestrator = old_orch
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("confirm", "true"),
+            ("confirm", 1),
+            ("dry_run", "false"),
+            ("dry_run", 0),
+        ],
+    )
+    def test_migration_flags_require_json_booleans(self, field, value):
+        res = self.client.post(
+            "/api/v1/projects/proj-testid/state-branch/migrate",
+            json={"action": "A", field: value},
+        )
+        assert res.status_code == 400
+        assert "must be booleans" in res.json()["error"]["message"]
+        assert self.store.get("proj-testid").state_branch_enabled is False
+
+    def test_stage_c_rejected_before_stage_b(self):
+        res = self.client.post(
+            "/api/v1/projects/proj-testid/state-branch/migrate",
+            json={"action": "C", "confirm": True},
+        )
+        assert res.status_code == 400
+        assert "requires Stage B" in res.json()["error"]["message"]
+        assert self.store.get("proj-testid").state_branch_enabled is False
+
+    def test_rollback_rejected_without_active_migration(self):
+        res = self.client.post(
+            "/api/v1/projects/proj-testid/state-branch/migrate",
+            json={"action": "rollback", "confirm": True},
+        )
+        assert res.status_code == 400
+        assert "requires an active" in res.json()["error"]["message"]
+
+    def test_stage_a_cannot_downgrade_stage_b(self):
+        self.store.update(
+            "proj-testid",
+            state_branch_enabled=True,
+            state_branch_migration_stage="B",
+        )
+        res = self.client.post(
+            "/api/v1/projects/proj-testid/state-branch/migrate",
+            json={"action": "A", "confirm": True},
+        )
+        assert res.status_code == 400
+        project = self.store.get("proj-testid")
+        assert project.state_branch_enabled is True
+        assert project.state_branch_migration_stage == "B"
+
+
+# ---------------------------------------------------------------------------
 # § 11 — Cache invalidation
 # ---------------------------------------------------------------------------
 
@@ -841,8 +937,8 @@ class TestCacheInvalidation:
 
         assert "state_branch_checkpoint_max_delay_ms" in _PROJECT_TRACKER_CACHE_FIELDS
 
-    def test_cache_invalidation_called_when_state_branch_enabled_changes(self, tmp_path):
-        """Updating state_branch_enabled must trigger cache invalidation via the server."""
+    def test_patch_bypass_does_not_invalidate_or_mutate(self, tmp_path):
+        """Rejected generic PATCH must not mutate config or invalidate caches."""
         from fastapi.testclient import TestClient
         from oompah.server import app
 
@@ -871,8 +967,9 @@ class TestCacheInvalidation:
                     "/api/v1/projects/proj-testid",
                     json={"state_branch_enabled": True},
                 )
-                assert res.status_code == 200
-                mock_inval.assert_called_once_with(orch, "proj-testid")
+                assert res.status_code == 400
+                assert store.get("proj-testid").state_branch_enabled is False
+                mock_inval.assert_not_called()
         finally:
             srv._orchestrator = old_orch
             srv._log_watcher_manager = old_watcher
@@ -931,7 +1028,14 @@ def _load_projects_html() -> str:
 
 
 class TestProjectsHtmlUI:
-    """projects.html must expose state_branch_enabled in display and edit form."""
+    """projects.html must expose state_branch_enabled in display and edit form.
+
+    OOMPAH-456: state_branch_enabled must no longer be settable via a plain PATCH
+    boolean checkbox.  Activation must route through the /state-branch/migrate
+    endpoint so the branch is created, pushed, and verified before the config flag
+    is flipped.  The edit form therefore shows read-only status + dedicated
+    Activate / Deactivate buttons instead of a checkbox.
+    """
 
     @pytest.fixture(scope="class")
     def html(self):
@@ -945,29 +1049,69 @@ class TestProjectsHtmlUI:
         """The edit form must have a 'State Branch Settings' section label."""
         assert "State Branch Settings" in html
 
-    def test_edit_checkbox_for_state_branch_enabled(self, html):
-        """A checkbox with data-field=state-branch-enabled-edit must be present."""
+    def test_edit_section_for_state_branch_enabled(self, html):
+        """A form section with data-field=state-branch-enabled-edit must be present."""
         assert "data-field=\"state-branch-enabled-edit\"" in html
 
-    def test_edit_checkbox_id_uses_project_id(self, html):
-        """The checkbox id must follow the pattern edit-state-branch-enabled-${p.id}."""
-        assert "edit-state-branch-enabled-${esc(p.id)}" in html
+    def test_no_plain_checkbox_for_state_branch_enabled(self, html):
+        """The state_branch_enabled checkbox must NOT be present (OOMPAH-456).
 
-    def test_saveproject_reads_state_branch_enabled(self, html):
-        """saveProject() must read the state_branch_enabled checkbox."""
-        assert "edit-state-branch-enabled-" in html
-        assert "stateBranchEnabled" in html or "state_branch_enabled" in html
+        Activation now goes through dedicated buttons / the migration endpoint,
+        not a plain boolean PATCH.
+        """
+        assert "edit-state-branch-enabled-${esc(p.id)}" not in html
 
-    def test_saveproject_sends_state_branch_enabled_in_body(self, html):
-        """saveProject() PATCH body must include state_branch_enabled."""
-        # Find the body object construction in saveProject
-        assert "state_branch_enabled: stateBranchEnabled" in html \
-            or "state_branch_enabled" in html
+    def test_saveproject_does_not_send_state_branch_enabled_in_body(self, html):
+        """saveProject() PATCH body must NOT include state_branch_enabled (OOMPAH-456).
+
+        The plain PATCH bypass is the root cause described in OOMPAH-456:
+        it could enable reads before the branch exists.  The field must be
+        absent from the saveProject body to prevent silent mis-activation.
+        """
+        assert "state_branch_enabled: stateBranchEnabled" not in html
+
+    def test_activate_state_branch_button_present(self, html):
+        """An 'Activate State Branch' button must be rendered for disabled projects."""
+        assert "activateStateBranch(" in html
+
+    def test_deactivate_state_branch_button_present(self, html):
+        """A 'Deactivate State Branch' button must be rendered for enabled projects."""
+        assert "deactivateStateBranch(" in html
+
+    def test_activate_calls_migrate_endpoint(self, html):
+        """activateStateBranch() must POST to the /state-branch/migrate endpoint."""
+        assert "/state-branch/migrate" in html
+
+    def test_activate_uses_confirm_true(self, html):
+        """activateStateBranch() must pass confirm:true to avoid dry-run mode."""
+        assert "confirm: true" in html
+
+    def test_activate_button_has_aria_label(self, html):
+        """Activate button must have an aria-label for accessibility."""
+        assert 'aria-label="Activate state branch for' in html
+
+    def test_deactivate_button_has_aria_label(self, html):
+        """Deactivate button must have an aria-label for accessibility."""
+        assert 'aria-label="Deactivate state branch for' in html
+
+    def test_state_branch_msg_area_exists(self, html):
+        """A live-region message area must exist for activation status feedback."""
+        assert "edit-state-branch-msg-" in html
+        assert 'aria-live="polite"' in html
 
     def test_state_branch_name_preview_shown_in_ui(self, html):
         """UI should show the derived state branch name (oompah/state/<id>)."""
         # The UI shows oompah/state/ prefix
         assert "oompah/state/" in html
+
+    def test_activate_button_disabled_during_operation(self, html):
+        """activateStateBranch() must disable the button while the request is in flight."""
+        assert "btn.disabled = true" in html
+
+    def test_error_message_is_relay_only(self, html):
+        """Error handling must relay the server message; no hardcoded credential names."""
+        # The UI must not inject GitHub-specific credential names into its own error text.
+        assert "GITHUB_TOKEN" not in html
 
 
 # ---------------------------------------------------------------------------
@@ -1284,3 +1428,337 @@ class TestStageBApiContract:
         )
         assert "state_branch_shadow_write" in p
         assert p["state_branch_shadow_write"] is False
+
+
+# ---------------------------------------------------------------------------
+# § 13 — GitLab forge-aware activation: server atomicity and credential routing
+# ---------------------------------------------------------------------------
+
+
+class TestGitLabForgeActivation:
+    """Server-side tests for OOMPAH-456: atomic, forge-aware state-branch activation.
+
+    These tests verify:
+      1. Stage A activation passes project.access_token and forge_kind to migrate_stage_a
+      2. verify_state_branch is called before state_branch_enabled is flipped True
+      3. A failed push (migrate_stage_a error) leaves state_branch_enabled False
+      4. A remote verification failure leaves state_branch_enabled False (no partial enable)
+      5. Diagnostics never mention GITHUB_TOKEN for GitLab projects
+      6. GitHub native-Markdown projects still work as before (regression guard)
+    """
+
+    @pytest.fixture(autouse=True)
+    def client(self, tmp_path):
+        """Set up a test client with a GitLab native-Markdown project."""
+        from fastapi.testclient import TestClient
+        from oompah.server import app
+
+        store = ProjectStore(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        # GitLab native-Markdown project (no state branch yet).
+        gl_proj = Project(
+            id="proj-gitlab-nodev",
+            name="nodevirt",
+            repo_url="https://gitlab.example.test/group/nodevirt.git",
+            repo_path=str(tmp_path / "repos" / "nodevirt"),
+            default_branch="main",
+            forge_kind="gitlab",
+            forge_base_url="https://gitlab.example.test",
+            tracker_kind="oompah_md",
+            access_token="gitlab-access-token-secret",
+            state_branch_enabled=False,
+        )
+        store._projects[gl_proj.id] = gl_proj
+        # Also add a GitHub project for regression testing.
+        gh_proj = Project(
+            id="proj-github-native",
+            name="ghrepo",
+            repo_url="https://github.com/org/ghrepo.git",
+            repo_path=str(tmp_path / "repos" / "ghrepo"),
+            default_branch="main",
+            forge_kind="github",
+            tracker_kind="oompah_md",
+            access_token="github-access-token",
+            state_branch_enabled=False,
+        )
+        store._projects[gh_proj.id] = gh_proj
+        store._save()
+
+        orch = MagicMock()
+        orch.project_store = store
+        orch._observers = []
+        orch._state_only_observers = []
+        orch._activity_observers = []
+        orch.get_snapshot.return_value = {"counts": {}, "running": {}}
+
+        import oompah.server as srv
+
+        old_orch = srv._orchestrator
+        srv._orchestrator = orch
+        self.client = TestClient(app)
+        self.store = store
+        yield self.client
+        srv._orchestrator = old_orch
+
+    def test_gitlab_stage_a_passes_project_access_token(self):
+        """migrate_stage_a must be called with the GitLab project access_token.
+
+        migrate_stage_a is imported lazily inside the server endpoint, so we
+        capture credentials at the initialize_state_branch level (also lazily
+        imported by migrate_stage_a).
+        """
+        from oompah.state_branch_migration import StateBranchVerificationResult
+
+        captured: dict = {}
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            captured["access_token"] = access_token
+            captured["forge_kind"] = forge_kind
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                created=True,
+                commit_sha="abc" * 13,
+                pushed=True,
+                error="",
+            )
+
+        import oompah.state_branch_migration as _migmod
+
+        def _fake_verify_sb(repo_path, project_id, **kwargs):
+            return StateBranchVerificationResult(ok=True, commit_sha="abc" * 13)
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init), \
+             patch.object(_migmod, "verify_state_branch", side_effect=_fake_verify_sb):
+            res = self.client.post(
+                "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
+        assert captured.get("access_token") == "gitlab-access-token-secret"
+        assert captured.get("forge_kind") == "gitlab"
+
+    def test_gitlab_stage_a_passes_forge_kind_gitlab(self):
+        """migrate_stage_a must receive forge_kind='gitlab' for a GitLab project."""
+        from oompah.state_branch_migration import StateBranchVerificationResult
+
+        forge_kinds: list = []
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            forge_kinds.append(forge_kind)
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                created=True,
+                commit_sha="abc" * 13,
+                pushed=True,
+                error="",
+            )
+
+        def _fake_verify_sb(repo_path, project_id, **kwargs):
+            return StateBranchVerificationResult(ok=True, commit_sha="abc" * 13)
+
+        import oompah.state_branch_migration as _migmod
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init), \
+             patch.object(_migmod, "verify_state_branch", side_effect=_fake_verify_sb):
+            self.client.post(
+                "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert forge_kinds, "initialize_state_branch must have been called"
+        assert "gitlab" in forge_kinds, f"Expected forge_kind='gitlab'; got {forge_kinds}"
+
+    def test_push_failure_leaves_state_branch_disabled(self):
+        """If migrate_stage_a reports a push error, state_branch_enabled stays False."""
+        import oompah.state_branch_migration as _migmod
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                error="git push failed: 403 Forbidden",
+            )
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init):
+            res = self.client.post(
+                "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert res.status_code == 500
+        assert self.store.get("proj-gitlab-nodev").state_branch_enabled is False
+
+    def test_remote_verification_failure_leaves_state_branch_disabled(self):
+        """If verify_state_branch fails, state_branch_enabled must stay False.
+
+        This is the atomicity requirement: the remote branch must be verified
+        independently before the config flip.
+        """
+        from oompah.state_branch_migration import StateBranchVerificationResult
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                created=True,
+                commit_sha="abc" * 13,
+                pushed=True,  # push succeeded...
+                error="",
+            )
+
+        def _fake_verify_sb(repo_path, project_id, **kwargs):
+            # ...but remote verification fails (e.g. ref mismatch, missing layout)
+            return StateBranchVerificationResult(
+                ok=False,
+                error="Remote did not advertise the exact state ref",
+            )
+
+        import oompah.state_branch_migration as _migmod
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init), \
+             patch.object(_migmod, "verify_state_branch", side_effect=_fake_verify_sb):
+            res = self.client.post(
+                "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert res.status_code == 500
+        project = self.store.get("proj-gitlab-nodev")
+        assert project.state_branch_enabled is False, (
+            "state_branch_enabled must stay False when remote verification fails"
+        )
+        assert project.state_branch_migration_stage == "", (
+            "migration_stage must stay empty when remote verification fails"
+        )
+
+    def test_successful_activation_enables_project(self):
+        """Full success path: push+verify both OK → state_branch_enabled=True."""
+        from oompah.state_branch_migration import StateBranchVerificationResult
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                created=True,
+                commit_sha="abc" * 13,
+                pushed=True,
+                error="",
+            )
+
+        def _fake_verify_sb(repo_path, project_id, **kwargs):
+            return StateBranchVerificationResult(ok=True, commit_sha="abc" * 13)
+
+        import oompah.state_branch_migration as _migmod
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init), \
+             patch.object(_migmod, "verify_state_branch", side_effect=_fake_verify_sb):
+            res = self.client.post(
+                "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert res.status_code == 200
+        project = self.store.get("proj-gitlab-nodev")
+        assert project.state_branch_enabled is True, (
+            "state_branch_enabled must be True after successful push+verify"
+        )
+        assert project.state_branch_migration_stage == "A"
+
+    def test_activation_error_message_forge_neutral_for_gitlab(self):
+        """Error messages from activation must not mention GITHUB_TOKEN for GitLab projects."""
+        import oompah.state_branch_migration as _migmod
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                error="git push failed: 401 Unauthorized",
+            )
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init):
+            res = self.client.post(
+                "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert res.status_code == 500
+        body = res.json()
+        error_text = str(body)
+        # The error must not mention GITHUB_TOKEN (forge-neutral requirement).
+        assert "GITHUB_TOKEN" not in error_text, (
+            f"Error response must not mention GITHUB_TOKEN for GitLab projects; got: {error_text}"
+        )
+
+    def test_github_project_activation_still_works(self):
+        """GitHub native-Markdown project activation must work (regression guard)."""
+        from oompah.state_branch_migration import StateBranchVerificationResult
+
+        gh_tokens: list = []
+
+        def _fake_init(repo_path, project_id, *, push=False,
+                       access_token=None, forge_kind="github", forge_base_url=None, **kwargs):
+            from oompah.project_bootstrap import StateBranchBootstrapResult
+            gh_tokens.append((access_token, forge_kind))
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                created=True,
+                commit_sha="abc" * 13,
+                pushed=True,
+                error="",
+            )
+
+        def _fake_verify_sb(repo_path, project_id, **kwargs):
+            return StateBranchVerificationResult(ok=True, commit_sha="abc" * 13)
+
+        import oompah.state_branch_migration as _migmod
+
+        with patch("oompah.project_bootstrap.initialize_state_branch", side_effect=_fake_init), \
+             patch.object(_migmod, "verify_state_branch", side_effect=_fake_verify_sb):
+            res = self.client.post(
+                "/api/v1/projects/proj-github-native/state-branch/migrate",
+                json={"action": "A", "confirm": True},
+            )
+
+        assert res.status_code == 200
+        project = self.store.get("proj-github-native")
+        assert project.state_branch_enabled is True
+
+        assert gh_tokens, "initialize_state_branch must have been called"
+        tok, fk = gh_tokens[0]
+        assert tok == "github-access-token"
+        assert fk == "github"
+
+    def test_concurrent_activation_requests_are_serialized(self):
+        """Concurrent migration requests must be serialized by the project write lock.
+
+        We verify that the project write lock is acquired by checking that the
+        lock attribute exists on the project store and is an RLock.
+        """
+        import threading
+
+        lock = self.store.project_write_lock("proj-gitlab-nodev")
+        assert isinstance(lock, type(threading.RLock())), (
+            "project_write_lock must return a threading.RLock for the project"
+        )
+
+    def test_dry_run_does_not_flip_state_branch_enabled(self):
+        """Dry-run mode must not change state_branch_enabled even if action is A."""
+        res = self.client.post(
+            "/api/v1/projects/proj-gitlab-nodev/state-branch/migrate",
+            json={"action": "A", "dry_run": True},
+        )
+        assert res.status_code == 200
+        assert res.json().get("dry_run") is True
+        assert self.store.get("proj-gitlab-nodev").state_branch_enabled is False

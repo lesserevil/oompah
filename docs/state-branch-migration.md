@@ -77,7 +77,7 @@ Fix every `FAIL` before proceeding. Common failures and fixes:
 | `default branch not clean` | The managed checkout has uncommitted changes. Run `make restart` to trigger the service's automatic repo-heal pass. |
 | `default branch not up-to-date` | Run `git -C <checkout> pull --ff-only origin main` manually, then restart. |
 | `conflicting state branch (stale)` | The state branch exists but has not been pushed to in over 24 hours. Re-run the migration with `--force-reseed` to overwrite it from the current default branch. |
-| `service account cannot push` | The GitHub token in `.env` does not have write access to the repository. Update `GITHUB_TOKEN` and restart. |
+| `service account cannot push` | The configured project access token does not have write access to the repository. Update the project's access token in the Projects settings and restart. |
 | `branch protection blocks push` | See the Branch Protection section below. |
 | `task files have N corrupt stubs` | See the Corrupt Task Files section below. |
 
@@ -85,21 +85,25 @@ Fix every `FAIL` before proceeding. Common failures and fixes:
 
 ## Step 2: Configure branch protection
 
-The state branch requires that your GitHub service account can push directly
-without a pull request. This is different from your code branches, which should
-require PR-based review.
+The state branch requires that the configured project access token can push
+directly without a pull request. This is different from your code branches,
+which should require PR-based review.
 
-In GitHub, go to your repository → **Settings → Branches** and check your
-branch protection rules:
+**GitHub projects:** Go to your repository → **Settings → Branches** and check
+your branch protection rules:
 
 1. Confirm there is **no** rule matching `oompah/state/*` that requires a PR
    or passing CI.
 2. If you have a rule that matches all branches (e.g. `**`), add an exclusion
    or a specific override for `oompah/state/*`:
    - Create a new rule with pattern `oompah/state/*`.
-   - Enable **Restrict who can push** and add the service account (the GitHub
-     user whose token is in `GITHUB_TOKEN`).
+   - Enable **Restrict who can push** and add the service account.
    - Leave all other protections unchecked.
+
+**GitLab projects:** Go to your repository → **Settings → Repository →
+Protected branches** and check that `oompah/state/*` is not in the protected
+list (or that the configured access token has push access at Developer level
+or above).
 
 After saving, re-run `oompah admin validate-state-branch <project-id>` to
 confirm `branch protection allows push: PASS`.
@@ -280,7 +284,7 @@ The service failed to push a checkpoint to the state branch. Common causes:
 
 1. **Network issue** — Transient. The service retries automatically. Check
    `oompah.log` for `state_branch Push retry` lines.
-2. **Token expired** — Update `GITHUB_TOKEN` in `.env` and run `make restart`.
+2. **Token expired** — Update the project access token in the Projects settings and run `make restart`.
 3. **Branch protection blocked push** — Confirm the `oompah/state/*` protection
    rule allows the service account to push (see Step 2).
 4. **Concurrent writer** — Another process pushed to the state branch. This

@@ -33,6 +33,13 @@ from typing import Any
 
 import yaml
 
+from oompah.git_credentials import (
+    forge_display_name,
+    git_credential_environment,
+    redact_git_output,
+)
+from oompah.project_bootstrap import STATE_BRANCH_TASK_DIRS
+
 logger = logging.getLogger(__name__)
 
 TASKS_DIR = ".oompah/tasks"
@@ -88,6 +95,15 @@ class MigrationResult:
         }
 
 
+@dataclass
+class StateBranchVerificationResult:
+    """Result of independently verifying the state ref and task layout."""
+
+    ok: bool = False
+    commit_sha: str = ""
+    error: str = ""
+
+
 # ---------------------------------------------------------------------------
 # Internal git helpers
 # ---------------------------------------------------------------------------
@@ -99,16 +115,22 @@ def _git(
     cwd: str | Path,
     check: bool = False,
     timeout: int = 60,
+    env: dict[str, str] | None = None,
+    secrets: tuple[str, ...] = (),
 ) -> subprocess.CompletedProcess[str]:
     """Run a git command in *cwd*; never raise on non-zero exit."""
-    return subprocess.run(
+    result = subprocess.run(
         ["git", *args],
         cwd=str(cwd),
         capture_output=True,
         text=True,
         timeout=timeout,
         check=False,
+        env=env,
     )
+    result.stdout = redact_git_output(result.stdout, secrets)
+    result.stderr = redact_git_output(result.stderr, secrets)
+    return result
 
 
 def _git_check(
@@ -116,13 +138,65 @@ def _git_check(
     *,
     cwd: str | Path,
     timeout: int = 60,
+    env: dict[str, str] | None = None,
+    secrets: tuple[str, ...] = (),
 ) -> subprocess.CompletedProcess[str]:
     """Run a git command; raise RuntimeError on non-zero exit."""
-    r = _git(args, cwd=cwd, timeout=timeout)
+    r = _git(
+        args,
+        cwd=cwd,
+        timeout=timeout,
+        env=env,
+        secrets=secrets,
+    )
     if r.returncode != 0:
         err = r.stderr.strip() or r.stdout.strip()
         raise RuntimeError(f"git {' '.join(args)}: {err}")
     return r
+
+
+def _network_git(
+    args: list[str],
+    *,
+    cwd: str | Path,
+    access_token: str | None,
+    forge_kind: str,
+    timeout: int = 60,
+) -> subprocess.CompletedProcess[str]:
+    """Run one authenticated, non-interactive network Git command."""
+    with git_credential_environment(
+        forge_kind=forge_kind,
+        access_token=access_token,
+    ) as env:
+        return _git(
+            args,
+            cwd=cwd,
+            timeout=timeout,
+            env=env,
+            secrets=(str(access_token or ""),),
+        )
+
+
+def _network_git_check(
+    args: list[str],
+    *,
+    cwd: str | Path,
+    access_token: str | None,
+    forge_kind: str,
+    timeout: int = 60,
+) -> subprocess.CompletedProcess[str]:
+    """Authenticated network Git command that raises on failure."""
+    result = _network_git(
+        args,
+        cwd=cwd,
+        access_token=access_token,
+        forge_kind=forge_kind,
+        timeout=timeout,
+    )
+    if result.returncode != 0:
+        err = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(f"git {' '.join(args)}: {err}")
+    return result
 
 
 def _branch_exists_local(repo: Path, branch: str) -> bool:
@@ -146,6 +220,120 @@ def _has_remote(repo: Path, name: str = "origin") -> bool:
 def _current_branch(repo: Path) -> str | None:
     r = _git(["symbolic-ref", "--short", "HEAD"], cwd=repo)
     return r.stdout.strip() if r.returncode == 0 else None
+
+
+def verify_state_branch(
+    repo_path: str | Path,
+    project_id: str,
+    *,
+    expected_commit: str = "",
+    require_remote: bool = True,
+    access_token: str | None = None,
+    forge_kind: str = "github",
+    forge_base_url: str | None = None,
+) -> StateBranchVerificationResult:
+    """Verify the exact state ref commit and canonical task-tree layout.
+
+    Remote verification uses ``ls-remote`` followed by an authenticated fetch
+    of the exact ref.  Tree inspection is performed only after the fetched SHA
+    matches both the remote advertisement and the bootstrap commit.
+    """
+    del forge_base_url  # Host-specific credentials use the same askpass flow.
+
+    repo = Path(repo_path)
+    branch_name = f"oompah/state/{project_id}"
+    branch_ref = f"refs/heads/{branch_name}"
+    commit_sha = ""
+
+    if require_remote:
+        remote = _network_git(
+            ["ls-remote", "--exit-code", "--heads", "origin", branch_ref],
+            cwd=repo,
+            access_token=access_token,
+            forge_kind=forge_kind,
+            timeout=30,
+        )
+        if remote.returncode != 0:
+            detail = remote.stderr.strip() or remote.stdout.strip()
+            return StateBranchVerificationResult(
+                error=(
+                    f"{forge_display_name(forge_kind)} remote state branch "
+                    f"{branch_name!r} could not be verified: {detail}"
+                )
+            )
+        fields = remote.stdout.strip().split()
+        if len(fields) < 2 or fields[1] != branch_ref:
+            return StateBranchVerificationResult(
+                error=f"Remote did not advertise the exact state ref {branch_ref!r}."
+            )
+        commit_sha = fields[0]
+
+        fetch = _network_git(
+            ["fetch", "--no-tags", "origin", branch_ref],
+            cwd=repo,
+            access_token=access_token,
+            forge_kind=forge_kind,
+            timeout=60,
+        )
+        if fetch.returncode != 0:
+            detail = fetch.stderr.strip() or fetch.stdout.strip()
+            return StateBranchVerificationResult(
+                error=f"Remote state branch fetch failed: {detail}"
+            )
+        fetched = _git(["rev-parse", "FETCH_HEAD"], cwd=repo)
+        if fetched.returncode != 0:
+            return StateBranchVerificationResult(
+                error="Fetched state branch commit could not be resolved."
+            )
+        if fetched.stdout.strip() != commit_sha:
+            return StateBranchVerificationResult(
+                error=(
+                    "Fetched state branch commit does not match the remote "
+                    "advertisement."
+                )
+            )
+    else:
+        local = _git(["rev-parse", "--verify", branch_ref], cwd=repo)
+        if local.returncode != 0:
+            return StateBranchVerificationResult(
+                error=f"Local state branch {branch_name!r} does not exist."
+            )
+        commit_sha = local.stdout.strip()
+
+    if expected_commit and commit_sha != expected_commit:
+        return StateBranchVerificationResult(
+            commit_sha=commit_sha,
+            error=(
+                f"State branch commit mismatch: expected {expected_commit}, "
+                f"verified {commit_sha}."
+            ),
+        )
+
+    tree = _git(
+        ["ls-tree", "-r", "--name-only", commit_sha, "--", TASKS_DIR],
+        cwd=repo,
+    )
+    if tree.returncode != 0:
+        return StateBranchVerificationResult(
+            commit_sha=commit_sha,
+            error=f"State branch task tree could not be inspected: {tree.stderr.strip()}",
+        )
+    paths = set(tree.stdout.splitlines())
+    required = {
+        f"{TASKS_DIR}/{status}/.gitkeep"
+        for status in STATE_BRANCH_TASK_DIRS
+    }
+    missing = sorted(required - paths)
+    if missing:
+        return StateBranchVerificationResult(
+            commit_sha=commit_sha,
+            error=(
+                "State branch is missing canonical task layout entries: "
+                + ", ".join(missing)
+            ),
+        )
+
+    return StateBranchVerificationResult(ok=True, commit_sha=commit_sha)
 
 
 def _task_files_valid_yaml(tasks_dir: Path) -> tuple[int, list[str]]:
@@ -214,6 +402,9 @@ def validate_state_branch(
     project_id: str,
     *,
     default_branch: str = "main",
+    access_token: str | None = None,
+    forge_kind: str = "github",
+    forge_base_url: str | None = None,
 ) -> ValidationResult:
     """Run all pre-migration validation checks for a project.
 
@@ -226,6 +417,9 @@ def validate_state_branch(
         the state branch name.
     default_branch:
         The project's default code branch.  Default ``"main"``.
+    access_token / forge_kind / forge_base_url:
+        Project forge configuration used for non-interactive authenticated
+        fetch and push checks.
 
     Returns
     -------
@@ -235,6 +429,8 @@ def validate_state_branch(
     repo = Path(repo_path)
     branch_name = f"oompah/state/{project_id}"
     checks: list[ValidationCheck] = []
+    forge_name = forge_display_name(forge_kind)
+    del forge_base_url
 
     # 1 — Default branch is clean
     status = _git(["status", "--porcelain"], cwd=repo)
@@ -262,7 +458,13 @@ def validate_state_branch(
     # 2 — Default branch up-to-date
     has_remote = _has_remote(repo)
     if has_remote:
-        fetch = _git(["fetch", "origin", default_branch], cwd=repo, timeout=30)
+        fetch = _network_git(
+            ["fetch", "origin", default_branch],
+            cwd=repo,
+            access_token=access_token,
+            forge_kind=forge_kind,
+            timeout=30,
+        )
         if fetch.returncode != 0:
             checks.append(ValidationCheck(
                 "default branch up-to-date",
@@ -293,7 +495,22 @@ def validate_state_branch(
 
     # 3 — No conflicting state branch (or existing is recent)
     local_ok = _branch_exists_local(repo, branch_name)
-    remote_ok = has_remote and _branch_exists_remote(repo, branch_name)
+    remote_ok = False
+    if has_remote:
+        remote_ref = _network_git(
+            [
+                "ls-remote",
+                "--exit-code",
+                "--heads",
+                "origin",
+                f"refs/heads/{branch_name}",
+            ],
+            cwd=repo,
+            access_token=access_token,
+            forge_kind=forge_kind,
+            timeout=30,
+        )
+        remote_ok = remote_ref.returncode == 0
     if local_ok or remote_ok:
         checks.append(ValidationCheck(
             "no conflicting state branch",
@@ -306,13 +523,21 @@ def validate_state_branch(
 
     # 4 — Service account can push (dry-run)
     if has_remote:
-        push_target = (
-            f"HEAD:{branch_name}" if (local_ok or remote_ok) else
-            f"HEAD:{branch_name}"
+        push_source = (
+            f"refs/heads/{branch_name}"
+            if local_ok
+            else "HEAD"
         )
-        dry_run = _git(
-            ["push", "--dry-run", "origin", push_target],
+        dry_run = _network_git(
+            [
+                "push",
+                "--dry-run",
+                "origin",
+                f"{push_source}:refs/heads/{branch_name}",
+            ],
             cwd=repo,
+            access_token=access_token,
+            forge_kind=forge_kind,
             timeout=30,
         )
         if dry_run.returncode != 0:
@@ -321,7 +546,8 @@ def validate_state_branch(
                 "service account can push",
                 False,
                 f"git push --dry-run failed: {err}. "
-                "Verify that GITHUB_TOKEN has write access to this repository.",
+                f"Verify that the configured {forge_name} project access token "
+                "has repository write access.",
             ))
         else:
             checks.append(ValidationCheck("service account can push", True))
@@ -400,6 +626,9 @@ def migrate_stage_a(
     *,
     default_branch: str = "main",
     push: bool = True,
+    access_token: str | None = None,
+    forge_kind: str = "github",
+    forge_base_url: str | None = None,
 ) -> MigrationResult:
     """Stage A: Bootstrap the state branch and enable shadow writes.
 
@@ -418,6 +647,10 @@ def migrate_stage_a(
     push:
         Whether to push the state branch to origin.  Set to ``False`` in
         test environments without a remote.
+    access_token / forge_kind / forge_base_url:
+        Project forge configuration used for non-interactive authenticated
+        Git push.  The token is kept in a child-process environment only;
+        it is never embedded in Git arguments, remote URLs, or logs.
 
     After this call succeeds, the caller must update the project config:
     - ``state_branch_enabled = True``
@@ -436,6 +669,9 @@ def migrate_stage_a(
             project_id,
             default_branch=default_branch,
             push=push,
+            access_token=access_token,
+            forge_kind=forge_kind,
+            forge_base_url=forge_base_url,
         )
         if result.error:
             return MigrationResult(
@@ -473,6 +709,9 @@ def migrate_stage_b(
     project_id: str,
     *,
     default_branch: str = "main",
+    access_token: str | None = None,
+    forge_kind: str = "github",
+    forge_base_url: str | None = None,
 ) -> MigrationResult:
     """Stage B: Disable shadow writes; state branch becomes the sole write target.
 
@@ -486,6 +725,8 @@ def migrate_stage_b(
 
     Stage A must have been completed before calling this.
     """
+    del forge_base_url  # Credentials use the askpass flow; base URL not needed here.
+
     repo = Path(repo_path)
     branch_name = f"oompah/state/{project_id}"
     stage = "B"
@@ -506,7 +747,13 @@ def migrate_stage_b(
 
         # Sync from remote to ensure state branch is up-to-date.
         if _has_remote(repo):
-            fetch = _git(["fetch", "origin", branch_name], cwd=repo, timeout=30)
+            fetch = _network_git(
+                ["fetch", "origin", branch_name],
+                cwd=repo,
+                access_token=access_token,
+                forge_kind=forge_kind,
+                timeout=30,
+            )
             if fetch.returncode != 0:
                 logger.warning(
                     "Stage B: fetch of %r failed (non-fatal): %s",
@@ -538,6 +785,9 @@ def migrate_stage_c(
     *,
     default_branch: str = "main",
     push: bool = True,
+    access_token: str | None = None,
+    forge_kind: str = "github",
+    forge_base_url: str | None = None,
 ) -> MigrationResult:
     """Stage C (optional): Remove ``.oompah/tasks/`` from the default branch.
 
@@ -549,6 +799,8 @@ def migrate_stage_c(
     from this point requires restoring from the state branch.
     """
     repo = Path(repo_path)
+    del forge_base_url  # Credentials use the askpass flow; base URL not needed here.
+
     stage = "C"
 
     try:
@@ -575,7 +827,13 @@ def migrate_stage_c(
 
         # Sync from origin before modifying.
         if _has_remote(repo):
-            _git(["fetch", "origin", default_branch], cwd=repo, timeout=30)
+            _network_git(
+                ["fetch", "origin", default_branch],
+                cwd=repo,
+                access_token=access_token,
+                forge_kind=forge_kind,
+                timeout=30,
+            )
             _git(
                 ["merge", "--ff-only", f"origin/{default_branch}"],
                 cwd=repo,
@@ -610,9 +868,11 @@ def migrate_stage_c(
         )
 
         if push and _has_remote(repo):
-            _git_check(
+            _network_git_check(
                 ["push", "origin", f"HEAD:{default_branch}"],
                 cwd=repo,
+                access_token=access_token,
+                forge_kind=forge_kind,
                 timeout=60,
             )
 
@@ -641,6 +901,9 @@ def rollback_migration(
     default_branch: str = "main",
     current_stage: str = "",
     push: bool = True,
+    access_token: str | None = None,
+    forge_kind: str = "github",
+    forge_base_url: str | None = None,
 ) -> MigrationResult:
     """Roll back a state-branch migration to legacy default-branch mode.
 
@@ -665,7 +928,12 @@ def rollback_migration(
         Used to choose the correct recovery path.
     push:
         Whether to push the restored default branch to origin.
+    access_token / forge_kind / forge_base_url:
+        Project forge configuration used for non-interactive authenticated
+        Git push.  The token is kept in a child-process environment only.
     """
+    del forge_base_url  # Credentials use the askpass flow; base URL not needed here.
+
     repo = Path(repo_path)
     branch_name = f"oompah/state/{project_id}"
 
@@ -705,7 +973,13 @@ def rollback_migration(
 
         # 3. Sync default branch from origin.
         if _has_remote(repo):
-            _git(["fetch", "origin", default_branch], cwd=repo, timeout=30)
+            _network_git(
+                ["fetch", "origin", default_branch],
+                cwd=repo,
+                access_token=access_token,
+                forge_kind=forge_kind,
+                timeout=30,
+            )
             ff = _git(
                 ["merge", "--ff-only", f"origin/{default_branch}"],
                 cwd=repo,
@@ -722,7 +996,13 @@ def rollback_migration(
 
         # 4. Also fetch the state branch.
         if _has_remote(repo) and remote_ok:
-            _git(["fetch", "origin", branch_name], cwd=repo, timeout=30)
+            _network_git(
+                ["fetch", "origin", branch_name],
+                cwd=repo,
+                access_token=access_token,
+                forge_kind=forge_kind,
+                timeout=30,
+            )
 
         # 5. Restore .oompah/ from state branch HEAD into the main checkout.
         checkout_result = _git(
@@ -765,9 +1045,11 @@ def rollback_migration(
 
         # 7. Push to origin.
         if push and _has_remote(repo):
-            _git_check(
+            _network_git_check(
                 ["push", "origin", f"HEAD:{default_branch}"],
                 cwd=repo,
+                access_token=access_token,
+                forge_kind=forge_kind,
                 timeout=60,
             )
 

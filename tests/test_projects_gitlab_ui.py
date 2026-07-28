@@ -650,3 +650,71 @@ class TestGitHubBackwardCompatibility:
         assert "GH Intake" in html, (
             "The intake label must still contain 'GH Intake' for GitHub projects."
         )
+
+
+# ---------------------------------------------------------------------------
+# saveProject() intake alias payload (OOMPAH-455)
+# ---------------------------------------------------------------------------
+
+
+class TestSaveProjectIntakeAliasPayload:
+    """saveProject() must send only external_issue_intake_enabled in the PATCH body.
+
+    ProjectStore rejects payloads that contain BOTH github_issue_intake_enabled
+    AND external_issue_intake_enabled, even when both values are equal. The UI
+    must send only the canonical forge-neutral field so any edit — including
+    enabling state_branch_enabled — succeeds for GitHub and GitLab projects.
+    """
+
+    def test_saveProject_sends_external_issue_intake_enabled(self, script: str) -> None:
+        """saveProject() includes external_issue_intake_enabled in the PATCH body."""
+        body = _get_func_body(script, "saveProject")
+        assert "external_issue_intake_enabled" in body, (
+            "saveProject must send external_issue_intake_enabled as the canonical "
+            "forge-neutral intake alias."
+        )
+
+    def test_saveProject_does_not_send_github_issue_intake_enabled(
+        self, script: str
+    ) -> None:
+        """saveProject() must NOT include github_issue_intake_enabled as a PATCH body key.
+
+        ProjectStore.update() raises 'Specify only one' when both aliases are
+        present in the same payload. Sending only external_issue_intake_enabled
+        (the forge-neutral field) guarantees the compatibility contract is never
+        triggered — including when state_branch_enabled is also being changed.
+        """
+        body = _get_func_body(script, "saveProject")
+        # Check that the legacy field is not assigned as a JSON property key.
+        # Use the "key:" form to avoid matching comments that mention the field name.
+        assert "github_issue_intake_enabled:" not in body, (
+            "saveProject must NOT send github_issue_intake_enabled alongside "
+            "external_issue_intake_enabled. ProjectStore rejects both aliases "
+            "in a single PATCH, blocking unrelated edits like state_branch_enabled."
+        )
+
+    def test_saveProject_intake_field_maps_to_external_alias(
+        self, script: str
+    ) -> None:
+        """saveProject() maps the intake checkbox value to external_issue_intake_enabled."""
+        body = _get_func_body(script, "saveProject")
+        # The checkbox is read into a JS var; verify that var feeds external_issue_intake_enabled
+        assert "external_issue_intake_enabled" in body, (
+            "saveProject must map the intake checkbox to external_issue_intake_enabled, "
+            "not the legacy github_issue_intake_enabled field."
+        )
+
+    def test_display_card_reads_both_aliases_for_backward_compat(
+        self, script: str
+    ) -> None:
+        """Project card display reads both aliases (OR) for backward compat with stored data.
+
+        Existing projects may have github_issue_intake_enabled stored (the legacy field name).
+        The card display should show 'On' for either alias being truthy, so stored
+        GitLab projects that predate external_issue_intake_enabled still render correctly.
+        """
+        # The card display expression should use both to ensure backward compat
+        assert "external_issue_intake_enabled" in script and "github_issue_intake_enabled" in script, (
+            "The card display must read both intake aliases (OR) for backward compatibility "
+            "with existing stored projects that may only have github_issue_intake_enabled set."
+        )

@@ -61,6 +61,7 @@ class TestServicesDataclass:
             agent_profile_store=MagicMock(name="agent_profile_store"),
             role_store=MagicMock(name="role_store"),
             webhook_forwarder=MagicMock(name="webhook_forwarder"),
+            gitlab_hook_manager=MagicMock(name="gitlab_hook_manager"),
         )
         assert svc.port == 8080
         assert svc.workflow_path == str(tmp_path / "WORKFLOW.md")

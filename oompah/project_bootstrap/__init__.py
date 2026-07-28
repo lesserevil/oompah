@@ -21,6 +21,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from oompah.agent_instructions import update_agents_text_for_oompah_tasks
+from oompah.git_credentials import (
+    git_credential_environment,
+    redact_git_output,
+)
 from oompah.project_bootstrap.templates import (
     CANONICAL_FILES,
     COMMENT_BEGIN_MARKER,
@@ -182,9 +186,10 @@ def _run_git(
     cwd: str,
     env: dict[str, str] | None = None,
     timeout: int = 30,
+    secrets: tuple[str, ...] = (),
 ) -> subprocess.CompletedProcess[str]:
     """Run a git command; return the CompletedProcess regardless of exit code."""
-    return subprocess.run(
+    result = subprocess.run(
         ["git", *args],
         cwd=cwd,
         capture_output=True,
@@ -192,6 +197,9 @@ def _run_git(
         timeout=timeout,
         env=env,
     )
+    result.stdout = redact_git_output(result.stdout, secrets)
+    result.stderr = redact_git_output(result.stderr, secrets)
+    return result
 
 
 def _git_branch_exists_local(repo_path: str, branch: str) -> bool:
@@ -250,6 +258,9 @@ def initialize_state_branch(
     git_user_name: str | None = None,
     git_user_email: str | None = None,
     push: bool = False,
+    access_token: str | None = None,
+    forge_kind: str = "github",
+    forge_base_url: str | None = None,
 ) -> StateBranchBootstrapResult:
     """Create and seed the state branch for *project_id* inside *repo_path*.
 
@@ -282,6 +293,12 @@ def initialize_state_branch(
         When ``True``, push the new state branch to ``origin`` after the
         bootstrap commit.  Defaults to ``False`` to keep the function safe in
         unit tests that run without a remote.
+    access_token / forge_kind / forge_base_url:
+        Project forge configuration used for authenticated network Git
+        operations.  The token is passed only through an ephemeral askpass
+        child environment; it is never added to Git arguments, remote URLs, or
+        repository configuration.  ``forge_base_url`` is accepted with the
+        project credential context for self-managed forge callers.
 
     Returns
     -------
@@ -314,14 +331,78 @@ def initialize_state_branch(
     def _git(args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess[str]:
         return _run_git(args, cwd=repo_str, env=env, timeout=timeout)
 
+    def _git_network(
+        args: list[str],
+        *,
+        timeout: int = 30,
+    ) -> subprocess.CompletedProcess[str]:
+        with git_credential_environment(
+            forge_kind=forge_kind,
+            access_token=access_token,
+            base_env=env,
+        ) as credential_env:
+            return _run_git(
+                args,
+                cwd=repo_str,
+                env=credential_env,
+                timeout=timeout,
+                secrets=(str(access_token or ""),),
+            )
+
     # ------------------------------------------------------------------
     # Step 1: Idempotency — check whether the branch already exists.
     # ------------------------------------------------------------------
     local_exists = _git_branch_exists_local(repo_str, branch_name)
-    remote_exists = _git_branch_exists_remote(repo_str, branch_name)
+    remote_exists_r = _git_network(
+        [
+            "ls-remote",
+            "--exit-code",
+            "--heads",
+            "origin",
+            f"refs/heads/{branch_name}",
+        ]
+    )
+    remote_exists = remote_exists_r.returncode == 0
 
     if local_exists or remote_exists:
         result.already_existed = True
+        if remote_exists and not local_exists:
+            fetch_r = _git_network(
+                [
+                    "fetch",
+                    "origin",
+                    f"refs/heads/{branch_name}:refs/heads/{branch_name}",
+                ],
+                timeout=60,
+            )
+            if fetch_r.returncode != 0:
+                result.error = (
+                    f"git fetch of existing state branch failed: "
+                    f"{fetch_r.stderr.strip()[:300]}"
+                )
+                return result
+            local_exists = True
+
+        sha_r = _git(["rev-parse", f"refs/heads/{branch_name}"])
+        if sha_r.returncode == 0:
+            result.commit_sha = sha_r.stdout.strip()
+
+        # A previous push may have failed after creating the local orphan
+        # branch.  Retrying activation must push that exact local branch
+        # instead of treating local existence as completed migration.
+        if push and local_exists and not remote_exists:
+            push_r = _git_network(
+                [
+                    "push",
+                    "origin",
+                    f"refs/heads/{branch_name}:refs/heads/{branch_name}",
+                ],
+                timeout=60,
+            )
+            if push_r.returncode != 0:
+                result.error = f"git push failed: {push_r.stderr.strip()[:300]}"
+                return result
+            result.pushed = True
         return result
 
     # ------------------------------------------------------------------
@@ -426,7 +507,14 @@ def initialize_state_branch(
     # Step 6: Optionally push to origin.
     # ------------------------------------------------------------------
     if push:
-        push_r = _git(["push", "origin", branch_name], timeout=60)
+        push_r = _git_network(
+            [
+                "push",
+                "origin",
+                f"refs/heads/{branch_name}:refs/heads/{branch_name}",
+            ],
+            timeout=60,
+        )
         if push_r.returncode != 0:
             # Return to original branch before surfacing the error.
             _git(["checkout", original_branch])
@@ -456,6 +544,9 @@ def ensure_state_branch_initialized(
     git_user_name: str | None = None,
     git_user_email: str | None = None,
     push: bool = False,
+    access_token: str | None = None,
+    forge_kind: str = "github",
+    forge_base_url: str | None = None,
 ) -> StateBranchBootstrapResult:
     """Idempotently ensure the state branch is initialised.
 
@@ -471,6 +562,9 @@ def ensure_state_branch_initialized(
         git_user_name=git_user_name,
         git_user_email=git_user_email,
         push=push,
+        access_token=access_token,
+        forge_kind=forge_kind,
+        forge_base_url=forge_base_url,
     )
     if result.error:
         raise RuntimeError(result.error)

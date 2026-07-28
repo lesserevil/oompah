@@ -292,7 +292,9 @@ async def _service_lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         services.orchestrator,
         services.webhook_forwarder,
     )
+    set_gitlab_hook_manager(services.gitlab_hook_manager)
     await services.webhook_forwarder.start()
+    await services.gitlab_hook_manager.start()
 
     # Workflow file watcher task.
     async def _watch_workflow() -> None:
@@ -375,6 +377,7 @@ async def _service_lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         else:
             await services.orchestrator.stop()
         await services.webhook_forwarder.stop()
+        await services.gitlab_hook_manager.stop()
         supervise_task.cancel()
         watch_task.cancel()
         try:
@@ -487,6 +490,12 @@ _error_watcher: ErrorWatcher | None = None
 # Project log watcher manager — watches log files for all projects
 _log_watcher_manager: ProjectLogWatcherManager | None = None
 
+# GitLab hook manager — reconciles managed GitLab Project Hooks
+_gitlab_hook_manager: Any = None
+
+# GitLab event dedup cache — filters duplicate webhook deliveries/retries
+_gitlab_event_dedup: Any = None
+
 # Connected WebSocket clients
 _ws_clients: set[WebSocket] = set()
 
@@ -496,6 +505,13 @@ _ws_clients: set[WebSocket] = set()
 _console_manager: Any = None
 
 _NATIVE_TASK_IDENTIFIER_RE = re.compile(r"^TASK-(\d+(?:\.\d+)*)$", re.IGNORECASE)
+
+
+def _is_gitlab_project(project: Any) -> bool:
+    """Return True if the project is backed by a GitLab repository."""
+    forge_kind = str(getattr(project, "forge_kind", "") or "").lower()
+    repo_url = str(getattr(project, "repo_url", "") or "").lower()
+    return forge_kind == "gitlab" or "gitlab" in repo_url
 
 
 def _project_names_by_id(orch) -> dict[str, str]:
@@ -717,6 +733,23 @@ def _get_orchestrator() -> Orchestrator:
     if _orchestrator is None:
         raise RuntimeError("Orchestrator not initialized")
     return _orchestrator
+
+
+def set_gitlab_hook_manager(manager: Any) -> None:
+    """Register the :class:`~oompah.webhooks.GitLabHookManager` for API wiring.
+
+    Must be called after :func:`set_orchestrator` during startup so that
+    :func:`api_create_project`, :func:`api_update_project`, and
+    :func:`api_delete_project` can call :meth:`reconcile` / :meth:`remove`
+    on dynamic project changes.
+
+    Also initialises the per-process :class:`~oompah.webhooks.GitLabEventDedup`
+    cache used to suppress duplicate webhook deliveries.
+    """
+    global _gitlab_hook_manager, _gitlab_event_dedup
+    from oompah.webhooks import GitLabEventDedup
+    _gitlab_hook_manager = manager
+    _gitlab_event_dedup = GitLabEventDedup()
 
 
 def remove_draft_labels_from_epics(tracker) -> int:
@@ -944,6 +977,19 @@ def _cached_state_snapshot_or_unavailable() -> dict[str, Any]:
 # Shared response cache for API endpoints
 _api_cache = TTLCache()
 
+
+# Fields on a Project that, when changed, require GitLab hook reconciliation.
+# Covers: forge identity (forge_kind, repo_url, forge_base_url), credentials
+# (access_token), and the hook secret (webhook_secret).
+_GITLAB_HOOK_RECONCILE_FIELDS = frozenset(
+    {
+        "forge_kind",
+        "repo_url",
+        "forge_base_url",
+        "access_token",
+        "webhook_secret",
+    }
+)
 
 _PROJECT_TRACKER_CACHE_FIELDS = frozenset(
     {
@@ -10174,7 +10220,11 @@ async def api_create_project(request: Request):
             if isinstance(status_actor_raw, str) and status_actor_raw.strip()
             else None
         )
-        if status_actor_login is None and access_token:
+        if (
+            status_actor_login is None
+            and access_token
+            and forge_kind.strip().lower() == "github"
+        ):
             status_actor_login = _resolve_github_token_owner(access_token)
         status_label_authorized_logins_raw = body.get("status_label_authorized_logins")
         status_label_authorized_logins: list[str] = []
@@ -10243,6 +10293,9 @@ async def api_create_project(request: Request):
         # Sync log watchers in case the new project has a log_path
         if _log_watcher_manager:
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
+        # Reconcile GitLab hooks when a new GitLab project is added.
+        if _gitlab_hook_manager is not None and _is_gitlab_project(project):
+            await _gitlab_hook_manager.reconcile()
         _ensure_tracker_agent_instructions_for_project(project)
         return JSONResponse(project.to_safe_dict(), status_code=201)
     except ProjectError as exc:
@@ -10321,6 +10374,14 @@ async def api_update_project(project_id: str, request: Request):
         ):
             if key in body:
                 fields[key] = body[key]
+        effective_forge_kind = fields.get(
+            "forge_kind",
+            getattr(existing_project, "forge_kind", "github"),
+        )
+        resolve_github_identity = (
+            isinstance(effective_forge_kind, str)
+            and effective_forge_kind.strip().lower() == "github"
+        )
         # The forge-neutral name is preferred when a new client sends it;
         # ProjectStore maps it back to the persisted legacy field name.
         if "external_issue_intake_enabled" in body:
@@ -10474,8 +10535,10 @@ async def api_update_project(project_id: str, request: Request):
                     if "access_token" in fields
                     else getattr(existing_project, "access_token", None)
                 )
-                fields["status_actor_login"] = _resolve_github_token_owner(
-                    token_for_actor
+                fields["status_actor_login"] = (
+                    _resolve_github_token_owner(token_for_actor)
+                    if resolve_github_identity
+                    else None
                 )
             elif isinstance(val, str):
                 fields["status_actor_login"] = val
@@ -10534,21 +10597,25 @@ async def api_update_project(project_id: str, request: Request):
                     },
                     status_code=400,
                 )
-        # State-branch configuration (OOMPAH-255).
+        # State-branch activation is an operational migration, not a plain
+        # configuration edit.  Reject it here so stale or crafted clients
+        # cannot enable reads before the remote branch has been bootstrapped
+        # and verified (OOMPAH-456).  Internal migration code still updates
+        # the ProjectStore directly after its checks succeed.
         if "state_branch_enabled" in body:
-            val = body["state_branch_enabled"]
-            if isinstance(val, bool):
-                fields["state_branch_enabled"] = val
-            else:
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "validation",
-                            "message": "state_branch_enabled must be a boolean",
-                        }
-                    },
-                    status_code=400,
-                )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": (
+                            "state_branch_enabled cannot be changed through the "
+                            "project PATCH endpoint; use the state-branch migration "
+                            "endpoint"
+                        ),
+                    }
+                },
+                status_code=400,
+            )
         for key in (
             "state_branch_checkpoint_debounce_ms",
             "state_branch_checkpoint_max_delay_ms",
@@ -10584,6 +10651,7 @@ async def api_update_project(project_id: str, request: Request):
             and "status_actor_login" not in fields
             and isinstance(fields["access_token"], str)
             and fields["access_token"].strip()
+            and resolve_github_identity
         ):
             fields["status_actor_login"] = _resolve_github_token_owner(
                 fields["access_token"]
@@ -10605,6 +10673,14 @@ async def api_update_project(project_id: str, request: Request):
         # Sync log watchers when project settings change (log_path may have been added/changed/removed)
         if _log_watcher_manager:
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
+        # Reconcile GitLab hooks when hook-relevant fields are updated (e.g.
+        # access_token, webhook_secret, forge_kind, repo_url, forge_base_url).
+        if (
+            _gitlab_hook_manager is not None
+            and set(fields) & _GITLAB_HOOK_RECONCILE_FIELDS
+            and _is_gitlab_project(project)
+        ):
+            await _gitlab_hook_manager.reconcile()
         _ensure_tracker_agent_instructions_for_project(project)
         return JSONResponse(project.to_safe_dict())
     except ProjectError as exc:
@@ -10624,6 +10700,11 @@ async def api_update_project(project_id: str, request: Request):
 async def api_delete_project(project_id: str):
     """Delete a project."""
     orch = _get_orchestrator()
+    # Fetch before deletion so we can remove the managed GitLab hook while we
+    # still have the project's credentials and repo URL.
+    project_to_delete = orch.project_store.get(project_id)
+    if _gitlab_hook_manager is not None and project_to_delete and _is_gitlab_project(project_to_delete):
+        await _gitlab_hook_manager.remove(project_to_delete)
     if orch.project_store.delete(project_id):
         # Stop any log file watcher for this project
         if _log_watcher_manager:
@@ -10761,6 +10842,7 @@ async def api_state_branch_migrate(project_id: str, request: Request):
     """
     try:
         from oompah.state_branch_migration import (
+            MigrationResult,
             migrate_stage_a,
             migrate_stage_b,
             migrate_stage_c,
@@ -10785,8 +10867,20 @@ async def api_state_branch_migrate(project_id: str, request: Request):
             body = {}
 
         action = str(body.get("action") or "").upper()
-        dry_run = bool(body.get("dry_run", False))
-        confirm = bool(body.get("confirm", False))
+        raw_dry_run = body.get("dry_run", False)
+        raw_confirm = body.get("confirm", False)
+        if not isinstance(raw_dry_run, bool) or not isinstance(raw_confirm, bool):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "dry_run and confirm must be booleans",
+                    }
+                },
+                status_code=400,
+            )
+        dry_run = raw_dry_run
+        confirm = raw_confirm
 
         # If neither confirm nor dry_run, treat as dry_run for safety.
         if not confirm and not dry_run:
@@ -10846,99 +10940,194 @@ async def api_state_branch_migrate(project_id: str, request: Request):
                 }
             )
 
-        # Serialize migration against other concurrent tracker writes.
-        current_stage = getattr(project, "state_branch_migration_stage", "") or ""
+        # Serialize migration against other concurrent tracker writes using the
+        # per-project write lock.  All blocking git work is dispatched to a
+        # thread pool via asyncio.to_thread so the async event loop stays
+        # responsive during push/fetch/verify operations.
+        from oompah.state_branch_migration import verify_state_branch
 
-        if action == "A":
-            # Check idempotency.
-            if current_stage == "A":
-                return JSONResponse(
-                    {
-                        "stage": "A",
-                        "ok": True,
-                        "already_done": True,
-                        "message": "Project is already at Stage A (shadow writes active).",
-                        "error": "",
-                    }
-                )
-            result = migrate_stage_a(
-                repo_path,
-                project.id,
-                default_branch=default_branch,
-                push=True,
-            )
-            if result.ok:
-                # Invalidate tracker cache so new instances pick up config changes.
-                _invalidate_project_tracker_cache(orch, project_id)
-                orch.project_store.update(
-                    project_id,
-                    state_branch_enabled=True,
-                    state_branch_shadow_write=True,
-                    state_branch_migration_stage="A",
-                )
+        forge_kind = project.forge_kind or "github"
+        forge_base_url = project.forge_base_url or None
+        access_token = project.access_token or None
 
-        elif action == "B":
-            if current_stage not in ("A", "B"):
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "validation",
-                            "message": (
-                                f"Stage B requires Stage A to be completed first. "
-                                f"Current stage: {current_stage!r}"
-                            ),
-                        }
-                    },
-                    status_code=400,
-                )
-            if current_stage == "B":
-                return JSONResponse(
-                    {
-                        "stage": "B",
-                        "ok": True,
-                        "already_done": True,
-                        "message": "Project is already at Stage B (state-branch only).",
-                        "error": "",
-                    }
-                )
-            result = migrate_stage_b(
-                repo_path,
-                project.id,
-                default_branch=default_branch,
-            )
-            if result.ok:
-                _invalidate_project_tracker_cache(orch, project_id)
-                orch.project_store.update(
-                    project_id,
-                    state_branch_shadow_write=False,
-                    state_branch_migration_stage="B",
-                )
+        lock = orch.project_store.project_write_lock(project_id)
 
-        elif action == "C":
-            result = migrate_stage_c(
-                repo_path,
-                project.id,
-                default_branch=default_branch,
-                push=True,
-            )
-            # Stage C does not change project config.
+        def _run_migration() -> "tuple[MigrationResult | None, JSONResponse | None]":
+            """Blocking migration body executed in a thread-pool thread."""
+            with lock:
+                current_stage = getattr(project, "state_branch_migration_stage", "") or ""
 
-        elif action == "ROLLBACK":
-            result = rollback_migration(
-                repo_path,
-                project.id,
-                default_branch=default_branch,
-                current_stage=current_stage,
-                push=True,
-            )
-            if result.ok:
-                _invalidate_project_tracker_cache(orch, project_id)
-                orch.project_store.update(
-                    project_id,
-                    state_branch_enabled=False,
-                    state_branch_shadow_write=False,
-                    state_branch_migration_stage="",
-                )
+                if action == "A":
+                    if current_stage not in ("", "A"):
+                        return None, JSONResponse(
+                            {
+                                "error": {
+                                    "code": "validation",
+                                    "message": (
+                                        "Stage A can only start an unmigrated project; "
+                                        f"current stage is {current_stage!r}"
+                                    ),
+                                }
+                            },
+                            status_code=400,
+                        )
+                    # Check idempotency.
+                    if current_stage == "A":
+                        return None, JSONResponse(
+                            {
+                                "stage": "A",
+                                "ok": True,
+                                "already_done": True,
+                                "message": "Project is already at Stage A (shadow writes active).",
+                                "error": "",
+                            }
+                        )
+                    result = migrate_stage_a(
+                        repo_path,
+                        project.id,
+                        default_branch=default_branch,
+                        push=True,
+                        access_token=access_token,
+                        forge_kind=forge_kind,
+                        forge_base_url=forge_base_url,
+                    )
+                    if result.ok:
+                        # Independently verify the remote state-branch ref and
+                        # canonical task layout before enabling state tracking.
+                        # This ensures a failed push cannot leave the project
+                        # enabled — state_branch_enabled stays False until the
+                        # remote branch is confirmed.
+                        v = verify_state_branch(
+                            repo_path,
+                            project.id,
+                            require_remote=True,
+                            access_token=access_token,
+                            forge_kind=forge_kind,
+                            forge_base_url=forge_base_url,
+                        )
+                        if not v.ok:
+                            result = MigrationResult(
+                                stage="A",
+                                ok=False,
+                                error=(
+                                    "State branch was created but remote verification "
+                                    f"failed — state_branch_enabled left False: {v.error}"
+                                ),
+                            )
+                        else:
+                            # Config update happens last, under the lock,
+                            # only after remote verification succeeds.
+                            _invalidate_project_tracker_cache(orch, project_id)
+                            orch.project_store.update(
+                                project_id,
+                                state_branch_enabled=True,
+                                state_branch_shadow_write=True,
+                                state_branch_migration_stage="A",
+                            )
+
+                elif action == "B":
+                    if current_stage not in ("A", "B"):
+                        return None, JSONResponse(
+                            {
+                                "error": {
+                                    "code": "validation",
+                                    "message": (
+                                        f"Stage B requires Stage A to be completed first. "
+                                        f"Current stage: {current_stage!r}"
+                                    ),
+                                }
+                            },
+                            status_code=400,
+                        )
+                    if current_stage == "B":
+                        return None, JSONResponse(
+                            {
+                                "stage": "B",
+                                "ok": True,
+                                "already_done": True,
+                                "message": "Project is already at Stage B (state-branch only).",
+                                "error": "",
+                            }
+                        )
+                    result = migrate_stage_b(
+                        repo_path,
+                        project.id,
+                        default_branch=default_branch,
+                        access_token=access_token,
+                        forge_kind=forge_kind,
+                        forge_base_url=forge_base_url,
+                    )
+                    if result.ok:
+                        _invalidate_project_tracker_cache(orch, project_id)
+                        orch.project_store.update(
+                            project_id,
+                            state_branch_shadow_write=False,
+                            state_branch_migration_stage="B",
+                        )
+
+                elif action == "C":
+                    if current_stage != "B":
+                        return None, JSONResponse(
+                            {
+                                "error": {
+                                    "code": "validation",
+                                    "message": (
+                                        "Stage C requires Stage B to be completed first; "
+                                        f"current stage is {current_stage!r}"
+                                    ),
+                                }
+                            },
+                            status_code=400,
+                        )
+                    result = migrate_stage_c(
+                        repo_path,
+                        project.id,
+                        default_branch=default_branch,
+                        push=True,
+                        access_token=access_token,
+                        forge_kind=forge_kind,
+                        forge_base_url=forge_base_url,
+                    )
+                    # Stage C does not change project config.
+
+                elif action == "ROLLBACK":
+                    if current_stage not in ("A", "B"):
+                        return None, JSONResponse(
+                            {
+                                "error": {
+                                    "code": "validation",
+                                    "message": (
+                                        "Rollback requires an active Stage A or Stage B "
+                                        f"migration; current stage is {current_stage!r}"
+                                    ),
+                                }
+                            },
+                            status_code=400,
+                        )
+                    result = rollback_migration(
+                        repo_path,
+                        project.id,
+                        default_branch=default_branch,
+                        current_stage=current_stage,
+                        push=True,
+                        access_token=access_token,
+                        forge_kind=forge_kind,
+                        forge_base_url=forge_base_url,
+                    )
+                    if result.ok:
+                        _invalidate_project_tracker_cache(orch, project_id)
+                        orch.project_store.update(
+                            project_id,
+                            state_branch_enabled=False,
+                            state_branch_shadow_write=False,
+                            state_branch_migration_stage="",
+                        )
+
+                return result, None
+
+        result, early_response = await asyncio.to_thread(_run_migration)
+        if early_response is not None:
+            return early_response
 
         if result.ok:
             return JSONResponse(result.to_dict())
@@ -11082,6 +11271,16 @@ async def api_state_branch_sync_check(project_id: str):
 
 def _is_github_tracker_kind(kind: str | None) -> bool:
     return (kind or "").strip().lower() in {"github_issues", "github-issues"}
+
+
+def _is_status_label_governed_tracker_kind(kind: str | None) -> bool:
+    """Return whether a forge tracker supports status-label authorization."""
+    return (kind or "").strip().lower() in {
+        "github_issues",
+        "github-issues",
+        "gitlab_issues",
+        "gitlab-issues",
+    }
 
 
 def _has_github_issue_template_capability(project: object) -> bool:
@@ -12292,13 +12491,14 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         # PR / MR / merge-queue events affect the review board and may close issues.
         _api_cache.invalidate("reviews:all")
         _api_cache.invalidate("issues:all")
-    elif event.event_type == "issues":
+    elif event.event_type in ("issues", "Issue Hook"):
         # Issue state or metadata changed; drop the per-issue detail as well.
+        # Covers GitHub ("issues") and GitLab ("Issue Hook") event types.
         _api_cache.invalidate("issues:all")
         if _project_id and event.issue_number:
             _api_cache.invalidate_prefix(f"detail:{_project_id}:{event.issue_number}")
-    elif event.event_type == "issue_comment":
-        # A comment was created, edited, or deleted on an issue.
+    elif event.event_type in ("issue_comment", "Note Hook"):
+        # A comment was created, edited, or deleted on an issue (GitHub or GitLab).
         _api_cache.invalidate("issues:all")
         if _project_id and event.issue_number:
             _api_cache.invalidate(f"comments:{_project_id}:{event.issue_number}")
@@ -12308,14 +12508,16 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         # We cannot cheaply map project_item_id → issue_number here, so we
         # drop the full issue-list cache and let the next fetch rebuild it.
         _api_cache.invalidate("issues:all")
-    # label events (repository-level label definitions) and push events do
-    # not directly change cached task data; push state is refreshed via the
-    # source-sync thread when the tracked branch advances.
+    # label events (repository-level label definitions), push events,
+    # Pipeline Hook, and Job Hook events do not directly change cached task
+    # data; push state is refreshed via the source-sync thread when the
+    # tracked branch advances.
 
     # Invalidate the release-branch catalog cache when a push event arrives
     # for a tracked branch (e.g. a new release/x.y branch was created or
     # updated on origin).  Best-effort — never block the webhook response.
-    if _project_id and event.event_type == "push" and project:
+    # Covers both GitHub ("push") and GitLab ("Push Hook") event types.
+    if _project_id and event.event_type in ("push", "Push Hook") and project:
         try:
             invalidate_release_branch_catalog(_project_id)
         except Exception:  # pragma: no cover — defensive
@@ -12335,7 +12537,11 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     # this clears the ETag store so the next fetch re-validates against the
     # live API, rebuilding the branch-to-issue index.  Best-effort: any
     # failure is swallowed so it never blocks the webhook response path.
-    if project and event.event_type in ("issues", "pull_request", "Merge Request Hook", "push"):
+    if project and event.event_type in (
+        "issues", "Issue Hook",
+        "pull_request", "Merge Request Hook",
+        "push", "Push Hook",
+    ):
         try:
             tracker = orch._tracker_for_project(project.id)
             inval = getattr(tracker, "invalidate_read_cache", None)
@@ -12434,7 +12640,9 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         and event.label_name
         and event.label_actor
         and project
-        and _is_github_tracker_kind(getattr(project, "tracker_kind", None))
+        and _is_status_label_governed_tracker_kind(
+            getattr(project, "tracker_kind", None)
+        )
     ):
         from oompah.label_auth import is_status_label, is_authorized_status_actor
 
@@ -12530,7 +12738,7 @@ def _is_oompah_owned_label_event(orch, event, project) -> bool:
 
 
 def _status_before_label_event(tracker, event, to_status: str) -> str | None:
-    """Best-effort previous status for a GitHub ``issues.labeled`` event."""
+    """Best-effort previous status for a forge ``issues.labeled`` event."""
 
     try:
         number = int(event.issue_number)
@@ -12545,11 +12753,24 @@ def _status_before_label_event(tracker, event, to_status: str) -> str | None:
 
     from oompah.label_auth import label_name_to_status
 
-    raw_issue = (getattr(event, "raw", {}) or {}).get("issue") or {}
+    raw_event = getattr(event, "raw", {}) or {}
+    raw_issue = raw_event.get("issue") or {}
     labels = raw_issue.get("labels") or []
+    # GitLab Issue Hooks put the pre-change labels under
+    # ``changes.labels.previous`` rather than an ``issue`` object.  Reading
+    # them here preserves the same proposed/backlog transition gates that
+    # GitHub applies to label events.
+    if not labels and getattr(event, "provider", "") == "gitlab":
+        labels = ((raw_event.get("changes") or {}).get("labels") or {}).get(
+            "previous", []
+        )
     if isinstance(labels, list):
         for item in labels:
-            name = item.get("name") if isinstance(item, dict) else str(item)
+            name = (
+                (item.get("name") or item.get("title"))
+                if isinstance(item, dict)
+                else str(item)
+            )
             status = label_name_to_status(name or "")
             if status and _state_key(status) != _state_key(to_status):
                 return canonicalize_status(status)
@@ -12965,6 +13186,18 @@ def _revert_unauthorized_status_label_change(orch, event, project) -> None:
         )
         return
 
+    # Preserve the last trusted state before marking the issue untrusted.
+    # ``record_untrusted_status_label_change`` intentionally clears its
+    # ledger entry so polling cannot dispatch the issue while it is under
+    # review.  The saved value is what makes a successful label replacement
+    # an actual rollback rather than merely removing the unauthorized label.
+    try:
+        previous_trusted_status = getattr(tracker, "_trusted_status_ledger", {}).get(
+            int(issue_number)
+        )
+    except (TypeError, ValueError):
+        previous_trusted_status = None
+
     # Record this unauthorized attempt in the tracker's trusted-status ledger
     # so polling validation is aware.
     record_untrusted = getattr(tracker, "record_untrusted_status_label_change", None)
@@ -12976,7 +13209,13 @@ def _revert_unauthorized_status_label_change(orch, event, project) -> None:
     # previous status — but we don't know the previous status from the webhook
     # alone, so we fetch the issue to determine the current state and reconcile.
     try:
-        _do_revert_status_label(tracker, issue_number, label_name, action)
+        _do_revert_status_label(
+            tracker,
+            issue_number,
+            label_name,
+            action,
+            previous_trusted_status=previous_trusted_status,
+        )
     except Exception as exc:
         logger.error(
             "Failed to revert unauthorized label change on %s#%s: %s",
@@ -13063,7 +13302,14 @@ def _remove_status_label_from_tracker(tracker, number: int, label_name: str) -> 
     remove_label(identifier, label_name)
 
 
-def _do_revert_status_label(tracker, issue_number: str, label_name: str, action: str) -> None:
+def _do_revert_status_label(
+    tracker,
+    issue_number: str,
+    label_name: str,
+    action: str,
+    *,
+    previous_trusted_status: str | None = None,
+) -> None:
     """Perform the actual label revert on the GitHub issue.
 
     For ``labeled`` actions (actor applied label): remove the unauthorized label.
@@ -13090,9 +13336,13 @@ def _do_revert_status_label(tracker, issue_number: str, label_name: str, action:
         # labels.  Use _set_status_label to atomically swap back.
         set_status = getattr(tracker, "_set_status_label", None)
         if callable(set_status):
-            # Try to find a valid previous status via the ledger.
-            ledger = getattr(tracker, "_trusted_status_ledger", {})
-            prev_status = ledger.get(num)
+            # Use the state captured before the issue was marked untrusted.
+            # Fall back to a live ledger lookup for direct callers that do
+            # not use the webhook guard.
+            prev_status = previous_trusted_status
+            if not prev_status:
+                ledger = getattr(tracker, "_trusted_status_ledger", {})
+                prev_status = ledger.get(num)
             if prev_status:
                 # Restore to last known-good status.
                 set_status(num, prev_status)
@@ -13121,18 +13371,23 @@ def _do_revert_status_label(tracker, issue_number: str, label_name: str, action:
 def _webhook_advanced_tracked_branch(event, project) -> bool:
     """True when the webhook indicates any of the project's tracked branches advanced on origin.
 
-    Three cases:
-      * ``push`` events on any tracked branch (target_branch matches a branch pattern).
+    Four cases:
+      * ``push`` / ``Push Hook`` events on any tracked branch
+        (target_branch matches a branch pattern).
       * ``pull_request`` events with ``merged=True`` whose base branch is
         a tracked branch.
       * ``merge_group`` events with ``merged=True`` (queue dequeued
         successfully), whose target_branch is a tracked branch.
+      * ``Merge Request Hook`` events with ``merged=True`` whose
+        target_branch is a tracked branch (GitLab equivalent of PR merged).
     """
-    if event.event_type == "push":
+    if event.event_type in ("push", "Push Hook"):
         return project.matches_branch(event.target_branch)
     if event.event_type == "pull_request" and event.merged:
         return project.matches_branch(event.target_branch)
     if event.event_type == "merge_group" and event.merged:
+        return project.matches_branch(event.target_branch)
+    if event.event_type == "Merge Request Hook" and event.merged:
         return project.matches_branch(event.target_branch)
     return False
 
@@ -13141,6 +13396,7 @@ def _webhook_advanced_tracked_branch(event, project) -> bool:
 # lifecycle state.
 _DISPATCH_AFFECTING_ISSUE_ACTIONS: frozenset[str] = frozenset(
     {
+        # GitHub action names
         "opened",
         "closed",
         "reopened",
@@ -13150,6 +13406,12 @@ _DISPATCH_AFFECTING_ISSUE_ACTIONS: frozenset[str] = frozenset(
         "unassigned",
         "transferred",
         "deleted",
+        # GitLab action names (Issue Hook)
+        "open",
+        "close",
+        "reopen",
+        "update",
+        "delete",
     }
 )
 
@@ -13180,14 +13442,15 @@ def _webhook_should_request_refresh(event: "WebhookEvent", project) -> bool:
     if event.event_type in ("pull_request", "merge_group", "Merge Request Hook"):
         return True
     # Comment events may contain orchestrator directives or status updates
-    # that agents post as structured comments.
-    if event.event_type == "issue_comment":
+    # that agents post as structured comments (GitHub and GitLab).
+    if event.event_type in ("issue_comment", "Note Hook"):
         return True
     # Issue events warrant a refresh only for actions that change dispatch
     # eligibility: opened/closed/reopened change the task life-cycle;
     # labeled/unlabeled and assigned/unassigned may gate routing;
     # transferred/deleted remove the task from consideration.
-    if event.event_type == "issues" and event.action in _DISPATCH_AFFECTING_ISSUE_ACTIONS:
+    # Covers both GitHub ("issues") and GitLab ("Issue Hook") event types.
+    if event.event_type in ("issues", "Issue Hook") and event.action in _DISPATCH_AFFECTING_ISSUE_ACTIONS:
         return True
     # Project-field events may update the Oompah Status field which drives
     # task dispatch.  Restrict to the actions that actually change item state.
@@ -13195,13 +13458,15 @@ def _webhook_should_request_refresh(event: "WebhookEvent", project) -> bool:
         return True
     # A push to one of the project's tracked branches means new commits landed
     # and the orchestrator should scan for newly-deferred or un-deferred tasks.
-    if event.event_type == "push" and project and _webhook_advanced_tracked_branch(event, project):
+    # Covers both GitHub ("push") and GitLab ("Push Hook") event types.
+    if event.event_type in ("push", "Push Hook") and project and _webhook_advanced_tracked_branch(event, project):
         return True
     # All other events are not dispatch-relevant:
     # - repository-level label changes (label created/edited/deleted)
     # - push to non-tracked branches
     # - unrecognised projects_v2_item actions (e.g. reordered, archived)
     # - issues with non-status actions (e.g. locked, unlocked, pinned)
+    # - GitLab Pipeline Hook and Job Hook events
     return False
 
 
@@ -13572,10 +13837,37 @@ async def api_webhook_github(request: Request):
         )
 
 
+@app.get("/api/v1/webhooks/gitlab/status")
+async def api_gitlab_webhook_status():
+    """Return GitLab hook health for all managed projects.
+
+    When ``GitLabHookManager`` is not initialised (e.g. the server was
+    started without :func:`~oompah.server.set_gitlab_hook_manager` being
+    called), returns a minimal ``{"running": false}`` response so callers
+    can distinguish *not configured* from *no projects*.
+
+    Returns a JSON object with the following fields:
+
+    * ``running`` — whether the manager's background loop is active.
+    * ``configured`` — whether ``OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL`` is set
+      and valid.
+    * ``detail`` — human-readable configuration error, or ``""`` on success.
+    * ``webhook_url`` — the URL registered as the GitLab hook target.
+    * ``projects`` — per-project health map keyed by project ID.  Each
+      entry has ``name``, ``hook_id``, ``configured``, ``healthy``, and
+      ``last_error``.
+    """
+    if _gitlab_hook_manager is None:
+        return JSONResponse({"running": False, "configured": False, "detail": "GitLab hook manager not initialised", "webhook_url": "", "projects": {}})
+    return JSONResponse(_gitlab_hook_manager.status)
+
+
 @app.post("/api/v1/webhooks/gitlab")
 async def api_webhook_gitlab(request: Request):
-    """Receive GitLab webhook events (Merge Request Hook, etc.).
+    """Receive GitLab webhook events.
 
+    Handles ``Merge Request Hook``, ``Push Hook``, ``Issue Hook``,
+    ``Note Hook``, ``Pipeline Hook``, and ``Job Hook`` event types.
     Validates the ``X-Gitlab-Token`` header against the matched project's
     ``webhook_secret``. GitLab project hooks are public HTTPS endpoints, so a
     matched GitLab project without a configured secret is rejected rather than
@@ -13607,6 +13899,36 @@ async def api_webhook_gitlab(request: Request):
             return JSONResponse(
                 {"ok": True, "action": "ignored", "event_type": event_type}
             )
+
+        # Deduplicate events.  GitLab retries webhook delivery on transient
+        # failures; when both a retry and the polling fallback deliver the same
+        # logical event we should process it only once.  The X-Gitlab-Event-UUID
+        # header (present on GitLab ≥15.x) is the most precise key; older
+        # instances fall back to a fingerprint of the logical event identity.
+        if _gitlab_event_dedup is not None:
+            event_uuid = request.headers.get("X-Gitlab-Event-UUID") or None
+            if _gitlab_event_dedup.is_duplicate(
+                event_uuid=event_uuid,
+                event_type=event_type,
+                repo_slug=event.repo_slug,
+                review_id=event.review_id,
+                action=event.action,
+                issue_number=event.issue_number,
+            ):
+                logger.debug(
+                    "GitLab webhook deduplicated: %s %s #%s action=%s",
+                    event_type,
+                    event.repo_slug,
+                    event.review_id,
+                    event.action,
+                )
+                return JSONResponse(
+                    {
+                        "ok": True,
+                        "action": "deduplicated",
+                        "event_type": event_type,
+                    }
+                )
 
         # Find matching project
         orch = _get_orchestrator()

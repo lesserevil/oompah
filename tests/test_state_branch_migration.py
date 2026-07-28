@@ -29,8 +29,11 @@ import yaml
 
 from oompah.models import Project
 from oompah.oompah_md_tracker import OompahMarkdownTracker
+from unittest.mock import MagicMock, patch, call
+
 from oompah.state_branch_migration import (
     MigrationResult,
+    StateBranchVerificationResult,
     ValidationResult,
     get_migration_status,
     migrate_stage_a,
@@ -38,6 +41,7 @@ from oompah.state_branch_migration import (
     migrate_stage_c,
     rollback_migration,
     validate_state_branch,
+    verify_state_branch,
 )
 
 
@@ -935,3 +939,293 @@ class TestGetMigrationStatus:
         status = get_migration_status(repo, PROJECT_ID)
         assert status["tasks_on_default_branch"] is False
         assert status["branch_exists_local"] is True
+
+
+# ---------------------------------------------------------------------------
+# §14  Forge-aware credentials: migration functions pass tokens to git ops
+# ---------------------------------------------------------------------------
+
+
+class TestForgeAwareCredentials:
+    """Verify that forge tokens are propagated to all network git operations."""
+
+    def test_migrate_stage_a_passes_access_token_to_initialize(self, tmp_path: Path):
+        """migrate_stage_a must forward access_token to initialize_state_branch."""
+        repo = _make_repo(tmp_path)
+        from oompah.project_bootstrap import StateBranchBootstrapResult
+
+        captured: dict = {}
+
+        def _fake_init(
+            repo_path,
+            project_id,
+            *,
+            push=False,
+            access_token=None,
+            forge_kind="github",
+            forge_base_url=None,
+            **kwargs,
+        ):
+            captured["access_token"] = access_token
+            captured["forge_kind"] = forge_kind
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                already_existed=False,
+                created=True,
+                commit_sha="abc1234" * 5,
+                pushed=True,
+                error="",
+            )
+
+        # The local import inside migrate_stage_a is:
+        #   from oompah.project_bootstrap import initialize_state_branch
+        # Patch the source module so the local binding picks up the mock.
+        with patch(
+            "oompah.project_bootstrap.initialize_state_branch",
+            side_effect=_fake_init,
+        ):
+            migrate_stage_a(
+                repo,
+                PROJECT_ID,
+                push=True,
+                access_token="gl-token-abc",
+                forge_kind="gitlab",
+            )
+
+        assert captured.get("access_token") == "gl-token-abc"
+        assert captured.get("forge_kind") == "gitlab"
+
+    def test_migrate_stage_a_passes_github_token(self, tmp_path: Path):
+        """migrate_stage_a must forward GitHub tokens too (regression guard)."""
+        repo = _make_repo(tmp_path)
+        from oompah.project_bootstrap import StateBranchBootstrapResult
+
+        captured: dict = {}
+
+        def _fake_init(
+            repo_path,
+            project_id,
+            *,
+            push=False,
+            access_token=None,
+            forge_kind="github",
+            forge_base_url=None,
+            **kwargs,
+        ):
+            captured["access_token"] = access_token
+            captured["forge_kind"] = forge_kind
+            return StateBranchBootstrapResult(
+                branch_name=f"oompah/state/{project_id}",
+                already_existed=False,
+                created=True,
+                commit_sha="abc1234" * 5,
+                pushed=True,
+                error="",
+            )
+
+        with patch(
+            "oompah.project_bootstrap.initialize_state_branch",
+            side_effect=_fake_init,
+        ):
+            migrate_stage_a(
+                repo,
+                PROJECT_ID,
+                push=True,
+                access_token="ghp-token-xyz",
+                forge_kind="github",
+            )
+
+        assert captured.get("access_token") == "ghp-token-xyz"
+        assert captured.get("forge_kind") == "github"
+
+    def test_migrate_stage_a_without_token_still_works_locally(self, tmp_path: Path):
+        """migrate_stage_a with no token and no push must still create the branch."""
+        repo = _make_repo(tmp_path)
+        result = migrate_stage_a(repo, PROJECT_ID, push=False, access_token=None)
+        assert result.ok
+        branch = f"oompah/state/{PROJECT_ID}"
+        r = _git("rev-parse", "--verify", branch, cwd=repo)
+        assert r.returncode == 0
+
+    def test_migrate_stage_b_uses_network_git_with_credentials(self, tmp_path: Path):
+        """migrate_stage_b must call _network_git for remote fetch (not _git)."""
+        import oompah.state_branch_migration as _migmod
+
+        work, bare = _make_repo_with_remote(tmp_path)
+        migrate_stage_a(work, PROJECT_ID, push=True)
+
+        network_calls: list = []
+        original_network_git = _migmod._network_git
+
+        def _capture_network_git(args, *, cwd, access_token, forge_kind, timeout=60):
+            network_calls.append({"args": args, "access_token": access_token, "forge_kind": forge_kind})
+            return original_network_git(args, cwd=cwd, access_token=access_token, forge_kind=forge_kind, timeout=timeout)
+
+        with patch.object(_migmod, "_network_git", side_effect=_capture_network_git):
+            migrate_stage_b(work, PROJECT_ID, access_token="gl-stage-b-token", forge_kind="gitlab")
+
+        fetch_calls = [c for c in network_calls if "fetch" in c["args"]]
+        assert len(fetch_calls) >= 1, "Stage B must call _network_git for remote fetch"
+        for c in fetch_calls:
+            assert c["access_token"] == "gl-stage-b-token"
+            assert c["forge_kind"] == "gitlab"
+
+    def test_migrate_stage_c_uses_network_git_for_push(self, tmp_path: Path):
+        """migrate_stage_c must call _network_git_check for the push to origin."""
+        import oompah.state_branch_migration as _migmod
+
+        work, bare = _make_repo_with_remote(tmp_path)
+        migrate_stage_a(work, PROJECT_ID, push=True)
+        migrate_stage_b(work, PROJECT_ID)
+
+        network_check_calls: list = []
+        original_ngc = _migmod._network_git_check
+
+        def _capture(args, *, cwd, access_token, forge_kind, timeout=60):
+            network_check_calls.append({"args": args, "access_token": access_token, "forge_kind": forge_kind})
+            return original_ngc(args, cwd=cwd, access_token=access_token, forge_kind=forge_kind, timeout=timeout)
+
+        with patch.object(_migmod, "_network_git_check", side_effect=_capture):
+            migrate_stage_c(work, PROJECT_ID, push=True, access_token="gl-c-token", forge_kind="gitlab")
+
+        push_calls = [c for c in network_check_calls if "push" in c["args"]]
+        assert len(push_calls) >= 1, "Stage C must use _network_git_check for push"
+        for c in push_calls:
+            assert c["access_token"] == "gl-c-token"
+            assert c["forge_kind"] == "gitlab"
+
+    def test_rollback_uses_network_git_for_push(self, tmp_path: Path):
+        """rollback_migration must call _network_git_check for push to default branch."""
+        import oompah.state_branch_migration as _migmod
+
+        work, bare = _make_repo_with_remote(tmp_path)
+        migrate_stage_a(work, PROJECT_ID, push=True)
+        migrate_stage_b(work, PROJECT_ID)
+
+        network_check_calls: list = []
+        original_ngc = _migmod._network_git_check
+
+        def _capture(args, *, cwd, access_token, forge_kind, timeout=60):
+            network_check_calls.append({"args": args, "access_token": access_token, "forge_kind": forge_kind})
+            return original_ngc(args, cwd=cwd, access_token=access_token, forge_kind=forge_kind, timeout=timeout)
+
+        with patch.object(_migmod, "_network_git_check", side_effect=_capture):
+            rollback_migration(
+                work,
+                PROJECT_ID,
+                default_branch="main",
+                current_stage="B",
+                push=True,
+                access_token="gl-rollback-token",
+                forge_kind="gitlab",
+            )
+
+        push_calls = [c for c in network_check_calls if "push" in c["args"]]
+        assert len(push_calls) >= 1, "Rollback must use _network_git_check for push"
+        for c in push_calls:
+            assert c["access_token"] == "gl-rollback-token"
+            assert c["forge_kind"] == "gitlab"
+
+
+# ---------------------------------------------------------------------------
+# §15  verify_state_branch — remote ref and task-tree verification
+# ---------------------------------------------------------------------------
+
+
+class TestVerifyStateBranch:
+    """Tests for the post-bootstrap remote verification step."""
+
+    def test_verify_ok_for_local_only_mode(self, tmp_path: Path):
+        """verify_state_branch with require_remote=False verifies local branch and layout."""
+        repo = _make_repo(tmp_path)
+        migrate_stage_a(repo, PROJECT_ID, push=False)
+
+        result = verify_state_branch(
+            repo,
+            PROJECT_ID,
+            require_remote=False,
+        )
+        assert result.ok, f"Local verification should pass: {result.error}"
+        assert result.commit_sha != ""
+
+    def test_verify_fails_if_no_local_branch_in_local_mode(self, tmp_path: Path):
+        """verify with require_remote=False fails when state branch doesn't exist."""
+        repo = _make_repo(tmp_path)
+
+        result = verify_state_branch(
+            repo,
+            PROJECT_ID,
+            require_remote=False,
+        )
+        assert not result.ok
+        assert "does not exist" in result.error
+
+    def test_verify_checks_canonical_task_layout(self, tmp_path: Path):
+        """verify_state_branch must check for .gitkeep files in each status dir."""
+        repo = _make_repo(tmp_path, with_tasks=False)
+        # Create state branch manually WITHOUT .gitkeep files.
+        branch = f"oompah/state/{PROJECT_ID}"
+        _git("checkout", "--orphan", branch, cwd=repo)
+        _git("rm", "-rf", "--quiet", ".", cwd=repo)
+        incomplete_dir = repo / ".oompah" / "tasks" / "open"
+        incomplete_dir.mkdir(parents=True)
+        # Missing .gitkeep and other status directories.
+        _git("add", ".", cwd=repo)
+        _git("commit", "--allow-empty", "-m", "incomplete state branch", cwd=repo)
+        _git("checkout", "main", cwd=repo)
+
+        result = verify_state_branch(repo, PROJECT_ID, require_remote=False)
+        assert not result.ok
+        assert "missing" in result.error.lower() or "canonical" in result.error.lower()
+
+    def test_verify_passes_with_complete_layout(self, tmp_path: Path):
+        """verify_state_branch passes after proper bootstrap."""
+        repo = _make_repo(tmp_path)
+        migrate_stage_a(repo, PROJECT_ID, push=False)
+
+        result = verify_state_branch(repo, PROJECT_ID, require_remote=False)
+        assert result.ok
+        assert result.commit_sha != ""
+
+    def test_verify_fails_with_expected_commit_mismatch(self, tmp_path: Path):
+        """verify_state_branch with wrong expected_commit returns error."""
+        repo = _make_repo(tmp_path)
+        migrate_stage_a(repo, PROJECT_ID, push=False)
+
+        result = verify_state_branch(
+            repo,
+            PROJECT_ID,
+            require_remote=False,
+            expected_commit="0" * 40,
+        )
+        assert not result.ok
+        assert "mismatch" in result.error.lower()
+
+    def test_verify_remote_ok_after_push(self, tmp_path: Path):
+        """verify_state_branch with require_remote=True passes after push."""
+        work, bare = _make_repo_with_remote(tmp_path)
+        migrate_stage_a(work, PROJECT_ID, push=True)
+
+        result = verify_state_branch(
+            work,
+            PROJECT_ID,
+            require_remote=True,
+            access_token=None,
+            forge_kind="github",
+        )
+        assert result.ok, f"Remote verification should pass: {result.error}"
+
+    def test_verify_remote_fails_if_not_pushed(self, tmp_path: Path):
+        """verify_state_branch with require_remote=True fails if branch not on remote."""
+        work, bare = _make_repo_with_remote(tmp_path)
+        migrate_stage_a(work, PROJECT_ID, push=False)  # local only
+
+        result = verify_state_branch(
+            work,
+            PROJECT_ID,
+            require_remote=True,
+            access_token=None,
+            forge_kind="github",
+        )
+        assert not result.ok
+        assert "remote" in result.error.lower() or "verify" in result.error.lower()
