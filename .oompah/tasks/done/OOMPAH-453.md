@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-07-28T13:23:16.432806Z'
+updated_at: '2026-07-28T13:23:29.439131Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -160,5 +160,20 @@ author: oompah
 created: 2026-07-28 13:23
 ---
 Completion: Delivered commit cf1f6e6ed on epic-OOMPAH-451 and pushed it to origin. GitLab projects are excluded from gh api/webhook subprocess lifecycle, existing forwarders are retired when a project becomes GitLab, configured GitLab hooks continue to reconcile, and missing per-project token/secret now produces one redacted actionable health state with polling fallback and no API retry churn. Full suite: 12,328 passed, 39 skipped; branch HEAD matches origin.
+---
+author: oompah
+created: 2026-07-28 13:23
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/default]
+- Turns: 0, Tool calls: 45
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 49s
+- Log: OOMPAH-453__20260728T131141Z.jsonl
+---
+author: oompah
+created: 2026-07-28 13:23
+---
+Routed webhook lifecycle by forge, stopped GitHub forwarder churn for GitLab projects, and added credential-aware GitLab hook health/recovery coverage.
 ---
 <!-- COMMENTS:END -->
