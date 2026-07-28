@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T18:55:26.009738Z'
+updated_at: '2026-07-28T18:55:28.217084Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -205,5 +205,10 @@ author: oompah
 created: 2026-07-28 18:55
 ---
 Completion: OOMPAH-523 implemented and tested. Delivered: (1) _BasicAuthMiddleware ASGI class in oompah/server.py enforcing HTTP Basic auth at the ASGI boundary for all HTTP routes, static assets, mounted apps, and /ws — auth is checked before accept() on WebSocket so rejected connections never enter _ws_clients; (2) exact exemptions for GET /healthz, POST /api/v1/webhooks/github, POST /api/v1/webhooks/gitlab — all other methods and path variants are blocked; (3) GET /healthz endpoint returning only {status: ok, instance_id} with no operational data; (4) _http_credentials module var + set_http_credentials() wired in _service_lifespan; (5) 57 integration tests in tests/test_server_auth.py covering all acceptance criteria. Auth is transparent when disabled; credential disclosure is impossible. All 875 server tests pass.
+---
+author: oompah
+created: 2026-07-28 18:55
+---
+Implemented _BasicAuthMiddleware ASGI class enforcing HTTP Basic auth at the ASGI boundary. Covers all HTTP routes, static assets, mounted apps, and WebSocket /ws. Exact exemptions for GET /healthz, POST /api/v1/webhooks/github, POST /api/v1/webhooks/gitlab. Added GET /healthz endpoint (unauthenticated, minimal). 57 new integration tests pass; all 875 existing server tests pass.
 ---
 <!-- COMMENTS:END -->
