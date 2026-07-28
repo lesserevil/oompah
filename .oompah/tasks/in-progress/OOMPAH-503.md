@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-503
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Limit automatic duplicate detection to nonterminal tasks
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:05:59.013552Z'
-updated_at: '2026-07-28T15:06:51.930246Z'
+updated_at: '2026-07-28T15:07:34.740385Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,5 +39,10 @@ author: oompah
 created: 2026-07-28 15:06
 ---
 Claimed for manual implementation by the current Codex session. Held in Backlog while the shared epic branch is built so Oompah does not dispatch another agent; status will move to In Progress and Done as this session completes the slice.
+---
+author: oompah
+created: 2026-07-28 15:07
+---
+Understanding: automatic duplicate detection will become active-work collision detection only. I will fetch only configured active states, defensively filter any terminal records returned by a tracker, remove the closed-match auto-handoff path, and retain explicit/manual duplicate_detector focus support.
 ---
 <!-- COMMENTS:END -->
