@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-508
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Run focused checks at handoff and one full quality gate per ready branch
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:08.389229Z'
-updated_at: '2026-07-28T15:36:22.651940Z'
+updated_at: '2026-07-28T15:41:45.506277Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -12,7 +12,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T15:41:38.670115Z'
+updated_at: '2026-07-28T15:41:44.851628Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ merged_at: null
 oompah.agent_run_id: f88436a6-9ae5-4a18-9430-a6a18eb27a2b
 oompah.work_branch: epic-OOMPAH-511
 oompah.task_costs:
-  total_input_tokens: 48
-  total_output_tokens: 6883
+  total_input_tokens: 134
+  total_output_tokens: 9659
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 48
-      output_tokens: 6883
+      input_tokens: 134
+      output_tokens: 9659
       cost_usd: 0.0
   runs:
   - profile: default
@@ -36,6 +36,12 @@ oompah.task_costs:
     output_tokens: 6883
     cost_usd: 0.0
     recorded_at: '2026-07-28T15:20:34.953913+00:00'
+  - profile: deep
+    model: unknown
+    input_tokens: 86
+    output_tokens: 2776
+    cost_usd: 0.0
+    recorded_at: '2026-07-28T15:41:40.717347+00:00'
 ---
 ## Summary
 
@@ -195,5 +201,20 @@ author: oompah
 created: 2026-07-28 15:41
 ---
 Completed in commit 6533e235e on epic-OOMPAH-511. Managed startup draft migration, global operational error filing, issue routing, and release-conflict task creation now resolve explicit project trackers; ambiguous management scope fails closed. Focused routing tests and the full suite pass.
+---
+author: oompah
+created: 2026-07-28 15:41
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/default]
+- Turns: 0, Tool calls: 57
+- Tokens: 86 in / 2.8K out [2.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 52s
+- Log: OOMPAH-512__20260728T152952Z.jsonl
+---
+author: oompah
+created: 2026-07-28 15:41
+---
+Routed managed runtime task mutations through canonical project trackers and removed writable cwd-tracker fallbacks from confirmed server/orchestrator consumers.
 ---
 <!-- COMMENTS:END -->
