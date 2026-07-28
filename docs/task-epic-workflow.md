@@ -160,7 +160,7 @@ All managed projects use the shared epic workflow:
 |---|---|
 | Child worktrees | Shared epic worktree and branch |
 | Child PR target | Epic branch only; child PRs are suppressed |
-| Epic rollup PR | Yes, from epic branch to project default branch |
+| Epic rollup PR/MR | Created only when the entire epic branch is ready to merge |
 
 The generated epic branch name (`epic-<epic-id>`) is owned by oompah. If a
 child task has `target_branch: epic-<parent-id>`, dispatch treats that as an
@@ -172,7 +172,7 @@ flowchart TD
     ChildOpen[Open child task] --> SharedWork[Use shared epic worktree]
     SharedWork --> SharedBranch[Commit child work to epic branch]
     SharedBranch --> EpicBranch[Epic branch accumulates child work]
-    EpicBranch --> ChildrenDone{All actionable children terminal?}
+    EpicBranch --> ChildrenDone{All normal children Done, nested epics Merged, and landing evidence verified?}
     ChildrenDone -- no --> ChildOpen
     ChildrenDone -- yes --> RollupPR[Open epic rollup PR]
     RollupPR --> EpicReview[Epic In Review]
@@ -185,6 +185,12 @@ work may still be selected according to the orchestrator's repair rules.
 
 For nested epics, a child epic rollup PR targets the parent epic branch. The
 top-level epic targets the project default branch.
+
+Child completion never requires or creates a PR/MR from the shared epic branch.
+Oompah creates the single rollup review only after every actionable normal
+child is `Done`, every nested epic is `Merged` into the branch, and recorded
+child work has positive landing evidence. Readiness is refreshed immediately
+before review creation so a newly added or reopened child cancels creation.
 
 ## Review And Repair
 

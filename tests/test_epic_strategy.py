@@ -2169,6 +2169,82 @@ class TestOpenEpicMainPrs:
         provider.create_review.assert_not_called()
         push.assert_not_called()
 
+    def test_pre_create_refresh_cancels_when_child_reopens(self, tmp_path):
+        """A stale ready snapshot cannot create a rollup review."""
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
+        epic = _make_issue(
+            identifier="OOMPAH-451",
+            issue_type="epic",
+            project_id="proj-1",
+            state="In Progress",
+            title="GitLab parity",
+        )
+        ready_child = _make_issue(
+            identifier="OOMPAH-452",
+            state="Done",
+            parent_id=epic.identifier,
+            work_branch="epic-OOMPAH-451",
+        )
+        reopened_child = _make_issue(
+            identifier="OOMPAH-456",
+            state="Open",
+            parent_id=epic.identifier,
+            work_branch="epic-OOMPAH-451",
+        )
+        provider = MagicMock()
+        provider.find_pr_for_branch.return_value = None
+        tracker = MagicMock()
+
+        with (
+            patch.object(
+                orch,
+                "_fetch_epic_children",
+                side_effect=[[ready_child], [ready_child, reopened_child]],
+            ),
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch") as push,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
+        assert opened == 0
+        push.assert_called_once_with(proj, "OOMPAH-451")
+        tracker.invalidate_read_cache.assert_called_once()
+        provider.create_review.assert_not_called()
+
+    def test_nested_epic_must_be_merged_before_parent_review_creation(
+        self, tmp_path
+    ):
+        """A Done nested epic is not yet landed in its parent branch."""
+        orch, _proj = self._setup(tmp_path, strategy="shared")
+        parent = _make_issue(
+            identifier="epic-A",
+            issue_type="epic",
+            project_id="proj-1",
+            state="In Progress",
+        )
+        nested = _make_issue(
+            identifier="epic-B",
+            issue_type="epic",
+            parent_id=parent.identifier,
+            state="Done",
+            work_branch="epic-epic-B",
+        )
+        provider = MagicMock()
+
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[nested]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+        ):
+            opened = orch._open_epic_main_prs([parent])
+
+        assert opened == 0
+        provider.create_review.assert_not_called()
+
     def test_shared_open_child_blocks_landing_even_when_sibling_merged(self, tmp_path):
         """A still-open canonical child blocks shared epic landing."""
         orch, proj = self._setup(tmp_path, strategy="shared")
