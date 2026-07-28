@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T20:16:36.783511Z'
-updated_at: '2026-07-28T20:44:21.359834Z'
+updated_at: '2026-07-28T20:45:26.488736Z'
 work_branch: OOMPAH-527
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/566
@@ -221,5 +221,10 @@ author: oompah
 created: 2026-07-28 20:44
 ---
 YOLO: merged PR #566.
+---
+author: oompah
+created: 2026-07-28 20:45
+---
+Live verification after merge/restart: GitLabHookManager is running from main at 148184aa3. For nodevirt, route resolution selected http://10.28.32.135:8090/api/v1/webhooks/gitlab and reports webhook_url_source=route. Hook creation is safely deferred because nodevirt has no webhook_secret; polling fallback remains active and status reports the actionable missing-secret error.
 ---
 <!-- COMMENTS:END -->
