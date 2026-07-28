@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-497
 type: task
-status: Done
+status: Merged
 priority: 2
 title: Assign canonical ownership for overlapping Release Delivery UI tests
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:32.426575Z'
-updated_at: '2026-07-28T16:25:09.786155Z'
+updated_at: '2026-07-28T17:10:48.036029Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
