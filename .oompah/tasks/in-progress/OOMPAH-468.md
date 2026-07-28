@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T21:10:04.570151Z'
+updated_at: '2026-07-28T21:11:07.766013Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-07-28 21:10
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-28 21:11
+---
+**Understanding:** Duplicate investigation starting. OOMPAH-468 is about persisting work_contributors records (run ID, provider ID, safe provider name, resolved model ID, focus, source branch/SHA, completion time) at worker startup/exit, deriving union of contributors from child/nested-child audit records for epic revisions, without storing credentials/prompts/logs/costs. This is distinct from OOMPAH-462/463 which handle terminal-audit records and state transitions. Searching for any prior implementation or duplicate tasks.
 ---
 <!-- COMMENTS:END -->
