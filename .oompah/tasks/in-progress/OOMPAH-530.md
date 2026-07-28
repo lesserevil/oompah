@@ -13,7 +13,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-28T21:18:51.634942Z'
-updated_at: '2026-07-28T21:33:00.303325Z'
+updated_at: '2026-07-28T21:33:13.186295Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -147,5 +147,10 @@ author: oompah
 created: 2026-07-28 21:33
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-28 21:33
+---
+Understanding: implement revision-aware duplicate-preflight claims (claim/renew/release/expire) under the project tracker lock, with mutual exclusion against implementation agents, restart/timeout recovery, claim-ID CAS, and stale-revision protection. I will inspect the OOMPAH-529 metadata work plus dispatch/state locking, then add focused race, recovery, CAS, revision-change, and eligibility tests.
 ---
 <!-- COMMENTS:END -->
