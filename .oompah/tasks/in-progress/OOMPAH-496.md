@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:31.446905Z'
-updated_at: '2026-07-28T16:04:28.537580Z'
+updated_at: '2026-07-28T16:04:52.776735Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -138,5 +138,10 @@ author: oompah
 created: 2026-07-28 16:04
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-28 16:04
+---
+Understanding: This is a test-contract consolidation only. I will baseline collection across the five named modules, retain the four dashboard API cases plus focused positive smoke coverage, collapse static absence assertions into marker loops (including saveProject() scoping), remove only redundant draft-only modules, then run focused tests and make test before committing and pushing.
 ---
 <!-- COMMENTS:END -->
