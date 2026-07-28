@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:43.939778Z'
-updated_at: '2026-07-28T15:43:39.757330Z'
+updated_at: '2026-07-28T15:45:12.164293Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -75,5 +75,10 @@ author: oompah
 created: 2026-07-28 15:43
 ---
 Understanding: Screening OOMPAH-513 for an existing task covering the same managed-checkout write-guard bug. I will search task records by state-branch/write-policy terminology, inspect full candidate task histories, and either archive this as a confirmed duplicate or hand off with evidence if no duplicate exists. No implementation will be attempted in this focus.
+---
+author: oompah
+created: 2026-07-28 15:45
+---
+Discovery: Duplicate screening found no confirmed duplicate. OOMPAH-256 covers correct configured state-branch routing, while OOMPAH-512 removes projectless managed-runtime tracker selection; neither supplies OOMPAH-513's separate tracker-boundary rejection of an already-misrouted write. OOMPAH-511 explicitly decomposes these as distinct child scopes. Read-only inspection also confirms pushed commit 6533e235e already contains allow_default_branch_task_writes, the pre-mutation guard, public-mutation coverage, and disposable-repository isolation tests.
 ---
 <!-- COMMENTS:END -->
