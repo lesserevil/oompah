@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-29T19:02:41.475614Z'
+updated_at: '2026-07-29T19:38:32.747185Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -278,5 +278,10 @@ author: oompah
 created: 2026-07-29 19:02
 ---
 Discovery: The branch epic-OOMPAH-460--task-OOMPAH-488 is at origin/epic-OOMPAH-460 (b0ceda264), which is behind origin/main (31f8938b8). All infrastructure modules (auditor.py, done_evidence_collector.py, merged_evidence_collector.py, archived_evidence_collector.py, terminal_transition_coordinator.py, etc.) already exist in origin/main from the sibling tasks. The task needs: (1) merge from origin/main to get the infrastructure, (2) write the end-to-end lifecycle test. No test file for OOMPAH-488 exists yet on this branch.
+---
+author: oompah
+created: 2026-07-29 19:38
+---
+Implementation: Created tests/test_done_merged_archived_lifecycle.py with 52 tests covering the complete Done→Merged→Archived audit lifecycle. Key coverage: (1) three-stage happy path with distinct auditors B/C/D, (2) worker self-certification prevention via AuditorCandidateSelector, (3) failure variants: incomplete work→Open, CI failure→Needs CI Fix, wrong merge target→In Review, unsafe archive→Needs Human, (4) restart recovery tests between Done→Merged and Merged→Archived stages, (5) fake SCM/git fixtures (real git ops, offline, deterministic), (6) durable metadata assertions. All 13,627 tests pass.
 ---
 <!-- COMMENTS:END -->
