@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import threading
 
 import pytest
 
@@ -125,6 +126,111 @@ class TestPausedStatePersistence:
             state_path=state_path,
         )
         assert orch.is_paused is False
+
+    def test_corrupt_state_file_is_not_overwritten(self, tmp_path, caplog):
+        """A later state update must preserve unreadable evidence for recovery."""
+        state_path = tmp_path / "service_state.json"
+        corrupt = b'{"paused": tru'
+        state_path.write_bytes(corrupt)
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(state_path),
+        )
+
+        orch._save_state(maintenance_cursors={"cleanup": "TASK-1"})
+
+        assert state_path.read_bytes() == corrupt
+        assert "Refusing to overwrite unreadable service state" in caplog.text
+
+    def test_terminal_audit_load_detects_corruption_after_startup(self, tmp_path):
+        state_path = tmp_path / "service_state.json"
+        state_path.write_text("{}\n", encoding="utf-8")
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(state_path),
+        )
+        state_path.write_text("not-json", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="service state is unreadable"):
+            orch._load_state_for_terminal_audit()
+
+        assert orch._state_load_failed is True
+
+    def test_concurrent_state_updates_are_serialized_and_merged(
+        self, tmp_path, monkeypatch
+    ):
+        """Concurrent writers cannot observe or publish a partial document."""
+        state_path = tmp_path / "service_state.json"
+        state_path.write_text("{}\n", encoding="utf-8")
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(state_path),
+        )
+        real_dump = json.dump
+        first_dump_entered = threading.Event()
+        second_dump_entered = threading.Event()
+        release_first_dump = threading.Event()
+        dump_calls = 0
+        dump_calls_lock = threading.Lock()
+
+        def controlled_dump(data, handle, *args, **kwargs):
+            nonlocal dump_calls
+            with dump_calls_lock:
+                dump_calls += 1
+                call_number = dump_calls
+            if call_number == 1:
+                first_dump_entered.set()
+                assert release_first_dump.wait(timeout=2)
+            else:
+                second_dump_entered.set()
+            return real_dump(data, handle, *args, **kwargs)
+
+        monkeypatch.setattr("oompah.orchestrator.json.dump", controlled_dump)
+        errors: list[BaseException] = []
+
+        def write(key: str) -> None:
+            try:
+                orch._save_state(**{key: True})
+            except BaseException as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        first = threading.Thread(target=write, args=("first",))
+        second = threading.Thread(target=write, args=("second",))
+        first.start()
+        assert first_dump_entered.wait(timeout=2)
+        second.start()
+        serialized = not second_dump_entered.wait(timeout=0.25)
+        release_first_dump.set()
+        first.join(timeout=2)
+        second.join(timeout=2)
+
+        assert serialized, "second writer entered while the first write was incomplete"
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert errors == []
+        assert json.loads(state_path.read_text(encoding="utf-8")) == {
+            "first": True,
+            "second": True,
+        }
+        assert list(tmp_path.glob(".service_state.json.*.tmp")) == []
+
+    def test_serialization_failure_preserves_last_valid_state(self, tmp_path):
+        state_path = tmp_path / "service_state.json"
+        original = '{"paused": true}\n'
+        state_path.write_text(original, encoding="utf-8")
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(state_path),
+        )
+
+        orch._save_state(unserializable=object())
+
+        assert state_path.read_text(encoding="utf-8") == original
+        assert list(tmp_path.glob(".service_state.json.*.tmp")) == []
 
     def test_missing_state_file_defaults_to_unpaused(self, tmp_path):
         """If no state file exists, default to unpaused."""

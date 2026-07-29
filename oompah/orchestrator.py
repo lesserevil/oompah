@@ -787,6 +787,12 @@ class Orchestrator:
             os.path.join(_state_dir, "integration_queue.sqlite3")
         )
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
+        # Service state is shared by the dispatch loop, maintenance workers,
+        # API callbacks, and terminal-audit enforcement. Keep each
+        # read-modify-write transaction under one re-entrant lock so updates
+        # cannot race and replace one another.
+        self._state_io_lock = threading.RLock()
+        self._state_load_failed = False
         # Terminal-audit enforcement is initialized at the start of ``run``
         # once all project trackers are available.  Its state lives inside the
         # existing service-state document so unrelated service state remains
@@ -838,7 +844,6 @@ class Orchestrator:
         self._stopping = False
         # Bug fix: load persisted paused state from disk so it survives
         # service restarts. Previously _paused was always initialized to False.
-        self._state_load_failed = False
         self._paused = self._load_paused_state()
         self._restore_budget_state()
         self._service_instance_id = str(uuid.uuid4())
@@ -1290,26 +1295,35 @@ class Orchestrator:
 
     def _load_state(self) -> dict:
         """Load persisted service state from disk."""
-        if not os.path.exists(self._state_path):
-            return {}
-        try:
-            with open(self._state_path, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError) as exc:
-            # Keep a process-local marker so feature-specific startup
-            # migrations can fail closed instead of mistaking a corrupt file
-            # for a first-ever deployment.
-            self._state_load_failed = True
-            logger.warning(
-                "Failed to load service state from %s: %s", self._state_path, exc
-            )
-            return {}
+        with self._state_io_lock:
+            if not os.path.exists(self._state_path):
+                return {}
+            try:
+                with open(self._state_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if not isinstance(data, dict):
+                    raise ValueError("service state root must be a mapping")
+                return data
+            except (json.JSONDecodeError, OSError, TypeError, ValueError) as exc:
+                # Keep a process-local marker so feature-specific startup
+                # migrations can fail closed instead of mistaking a corrupt
+                # file for a first-ever deployment. Writers also honor this
+                # marker so the unreadable evidence is not destroyed.
+                self._state_load_failed = True
+                logger.warning(
+                    "Failed to load service state from %s: %s",
+                    self._state_path,
+                    exc,
+                )
+                return {}
 
     def _load_state_for_terminal_audit(self) -> dict[str, Any]:
         """Load state for terminal-audit startup with corruption visibility."""
         if getattr(self, "_state_load_failed", False):
             raise ValueError("service state was previously unreadable")
         data = self._load_state()
+        if getattr(self, "_state_load_failed", False):
+            raise ValueError("service state is unreadable")
         if not isinstance(data, dict):
             raise ValueError("service state root must be a mapping")
         return data
@@ -1861,17 +1875,55 @@ class Orchestrator:
         return reopened
 
     def _save_state(self, **updates: object) -> None:
-        """Persist service state to disk, merging with existing state."""
-        try:
+        """Atomically merge updates into the persisted service state.
+
+        The lock covers both the read and replace, preventing concurrent
+        callers from losing one another's keys. A same-directory temporary
+        file ensures readers see either the complete old document or the
+        complete new one. Once a read failure is observed, writes fail closed
+        until restart so corrupt evidence remains available to the operator.
+        """
+
+        with self._state_io_lock:
             data = self._load_state()
+            if self._state_load_failed:
+                logger.error(
+                    "Refusing to overwrite unreadable service state at %s",
+                    self._state_path,
+                )
+                return
             data.update(updates)
-            os.makedirs(os.path.dirname(self._state_path) or ".", exist_ok=True)
-            with open(self._state_path, "w") as f:
-                json.dump(data, f, indent=2)
-        except OSError as exc:
-            logger.warning(
-                "Failed to save service state to %s: %s", self._state_path, exc
+            state_dir = os.path.dirname(self._state_path) or "."
+            temp_path = os.path.join(
+                state_dir,
+                f".{os.path.basename(self._state_path)}.{uuid.uuid4().hex}.tmp",
             )
+            try:
+                os.makedirs(state_dir, exist_ok=True)
+                with open(temp_path, "x", encoding="utf-8") as f:
+                    os.chmod(temp_path, 0o600)
+                    json.dump(data, f, indent=2)
+                    f.write("\n")
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(temp_path, self._state_path)
+            except (OSError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "Failed to save service state to %s: %s",
+                    self._state_path,
+                    exc,
+                )
+            finally:
+                try:
+                    os.unlink(temp_path)
+                except FileNotFoundError:
+                    pass
+                except OSError as exc:
+                    logger.warning(
+                        "Failed to remove temporary service state %s: %s",
+                        temp_path,
+                        exc,
+                    )
 
     def _save_paused_state(self) -> None:
         """Persist paused state to disk."""
