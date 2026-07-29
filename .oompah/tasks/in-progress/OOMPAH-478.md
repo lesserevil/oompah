@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-29T18:30:28.164291Z'
+updated_at: '2026-07-29T18:39:22.284907Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-478
 target_branch: null
 review_url: null
@@ -185,5 +185,18 @@ Discovery: Located relevant code:
 - statuses.py epic_rollup_state: Returns rolled state (DONE, MERGED, or nonterminal)
 
 Key insight: Need to replace direct tracker.update_issue() calls with coordinator.request_transition() for terminal states (DONE, MERGED, ARCHIVED) while keeping nonterminal state updates direct. Must skip reconciliation when epic is In Validation or has audit:repair-needed label.
+---
+author: oompah
+created: 2026-07-29 18:39
+---
+Implementation: Modified epic rollup transitions to route terminal states through coordinator:
+1. _reconcile_epic_rollup_statuses: Skips if epic In Validation or has audit:repair-needed; blocks terminal rollup if any child In Validation; routes DONE/MERGED/ARCHIVED through coordinator
+2. _auto_close_completed_epics: Routes terminal close through coordinator instead of direct tracker.close_issue()
+3. _sync_epic_review_child_states: Routes MERGED transitions through coordinator for stale In Review children
+4. Added _request_epic_terminal_rollup() helper to call async coordinator from sync maintenance thread
+5. Added _terminal_status_for_tracker() helper to get terminal state from tracker config
+6. Added TERMINAL_STATUSES to imports from statuses module
+
+Ready to run tests to verify behavior.
 ---
 <!-- COMMENTS:END -->
