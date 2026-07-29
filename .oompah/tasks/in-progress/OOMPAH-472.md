@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T03:40:29.164618Z'
+updated_at: '2026-07-29T03:41:09.807218Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -55,7 +55,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 77cf9e56-869e-4509-9d45-94227f9775f8
+oompah.agent_run_id: bc9a04a6-5512-42d8-a565-6bcd62bb5990
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 2701334
@@ -645,5 +645,15 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: normal, Duration: 24s
 - Log: OOMPAH-472__20260729T034003Z.jsonl
+---
+author: oompah
+created: 2026-07-29 03:41
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 03:41
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
