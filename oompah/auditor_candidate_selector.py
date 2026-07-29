@@ -243,12 +243,12 @@ class AuditorCandidateSelector:
                 failures["unhealthy"].append(f"{label}:{health_detail}")
                 continue
 
-            if not self._model_is_valid(provider, candidate.model):
-                failures["invalid_model"].append(f"{label}:{candidate.model}")
-                continue
-
             if not self._budget_allows(provider, candidate):
                 failures["over_budget"].append(label)
+                continue
+
+            if not self._model_is_valid(provider, candidate.model):
+                failures["invalid_model"].append(f"{label}:{candidate.model}")
                 continue
             policy_candidates.append(candidate)
 

@@ -1137,3 +1137,23 @@ class TestAuditorCandidateSelectorPolicyGaps:
         assert selected is None
         assert reason is not None
         assert reason.reason == "invalid_model"
+
+    def test_budget_is_checked_before_model_validity(self):
+        """The documented eligibility pipeline reports the budget gate first."""
+        provider = _make_provider("provider", "Provider", ["known-model"])
+        provider.default_model = None
+        role = Role(
+            "default",
+            "priority",
+            [Candidate("provider", "unknown-model")],
+            datetime.now(timezone.utc),
+        )
+        selected, reason = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"provider": provider}),
+            budget_state={"budget_limit": 1.0, "estimated_cost": 1.0},
+        ).seed_auditor_role()
+
+        assert selected is None
+        assert reason is not None
+        assert reason.reason == "all_over_budget"
