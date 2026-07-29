@@ -11209,6 +11209,10 @@ async def api_project_resume(project_id: str):
                 },
                 status_code=404,
             )
+        # Project dispatch is event-driven.  Persisting ``paused=False`` alone
+        # leaves the scheduler asleep until the periodic full-sync safety net,
+        # so wake it immediately after the project becomes dispatchable.
+        orch.request_refresh()
         return JSONResponse({"ok": True, "id": project_id, "paused": False})
     except ProjectError as exc:
         return JSONResponse(
