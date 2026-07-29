@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-471
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Collect stable evidence for Done completion audits
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-29T01:21:12.402595Z'
+updated_at: '2026-07-29T01:31:16.317037Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 3
   retry_after: null
-oompah.agent_run_id: 9dac6294-aaf6-4357-bf3e-1cc6f7611d8f
+oompah.agent_run_id: de60e49c-44ec-4764-bdf9-ba8929035a81
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 1447668
@@ -497,5 +497,15 @@ Steps to resolve:
   git push origin epic-OOMPAH-458
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-29 01:31
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 01:31
+---
+Focus: DevOps Engineer
 ---
 <!-- COMMENTS:END -->
