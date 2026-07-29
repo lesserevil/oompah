@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-29T19:45:39.068359Z'
+updated_at: '2026-07-29T19:54:58.713766Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -40,13 +40,17 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 90ba51f5-90ca-4ad5-a271-cc1997b5d238
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-486
 oompah.task_costs:
-  total_input_tokens: 16417344
-  total_output_tokens: 28598
+  total_input_tokens: 16417418
+  total_output_tokens: 45510
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 16417344
       output_tokens: 28598
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 74
+      output_tokens: 16912
       cost_usd: 0.0
   runs:
   - profile: default
@@ -61,6 +65,12 @@ oompah.task_costs:
     output_tokens: 20151
     cost_usd: 0.0
     recorded_at: '2026-07-29T19:38:29.622527+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 74
+    output_tokens: 16912
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T19:54:54.651670+00:00'
 oompah.integration:
   version: 1
   state: working
@@ -146,5 +156,20 @@ author: oompah
 created: 2026-07-29 19:45
 ---
 Understanding: OOMPAH-486 adds terminal-audit observability metrics and actionable alerts. Backend work (TerminalAuditMetrics, TerminalAuditAlertRegistry, orchestrator integration) is complete across 3 commits. All 9 backend tests pass. The dashboard alerts-banner already renders state.alerts (which includes terminal-audit alerts when triggered). My frontend task is to add a visible audit throughput stat to the agent-bar that shows queued/running audit counts during healthy operation, hidden when idle. This gives operators a glance at healthy throughput without noise.
+---
+author: oompah
+created: 2026-07-29 19:54
+---
+Agent failed: errored. Retrying in 20s (attempt #2)
+---
+author: oompah
+created: 2026-07-29 19:54
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 112, Tool calls: 81
+- Tokens: 74 in / 16.9K out [17.0K total]
+- Cost: $0.0000
+- Exit: error, Duration: 15m 52s
+- Log: OOMPAH-486__20260729T193911Z.jsonl
 ---
 <!-- COMMENTS:END -->
