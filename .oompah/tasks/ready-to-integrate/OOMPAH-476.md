@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T23:44:32.632959Z'
+updated_at: '2026-07-29T23:45:54.579828Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-476
 target_branch: null
 review_url: null
@@ -148,10 +148,10 @@ oompah.integration:
   version: 1
   state: ready
   attempts: 0
-  task_branch: epic-OOMPAH-459--task-OOMPAH-476
+  task_branch: epic-OOMPAH-459--task-OOMPAH-477
   head_sha: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
-  submitted_at: '2026-07-29T23:44:29.968990+00:00'
-  updated_at: '2026-07-29T23:44:29.968990+00:00'
+  submitted_at: '2026-07-29T23:45:52.071758+00:00'
+  updated_at: '2026-07-29T23:45:52.071758+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-476__20260729T230652Z
@@ -848,5 +848,10 @@ author: oompah
 created: 2026-07-29 23:44
 ---
 Re-run repaired canonical epic head under sanitized quality-gate environment; prior sole failure was inherited service authentication.
+---
+author: oompah
+created: 2026-07-29 23:45
+---
+Queue recovery refresh: alternate identical repaired branch head to clear the pre-fix blocked row.
 ---
 <!-- COMMENTS:END -->
