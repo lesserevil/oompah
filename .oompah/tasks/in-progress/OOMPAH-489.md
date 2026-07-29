@@ -16,7 +16,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-07-29T19:17:53.449811Z'
+updated_at: '2026-07-29T19:20:50.944294Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-489
 target_branch: null
 review_url: null
@@ -220,5 +220,10 @@ author: oompah
 created: 2026-07-29 19:17
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 19:20
+---
+Continuation review: previous attempt landed tests/test_epic_terminal_audit_contract.py (666 lines, 21 tests). Coverage maps 1:1 to acceptance criteria: shared nested rollup evidence includes every contributor+child audit digest (test_shared_nested_evidence_requires_every_contributor_and_child_audit); child In Validation blocks rollup + nested Merged epic satisfies rollup (test_nested_rollup_requires_merged_nested_epic_and_blocks_in_validation_child); Done/Merged branch chain via real bare git remote (test_shared_child_landing_evidence_uses_local_and_remote_bare_refs, test_done_and_merged_audits_follow_shared_branch_chain across native/github/gitlab); races - evidence-change stale application (test_evidence_change_during_audit_cannot_apply_stale_result), duplicate webhook+poll signals idempotent (test_duplicate_webhook_and_polling_signals_are_idempotent), restart recovers running audit without new attempt (test_restart_recovers_running_audit_without_making_a_new_attempt), authorized owner override (test_authorized_owner_override_is_recorded_and_terminal). Independent-auditor selector and repair-planner cases are gated via importorskip and xfail against blocked OOMPAH-479/OOMPAH-482 - they will fail-loud once those adapters land.
 ---
 <!-- COMMENTS:END -->
