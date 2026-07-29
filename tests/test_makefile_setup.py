@@ -18,7 +18,26 @@ def test_setup_installs_server_dependencies_only():
     text = _makefile_text()
 
     assert "setup: $(VENV)/.uv-setup" in text
+    assert "$(VENV)/.uv-setup: pyproject.toml" in text
+    assert "uv pip install -e '.[server]'" in text
+    assert "start: setup" in text
     assert "ensure-" not in text
+
+
+def test_test_targets_install_complete_dev_dependencies():
+    """Fresh test worktrees must install every dependency exercised by tests."""
+    text = _makefile_text()
+
+    assert "test-setup: $(VENV)/.uv-test-setup" in text
+    assert (
+        "$(VENV)/.uv-test-setup: pyproject.toml $(VENV)/.uv-setup"
+        in text
+    )
+    assert "uv pip install -e '.[dev]'" in text
+    assert ".PHONY: help setup test-setup" in text
+    assert "test: test-setup" in text
+    assert "test-serial: test-setup" in text
+    assert "@touch $@" in text
 
 
 def test_setup_does_not_install_external_tracker_cli():
