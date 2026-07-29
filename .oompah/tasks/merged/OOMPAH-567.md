@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-567
 type: task
-status: In Review
+status: Merged
 priority: null
 title: Install complete test dependencies in fresh Makefile worktrees
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:48:39.126282Z'
-updated_at: '2026-07-29T23:00:17.686976Z'
+updated_at: '2026-07-29T23:07:00.045502Z'
 work_branch: OOMPAH-567
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/584
@@ -54,13 +54,13 @@ oompah.work_contributors:
     source_sha: 9fab41077abdd6d02c19624c9713a144f8c84b9e
     completed_at: '2026-07-29T22:51:59.906486+00:00'
 oompah.task_costs:
-  total_input_tokens: 429814
-  total_output_tokens: 2360
+  total_input_tokens: 430116
+  total_output_tokens: 2444
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 429814
-      output_tokens: 2360
+      input_tokens: 430116
+      output_tokens: 2444
       cost_usd: 0.0
   runs:
   - profile: default
@@ -69,6 +69,12 @@ oompah.task_costs:
     output_tokens: 2360
     cost_usd: 0.0
     recorded_at: '2026-07-29T22:51:59.900737+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 302
+    output_tokens: 84
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T23:06:49.624577+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -148,5 +154,20 @@ author: oompah
 created: 2026-07-29 23:00
 ---
 Added an idempotent Makefile test-setup marker that installs .[dev] for test/test-serial while leaving production setup on .[server]. Added Makefile regression coverage. Verification: 23 focused tests passed; clean temporary venv imported claude_agent_sdk, agents, and granian; full make test passed with 13,600 passed and 7 skipped.
+---
+author: oompah
+created: 2026-07-29 23:06
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 15
+- Tokens: 302 in / 84 out [386 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 14m 33s
+- Log: OOMPAH-567__20260729T225225Z.jsonl
+---
+author: oompah
+created: 2026-07-29 23:07
+---
+YOLO: merged PR #584.
 ---
 <!-- COMMENTS:END -->
