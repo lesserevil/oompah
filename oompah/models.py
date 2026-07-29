@@ -1370,6 +1370,9 @@ class RunningEntry:
     duplicate_preflight: bool = False
     duplicate_preflight_claim_id: str | None = None
     duplicate_preflight_fingerprint: str | None = None
+    # Short-lived server-owned capability used by subprocess task handoffs.
+    # Never serialized into prompts or telemetry.
+    task_handoff_token: str | None = None
 
 
 @dataclass

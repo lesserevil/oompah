@@ -120,6 +120,14 @@ class AcpBackendOptions:
     # execute ``oompah task ...`` commands directly instead of spawning the
     # HTTP-backed CLI, which would self-call the local server process.
     task_tracker: Any = None
+    # Exact task grant for this worker.  ACP/API catalogs use this to reject
+    # mutations of another task in the same project.
+    task_identifier: str | None = None
+    # Server-issued authority policy, kept separate from task scope.
+    action_policy: Any = None
+    # Short-lived capability for native subprocess backends (Codex CLI,
+    # OpenCode). It is never included in the prompt or logs.
+    task_handoff_token: str | None = None
     # Optional asyncio.Queue for mid-run comment injection (OOMPAH-211).
     # When set, the backend drains this queue at each turn boundary and
     # sends any pending text as a new user turn in the same session.

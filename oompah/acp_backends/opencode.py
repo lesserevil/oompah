@@ -37,6 +37,7 @@ from oompah.acp_backends.base import (
 from oompah.acp_backends.registry import register_backend
 from oompah.agent import AgentEvent
 from oompah.client_auth import agent_environment
+from oompah.task_handoff import TASK_HANDOFF_PROJECT_ENV, TASK_HANDOFF_TOKEN_ENV
 
 if TYPE_CHECKING:
     from oompah.models import ModelProvider
@@ -273,6 +274,8 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             project_id=self._options.project_id,
             task_tracker=self._options.task_tracker,
             read_only=self._options.read_only,
+            task_identifier=self._options.task_identifier,
+            action_policy=self._options.action_policy,
         )
 
     # ---- run_turn: drive the opencode serve subprocess ----
@@ -317,6 +320,10 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         agent_env = agent_environment(
             {**os.environ, **(self._options.env or {})}
         )
+        if self._options.task_handoff_token:
+            agent_env[TASK_HANDOFF_TOKEN_ENV] = self._options.task_handoff_token
+            if self._options.project_id:
+                agent_env[TASK_HANDOFF_PROJECT_ENV] = self._options.project_id
         # Forward api_key into the process env if present.
         api_key = agent_env.get("OOMPAH_OPENCODE_API_KEY")
         if api_key:

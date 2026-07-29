@@ -726,6 +726,10 @@ def _execute_tool(
     cmd_timeout: int | None = None,
     env_overrides: dict[str, str] | None = None,
     read_only: bool = False,
+    task_tracker: Any = None,
+    project_id: str | None = None,
+    task_identifier: str | None = None,
+    action_policy: Any = None,
 ) -> str:
     """Execute a tool call and return its string result.
 
@@ -766,6 +770,27 @@ def _execute_tool(
 
     try:
         if name == "run_command":
+            from oompah.authority_boundary import check_shell_command
+
+            shell_denial = check_shell_command(
+                action_policy, str(args.get("command", ""))
+            )
+            if shell_denial is not None:
+                return shell_denial
+            # API workers execute inside the oompah process. Route their task
+            # handoff command through the active tracker instead of allowing
+            # the CLI to synchronously HTTP-call its own server.
+            from oompah.acp_tools import _exec_oompah_task_command
+
+            direct = _exec_oompah_task_command(
+                args.get("command", ""),
+                task_tracker,
+                project_id,
+                action_policy,
+                task_identifier,
+            )
+            if direct is not None:
+                return direct
             return handler(
                 workspace,
                 args,
@@ -1074,6 +1099,10 @@ class ApiAgentSession:
         read_only: bool = False,
         model_max_context: int | None = None,
         log_path: str | None = None,
+        task_tracker: Any = None,
+        project_id: str | None = None,
+        task_identifier: str | None = None,
+        action_policy: Any = None,
     ):
         # Strip trailing slash for clean URL joining
         self.base_url = base_url.rstrip("/")
@@ -1105,6 +1134,10 @@ class ApiAgentSession:
         # Path to a JSONL file recording every request, response, and
         # activity event for this dispatch. None disables file logging.
         self.log_path = log_path
+        self.task_tracker = task_tracker
+        self.project_id = project_id
+        self.task_identifier = task_identifier
+        self.action_policy = action_policy
         self._ssl_ctx = _build_ssl_context()
         self._url = f"{self.base_url}/chat/completions"
 
@@ -1439,6 +1472,10 @@ class ApiAgentSession:
                             self.command_timeout,
                             env_overrides,
                             self.read_only,
+                            self.task_tracker,
+                            self.project_id,
+                            self.task_identifier,
+                            self.action_policy,
                         )
 
                     tool_failed = result_str.startswith("Error")

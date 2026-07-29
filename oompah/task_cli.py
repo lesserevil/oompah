@@ -42,6 +42,11 @@ from oompah.client_auth import (
     resolve_client_credentials,
     sanitize_server_url,
 )
+from oompah.task_handoff import (
+    TASK_HANDOFF_HEADER,
+    TASK_HANDOFF_PROJECT_ENV,
+    TASK_HANDOFF_TOKEN_ENV,
+)
 
 __all__ = ["main", "build_parser"]
 
@@ -53,6 +58,21 @@ _HTTP_TIMEOUT_ENV = "OOMPAH_TASK_CLI_TIMEOUT_SECONDS"
 # None means unauthenticated (backward-compatible).  This is a CLI tool that
 # runs in a single thread, so a module-level variable is safe.
 _session_auth: ClientCredentials | None = None
+
+
+def _task_handoff_token() -> str | None:
+    """Return the spawned-worker capability, if this is a handoff session."""
+    token = os.environ.get(TASK_HANDOFF_TOKEN_ENV, "").strip()
+    return token or None
+
+
+def _task_handoff_project(payload: dict[str, Any]) -> str | None:
+    """Fill the non-secret project scope supplied to spawned subprocesses."""
+    project_id = str(payload.get("project_id") or "").strip()
+    if project_id:
+        return project_id
+    project_id = os.environ.get(TASK_HANDOFF_PROJECT_ENV, "").strip()
+    return project_id or None
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +133,7 @@ def _http(
     data: dict[str, Any] | None = None,
     params: dict[str, str] | None = None,
     auth: ClientCredentials | None = None,
+    task_capability: str | None = None,
 ) -> dict[str, Any]:
     """Make an HTTP request to the oompah API and return the JSON body.
 
@@ -152,15 +173,26 @@ def _http(
 
     # Use explicit auth if provided; fall back to the session-level auth set
     # by main().  Tests that patch _http directly bypass this entirely.
-    effective_auth = auth if auth is not None else _session_auth
+    # A spawned handoff capability is deliberately the only credential on
+    # the request. Never combine it with an inherited operator Basic secret.
+    effective_auth = None if task_capability else (
+        auth if auth is not None else _session_auth
+    )
     httpx_auth = (
         _httpx.BasicAuth(username=effective_auth.username, password=effective_auth.password)
         if effective_auth is not None
         else None
     )
+    headers = {TASK_HANDOFF_HEADER: task_capability} if task_capability else None
 
     try:
-        with _httpx.Client(timeout=_resolve_http_timeout(), auth=httpx_auth) as client:
+        client_kwargs: dict[str, Any] = {
+            "timeout": _resolve_http_timeout(),
+            "auth": httpx_auth,
+        }
+        if headers is not None:
+            client_kwargs["headers"] = headers
+        with _httpx.Client(**client_kwargs) as client:
             if method == "GET":
                 resp = client.get(url, params=params)
             elif method == "POST":
@@ -202,6 +234,34 @@ def _http(
         sys.exit(f"ERROR ({resp.status_code}): {msg}")
 
     return body
+
+
+def _task_handoff_request(
+    base_url: str,
+    action: str,
+    data: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Use the dedicated scoped endpoint when a worker capability is present.
+
+    ``None`` means this is an ordinary operator CLI invocation and callers
+    should use the legacy tracker endpoint.  A capability is never sent to a
+    general endpoint, even when a command is malformed.
+    """
+    token = _task_handoff_token()
+    if token is None:
+        return None
+    payload = {**data}
+    if not payload.get("project_id"):
+        project_id = _task_handoff_project(payload)
+        if project_id:
+            payload["project_id"] = project_id
+    payload["action"] = action
+    return _http(
+        "POST",
+        f"{base_url}/api/v1/task-handoff",
+        data=payload,
+        task_capability=token,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +385,17 @@ def _cmd_view(base_url: str, args: argparse.Namespace) -> None:
     identifier = args.identifier
     params: dict[str, str] = {"issue_key": identifier}
     _add_project_or_managed_repo(params, identifier, getattr(args, "project", None))
+    handoff = _task_handoff_request(
+        base_url,
+        "view",
+        {
+            "identifier": identifier,
+            "project_id": getattr(args, "project", None),
+        },
+    )
+    if handoff is not None:
+        _print_issue_detail(handoff.get("detail") or handoff)
+        return
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/detail"
     result = _http("GET", f"{base_url}{path}", params=params)
     _print_issue_detail(result)
@@ -339,6 +410,9 @@ def _cmd_comment(base_url: str, args: argparse.Namespace) -> None:
         "issue_key": identifier,
     }
     _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
+    if _task_handoff_request(base_url, "comment", data) is not None:
+        print("Comment posted.")
+        return
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/comments"
     _http("POST", f"{base_url}{path}", data=data)
     print("Comment posted.")
@@ -410,6 +484,15 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
     if actor:
         data["actor_login"] = str(actor).strip()
     _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
+    handoff_data = {
+        "identifier": identifier,
+        "project_id": getattr(args, "project", None),
+        "status": args.status,
+        "summary": getattr(args, "summary", None),
+    }
+    if _task_handoff_request(base_url, "set-status", handoff_data) is not None:
+        print(f"Status set to: {args.status}")
+        return
     path = f"/api/v1/issues/{_encode_path_id(identifier)}"
     _http("PATCH", f"{base_url}{path}", data=data)
 
@@ -445,6 +528,9 @@ def _cmd_add_label(base_url: str, args: argparse.Namespace) -> None:
     if actor:
         data["actor_login"] = str(actor).strip()
     _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
+    if _task_handoff_request(base_url, "add-label", data) is not None:
+        print(f"Label added: {args.label}")
+        return
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/labels"
     _http("POST", f"{base_url}{path}", data=data)
     print(f"Label added: {args.label}")
@@ -459,6 +545,17 @@ def _cmd_remove_label(base_url: str, args: argparse.Namespace) -> None:
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/labels/{encoded_label}"
     params: dict[str, str] = {"issue_key": identifier}
     _add_project_or_managed_repo(params, identifier, getattr(args, "project", None))
+    if _task_handoff_request(
+        base_url,
+        "remove-label",
+        {
+            "identifier": identifier,
+            "label": args.label,
+            "project_id": getattr(args, "project", None),
+        },
+    ) is not None:
+        print(f"Label removed: {args.label}")
+        return
     _http("DELETE", f"{base_url}{path}", params=params)
     print(f"Label removed: {args.label}")
 
@@ -839,6 +936,17 @@ def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    # A spawned worker may only use the four task-handoff operations routed
+    # above.  Reject broader commands before any request is made; in
+    # particular, never fall back to operator Basic credentials.
+    if _task_handoff_token() and args.subcommand not in {
+        "view", "comment", "set-status", "add-label", "remove-label"
+    }:
+        sys.exit(
+            "ERROR: this spawned worker has a task-scoped handoff capability; "
+            "the requested task operation is not granted."
+        )
+
     base_url = _resolve_server_url(
         getattr(args, "server", None),
         getattr(args, "port", None),
@@ -847,13 +955,18 @@ def main(argv: list[str] | None = None) -> None:
     # Resolve client credentials (env vars + optional CLI overrides).
     # Exits with a clear error on misconfiguration (missing username,
     # conflicting sources, unreadable password file, etc.).
-    try:
-        _auth = resolve_client_credentials(
-            username_override=getattr(args, "username", None),
-            password_file_override=getattr(args, "password_file", None),
-        )
-    except CredentialError as exc:
-        sys.exit(f"ERROR: {exc}")
+    if _task_handoff_token():
+        # The capability is the only authentication mechanism for this
+        # process.  Do not even resolve inherited operator credentials.
+        _auth = None
+    else:
+        try:
+            _auth = resolve_client_credentials(
+                username_override=getattr(args, "username", None),
+                password_file_override=getattr(args, "password_file", None),
+            )
+        except CredentialError as exc:
+            sys.exit(f"ERROR: {exc}")
 
     # Build dispatch at call time so module-level patches in tests take effect.
     dispatch = {

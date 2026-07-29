@@ -137,6 +137,20 @@ class Focus:
             f"## Your Role: {self.role}",
             "",
             self.description,
+            "",
+            "### Spawned Worker Handoff Security",
+            "",
+            "Use the server-provided task handoff path for tracker comments and "
+            "status updates. ACP/API sessions route oompah task commands through "
+            "the server-owned tracker; subprocess sessions receive an expiring "
+            "capability scoped to this task and project.",
+            "",
+            "Never read or print OOMPAH_SERVER_USERNAME, "
+            "OOMPAH_SERVER_PASSWORD, or OOMPAH_SERVER_PASSWORD_FILE. Do not "
+            "place credentials in prompts, repository files, commits, or logs. "
+            "If a handoff command reports authentication or task-handoff "
+            "failure, stop and leave the task for operator reconciliation "
+            "instead of retrying implementation.",
         ]
         must_do = self._materialize_must_do(project)
         if must_do:
