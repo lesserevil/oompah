@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T01:44:29.570085Z'
+updated_at: '2026-07-29T01:50:20.862899Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -130,5 +130,10 @@ author: oompah
 created: 2026-07-29 01:44
 ---
 Understanding: This task (OOMPAH-472) requires building a MergedEvidenceCollector that verifies actual target-landing for Merged audits. I'm in the CI Failure Fixer role. Let me examine what exists on this branch and what tests are failing.
+---
+author: oompah
+created: 2026-07-29 01:50
+---
+Discovery: OOMPAH-471 (DoneEvidenceCollector) is complete and tests pass. OOMPAH-472 requires creating merged_evidence_collector.py and its tests from scratch. The feature must: (1) require a passed Done audit, (2) resolve source branch/review/SHA/merge commit/target HEAD/CI/containment via SCMProvider, (3) detect wrong-target merges, open/unmerged reviews, failed CI, stale tips, deleted branches, stranded commits, (4) support epic rollups with child audit chains. Implementing now.
 ---
 <!-- COMMENTS:END -->
