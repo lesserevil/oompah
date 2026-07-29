@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-319
 type: task
-status: Merged
+status: Archived
 priority: 1
 title: Add explicit forge configuration and backward-compatible project migration
 parent: OOMPAH-318
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:31.453522Z'
-updated_at: '2026-07-22T08:20:09.272627Z'
+updated_at: '2026-07-29T08:28:52.434797Z'
 work_branch: null
 target_branch: null
 review_url: null
