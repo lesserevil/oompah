@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-29T18:44:26.877122Z'
+updated_at: '2026-07-29T18:44:39.847786Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -67,13 +67,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: ee5ab94d-7dbc-4076-8693-1ab3c9972d9e
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-483
 oompah.task_costs:
-  total_input_tokens: 106
-  total_output_tokens: 5117
+  total_input_tokens: 768
+  total_output_tokens: 5307
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 106
-      output_tokens: 5117
+      input_tokens: 768
+      output_tokens: 5307
       cost_usd: 0.0
   runs:
   - profile: default
@@ -82,6 +82,12 @@ oompah.task_costs:
     output_tokens: 5117
     cost_usd: 0.0
     recorded_at: '2026-07-29T02:01:37.168856+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 662
+    output_tokens: 190
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T18:44:37.595111+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -260,5 +266,15 @@ author: oompah
 created: 2026-07-29 18:44
 ---
 Documentation complete: terminal-audit enforcement, operations guide, and coordinator allowlist
+---
+author: oompah
+created: 2026-07-29 18:44
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 35
+- Tokens: 662 in / 190 out [852 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 13s
+- Log: OOMPAH-483__20260729T183432Z.jsonl
 ---
 <!-- COMMENTS:END -->

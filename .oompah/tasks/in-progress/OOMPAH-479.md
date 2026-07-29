@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-29T18:35:05.195690Z'
+updated_at: '2026-07-29T18:45:00.221652Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -125,5 +125,10 @@ author: oompah
 created: 2026-07-29 18:35
 ---
 **Discovery**: Found 7 direct tracker.update_issue(status=MERGED) calls that need routing through TerminalTransitionCoordinator: (1) Lines 10250,10265: Done→Merged promotion when branch merges (deferred review reconciliation), (2) Line 10688: _label_merged_issues() merged-label maintenance, (3) Line 11446: _mark_stale_in_review_merged() stale In Review reconciliation, (4) Lines 12498,12595: Epic rollup and children reconciliation, (5) Line 14516: _yolo_mark_task_merged() YOLO direct merge outcomes. Webhook handler already uses _request_webhook_terminal_transition via server.py. Key method pattern: orchestrator.request_terminal_transition(current_issue, TargetState.MERGED, trigger_identity, project_id).
+---
+author: oompah
+created: 2026-07-29 18:45
+---
+**Implementation**: Routed 6 direct tracker.update_issue(MERGED) calls through TerminalTransitionCoordinator in orchestrator: (1) Done→Merged promotion (2 locations), (2) merged-label maintenance, (3) stale In Review reconciliation, (4) epic rollup children, (5) YOLO direct merge. Created _request_merged_via_coordinator() helper wrapper for async coordinator calls in sync contexts. Now updating 20 failing tests to mock the coordinator instead of tracker.
 ---
 <!-- COMMENTS:END -->

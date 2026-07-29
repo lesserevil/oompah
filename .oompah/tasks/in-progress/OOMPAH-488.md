@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-488
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Validate the complete task Done-Merged-Archived audit lifecycle
 parent: OOMPAH-460
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-29T18:34:17.982033Z'
+updated_at: '2026-07-29T18:44:53.615783Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: d6f5601e-997d-4175-8930-e6aa5fc7277b
+oompah.agent_run_id: 0d67827f-9a98-4bc9-8710-2ae9c36caed4
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-488
 oompah.task_costs:
   total_input_tokens: 763127
@@ -86,7 +86,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-460--task-OOMPAH-488
   base_branch: epic-OOMPAH-460
   base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
-  updated_at: '2026-07-29T18:33:39.968207+00:00'
+  updated_at: '2026-07-29T18:44:50.825001+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-488__20260729T183010Z
@@ -202,5 +202,15 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: normal, Duration: 41s
 - Log: OOMPAH-488__20260729T183344Z.jsonl
+---
+author: oompah
+created: 2026-07-29 18:44
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 18:44
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
