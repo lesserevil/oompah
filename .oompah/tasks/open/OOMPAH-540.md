@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-540
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Let read-only duplicate preflight bypass dependency and epic serialization
   gates
@@ -14,12 +14,26 @@ labels:
 - needs:docs
 assignee: null
 created_at: '2026-07-29T00:46:32.053029Z'
-updated_at: '2026-07-29T00:46:36.846395Z'
+updated_at: '2026-07-29T00:48:49.328808Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: ab83d9f4e304a67a40246836c5e51e480ddc6fed67248267b351bb1d20b021f9
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 18b14cc7-379e-4502-9a52-f1f144050e37
+  claim_owner: f4d00fa0-7632-4aaf-969a-6ff8237892b3
+  claimed_at: '2026-07-29T00:48:48.578929+00:00'
+  claim_expires_at: '2026-07-29T01:18:48.578929+00:00'
+  retry_count: 0
+  retry_after: null
 ---
 ## Summary
 
