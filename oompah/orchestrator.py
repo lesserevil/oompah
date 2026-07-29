@@ -112,11 +112,16 @@ from oompah.storage_cleanup import (
     inspect_storage_pressure,
 )
 from oompah.terminal_audit import (
+    AuditAttempt,
     ContributorIdentity,
     EvidenceFingerprint,
+    FailureClassification,
+    RequestState,
     TargetState,
+    Verdict,
     compute_evidence_fingerprint,
 )
+from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
 from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
 from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
@@ -134,6 +139,13 @@ from oompah.auditor import (
     AUDITOR_FOCUS_NAME,
     pending_auditor_target,
 )
+from oompah.auditor_dispatch import (
+    AuditDispatchPlan,
+    AuditorDispatchLane,
+    audit_branch_key,
+    timestamp,
+)
+from oompah.auditor_candidate_selector import AuditorCandidateSelector
 from oompah.authority_boundary import auditor_policy
 from oompah.focus import (
     _MIN_SCORE_TO_FLAG,
@@ -143,6 +155,7 @@ from oompah.focus import (
     save_suggestion,
     select_focus,
     select_focus_async,
+    select_reserved_focus,
 )
 from oompah.prompt import (
     PromptError,
@@ -177,6 +190,7 @@ from oompah.work_contributors import (
     WorkContributor,
     _UNKNOWN_MODEL_NAMES as _WORK_CONTRIBUTOR_UNKNOWN_MODELS,
     merge_contributor_records as _merge_work_contributors,
+    load_contributors as _load_work_contributors,
 )
 from oompah.workspace import WorkspaceError, WorkspaceManager
 from oompah.yolo_watchdog import (
@@ -912,6 +926,18 @@ class Orchestrator:
         self._last_watchdog_run: float = 0.0
         self._watchdog_interval_s: float = 300.0  # 5 minutes
         self._last_candidates: list[Issue] = []
+        # Independent auditor dispatch state. Auditor entries share
+        # ``state.running`` with implementation workers, so the ordinary
+        # global slot and shared-epic gates remain authoritative.
+        self._audit_branch_claims: dict[str, str] = {}
+        self._audit_metrics: dict[str, Any] = {
+            "dispatch_count": 0,
+            "rotation_count": 0,
+            "exhaustion_count": 0,
+            "pending_count": 0,
+            "in_progress_count": 0,
+            "last_error": None,
+        }
         # Maintenance lane scheduling state (TASK-466.4).
         # Maps job name → MaintenanceJobState for in-flight coalescing,
         # skip counters, throttle timestamps, and observability.
@@ -3876,6 +3902,314 @@ class Orchestrator:
         async with self._dispatch_lane_lock:
             return await self._handle_dispatch_needed_locked()
 
+    def _fetch_audit_candidates(self) -> list[Issue]:
+        """Fetch persisted ``In Validation`` tasks for the priority lane."""
+
+        projects = self.project_store.list_all()
+        if not projects:
+            try:
+                return list(self.tracker.fetch_issues_by_states([IN_VALIDATION]))
+            except Exception as exc:  # noqa: BLE001 - a scan must not stop work
+                logger.warning("Audit candidate scan failed: %s", exc)
+                return []
+
+        result: list[Issue] = []
+        for project in projects:
+            try:
+                tracker = self._tracker_for_project(project.id)
+                issues = tracker.fetch_issues_by_states([IN_VALIDATION])
+                for issue in issues:
+                    issue.project_id = str(project.id)
+                result.extend(issues)
+            except Exception as exc:  # noqa: BLE001 - isolate projects
+                logger.warning(
+                    "Audit candidate scan failed for project %s: %s",
+                    project.id,
+                    type(exc).__name__,
+                )
+        return result
+
+    def _audit_store(self, issue: Issue) -> TerminalAuditMetadataStore:
+        project_id = str(issue.project_id or "legacy")
+        return TerminalAuditMetadataStore(
+            self._tracker_for_issue(issue), self.project_store, project_id
+        )
+
+    def _audit_update_record(
+        self,
+        store: TerminalAuditMetadataStore,
+        issue: Issue,
+        record,
+        *,
+        append_attempt: AuditAttempt | None = None,
+    ) -> None:
+        """Atomically replace a chain record and mirror new attempts in history."""
+
+        def _updater(document):
+            chain = [
+                record if existing.audit_id == record.audit_id else existing
+                for existing in document.pending_chain
+            ]
+            if not any(existing.audit_id == record.audit_id for existing in chain):
+                chain.append(record)
+            history = list(document.attempt_history)
+            if append_attempt is not None:
+                history = [
+                    existing
+                    for existing in history
+                    if existing.attempt_id != append_attempt.attempt_id
+                ]
+                history.append(append_attempt)
+            return replace(document, pending_chain=chain, attempt_history=history)
+
+        store.update(issue.identifier, _updater)
+
+    def _audit_branch_busy(
+        self,
+        issue: Issue,
+        branch_key: str,
+        *,
+        include_writers: bool = True,
+    ) -> bool:
+        """Check branch contention for an audit or implementation dispatch."""
+
+        owner = getattr(self, "_audit_branch_claims", {}).get(branch_key)
+        if owner:
+            return True
+        for entry in self.state.running.values():
+            if entry.issue is None:
+                continue
+            if (
+                getattr(entry, "branch_key", None) or audit_branch_key(entry.issue)
+            ) != branch_key:
+                continue
+            if include_writers or getattr(entry, "is_auditor", False):
+                return True
+        if not include_writers:
+            # ``_audit_branch_claims`` covers the pre-RunningEntry window for
+            # auditors; ordinary claims are intentionally left to the normal
+            # shared-epic gate so its established P0 semantics are preserved.
+            return False
+        for claimed_issue in getattr(self.state, "claimed_issues", {}).values():
+            if audit_branch_key(claimed_issue) == branch_key:
+                return True
+        return False
+
+    def _audit_selector(self, issue: Issue) -> AuditorCandidateSelector:
+        project = None
+        if issue.project_id:
+            try:
+                project = self.project_store.get(issue.project_id)
+            except Exception:
+                project = None
+        return AuditorCandidateSelector(
+            self.role_store,
+            self.provider_store,
+            project_config=project,
+        )
+
+    async def _route_no_auditor(
+        self,
+        issue: Issue,
+        record,
+        reason: str,
+    ) -> None:
+        """Route exhausted or unconfigured audits to actionable Needs Human."""
+
+        from oompah.terminal_transition_coordinator import AuditResult
+
+        message = (
+            "No independent auditor candidate is available for this audit "
+            f"({reason}). Configure the `auditor` role with at least one "
+            "healthy provider/model that is independent of the task contributors, "
+            "then move the task back to Open to retry."
+        )
+        result = AuditResult(
+            audit_id=record.audit_id,
+            target_state=record.target_state,
+            evidence_fingerprint=record.evidence_fingerprint,
+            verdict=Verdict.FAIL,
+            failure_classification=FailureClassification.NO_AUDITOR,
+            message=message,
+            attempt_id=f"no-auditor-{record.audit_id}-{len(record.attempts)}",
+        )
+        outcome = await self.terminal_transition_coordinator.apply_audit_result(
+            issue, result, str(issue.project_id or "legacy")
+        )
+        if outcome.success:
+            self._audit_metrics["exhaustion_count"] += 1
+        else:
+            self._audit_metrics["last_error"] = outcome.reason
+            logger.warning(
+                "Unable to route exhausted audit %s to Needs Human: %s",
+                record.audit_id,
+                outcome.reason,
+            )
+
+    async def _dispatch_audit_lane(self) -> dict[str, float]:
+        """Dispatch persisted terminal audits before ordinary Open work."""
+
+        started = time.monotonic()
+        metrics = self._audit_metrics
+        if self._paused or self._is_rate_limited():
+            return {"audit_dispatch": 0.0, "audit_scan": 0.0}
+        if self._available_slots() <= 0:
+            return {"audit_dispatch": 0.0, "audit_scan": 0.0}
+
+        candidates = await asyncio.get_running_loop().run_in_executor(
+            self._tick_pool, self._fetch_audit_candidates
+        )
+        candidates = sorted(
+            candidates,
+            key=lambda issue: (
+                -(
+                    self.config.audit_priority
+                    if issue.priority is None
+                    else int(issue.priority)
+                ),
+                issue.created_at or datetime.max.replace(tzinfo=timezone.utc),
+                issue.identifier,
+            ),
+        )
+        limit = self.config.audit_lane_scan_limit
+        if limit > 0:
+            candidates = candidates[:limit]
+        metrics["pending_count"] = len(candidates)
+        dispatched = 0
+
+        for issue in candidates:
+            if self._available_slots() <= 0:
+                break
+            try:
+                store = self._audit_store(issue)
+                document = await asyncio.get_running_loop().run_in_executor(
+                    self._tick_pool, store.read, issue.identifier
+                )
+                record = AuditorDispatchLane.pending_record(document.pending_chain)
+                if record is None:
+                    continue
+                selector = self._audit_selector(issue)
+                lane = AuditorDispatchLane(
+                    selector,
+                    max_attempts=self.config.audit_max_attempts,
+                    attempt_ttl_seconds=self.config.audit_attempt_ttl_seconds,
+                )
+                branch_key = audit_branch_key(issue)
+                active = {
+                    entry.audit_attempt_id
+                    for entry in self.state.running.values()
+                    if entry.is_auditor and entry.audit_attempt_id
+                }
+                recovery = lane.recover(record, active_attempt_ids=active)
+                if (
+                    not recovery.ready
+                    and recovery.reason
+                    and "termination required" in recovery.reason
+                ):
+                    running = self.state.running.get(issue.id)
+                    if running and running.is_auditor:
+                        await self._terminate_running(issue.id, cleanup_workspace=False)
+                        self._audit_branch_claims.pop(branch_key, None)
+                        active.discard(running.audit_attempt_id)
+                        recovery = lane.recover(
+                            record, active_attempt_ids=active
+                        )
+                if recovery.record != record:
+                    recovered_attempt = (
+                        recovery.record.attempts[-1]
+                        if recovery.record.attempts
+                        else None
+                    )
+                    await asyncio.get_running_loop().run_in_executor(
+                        self._tick_pool,
+                        lambda r=recovery.record, a=recovered_attempt: self._audit_update_record(
+                            store, issue, r, append_attempt=a
+                        ),
+                    )
+                    record = recovery.record
+                if not recovery.ready:
+                    if recovery.reason and "already running" in recovery.reason:
+                        metrics["in_progress_count"] += 1
+                    continue
+
+                if self._audit_branch_busy(issue, branch_key):
+                    continue
+                metadata = await asyncio.get_running_loop().run_in_executor(
+                    self._tick_pool, self._tracker_for_issue(issue).get_metadata, issue.identifier
+                )
+                contributors = _load_work_contributors(metadata or {})
+                plan, no_candidate = lane.plan(
+                    record, contributors, branch_key=branch_key
+                )
+                if plan is None:
+                    await self._route_no_auditor(
+                        issue,
+                        record,
+                        no_candidate.detail if no_candidate else "no candidate",
+                    )
+                    continue
+
+                persisted = lane.persist_plan(record, plan)
+                attempt = persisted.attempts[-1]
+                # This write is deliberately awaited before _dispatch can
+                # create a worker. It is the crash/restart idempotency fence.
+                await asyncio.get_running_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda r=persisted, a=attempt: self._audit_update_record(
+                        store, issue, r, append_attempt=a
+                    ),
+                )
+                self._audit_branch_claims[branch_key] = plan.attempt_id
+                try:
+                    await self._dispatch(
+                        issue, attempt=plan.rotation_count, auditor_plan=plan
+                    )
+                except Exception as exc:
+                    # A failure between the durable launch fence and worker
+                    # creation must release the branch claim and leave the
+                    # attempt retryable. Otherwise a scheduler exception can
+                    # strand the audit indefinitely in ``in_progress``.
+                    self._audit_branch_claims.pop(branch_key, None)
+                    failed = AuditorDispatchLane.finish_attempt(
+                        persisted,
+                        plan.attempt_id,
+                        reason=f"auditor launch failed: {exc}",
+                        retry_after=timestamp(
+                            datetime.now(timezone.utc)
+                            + timedelta(
+                                milliseconds=self._backoff_delay(
+                                    plan.rotation_count + 1
+                                )
+                            )
+                        ),
+                    )
+                    await asyncio.get_running_loop().run_in_executor(
+                        self._tick_pool,
+                        lambda r=failed: self._audit_update_record(
+                            store,
+                            issue,
+                            r,
+                            append_attempt=r.attempts[-1],
+                        ),
+                    )
+                    raise
+                dispatched += 1
+                metrics["dispatch_count"] += 1
+                if plan.rotation_count:
+                    metrics["rotation_count"] += 1
+            except Exception as exc:  # noqa: BLE001 - one audit must not starve all work
+                metrics["last_error"] = f"{type(exc).__name__}: {exc}"
+                logger.exception("Audit dispatch failed for %s", issue.identifier)
+
+        metrics["in_progress_count"] = sum(
+            1 for entry in self.state.running.values() if entry.is_auditor
+        )
+        metrics["last_dispatched_count"] = dispatched
+        return {
+            "audit_scan": (time.monotonic() - started) * 1000,
+            "audit_dispatch": (time.monotonic() - started) * 1000,
+        }
+
     async def _handle_dispatch_needed_locked(self) -> dict[str, float]:
         """Inner body of _handle_dispatch_needed; called with _dispatch_lane_lock held."""
         timings: dict[str, float] = {}
@@ -3904,6 +4238,15 @@ class Orchestrator:
             result = await coro_factory(*args)
             metrics[f"{name}_ms"] = round((time.monotonic() - start) * 1000, 3)
             return result
+
+        # Audits are a priority lane. They run first and consume the same
+        # ``state.running`` slots as ordinary workers, so a full worker pool
+        # naturally prevents an audit from exceeding global concurrency.
+        audit_timings = await _timed_async(
+            "audit_lane", self._dispatch_audit_lane
+        )
+        timings.update(audit_timings)
+        metrics["audits"] = dict(self._audit_metrics)
 
         # 1. Candidate fetch — dominant I/O cost (one tracker query per project)
         candidates = await _timed_async(
@@ -5078,11 +5421,29 @@ class Orchestrator:
         if not parent_id:
             return 0
         in_flight_ids: set[str] = set()
+        epic_branch_keys = {f"epic:{parent_id}"}
+        try:
+            branch = self.project_store.epic_branch_name(parent_id)
+        except Exception:  # noqa: BLE001 - branch lookup is best-effort
+            branch = ""
+        if branch:
+            epic_branch_keys.add(str(branch))
         for entry in self.state.running.values():
             if getattr(entry, "duplicate_preflight", False):
                 continue
             other = entry.issue
-            if other and (other.parent_id or "") == parent_id:
+            if not other:
+                continue
+            same_parent = (other.parent_id or "") == parent_id
+            is_auditor_on_epic_branch = bool(
+                entry.is_auditor
+                and (
+                    entry.branch_key in epic_branch_keys
+                    or other.identifier == parent_id
+                    or other.id == parent_id
+                )
+            )
+            if same_parent or is_auditor_on_epic_branch:
                 in_flight_ids.add(other.id)
         # A dispatch adds the claim before it writes In Progress and creates
         # the RunningEntry. Include that interval so another event-driven
@@ -5096,7 +5457,10 @@ class Orchestrator:
                 continue
             if (
                 issue_id in self.state.claimed
-                and (claimed_issue.parent_id or "") == parent_id
+                and (
+                    (claimed_issue.parent_id or "") == parent_id
+                    or audit_branch_key(claimed_issue) in epic_branch_keys
+                )
             ):
                 in_flight_ids.add(issue_id)
         return len(in_flight_ids)
@@ -8665,6 +9029,14 @@ class Orchestrator:
                 if self._blocker_has_unmerged_pr(blocker):
                     # Blocker is closed but PR hasn't merged — still blocked
                     return _reject(f"blocker={blocker.id} unmerged_review")
+        # An auditor and an implementation worker must never share a
+        # worktree concurrently.  Check this independently of the P0 and
+        # shared-epic gates below because both ordinary tasks and P0 children
+        # can otherwise bypass those serialization rules.
+        if self._audit_branch_busy(
+            issue, audit_branch_key(issue), include_writers=False
+        ):
+            return _reject(f"auditor_branch_busy={audit_branch_key(issue)}")
         # Shared-epic child dispatch serialization: multiple children share one
         # worktree+branch with no in-worktree coordination protocol, so only
         # one child of a given epic can be in flight at a time.  Multiple epics
@@ -17319,6 +17691,7 @@ class Orchestrator:
         override_profile: str | None = None,
         *,
         duplicate_preflight_claim: DuplicateScreeningRecord | None = None,
+        auditor_plan: AuditDispatchPlan | None = None,
     ) -> None:
         """Dispatch a worker for an issue."""
         duplicate_preflight = duplicate_preflight_claim is not None
@@ -17348,14 +17721,28 @@ class Orchestrator:
             self.state.claimed.discard(issue.id)
             self.state.claimed_issues.pop(issue.id, None)
             await _release_preflight("dispatch aborted because orchestrator is paused")
+            if auditor_plan:
+                self._audit_branch_claims.pop(auditor_plan.branch_key, None)
             return
         self.state.reject_streak.pop(issue.id, None)
 
         # Resolve profile and compute natural_profile_name for default_first_dispatch.
         natural_profile_name: str | None = None
 
+        # Auditor profiles are server-owned and bound to the persisted
+        # provider/model candidate. They never pass through ordinary focus
+        # triage or profile escalation.
+        if auditor_plan is not None:
+            profile = AgentProfile(
+                name="auditor",
+                command=self.config.agent_command,
+                provider_id=auditor_plan.candidate.provider_id,
+                model=auditor_plan.candidate.model,
+                max_turns=self.config.max_turns,
+                mode="auto",
+            )
         # Use escalated profile if provided, otherwise match normally
-        if override_profile:
+        elif override_profile:
             profile = self._get_profile_by_name(override_profile)
             if not profile:
                 profile = self._match_agent_profile(issue)
@@ -17477,6 +17864,8 @@ class Orchestrator:
                 )
                 self.state.claimed.discard(issue.id)
                 self.state.claimed_issues.pop(issue.id, None)
+                if auditor_plan:
+                    self._audit_branch_claims.pop(auditor_plan.branch_key, None)
                 self.state.completed.add(issue.id)
                 await _release_preflight(
                     "dispatch aborted because task became terminal"
@@ -17512,7 +17901,7 @@ class Orchestrator:
                         "dispatch aborted because claim or task fingerprint changed"
                     )
                     return
-            elif not self._implementation_duplicate_screening_ready(
+            elif auditor_plan is None and not self._implementation_duplicate_screening_ready(
                 refreshed_issue
             ):
                 logger.info(
@@ -17525,8 +17914,9 @@ class Orchestrator:
                 return
 
         # Implementation work moves to In Progress. Duplicate preflight is a
-        # qualification lane, so its tracker state remains Open.
-        if not duplicate_preflight:
+        # qualification lane, so its tracker state remains Open. Auditors
+        # are read-only and never mutate the task's status either.
+        if not duplicate_preflight and auditor_plan is None:
             try:
                 await asyncio.get_event_loop().run_in_executor(
                     self._tick_pool,
@@ -17548,7 +17938,7 @@ class Orchestrator:
         # last writer wins: if another oompah instance claimed the issue after
         # us, our run ID will have been overwritten and we abort rather than
         # starting a duplicate agent.
-        if (issue.tracker_kind or "").strip().lower() in {"github_issues", "oompah_md"}:
+        if auditor_plan is None and (issue.tracker_kind or "").strip().lower() in {"github_issues", "oompah_md"}:
             _claim_run_id = str(uuid.uuid4())
             try:
                 await asyncio.get_event_loop().run_in_executor(
@@ -17589,13 +17979,17 @@ class Orchestrator:
                     exc,
                 )
 
-        running_issue = replace(
-            issue,
-            state=(
-                issue.state
-                if duplicate_preflight
-                else _configured_in_progress_state(self.config.tracker_active_states)
-            ),
+        running_issue = (
+            issue
+            if auditor_plan is not None
+            else replace(
+                issue,
+                state=(
+                    issue.state
+                    if duplicate_preflight
+                    else _configured_in_progress_state(self.config.tracker_active_states)
+                ),
+            )
         )
         try:
             post_update = await asyncio.get_event_loop().run_in_executor(
@@ -17627,7 +18021,8 @@ class Orchestrator:
                 ):
                     setattr(running_issue, attr, getattr(issue, attr))
             if (
-                not duplicate_preflight
+                auditor_plan is None
+                and not duplicate_preflight
                 and _state_key(running_issue.state) != "in_progress"
             ):
                 running_issue = replace(
@@ -17643,8 +18038,11 @@ class Orchestrator:
             retry.timer_handle.cancel()
 
         now = datetime.now(timezone.utc)
+        worker_kwargs = (
+            {"auditor_plan": auditor_plan} if auditor_plan is not None else {}
+        )
         worker_task = asyncio.create_task(
-            self._run_worker(running_issue, attempt, profile),
+            self._run_worker(running_issue, attempt, profile, **worker_kwargs),
             name=f"worker-{issue.identifier}",
         )
 
@@ -17668,10 +18066,19 @@ class Orchestrator:
                 if duplicate_preflight_claim is not None
                 else None
             ),
+            is_auditor=auditor_plan is not None,
+            audit_id=auditor_plan.audit_id if auditor_plan else None,
+            audit_attempt_id=auditor_plan.attempt_id if auditor_plan else None,
+            branch_key=auditor_plan.branch_key if auditor_plan else audit_branch_key(issue),
         )
 
         # Post dispatch comment in thread to avoid blocking event loop
-        if duplicate_preflight:
+        if auditor_plan is not None:
+            comment = (
+                f"Auditor dispatched (attempt #{auditor_plan.rotation_count + 1}, "
+                f"candidate: {auditor_plan.candidate.provider_id}/{auditor_plan.candidate.model})"
+            )
+        elif duplicate_preflight:
             comment = (
                 "Duplicate screening dispatched "
                 f"(profile: {profile_name}, task remains Open)"
@@ -17825,7 +18232,12 @@ class Orchestrator:
         )
 
     async def _run_worker(
-        self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None
+        self,
+        issue: Issue,
+        attempt: int | None,
+        profile: AgentProfile | None = None,
+        *,
+        auditor_plan: AuditDispatchPlan | None = None,
     ) -> None:
         """Worker: create workspace, build prompt, run agent turns.
 
@@ -17923,11 +18335,25 @@ class Orchestrator:
                 continue
 
             try:
+                forced_focus = (
+                    {"forced_auditor": True} if auditor_plan is not None else {}
+                )
                 if mode == "acp" or getattr(target.provider, "mode", "api") == "acp":
-                    await self._run_acp_worker(issue, attempt, profile, target=target)
+                    await self._run_acp_worker(
+                        issue,
+                        attempt,
+                        profile,
+                        target=target,
+                        **forced_focus,
+                    )
                 else:
                     await self._run_api_worker(
-                        issue, attempt, profile, target.provider, target=target
+                        issue,
+                        attempt,
+                        profile,
+                        target.provider,
+                        target=target,
+                        **forced_focus,
                     )
                 # Candidate started successfully — record usage for role candidates
                 # so the round-robin strategy picks a different one next time.
@@ -17973,6 +18399,7 @@ class Orchestrator:
         profile: AgentProfile,
         provider,
         target: "DispatchTarget | None" = None,
+        forced_auditor: bool = False,
     ) -> None:
         """Worker using the OpenAI-compatible API agent.
 
@@ -17997,9 +18424,12 @@ class Orchestrator:
         # plans/agentic-focus-triage.md. The async variant tries an LLM
         # call against the provider's default_model and falls back to
         # the deterministic scorer on any failure.
-        focus = self._duplicate_preflight_focus(issue)
-        if focus is None:
-            focus = await select_focus_async(issue, provider=provider)
+        if forced_auditor:
+            focus = select_reserved_focus(AUDITOR_FOCUS_NAME)
+        else:
+            focus = self._duplicate_preflight_focus(issue)
+            if focus is None:
+                focus = await select_focus_async(issue, provider=provider)
         logger.info(
             "Issue %s assigned focus: %s (%s)", issue.identifier, focus.name, focus.role
         )
@@ -18564,6 +18994,7 @@ class Orchestrator:
         attempt: int | None,
         profile: AgentProfile,
         target: "DispatchTarget | None" = None,
+        forced_auditor: bool = False,
     ) -> None:
         """Worker that drives the bundled ``claude`` CLI via the Claude
         Agent SDK so per-token costs bill against the operator's
@@ -18603,9 +19034,12 @@ class Orchestrator:
         startup_failover = False
         max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
 
-        focus = self._duplicate_preflight_focus(issue)
-        if focus is None:
-            focus = await select_focus_async(issue, provider=None)
+        if forced_auditor:
+            focus = select_reserved_focus(AUDITOR_FOCUS_NAME)
+        else:
+            focus = self._duplicate_preflight_focus(issue)
+            if focus is None:
+                focus = await select_focus_async(issue, provider=None)
         logger.info(
             "Issue %s assigned focus: %s (%s)",
             issue.identifier,
@@ -19075,17 +19509,16 @@ class Orchestrator:
                 project_id=issue.project_id or None,
                 task_tracker=task_tracker,
                 task_identifier=issue.identifier,
-                action_policy=action_policy,
-                task_handoff_token=handoff_token,
-                comment_queue=_comment_queue,
                 action_policy=(
                     auditor_policy(
                         task_identifier=issue.identifier,
                         project_id=issue.project_id,
                     )
                     if focus.name.lower() == AUDITOR_FOCUS_NAME
-                    else None
+                    else action_policy
                 ),
+                task_handoff_token=handoff_token,
+                comment_queue=_comment_queue,
                 focus=focus,
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
                 audit_target=audit_target,
@@ -20395,6 +20828,70 @@ class Orchestrator:
             )
         )
 
+    def _finish_audit_attempt(
+        self,
+        entry: RunningEntry,
+        reason: str,
+        error: str | None,
+    ) -> bool:
+        """Persist an auditor exit only if no structured result won the race."""
+
+        if not entry.audit_attempt_id:
+            return False
+        try:
+            store = self._audit_store(entry.issue)
+            document = store.read(entry.identifier)
+            target = next(
+                (
+                    record
+                    for record in document.pending_chain
+                    if record.audit_id == entry.audit_id
+                ),
+                None,
+            )
+            if target is None or target.request_state not in (
+                RequestState.PENDING,
+                RequestState.IN_PROGRESS,
+            ):
+                # The result coordinator already completed (or superseded)
+                # this target. Never overwrite that decision with a crash.
+                return False
+            rotation = next(
+                (
+                    attempt.candidate_rotation_count
+                    for attempt in target.attempts
+                    if attempt.attempt_id == entry.audit_attempt_id
+                ),
+                0,
+            )
+            updated = AuditorDispatchLane.finish_attempt(
+                target,
+                entry.audit_attempt_id,
+                reason=error or reason,
+                retry_after=timestamp(
+                    datetime.now(timezone.utc)
+                    + timedelta(
+                        milliseconds=self._backoff_delay(rotation + 1)
+                    )
+                ),
+            )
+            self._audit_update_record(
+                store,
+                entry.issue,
+                updated,
+                append_attempt=updated.attempts[-1]
+                if updated.attempts and updated.attempts[-1].attempt_id == entry.audit_attempt_id
+                else None,
+            )
+            return True
+        except Exception as exc:  # noqa: BLE001 - exit cleanup must not wedge loop
+            logger.warning(
+                "Failed to persist auditor exit for %s: %s",
+                entry.identifier,
+                exc,
+            )
+            return False
+
     async def _on_worker_exit(
         self, issue_id: str, reason: str, error: str | None
     ) -> None:
@@ -20467,7 +20964,7 @@ class Orchestrator:
         # Persist work contributor provenance (OOMPAH-468): write only on
         # successful completion so partial/stalled runs are not recorded as
         # contributors to the task or epic revision.
-        if reason == "normal":
+        if reason == "normal" and not entry.is_auditor:
             self._fire_work_contributor_record(entry)
 
         tokens_str = ""
@@ -20478,6 +20975,51 @@ class Orchestrator:
 
         if getattr(entry, "duplicate_preflight", False):
             await self._handle_duplicate_preflight_exit(entry, reason, error)
+            return
+
+        if entry.is_auditor:
+            # Auditors never enter the ordinary worker completion state
+            # machine: a normal exit is meaningful only when the structured
+            # result tool has already completed the durable audit record.
+            self.state.claimed.discard(issue_id)
+            if entry.branch_key:
+                self._audit_branch_claims.pop(entry.branch_key, None)
+            ended = await asyncio.to_thread(
+                self._finish_audit_attempt,
+                entry,
+                reason,
+                error,
+            )
+            if ended:
+                message = error or f"auditor exited ({reason}) without a result"
+                self._post_comment(
+                    entry.identifier,
+                    f"Auditor attempt ended: {message}. A different independent "
+                    "auditor will be tried on the next scheduler tick.",
+                    project_id=project_id,
+                )
+            self._audit_metrics["in_progress_count"] = sum(
+                1 for item in self.state.running.values() if item.is_auditor
+            )
+            self.event_bus.emit(
+                EventType.AGENT_COMPLETED if reason == "normal" else EventType.AGENT_FAILED,
+                {
+                    "issue_id": issue_id,
+                    "identifier": entry.identifier,
+                    "reason": reason,
+                    "error": error,
+                    "auditor": True,
+                    "elapsed_s": elapsed,
+                },
+            )
+            self._notify_observers()
+            self._post_event(
+                DispatchEvent(
+                    event_type=DispatchEventType.WORKER_EXIT,
+                    issue_id=issue_id,
+                    payload={"reason": reason, "auditor": True},
+                )
+            )
             return
 
         if handoff_failure or self._is_task_handoff_failure(error):
@@ -22471,13 +23013,18 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "focus_name": entry.focus_name,
                 "focus_role": entry.focus_role,
                 "work_kind": (
-                    "duplicate_screening"
+                    "audit"
+                    if entry.is_auditor
+                    else "duplicate_screening"
                     if getattr(entry, "duplicate_preflight", False)
                     else "implementation"
                 ),
                 "duplicate_preflight": bool(
                     getattr(entry, "duplicate_preflight", False)
                 ),
+                "is_auditor": entry.is_auditor,
+                "audit_id": entry.audit_id,
+                "audit_attempt_id": entry.audit_attempt_id,
                 "provider_name": entry.provider_name,
                 "model_name": entry.model_name,
                 "turn_count": 0,
@@ -22617,6 +23164,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "terminal_audit_enforcement": dict(
                 getattr(self._terminal_audit_enforcement, "last_result", {}) or {}
             ),
+            "audits": dict(getattr(self, "_audit_metrics", {}) or {}),
             "alerts": list(self._alerts) + self._credential_error_alerts(),
             "reviews_summary": self._reviews_summary(),
             "orchestrator_metrics": {
@@ -22624,6 +23172,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "last_dispatch": dict(
                     getattr(self, "_last_dispatch_metrics", {}) or {}
                 ),
+                "audits": dict(getattr(self, "_audit_metrics", {}) or {}),
                 "maintenance": dict(
                     getattr(self, "_maintenance_status", {}) or {}
                 ),

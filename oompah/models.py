@@ -1373,6 +1373,13 @@ class RunningEntry:
     # Short-lived server-owned capability used by subprocess task handoffs.
     # Never serialized into prompts or telemetry.
     task_handoff_token: str | None = None
+    # Reserved-auditor dispatch identity.  Keeping this beside ordinary
+    # worker state makes the global concurrency and shared-epic gates count
+    # auditors without creating a second in-flight registry.
+    is_auditor: bool = False
+    audit_id: str | None = None
+    audit_attempt_id: str | None = None
+    branch_key: str | None = None
 
 
 @dataclass

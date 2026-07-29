@@ -1,15 +1,13 @@
 # Independent Auditor Dispatch Lane
 
-**Status:** Design proposal (OOMPAH-475)
+**Status:** Implemented (OOMPAH-475)
 **Epic:** OOMPAH-457
 **Related:** OOMPAH-464 (Candidate Selector), OOMPAH-465 (Staging), OOMPAH-466 (Result Routing)
 
-This is the dispatch-integration design. The branch already provides the
-durable terminal-audit records and metadata store, independent candidate
-policy, and reserved read-only auditor contract. The priority scheduler lane
-described here is the remaining integration surface; the `OOMPAH_AUDIT_*`
-settings below are proposed names until that lane is wired into the
-orchestrator and `.env.example`.
+This document describes the implemented dispatch integration: durable
+terminal-audit records, independent candidate policy, the reserved read-only
+auditor contract, and the priority scheduler lane wired into the orchestrator.
+The `OOMPAH_AUDIT_*` settings are available in `.env.example`.
 
 ## Overview
 
@@ -124,7 +122,7 @@ The independent auditor candidate selection process mirrors the seeded auditor r
 **Selection order:**
 
 1. Load the auditor role from the project's role store (`.oompah/roles.json`).
-2. Call `AuditorCandidateSelector.select_candidate(contributors=task_contributors)` to get the next eligible independent candidate.
+2. Call `AuditorCandidateSelector.select_candidates(contributors=task_contributors)` to get the next eligible independent candidate.
 3. Exclude provider/model pairs already attempted for this audit. If no candidate remains, use the selector's reason (for example, `all_are_contributors`) and mark the audit with `NO_AUDITOR` failure.
 4. Apply provider health, budget, and rate-limit preflight checks.
 5. Persist the attempt and launch.
@@ -187,9 +185,11 @@ When a candidate fails (provider error, timeout, auditor crash), the system:
 3. Service restarts and loads all persisted tasks.
 4. Dispatcher scans all tasks in In Validation state.
 5. For each task with an in-progress `AuditAttempt`:
-   - If `ended_at` is set, process as if the auditor exited (transient failure path above).
-   - If `ended_at` is null and `started_at` is recent (< TTL), assume still running and skip.
-   - If `ended_at` is null and `started_at` is old (>= TTL), mark abandoned and rotate.
+   - If a live worker owns the attempt and it is recent, skip it.
+   - If a live worker exceeds the TTL, terminate that auditor before reclaiming
+     the attempt.
+   - If no live worker owns it (including after restart), mark it abandoned and
+     rotate without launching a duplicate attempt.
 
 ### Backoff and Rate Limiting
 
@@ -199,7 +199,9 @@ Retry backoff follows the normal dispatch retry backoff:
   is 10 seconds and its ceiling is `OOMPAH_MAX_RETRY_BACKOFF_MS` (default
   300000 ms).
 
-Rate-limit responses (HTTP 429) trigger an immediate candidate rotation (no backoff) to unblock the audit by switching to a different provider.
+Rate-limit responses (HTTP 429) persist the failure and use the same
+exponential backoff as ordinary worker retries before rotating to a different
+provider.
 
 ### Proposed Configuration Variables
 
@@ -257,9 +259,7 @@ The orchestrator's main dispatch loop is extended with an audit lane before the 
 
 ```python
 async def _handle_dispatch_needed_locked(self) -> dict[str, float]:
-    # ... existing normal dispatch ...
-    
-    # NEW: Audit dispatch lane (higher priority)
+    # Audit dispatch lane (higher priority)
     audit_times = await self._dispatch_audit_lane()
     
     # Existing: Normal work dispatch
@@ -273,17 +273,24 @@ The audit lane runs the following sequence:
 1. Load all tasks in "In Validation" state.
 2. For each task, extract the first pending audit from metadata.
 3. Attempt to dispatch the audit with `_dispatch_single_audit(task, audit)`.
-4. Skip if the task/epic is locked by another worker.
-5. Skip if no auditor candidates are available.
-6. Return scheduling times for metrics and polling adjustment.
+4. Skip if the task/epic branch is locked by another worker.
+5. Persist the attempt identity before launching the reserved worker.
+6. Rotate candidates after normal backoff, or route exhaustion to Needs Human.
+7. Return scheduling times for metrics and polling adjustment.
 
 ### Terminal Transition Coordinator
 
-The coordinator's `apply_audit_result` method remains unchanged. The dispatch lane simply provides the mechanism to launch auditors; the coordinator orchestrates the terminal status application.
+The coordinator's public `apply_audit_result` contract remains unchanged. The
+dispatch lane provides the launch mechanism; the coordinator still validates
+the result and applies the terminal status, while merging a result into its
+pre-persisted attempt row when the attempt ID matches.
 
 ### Candidate Selector
 
-The dispatch lane uses `AuditorCandidateSelector.select_candidate(contributors)` to obtain the next independent candidate in rotation. The selector is stateless and deterministic given the same role and contributor set.
+The dispatch lane uses `AuditorCandidateSelector.select_candidates(contributors)`
+to obtain the next independent candidate not already recorded for the audit.
+The selector is stateless and deterministic given the same role and contributor
+set.
 
 ## Monitoring and Observability
 
@@ -299,6 +306,10 @@ The dispatch lane uses `AuditorCandidateSelector.select_candidate(contributors)`
 **Queue metrics:**
 - `audits_pending_count` (gauge) — tasks in In Validation with pending audits
 - `audits_in_progress_count` (gauge) — running auditor agents
+
+The live `/api/v1/state` snapshot exposes these counters under
+`orchestrator_metrics.audits` and includes auditor identity fields in each
+running-worker row.
 
 ### Logging
 

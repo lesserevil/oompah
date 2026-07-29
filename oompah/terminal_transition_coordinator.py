@@ -965,11 +965,41 @@ class TerminalTransitionCoordinator:
             # and safe evidence are all captured before we commit any tracker
             # write — that way a crash after this update but before the
             # tracker write still leaves an auditable trail.
-            updated_record = replace(
-                record,
-                attempts=[*record.attempts, attempt],
-                updated_at=now,
-            )
+            # A scheduler-created attempt already owns the launch identity.
+            # Complete that same row when the auditor submits a result rather
+            # than appending a second row with the same attempt ID.  This is
+            # the idempotency fence used by restart recovery and keeps the
+            # provider/model/branch provenance attached to the result.
+            attempts = []
+            merged = False
+            for existing in record.attempts:
+                if existing.attempt_id != attempt.attempt_id:
+                    attempts.append(existing)
+                    continue
+                merged = True
+                attempts.append(
+                    replace(
+                        attempt,
+                        created_at=existing.created_at or attempt.created_at,
+                        provider_id=existing.provider_id or attempt.provider_id,
+                        model=existing.model or attempt.model,
+                        started_at=existing.started_at or attempt.started_at,
+                        branch_key=existing.branch_key or attempt.branch_key,
+                        session_id=existing.session_id or attempt.session_id,
+                        candidate_rotation_count=(
+                            existing.candidate_rotation_count
+                            or attempt.candidate_rotation_count
+                        ),
+                        ended_at=(
+                            now
+                            if attempt.request_state == RequestState.COMPLETED
+                            else existing.ended_at
+                        ),
+                    )
+                )
+            if not merged:
+                attempts.append(attempt)
+            updated_record = replace(record, attempts=attempts, updated_at=now)
 
             if action.kind == "nonterminal":
                 # Retry ceilings and infrastructure errors are recorded as an

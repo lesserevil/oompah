@@ -419,6 +419,13 @@ class ServiceConfig:
     max_concurrent_agents: int = 10
     max_turns: int = 20
     max_retry_backoff_ms: int = 300000
+    # Independent completion-auditor dispatch controls.  These are
+    # environment-only because they tune scheduler behaviour rather than
+    # workflow structure.
+    audit_max_attempts: int = 3
+    audit_attempt_ttl_seconds: int = 3600
+    audit_priority: int = 100
+    audit_lane_scan_limit: int = 32
     max_concurrent_agents_by_state: dict[str, int] = field(default_factory=dict)
     agent_command: str = "claude --dangerously-skip-permissions"
     turn_timeout_ms: int = 3_600_000
@@ -919,6 +926,16 @@ class ServiceConfig:
             max_concurrent_agents=_env_int("OOMPAH_MAX_CONCURRENT_AGENTS", agent.get("max_concurrent_agents"), 10),
             max_turns=_env_int("OOMPAH_MAX_TURNS", agent.get("max_turns"), 200),
             max_retry_backoff_ms=_env_int("OOMPAH_MAX_RETRY_BACKOFF_MS", agent.get("max_retry_backoff_ms"), 300000),
+            audit_max_attempts=_parse_positive_env_int(
+                "OOMPAH_AUDIT_MAX_ATTEMPTS", 3
+            ),
+            audit_attempt_ttl_seconds=_parse_positive_env_int(
+                "OOMPAH_AUDIT_ATTEMPT_TTL", 3600
+            ),
+            audit_priority=_env_int("OOMPAH_AUDIT_PRIORITY", None, 100),
+            audit_lane_scan_limit=_env_int(
+                "OOMPAH_AUDIT_LANE_SCAN_LIMIT", None, 32
+            ),
             max_concurrent_agents_by_state=by_state,
             agent_command=_env_str("OOMPAH_AGENT_COMMAND", codex.get("command"), "claude --dangerously-skip-permissions"),
             turn_timeout_ms=_env_int("OOMPAH_TURN_TIMEOUT_MS", codex.get("turn_timeout_ms"), 3_600_000),
@@ -1119,5 +1136,12 @@ def validate_dispatch_config(config: ServiceConfig) -> list[str]:
 
     if not config.agent_command:
         errors.append("codex.command (agent_command) must be non-empty")
+
+    if config.audit_max_attempts <= 0:
+        errors.append("audit_max_attempts must be positive")
+    if config.audit_attempt_ttl_seconds <= 0:
+        errors.append("audit_attempt_ttl_seconds must be positive")
+    if config.audit_lane_scan_limit < 0:
+        errors.append("audit_lane_scan_limit must be non-negative")
 
     return errors

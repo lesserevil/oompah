@@ -43,6 +43,7 @@ _REASONS = frozenset(
         "all_unhealthy",
         "all_over_budget",
         "all_are_contributors",
+        "all_attempted",
         "unknown_acp_models_only",
         "invalid_model",
         "unknown_error",
@@ -168,6 +169,41 @@ class AuditorCandidateSelector:
         if reason is not None:
             return None, reason
         return eligible[0], None
+
+    def select_candidates(
+        self,
+        contributors: list[WorkContributor] | None = None,
+        *,
+        exclude: set[tuple[str, str]] | None = None,
+    ) -> tuple[list[Candidate], NoCandidateReason | None]:
+        """Return all currently eligible candidates in selection order.
+
+        The ordinary role dispatcher only needs one candidate, while audit
+        retries must exclude candidates already tried by this durable audit.
+        Keeping the policy filtering in one place prevents retries from
+        accidentally bypassing independence, health, whitelist, or budget
+        checks.
+        """
+        role = self.role_store.get(AUDITOR_ROLE_NAME)
+        if role is None or not role.candidates:
+            return [], NoCandidateReason("empty_role", "Auditor role has no candidates.")
+        eligible, reason = self._eligible_candidates(
+            list(role.candidates), self._contributor_pairs(contributors)
+        )
+        if reason is not None:
+            return [], reason
+        excluded = exclude or set()
+        remaining = [
+            candidate
+            for candidate in eligible
+            if (candidate.provider_id, candidate.model) not in excluded
+        ]
+        if remaining:
+            return remaining, None
+        return [], NoCandidateReason(
+            "all_attempted" if eligible else "empty_role",
+            "All eligible auditor candidates were already attempted for this audit.",
+        )
 
     def _seed_candidates(self) -> list[Candidate]:
         """Return the deduplicated migration union in operator order."""

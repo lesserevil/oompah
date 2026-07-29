@@ -4,12 +4,9 @@ This guide is for operators running Oompah with independent auditor dispatch ena
 
 **See also:** `plans/independent-auditor-dispatch.md` (design and architecture)
 
-> **Implementation status:** The current branch supplies audit staging and
-> persistence, independent-candidate filtering, and the reserved read-only
-> auditor contract. The priority dispatch lane described by this guide is the
-> integration work proposed in OOMPAH-475. Do not expect the proposed
-> `OOMPAH_AUDIT_*` settings or audit-specific metrics to have an effect until
-> that lane is enabled in the orchestrator.
+The priority lane is enabled by default. It scans persisted `In Validation`
+requests on each dispatch tick and shares the global worker pool with ordinary
+implementation agents.
 
 ## Overview
 
@@ -25,11 +22,9 @@ to `In Validation`; the independent auditor dispatch lane then:
 
 ## Configuration
 
-### Planned Environment Variables
+### Environment Variables
 
-These are the planned `.env` settings for the dispatch lane. They are listed
-here so an operator can prepare a deployment; the current branch does not yet
-consume them.
+These `.env` settings control the dispatch lane.
 
 #### Core Auditor Settings
 
@@ -72,8 +67,8 @@ OOMPAH_MAX_CONCURRENT_AGENTS=5
 OOMPAH_BUDGET_LIMIT=100.00
 
 # Retry backoff settings (same for audits and normal work).
-# Maximum delay between retries; audits with multiple candidates
-# rotate immediately (no backoff), but subsequent full rotations use this.
+# Auditor provider/tool failures use the normal exponential delay before
+# rotating to the next candidate.
 OOMPAH_MAX_RETRY_BACKOFF_MS=300000
 ```
 
@@ -142,15 +137,15 @@ make logs
 
 ### State and Metrics
 
-The supported diagnostics endpoint is `/api/v1/state`. The current snapshot
-exposes normal dispatch and orchestrator metrics; audit-specific counters are
-planned fields to be added with the lane.
+The supported diagnostics endpoint is `/api/v1/state`. Audit counters are
+available under `orchestrator_metrics.audits`, and running auditor rows include
+their audit and attempt IDs.
 
 ```bash
 # Inspect current dispatch metrics
 curl -s http://localhost:8080/api/v1/state | jq '.orchestrator_metrics.last_dispatch'
 
-# Proposed audit fields will be exposed in the same state snapshot:
+# Audit fields exposed in the same state snapshot:
 {
   "audits": {
     "pending_count": 3,
@@ -209,10 +204,14 @@ The auditor took longer than `OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS` to run a sin
 
 ### Auditor Crash (Worker Exited)
 
-The auditor process crashed or was killed. Oompah detects this on the next scheduler tick:
+The auditor process crashed or was killed. Oompah persists the failure and
+applies normal retry backoff:
 
-1. Check `OOMPAH_AUDIT_ATTEMPT_TTL` (default 3600s). If the attempt is older than this, it is marked abandoned.
-2. Oompah rotates to the next candidate on the next scheduler tick.
+1. After a restart, an in-progress attempt with no live worker is reclaimed
+   immediately. An unobserved live session is reclaimed after
+   `OOMPAH_AUDIT_ATTEMPT_TTL` (default 3600s).
+2. Oompah rotates to the next candidate after the backoff on the next scheduler
+   tick.
 3. Check the orchestrator and agent logs for the crash reason (OOM, segfault, etc.).
 
 **If crashes are frequent:**

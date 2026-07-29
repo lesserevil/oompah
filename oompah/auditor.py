@@ -319,8 +319,33 @@ def pending_auditor_target(
         return None
     for item in chain:
         if isinstance(item, Mapping):
+            request_state = str(item.get("request_state") or "pending").strip().lower()
+            if request_state not in {"pending", "in_progress"}:
+                continue
+            # The scheduler persists the attempt on the record before launch.
+            # Echo the active attempt identity, not a stale completed attempt.
+            active_attempt_id = None
+            attempts = item.get("attempts")
+            if isinstance(attempts, list):
+                for raw_attempt in reversed(attempts):
+                    if not isinstance(raw_attempt, Mapping):
+                        continue
+                    if str(raw_attempt.get("request_state") or "").lower() == "in_progress":
+                        active_attempt_id = str(raw_attempt.get("attempt_id") or "").strip() or None
+                        break
             try:
-                return auditor_target_contract(item, task_id=task_id, project_id=project_id)
+                target = auditor_target_contract(item, task_id=task_id, project_id=project_id)
+                if active_attempt_id and target.attempt_id != active_attempt_id:
+                    target = AuditorTargetContract(
+                        audit_id=target.audit_id,
+                        task_id=target.task_id,
+                        project_id=target.project_id,
+                        target_state=target.target_state,
+                        evidence_fingerprint=target.evidence_fingerprint,
+                        attempt_id=active_attempt_id,
+                        previous_state=target.previous_state,
+                    )
+                return target
             except ValueError:
                 continue
     return None
