@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-562
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Recover integration queues blocked by stale epic ancestry
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T22:15:12.027584Z'
+updated_at: '2026-07-29T22:15:28.357479Z'
 work_branch: OOMPAH-562
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/580
@@ -75,9 +75,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-562
-  head_sha: 6cbfc7951f2e938bf7e7890ab6b341676a9a0cdd
-  submitted_at: '2026-07-29T21:31:51.603568+00:00'
-  updated_at: '2026-07-29T21:31:51.603568+00:00'
+  head_sha: 555a3d4219f531df4af02aaf370cb4397f99944c
+  submitted_at: '2026-07-29T22:15:26.286191+00:00'
+  updated_at: '2026-07-29T22:15:26.286191+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/580
 oompah.review_number: '580'
 oompah.work_branch: OOMPAH-562
@@ -291,5 +291,10 @@ Focused tests locally:
 - tests/test_integration_queue.py + tests/test_epic_rebase_state.py: 50/50 PASSED (combined)
 
 Root cause recap: \`self._epic_rebase_filed_at.get(cooldown_key, 0)\` used 0 as the default. On a freshly booted CI VM where \`time.monotonic()\` < 600s, \`now - 0 < 600\` erroneously triggered the 10-minute cooldown on the FIRST call, so the repair returned False and the two new tests asserted \`False is True\`. The rest of the codebase (line 15647) already uses \`float('-inf')\` for this exact reason.
+---
+author: oompah
+created: 2026-07-29 22:15
+---
+CI fix: change default for _epic_rebase_filed_at cooldown from 0 to float('-inf') so fresh-VM monotonic clocks (< 600s) do not gate the first stale-queue repair. Added regression test test_stale_queue_repair_survives_low_monotonic_clock that pins time.monotonic to 42.0 to deterministically reproduce the CI condition. All 50 focused tests (test_parallel_epic_children.py + test_integration_queue.py + test_epic_rebase_state.py) pass. Pushed to OOMPAH-562 as 555a3d421 (rebased on top of parallel-agent commit 9a54a83ca which had made the identical orchestrator fix independently).
 ---
 <!-- COMMENTS:END -->
