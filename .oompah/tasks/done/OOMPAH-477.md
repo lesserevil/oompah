@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T18:16:37.522669Z'
+updated_at: '2026-07-29T18:16:39.732635Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-07-29 18:16
 ---
 Verification: Focused tests pass. Replaced _run_completion_verifier() call with terminal_transition_coordinator.request_transition() to stage Done audits. Key changes: (1) Removed max 3 verifier rejection ceiling and _verifier_reject_counts tracking; (2) Preserved close and unpushed gates as deterministic prechecks; (3) Compute evidence fingerprint from issue description, project_id, task_id, and branch; (4) Captured contributor provenance (orchestrator identity); (5) Deprecate old verifier method; (6) Updated close_gate test to mock coordinator. Tests pass: test_dispatch_close_race.py (17/17), test_close_gate.py::TestOrchestratorCloseGateWiring (8/8), test_unpushed_gate.py (45/45). No fail-open ceiling - auditor determines Done result independently.
+---
+author: oompah
+created: 2026-07-29 18:16
+---
+Replaced post-worker completion verifier with Done audit staging via terminal-transition-coordinator. Preserved deterministic close/unpushed gates as prechecks. Removed retry ceiling logic. Deprecated _run_completion_verifier() method. Updated tests. Auditor will independently verify closure and apply terminal status.
 ---
 <!-- COMMENTS:END -->
