@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-318
 type: epic
-status: Merged
+status: Archived
 priority: 1
 title: Add full GitLab forge parity for managed projects
 parent: null
@@ -27,7 +27,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-21T20:33:00.759935Z'
-updated_at: '2026-07-22T22:23:58.217791Z'
+updated_at: '2026-07-29T22:29:48.979621Z'
 work_branch: epic-OOMPAH-318
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/533
