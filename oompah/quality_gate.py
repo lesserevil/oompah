@@ -14,7 +14,11 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from oompah.client_auth import agent_environment
+
 logger = logging.getLogger(__name__)
+
+_EVIDENCE_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -77,7 +81,14 @@ class BranchQualityGate:
         command: str,
     ) -> str:
         payload = "\0".join(
-            (repo_identity, target_branch, work_branch, head_sha, command)
+            (
+                str(_EVIDENCE_VERSION),
+                repo_identity,
+                target_branch,
+                work_branch,
+                head_sha,
+                command,
+            )
         )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -94,7 +105,7 @@ class BranchQualityGate:
     def _save(self, entries: dict[str, dict]) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         payload = json.dumps(
-            {"version": 1, "results": entries},
+            {"version": _EVIDENCE_VERSION, "results": entries},
             indent=2,
             sort_keys=True,
         ) + "\n"
@@ -201,6 +212,7 @@ class BranchQualityGate:
                 process = subprocess.Popen(  # noqa: S602 - operator-owned command
                     command,
                     cwd=repo_path,
+                    env=agent_environment(),
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
