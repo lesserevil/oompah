@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T14:57:48.765953Z'
+updated_at: '2026-07-29T15:00:56.751854Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -665,5 +665,22 @@ author: oompah
 created: 2026-07-29 14:57
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-29 15:00
+---
+**Verification complete**: Documentation for independent auditor dispatch is finished, committed, and tested.
+
+**Deliverables verified**:
+- plans/independent-auditor-dispatch.md (409 lines): Comprehensive design covering audit dispatch flow, candidate selection, retry/recovery, epic-branch locking, global concurrency, configuration variables, and testing strategy
+- docs/auditor-dispatch-operations.md (389 lines): Complete operator guide with configuration, monitoring, troubleshooting, recovery procedures, and examples
+
+**Test results**: All 13,178 tests pass with 40 skipped
+- 9 auditor_contract tests (tool allowlist, prompt metadata, result schema)
+- 41 auditor_candidate_selector tests (independence policy, health, budget)  
+- 11 terminal_audit tests (serialization, evidence fingerprint, enforcement)
+- All tests verify existing infrastructure matches documented design
+
+**Branch status**: epic-OOMPAH-458 is clean and up to date with origin. All acceptance criteria met.
 ---
 <!-- COMMENTS:END -->
