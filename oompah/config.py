@@ -530,7 +530,8 @@ class ServiceConfig:
     duplicate_preflight_max_agents: int = 0
     auto_archive_batch_size: int = 25
     auto_archive_interval_seconds: int = 300
-    worktree_cleanup_batch_size: int = 25
+    worktree_cleanup_interval_seconds: int = 60
+    worktree_cleanup_batch_size: int = 100
     storage_cleanup_interval_seconds: int = 24 * 60 * 60
     storage_cleanup_pressure_min_free_bytes: int = 5 * 1024 * 1024 * 1024
     storage_cleanup_pressure_min_free_percent: float = 5.0
@@ -679,6 +680,9 @@ class ServiceConfig:
         )
         self.worktree_cleanup_batch_size = max(
             int(self.worktree_cleanup_batch_size), 0
+        )
+        self.worktree_cleanup_interval_seconds = max(
+            int(self.worktree_cleanup_interval_seconds), 1
         )
         self.storage_cleanup_interval_seconds = max(
             int(self.storage_cleanup_interval_seconds), 60
@@ -1013,8 +1017,11 @@ class ServiceConfig:
             auto_archive_interval_seconds=_env_int(
                 "OOMPAH_AUTO_ARCHIVE_INTERVAL_SECONDS", None, 300
             ),
+            worktree_cleanup_interval_seconds=_env_int(
+                "OOMPAH_WORKTREE_CLEANUP_INTERVAL_SECONDS", None, 60
+            ),
             worktree_cleanup_batch_size=_env_int(
-                "OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", None, 25
+                "OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", None, 100
             ),
             storage_cleanup_interval_seconds=_env_int(
                 "OOMPAH_STORAGE_CLEANUP_INTERVAL_SECONDS", None, 24 * 60 * 60

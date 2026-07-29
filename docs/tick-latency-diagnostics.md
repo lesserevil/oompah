@@ -139,8 +139,11 @@ each tick.
 **Remediation**:
 - Review `full_sync_interval_ms` (default: 300 000 ms = 5 min). If self-heal
   runs too often, increase this interval.
-- On repos with many worktrees, `worktree_cleanup_batch_size` limits how many
-  worktrees are cleaned per tick, preventing single-tick cleanup storms.
+- On repos with many agent branches and worktrees,
+  `worktree_cleanup_interval_seconds` controls the independent cleanup cadence
+  (default: 60 seconds), while `worktree_cleanup_batch_size` limits actual
+  worktree or branch removals per pass (default: 100). Already-absent resources
+  do not consume the batch.
 
 ### Scenario 3: Dispatch loop stalls — no ticks firing for 2+ minutes
 
@@ -198,7 +201,8 @@ via `/api/v1/state` → `running`/`retrying` for any reject reason.
 | `full_sync_interval_ms`         | 300000  | Minimum interval between repo self-heal runs (ms)        |
 | `OOMPAH_DISPATCH_STALE_THRESHOLD_MS` | 120000 | How long the dispatch loop can be silent before it is considered stale and recovery is armed (ms). Set to `0` to fall back to the legacy `dispatch_loop_stale_factor`-based formula (full_sync_interval_ms × factor). |
 | `OOMPAH_DISPATCH_STALE_GRACE_MS` | 30000  | Additional wait after staleness is detected before recovery actually fires (ms). Prevents spurious recoveries during brief pauses. |
-| `worktree_cleanup_batch_size`   | 25      | Worktrees cleaned per maintenance pass                   |
+| `worktree_cleanup_interval_seconds` | 60 | Minimum seconds between branch/worktree cleanup passes |
+| `worktree_cleanup_batch_size`   | 100     | Branches/worktrees removed per maintenance pass          |
 | `maintenance_startup_delay_seconds` | 60  | Grace period before maintenance jobs start               |
 
 All variables can be set via `.env` with the `OOMPAH_` prefix (e.g.

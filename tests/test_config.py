@@ -89,7 +89,8 @@ class TestServiceConfig:
         assert cfg.duplicate_detection_candidate_limit == 64
         assert cfg.duplicate_preflight_max_agents == 1
         assert cfg.auto_archive_batch_size == 25
-        assert cfg.worktree_cleanup_batch_size == 25
+        assert cfg.worktree_cleanup_interval_seconds == 60
+        assert cfg.worktree_cleanup_batch_size == 100
         assert cfg.storage_cleanup_interval_seconds == 86400
         assert cfg.storage_cleanup_pressure_min_free_bytes == 5 * 1024**3
         assert cfg.storage_cleanup_pressure_min_free_percent == 5.0
@@ -342,6 +343,7 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         monkeypatch.setenv("OOMPAH_DUPLICATE_PREFLIGHT_MAX_AGENTS", "3")
         monkeypatch.setenv("OOMPAH_AUTO_ARCHIVE_BATCH_SIZE", "7")
         monkeypatch.setenv("OOMPAH_AUTO_ARCHIVE_INTERVAL_SECONDS", "30")
+        monkeypatch.setenv("OOMPAH_WORKTREE_CLEANUP_INTERVAL_SECONDS", "11")
         monkeypatch.setenv("OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", "5")
         monkeypatch.setenv("OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", "9")
         monkeypatch.setenv("OOMPAH_RELEASE_PICK_MAX_RUNTIME_SECONDS", "4")
@@ -356,6 +358,7 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         assert cfg.duplicate_preflight_max_agents == 3
         assert cfg.auto_archive_batch_size == 7
         assert cfg.auto_archive_interval_seconds == 30
+        assert cfg.worktree_cleanup_interval_seconds == 11
         assert cfg.worktree_cleanup_batch_size == 5
         assert cfg.maintenance_startup_delay_seconds == 9
         assert cfg.release_pick_max_runtime_seconds == 4

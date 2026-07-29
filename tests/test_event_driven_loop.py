@@ -143,6 +143,30 @@ class TestFullSyncIntervalConfig:
         assert cfg.full_sync_interval_ms == 0
 
 
+class TestWorktreeCleanupConfig:
+    """Branch/worktree cleanup has an independent, aggressive cadence."""
+
+    def test_defaults(self):
+        cfg = ServiceConfig()
+        assert cfg.worktree_cleanup_interval_seconds == 60
+        assert cfg.worktree_cleanup_batch_size == 100
+
+    def test_environment_overrides(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_WORKTREE_CLEANUP_INTERVAL_SECONDS", "15")
+        monkeypatch.setenv("OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", "250")
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="")
+        )
+
+        assert cfg.worktree_cleanup_interval_seconds == 15
+        assert cfg.worktree_cleanup_batch_size == 250
+
+    def test_interval_is_clamped_positive(self):
+        cfg = ServiceConfig(worktree_cleanup_interval_seconds=0)
+        assert cfg.worktree_cleanup_interval_seconds == 1
+
+
 # ---------------------------------------------------------------------------
 # _post_event()
 # ---------------------------------------------------------------------------
