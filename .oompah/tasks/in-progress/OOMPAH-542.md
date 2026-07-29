@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-542
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Wake dispatch when watchdog clears stale completion suppression
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T14:22:15.797334Z'
-updated_at: '2026-07-29T14:23:26.476256Z'
+updated_at: '2026-07-29T14:31:13.493065Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-29 14:22
 ---
 Claimed by the current interactive session for immediate implementation and production verification. The human-only label prevents duplicate scheduler dispatch.
+---
+author: oompah
+created: 2026-07-29 14:31
+---
+Implemented and committed as 05380e6fe. Verified watchdog reopens now clear completed/claimed/retry-budget suppression only after tracker state confirms Open, then emit one coalescible dispatch refresh for the entire batch. The internal scheduler watchdog likewise wakes dispatch once after clearing one or more stale completed entries. Full quality gate: make test — 13,116 passed, 7 skipped.
 ---
 <!-- COMMENTS:END -->
