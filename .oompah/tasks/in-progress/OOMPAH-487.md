@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-29T18:29:46.964687Z'
+updated_at: '2026-07-29T18:30:11.540586Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -55,7 +55,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 2eeecd8d-67c6-4744-9ad6-c5841e6eb4cb
+oompah.agent_run_id: 233a6da2-e5ae-4865-bf79-b2b14f99c25d
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-487
 oompah.task_costs:
   total_input_tokens: 73425
@@ -86,7 +86,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-460--task-OOMPAH-487
   base_branch: epic-OOMPAH-460
   base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
-  updated_at: '2026-07-29T18:29:03.459424+00:00'
+  updated_at: '2026-07-29T18:29:53.129296+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-487__20260729T182909Z
@@ -169,5 +169,25 @@ author: oompah
 created: 2026-07-29 18:29
 ---
 Agent completed without closing this issue (42s (74131 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-29 18:29
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 18:29
+---
+Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-29 18:30
+---
+Understanding: This is a continuation run (attempt #1). Previous agent ran but didn't close the issue. I'll explore what was done, find gaps, and complete all acceptance criteria:
+1. Add OOMPAH_AUDIT_MAX_ATTEMPTS to .env.example and ServiceConfig
+2. Document auditor role, independence rules, project whitelist, audits, In Validation, failure routing, owner override, no-candidate recovery, upgrade grandfathering, restart behavior
+3. Deprecate OOMPAH_VERIFY_COMPLETION and OOMPAH_VERIFY_COMPLETION_LLM with startup warnings and release note migration
+4. Add config/env parsing tests, deprecation-warning tests, doc link/content checks
+Starting with codebase exploration.
 ---
 <!-- COMMENTS:END -->

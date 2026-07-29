@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-488
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Validate the complete task Done-Merged-Archived audit lifecycle
 parent: OOMPAH-460
@@ -19,8 +19,8 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-29T02:11:01.193003Z'
-work_branch: epic-OOMPAH-460
+updated_at: '2026-07-29T18:30:06.218500Z'
+work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
 review_number: null
@@ -45,8 +45,8 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: be6c7c61-0e0f-43d8-84fd-284d420fac05
-oompah.work_branch: epic-OOMPAH-460
+oompah.agent_run_id: 3d130809-ed1a-43c3-a7b9-91f4bad339af
+oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-488
 oompah.task_costs:
   total_input_tokens: 396439
   total_output_tokens: 2988
@@ -63,6 +63,14 @@ oompah.task_costs:
     output_tokens: 2988
     cost_usd: 0.0
     recorded_at: '2026-07-29T02:10:59.015823+00:00'
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-460--task-OOMPAH-488
+  base_branch: epic-OOMPAH-460
+  base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
+  updated_at: '2026-07-29T18:30:04.233300+00:00'
 ---
 ## Summary
 
@@ -105,5 +113,15 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 16s
 - Log: OOMPAH-488__20260729T020947Z.jsonl
+---
+author: oompah
+created: 2026-07-29 18:30
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 18:30
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
