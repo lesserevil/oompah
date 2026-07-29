@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-562
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Recover integration queues blocked by stale epic ancestry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T21:12:25.101974Z'
+updated_at: '2026-07-29T21:15:54.812266Z'
 work_branch: null
 target_branch: null
 review_url: null
