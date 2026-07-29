@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-473
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Collect safe-retirement evidence for Archived audits
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:13.914904Z'
-updated_at: '2026-07-29T06:40:16.554752Z'
+updated_at: '2026-07-29T06:40:32.912716Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -47,13 +47,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 8acf12d9-bf3a-4925-a3b2-82b45307a62f
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 1000782
-  total_output_tokens: 5061
+  total_input_tokens: 1001080
+  total_output_tokens: 32384
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1000782
-      output_tokens: 5061
+      input_tokens: 1001080
+      output_tokens: 32384
       cost_usd: 0.0
   runs:
   - profile: default
@@ -62,6 +62,12 @@ oompah.task_costs:
     output_tokens: 5061
     cost_usd: 0.0
     recorded_at: '2026-07-29T01:23:23.669961+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 298
+    output_tokens: 27323
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T06:40:29.437191+00:00'
 ---
 ## Summary
 
@@ -187,5 +193,38 @@ author: oompah
 created: 2026-07-29 06:40
 ---
 Implemented ArchivedEvidenceCollector for safe task retirement audits. Read-only validator with 20 safety failure modes, structured disposition reasons, and restoration guidance. 47 comprehensive tests covering all scenarios.
+---
+author: oompah
+created: 2026-07-29 06:40
+---
+Agent completed successfully in 383s (27621 tokens)
+---
+author: oompah
+created: 2026-07-29 06:40
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 89, Tool calls: 38
+- Tokens: 298 in / 27.3K out [27.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 23s
+- Log: OOMPAH-473__20260729T063410Z.jsonl
+---
+author: oompah
+created: 2026-07-29 06:40
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-458` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-458
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-458
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
