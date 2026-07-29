@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T21:23:58.921851Z'
+updated_at: '2026-07-29T21:28:06.824530Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -138,5 +138,10 @@ created: 2026-07-29 21:23
 2. If so, file a rebase task to sync epic branch with merged dependencies
 3. Track repair dispatch to prevent duplicates
 4. Resume integration after rebase completes
+---
+author: oompah
+created: 2026-07-29 21:28
+---
+Live diagnosis confirmed 14 Ready to Integrate entries are unleased at attempts=0 because required merged dependency code is absent from stale epic ancestry. OOMPAH-459 is 26 commits behind main/5 ahead; OOMPAH-460 is 34 behind and blocked behind OOMPAH-459. This task remains Backlog: promotion to Open was attempted and rejected because only a project owner may make it dispatchable. Owner action required: promote OOMPAH-562 to Open.
 ---
 <!-- COMMENTS:END -->
