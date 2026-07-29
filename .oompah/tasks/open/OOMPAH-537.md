@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:05:46.463901Z'
-updated_at: '2026-07-29T00:07:32.185154Z'
+updated_at: '2026-07-29T00:07:36.288899Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,6 +30,7 @@ oompah.duplicate_screening:
   claim_expires_at: '2026-07-29T00:37:29.714018+00:00'
   retry_count: 0
   retry_after: null
+oompah.agent_run_id: c0d2494a-5c84-409a-ab4b-46b49db1cf17
 ---
 ## Summary
 
@@ -47,5 +48,15 @@ author: oompah
 created: 2026-07-29 00:05
 ---
 Claimed directly during live verification. The project pause is already persisted as false, but no refresh event was posted, so no agent can be dispatched before this fix or the periodic full sync.
+---
+author: oompah
+created: 2026-07-29 00:07
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-29 00:07
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
