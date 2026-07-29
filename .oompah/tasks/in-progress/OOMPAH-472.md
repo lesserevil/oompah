@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T05:23:23.998742Z'
+updated_at: '2026-07-29T05:41:37.941985Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -55,7 +55,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: fffc0540-8383-44bd-81e0-c7babe9e3a5a
+oompah.agent_run_id: 05fd776b-2030-4141-95d4-21af217af3bb
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 4250185
@@ -1044,5 +1044,15 @@ created: 2026-07-29 05:23
 **Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-29 05:41
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 05:41
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

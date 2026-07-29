@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: Done
+status: Open
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T05:41:12.390924Z'
+updated_at: '2026-07-29T05:41:38.590800Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -55,13 +55,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 83733466-98c7-4e40-9c3b-19232af460f4
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 65396682
-  total_output_tokens: 210232
+  total_input_tokens: 65396788
+  total_output_tokens: 213585
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 57063661
-      output_tokens: 174877
+      input_tokens: 57063767
+      output_tokens: 178230
       cost_usd: 0.0
     sonnet:
       input_tokens: 2359197
@@ -228,6 +228,12 @@ oompah.task_costs:
     output_tokens: 11452
     cost_usd: 0.0
     recorded_at: '2026-07-29T05:05:50.988835+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 106
+    output_tokens: 3353
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T05:41:26.402881+00:00'
 ---
 ## Summary
 
@@ -1672,5 +1678,38 @@ author: oompah
 created: 2026-07-29 05:41
 ---
 Auditor role seeding and independent provider-model candidate selection implemented, tested, and verified.
+---
+author: oompah
+created: 2026-07-29 05:41
+---
+Agent completed successfully in 214s (3459 tokens)
+---
+author: oompah
+created: 2026-07-29 05:41
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 35, Tool calls: 12
+- Tokens: 106 in / 3.4K out [3.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 34s
+- Log: OOMPAH-470__20260729T053755Z.jsonl
+---
+author: oompah
+created: 2026-07-29 05:41
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-458` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-458
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-458
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
