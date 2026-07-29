@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-469
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Add the reserved read-only auditor focus and prompt contract
 parent: OOMPAH-458
@@ -12,13 +12,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:09.346734Z'
-updated_at: '2026-07-29T00:33:50.460992Z'
+updated_at: '2026-07-29T00:34:43.780728Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 530be200-116d-42ea-8db5-81508c784070
+oompah.agent_run_id: 4fa10114-a7a3-45ba-9b5f-471c0393a727
 oompah.work_branch: epic-OOMPAH-458
 oompah.duplicate_screening:
   schema_version: 1
@@ -287,5 +287,15 @@ author: oompah
 created: 2026-07-29 00:33
 ---
 Agent completed without closing this issue (1548s (27734694 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-29 00:34
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 00:34
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
