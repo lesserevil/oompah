@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-341
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Implement GitLabHookManager with OOMPAH_GITLAB_WEBHOOK_PUBLIC_URL config
 parent: OOMPAH-325
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:28:44.100086Z'
-updated_at: '2026-07-22T15:44:42.090418Z'
+updated_at: '2026-07-29T16:46:35.859183Z'
 work_branch: null
 target_branch: null
 review_url: null
