@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-477
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Replace the post-worker completion verifier with Done audit staging
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T18:29:02.634922Z'
+updated_at: '2026-07-29T18:29:21.782552Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-477
 target_branch: null
 review_url: null
@@ -62,12 +62,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T18:16:53.882139+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-477
-  base_branch: epic-OOMPAH-459
-  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
-  updated_at: '2026-07-29T18:25:59.154143+00:00'
+  head_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
+  submitted_at: '2026-07-29T18:29:18.634766+00:00'
+  updated_at: '2026-07-29T18:29:18.634766+00:00'
 ---
 ## Summary
 
@@ -210,5 +210,10 @@ Test Results:
 - Deterministic safeguards remain intact
 
 Ready for submission.
+---
+author: oompah
+created: 2026-07-29 18:29
+---
+Replace post-worker completion verifier with Done audit staging via terminal-transition-coordinator. Preserved deterministic close/unpushed gates, removed retry ceiling, deferred review creation until audit passes. All tests passing.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-476
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T18:29:04.797715Z'
+updated_at: '2026-07-29T18:29:24.908101Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-476
 target_branch: null
 review_url: null
@@ -128,12 +128,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T18:25:17.806635+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-476
-  base_branch: epic-OOMPAH-459
-  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
-  updated_at: '2026-07-29T18:27:30.122105+00:00'
+  head_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
+  submitted_at: '2026-07-29T18:29:22.761130+00:00'
+  updated_at: '2026-07-29T18:29:22.761130+00:00'
 ---
 ## Summary
 
@@ -505,5 +505,10 @@ COMPLETION VERIFICATION: All work for OOMPAH-476 is complete and verified.
 ✅ Testing: All focused tests passing
 
 Ready for submission.
+---
+author: oompah
+created: 2026-07-29 18:29
+---
+All terminal status interfaces (API PATCH, CLI, dashboard, MCP/ACP tools) now route Done/Merged/Archived requests through TerminalTransitionCoordinator. Response includes In Validation status with audit_id. Owner override with override_reason properly authorized. All acceptance criteria met.
 ---
 <!-- COMMENTS:END -->
