@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T00:36:42.664232Z'
+updated_at: '2026-07-29T00:42:52.172855Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -299,5 +299,45 @@ Key insight: No existing 'auditor' role or independent-candidate filtering. Need
 5. Normalized no-candidate diagnostics
 
 Starting implementation in oompah/roles.py and oompah/auditor.py.
+---
+author: oompah
+created: 2026-07-29 00:42
+---
+**Implementation:** Created auditor role independent candidate selection with comprehensive tests.
+
+Files created:
+- oompah/auditor_candidate_selector.py: AuditorCandidateSelector class + NoCandidateReason
+- tests/test_auditor_candidate_selector.py: 28 comprehensive tests
+
+Core functionality:
+1. seed_auditor_role() aggregates candidates from deep/standard/default roles + provider defaults (deduplicated)
+2. _filter_candidates() implements policy:
+   - Whitelist filtering (if configured in ProjectConfig)
+   - Credentials check (missing api_key blocks API-mode providers)
+   - Model validity (must be in provider.models for API-mode)
+   - Budget bypass (subscription ACP providers exempt)
+   - Contributor exclusion: no exact (provider_id, model_id) matches
+   - Independent preference: first non-contributing provider
+   - Same-provider fallback: only explicit model IDs (rejects unknown SDK models)
+3. NoCandidateReason: normalized diagnostics (empty_role, no_providers, no_whitelisted_providers, all_require_missing_credentials, all_unhealthy, all_over_budget, all_are_contributors, unknown_acp_models_only, unknown_error)
+
+Tests (all 28 passing):
+- Different provider/model candidates selected first
+- Same-provider different-model fallback when no independent providers
+- Same model on another provider recognized as independent
+- Multiple contributors all excluded correctly
+- Unknown ACP models rejected on contributing providers
+- Known ACP models (explicit) accepted as fallback
+- Provider whitelist enforced
+- Missing credentials block API-mode providers; ACP exempt
+- Budget bypass for subscription ACP
+- Empty role/no providers diagnostics
+- Migration seeding from deep/standard/default + provider defaults
+- Deduplication works correctly
+- No-candidate diagnostics normalized
+
+Related test suites all pass: test_role_store.py (177 tests), test_work_contributors.py (all tests).
+
+Next: Integrate seeding into RoleStore/orchestrator initialization paths.
 ---
 <!-- COMMENTS:END -->
