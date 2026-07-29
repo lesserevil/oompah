@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-544
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Bound individual pytest tests to five seconds in CI
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:ci
 assignee: null
 created_at: '2026-07-29T15:11:56.176459Z'
-updated_at: '2026-07-29T15:12:04.658278Z'
+updated_at: '2026-07-29T15:16:34.680141Z'
 work_branch: null
 target_branch: null
 review_url: null
