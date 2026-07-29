@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-458
 type: epic
-status: In Review
+status: In Progress
 priority: 0
 title: Dispatch independent auditor agents and evaluate target-specific evidence
 parent: null
@@ -18,9 +18,10 @@ blocked_by:
 - OOMPAH-457
 labels:
 - epic:rebasing
+- ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T17:41:51.280134Z'
+updated_at: '2026-07-29T17:42:09.690927Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -245,5 +246,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: normal, Duration: 21s
 - Log: OOMPAH-458__20260729T174125Z.jsonl
+---
+author: oompah
+created: 2026-07-29 17:42
+---
+YOLO: CI tests failed on MR #578. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
