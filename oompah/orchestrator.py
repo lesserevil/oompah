@@ -4856,93 +4856,93 @@ class Orchestrator:
         satisfied: set[str],
     ) -> bool:
         """Detect if queue is blocked by merged code unreachable from epic.
-        
+
         If a Ready item's first-hop dependencies are terminal/merged but not
         reachable from the epic branch, file a rebase task to incorporate them.
         Returns True if a repair was scheduled.
         """
-        # Find the first ready item
         ready_items = [item for item in queue_items if item.state == "ready"]
         if not ready_items:
             return False
-        
+
         first_item = ready_items[0]
         dependencies = set(dependency_map.get(first_item.task_id, ()))
-        
-        # Find unsatisfied dependencies
         unsatisfied = dependencies - satisfied
         if not unsatisfied:
-            return False  # Item's dependencies are satisfied
-        
-        # Build issue lookups
+            return False
+
         issues_by_alias: dict[str, Issue] = {}
         for issue in issues:
             for alias in (issue.id, issue.identifier):
                 if str(alias or "").strip():
                     issues_by_alias[str(alias).strip()] = issue
-        
-        # Get project and epic
+
         project = self.project_store.get(project_id)
         epic = issues_by_alias.get(str(epic_id or "").strip())
-        
         if not project or not project.repo_path or not epic:
             return False
-        
+
         try:
             epic_branch = self.project_store.epic_branch_name(epic_id)
             target_branch = self._resolve_epic_target_branch(epic, project) or "main"
-            
-            # Don't rebase epic-to-epic; those sync through main only
+
             if target_branch.startswith("epic-"):
                 return False
-            
-            # Fetch to ensure we have latest refs
-            subprocess.run(
-                ["git", "-C", project.repo_path, "fetch", "origin"],
-                check=False,
-                capture_output=True,
-                timeout=60,
-            )
-            
-            # Check if any unsatisfied dependency is terminal/merged but
-            # unreachable from epic branch
+
+            with self.project_store.project_write_lock(project_id):
+                refreshed = subprocess.run(
+                    ["git", "-C", project.repo_path, "fetch", "origin"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+            if refreshed.returncode != 0:
+                return False
+
             has_unreachable_terminal = False
             for dep_id in unsatisfied:
                 dep_issue = issues_by_alias.get(str(dep_id).strip())
                 if not dep_issue:
                     continue
-                
+
                 status = canonicalize_status(dep_issue.state)
-                # Only consider Done/Merged/Archived as "must rebase to reach"
                 if status not in {DONE, MERGED, ARCHIVED}:
                     continue
-                
-                # Check if this terminal dependency is reachable from epic
+
                 record = getattr(dep_issue, "integration", None)
                 integrated_sha = str(
                     getattr(record, "integrated_sha", "") or ""
                 ).strip()
-                
-                reachable = False
-                if integrated_sha:
+
+                # Merged/Archived dependencies without integration metadata use
+                # the default-branch tip as their reachability witness. A Done
+                # dependency must have an integrated commit that is already on
+                # the target branch; otherwise rebasing onto the target cannot
+                # satisfy it.
+                repairable_from_target = status in {MERGED, ARCHIVED}
+                if integrated_sha and status == DONE:
                     try:
                         result = subprocess.run(
                             [
-                                "git", "-C", project.repo_path,
-                                "merge-base", "--is-ancestor",
+                                "git",
+                                "-C",
+                                project.repo_path,
+                                "merge-base",
+                                "--is-ancestor",
                                 integrated_sha,
-                                f"origin/{epic_branch}",
+                                f"origin/{target_branch}",
                             ],
                             check=False,
                             capture_output=True,
                             text=True,
                             timeout=10,
                         )
-                        reachable = result.returncode == 0
+                        repairable_from_target = result.returncode == 0
                     except (OSError, subprocess.TimeoutExpired):
-                        pass
-                
-                if not reachable:
+                        repairable_from_target = False
+
+                if repairable_from_target:
                     has_unreachable_terminal = True
                     logger.debug(
                         "Queue %s:%s blocked: %s (terminal) unreachable from %s",
@@ -4952,14 +4952,13 @@ class Orchestrator:
                         epic_branch,
                     )
                     break
-            
+
             if not has_unreachable_terminal:
                 return False
-            
-            # Check cooldown to prevent duplicate filing
+
             cooldown_key = f"{project_id}:{epic_id}:queue_repair"
             last_filed = self._epic_rebase_filed_at.get(cooldown_key, 0)
-            now = time.time()
+            now = time.monotonic()
             cooldown_s = 600  # 10 minutes
             if now - last_filed < cooldown_s:
                 logger.debug(
@@ -4968,39 +4967,57 @@ class Orchestrator:
                     epic_id,
                 )
                 return False
-            
-            # File rebase task
+
             try:
                 tracker = self._tracker_for_project(project_id)
                 allowed, reason = self._epic_synchronization_decision(epic, target_branch)
                 if not allowed:
-                    # For queue staleness, we add the rebase-requested label
-                    # to authorize the repair
                     current_labels = set(
-                        str(l).strip().lower() for l in (epic.labels or [])
-                        if str(l or "").strip()
+                        str(label).strip().lower()
+                        for label in (epic.labels or [])
+                        if str(label or "").strip()
                     )
                     if "rebase-requested" not in current_labels:
-                        labels = list(epic.labels or []) + ["rebase-requested"]
-                        tracker.update_issue(epic.identifier, labels=labels)
-                    allowed, reason = self._epic_synchronization_decision(epic, target_branch)
-                
-                if allowed:
-                    self._file_rebase_task(tracker, epic, epic_branch, target_branch)
-                    self._epic_rebase_filed_at[cooldown_key] = now
-                    from oompah.models import EpicRebaseState
-                    self._set_epic_rebase_state(
-                        epic_id,
-                        EpicRebaseState.REBASING,
-                        project_id=project_id,
-                        reason="queue_staleness_block",
+                        tracker.update_issue(
+                            epic.identifier,
+                            **{"add-label": "rebase-requested"},
+                        )
+                        epic.labels = list(epic.labels or []) + [
+                            "rebase-requested"
+                        ]
+                    allowed, reason = self._epic_synchronization_decision(
+                        epic, target_branch
                     )
-                    logger.info(
-                        "Filed rebase task for %s due to queue staleness block: %s",
-                        epic_id,
-                        reason,
+
+                if not allowed:
+                    return False
+
+                active_rebase = self._find_active_epic_rebase_sibling(
+                    tracker,
+                    epic,
+                )
+                if active_rebase is None:
+                    self._file_rebase_task(
+                        tracker,
+                        epic,
+                        epic_branch,
+                        target_branch,
                     )
-                    return True
+
+                self._epic_rebase_filed_at[cooldown_key] = now
+                self._set_epic_rebase_state(
+                    epic_id,
+                    EpicRebaseState.REBASING,
+                    project_id=project_id,
+                    reason="queue_staleness_block",
+                )
+                logger.info(
+                    "%s rebase task for %s due to queue staleness block: %s",
+                    "Found existing" if active_rebase is not None else "Filed",
+                    epic_id,
+                    reason,
+                )
+                return True
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "Failed to file rebase for queue staleness on %s:%s: %s",
@@ -5008,7 +5025,7 @@ class Orchestrator:
                     epic_id,
                     exc,
                 )
-            
+
             return False
         except Exception as exc:  # noqa: BLE001
             logger.debug(
