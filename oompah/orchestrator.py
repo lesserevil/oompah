@@ -140,6 +140,7 @@ from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
 )
+from oompah.archived_audit_requests import request_archived_audit
 from oompah.task_handoff import (
     TASK_HANDOFF_PROJECT_ENV,
     TASK_HANDOFF_TOKEN_ENV,
@@ -24458,6 +24459,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 suggestion.suggested_role,
             )
 
+
+
     def _auto_archive(self) -> None:
         """Archive closed issues older than _ARCHIVE_DAYS days.
 
@@ -24534,17 +24537,24 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                                 "cursor": last_processed_key,
                             }
                             return
-                        try:
-                            tracker.archive_issue(issue.identifier)
+                        disposition_reason = (
+                            f"Aged {issue.state or 'terminal'} "
+                            f"auto-archive (closed {(now - issue.closed_at).days} days ago)"
+                        )
+                        if request_archived_audit(
+                            issue, tracker, pid or "legacy", disposition_reason,
+                            project_store=self.project_store
+                        ):
                             archived += 1
                             logger.info(
-                                "Auto-archived issue %s (closed %d days ago)",
+                                "Queued archive audit for %s (closed %d days ago)",
                                 issue.identifier,
                                 (now - issue.closed_at).days,
                             )
-                        except TrackerError as exc:
+                        else:
                             logger.debug(
-                                "Failed to archive %s: %s", issue.identifier, exc
+                                "Skipped archive audit for %s (pending or failed)",
+                                issue.identifier,
                             )
                     last_processed_key = issue_key
             except (TrackerError, ProjectError) as exc:

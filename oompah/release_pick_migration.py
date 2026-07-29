@@ -72,6 +72,7 @@ from oompah.release_pick_schema import (
     parse_backports,
 )
 from oompah.statuses import ARCHIVED
+from oompah.archived_audit_requests import request_archived_audit
 
 if TYPE_CHECKING:
     from oompah.models import Issue
@@ -290,20 +291,22 @@ def _archive_child_task(
             exc,
         )
 
-    try:
-        tracker.archive_issue(child_id)
+    disposition_reason = (
+        f"Release-pick child retirement (source={source_identifier}, target_branch={target_branch})"
+    )
+    project_id = getattr(issue, "project_id", None) or "legacy"
+    if request_archived_audit(issue, tracker, project_id, disposition_reason):
         logger.info(
-            "release_pick_migration: archived child %s (source=%s branch=%r)",
+            "release_pick_migration: queued archive audit for child %s (source=%s branch=%r)",
             child_id,
             source_identifier,
             target_branch,
         )
         return True
-    except Exception as exc:  # noqa: BLE001
+    else:
         logger.warning(
-            "release_pick_migration: failed to archive child %s: %s",
+            "release_pick_migration: failed to queue archive audit for child %s",
             child_id,
-            exc,
         )
         return False
 

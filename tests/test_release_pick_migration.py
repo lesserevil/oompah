@@ -285,7 +285,7 @@ class TestMakeRedirectComment:
 
 class TestArchiveChildTask:
     def test_archives_active_child_and_posts_comment(self):
-        """Active child is archived and receives a redirect comment."""
+        """Active child archive audit is queued and receives a redirect comment."""
         child = _issue(identifier="TASK-2", state=OPEN)
         tracker = _make_tracker(
             child_detail_map={"TASK-2": child},
@@ -303,7 +303,10 @@ class TestArchiveChildTask:
         assert comment_args.kwargs.get("author") == "oompah" or (
             len(comment_args.args) > 2 and comment_args.args[2] == "oompah"
         )
-        tracker.archive_issue.assert_called_once_with("TASK-2")
+        # Should queue an audit instead of directly archiving
+        tracker.update_issue.assert_called()
+        call_kwargs = tracker.update_issue.call_args[1]
+        assert call_kwargs.get("status") == "In Validation"
 
     def test_skips_already_archived_child(self):
         """Child tasks that are already archived are left unchanged."""
@@ -316,7 +319,7 @@ class TestArchiveChildTask:
         result = _archive_child_task(tracker, "TASK-2", "TASK-1", "release/1.0")
 
         assert result is False
-        tracker.archive_issue.assert_not_called()
+        tracker.update_issue.assert_not_called()
 
     def test_returns_false_when_child_not_found(self):
         """Returns False when the child task cannot be found in the tracker."""
@@ -327,7 +330,7 @@ class TestArchiveChildTask:
         result = _archive_child_task(tracker, "TASK-2", "TASK-1", "release/1.0")
 
         assert result is False
-        tracker.archive_issue.assert_not_called()
+        tracker.update_issue.assert_not_called()
 
     def test_returns_false_when_fetch_detail_fails(self):
         """Returns False when fetch_issue_detail raises."""
@@ -337,10 +340,10 @@ class TestArchiveChildTask:
         result = _archive_child_task(tracker, "TASK-2", "TASK-1", "release/1.0")
 
         assert result is False
-        tracker.archive_issue.assert_not_called()
+        tracker.update_issue.assert_not_called()
 
     def test_still_archives_when_add_comment_fails(self):
-        """Even if add_comment raises, the task is still archived."""
+        """Even if add_comment raises, the audit is still queued."""
         child = _issue(identifier="TASK-2", state=OPEN)
         tracker = _make_tracker(
             child_detail_map={"TASK-2": child},
@@ -350,18 +353,18 @@ class TestArchiveChildTask:
 
         result = _archive_child_task(tracker, "TASK-2", "TASK-1", "release/1.0")
 
-        # Archive should still be called even if comment failed
+        # Audit should still be queued even if comment failed
         assert result is True
-        tracker.archive_issue.assert_called_once_with("TASK-2")
+        tracker.update_issue.assert_called()
 
-    def test_returns_false_when_archive_issue_fails(self):
-        """Returns False when archive_issue raises."""
+    def test_returns_false_when_update_issue_fails(self):
+        """Returns False when update_issue raises."""
         child = _issue(identifier="TASK-2", state=OPEN)
         tracker = _make_tracker(
             child_detail_map={"TASK-2": child},
             archived_identifiers=set(),
         )
-        tracker.archive_issue.side_effect = RuntimeError("archive failed")
+        tracker.update_issue.side_effect = RuntimeError("update failed")
 
         result = _archive_child_task(tracker, "TASK-2", "TASK-1", "release/1.0")
 
@@ -546,7 +549,8 @@ class TestMigrateSourceTask:
 
         assert migrated == 1
         assert children_archived == 1
-        tracker.archive_issue.assert_called_once_with("TASK-2")
+        # Child task should have audit queued (moved to In Validation)
+        tracker.update_issue.assert_called()
         tracker.add_comment.assert_called_once()
         comment_args = tracker.add_comment.call_args
         assert "TASK-1" in comment_args.args[1]
