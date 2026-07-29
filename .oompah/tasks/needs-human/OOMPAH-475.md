@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T16:02:47.502455Z'
+updated_at: '2026-07-29T16:04:12.396881Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -48,8 +48,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: f521cb76-2ee1-4233-bc92-b7a90ca4535f
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 44812638
-  total_output_tokens: 159262
+  total_input_tokens: 45271148
+  total_output_tokens: 162485
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -57,8 +57,8 @@ oompah.task_costs:
       output_tokens: 153201
       cost_usd: 0.0
     sonnet:
-      input_tokens: 51920
-      output_tokens: 5188
+      input_tokens: 510430
+      output_tokens: 8411
       cost_usd: 0.0
     opus:
       input_tokens: 57259
@@ -167,6 +167,12 @@ oompah.task_costs:
     output_tokens: 19866
     cost_usd: 0.0
     recorded_at: '2026-07-29T16:02:14.632316+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 458510
+    output_tokens: 3223
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T16:04:08.772526+00:00'
 ---
 ## Summary
 
@@ -1106,5 +1112,25 @@ author: oompah
 created: 2026-07-29 16:02
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-29 16:04
+---
+Agent completed successfully in 83s (461733 tokens)
+---
+author: oompah
+created: 2026-07-29 16:04
+---
+Run #3 [attempt=3, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 7
+- Tokens: 458.5K in / 3.2K out [461.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 23s
+- Log: OOMPAH-475__20260729T160247Z.jsonl
+---
+author: oompah
+created: 2026-07-29 16:04
+---
+Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
