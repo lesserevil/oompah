@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-538
 type: task
-status: In Progress
+status: In Review
 priority: null
 title: Make spawned-agent task handoffs authenticate without exposing service credentials
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-07-29T01:29:48.614104Z'
+updated_at: '2026-07-29T01:30:19.979690Z'
 work_branch: null
 target_branch: null
 review_url: null
