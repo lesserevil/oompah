@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T01:31:00.327082Z'
+updated_at: '2026-07-29T01:31:02.516597Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -480,5 +480,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 10m 9s
 - Log: OOMPAH-470__20260729T012052Z.jsonl
+---
+author: oompah
+created: 2026-07-29 01:31
+---
+Agent completed without closing this issue (609s (8149243 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
