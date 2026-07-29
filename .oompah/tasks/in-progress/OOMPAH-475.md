@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T14:35:49.349243Z'
+updated_at: '2026-07-29T14:37:25.730494Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -140,5 +140,24 @@ created: 2026-07-29 14:35
 6. Verify all examples work correctly
 
 Starting exploration of codebase structure.
+---
+author: oompah
+created: 2026-07-29 14:37
+---
+**Discovery**: Reviewed existing auditor infrastructure (auditor.py, auditor_candidate_selector.py, terminal-transition-coordinator.md) and identified the key architectural components:
+
+1. **Terminal audit framework** — audits persisted in task metadata (oompah.terminal_audit)
+2. **Candidate selector** — AuditorCandidateSelector handles independent provider selection with contributor awareness
+3. **Dispatch orchestration** — normal dispatch lanes exist but audit dispatch lane needs implementation
+4. **Verification tools** — auditor tools (read_file, run_command, submit_audit_result) with strict policy enforcement
+
+**Implementation approach**:
+- Created comprehensive design document: plans/independent-auditor-dispatch.md
+- Covers: audit queue, candidate rotation, retry semantics, recovery, concurrency, and testing strategy
+- Details configuration variables (OOMPAH_AUDIT_MAX_ATTEMPTS, TTL, priority, scan limit)
+- Specifies epic-branch locking to prevent writer/auditor races
+- Documents attempt persistence for idempotent recovery
+
+Next phase: Documentation for operators and configuration guidance.
 ---
 <!-- COMMENTS:END -->
