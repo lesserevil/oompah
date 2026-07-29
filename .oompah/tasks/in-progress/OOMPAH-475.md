@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T15:01:19.993561Z'
+updated_at: '2026-07-29T15:01:38.076994Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: bb09a06d-89b6-4aa1-9dfc-5516b741e841
+oompah.agent_run_id: 1b28b418-d361-4693-94ac-188ad99fab17
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 6515669
@@ -726,5 +726,15 @@ Steps to resolve:
   git push origin epic-OOMPAH-458
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-29 15:01
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 15:01
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
