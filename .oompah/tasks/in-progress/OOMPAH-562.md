@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T21:19:09.980422Z'
+updated_at: '2026-07-29T21:23:58.921851Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,5 +120,23 @@ created: 2026-07-29 21:19
 5. Expose actionable queue/maintenance state
 6. Add tests for the repair workflow
 7. Verify existing tests still pass
+---
+author: oompah
+created: 2026-07-29 21:23
+---
+**Discovery**: Located relevant code:
+- integration_queue.py: claim_next() selects next task with satisfied dependencies
+- orchestrator.py: _process_integration_queues() coordinates queue processing
+- orchestrator.py: _integration_satisfied_dependencies() checks dependency reachability
+- orchestrator.py: _check_epic_staleness() detects stale branches (observation-only)
+- orchestrator.py: _file_rebase_task() creates rebase sibling tasks
+
+**Root cause**: claim_next() returns None when dependencies aren't satisfied, but no repair mechanism exists when dependencies are Done/Merged but unreachable from the epic branch. This causes permanent deadlock with attempts=0.
+
+**Implementation plan**:
+1. After claim_next() returns None in _process_integration_queues(), check if first ready item has unsatisfied dependencies that are terminal/merged
+2. If so, file a rebase task to sync epic branch with merged dependencies
+3. Track repair dispatch to prevent duplicates
+4. Resume integration after rebase completes
 ---
 <!-- COMMENTS:END -->
