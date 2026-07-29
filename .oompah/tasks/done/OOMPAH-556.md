@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-556
 type: feature
-status: Backlog
+status: Done
 priority: 0
 title: Allocate isolated private branches for epic children
 parent: OOMPAH-555
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:21.738821Z'
-updated_at: '2026-07-29T17:57:19.300068Z'
+updated_at: '2026-07-29T18:28:19.168427Z'
 work_branch: null
 target_branch: null
 review_url: null
