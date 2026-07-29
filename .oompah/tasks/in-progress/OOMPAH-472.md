@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T06:25:29.479656Z'
+updated_at: '2026-07-29T06:25:44.160908Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -1197,5 +1197,16 @@ Changes made:
 Immediate mitigation: Created detached HEAD worktree at .../OOMPAH-472 pointing to epic-OOMPAH-458 so the RUNNING service can find it for the current closure.
 
 Committed as e941308f3 on epic-OOMPAH-458.
+---
+author: oompah
+created: 2026-07-29 06:25
+---
+Verification: All tests pass.
+- tests/test_unpushed_gate.py: 29/29 passed (includes 2 renamed tests, 1 updated test, 1 new regression test)
+- tests/test_merged_evidence_collector.py: 61/61 passed (core task deliverable unchanged)
+- Combined: 90/90 passed in 0.53s
+
+Branch epic-OOMPAH-458 at e941308f3 is clean and up to date with origin.
+OOMPAH-472 worktree created at .../OOMPAH-472 (detached, clean) for running service to find during closure check.
 ---
 <!-- COMMENTS:END -->
