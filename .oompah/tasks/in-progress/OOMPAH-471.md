@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-471
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Collect stable evidence for Done completion audits
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-29T01:20:27.315607Z'
+updated_at: '2026-07-29T01:20:41.055566Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -41,13 +41,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 9dac6294-aaf6-4357-bf3e-1cc6f7611d8f
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 1447578
-  total_output_tokens: 50391
+  total_input_tokens: 1447668
+  total_output_tokens: 53009
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1447578
-      output_tokens: 50391
+      input_tokens: 1447668
+      output_tokens: 53009
       cost_usd: 0.0
   runs:
   - profile: default
@@ -80,6 +80,12 @@ oompah.task_costs:
     output_tokens: 28092
     cost_usd: 0.0
     recorded_at: '2026-07-29T00:51:21.034461+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 90
+    output_tokens: 2618
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T01:20:37.310641+00:00'
 ---
 ## Summary
 
@@ -458,5 +464,38 @@ author: oompah
 created: 2026-07-29 01:20
 ---
 Delivered complete read-only DoneEvidenceCollector with deterministic evidence gathering, comprehensive git fixtures, and 36 passing tests covering all acceptance criteria and edge cases.
+---
+author: oompah
+created: 2026-07-29 01:20
+---
+Agent completed successfully in 145s (2708 tokens)
+---
+author: oompah
+created: 2026-07-29 01:20
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 32, Tool calls: 10
+- Tokens: 90 in / 2.6K out [2.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 25s
+- Log: OOMPAH-471__20260729T011814Z.jsonl
+---
+author: oompah
+created: 2026-07-29 01:20
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-458` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-458
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-458
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
