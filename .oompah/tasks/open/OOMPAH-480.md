@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-480
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Route release-delivery and release-pick terminal updates through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-29T23:19:42.501980Z'
+updated_at: '2026-07-29T23:20:44.789397Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null

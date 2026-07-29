@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-481
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Route automatic archive and intake retirement through Archived audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:29.211296Z'
-updated_at: '2026-07-29T23:19:52.506363Z'
+updated_at: '2026-07-29T23:20:45.531869Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-481
 target_branch: null
 review_url: null
