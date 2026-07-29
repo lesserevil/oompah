@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-547
 type: feature
-status: Needs Human
+status: Done
 priority: 0
 title: Split finish-order dependencies from hard-start dependencies
 parent: OOMPAH-545
@@ -11,7 +11,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:09.212852Z'
-updated_at: '2026-07-29T18:17:16.226168Z'
+updated_at: '2026-07-29T18:27:40.483437Z'
 work_branch: null
 target_branch: null
 review_url: null
