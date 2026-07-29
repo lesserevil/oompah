@@ -962,6 +962,55 @@ class TestSeedAuditorRoleFromConfig:
             role_store, provider_store, project_config=None, contributors=None
         )
 
+    def test_does_not_overwrite_existing_operator_configuration(self):
+        """Repeated migration preserves the operator's auditor candidates."""
+        provider = _make_provider("prov-1", "P1", models=["m1"])
+        existing = Role(
+            name=AUDITOR_ROLE_NAME,
+            strategy="priority",
+            candidates=[Candidate(provider_id="prov-1", model="m1")],
+            updated_at=datetime.now(timezone.utc),
+        )
+        role_store = _make_role_store_with_roles({AUDITOR_ROLE_NAME: existing})
+        write_calls = []
+        role_store.set_candidates = lambda *args, **kwargs: write_calls.append(
+            (args, kwargs)
+        )
+
+        seed_auditor_role_from_config(
+            role_store,
+            _make_provider_store({"prov-1": provider}),
+        )
+
+        assert role_store.get(AUDITOR_ROLE_NAME) is existing
+        assert write_calls == []
+
+
+class TestAuditorCandidateSelectorUnknownProvenance:
+    """Missing contributor identity must not be treated as independent."""
+
+    def test_missing_contributor_provider_fails_closed(self):
+        provider = _make_provider("prov-1", "P1", models=["m1"])
+        role = Role(
+            name="default",
+            strategy="priority",
+            candidates=[Candidate(provider_id="prov-1", model="m1")],
+            updated_at=datetime.now(timezone.utc),
+        )
+        selector = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"prov-1": provider}),
+        )
+
+        selected, reason = selector.seed_auditor_role(
+            contributors=[_make_contributor(provider_id=None, model_id="m1")]
+        )
+
+        assert selected is None
+        assert reason is not None
+        assert reason.reason == "unknown_error"
+        assert "provider identity" in reason.detail
+
 
 class TestAuditorCandidateSelectorPolicyGaps:
     """Regression coverage for policy checks that must fail closed."""

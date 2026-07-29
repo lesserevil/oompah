@@ -293,9 +293,15 @@ class AuditorCandidateSelector:
         contributors: list[WorkContributor] | None,
     ) -> set[tuple[str | None, str | None]]:
         return {
-            (contributor.provider_id, contributor.model_id)
+            (
+                str(contributor.provider_id).strip()
+                if contributor.provider_id is not None
+                else None,
+                str(contributor.model_id).strip()
+                if contributor.model_id is not None
+                else None,
+            )
             for contributor in (contributors or [])
-            if contributor.provider_id is not None
         }
 
     def _exclude_contributors(
@@ -305,6 +311,15 @@ class AuditorCandidateSelector:
     ) -> tuple[list[Candidate], NoCandidateReason | None]:
         if not contributor_pairs:
             return list(candidates), None
+
+        # A contributor without a provider identity cannot be compared with
+        # any configured candidate.  Treating it as independent would make a
+        # false claim of auditor independence, so fail closed instead.
+        if any(not provider_id for provider_id, _model_id in contributor_pairs):
+            return [], NoCandidateReason(
+                "unknown_error",
+                "Contributor provenance lacks a provider identity; auditor independence cannot be established.",
+            )
 
         contributed_providers = {
             provider_id for provider_id, _model_id in contributor_pairs if provider_id
@@ -626,6 +641,14 @@ def seed_auditor_role_from_config(
     **selector_options: Any,
 ) -> None:
     """Seed the reserved auditor role through the existing RoleStore path."""
+    # Migration must never replace an operator's editable configuration.  The
+    # bootstrap caller also guards this condition, but keeping the invariant
+    # here protects other callers and makes repeated migrations idempotent.
+    existing = role_store.get(AUDITOR_ROLE_NAME)
+    if existing is not None:
+        logger.debug("Auditor role already configured; leaving it unchanged")
+        return
+
     selector = AuditorCandidateSelector(
         role_store=role_store,
         provider_store=provider_store,
