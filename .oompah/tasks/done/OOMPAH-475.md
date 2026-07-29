@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T16:25:35.394071Z'
+updated_at: '2026-07-29T16:25:37.509878Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -1403,5 +1403,10 @@ created: 2026-07-29 16:25
 ✓ Actionable Needs Human fallback (no candidates/max attempts exhausted)
 
 All acceptance criteria met.
+---
+author: oompah
+created: 2026-07-29 16:25
+---
+Independent auditor dispatch implemented, tested (13,185 tests pass), and documented. Priority audit lane with candidate rotation, restart recovery, concurrency limits, and actionable fallback complete.
 ---
 <!-- COMMENTS:END -->
