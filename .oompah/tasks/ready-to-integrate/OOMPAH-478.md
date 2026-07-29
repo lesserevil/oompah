@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-478
 type: feature
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Route epic rollup, child Done, and epic close transitions through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-29T23:25:09.816639Z'
+updated_at: '2026-07-29T23:34:58.063302Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-478
 target_branch: null
 review_url: null
@@ -99,12 +99,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T23:19:30.811167+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-478
-  base_branch: epic-OOMPAH-459
-  base_sha: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
-  updated_at: '2026-07-29T23:20:52.593312+00:00'
+  head_sha: b68d7438fd5afee99b5e77688274478c748bdb3a
+  submitted_at: '2026-07-29T23:34:55.475421+00:00'
+  updated_at: '2026-07-29T23:34:55.475421+00:00'
 ---
 ## Summary
 
@@ -381,5 +381,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 58s
 - Log: OOMPAH-478__20260729T232054Z.jsonl
+---
+author: oompah
+created: 2026-07-29 23:34
+---
+Rebased task-specific rollup transition work onto repaired epic head cfa5ca64f, preserving both newer status imports and removing the obsolete corrupted base commit.
 ---
 <!-- COMMENTS:END -->

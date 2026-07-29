@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-482
 type: feature
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Dispatch one repair-planner run for an epic that fails audit
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:30.191340Z'
-updated_at: '2026-07-29T23:20:46.245548Z'
+updated_at: '2026-07-29T23:35:05.336605Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-482
 target_branch: null
 review_url: null
@@ -78,12 +78,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T23:09:01.729870+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-482
-  base_branch: epic-OOMPAH-459
-  base_sha: a50a9a6451f8a2222a5688bea2f2690b7cfc170a
-  updated_at: '2026-07-29T23:06:58.705221+00:00'
+  head_sha: d84ec54ce0173e8a41a93c180aa2b84dab299c88
+  submitted_at: '2026-07-29T23:35:02.676532+00:00'
+  updated_at: '2026-07-29T23:35:02.676532+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-482__20260729T183344Z
@@ -390,5 +390,10 @@ author: oompah
 created: 2026-07-29 23:09
 ---
 Agent completed without closing this issue (139s (178151 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-29 23:35
+---
+Rebased audit repair-planner work cleanly onto repaired epic head cfa5ca64f.
 ---
 <!-- COMMENTS:END -->

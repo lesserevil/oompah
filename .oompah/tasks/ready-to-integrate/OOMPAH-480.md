@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-480
 type: feature
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Route release-delivery and release-pick terminal updates through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-29T23:20:44.789397Z'
+updated_at: '2026-07-29T23:35:01.389253Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null
@@ -86,12 +86,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T23:19:40.993325+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-480
-  base_branch: epic-OOMPAH-459
-  base_sha: a50a9a6451f8a2222a5688bea2f2690b7cfc170a
-  updated_at: '2026-07-29T23:07:03.069594+00:00'
+  head_sha: 6d070d8e343fb93dce439cbb7c99c32d2524d12c
+  submitted_at: '2026-07-29T23:34:59.497072+00:00'
+  updated_at: '2026-07-29T23:34:59.497072+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-480__20260729T182912Z
@@ -367,5 +367,10 @@ Run #6 [attempt=6, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 12m 58s
 - Log: OOMPAH-480__20260729T230714Z.jsonl
+---
+author: oompah
+created: 2026-07-29 23:35
+---
+Rebased release-pick audit work cleanly onto repaired epic head cfa5ca64f.
 ---
 <!-- COMMENTS:END -->
