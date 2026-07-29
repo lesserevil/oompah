@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-563
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Make service-state persistence atomic and recover terminal-audit quarantine
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:36:54.712161Z'
-updated_at: '2026-07-29T21:37:02.774637Z'
+updated_at: '2026-07-29T21:37:39.795530Z'
 work_branch: null
 target_branch: null
 review_url: null
