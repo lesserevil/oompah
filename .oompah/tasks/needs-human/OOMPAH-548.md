@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-548
 type: feature
-status: Backlog
+status: Needs Human
 priority: 0
 title: Add worker submission handoff and ordered terminal staging
 parent: OOMPAH-545
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:10.331989Z'
-updated_at: '2026-07-29T17:57:10.972893Z'
+updated_at: '2026-07-29T18:15:45.026874Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,5 +45,10 @@ author: oompah
 created: 2026-07-29 17:57
 ---
 Implementation is complete on epic-OOMPAH-545. Full project gate passed: 13,213 tests passed, 7 skipped. Final rebase, merge, and deployment are in progress; this task remains human-owned and must not be dispatched.
+---
+author: oompah
+created: 2026-07-29 18:15
+---
+The parent epic OOMPAH-545 merged from epic-OOMPAH-545, but this task was Backlog with work branch unset. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
