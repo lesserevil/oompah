@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T22:09:01.543468Z'
+updated_at: '2026-07-29T22:12:05.947880Z'
 work_branch: OOMPAH-562
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/580
@@ -273,5 +273,10 @@ author: oompah
 created: 2026-07-29 22:09
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-29 22:12
+---
+CI failure root cause: In \`_detect_and_repair_integration_queue_staleness_block\`, the cooldown check uses \`self._epic_rebase_filed_at.get(cooldown_key, 0)\` as the default. On a fresh CI VM where \`time.monotonic()\` returns a value < 600 seconds (10 min cooldown), the check \`now - 0 < 600\` erroneously evaluates True on the FIRST call, blocking legitimate repair. Confirmed by simulating monotonic=100.0 locally — reproduces the CI failure. The rest of the codebase (line 15647) uses \`float('-inf')\` as the default for exactly this reason. Minimal fix: change default from \`0\` to \`float('-inf')\`.
 ---
 <!-- COMMENTS:END -->
