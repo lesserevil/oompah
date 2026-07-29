@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-537
 type: task
-status: In Review
+status: Merged
 priority: null
 title: Wake event-driven scheduler when a project resumes
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:05:46.463901Z'
-updated_at: '2026-07-29T00:10:35.241465Z'
+updated_at: '2026-07-29T00:16:17.321645Z'
 work_branch: OOMPAH-537
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/571
