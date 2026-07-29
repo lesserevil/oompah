@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:24.220262Z'
-updated_at: '2026-07-29T19:02:58.900674Z'
+updated_at: '2026-07-29T19:03:23.369457Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-485
 target_branch: null
 review_url: null
@@ -92,8 +92,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: b664b8e1-1ca8-49eb-9681-a0b2e6f82e6f
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-485
 oompah.task_costs:
-  total_input_tokens: 10241123
-  total_output_tokens: 27806
+  total_input_tokens: 10241159
+  total_output_tokens: 33135
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -103,6 +103,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 50910
       output_tokens: 858
+      cost_usd: 0.0
+    opus:
+      input_tokens: 36
+      output_tokens: 5329
       cost_usd: 0.0
   runs:
   - profile: default
@@ -123,6 +127,12 @@ oompah.task_costs:
     output_tokens: 858
     cost_usd: 0.0
     recorded_at: '2026-07-29T18:58:19.083086+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 36
+    output_tokens: 5329
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T19:03:20.123890+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -271,5 +281,15 @@ author: oompah
 created: 2026-07-29 19:02
 ---
 Added the In Validation board column/count (using existing responsive board patterns) and the full terminal-audit detail block in the task detail panel — requested target, queued/running phase, attempt, evidence revision, contributor models, auditor provider/model, latest result, and actionable failure instructions. Added an owner-override control gated by explicit can_override/override_authorized/owner_override_allowed permission that requires target selection, an explicit confirmation checkbox, and a reason before PATCHing the issue API with audit_override/audit_override_target/audit_override_confirmed/audit_override_reason. Pending audits are rendered as role=status (not global alerts); long model names use overflow-wrap:anywhere and unknown fields display 'Unknown' via terminalAuditText/Identity helpers. Added tests/test_dashboard_terminal_audit.py (12 template/JS static-contract tests covering column rendering, task placement, every audit phase, safe escaping, safe API projection consumption, authorized/unauthorized override visibility, required target+confirmation+reason validation, PATCH request shape, loading/error paths, and responsive @720px + overflow-wrap hooks). Focused UI tests and neighboring dashboard suites all pass.
+---
+author: oompah
+created: 2026-07-29 19:03
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 30
+- Tokens: 36 in / 5.3K out [5.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 28s
+- Log: OOMPAH-485__20260729T185900Z.jsonl
 ---
 <!-- COMMENTS:END -->

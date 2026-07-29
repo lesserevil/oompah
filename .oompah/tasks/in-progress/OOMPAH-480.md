@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-480
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Route release-delivery and release-pick terminal updates through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-29T19:03:02.996918Z'
+updated_at: '2026-07-29T19:03:31.576860Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: ed38a3a3-d22a-4dba-9a32-2f9476951d12
+oompah.agent_run_id: df38c1cc-3671-415a-98c4-d1ccad7f78da
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-480
 oompah.task_costs:
   total_input_tokens: 1072554
@@ -79,7 +79,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-459--task-OOMPAH-480
   base_branch: epic-OOMPAH-459
   base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
-  updated_at: '2026-07-29T19:02:32.274331+00:00'
+  updated_at: '2026-07-29T19:03:29.412883+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-480__20260729T182912Z
@@ -195,5 +195,15 @@ Run #7 [attempt=7, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: normal, Duration: 32s
 - Log: OOMPAH-480__20260729T190234Z.jsonl
+---
+author: oompah
+created: 2026-07-29 19:03
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 19:03
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
