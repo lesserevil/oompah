@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:05:46.463901Z'
-updated_at: '2026-07-29T00:16:17.321645Z'
+updated_at: '2026-07-29T00:37:25.074678Z'
 work_branch: OOMPAH-537
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/571
@@ -133,5 +133,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 2s
 - Log: OOMPAH-537__20260729T000936Z.jsonl
+---
+author: oompah
+created: 2026-07-29 00:37
+---
+Merged in PR #571 as 8792cea7 and deployed to service instance f4d00fa0-7632-4aaf-969a-6ff8237892b3. Live proof: a refreshed paused snapshot at 00:36:47 showed paused=true; POST project resume then produced a new event-driven snapshot at 00:36:51 with paused=false, without waiting for the five-minute safety poll or interrupting the running OOMPAH-470 worker.
 ---
 <!-- COMMENTS:END -->
