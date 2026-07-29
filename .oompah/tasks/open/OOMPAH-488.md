@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-488
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Validate the complete task Done-Merged-Archived audit lifecycle
 parent: OOMPAH-460
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-29T18:33:41.925088Z'
+updated_at: '2026-07-29T18:34:17.982033Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -48,13 +48,17 @@ oompah.duplicate_screening:
 oompah.agent_run_id: d6f5601e-997d-4175-8930-e6aa5fc7277b
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-488
 oompah.task_costs:
-  total_input_tokens: 677000
-  total_output_tokens: 7292
+  total_input_tokens: 763127
+  total_output_tokens: 8252
   total_cost_usd: 0.0
   by_model:
     sonnet:
       input_tokens: 677000
       output_tokens: 7292
+      cost_usd: 0.0
+    opus:
+      input_tokens: 86127
+      output_tokens: 960
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -69,6 +73,12 @@ oompah.task_costs:
     output_tokens: 4304
     cost_usd: 0.0
     recorded_at: '2026-07-29T18:32:12.430732+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 86127
+    output_tokens: 960
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T18:34:14.579105+00:00'
 oompah.integration:
   version: 1
   state: working
@@ -87,6 +97,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-460--task-OOMPAH-488
     source_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
     completed_at: '2026-07-29T18:32:12.435604+00:00'
+  - run_id: OOMPAH-488__20260729T183344Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: ci_fix
+    source_branch: epic-OOMPAH-460--task-OOMPAH-488
+    source_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
+    completed_at: '2026-07-29T18:34:14.583336+00:00'
 ---
 ## Summary
 
@@ -169,5 +187,20 @@ author: oompah
 created: 2026-07-29 18:33
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-29 18:34
+---
+Agent completed successfully in 41s (87087 tokens)
+---
+author: oompah
+created: 2026-07-29 18:34
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 4
+- Tokens: 86.1K in / 960 out [87.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 41s
+- Log: OOMPAH-488__20260729T183344Z.jsonl
 ---
 <!-- COMMENTS:END -->

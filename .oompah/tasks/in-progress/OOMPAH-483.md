@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -19,8 +19,8 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-29T02:01:40.087032Z'
-work_branch: epic-OOMPAH-459
+updated_at: '2026-07-29T18:34:29.716997Z'
+work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
 review_number: null
@@ -64,8 +64,8 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 814b53b9-4eba-491e-bbbf-6c6900a127df
-oompah.work_branch: epic-OOMPAH-459
+oompah.agent_run_id: ee5ab94d-7dbc-4076-8693-1ab3c9972d9e
+oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-483
 oompah.task_costs:
   total_input_tokens: 106
   total_output_tokens: 5117
@@ -82,6 +82,14 @@ oompah.task_costs:
     output_tokens: 5117
     cost_usd: 0.0
     recorded_at: '2026-07-29T02:01:37.168856+00:00'
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-459--task-OOMPAH-483
+  base_branch: epic-OOMPAH-459
+  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
+  updated_at: '2026-07-29T18:34:27.670997+00:00'
 ---
 ## Summary
 
@@ -124,5 +132,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 10s
 - Log: OOMPAH-483__20260729T020030Z.jsonl
+---
+author: oompah
+created: 2026-07-29 18:34
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 18:34
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
