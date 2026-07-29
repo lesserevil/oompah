@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T18:06:35.478559Z'
+updated_at: '2026-07-29T18:06:38.580849Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -383,5 +383,10 @@ All acceptance criteria met:
 ✅ Nonterminal transitions keep current behavior
 ✅ CLI help and errors updated
 ✅ Dashboard shows in-band terminal validation notice with ARIA status region
+---
+author: oompah
+created: 2026-07-29 18:06
+---
+Stage API, dashboard, and CLI terminal requests through coordinator: all terminal status interfaces (API PATCH, MCP/ACP tools, CLI, dashboard) now route Done/Merged/Archived through TerminalTransitionCoordinator. Returns In Validation + audit ID. Owner override with override_reason authorized. Tests passing.
 ---
 <!-- COMMENTS:END -->
