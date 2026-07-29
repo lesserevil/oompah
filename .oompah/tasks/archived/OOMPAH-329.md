@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-329
 type: task
-status: Merged
+status: Archived
 priority: 1
 title: Add cross-forge GitLab acceptance and migration test suite
 parent: OOMPAH-318
@@ -20,7 +20,7 @@ labels:
 - focus-complete:test
 assignee: null
 created_at: '2026-07-21T20:34:42.931068Z'
-updated_at: '2026-07-22T09:39:36.149577Z'
+updated_at: '2026-07-29T10:38:50.224573Z'
 work_branch: null
 target_branch: null
 review_url: null
