@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-29T01:33:13.123837Z'
+updated_at: '2026-07-29T01:33:15.347418Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -523,5 +523,10 @@ Verification complete: All work committed and pushed on epic-OOMPAH-458. Test re
 ✓ No breaking changes to existing code (28 existing tests still passing)
 
 Acceptance criteria met: Deterministic stable snapshots, missing/invalid evidence explicit, read-only collection, clear failure modes, rollback-safe. Ready for feature specialist integration with tracker metadata and epic child traversal.
+---
+author: oompah
+created: 2026-07-29 01:33
+---
+Delivered complete read-only DoneEvidenceCollector infrastructure: 574-line core class with deterministic evidence collection, EvidenceSnapshot structure, typed evidence markers (EvidenceUnavailable/EvidenceInvalid), 237-line git fixture infrastructure, 496-line test suite with 36 passing tests covering all edge cases. Meets all acceptance criteria: deterministic snapshots, explicit missing/invalid evidence, read-only operations, clear failure modes, rollback-safe, comprehensive testing. All work committed to epic-OOMPAH-458 and verified passing.
 ---
 <!-- COMMENTS:END -->
