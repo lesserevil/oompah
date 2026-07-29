@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T03:38:50.689832Z'
+updated_at: '2026-07-29T03:39:00.898371Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -55,8 +55,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 984a156e-1853-4384-b4b1-23903307d792
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 51928495
-  total_output_tokens: 164204
+  total_input_tokens: 51928508
+  total_output_tokens: 166477
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -64,8 +64,8 @@ oompah.task_costs:
       output_tokens: 132486
       cost_usd: 0.0
     sonnet:
-      input_tokens: 2359175
-      output_tokens: 12929
+      input_tokens: 2359188
+      output_tokens: 15202
       cost_usd: 0.0
     opus:
       input_tokens: 5973824
@@ -168,6 +168,12 @@ oompah.task_costs:
     output_tokens: 15895
     cost_usd: 0.0
     recorded_at: '2026-07-29T03:37:27.676634+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 13
+    output_tokens: 2273
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T03:38:57.346289+00:00'
 ---
 ## Summary
 
@@ -1071,5 +1077,38 @@ author: oompah
 created: 2026-07-29 03:38
 ---
 Auditor role seeding and independent provider-model candidate selection fully implemented. AuditorCandidateSelector with complete filtering pipeline (whitelist, credentials, health, budget, model validity, contributor exclusion) and independence policy. Migration seeding from deep/standard/default union plus provider defaults. Bootstrap integration. 39/39 tests passing.
+---
+author: oompah
+created: 2026-07-29 03:38
+---
+Agent completed successfully in 71s (2286 tokens)
+---
+author: oompah
+created: 2026-07-29 03:38
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 24, Tool calls: 13
+- Tokens: 13 in / 2.3K out [2.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 11s
+- Log: OOMPAH-470__20260729T033748Z.jsonl
+---
+author: oompah
+created: 2026-07-29 03:39
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-458` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-458
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-458
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
