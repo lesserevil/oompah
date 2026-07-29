@@ -102,6 +102,7 @@ from oompah.statuses import (
     PROPOSED,
     canonicalize_status,
     epic_rollup_state,
+    is_dispatchable_status,
     is_terminal_status,
     more_advanced_status,
 )
@@ -9395,6 +9396,11 @@ class Orchestrator:
                 issue.identifier,
                 issue.state,
             )
+        if stale:
+            # This check runs after the current tick's dispatch pass.  Wake the
+            # event-driven scheduler so recovered tasks are considered now
+            # instead of waiting for another timer or an operator action.
+            self.request_refresh()
         return len(stale)
 
     def _watchdog_orphan_loops(self) -> int:
@@ -10486,12 +10492,12 @@ class Orchestrator:
         maintenance jobs.
 
         The interval is configurable via
-        ``OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS`` (default 1800 s /
-        30 minutes).  The actual work is in
+        ``OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS`` (default 300 s /
+        5 minutes).  The actual work is in
         :meth:`_do_stalled_task_watchdog`.
         """
         interval_s = float(
-            getattr(self.config, "stalled_task_watchdog_interval_seconds", 1800)
+            getattr(self.config, "stalled_task_watchdog_interval_seconds", 300)
         )
         self._run_maintenance_job(
             "stalled_task_watchdog",
@@ -10504,6 +10510,7 @@ class Orchestrator:
 
         Builds the list of (project_id, tracker) pairs, increments the run
         counter, delegates to :func:`~oompah.stalled_task_watchdog.run_watchdog_audit`,
+        reconciles successful reopens with the scheduler's in-memory state,
         and stores the result in ``_maintenance_status`` so the API/dashboard
         maintenance snapshot can surface it.
         """
@@ -10537,6 +10544,60 @@ class Orchestrator:
         )
 
         self._maintenance_status["stalled_task_watchdog"] = result.to_dict()
+        self._reconcile_stalled_watchdog_reopens(
+            result,
+            dict(projects_and_trackers),
+        )
+
+    def _reconcile_stalled_watchdog_reopens(
+        self,
+        result: Any,
+        trackers_by_project: dict[str | None, Any],
+    ) -> int:
+        """Make watchdog-reopened tasks immediately eligible for dispatch.
+
+        ``run_watchdog_audit`` writes to the tracker directly, bypassing the
+        status API's normal in-memory reconciliation.  Re-fetch each requested
+        reopen to prove that the write succeeded before clearing suppression.
+        One coalescible refresh event wakes dispatch for the whole batch.
+        """
+        recovered_ids: set[str] = set()
+        for decision in result.decisions:
+            if decision.action != "reopen":
+                continue
+            tracker = trackers_by_project.get(decision.project_id)
+            if tracker is None:
+                continue
+            try:
+                issue = tracker.fetch_issue_detail(decision.task_id)
+            except Exception as exc:  # noqa: BLE001 - best-effort reconciliation
+                logger.debug(
+                    "Stalled-task watchdog: could not verify reopen for %s "
+                    "(project=%s): %s",
+                    decision.task_id,
+                    decision.project_id,
+                    exc,
+                )
+                continue
+            if issue is None or not is_dispatchable_status(issue.state):
+                continue
+            if issue.id in recovered_ids:
+                continue
+            recovered_ids.add(issue.id)
+            self.state.completed.discard(issue.id)
+            if issue.id not in self.state.running:
+                self.state.claimed.discard(issue.id)
+                self.state.claimed_issues.pop(issue.id, None)
+            self._clear_reopen_count(issue.id)
+
+        if recovered_ids:
+            logger.info(
+                "Stalled-task watchdog: reconciled %d reopened task(s) and "
+                "requested an immediate dispatch refresh",
+                len(recovered_ids),
+            )
+            self.request_refresh()
+        return len(recovered_ids)
 
     def _label_merged_issues(self) -> None:
         """Label issues whose own or helper-associated branch has merged."""

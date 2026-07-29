@@ -71,8 +71,8 @@ logger = logging.getLogger(__name__)
 #: Environment variable that controls the watchdog interval.
 ENV_VAR = "OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS"
 
-#: Default watchdog interval: 30 minutes.
-DEFAULT_INTERVAL_SECONDS: int = 1800
+#: Default watchdog interval: 5 minutes.
+DEFAULT_INTERVAL_SECONDS: int = 300
 
 #: States the watchdog audits.
 STALLED_STATES: frozenset[str] = frozenset(
