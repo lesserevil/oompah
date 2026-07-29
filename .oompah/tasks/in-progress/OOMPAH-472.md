@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T06:22:55.476523Z'
+updated_at: '2026-07-29T06:25:29.479656Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -1181,5 +1181,21 @@ author: oompah
 created: 2026-07-29 06:22
 ---
 Discovery: Root cause confirmed. The orchestrator's _run_unpushed_gate calls project_store.worktree_path_for(project_id, 'OOMPAH-472') → returns '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-472' (does not exist). Falls back to repo_path '/home/shedwards/.oompah/repos/oompah' (main clone). git status --porcelain there shows ' M AGENTS.md' — an unrelated uncommitted change on the main branch. This triggers has_uncommitted=True and the refusal. Fix: (1) create OOMPAH-472 worktree for immediate mitigation, (2) fix orchestrator to try epic worktree as fallback, (3) fix _check_unpushed to skip status check when no branch-specific worktree.
+---
+author: oompah
+created: 2026-07-29 06:25
+---
+Implementation: Fixed the unpushed gate false-positive that was blocking closure for 10+ agent runs.
+
+Root cause: When the orchestrator looks for a per-task worktree at .../OOMPAH-472 (doesn't exist), it falls back to the main clone for git status --porcelain. The main clone has AGENTS.md modified (unrelated work), which triggers has_uncommitted=True and falsely refuses closure.
+
+Changes made:
+1. oompah/unpushed_gate.py: _check_unpushed() now only runs git status when worktree_path is provided and valid. No more fallback to repo_path (which may be on a different branch). The commits_ahead check independently catches unpushed commits.
+2. oompah/orchestrator.py: Added epic worktree fallback — when no per-task worktree exists and the issue's work_branch follows the 'epic-<ID>' convention, use the epic's worktree for the uncommitted-changes check.
+3. tests/test_unpushed_gate.py: Updated tests to reflect new behavior; added test_no_worktree_main_repo_dirty_does_not_refuse capturing the exact regression scenario.
+
+Immediate mitigation: Created detached HEAD worktree at .../OOMPAH-472 pointing to epic-OOMPAH-458 so the RUNNING service can find it for the current closure.
+
+Committed as e941308f3 on epic-OOMPAH-458.
 ---
 <!-- COMMENTS:END -->
