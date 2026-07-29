@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T05:06:02.952368Z'
+updated_at: '2026-07-29T05:07:32.144281Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -58,13 +58,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: fffc0540-8383-44bd-81e0-c7babe9e3a5a
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 3752737
-  total_output_tokens: 82011
+  total_input_tokens: 4250185
+  total_output_tokens: 85341
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 2329578
-      output_tokens: 74511
+      input_tokens: 2827026
+      output_tokens: 77841
       cost_usd: 0.0
     opus:
       input_tokens: 1423159
@@ -173,6 +173,12 @@ oompah.task_costs:
     output_tokens: 1777
     cost_usd: 0.0
     recorded_at: '2026-07-29T04:57:20.335536+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 497448
+    output_tokens: 3330
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T05:07:28.628071+00:00'
 ---
 ## Summary
 
@@ -1006,5 +1012,25 @@ author: oompah
 created: 2026-07-29 05:06
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-29 05:07
+---
+Agent completed successfully in 89s (500778 tokens)
+---
+author: oompah
+created: 2026-07-29 05:07
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 12
+- Tokens: 497.4K in / 3.3K out [500.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 29s
+- Log: OOMPAH-472__20260729T050603Z.jsonl
+---
+author: oompah
+created: 2026-07-29 05:07
+---
+Agent completed 6 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
