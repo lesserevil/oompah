@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-538
 type: task
-status: Done
+status: In Progress
 priority: null
 title: Make spawned-agent task handoffs authenticate without exposing service credentials
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-07-29T01:28:57.596362Z'
+updated_at: '2026-07-29T01:29:05.572662Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -305,5 +305,21 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 16s
 - Log: OOMPAH-538__20260729T012640Z.jsonl
+---
+author: oompah
+created: 2026-07-29 01:28
+---
+Close refused by orchestrator: branch `OOMPAH-538` has 1 commit not on `main` and no open PR targets `main` from this branch.
+
+Diagnostic:
+  Unmerged commits: 1
+    49521488f OOMPAH-538: secure spawned task handoffs
+  Open PRs from this branch: 0
+  Merged PRs from this branch: 0
+
+Required: open a PR before closing.
+  gh pr create --base main --head OOMPAH-538 --title "OOMPAH-538: Make spawned-agent task handoffs authenticate without exposing service credentials" --body "..."
+
+Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
 ---
 <!-- COMMENTS:END -->
