@@ -12,11 +12,11 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T00:46:32.053029Z'
-updated_at: '2026-07-29T00:53:46.329226Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-29T00:53:51.638567Z'
+work_branch: OOMPAH-540
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/572
+review_number: '572'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -66,6 +66,10 @@ oompah.task_costs:
     output_tokens: 4352
     cost_usd: 0.0
     recorded_at: '2026-07-29T00:50:22.042786+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/572
+oompah.review_number: '572'
+oompah.work_branch: OOMPAH-540
+oompah.target_branch: main
 ---
 ## Summary
 
