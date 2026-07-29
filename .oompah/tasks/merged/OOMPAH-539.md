@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-539
 type: task
-status: Done
+status: Merged
 priority: null
 title: Keep Open-task duplicate-screening board state synchronized with live workers
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T02:30:25.067972Z'
+updated_at: '2026-07-29T02:38:48.636306Z'
 work_branch: OOMPAH-539
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/575
