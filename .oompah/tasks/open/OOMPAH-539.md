@@ -7,18 +7,30 @@ title: Keep Open-task duplicate-screening board state synchronized with live wor
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:frontend
-- needs:backend
-- needs:test
+labels: []
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T01:01:05.215582Z'
+updated_at: '2026-07-29T02:13:01.046283Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 7ec666279170df02c313e16207813bf4b9b572e4924eef4bcfaada25dfd17744
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 70934619-4a85-4309-b28f-faadfdbe9fdd
+  claim_owner: 5d80b10c-0ace-4fc9-8e33-587cf319fe4d
+  claimed_at: '2026-07-29T02:12:55.143967+00:00'
+  claim_expires_at: '2026-07-29T02:42:55.143967+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: bda0bdf0-412e-412b-a93c-05616cd942d7
 ---
 ## Summary
 
@@ -30,3 +42,16 @@ Production observation on 2026-07-29 while OOMPAH-538 was being screened. The li
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 02:12
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
+---
+author: oompah
+created: 2026-07-29 02:12
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
