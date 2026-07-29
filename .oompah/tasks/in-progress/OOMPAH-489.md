@@ -16,7 +16,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-07-29T19:16:43.145047Z'
+updated_at: '2026-07-29T19:17:11.425120Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-489
 target_branch: null
 review_url: null
@@ -51,13 +51,17 @@ oompah.duplicate_screening:
 oompah.agent_run_id: cb3d06d8-0f9f-4e59-97e0-3c70ab01ff2f
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-489
 oompah.task_costs:
-  total_input_tokens: 1927004
-  total_output_tokens: 15591
+  total_input_tokens: 1976956
+  total_output_tokens: 15957
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1927004
       output_tokens: 15591
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 49952
+      output_tokens: 366
       cost_usd: 0.0
   runs:
   - profile: default
@@ -72,6 +76,12 @@ oompah.task_costs:
     output_tokens: 11682
     cost_usd: 0.0
     recorded_at: '2026-07-29T19:16:16.012268+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 49952
+    output_tokens: 366
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T19:17:08.033429+00:00'
 oompah.integration:
   version: 1
   state: working
@@ -90,6 +100,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-460--task-OOMPAH-489
     source_sha: ea5f0f0a9a5ead2ca542f17afb038973c5e4727b
     completed_at: '2026-07-29T19:16:16.016743+00:00'
+  - run_id: OOMPAH-489__20260729T191645Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: general
+    source_branch: epic-OOMPAH-460--task-OOMPAH-489
+    source_sha: ea5f0f0a9a5ead2ca542f17afb038973c5e4727b
+    completed_at: '2026-07-29T19:17:08.038667+00:00'
 ---
 ## Summary
 
@@ -172,5 +190,25 @@ author: oompah
 created: 2026-07-29 19:16
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 19:17
+---
+Agent completed successfully in 29s (50318 tokens)
+---
+author: oompah
+created: 2026-07-29 19:17
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 1
+- Tokens: 50.0K in / 366 out [50.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 29s
+- Log: OOMPAH-489__20260729T191645Z.jsonl
+---
+author: oompah
+created: 2026-07-29 19:17
+---
+Agent completed without closing this issue (29s (50318 tokens)). Escalating from 'standard' to 'deep'. Retrying in 20s (2/3).
 ---
 <!-- COMMENTS:END -->
