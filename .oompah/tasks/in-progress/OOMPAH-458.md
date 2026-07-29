@@ -17,12 +17,11 @@ children:
 blocked_by:
 - OOMPAH-457
 labels:
-- merge-conflict
 - epic:rebasing
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T16:52:50.601375Z'
+updated_at: '2026-07-29T16:52:57.862296Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
