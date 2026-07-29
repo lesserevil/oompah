@@ -24520,6 +24520,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     scanned += 1
                     if tracker.is_archived(issue):
                         continue
+                    if self._auto_archive_is_active(issue, pid):
+                        logger.debug(
+                            "Skipping automatic archive for active task %s",
+                            issue.identifier,
+                        )
+                        continue
                     if (
                         issue.closed_at
                         and (now - issue.closed_at).days >= self._ARCHIVE_DAYS
@@ -24543,7 +24549,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         )
                         if request_archived_audit(
                             issue, tracker, pid or "legacy", disposition_reason,
-                            project_store=self.project_store
+                            project_store=self.project_store,
+                            trigger_source="auto_archive",
                         ):
                             archived += 1
                             logger.info(
@@ -24568,6 +24575,57 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "deferred": False,
             "cursor": None,
         }
+
+    def _auto_archive_is_active(self, issue: Issue, project_id: str | None) -> bool:
+        """Return whether a terminal-looking task still owns active work.
+
+        Retention never races a live agent, scheduled retry, claim, or open
+        review.  Tracker state can briefly lag these in-memory activities, so
+        checking only ``Done``/``Merged`` would risk hiding recoverable work.
+        """
+        issue_keys = {str(value) for value in (issue.id, issue.identifier) if value}
+
+        def _same_project(candidate_project_id: str | None) -> bool:
+            return not project_id or not candidate_project_id or candidate_project_id == project_id
+
+        for running_id, entry in self.state.running.items():
+            entry_issue = getattr(entry, "issue", None)
+            entry_keys = {
+                str(value)
+                for value in (
+                    running_id,
+                    getattr(entry, "identifier", None),
+                    getattr(entry_issue, "id", None),
+                    getattr(entry_issue, "identifier", None),
+                )
+                if value
+            }
+            if issue_keys & entry_keys and _same_project(
+                getattr(entry_issue, "project_id", None)
+            ):
+                return True
+
+        for retry_id, retry in self.state.retry_attempts.items():
+            retry_keys = {
+                str(value)
+                for value in (
+                    retry_id,
+                    getattr(retry, "issue_id", None),
+                    getattr(retry, "identifier", None),
+                )
+                if value
+            }
+            if issue_keys & retry_keys and _same_project(
+                getattr(retry, "project_id", None)
+            ):
+                return True
+
+        if issue_keys & {str(value) for value in self.state.claimed if value}:
+            return True
+
+        if project_id and not issue.project_id:
+            issue.project_id = project_id
+        return bool(self._open_review_branch_for_issue_in_cache(issue))
 
     async def _terminate_running(self, issue_id: str, cleanup_workspace: bool) -> bool:
         """Terminate a running worker and optionally clean its workspace.

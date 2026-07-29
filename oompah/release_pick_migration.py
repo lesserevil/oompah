@@ -295,7 +295,13 @@ def _archive_child_task(
         f"Release-pick child retirement (source={source_identifier}, target_branch={target_branch})"
     )
     project_id = getattr(issue, "project_id", None) or "legacy"
-    if request_archived_audit(issue, tracker, project_id, disposition_reason):
+    if request_archived_audit(
+        issue,
+        tracker,
+        project_id,
+        disposition_reason,
+        trigger_source="release_pick_migration",
+    ):
         logger.info(
             "release_pick_migration: queued archive audit for child %s (source=%s branch=%r)",
             child_id,

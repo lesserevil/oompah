@@ -295,14 +295,10 @@ class TestArchiveChildTask:
         result = _archive_child_task(tracker, "TASK-2", "TASK-1", "release/1.0")
 
         assert result is True
-        tracker.add_comment.assert_called_once()
-        comment_args = tracker.add_comment.call_args
-        assert comment_args.args[0] == "TASK-2"
-        assert "TASK-1" in comment_args.args[1]
-        assert "release/1.0" in comment_args.args[1]
-        assert comment_args.kwargs.get("author") == "oompah" or (
-            len(comment_args.args) > 2 and comment_args.args[2] == "oompah"
-        )
+        comments = [call.args[1] for call in tracker.add_comment.call_args_list]
+        assert any("TASK-1" in comment for comment in comments)
+        assert any("release/1.0" in comment for comment in comments)
+        assert any("Queued Archived audit:" in comment for comment in comments)
         # Should queue an audit instead of directly archiving
         tracker.update_issue.assert_called()
         call_kwargs = tracker.update_issue.call_args[1]
@@ -551,7 +547,7 @@ class TestMigrateSourceTask:
         assert children_archived == 1
         # Child task should have audit queued (moved to In Validation)
         tracker.update_issue.assert_called()
-        tracker.add_comment.assert_called_once()
+        assert tracker.add_comment.call_count == 2
         comment_args = tracker.add_comment.call_args
         assert "TASK-1" in comment_args.args[1]
         assert "release/1.0" in comment_args.args[1]

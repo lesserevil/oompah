@@ -399,6 +399,25 @@ class TestArchivedChain:
         arch_idx = next(i for i, t in enumerate(targets) if t == TargetState.ARCHIVED)
         assert arch_idx > done_idx
 
+    @pytest.mark.parametrize("prior_state", [DONE, MERGED])
+    def test_archived_from_terminal_retention_state_moves_to_validation(
+        self, prior_state: str
+    ) -> None:
+        """Retention audits remain visible to the audit worker."""
+        tracker = _MemoryTracker()
+        coord = _coordinator(tracker)
+
+        result = _run(coord.request_transition(
+            _issue(prior_state), TargetState.ARCHIVED, _trigger(), PROJECT_ID, _fingerprint()
+        ))
+
+        assert result.success is True
+        assert tracker.current_status(TASK_ID) == IN_VALIDATION
+
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        record = store.read(TASK_ID).pending_chain[0]
+        assert record.previous_state == prior_state
+
 
 # ---------------------------------------------------------------------------
 # TestCoalescing

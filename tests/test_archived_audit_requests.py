@@ -1,142 +1,179 @@
-"""Tests for archived_audit_requests helper function."""
+"""Tests for guarded Archived-audit requests from maintenance workers."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from __future__ import annotations
 
-from oompah.archived_audit_requests import request_archived_audit
+import copy
+import threading
+from typing import Any
+
+from oompah.archived_audit_requests import (
+    cancel_pending_archived_audit,
+    request_archived_audit,
+)
 from oompah.models import Issue
+from oompah.statuses import ARCHIVED, DONE, IN_VALIDATION
 from oompah.terminal_audit import RequestState, TargetState
+from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 
 
-@pytest.fixture
-def mock_issue():
-    """Create a mock Issue object for testing."""
-    issue = MagicMock(spec=Issue)
-    issue.identifier = "test-task-1"
-    issue.state = "Open"
-    return issue
+class _ProjectStore:
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+
+    def project_write_lock(self, _project_id: str) -> threading.RLock:
+        return self._lock
 
 
-@pytest.fixture
-def mock_tracker():
-    """Create a mock TrackerProtocol for testing."""
-    tracker = MagicMock()
-    return tracker
+class _Tracker:
+    def __init__(self, issue: Issue, *, fail_updates: bool = False) -> None:
+        self.issue = issue
+        self.metadata: dict[str, dict[str, Any]] = {}
+        self.comments: list[str] = []
+        self.update_calls: list[dict[str, Any]] = []
+        self.fail_updates = fail_updates
+
+    def get_metadata(self, identifier: str) -> dict[str, Any]:
+        assert identifier == self.issue.identifier
+        return copy.deepcopy(self.metadata.get(identifier, {}))
+
+    def set_metadata_field(self, identifier: str, key: str, value: Any) -> None:
+        assert identifier == self.issue.identifier
+        self.metadata.setdefault(identifier, {})[key] = copy.deepcopy(value)
+
+    def update_issue(self, identifier: str, **fields: Any) -> None:
+        assert identifier == self.issue.identifier
+        self.update_calls.append(dict(fields))
+        if self.fail_updates:
+            raise RuntimeError("tracker unavailable")
+        if "status" in fields:
+            self.issue.state = str(fields["status"])
+
+    def add_comment(self, identifier: str, text: str, author: str = "oompah") -> None:
+        assert identifier == self.issue.identifier
+        assert author == "oompah"
+        self.comments.append(text)
 
 
-@pytest.fixture
-def mock_store():
-    """Create a mock TerminalAuditMetadataStore."""
-    return MagicMock()
+def _issue(state: str = DONE) -> Issue:
+    return Issue(
+        id="TASK-1",
+        identifier="TASK-1",
+        title="Archive candidate",
+        state=state,
+    )
 
 
-class TestRequestArchivedAudit:
-    """Tests for request_archived_audit function."""
-    
-    def test_creates_audit_record_when_none_pending(self, mock_issue, mock_tracker):
-        """Should create a new audit record when none exists."""
-        with patch("oompah.archived_audit_requests.TerminalAuditMetadataStore") as mock_store_class:
-            mock_store = MagicMock()
-            mock_store_class.return_value = mock_store
-            mock_store.read.return_value = MagicMock(pending_chain=[])
-            
-            result = request_archived_audit(
-                mock_issue,
-                mock_tracker,
-                "test-project",
-                "Aged Done auto-archive"
-            )
-            
-            assert result is True
-            mock_store.upsert_pending_audit.assert_called_once()
-            mock_tracker.update_issue.assert_called_once_with(
-                "test-task-1", status="In Validation"
-            )
-    
-    def test_skips_when_audit_already_pending(self, mock_issue, mock_tracker):
-        """Should skip creating new audit when one is already pending."""
-        with patch("oompah.archived_audit_requests.TerminalAuditMetadataStore") as mock_store_class:
-            with patch("oompah.archived_audit_requests.compute_evidence_fingerprint") as mock_fingerprint:
-                mock_store = MagicMock()
-                mock_store_class.return_value = mock_store
-                
-                # Create a mock pending audit with the same fingerprint
-                mock_fingerprint_obj = MagicMock()
-                mock_fingerprint.return_value = mock_fingerprint_obj
-                
-                mock_pending_record = MagicMock()
-                mock_pending_record.target_state = TargetState.ARCHIVED
-                mock_pending_record.request_state = RequestState.PENDING
-                mock_pending_record.evidence_fingerprint = mock_fingerprint_obj
-                
-                mock_metadata = MagicMock()
-                mock_metadata.pending_chain = [mock_pending_record]
-                mock_store.read.return_value = mock_metadata
-                
-                result = request_archived_audit(
-                    mock_issue,
-                    mock_tracker,
-                    "test-project",
-                    "Aged Done auto-archive"
-                )
-                
-                assert result is False
-                mock_store.upsert_pending_audit.assert_not_called()
-                mock_tracker.update_issue.assert_not_called()
-    
-    def test_returns_false_on_update_failure(self, mock_issue, mock_tracker):
-        """Should return False when updating issue status fails."""
-        with patch("oompah.archived_audit_requests.TerminalAuditMetadataStore") as mock_store_class:
-            mock_store = MagicMock()
-            mock_store_class.return_value = mock_store
-            mock_store.read.return_value = MagicMock(pending_chain=[])
-            
-            # Make update_issue raise an exception
-            mock_tracker.update_issue.side_effect = Exception("Update failed")
-            
-            result = request_archived_audit(
-                mock_issue,
-                mock_tracker,
-                "test-project",
-                "Aged Done auto-archive"
-            )
-            
-            assert result is False
-    
-    def test_returns_false_on_store_error(self, mock_issue, mock_tracker):
-        """Should return False when storing audit record fails."""
-        with patch("oompah.archived_audit_requests.TerminalAuditMetadataStore") as mock_store_class:
-            mock_store = MagicMock()
-            mock_store_class.return_value = mock_store
-            mock_store.read.side_effect = Exception("Read failed")
-            
-            result = request_archived_audit(
-                mock_issue,
-                mock_tracker,
-                "test-project",
-                "Aged Done auto-archive"
-            )
-            
-            # Even though read fails, we should still create an empty metadata and continue
-            assert result is True or result is False
-    
-    def test_records_previous_state(self, mock_issue, mock_tracker):
-        """Should record the issue's previous state in the audit."""
-        with patch("oompah.archived_audit_requests.TerminalAuditMetadataStore") as mock_store_class:
-            with patch("oompah.archived_audit_requests.TerminalAuditRecord") as mock_record_class:
-                mock_store = MagicMock()
-                mock_store_class.return_value = mock_store
-                mock_store.read.return_value = MagicMock(pending_chain=[])
-                
-                result = request_archived_audit(
-                    mock_issue,
-                    mock_tracker,
-                    "test-project",
-                    "Aged Done auto-archive"
-                )
-                
-                # Check that the audit record was created with the previous state
-                mock_record_class.assert_called_once()
-                call_kwargs = mock_record_class.call_args[1]
-                assert call_kwargs["previous_state"] == "Open"
-                assert call_kwargs["target_state"] == TargetState.ARCHIVED
+def _records(tracker: _Tracker):
+    document = TerminalAuditMetadata.from_dict(
+        tracker.metadata[tracker.issue.identifier][METADATA_KEY]
+    )
+    return document.pending_chain
+
+
+def test_queues_aged_done_audit_with_pre_archive_state_and_comment() -> None:
+    issue = _issue(DONE)
+    tracker = _Tracker(issue)
+
+    queued = request_archived_audit(
+        issue,
+        tracker,
+        "proj-test",
+        "Aged Done auto-archive (closed 8 days ago)",
+        project_store=_ProjectStore(),
+        trigger_source="auto_archive",
+    )
+
+    assert queued is True
+    assert issue.state == IN_VALIDATION
+    records = _records(tracker)
+    assert len(records) == 1
+    assert records[0].target_state == TargetState.ARCHIVED
+    assert records[0].request_state == RequestState.PENDING
+    assert records[0].previous_state == DONE
+    assert records[0].requested_by is not None
+    assert records[0].requested_by.source == "auto_archive"
+    assert tracker.comments == [
+        "Queued Archived audit: Aged Done auto-archive (closed 8 days ago). "
+        "An auditor will review before the task is retired."
+    ]
+
+
+def test_pending_archive_coalesces_even_when_retention_reason_changes() -> None:
+    issue = _issue()
+    tracker = _Tracker(issue)
+    store = _ProjectStore()
+
+    assert request_archived_audit(
+        issue, tracker, "proj-test", "Aged Done auto-archive (closed 8 days ago)", store
+    )
+    assert not request_archived_audit(
+        issue, tracker, "proj-test", "Aged Done auto-archive (closed 9 days ago)", store
+    )
+
+    assert len(_records(tracker)) == 1
+    assert len(tracker.comments) == 1
+    assert tracker.update_calls == [{"status": IN_VALIDATION}]
+
+
+def test_retries_only_the_staging_write_after_a_tracker_failure() -> None:
+    issue = _issue()
+    tracker = _Tracker(issue, fail_updates=True)
+    store = _ProjectStore()
+
+    assert not request_archived_audit(
+        issue, tracker, "proj-test", "Aged Done auto-archive", store
+    )
+    assert issue.state == DONE
+    assert len(_records(tracker)) == 1
+
+    tracker.fail_updates = False
+    assert request_archived_audit(
+        issue, tracker, "proj-test", "Aged Done auto-archive (retry)", store
+    )
+
+    assert issue.state == IN_VALIDATION
+    assert len(_records(tracker)) == 1
+    assert len(tracker.comments) == 1
+
+
+def test_rejects_missing_disposition_evidence_without_writing() -> None:
+    issue = _issue()
+    tracker = _Tracker(issue)
+
+    assert not request_archived_audit(issue, tracker, "proj-test", "", _ProjectStore())
+    assert tracker.metadata == {}
+    assert tracker.update_calls == []
+    assert tracker.comments == []
+
+
+def test_grandfathered_archived_issue_is_not_requeued() -> None:
+    issue = _issue(ARCHIVED)
+    tracker = _Tracker(issue)
+
+    assert not request_archived_audit(
+        issue, tracker, "proj-test", "Aged archived upgrade record", _ProjectStore()
+    )
+    assert tracker.metadata == {}
+    assert tracker.update_calls == []
+
+
+def test_cancelling_unsafe_retirement_returns_the_recorded_prior_state() -> None:
+    issue = _issue("Open")
+    tracker = _Tracker(issue)
+    store = _ProjectStore()
+    assert request_archived_audit(
+        issue, tracker, "proj-test", "External issue closed", store
+    )
+
+    cancelled, previous_state = cancel_pending_archived_audit(
+        issue,
+        tracker,
+        "proj-test",
+        "external issue reopened before retirement completed",
+        store,
+    )
+
+    assert cancelled is True
+    assert previous_state == "Open"
+    assert _records(tracker)[0].request_state == RequestState.CANCELLED
+    assert tracker.comments[-1].startswith("Cancelled Archived audit:")

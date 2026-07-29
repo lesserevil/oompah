@@ -21,7 +21,7 @@ from oompah.github_intake_bridge import (
     sync_github_issue_intake_statuses_for_project,
 )
 from oompah.models import Issue, Project
-from oompah.statuses import ARCHIVED, MERGED, PROPOSED
+from oompah.statuses import ARCHIVED, IN_VALIDATION, MERGED, PROPOSED
 from oompah.tracker import TrackerAuthError
 from oompah.webhooks import WebhookEvent
 
@@ -366,7 +366,7 @@ def test_poll_imports_github_issue_after_external_readiness_passes(monkeypatch):
     ]
 
 
-def test_poll_archives_native_task_when_github_issue_is_closed(monkeypatch):
+def test_poll_queues_archive_audit_when_github_issue_is_closed(monkeypatch):
     native = FakeNativeTracker()
     issue = native.create_issue("Imported", initial_status=PROPOSED)
     native.set_metadata_field(
@@ -394,15 +394,26 @@ def test_poll_archives_native_task_when_github_issue_is_closed(monkeypatch):
     imported = poll_github_issue_intake_project(_orch(native), _project())
 
     assert imported == 0
-    assert native.issues[issue.identifier].state == ARCHIVED
-    assert native.update_calls == [(issue.identifier, {"status": ARCHIVED})]
+    assert native.issues[issue.identifier].state == IN_VALIDATION
+    assert native.update_calls == [(issue.identifier, {"status": IN_VALIDATION})]
+    assert any(
+        "Queued Archived audit: External GitHub intake retirement "
+        "(source=example-org/app#7, external_state=closed)." in text
+        for identifier, text, _author in native.comments
+        if identifier == issue.identifier
+    )
     metadata = native.metadata[issue.identifier]["oompah.external.github"]
     assert metadata["last_github_state"] == "closed"
-    assert metadata["last_synced_status"] == ARCHIVED
+    assert metadata["last_synced_status"] == IN_VALIDATION
     assert "external_closed_at" in metadata
 
+    # A later poll sees the pending audit and does not queue or comment again.
+    assert poll_github_issue_intake_project(_orch(native), _project()) == 0
+    assert native.update_calls == [(issue.identifier, {"status": IN_VALIDATION})]
+    assert len(native.comments) == 1
 
-def test_closed_github_webhook_archives_existing_native_task(monkeypatch):
+
+def test_closed_github_webhook_queues_archive_audit_for_existing_native_task(monkeypatch):
     native = FakeNativeTracker()
     issue = native.create_issue("Imported", initial_status=PROPOSED)
     native.set_metadata_field(
@@ -430,8 +441,37 @@ def test_closed_github_webhook_archives_existing_native_task(monkeypatch):
 
     handle_github_issue_event_for_native_project(_orch(native), event, _project())
 
-    assert native.issues[issue.identifier].state == ARCHIVED
-    assert native.update_calls == [(issue.identifier, {"status": ARCHIVED})]
+    assert native.issues[issue.identifier].state == IN_VALIDATION
+    assert native.update_calls == [(issue.identifier, {"status": IN_VALIDATION})]
+
+
+def test_reopened_github_issue_cancels_pending_archive_and_restores_prior_state(monkeypatch):
+    native = FakeNativeTracker()
+    issue = native.create_issue("Imported", initial_status=PROPOSED)
+    native.set_metadata_field(
+        issue.identifier,
+        "oompah.external.github",
+        {"id": "example-org/app#7", "last_synced_status": PROPOSED},
+    )
+    github_issue = _github_issue(state="closed")
+    github = FakeGitHubTracker([github_issue])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+
+    poll_github_issue_intake_project(_orch(native), _project())
+    assert native.issues[issue.identifier].state == IN_VALIDATION
+
+    github_issue.state = "open"
+    poll_github_issue_intake_project(_orch(native), _project())
+
+    assert native.issues[issue.identifier].state == PROPOSED
+    assert any(
+        text.startswith("Cancelled Archived audit:")
+        for identifier, text, _author in native.comments
+        if identifier == issue.identifier
+    )
 
 
 def test_existing_native_import_comment_webhook_copies_without_readiness_comment(monkeypatch):

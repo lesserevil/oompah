@@ -257,6 +257,12 @@ class TransitionResult:
     coalesced: bool = False
     """``True`` when the request was deduplicated against an identical pending audit."""
 
+    status_repaired: bool = False
+    """``True`` when a coalesced synchronous request restored In Validation."""
+
+    status_staged: bool = False
+    """``True`` when this call confirmed the task in ``In Validation``."""
+
     superseded_audit_id: str | None = None
     """``audit_id`` of the pending record that was superseded (different fingerprint), if any."""
 
@@ -524,6 +530,43 @@ class TerminalTransitionCoordinator:
                 evidence_fingerprint,
             )
 
+    def request_transition_sync(
+        self,
+        current_issue: Issue,
+        requested_target: TargetState,
+        trigger_identity: ContributorIdentity,
+        project_id: str,
+        evidence_fingerprint: EvidenceFingerprint,
+        *,
+        coalesce_pending_target: bool = False,
+        ensure_validation_on_coalesce: bool = False,
+        queued_comment: str | None = None,
+    ) -> TransitionResult:
+        """Stage a transition from a synchronous maintenance worker.
+
+        Tracker metadata provides the cross-thread/project lock for the
+        read-modify-write operation.  This entry point is intentionally for
+        bounded maintenance work that cannot await :meth:`request_transition`.
+        ``coalesce_pending_target`` is used by automatic retirement: a pending
+        archive is never superseded merely because a later maintenance pass
+        has a different timestamp in its retention evidence.
+        """
+        requested_target = TargetState.from_raw(requested_target)
+        tracker = self._tracker_for_project(project_id)
+        store = TerminalAuditMetadataStore(tracker, self._project_store, project_id)
+        return self._transition_locked(
+            store,
+            tracker,
+            current_issue,
+            requested_target,
+            trigger_identity,
+            project_id,
+            evidence_fingerprint,
+            coalesce_pending_target=coalesce_pending_target,
+            ensure_validation_on_coalesce=ensure_validation_on_coalesce,
+            queued_comment=queued_comment,
+        )
+
     # ------------------------------------------------------------------
     # Public API — apply_audit_result
     # ------------------------------------------------------------------
@@ -677,6 +720,10 @@ class TerminalTransitionCoordinator:
         trigger_identity: ContributorIdentity,
         project_id: str,
         evidence_fingerprint: EvidenceFingerprint,
+        *,
+        coalesce_pending_target: bool = False,
+        ensure_validation_on_coalesce: bool = False,
+        queued_comment: str | None = None,
     ) -> TransitionResult:
         identifier = current_issue.identifier
         decision = _Decision()
@@ -702,8 +749,16 @@ class TerminalTransitionCoordinator:
             for record in chain:
                 if (
                     record.target_state == requested_target
-                    and record.request_state == RequestState.PENDING
-                    and record.evidence_fingerprint == evidence_fingerprint
+                    and record.request_state
+                    in (
+                        (RequestState.PENDING, RequestState.IN_PROGRESS)
+                        if coalesce_pending_target
+                        else (RequestState.PENDING,)
+                    )
+                    and (
+                        coalesce_pending_target
+                        or record.evidence_fingerprint == evidence_fingerprint
+                    )
                 ):
                     decision.early_result = TransitionResult(
                         success=True,
@@ -761,15 +816,42 @@ class TerminalTransitionCoordinator:
         except TerminalAuditMetadataQuarantinedError:
             return TransitionResult(success=False, reason="metadata quarantined")
 
-        # Return early if the updater decided to short-circuit (coalesce/stale)
+        # Return early if the updater decided to short-circuit (coalesce/stale).
+        # A previous tracker write can fail after the durable audit has been
+        # staged.  Automatic retirement repairs only the nonterminal staging
+        # status on its next pass; it never creates or supersedes an audit.
         if decision.early_result is not None:
+            if (
+                decision.early_result.coalesced
+                and ensure_validation_on_coalesce
+                and requested_target == TargetState.ARCHIVED
+                and canonicalize_status(current_issue.state or "")
+                not in {IN_VALIDATION, ARCHIVED}
+            ):
+                try:
+                    tracker.update_issue(identifier, status=IN_VALIDATION)
+                    decision.early_result.status_repaired = True
+                    decision.early_result.status_staged = True
+                except Exception:
+                    logger.exception(
+                        "Failed to restore In Validation for pending archive audit %s",
+                        identifier,
+                    )
             return decision.early_result
 
         # --- Step 6: Move task to In Validation (after persistence) ---
         issue_status = current_issue.state or ""
-        if canonicalize_status(issue_status) not in TERMINAL_STATUSES:
+        # An Archived audit must be observable to the audit worker even when
+        # retention starts from Done or Merged.  The only status that cannot
+        # be staged again is already Archived (which callers reject first).
+        status_staged = canonicalize_status(issue_status) == IN_VALIDATION
+        if (
+            requested_target == TargetState.ARCHIVED
+            and canonicalize_status(issue_status) != ARCHIVED
+        ) or canonicalize_status(issue_status) not in TERMINAL_STATUSES:
             try:
                 tracker.update_issue(identifier, status=IN_VALIDATION)
+                status_staged = True
             except Exception:
                 logger.exception(
                     "Failed to move %s to In Validation; audit chain persisted",
@@ -779,7 +861,7 @@ class TerminalTransitionCoordinator:
         # --- Step 7: Post concise queued comment once ---
         if self._post_comments and not decision.already_posted:
             try:
-                comment = (
+                comment = queued_comment or (
                     f"Queued for terminal transition to "
                     f"{requested_target.value}. "
                     "An auditor will review and apply the terminal status."
@@ -798,6 +880,7 @@ class TerminalTransitionCoordinator:
             queued_targets=[r.target_state for r in decision.new_entries],
             coalesced=False,
             superseded_audit_id=decision.superseded_id,
+            status_staged=status_staged,
         )
 
     # ------------------------------------------------------------------
@@ -1283,7 +1366,10 @@ class TerminalTransitionCoordinator:
 
     def _tracker_for_project(self, project_id: str) -> TrackerProtocol:
         """Resolve the tracker used for a project-scoped request."""
-        if callable(self._tracker):
+        # Trackers are normally not callable, but ``MagicMock`` test doubles
+        # are.  A real tracker exposes metadata methods; only a callable that
+        # does not look like a tracker is the project-aware factory variant.
+        if callable(self._tracker) and not hasattr(self._tracker, "get_metadata"):
             return self._tracker(project_id)
         return self._tracker
 

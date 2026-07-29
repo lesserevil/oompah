@@ -763,7 +763,11 @@ def run_watchdog_audit(
             elif decision.action == "archive":
                 disposition_reason = f"Watchdog stalled-task archive: {decision.evidence}"
                 if request_archived_audit(
-                    issue, tracker, project_id, disposition_reason
+                    issue,
+                    tracker,
+                    project_id,
+                    disposition_reason,
+                    trigger_source="stalled_task_watchdog",
                 ):
                     logger.info(
                         "Watchdog queued archive audit for %s (project=%s) — %s",

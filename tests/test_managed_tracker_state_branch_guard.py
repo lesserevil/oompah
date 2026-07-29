@@ -19,7 +19,8 @@ from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
 from oompah.roles import RoleStore
-from oompah.statuses import ARCHIVED, DONE, OPEN
+from oompah.statuses import ARCHIVED, DONE, IN_VALIDATION, OPEN
+from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.tracker import TrackerError
 
 
@@ -349,9 +350,14 @@ def test_auto_archive_and_shutdown_leave_code_branch_untouched(
 
     orch._do_auto_archive()
 
-    archived = tracker.fetch_issue_detail(issue.identifier)
-    assert archived is not None
-    assert archived.state == ARCHIVED
+    staged = tracker.fetch_issue_detail(issue.identifier)
+    assert staged is not None
+    assert staged.state == IN_VALIDATION
+    audit = TerminalAuditMetadata.from_dict(
+        tracker.get_metadata(issue.identifier)[METADATA_KEY]
+    )
+    assert len(audit.pending_chain) == 1
+    assert audit.pending_chain[0].previous_state == DONE
     state_after = _git(remote, "rev-parse", f"refs/heads/{state_branch}")
     assert state_after != state_before
     assert _code_checkout_snapshot(repo, remote) == code_before
@@ -449,9 +455,14 @@ def test_server_error_watcher_and_scheduler_write_only_to_state_branch(
         orch._maybe_run_stalled_task_watchdog = lambda: None
         orch._run_step5b_maintenance()
 
-        archived = tracker.fetch_issue_detail(archived_id.identifier)
-        assert archived is not None
-        assert archived.state == ARCHIVED
+        staged = tracker.fetch_issue_detail(archived_id.identifier)
+        assert staged is not None
+        assert staged.state == IN_VALIDATION
+        audit = TerminalAuditMetadata.from_dict(
+            tracker.get_metadata(archived_id.identifier)[METADATA_KEY]
+        )
+        assert len(audit.pending_chain) == 1
+        assert audit.pending_chain[0].previous_state == DONE
         error_task = tracker.fetch_issue_detail(error_id)
         assert error_task is not None
         assert error_task.state == "Backlog"

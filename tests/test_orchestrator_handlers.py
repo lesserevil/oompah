@@ -760,6 +760,57 @@ class TestAutoArchiveThrottle:
         assert orch._last_auto_archive_monotonic is not None
         assert before <= orch._last_auto_archive_monotonic <= after
 
+    def test_queues_only_aged_done_and_merged_candidates(self, tmp_path):
+        orch = self._orch_with_spy_tracker(tmp_path)
+        now = datetime.now(timezone.utc)
+        done = _make_issue("done", state="Done")
+        merged = _make_issue("merged", state="Merged")
+        recent = _make_issue("recent", state="Done")
+        done.closed_at = now - timedelta(days=8)
+        merged.closed_at = now - timedelta(days=9)
+        recent.closed_at = now - timedelta(days=6)
+        orch.tracker.fetch_issues_by_states.return_value = [done, merged, recent]
+
+        with patch(
+            "oompah.orchestrator.request_archived_audit", return_value=True
+        ) as request:
+            orch._do_auto_archive()
+
+        assert [call.args[0] for call in request.call_args_list] == [done, merged]
+        assert all("Aged" in call.args[3] for call in request.call_args_list)
+
+    @pytest.mark.parametrize("activity", ["running", "retry", "review"])
+    def test_does_not_archive_terminal_task_with_active_work(self, tmp_path, activity):
+        orch = self._orch_with_spy_tracker(tmp_path)
+        issue = _make_issue("active", state="Done")
+        issue.closed_at = datetime.now(timezone.utc) - timedelta(days=8)
+        orch.tracker.fetch_issues_by_states.return_value = [issue]
+
+        if activity == "running":
+            orch.state.running[issue.id] = RunningEntry(
+                worker_task=None,
+                identifier=issue.identifier,
+                issue=issue,
+                session=None,
+                retry_attempt=0,
+                started_at=datetime.now(timezone.utc),
+            )
+        elif activity == "retry":
+            orch.state.retry_attempts[issue.id] = RetryEntry(
+                issue_id=issue.id,
+                identifier=issue.identifier,
+                attempt=1,
+                due_at_ms=0,
+            )
+        else:
+            issue.work_branch = "active"
+            orch._reviews_cache = {None: [_make_review(source_branch="active")]}
+
+        with patch("oompah.orchestrator.request_archived_audit") as request:
+            orch._do_auto_archive()
+
+        request.assert_not_called()
+
 
 class TestHandleYoloReview:
     """_handle_yolo_review() runs only YOLO actions (archive/merged moved to step 5b)."""
