@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-07-29T02:30:04.146801Z'
+updated_at: '2026-07-29T02:39:09.277350Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -172,5 +172,18 @@ author: oompah
 created: 2026-07-29 02:30
 ---
 Discovery: The implementation has three missing pieces: (1) The audit_result_handler is NOT wired in orchestrator.py - ApiAgentSession and build_tool_catalog calls for auditor dispatch don't pass the coordinator.apply_audit_result callback, so verdicts are validated but never forwarded to the coordinator; (2) parse_auditor_result lacks size limits (message, safe_evidence) and credential-pattern rejection; (3) No test file exists for the required test scenarios. Relevant files: oompah/auditor.py (parse_auditor_result, submit_auditor_result), oompah/orchestrator.py (API/ACP dispatch at ~17616, ~18050), oompah/terminal_transition_coordinator.py (apply_audit_result). Implementation: enhance parse_auditor_result with bounds/credential checks, wire audit_result_handler in both dispatch paths, create tests/test_auditor_result_api.py.
+---
+author: oompah
+created: 2026-07-29 02:39
+---
+Implementation complete. Changes made:
+
+1. oompah/auditor.py — Added size-limit constants, credential/secret regex patterns (_RESULT_SECRET_RE, _SECRET_KEY_RE), _check_safe_evidence_for_secrets() helper, and enhanced parse_auditor_result with: message length cap (4000 chars), safe_evidence entry count cap (20), per-key/value length caps (128/512), and credential pattern rejection.
+
+2. oompah/orchestrator.py — Wired audit_result_handler in both _run_api_worker (ApiAgentSession path) and _run_acp_worker (build_tool_catalog path). Handler is a synchronous closure that bridges to the async coordinator via asyncio.run_coroutine_threadsafe, using default-arg capture to avoid late-binding issues.
+
+3. tests/test_auditor_result_api.py — 59 new tests covering: owner session, wrong session/task/project, expired/stale audit, malformed enum, oversized output, status injection, secret-like fields, duplicate/conflicting submissions, coordinator failure, and tool policy enforcement.
+
+Test run: 276 passed across new suite and all neighboring suites.
 ---
 <!-- COMMENTS:END -->
