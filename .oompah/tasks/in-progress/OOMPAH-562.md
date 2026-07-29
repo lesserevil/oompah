@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T21:28:06.824530Z'
+updated_at: '2026-07-29T21:29:51.132909Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -143,5 +143,31 @@ author: oompah
 created: 2026-07-29 21:28
 ---
 Live diagnosis confirmed 14 Ready to Integrate entries are unleased at attempts=0 because required merged dependency code is absent from stale epic ancestry. OOMPAH-459 is 26 commits behind main/5 ahead; OOMPAH-460 is 34 behind and blocked behind OOMPAH-459. This task remains Backlog: promotion to Open was attempted and rejected because only a project owner may make it dispatchable. Owner action required: promote OOMPAH-562 to Open.
+---
+author: oompah
+created: 2026-07-29 21:29
+---
+**Implementation**: Added queue staleness block detection and repair mechanism:
+
+1. New method _detect_and_repair_integration_queue_staleness_block() that:
+   - Detects when first ready item has unsatisfied dependencies
+   - Checks if unsatisfied deps are Done/Merged/Archived but unreachable from epic
+   - Files rebase task to incorporate merged code into epic branch
+   - Uses cooldown (10min) to prevent duplicate repair dispatch
+   - Sets epic state to REBASING to enable synchronization
+
+2. Modified _process_integration_queues() to call detection when claim_next returns None
+   - Runs detection in thread pool to avoid blocking event loop
+   - Continues to next queue group after detection/repair attempt
+   - Allows repair to complete before next integration attempt
+
+Key design decisions:
+- Adds 'rebase-requested' label if needed to authorize synchronization
+- Preserves finish-order dependencies (detected via dependency_map)
+- Preserves terminal-audit gates (same as existing flow)
+- Never direct epic-to-epic sync (targets main as per requirements)
+- Graceful failure with logging on detection/repair errors
+
+All existing tests pass (4 integration_queue tests, 9 parallel_epic_children tests)
 ---
 <!-- COMMENTS:END -->
