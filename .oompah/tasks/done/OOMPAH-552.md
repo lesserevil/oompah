@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-552
 type: feature
-status: Backlog
+status: Done
 priority: 0
 title: Add worker-scoped coordination API, CLI, and tools
 parent: OOMPAH-550
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:15.200331Z'
-updated_at: '2026-07-29T17:57:15.135168Z'
+updated_at: '2026-07-29T18:28:06.605457Z'
 work_branch: null
 target_branch: null
 review_url: null
