@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T03:30:36.377063Z'
+updated_at: '2026-07-29T03:30:48.557976Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -529,5 +529,10 @@ author: oompah
 created: 2026-07-29 03:30
 ---
 Verification: Full test suite run — 13,340 passed, 7 skipped, 33 warnings, 0 failures. Focused tests: test_merged_evidence_collector.py (61 passed), test_done_evidence_collector.py (36 passed). All passing. Branch epic-OOMPAH-458 is up to date with origin.
+---
+author: oompah
+created: 2026-07-29 03:30
+---
+Completion: OOMPAH-472 is complete. MergedEvidenceCollector implemented in oompah/merged_evidence_collector.py with 61 tests covering all specified scenarios: correct landing, wrong target, open review, closed-unmerged, failed/pending CI, squash/rebase/merge commits, deleted branch, stale branch tip, stranded commits, shared epic, and nested epic target chains. All 13,340 tests pass. Feature satisfies acceptance criteria: Merged audit distinguishes actual correct-target landing from tracker labels or stale review history alone and reports precise evidence for every failure mode.
 ---
 <!-- COMMENTS:END -->
