@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-07-29T01:29:05.572662Z'
+updated_at: '2026-07-29T01:29:09.922852Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: b1d21507-edd3-4d94-b216-6535aecc7e27
+oompah.agent_run_id: 82928043-cb3e-480f-87ae-fe8cead130c3
 oompah.task_costs:
   total_input_tokens: 44940059
   total_output_tokens: 80538
@@ -321,5 +321,15 @@ Required: open a PR before closing.
   gh pr create --base main --head OOMPAH-538 --title "OOMPAH-538: Make spawned-agent task handoffs authenticate without exposing service credentials" --body "..."
 
 Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
+---
+author: oompah
+created: 2026-07-29 01:29
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 01:29
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
