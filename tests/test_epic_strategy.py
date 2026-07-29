@@ -2772,6 +2772,7 @@ class TestOpenEpicMainPrs:
                 "_done_review_child_has_epic_branch_work",
                 side_effect=[True, False],
             ) as has_branch_work,
+            patch.object(orch, "_request_epic_terminal_rollup") as mock_request,
         ):
             orch._sync_epic_review_child_states(
                 "proj-1",
@@ -2785,8 +2786,9 @@ class TestOpenEpicMainPrs:
             not in tracker.update_issue.call_args_list
         )
         tracker.update_issue.assert_any_call("TRICKLE-5", status=OPEN)
-        tracker.update_issue.assert_any_call("TRICKLE-7", status=MERGED)
-        assert tracker.update_issue.call_count == 2
+        # TRICKLE-7 (MERGED) is routed through coordinator now
+        mock_request.assert_called_once_with(rebase, MERGED)
+        assert tracker.update_issue.call_count == 1  # Only TRICKLE-5 OPEN update
         tracker.set_metadata_field.assert_called_once_with(
             "TRICKLE-2",
             "oompah.work_branch",
@@ -3611,12 +3613,14 @@ class TestEpicRollupStatusReconciliation:
             _make_issue(identifier="child-2", state=DONE, parent_id=epic.identifier),
         ]
 
-        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker), \
+             patch.object(orch, "_request_epic_terminal_rollup") as mock_request:
             updated = orch._reconcile_epic_rollup_statuses([epic])
 
         assert updated == 1
-        tracker.update_issue.assert_called_once_with(epic.identifier, status=DONE)
-        assert epic.state == DONE
+        mock_request.assert_called_once_with(epic, DONE)
+        # Terminal state requests are routed through the coordinator.
+        # Epic state is managed by the coordinator and auditor, not updated locally.
 
     def test_shared_done_epic_with_all_merged_children_stays_done(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
@@ -3655,12 +3659,12 @@ class TestEpicRollupStatusReconciliation:
             ),
         ]
 
-        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker), \
+             patch.object(orch, "_request_epic_terminal_rollup") as mock_request:
             updated = orch._reconcile_epic_rollup_statuses([epic])
 
         assert updated == 1
-        tracker.update_issue.assert_called_once_with(epic.identifier, status=DONE)
-        assert epic.state == DONE
+        mock_request.assert_called_once_with(epic, DONE)
 
     def test_in_review_epic_with_done_children_is_not_downgraded(self, tmp_path):
         """In shared mode, Done children with epic-branch work STAY Done.
@@ -3747,13 +3751,13 @@ class TestEpicRollupStatusReconciliation:
                 orch,
                 "_sync_epic_review_child_states",
             ) as sync_children,
+            patch.object(orch, "_request_epic_terminal_rollup") as mock_request,
         ):
             updated = orch._reconcile_epic_rollup_statuses([epic])
 
         assert updated == 1
         sync_children.assert_not_called()
-        tracker.update_issue.assert_called_once_with(epic.identifier, status=DONE)
-        assert epic.state == DONE
+        mock_request.assert_called_once_with(epic, DONE)
 
     def test_ci_fix_epic_with_done_children_is_not_downgraded(self, tmp_path):
         """In shared mode, Done children with epic-branch work STAY Done.

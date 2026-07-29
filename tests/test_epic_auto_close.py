@@ -168,14 +168,20 @@ class TestAllChildrenTerminal:
         provider.find_pr_for_branch.side_effect = lambda repo, branch: _reviews.get(branch)
 
         orch = _make_orch(tmp_path, project=project, tracker=tracker)
-        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch.object(orch, "_request_epic_terminal_rollup") as mock_request,
+        ):
             closed = orch._epic_auto_close_check(epic)
 
         assert closed is True
-        tracker.close_issue.assert_called_once()
-        call_args = tracker.close_issue.call_args
-        assert call_args.args[0] == "epic-1"
-        reason = call_args.kwargs.get("reason", "")
+        # Terminal close is routed through coordinator
+        mock_request.assert_called_once()
+        call_args = mock_request.call_args
+        assert call_args.args[0].identifier == "epic-1"
+        # Reason comment is still posted
+        tracker.append_comment.assert_called_once()
+        reason = tracker.append_comment.call_args.args[1]
         assert "all 3 children closed and merged to epic-epic-1" in reason
         assert "child-1 (merged via PR #11)" in reason
         assert "child-2 (merged via PR #22)" in reason
@@ -339,7 +345,7 @@ class TestMergeCheck:
             closed = orch._epic_auto_close_check(epic)
 
         assert closed is True
-        reason = tracker.close_issue.call_args.kwargs.get("reason", "")
+        reason = tracker.append_comment.call_args.args[1]
         # Children merged to the epic branch; the auto-close message names that.
         assert "merged to epic-epic-5" in reason
 
@@ -383,7 +389,7 @@ class TestChildWithoutBranch:
             closed = orch._epic_auto_close_check(epic)
 
         assert closed is True
-        reason = tracker.close_issue.call_args.kwargs.get("reason", "")
+        reason = tracker.append_comment.call_args.args[1]
         assert "research-1 (closed without PR)" in reason
         assert "triage-2 (closed without PR)" in reason
         # Provider was called only for the epic branch gate (not for empty child branches).
@@ -424,7 +430,7 @@ class TestChildWithoutBranch:
             closed = orch._epic_auto_close_check(epic)
 
         assert closed is True
-        reason = tracker.close_issue.call_args.kwargs.get("reason", "")
+        reason = tracker.append_comment.call_args.args[1]
         assert "ghost (closed without PR)" in reason
 
 
@@ -542,14 +548,12 @@ class TestCascadingAutoClose:
         # between ticks.
         closed_epics: set[str] = set()
 
-        def _fake_close(identifier, **kw):
-            closed_epics.add(identifier)
-            if identifier == "epic-mid":
+        def _fake_request_transition(epic_issue, target_state):
+            closed_epics.add(epic_issue.identifier)
+            if epic_issue.identifier == "epic-mid":
                 mid.state = "closed"
-            if identifier == "epic-top":
+            if epic_issue.identifier == "epic-top":
                 top.state = "closed"
-
-        tracker.close_issue.side_effect = _fake_close
 
         provider = MagicMock()
         # In shared mode, leaves commit to the mid epic's branch; the mid
@@ -563,7 +567,10 @@ class TestCascadingAutoClose:
         provider.find_pr_for_branch.side_effect = lambda repo, branch: _reviews.get(branch)
 
         orch = _make_orch(tmp_path, project=project, tracker=tracker)
-        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch.object(orch, "_request_epic_terminal_rollup", side_effect=_fake_request_transition),
+        ):
             # Tick 1 — check the mid-tier (leaves already closed/merged).
             assert orch._epic_auto_close_check(mid) is True
             assert "epic-mid" in closed_epics
@@ -866,12 +873,15 @@ class TestEpicBranchGate:
         orch.project_store.epic_branch_name = MagicMock(
             return_value="epic-epic-st",
         )
-        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch.object(orch, "_request_epic_terminal_rollup") as mock_request,
+        ):
             closed = orch._epic_auto_close_check(epic)
 
         assert closed is True
-        tracker.close_issue.assert_called_once()
-        reason = tracker.close_issue.call_args.kwargs.get("reason", "")
+        mock_request.assert_called_once()
+        reason = tracker.append_comment.call_args.args[1]
         # The summary describes the per-child merge into the epic branch.
         assert "merged to epic-epic-st" in reason
 

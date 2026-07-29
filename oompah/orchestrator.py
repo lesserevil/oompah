@@ -109,6 +109,7 @@ from oompah.statuses import (
     OPEN,
     PROPOSED,
     READY_TO_INTEGRATE,
+    TERMINAL_STATUSES,
     canonicalize_status,
     epic_rollup_state,
     is_dispatchable_status,
@@ -6510,6 +6511,15 @@ class Orchestrator:
     def _reconcile_epic_rollup_statuses(self, epics: list[Issue]) -> int:
         """Persist each epic's tracker status from its children's states.
 
+        Terminal state transitions (Done, Merged, Archived) are routed through
+        the terminal-transition coordinator to ensure proper audit chains.
+        Nonterminal states (Open, In Progress, etc.) continue to be persisted
+        directly.
+
+        In Validation children count as nonterminal and block rollup to a
+        terminal parent state. Reconciliation is skipped if the epic is
+        already In Validation or has the audit:repair-needed label.
+
         The dashboard derives epic state from child issue state at render time,
         but the tracker itself also needs that status label so GitHub issues do
         not show stale Backlog/Open values while their children are active or
@@ -6520,12 +6530,33 @@ class Orchestrator:
             if canonicalize_status(epic.state) in {MERGED, ARCHIVED}:
                 continue
 
+            # Skip if epic is already in audit/repair flow
+            current_status = canonicalize_status(epic.state)
+            if current_status == IN_VALIDATION:
+                logger.debug(
+                    "Skipping rollup reconciliation for epic %s in In Validation",
+                    epic.identifier,
+                )
+                continue
+            labels = {str(label).strip().lower() for label in epic.labels or []}
+            if "audit:repair-needed" in labels:
+                logger.debug(
+                    "Skipping rollup reconciliation for epic %s with audit:repair-needed",
+                    epic.identifier,
+                )
+                continue
+
             children = self._fetch_epic_children(epic)
             if not children:
                 continue
 
-            current_status = canonicalize_status(epic.state)
-            labels = {str(label).strip().lower() for label in epic.labels or []}
+            # Check if any children are In Validation — if so, block terminal
+            # state rollup since In Validation children are nonterminal.
+            child_in_validation = any(
+                canonicalize_status(child.state) == IN_VALIDATION
+                for child in children
+            )
+
             has_review_evidence = bool(
                 current_status in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
                 or getattr(epic, "review_url", None)
@@ -6578,6 +6609,18 @@ class Orchestrator:
             ):
                 rolled = IN_REVIEW
                 rolled_status = IN_REVIEW
+
+            # Block terminal state rollup if any child is In Validation
+            if child_in_validation and rolled_status in TERMINAL_STATUSES:
+                logger.debug(
+                    "Blocking terminal rollup to %s for epic %s: "
+                    "at least one child is In Validation",
+                    rolled_status,
+                    epic.identifier,
+                )
+                rolled = None
+                rolled_status = None
+
             if (
                 not rolled
                 or rolled_status == current_status
@@ -6620,8 +6663,17 @@ class Orchestrator:
                         epic.identifier,
                     )
                     continue
-                tracker.update_issue(epic.identifier, status=rolled)
-                epic.state = rolled
+
+                # Route terminal states through the coordinator; update
+                # nonterminal states directly.
+                if rolled_status in TERMINAL_STATUSES:
+                    self._request_epic_terminal_rollup(epic, rolled_status)
+                    # Coordinator will stage the transition and move epic to
+                    # In Validation. Don't update epic.state locally since the
+                    # coordinator manages it from here.
+                else:
+                    tracker.update_issue(epic.identifier, status=rolled)
+                    epic.state = rolled
                 updated += 1
                 logger.info(
                     "Reconciled epic %s status to %s from %d child issue(s)",
@@ -6637,6 +6689,96 @@ class Orchestrator:
                     exc,
                 )
         return updated
+
+    def _request_epic_terminal_rollup(self, epic: Issue, target_state: str) -> None:
+        """Request terminal transition for an epic via the coordinator.
+
+        Calls the async coordinator from a sync context using the event
+        loop's run_coroutine_threadsafe. This ensures proper audit chains
+        and validation before the epic is moved to a terminal state.
+
+        When the event loop is not available (e.g., in tests or during
+        startup), this method is a no-op and the epic state is not changed.
+        This ensures that terminal transitions are audited and not silently
+        skipped.
+
+        Parameters
+        ----------
+        epic:
+            The epic issue to transition.
+        target_state:
+            The requested terminal state (DONE, MERGED, or ARCHIVED).
+
+        Raises:
+            Logs and continues on any error; this is best-effort maintenance.
+        """
+        try:
+            loop = self._dispatch_loop
+            if loop is None or not loop.is_running():
+                logger.debug(
+                    "Deferring terminal transition for epic %s to %s: "
+                    "event loop not available (will retry on next tick)",
+                    epic.identifier,
+                    target_state,
+                )
+                return
+
+            # Build evidence fingerprint from epic state
+            contributors = getattr(epic, "contributors", ()) or ()
+            if isinstance(contributors, str):
+                contributors = (contributors,)
+            fingerprint = compute_evidence_fingerprint(
+                requirements_text=str(epic.description or ""),
+                project_id=str(epic.project_id or ""),
+                task_id=str(epic.identifier),
+                source_branch=str(
+                    getattr(epic, "source_branch", None)
+                    or epic.work_branch
+                    or epic.branch_name
+                    or ""
+                ),
+                target_branch=str(epic.target_branch or ""),
+                review_id=str(epic.review_number or ""),
+                review_state=str(getattr(epic, "review_state", "") or ""),
+                contributors=contributors,
+            )
+
+            # Request the transition through the coordinator
+            future = asyncio.run_coroutine_threadsafe(
+                self.terminal_transition_coordinator.request_transition(
+                    current_issue=epic,
+                    requested_target=TargetState.from_raw(target_state),
+                    trigger_identity=ContributorIdentity("orchestrator"),
+                    project_id=str(epic.project_id or ""),
+                    evidence_fingerprint=fingerprint,
+                ),
+                loop,
+            )
+            # Wait for the result with a timeout
+            result = future.result(timeout=10.0)
+            logger.info(
+                "Requested terminal transition for epic %s to %s: success=%s",
+                epic.identifier,
+                target_state,
+                result.success if result else False,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Failed to request terminal transition for epic %s to %s: %s",
+                epic.identifier,
+                target_state,
+                exc,
+            )
+
+    def _terminal_status_for_tracker(self, tracker: TrackerProtocol) -> str:
+        """Return the first configured terminal state for a tracker.
+
+        Defaults to DONE if no explicit terminal states are configured.
+        """
+        terminal_states = getattr(tracker, "terminal_states", None)
+        if terminal_states:
+            return terminal_states[0]
+        return DONE
 
     def _project_max_in_flight(self, project_id: str | None) -> int:
         """Return the configured in-flight PR limit for a project.
@@ -8062,15 +8204,33 @@ class Orchestrator:
             self._clear_stuck_epic_alert(epic.identifier)
             return False
 
-        # All conditions hold — close + comment.
+        # All conditions hold — request close via coordinator.
+        # close_issue typically moves to the first terminal state (Done/Merged).
+        # We route this through the coordinator to ensure proper audit chains.
         reason = (
             f"Auto-closed: all {len(children)} children closed and merged "
             f"to {expected_child_target}.\n"
             f"Children: " + ", ".join(merged_summaries)
         )
         try:
+            # Determine the target terminal state (typically DONE or MERGED)
             tracker = self._tracker_for_issue(epic)
-            tracker.close_issue(epic.identifier, reason=reason)
+            terminal_state = self._terminal_status_for_tracker(tracker)
+
+            # Route through coordinator for terminal transitions
+            self._request_epic_terminal_rollup(epic, terminal_state)
+
+            # Also post the reason comment directly (not routed through coordinator)
+            if reason:
+                try:
+                    tracker.append_comment(epic.identifier, reason)
+                except Exception as exc:
+                    logger.debug(
+                        "Failed to append auto-close reason comment to %s: %s",
+                        epic.identifier,
+                        exc,
+                    )
+
             self._clear_stuck_epic_alert(epic.identifier)
             logger.info(
                 "Auto-closed epic %s — all %d children closed and merged to %s",
@@ -8919,7 +9079,12 @@ class Orchestrator:
                 next_status = OPEN
                 reason = "no matching work found on epic review branch"
             try:
-                tracker.update_issue(child.identifier, status=next_status)
+                # Route terminal transitions (MERGED) through the coordinator;
+                # nonterminal updates (OPEN) use direct update.
+                if canonicalize_status(next_status) in TERMINAL_STATUSES:
+                    self._request_epic_terminal_rollup(child, next_status)
+                else:
+                    tracker.update_issue(child.identifier, status=next_status)
                 child.state = next_status
                 moved += 1
                 logger.info(
