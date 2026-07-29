@@ -272,3 +272,54 @@ def test_orchestrator_runs_enforcement_before_dispatch_startup(tmp_path):
     assert orchestrator._maintenance_status["terminal_audit_enforcement"][
         "baseline_initialized"
     ] is True
+
+
+def test_orchestrator_terminal_audit_merge_preserves_unrelated_state(tmp_path):
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps({"future": {"keep": True}, "paused": True}),
+        encoding="utf-8",
+    )
+    tracker = _Tracker([_issue("TASK-1", "Done", "evidence-a")])
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(state_path),
+    )
+    orchestrator._terminal_audit_scopes = lambda: [("project-a", tracker)]
+
+    orchestrator._run_terminal_audit_enforcement()
+
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert persisted["future"] == {"keep": True}
+    assert persisted["paused"] is True
+    assert persisted[SERVICE_STATE_KEY]["baseline_initialized"] is True
+
+
+def test_new_orchestrator_recovers_after_operator_repairs_corrupt_state(tmp_path):
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text("not-json", encoding="utf-8")
+    damaged = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "damaged-workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(state_path),
+    )
+    assert damaged._state_load_failed is True
+
+    # A graceful restart after the operator restores a valid document creates
+    # a new orchestrator with no process-local corruption marker.
+    state_path.write_text("{}\n", encoding="utf-8")
+    tracker = _Tracker([_issue("TASK-1", "Done", "evidence-a")])
+    restarted = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "restarted-workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(state_path),
+    )
+    restarted._terminal_audit_scopes = lambda: [("project-a", tracker)]
+
+    restarted._run_terminal_audit_enforcement()
+
+    result = restarted._maintenance_status["terminal_audit_enforcement"]
+    assert result["baseline_initialized"] is True
+    assert result["quarantined"] is False
+    assert result["errors"] == []
