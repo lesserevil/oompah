@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T21:29:51.132909Z'
+updated_at: '2026-07-29T21:31:17.336116Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -169,5 +169,25 @@ Key design decisions:
 - Graceful failure with logging on detection/repair errors
 
 All existing tests pass (4 integration_queue tests, 9 parallel_epic_children tests)
+---
+author: oompah
+created: 2026-07-29 21:31
+---
+**Verification**: All focused tests pass:
+- 4/4 integration_queue tests
+- 9/9 parallel_epic_children tests  
+- 33/33 epic_rebase_state tests
+Total: 46/46 PASSED
+
+The implementation correctly:
+1. Detects blocked queues (claim_next = None) due to unreachable merged deps
+2. Identifies unsatisfied dependencies in terminal states (Done/Merged/Archived)
+3. Files rebase task to incorporate merged code into epic branch
+4. Prevents duplicate filing with 10-min cooldown
+5. Preserves finish-order and terminal-audit gates
+6. Never direct epic-to-epic sync (respects main as target)
+7. Handles errors gracefully with logging
+
+Ready for code review and merge.
 ---
 <!-- COMMENTS:END -->
