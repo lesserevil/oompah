@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T03:13:37.780676Z'
+updated_at: '2026-07-29T03:14:54.074341Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -58,13 +58,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: ec71caef-1784-4719-9aa4-c9bb73d0a9b8
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 1825530
-  total_output_tokens: 54914
+  total_input_tokens: 2050744
+  total_output_tokens: 57777
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 460197
-      output_tokens: 48272
+      input_tokens: 685411
+      output_tokens: 51135
       cost_usd: 0.0
     opus:
       input_tokens: 1365333
@@ -113,6 +113,12 @@ oompah.task_costs:
     output_tokens: 4856
     cost_usd: 0.0
     recorded_at: '2026-07-29T02:47:10.598119+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 225214
+    output_tokens: 2863
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T03:14:49.657228+00:00'
 ---
 ## Summary
 
@@ -471,5 +477,25 @@ author: oompah
 created: 2026-07-29 03:13
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-29 03:14
+---
+Agent completed successfully in 75s (228077 tokens)
+---
+author: oompah
+created: 2026-07-29 03:14
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 8
+- Tokens: 225.2K in / 2.9K out [228.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 15s
+- Log: OOMPAH-472__20260729T031337Z.jsonl
+---
+author: oompah
+created: 2026-07-29 03:14
+---
+Agent completed 4 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
