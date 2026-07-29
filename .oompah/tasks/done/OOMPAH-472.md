@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T06:25:44.160908Z'
+updated_at: '2026-07-29T06:26:01.052466Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -1208,5 +1208,16 @@ Verification: All tests pass.
 
 Branch epic-OOMPAH-458 at e941308f3 is clean and up to date with origin.
 OOMPAH-472 worktree created at .../OOMPAH-472 (detached, clean) for running service to find during closure check.
+---
+author: oompah
+created: 2026-07-29 06:25
+---
+Completion: OOMPAH-472 fully delivered.
+
+Primary deliverable (MergedEvidenceCollector): Committed at ede290441 on epic-OOMPAH-458. Implements read-only MergedEvidenceCollector that verifies target-branch landing via SCM review state, CI status, and git commit containment. 61 tests cover all specified scenarios: correct landing, wrong target, open/closed-unmerged reviews, failed/pending CI, squash/rebase/merge commits, deleted branches, stale branch tips, stranded commits, shared epics, and nested epic chains.
+
+Blocker fix (closure false-positive): Committed at e941308f3. The orchestrator's unpushed gate was incorrectly checking the main clone for uncommitted changes (AGENTS.md modified) instead of the feature branch's worktree. Fixed by: (1) removing the repo_path fallback for git status in _check_unpushed, (2) adding epic worktree fallback in orchestrator, (3) creating the OOMPAH-472 worktree for immediate mitigation of the running service.
+
+All 90 focused tests pass. Branch is pushed and up to date.
 ---
 <!-- COMMENTS:END -->
