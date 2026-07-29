@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-474
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Add the auditor-only structured result submission API and tool
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-07-29T02:44:41.654515Z'
+updated_at: '2026-07-29T02:47:23.058014Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 63217c42-7bd5-43b3-9408-c4b72ac96ef1
+oompah.agent_run_id: d61ef817-24f5-451e-8d4d-35e9fe85a293
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 108307
@@ -245,5 +245,15 @@ Steps to resolve:
   git push origin epic-OOMPAH-458
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-29 02:47
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 02:47
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
