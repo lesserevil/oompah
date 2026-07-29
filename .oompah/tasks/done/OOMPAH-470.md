@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T00:43:40.961722Z'
+updated_at: '2026-07-29T00:43:43.107953Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -369,5 +369,10 @@ Operators can edit auditor candidates through existing RoleStore/API paths.
 Selected auditors demonstrably independent under agreed policy.
 
 Ready for code review.
+---
+author: oompah
+created: 2026-07-29 00:43
+---
+Implemented auditor role independent provider-model candidate selection with comprehensive seeding and filtering logic. Core implementation in oompah/auditor_candidate_selector.py with 28 comprehensive tests. Bootstrap integration seeds auditor role idempotently at startup. All 28 tests pass. Fulfills all acceptance criteria: independent candidate selection, contributor exclusion, policy enforcement, operator editability, normalized diagnostics.
 ---
 <!-- COMMENTS:END -->

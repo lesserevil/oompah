@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-458
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Dispatch independent auditor agents and evaluate target-specific evidence
 parent: null
@@ -20,7 +20,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T00:07:23.116344Z'
+updated_at: '2026-07-29T00:43:46.366301Z'
 work_branch: null
 target_branch: null
 review_url: null
