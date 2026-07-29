@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:13.914904Z'
-updated_at: '2026-07-29T06:34:10.105123Z'
+updated_at: '2026-07-29T06:35:07.499956Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -114,5 +114,21 @@ author: oompah
 created: 2026-07-29 06:34
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-29 06:35
+---
+UNDERSTANDING: Implementing ArchivedEvidenceCollector, a read-only validator for safe task retirement. The collector will verify:
+1. Pre-archive status snapshot
+2. Completed Done/Merged audit with passing verdict
+3. No active workers/claims/retries  
+4. No open reviews
+5. No active children or unresolved dependencies
+6. No requirements/evidence changes after prior audit
+7. Structured retention reason (with source link for duplicate/obsolete)
+
+Pattern follows DoneEvidenceCollector/MergedEvidenceCollector design: explicit unavailable/invalid markers, deterministic snapshots, accurate failure mode detection.
+
+Tests will cover: retention-qualified items, recent items, active worker, active child, unresolved dependency, changed requirements, changed SHA, duplicate with/without link, obsolete reason, safe restoration state.
 ---
 <!-- COMMENTS:END -->
