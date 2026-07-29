@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-538
 type: task
-status: In Review
+status: Merged
 priority: null
 title: Make spawned-agent task handoffs authenticate without exposing service credentials
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-07-29T01:30:38.185994Z'
+updated_at: '2026-07-29T01:36:33.663494Z'
 work_branch: OOMPAH-538
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/574
