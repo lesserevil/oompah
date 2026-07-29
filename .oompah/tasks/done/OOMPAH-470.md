@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T14:22:54.786564Z'
+updated_at: '2026-07-29T14:22:57.643517Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -3954,5 +3954,10 @@ COMPLETION VERIFICATION: Implementation is complete, committed, and pushed on ep
 ✓ Selected auditors are demonstrably independent under agreed policy
 ✓ Unsafe/unverifiable candidates never used
 ✓ Operators can edit auditor candidates through existing role configuration path
+---
+author: oompah
+created: 2026-07-29 14:22
+---
+Implemented reserved editable auditor role with independent provider-model candidate selection, comprehensive filtering (whitelist/credentials/health/budget/model validity), contributor exclusion policy with fallback logic, and normalized diagnostics. All 13178 tests pass. Committed and pushed on epic-OOMPAH-458.
 ---
 <!-- COMMENTS:END -->
