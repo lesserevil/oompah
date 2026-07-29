@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-561
 type: chore
-status: Open
+status: In Progress
 priority: 1
 title: Prune terminal branches and worktrees aggressively
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:03:33.910422Z'
-updated_at: '2026-07-29T21:05:58.048770Z'
+updated_at: '2026-07-29T21:06:13.745445Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 63d49c67-b723-49cf-8b36-15ba1c486945
+oompah.agent_run_id: 77ee1743-ccca-4780-beaf-3a43dfd2a300
 oompah.task_costs:
   total_input_tokens: 435371
   total_output_tokens: 2824
@@ -106,5 +106,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 22s
 - Log: OOMPAH-561__20260729T210432Z.jsonl
+---
+author: oompah
+created: 2026-07-29 21:06
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 21:06
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
