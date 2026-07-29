@@ -20,6 +20,7 @@ Test organization follows the spec exactly.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -1018,6 +1019,21 @@ class TestAuditorCandidateSelectorPolicyGaps:
         )
 
         selected, reason = selector.seed_auditor_role()
+
+        assert selected is None
+        assert reason is not None
+        assert reason.reason == "all_over_budget"
+
+    def test_dataclass_like_budget_state_blocks_paid_candidate(self):
+        provider = _make_provider("provider", "Provider", ["model"])
+        role = Role(
+            "default", "priority", [Candidate("provider", "model")], datetime.now(timezone.utc)
+        )
+        selected, reason = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"provider": provider}),
+            budget_state=SimpleNamespace(budget_exceeded=True),
+        ).seed_auditor_role()
 
         assert selected is None
         assert reason is not None

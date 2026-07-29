@@ -548,6 +548,24 @@ class AuditorCandidateSelector:
             if remaining is not None:
                 return remaining > 0, True
             return True, False
+        # Service/orchestrator budget snapshots are commonly dataclasses or
+        # SimpleNamespace instances rather than mappings. Inspect only
+        # declared attributes so a MagicMock's fabricated attributes cannot
+        # accidentally block a candidate.
+        values = vars(value) if hasattr(value, "__dict__") else {}
+        for key in ("allowed", "can_dispatch"):
+            if isinstance(values.get(key), bool):
+                return values[key], True
+        for key in ("budget_blocked", "over_budget", "budget_exceeded"):
+            if values.get(key) is True:
+                return False, True
+        limit = cls._number_attr(value, "budget_limit")
+        spend = cls._number_attr(value, "estimated_cost", "current_spend", "spent")
+        if limit is not None and limit > 0 and spend is not None:
+            return spend < limit, True
+        remaining = cls._number_attr(value, "budget_remaining", "remaining")
+        if remaining is not None:
+            return remaining > 0, True
         status = str(value).strip().casefold()
         if status in {"ok", "healthy", "allowed", "available", "ready"}:
             return True, True
