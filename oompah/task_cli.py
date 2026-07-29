@@ -16,6 +16,7 @@ Usage::
     oompah task add-label <identifier> <label>
     oompah task remove-label <identifier> <label>
     oompah task set-dependency <identifier> --depends-on <dep-id>
+    oompah task remove-dependency <identifier> --depends-on <dep-id>
     oompah task set-source <identifier> <source-id> [--project <id>]
     oompah task remove-source <identifier> [--project <id>]
 """
@@ -573,6 +574,21 @@ def _cmd_set_dependency(base_url: str, args: argparse.Namespace) -> None:
     print(f"Dependency set: {identifier} depends on {args.depends_on}")
 
 
+def _cmd_remove_dependency(base_url: str, args: argparse.Namespace) -> None:
+    """oompah task remove-dependency <identifier> --depends-on <dep-id>"""
+    identifier = args.identifier
+    params: dict[str, str] = {
+        "depends_on": args.depends_on,
+        "issue_key": identifier,
+    }
+    _add_project_or_managed_repo(
+        params, identifier, getattr(args, "project", None)
+    )
+    path = f"/api/v1/issues/{_encode_path_id(identifier)}/dependencies"
+    _http("DELETE", f"{base_url}{path}", params=params)
+    print(f"Dependency removed: {identifier} no longer depends on {args.depends_on}")
+
+
 def _cmd_set_source(base_url: str, args: argparse.Namespace) -> None:
     """oompah task set-source <identifier> <source-id> [--project <id>]
 
@@ -856,6 +872,29 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PROJECT_ID",
     )
 
+    # --- remove-dependency ---
+    p_rm_dep = sub.add_parser(
+        "remove-dependency",
+        help="Remove a task dependency",
+    )
+    p_rm_dep.add_argument(
+        "identifier",
+        help="The task whose dependency should be removed",
+    )
+    p_rm_dep.add_argument(
+        "--depends-on",
+        required=True,
+        dest="depends_on",
+        metavar="DEP_ID",
+        help="Identifier of the blocker task to remove",
+    )
+    p_rm_dep.add_argument(
+        "--project", "--project-id",
+        dest="project",
+        default=None,
+        metavar="PROJECT_ID",
+    )
+
     # --- set-source ---
     p_set_src = sub.add_parser(
         "set-source",
@@ -926,6 +965,7 @@ _DISPATCH: dict[str, Any] = {
     "add-label": _cmd_add_label,
     "remove-label": _cmd_remove_label,
     "set-dependency": _cmd_set_dependency,
+    "remove-dependency": _cmd_remove_dependency,
     "set-source": _cmd_set_source,
     "remove-source": _cmd_remove_source,
 }
@@ -978,6 +1018,7 @@ def main(argv: list[str] | None = None) -> None:
         "add-label": _cmd_add_label,
         "remove-label": _cmd_remove_label,
         "set-dependency": _cmd_set_dependency,
+        "remove-dependency": _cmd_remove_dependency,
         "set-source": _cmd_set_source,
         "remove-source": _cmd_remove_source,
     }

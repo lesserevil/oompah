@@ -3839,6 +3839,66 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
         with pytest.raises(TrackerError):
             tracker.add_dependency("example-org/oompah-tasks#10", "bad-id")
 
+    def test_remove_dependency_uses_structured_api_and_removes_label(self):
+        tracker = self._make_tracker()
+        blocker_resp = _mock_response(
+            200, json_data=_make_gh_issue(number=5, issue_id=1005)
+        )
+        remove_resp = _mock_response(200, json_data={})
+        remove_label_resp = _mock_response(200, json_data={})
+        with patch.object(
+            tracker._client._http,
+            "request",
+            side_effect=[blocker_resp, remove_resp, remove_label_resp],
+        ) as mock_request:
+            tracker.remove_dependency(
+                "example-org/oompah-tasks#10",
+                "example-org/oompah-tasks#5",
+            )
+
+        dependency_call = mock_request.call_args_list[1]
+        assert dependency_call.args[0] == "DELETE"
+        assert dependency_call.args[1].endswith(
+            "/issues/10/dependencies/blocked_by/1005"
+        )
+        label_call = mock_request.call_args_list[2]
+        assert label_call.args[0] == "DELETE"
+        assert label_call.args[1].endswith("/issues/10/labels/depends-on%3A5")
+
+    def test_remove_dependency_is_idempotent_on_404(self):
+        tracker = self._make_tracker()
+        blocker_resp = _mock_response(
+            200, json_data=_make_gh_issue(number=5, issue_id=1005)
+        )
+        dependency_404 = _mock_response(404, text="Not Found")
+        label_404 = _mock_response(404, text="Not Found")
+        with patch.object(
+            tracker._client._http,
+            "request",
+            side_effect=[blocker_resp, dependency_404, label_404],
+        ):
+            tracker.remove_dependency(
+                "example-org/oompah-tasks#10",
+                "example-org/oompah-tasks#5",
+            )
+
+    def test_remove_dependency_re_raises_non_404_errors(self):
+        tracker = self._make_tracker()
+        blocker_resp = _mock_response(
+            200, json_data=_make_gh_issue(number=5, issue_id=1005)
+        )
+        dependency_422 = _mock_response(422, text="Validation Failed")
+        with patch.object(
+            tracker._client._http,
+            "request",
+            side_effect=[blocker_resp, dependency_422],
+        ):
+            with pytest.raises(TrackerError):
+                tracker.remove_dependency(
+                    "example-org/oompah-tasks#10",
+                    "example-org/oompah-tasks#5",
+                )
+
     # ------------------------------------------------------------------
     # _gh_issue_to_issue extracts parent and dependencies from labels
     # ------------------------------------------------------------------

@@ -777,6 +777,24 @@ class OompahMarkdownTracker:
             self.invalidate_read_cache()
             self._commit_and_push(f"Add dependency to oompah task {meta['id']}")
 
+    def remove_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        with self._write_lock:
+            self._prepare_default_branch_for_write()
+            rec = self._read_record_uncached(blocked_id)
+            if not rec:
+                raise TrackerError(f"Native oompah task not found: {blocked_id}")
+            meta = dict(rec["meta"])
+            blocker_key = str(blocker_id).strip().casefold()
+            current = _dedupe_strings(_string_list(meta.get("blocked_by")))
+            deps = [dep for dep in current if dep.strip().casefold() != blocker_key]
+            if deps == current:
+                return
+            meta["blocked_by"] = deps
+            meta["updated_at"] = _now_iso()
+            _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
+            self.invalidate_read_cache()
+            self._commit_and_push(f"Remove dependency from oompah task {meta['id']}")
+
     def fetch_attachments(self, identifier: str) -> list[dict]:
         rec = self._read_record(identifier)
         if not rec:

@@ -2341,6 +2341,28 @@ class GitHubIssueTracker:
         self._ensure_dynamic_relation_label(depends_on_label)
         self.add_label(blocked_id, depends_on_label)
 
+    def remove_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        """Remove blocker_id from blocked_id's structured and label metadata."""
+        blocked_gh_id = self.parse_identifier(blocked_id)
+        blocker_gh_id = self.parse_identifier(blocker_id)
+        blocker_database_id = self._issue_database_id(blocker_gh_id)
+        depends_on_label = f"depends-on:{blocker_gh_id.number}"
+
+        try:
+            self._client.delete(
+                self._issues_path(
+                    f"/{blocked_gh_id.number}/dependencies/blocked_by/"
+                    f"{blocker_database_id}"
+                ),
+            )
+        except TrackerError as exc:
+            # A 404 means either the structured endpoint is unavailable or
+            # the exact edge is already absent.  The compatibility label is
+            # still removed below, making the operation idempotent.
+            if "404" not in str(exc):
+                raise
+        self.remove_label(blocked_id, depends_on_label)
+
     # ------------------------------------------------------------------
     # Attachments
     # ------------------------------------------------------------------

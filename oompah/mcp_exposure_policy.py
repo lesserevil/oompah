@@ -272,6 +272,7 @@ def _build_rules() -> list[_RouteRule]:  # noqa: PLR0915  (long but intentional)
         ("POST", "/api/v1/issues/{identifier}/labels", RouteCategory.TASK_MUTATION),
         ("DELETE", "/api/v1/issues/{identifier}/labels/{label}", RouteCategory.TASK_MUTATION),
         ("POST", "/api/v1/issues/{identifier}/dependencies", RouteCategory.TASK_MUTATION),
+        ("DELETE", "/api/v1/issues/{identifier}/dependencies", RouteCategory.TASK_MUTATION),
         ("POST", "/api/v1/issues/{identifier}/comments", RouteCategory.TASK_MUTATION),
 
         # ----------------------------------------------------------------

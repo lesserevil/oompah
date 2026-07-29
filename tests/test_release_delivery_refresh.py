@@ -521,7 +521,7 @@ class TestRefreshManagerTriggerRefresh:
 
         # A slow job that would block
         backlog_slow = _make_backlog_result(n_items=1)
-        svc_slow = _make_service_mock(backlog_slow, delay=10.0)
+        svc_slow = _make_service_mock(backlog_slow, delay=0.2)
 
         # Start a slow job
         await manager.get_or_start(_PROJECT_ID, _BRANCH, service=svc_slow)
@@ -538,6 +538,10 @@ class TestRefreshManagerTriggerRefresh:
         assert len(cached.items) == 5
         # Only the fast job should have completed
         assert svc_fast.get_backlog.call_count == 1
+        # Let the cancelled executor call return before asyncio tears down its
+        # default executor.  Cancelling run_in_executor() does not stop the
+        # underlying thread.
+        await asyncio.sleep(0.3)
 
     @pytest.mark.asyncio
     async def test_trigger_refresh_retains_stale_result_during_new_run(self):
@@ -1330,7 +1334,7 @@ class TestBacklogRefreshManagerInvalidate:
         (stale-while-revalidate) until the new refresh completes."""
         manager = BacklogRefreshManager(result_ttl_s=300.0)
         backlog = _make_backlog_result(n_items=3)
-        slow_svc = _make_service_mock(backlog, delay=10.0)  # slow refresh
+        slow_svc = _make_service_mock(backlog, delay=0.2)  # slow refresh
 
         # Complete an initial refresh
         fast_svc = _make_service_mock(backlog, delay=0.0)
@@ -1343,6 +1347,9 @@ class TestBacklogRefreshManagerInvalidate:
         status, cached = await manager.get_or_start(_PROJECT_ID, _BRANCH, service=slow_svc)
         assert cached is not None, "Stale cached result must be returned while refresh runs"
         assert cached.total_commit_count == 0 or len(cached.items) == 3
+        # Do not leak the executor call into event-loop teardown.  Cancelling
+        # the asyncio task cannot interrupt time.sleep() in its worker thread.
+        await asyncio.sleep(0.3)
 
     def test_invalidate_noop_when_no_job(self):
         """invalidate() is a no-op when no job has run for the key."""

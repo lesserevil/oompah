@@ -1038,6 +1038,43 @@ class TestCmdSetDependency:
         assert "TASK-1" in out
 
 
+class TestCmdRemoveDependency:
+    def test_deletes_dependencies_endpoint_with_exact_blocker(self):
+        args = _make_args(
+            subcommand="remove-dependency",
+            identifier="TASK-2",
+            depends_on="TASK-1",
+            project="proj-1",
+        )
+        with _make_http_mock() as mock_http:
+            task_cli._cmd_remove_dependency("http://localhost:8080", args)
+
+        assert mock_http.call_args.args[0] == "DELETE"
+        assert mock_http.call_args.args[1].endswith(
+            "/api/v1/issues/TASK-2/dependencies"
+        )
+        assert mock_http.call_args.kwargs["params"] == {
+            "depends_on": "TASK-1",
+            "issue_key": "TASK-2",
+            "project_id": "proj-1",
+        }
+
+    def test_prints_confirmation(self, capsys):
+        args = _make_args(
+            subcommand="remove-dependency",
+            identifier="TASK-2",
+            depends_on="TASK-1",
+            project=None,
+        )
+        with _make_http_mock():
+            task_cli._cmd_remove_dependency("http://localhost:8080", args)
+
+        out = capsys.readouterr().out
+        assert "TASK-2" in out
+        assert "TASK-1" in out
+        assert "removed" in out.lower()
+
+
 # ---------------------------------------------------------------------------
 # main() / build_parser()
 # ---------------------------------------------------------------------------
@@ -1131,6 +1168,15 @@ class TestBuildParser:
             ["set-dependency", "TASK-2", "--depends-on", "TASK-1"]
         )
         assert args.subcommand == "set-dependency"
+        assert args.identifier == "TASK-2"
+        assert args.depends_on == "TASK-1"
+
+    def test_remove_dependency_subcommand_parses(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            ["remove-dependency", "TASK-2", "--depends-on", "TASK-1"]
+        )
+        assert args.subcommand == "remove-dependency"
         assert args.identifier == "TASK-2"
         assert args.depends_on == "TASK-1"
 
@@ -1246,6 +1292,13 @@ class TestMainDispatch:
     def test_main_dispatches_set_dependency(self):
         with patch.object(task_cli, "_cmd_set_dependency") as mock_fn:
             task_cli.main(["set-dependency", "TASK-2", "--depends-on", "TASK-1"])
+        mock_fn.assert_called_once()
+
+    def test_main_dispatches_remove_dependency(self):
+        with patch.object(task_cli, "_cmd_remove_dependency") as mock_fn:
+            task_cli.main(
+                ["remove-dependency", "TASK-2", "--depends-on", "TASK-1"]
+            )
         mock_fn.assert_called_once()
 
     def test_main_dispatches_set_source(self):

@@ -59,6 +59,7 @@ oompah task comment <owner/repo#number> --message "Progress update" --author oom
 oompah task create --project <project-id> --title "Follow-up title" --description "Details" --source <owner/repo#number>
 oompah task child-create <owner/repo#number> --title "Child task title" --description "Details"
 oompah task set-dependency <owner/repo#number> --depends-on <owner/repo#other-number>
+oompah task remove-dependency <owner/repo#number> --depends-on <owner/repo#other-number>
 oompah task add-label <owner/repo#number> needs:frontend
 oompah task set-status <owner/repo#number> Open
 oompah task set-status <owner/repo#number> Done --summary "Completed"
@@ -101,6 +102,9 @@ See `docs/release-addendums.md` for the operator workflow.
   available; otherwise use GitHub sub-issues or the `parent:*` fallback label.
 - Use `oompah task set-dependency` when the CLI is available; otherwise use
   GitHub dependencies or the `depends-on:*` fallback label.
+- Use `oompah task remove-dependency` to remove an obsolete blocker when the
+  CLI is available; otherwise remove the structured GitHub dependency or its
+  `depends-on:*` fallback label.
 - Do not edit `oompah:status:*`, `type:*`, `priority:*`, `parent:*`, or
   `depends-on:*` labels directly when the CLI or structured GitHub controls are
   available. Use `parent:*` and `depends-on:*` only as compatibility fallbacks.
@@ -207,6 +211,7 @@ oompah task comment <task-id> --project <project-id> --message "Progress update"
 oompah task create --project <project-id> --title "Follow-up title" --description "Details"
 oompah task child-create <task-id> --project <project-id> --title "Child task title" --description "Details"
 oompah task set-dependency <task-id> --project <project-id> --depends-on <other-task-id>
+oompah task remove-dependency <task-id> --project <project-id> --depends-on <other-task-id>
 oompah task add-label <task-id> needs:frontend --project <project-id>
 oompah task set-status <task-id> Open --project <project-id>
 oompah task set-status <task-id> Done --project <project-id> --summary "Completed"
@@ -262,6 +267,8 @@ comments.
   hand-write parent metadata.
 - Record blockers with `oompah task set-dependency`; do not hand-write
   dependency metadata.
+- Remove obsolete blockers with `oompah task remove-dependency`; do not
+  hand-write dependency metadata.
 - Always pass `--author oompah` when posting progress comments through the CLI.
 - Use `$TMPDIR` or `mktemp` for scratch files. Never hard-code `/tmp`; Oompah
   redirects the standard temp environment to its private, quota-safe root.
