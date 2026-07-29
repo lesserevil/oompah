@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T18:08:42.870496Z'
+updated_at: '2026-07-29T18:14:45.140903Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -116,5 +116,10 @@ author: oompah
 created: 2026-07-29 18:08
 ---
 Discovery: Found completion verifier at _run_completion_verifier() called from _on_worker_exit() line 20481. Current flow: (1) verify close gate, (2) verify unpushed gate, (3) run completion verifier with max 3 rejects, (4) create review and mark completed. New flow: (1-2) keep gates, (3) replace with terminal_transition_coordinator.request_transition() to stage Done audit, (4) defer review creation until auditor processes audit. Key classes: TargetState, ContributorIdentity, EvidenceFingerprint in oompah/terminal_audit.py. Terminal coordinator already implemented in oompah/terminal_transition_coordinator.py. Now implementing orchestrator integration.
+---
+author: oompah
+created: 2026-07-29 18:14
+---
+Implementation: Replaced _run_completion_verifier() call with terminal_transition_coordinator.request_transition() in worker-exit path. Removed _verifier_reject_counts tracking and retry ceiling logic. Added deprecation notice to old verifier method. Updated test_close_gate.py to mock the coordinator. Challenge: Tests need proper project_id setup to avoid early returns. Working on test updates.
 ---
 <!-- COMMENTS:END -->
