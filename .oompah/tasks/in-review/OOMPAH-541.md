@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-541
 type: bug
-status: Open
+status: In Review
 priority: 1
 title: Use resolved project identity in duplicate-screening task details
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T01:23:36.484044Z'
-updated_at: '2026-07-29T01:29:50.301065Z'
+updated_at: '2026-07-29T01:30:10.856790Z'
 work_branch: null
 target_branch: null
 review_url: null
