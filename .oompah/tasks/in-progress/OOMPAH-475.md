@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T14:34:51.384596Z'
+updated_at: '2026-07-29T14:35:49.349243Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -115,5 +115,30 @@ author: oompah
 created: 2026-07-29 14:34
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-29 14:35
+---
+**Understanding**: This task requires documentation for the Independent Auditor Agent dispatch system. The feature adds a priority audit lane that:
+
+1. Reads persisted In Validation requests (audit queue)
+2. Gathers target-specific evidence
+3. Selects an independent auditor candidate
+4. Claims the task/epic branch
+5. Starts the reserved auditor focus
+6. Handles retry with candidate rotation (up to OOMPAH_AUDIT_MAX_ATTEMPTS)
+7. Rehydrates pending/running attempts on restart
+8. Detects abandoned sessions
+9. Routes exhausted candidates to Needs Human
+
+**Planned approach**: As a Technical Writer, I will:
+1. Review existing auditor architecture (auditor.py, terminal-transition-coordinator.md)
+2. Explore orchestrator dispatch logic to understand how auditors are currently invoked
+3. Create a design/implementation document in plans/ explaining the audit dispatch lane
+4. Document configuration variables and monitoring points
+5. Create or update operator documentation in docs/ for running auditor tasks
+6. Verify all examples work correctly
+
+Starting exploration of codebase structure.
 ---
 <!-- COMMENTS:END -->
