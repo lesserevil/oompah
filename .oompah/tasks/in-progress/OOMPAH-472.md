@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T01:50:20.862899Z'
+updated_at: '2026-07-29T01:56:38.154773Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -135,5 +135,15 @@ author: oompah
 created: 2026-07-29 01:50
 ---
 Discovery: OOMPAH-471 (DoneEvidenceCollector) is complete and tests pass. OOMPAH-472 requires creating merged_evidence_collector.py and its tests from scratch. The feature must: (1) require a passed Done audit, (2) resolve source branch/review/SHA/merge commit/target HEAD/CI/containment via SCMProvider, (3) detect wrong-target merges, open/unmerged reviews, failed CI, stale tips, deleted branches, stranded commits, (4) support epic rollups with child audit chains. Implementing now.
+---
+author: oompah
+created: 2026-07-29 01:56
+---
+Implementation: Created oompah/merged_evidence_collector.py with MergedEvidenceCollector and FakeSCMProvider, plus tests/test_merged_evidence_collector.py with 61 tests. All tests pass. Key design: requires a passed Done audit, resolves review/SHA/CI/containment via SCM protocol, detects all 10+ failure modes (wrong target, open/unmerged reviews, failed CI, stale tips, stranded commits, etc), supports epic/nested-epic rollups. Uses get_review_head_sha to distinguish the SHA at review time from the current branch HEAD, enabling stale-tip detection.
+---
+author: oompah
+created: 2026-07-29 01:56
+---
+Verification: 61 tests pass in tests/test_merged_evidence_collector.py. Related suites (done_evidence_collector, terminal_audit, landing_gate, independently_merged, auditor_contract, terminal_audit_enforcement, terminal_audit_metadata) all pass — 89 tests total, no regressions.
 ---
 <!-- COMMENTS:END -->
