@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T23:16:11.273209Z'
+updated_at: '2026-07-29T23:16:25.844172Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-477
 target_branch: null
 review_url: null
@@ -70,10 +70,10 @@ oompah.integration:
   version: 1
   state: ready
   attempts: 0
-  task_branch: epic-OOMPAH-459--task-OOMPAH-476
+  task_branch: epic-OOMPAH-459--task-OOMPAH-477
   head_sha: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
-  submitted_at: '2026-07-29T23:16:09.337938+00:00'
-  updated_at: '2026-07-29T23:16:09.337938+00:00'
+  submitted_at: '2026-07-29T23:16:23.839797+00:00'
+  updated_at: '2026-07-29T23:16:23.839797+00:00'
 ---
 ## Summary
 
@@ -355,5 +355,10 @@ author: oompah
 created: 2026-07-29 23:16
 ---
 Rebased the completion-audit work onto current main as part of the verified five-commit epic history. Complete combined-tree gate: 13,615 passed, 7 skipped. Canonical epic and private branch now point to cfa5ca64f.
+---
+author: oompah
+created: 2026-07-29 23:16
+---
+Corrected submission evidence to the OOMPAH-477 private branch at verified head cfa5ca64f.
 ---
 <!-- COMMENTS:END -->

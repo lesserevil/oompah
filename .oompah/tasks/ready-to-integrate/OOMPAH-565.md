@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:12:18.295069Z'
-updated_at: '2026-07-29T23:16:14.689144Z'
+updated_at: '2026-07-29T23:16:29.072721Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-565
 target_branch: null
 review_url: null
@@ -23,10 +23,10 @@ oompah.integration:
   version: 1
   state: ready
   attempts: 0
-  task_branch: epic-OOMPAH-459--task-OOMPAH-476
+  task_branch: epic-OOMPAH-459--task-OOMPAH-565
   head_sha: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
-  submitted_at: '2026-07-29T23:16:12.686878+00:00'
-  updated_at: '2026-07-29T23:16:12.686878+00:00'
+  submitted_at: '2026-07-29T23:16:26.945503+00:00'
+  updated_at: '2026-07-29T23:16:26.945503+00:00'
 oompah.task_costs:
   total_input_tokens: 1678656
   total_output_tokens: 14884
@@ -562,5 +562,10 @@ author: oompah
 created: 2026-07-29 23:16
 ---
 Rebase repair completed on current main, including manual correction of the previously corrupted first commit. Canonical epic and repair branch point to cfa5ca64f; complete gate passed with 13,615 tests.
+---
+author: oompah
+created: 2026-07-29 23:16
+---
+Corrected submission evidence to the OOMPAH-565 repair branch at verified head cfa5ca64f.
 ---
 <!-- COMMENTS:END -->
