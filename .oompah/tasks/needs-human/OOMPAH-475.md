@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T15:34:47.212622Z'
+updated_at: '2026-07-29T15:35:16.007487Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 1b28b418-d361-4693-94ac-188ad99fab17
+oompah.agent_run_id: 9eda7a0a-7b61-4ab4-a277-c8b01c9e9dd7
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 33767902
@@ -762,5 +762,25 @@ author: oompah
 created: 2026-07-29 15:34
 ---
 Agent completed without closing this issue (1988s (27315080 tokens)). Escalating from 'default' to 'standard'. Retrying in 20s (2/3).
+---
+author: oompah
+created: 2026-07-29 15:35
+---
+Retrying (attempt #2, agent: standard)
+---
+author: oompah
+created: 2026-07-29 15:35
+---
+Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-29 15:35
+---
+Agent completed successfully in 2s
+---
+author: oompah
+created: 2026-07-29 15:35
+---
+Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
