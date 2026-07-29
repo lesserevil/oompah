@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T01:44:01.607813Z'
+updated_at: '2026-07-29T01:44:29.570085Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -125,5 +125,10 @@ author: oompah
 created: 2026-07-29 01:44
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-29 01:44
+---
+Understanding: This task (OOMPAH-472) requires building a MergedEvidenceCollector that verifies actual target-landing for Merged audits. I'm in the CI Failure Fixer role. Let me examine what exists on this branch and what tests are failing.
 ---
 <!-- COMMENTS:END -->
