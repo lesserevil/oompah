@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-458
 type: epic
-status: In Review
-priority: 1
+status: In Progress
+priority: 0
 title: Dispatch independent auditor agents and evaluate target-specific evidence
 parent: null
 children:
@@ -17,10 +17,11 @@ children:
 blocked_by:
 - OOMPAH-457
 labels:
-- epic:stale
+- merge-conflict
+- epic:rebasing
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T16:27:17.556003Z'
+updated_at: '2026-07-29T16:27:43.325818Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -30,6 +31,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/578
 oompah.review_number: '578'
 oompah.work_branch: epic-OOMPAH-458
 oompah.target_branch: main
+oompah.agent_run_id: 29180c88-0367-44c1-89b3-3ed8ed169d1d
 ---
 ## Summary
 
@@ -71,5 +73,20 @@ author: oompah
 created: 2026-07-29 16:27
 ---
 Branch quality gate passed for `ce2f2b642a69686b120a900467d3d4f0929afd93` using `make test` in 70.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-29 16:27
+---
+YOLO: Merge conflict detected on MR #578. Rebase `epic-OOMPAH-458` onto main and resolve conflicts.
+---
+author: oompah
+created: 2026-07-29 16:27
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-29 16:27
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->

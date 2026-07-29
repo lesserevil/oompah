@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-545
 type: epic
-status: In Progress
+status: Open
 priority: 0
 title: Make task dependencies finish-order constraints
 parent: null
@@ -15,7 +15,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:21:51.688684Z'
-updated_at: '2026-07-29T16:25:54.198005Z'
+updated_at: '2026-07-29T16:27:33.886994Z'
 work_branch: null
 target_branch: null
 review_url: null
