@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T11:11:37.822568Z'
+updated_at: '2026-07-29T11:12:07.738500Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -3189,5 +3189,10 @@ author: oompah
 created: 2026-07-29 11:04
 ---
 Agent completed 15 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
+---
+author: user
+created: 2026-07-29 11:12
+---
+If the problem is there is unpushed work on the branch from this task, then push the work.
 ---
 <!-- COMMENTS:END -->
