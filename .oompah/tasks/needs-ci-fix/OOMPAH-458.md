@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-458
 type: epic
-status: In Progress
+status: Needs CI Fix
 priority: 0
 title: Dispatch independent auditor agents and evaluate target-specific evidence
 parent: null
@@ -19,9 +19,10 @@ blocked_by:
 labels:
 - merge-conflict
 - epic:rebasing
+- ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T16:28:00.156397Z'
+updated_at: '2026-07-29T16:30:49.121397Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -93,5 +94,23 @@ author: oompah
 created: 2026-07-29 16:28
 ---
 Understanding: Rebase merge-conflict resolution. Branch epic-OOMPAH-458 has 21 commits since merge-base e9681a5, main has 25 new commits. Plan: fetch origin/main, rebase onto it, resolve conflicts preserving intent from both sides, run focused tests, force-push with lease.
+---
+author: oompah
+created: 2026-07-29 16:30
+---
+Branch quality gate blocked review creation.
+
+Branch: `epic-OOMPAH-458`
+Target: `main`
+Head: `unknown`
+Command: `make test`
+Result: `error`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+No existing worktree matched the review branch tip. Recreate the task worktree before retrying.
+```
 ---
 <!-- COMMENTS:END -->
