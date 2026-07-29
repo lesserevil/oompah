@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-476
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T18:06:53.389572Z'
+updated_at: '2026-07-29T18:17:04.847897Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -58,7 +58,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 4b912218-3fb5-4b35-bbd1-0ec2eb466c4f
+oompah.agent_run_id: f101e16f-564f-4904-a7cb-e47bb5469278
 oompah.work_branch: epic-OOMPAH-459
 oompah.task_costs:
   total_input_tokens: 61942302
@@ -427,5 +427,15 @@ Steps to resolve:
   git push origin epic-OOMPAH-459
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-29 18:17
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 18:17
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->

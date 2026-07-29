@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-477
 type: feature
-status: Done
+status: Open
 priority: 1
 title: Replace the post-worker completion verifier with Done audit staging
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T18:16:39.732635Z'
+updated_at: '2026-07-29T18:17:06.099039Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -39,13 +39,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: a4cf5471-8a4e-496b-b703-00f107494405
 oompah.work_branch: epic-OOMPAH-459
 oompah.task_costs:
-  total_input_tokens: 1308655
-  total_output_tokens: 5074
+  total_input_tokens: 1309833
+  total_output_tokens: 43226
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1308655
-      output_tokens: 5074
+      input_tokens: 1309833
+      output_tokens: 43226
       cost_usd: 0.0
   runs:
   - profile: default
@@ -54,6 +54,12 @@ oompah.task_costs:
     output_tokens: 5074
     cost_usd: 0.0
     recorded_at: '2026-07-29T01:30:44.798106+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 1178
+    output_tokens: 38152
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T18:16:53.882139+00:00'
 ---
 ## Summary
 
@@ -131,5 +137,38 @@ author: oompah
 created: 2026-07-29 18:16
 ---
 Replaced post-worker completion verifier with Done audit staging via terminal-transition-coordinator. Preserved deterministic close/unpushed gates as prechecks. Removed retry ceiling logic. Deprecated _run_completion_verifier() method. Updated tests. Auditor will independently verify closure and apply terminal status.
+---
+author: oompah
+created: 2026-07-29 18:16
+---
+Agent completed successfully in 670s (39330 tokens)
+---
+author: oompah
+created: 2026-07-29 18:16
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 301, Tool calls: 146
+- Tokens: 1.2K in / 38.2K out [39.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 10s
+- Log: OOMPAH-477__20260729T180546Z.jsonl
+---
+author: oompah
+created: 2026-07-29 18:16
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-459` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-459
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-459
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
