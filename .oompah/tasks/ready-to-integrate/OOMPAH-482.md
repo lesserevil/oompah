@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-482
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Dispatch one repair-planner run for an epic that fails audit
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:30.191340Z'
-updated_at: '2026-07-29T19:18:38.790117Z'
+updated_at: '2026-07-29T19:18:53.609749Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-482
 target_branch: null
 review_url: null
@@ -62,12 +62,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T18:34:18.431433+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-482
-  base_branch: epic-OOMPAH-459
-  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
-  updated_at: '2026-07-29T18:46:02.129943+00:00'
+  head_sha: 8ac2e0fffcd70cd366e05155213dcd14b76adffb
+  submitted_at: '2026-07-29T19:18:51.657554+00:00'
+  updated_at: '2026-07-29T19:18:51.657554+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-482__20260729T183344Z
@@ -221,5 +221,10 @@ Delivered:
 - 20 comprehensive new tests covering all acceptance criteria scenarios
 
 Ready to submit.
+---
+author: oompah
+created: 2026-07-29 19:18
+---
+Implemented audit:repair-needed repair-planner dispatch for epics that fail terminal audit. When a FAIL verdict reopens an epic as Open, the coordinator now stamps the audit:repair-needed label and persists repair context in tracker metadata. _should_dispatch_epic / _plan_open_epics allow exactly one repair-planner run for such epics even when children exist, with persisted claimed flag for deduplication on restart. New epic_repair_planner focus routes the agent to inspect/reopen/create children and remove the label on completion. 20 new tests pass.
 ---
 <!-- COMMENTS:END -->
