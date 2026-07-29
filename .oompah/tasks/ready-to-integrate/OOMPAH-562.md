@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T21:31:53.761876Z'
+updated_at: '2026-07-29T21:32:08.385436Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,13 +38,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 00021a4c-ff96-47d6-b846-ffece2d2f18a
 oompah.task_costs:
-  total_input_tokens: 910697
-  total_output_tokens: 4297
+  total_input_tokens: 911935
+  total_output_tokens: 4619
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 910697
-      output_tokens: 4297
+      input_tokens: 911935
+      output_tokens: 4619
       cost_usd: 0.0
   runs:
   - profile: default
@@ -53,6 +53,12 @@ oompah.task_costs:
     output_tokens: 4297
     cost_usd: 0.0
     recorded_at: '2026-07-29T21:17:53.194849+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 1238
+    output_tokens: 322
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T21:32:06.889499+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-562__20260729T211610Z
@@ -227,5 +233,15 @@ Acceptance criteria met:
 ✓ No permanent attempts=0 queue remains
 ✓ Failures surface actionable errors without losing private heads
 ✓ make test passes
+---
+author: oompah
+created: 2026-07-29 21:32
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 76
+- Tokens: 1.2K in / 322 out [1.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 31s
+- Log: OOMPAH-562__20260729T211842Z.jsonl
 ---
 <!-- COMMENTS:END -->
