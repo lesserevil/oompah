@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-570
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Recover interrupted integration leases and explicit blocked-head retries
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-29T23:57:12.901785Z'
+updated_at: '2026-07-29T23:58:41.495154Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,25 +21,29 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 70211f087949bc92d36b39a24ee18fe20444239fd436a12269a096e08f38a265
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-29T23:58:31.979277+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 79dbb804-e7ed-4172-ac83-b1d5dce5760c
-  claim_owner: 7e0ec335-e793-4bc9-8be7-8876913419b0
-  claimed_at: '2026-07-29T23:57:09.308529+00:00'
-  claim_expires_at: '2026-07-30T00:27:09.308529+00:00'
+  evidence: "Focus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: Closest reviewed tasks\u2014OOMPAH-177 (release-addendum\
+    \ lease recovery), OOMPAH-165 (epic landing detection), and OOMPAH-214/OOMPAH-216\
+    \ (release-delivery conflicts and retries)\u2014are all Archived and cover different\
+    \ subsystems. Active tasks OOMPAH-281 and OOMPAH-282 are unrelated."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: ba460f97-f483-4908-8565-88b1e24d693b
+oompah.agent_run_id: 2b30c2f1-f99c-49a8-9c98-96e3b2ec536d
 oompah.task_costs:
-  total_input_tokens: 162
-  total_output_tokens: 6639
+  total_input_tokens: 618966
+  total_output_tokens: 10122
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 162
-      output_tokens: 6639
+      input_tokens: 618966
+      output_tokens: 10122
       cost_usd: 0.0
   runs:
   - profile: default
@@ -48,6 +52,12 @@ oompah.task_costs:
     output_tokens: 6639
     cost_usd: 0.0
     recorded_at: '2026-07-29T23:55:49.586880+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 618804
+    output_tokens: 3483
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T23:58:31.978665+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-570__20260729T235353Z
@@ -58,6 +68,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-570
     source_sha: 8483db2e3e718c1f5f6476018d954574ce5d42f9
     completed_at: '2026-07-29T23:55:49.595678+00:00'
+  - run_id: OOMPAH-570__20260729T235713Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-570
+    source_sha: 8483db2e3e718c1f5f6476018d954574ce5d42f9
+    completed_at: '2026-07-29T23:58:31.982681+00:00'
 ---
 ## Summary
 
@@ -107,5 +125,25 @@ author: oompah
 created: 2026-07-29 23:57
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-29 23:58
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 21
+- Tokens: 618.8K in / 3.5K out [622.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 21s
+- Log: OOMPAH-570__20260729T235713Z.jsonl
+---
+author: oompah
+created: 2026-07-29 23:58
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 23:58
+---
+Focus: Refactoring Specialist
 ---
 <!-- COMMENTS:END -->
