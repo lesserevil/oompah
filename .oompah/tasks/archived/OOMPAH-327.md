@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-327
 type: task
-status: Merged
+status: Archived
 priority: 2
 title: Expose GitLab configuration and health in UI, API, and ACP tools
 parent: OOMPAH-318
@@ -15,7 +15,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T20:34:41.130372Z'
-updated_at: '2026-07-22T12:19:36.286098Z'
+updated_at: '2026-07-29T12:44:49.960281Z'
 work_branch: null
 target_branch: null
 review_url: null
