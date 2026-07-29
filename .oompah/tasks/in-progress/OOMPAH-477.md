@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-477
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Replace the post-worker completion verifier with Done audit staging
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T01:30:48.507598Z'
+updated_at: '2026-07-29T18:05:46.258472Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -36,7 +36,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 91008da1-919f-46dc-a208-369201074fa8
+oompah.agent_run_id: a4cf5471-8a4e-496b-b703-00f107494405
 oompah.work_branch: epic-OOMPAH-459
 oompah.task_costs:
   total_input_tokens: 1308655
@@ -96,5 +96,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 2s
 - Log: OOMPAH-477__20260729T012849Z.jsonl
+---
+author: oompah
+created: 2026-07-29 18:05
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 18:05
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
