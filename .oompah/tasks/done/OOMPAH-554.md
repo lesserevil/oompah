@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-554
 type: feature
-status: Backlog
+status: Done
 priority: 0
 title: Automate coordination checkpoints, conflict warnings, and observability
 parent: OOMPAH-550
@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:19.226686Z'
-updated_at: '2026-07-29T17:57:17.151221Z'
+updated_at: '2026-07-29T18:28:15.017424Z'
 work_branch: null
 target_branch: null
 review_url: null
