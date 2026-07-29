@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-476
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T17:48:53.669777Z'
+updated_at: '2026-07-29T17:49:15.854280Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -61,13 +61,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: eccad0f3-ca64-4582-966e-b25b0be49340
 oompah.work_branch: epic-OOMPAH-459
 oompah.task_costs:
-  total_input_tokens: 46028440
-  total_output_tokens: 92066
+  total_input_tokens: 46028706
+  total_output_tokens: 97734
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 44553248
-      output_tokens: 80374
+      input_tokens: 44553514
+      output_tokens: 86042
       cost_usd: 0.0
     sonnet:
       input_tokens: 1357992
@@ -102,6 +102,12 @@ oompah.task_costs:
     output_tokens: 1049
     cost_usd: 0.0
     recorded_at: '2026-07-29T17:43:11.671490+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 266
+    output_tokens: 5668
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T17:49:12.236872+00:00'
 ---
 ## Summary
 
@@ -275,5 +281,38 @@ author: oompah
 created: 2026-07-29 17:48
 ---
 Stage API, dashboard, and CLI terminal requests through the coordinator
+---
+author: oompah
+created: 2026-07-29 17:49
+---
+Agent completed successfully in 209s (5934 tokens)
+---
+author: oompah
+created: 2026-07-29 17:49
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 68, Tool calls: 32
+- Tokens: 266 in / 5.7K out [5.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 29s
+- Log: OOMPAH-476__20260729T174544Z.jsonl
+---
+author: oompah
+created: 2026-07-29 17:49
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-459` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-459
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-459
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
