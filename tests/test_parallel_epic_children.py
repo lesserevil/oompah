@@ -277,7 +277,7 @@ def test_stale_queue_reuses_active_rebase_and_obeys_cooldown(tmp_path):
     with patch(
         "oompah.orchestrator.subprocess.run",
         return_value=subprocess.CompletedProcess([], 0, stdout="", stderr=""),
-    ):
+    ), patch("oompah.orchestrator.time.monotonic", return_value=100.0):
         assert detect() is True
         assert detect() is False
 

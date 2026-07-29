@@ -4957,7 +4957,10 @@ class Orchestrator:
                 return False
 
             cooldown_key = f"{project_id}:{epic_id}:queue_repair"
-            last_filed = self._epic_rebase_filed_at.get(cooldown_key, 0)
+            last_filed = self._epic_rebase_filed_at.get(
+                cooldown_key,
+                float("-inf"),
+            )
             now = time.monotonic()
             cooldown_s = 600  # 10 minutes
             if now - last_filed < cooldown_s:
