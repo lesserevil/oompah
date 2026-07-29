@@ -69,6 +69,7 @@ def _make_issue(
     project_id: str | None = None,
     labels: list | None = None,
     blocked_by: list | None = None,
+    start_blocked_by: list | None = None,
     description: str = "Non-empty description so the empty-description gate passes.",
 ) -> Issue:
     return Issue(
@@ -82,6 +83,7 @@ def _make_issue(
         project_id=project_id,
         labels=labels or [],
         blocked_by=blocked_by or [],
+        start_blocked_by=start_blocked_by or [],
         created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
     )
 
@@ -292,7 +294,7 @@ class TestLongTickRegressionScenario:
             "TASK-A-002",
             state="Open",
             project_id="proj-a",
-            blocked_by=[blocker],
+            start_blocked_by=[blocker],
         )
 
         # Project B: eligible unblocked task
@@ -373,7 +375,7 @@ class TestLongTickRegressionScenario:
             "TASK-ALPHA-002",
             state="Open",
             project_id="proj-alpha",
-            blocked_by=[blocker_ref],
+            start_blocked_by=[blocker_ref],
         )
 
         # Eligible task in beta

@@ -15,6 +15,7 @@ NEEDS_CI_FIX = "Needs CI Fix"
 NEEDS_REBASE = "Needs Rebase"
 IN_REVIEW = "In Review"
 IN_VALIDATION = "In Validation"
+READY_TO_INTEGRATE = "Ready to Integrate"
 DECOMPOSED = "Decomposed"
 DUPLICATE_CANDIDATE = "Duplicate Candidate"
 DONE = "Done"
@@ -32,6 +33,7 @@ CANONICAL_STATUSES: tuple[str, ...] = (
     NEEDS_REBASE,
     IN_REVIEW,
     IN_VALIDATION,
+    READY_TO_INTEGRATE,
     DECOMPOSED,
     DUPLICATE_CANDIDATE,
     DONE,
@@ -89,6 +91,9 @@ _ALIASES = {
     "review": IN_REVIEW,
     "in validation": IN_VALIDATION,
     "validation": IN_VALIDATION,
+    "ready to integrate": READY_TO_INTEGRATE,
+    "ready-to-integrate": READY_TO_INTEGRATE,
+    "ready for integration": READY_TO_INTEGRATE,
     "decomposed": DECOMPOSED,
     "duplicate candidate": DUPLICATE_CANDIDATE,
     "duplicate-candidate": DUPLICATE_CANDIDATE,
@@ -162,6 +167,8 @@ _ROLLUP_ACTIVE = frozenset(
         NEEDS_CI_FIX,
         NEEDS_REBASE,
         IN_REVIEW,
+        IN_VALIDATION,
+        READY_TO_INTEGRATE,
         DUPLICATE_CANDIDATE,
     }
 )

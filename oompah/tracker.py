@@ -264,6 +264,14 @@ class TrackerProtocol(Protocol):
         """Remove the dependency from blocked_id to blocker_id, if present."""
         ...
 
+    def add_start_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        """Require blocker_id to finish before blocked_id may start."""
+        ...
+
+    def remove_start_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        """Remove one hard-start dependency, if present."""
+        ...
+
     def fetch_attachments(self, identifier: str) -> list[dict]:
         """Return rich attachment records for an issue."""
         ...

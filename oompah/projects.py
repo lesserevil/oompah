@@ -1655,6 +1655,106 @@ class ProjectStore:
         """
         return f"epic-{_sanitize_identifier(epic_identifier)}"
 
+    def epic_child_branch_name(
+        self,
+        epic_identifier: str,
+        child_identifier: str,
+    ) -> str:
+        """Return a private child ref that cannot prefix-collide with an epic."""
+
+        return (
+            f"epic-{_sanitize_identifier(epic_identifier)}"
+            f"--task-{_sanitize_identifier(child_identifier)}"
+        )
+
+    def delete_epic_child_branch(
+        self,
+        project_id: str,
+        epic_identifier: str,
+        child_identifier: str,
+    ) -> bool:
+        """Delete one landed private child branch and its managed worktree.
+
+        The branch name is derived internally instead of accepted from a
+        caller, which keeps this cleanup narrowly scoped and prevents a stale
+        tracker value from targeting an unrelated remote ref. Returns whether
+        the remote branch existed.
+        """
+
+        project = self._projects.get(project_id)
+        if not project:
+            raise ProjectError(f"Unknown project: {project_id}")
+        branch = self.epic_child_branch_name(
+            epic_identifier,
+            child_identifier,
+        )
+        with self.project_write_lock(project_id):
+            self._remove_worktree_locked(project_id, child_identifier)
+            remote = subprocess.run(
+                [
+                    "git",
+                    "ls-remote",
+                    "--exit-code",
+                    "--heads",
+                    "origin",
+                    branch,
+                ],
+                cwd=project.repo_path,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if remote.returncode not in {0, 2}:
+                raise ProjectError(
+                    "git remote branch check failed: "
+                    f"{remote.stderr.strip()[:500]}"
+                )
+            existed = remote.returncode == 0
+            if existed:
+                deleted = subprocess.run(
+                    ["git", "push", "origin", "--delete", branch],
+                    cwd=project.repo_path,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+                if deleted.returncode != 0:
+                    raise ProjectError(
+                        "git remote branch delete failed: "
+                        f"{deleted.stderr.strip()[:500]}"
+                    )
+            local = subprocess.run(
+                ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
+                cwd=project.repo_path,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if local.returncode == 0:
+                removed = subprocess.run(
+                    ["git", "branch", "-D", branch],
+                    cwd=project.repo_path,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if removed.returncode != 0:
+                    raise ProjectError(
+                        "git local branch delete failed: "
+                        f"{removed.stderr.strip()[:500]}"
+                    )
+        if existed:
+            logger.info(
+                "Deleted landed private epic child branch project=%s branch=%s",
+                project_id,
+                branch,
+            )
+        return existed
+
     def _project_worktree_root(self, project: Project) -> str:
         return os.path.join(self.worktree_root, _sanitize_identifier(project.name))
 
@@ -1706,6 +1806,120 @@ class ProjectStore:
         # create/remove operations for the same project.
         with self.project_write_lock(project_id):
             return self._create_epic_worktree_locked(project_id, epic_identifier)
+
+    def prepare_epic_branch_for_private_dispatch(
+        self,
+        project_id: str,
+        epic_identifier: str,
+    ) -> tuple[str, str]:
+        """Return a clean epic worktree synchronized with its remote head.
+
+        Private child branches must be cut from the newest published epic
+        head. A clean local branch may safely fast-forward to a newer remote;
+        local commits may safely publish when the remote is its ancestor.
+        Divergence is left for a human/repair agent because choosing a side
+        would discard work.
+        """
+
+        project = self._projects.get(project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {project_id}")
+        branch_name = self.epic_branch_name(epic_identifier)
+        with self.project_write_lock(project_id):
+            wt_path = self._create_epic_worktree_locked(
+                project_id, epic_identifier
+            )
+
+            def _run(
+                args: list[str],
+                *,
+                timeout: int = 60,
+                check: bool = False,
+            ) -> subprocess.CompletedProcess:
+                try:
+                    return subprocess.run(
+                        ["git", "-C", wt_path, *args],
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                        check=check,
+                    )
+                except subprocess.TimeoutExpired as exc:
+                    raise ProjectError(
+                        f"git {' '.join(args[:2])} timed out for {branch_name}"
+                    ) from exc
+                except subprocess.CalledProcessError as exc:
+                    detail = (exc.stderr or exc.stdout or "").strip()[:500]
+                    raise ProjectError(
+                        f"git {' '.join(args[:2])} failed for {branch_name}: "
+                        f"{detail}"
+                    ) from exc
+
+            status = _run(["status", "--porcelain"], timeout=10)
+            dirty_lines = [
+                line
+                for line in status.stdout.splitlines()
+                if line[3:].strip() not in {
+                    ".oompah-no-hooks",
+                    ".oompah-no-hooks/",
+                }
+                and not line[3:].strip().startswith(".oompah-no-hooks/")
+            ]
+            if status.returncode != 0 or dirty_lines:
+                raise ProjectError(
+                    f"Epic worktree {branch_name} is dirty; drain or repair "
+                    "shared-mode work before dispatching private children"
+                )
+            fetch = _run(["fetch", "origin"])
+            if fetch.returncode != 0:
+                raise ProjectError(
+                    f"Could not refresh epic branch {branch_name}: "
+                    f"{fetch.stderr.strip()[:500]}"
+                )
+
+            remote_ref = f"origin/{branch_name}"
+            remote = _run(["rev-parse", "--verify", remote_ref], timeout=10)
+            if remote.returncode == 0:
+                local_is_ancestor = _run(
+                    ["merge-base", "--is-ancestor", "HEAD", remote_ref],
+                    timeout=10,
+                ).returncode == 0
+                remote_is_ancestor = _run(
+                    ["merge-base", "--is-ancestor", remote_ref, "HEAD"],
+                    timeout=10,
+                ).returncode == 0
+                if local_is_ancestor:
+                    reset = _run(["reset", "--hard", remote_ref], timeout=30)
+                    if reset.returncode != 0:
+                        raise ProjectError(
+                            f"Could not fast-forward {branch_name} to its "
+                            f"remote head: {reset.stderr.strip()[:500]}"
+                        )
+                elif not remote_is_ancestor:
+                    raise ProjectError(
+                        f"Epic branch {branch_name} diverged from {remote_ref}; "
+                        "reconcile both heads before dispatching more children"
+                    )
+
+            push = _run(
+                [
+                    "push",
+                    "--set-upstream",
+                    "origin",
+                    f"HEAD:{branch_name}",
+                ]
+            )
+            if push.returncode != 0:
+                raise ProjectError(
+                    f"Could not publish epic integration branch {branch_name}: "
+                    f"{push.stderr.strip()[:500]}"
+                )
+            head = _run(["rev-parse", "HEAD"], timeout=10)
+            if head.returncode != 0 or not head.stdout.strip():
+                raise ProjectError(
+                    f"Could not resolve current head for {branch_name}"
+                )
+            return wt_path, head.stdout.strip()
 
     def _create_epic_worktree_locked(self, project_id: str, epic_identifier: str) -> str:
         project = self._projects.get(project_id)

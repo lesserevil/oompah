@@ -9,6 +9,8 @@ from typing import Any
 
 import logging
 
+from .integration import IntegrationRecord
+
 logger = logging.getLogger(__name__)
 
 
@@ -176,7 +178,12 @@ class Issue:
     parent_id: str | None = None
     project_id: str | None = None
     labels: list[str] = field(default_factory=list)
+    # Normal dependencies are finish-order constraints: the referenced task
+    # must integrate first, but does not prevent this task from starting.
     blocked_by: list[BlockerRef] = field(default_factory=list)
+    # Rare, explicit start-order constraints. These are the only dependency
+    # edges that block dispatch.
+    start_blocked_by: list[BlockerRef] = field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
     closed_at: datetime | None = None
@@ -195,6 +202,8 @@ class Issue:
     # intake metadata so scheduler and API paths do not need an N+1 metadata
     # read for every Open task.
     duplicate_screening: dict[str, Any] | None = None
+    # Versioned private-branch submission state (oompah.integration).
+    integration: IntegrationRecord | None = None
     # Explicit work branch stored in tracker metadata (oompah.work_branch).
     # Populated for GitHub-backed tasks from the hidden body metadata block.
     # When set, branch-to-issue resolution uses this value instead of

@@ -286,6 +286,12 @@ def _oompah_task_argv(command: str) -> tuple[list[str] | None, str | None]:
     if len(tokens) >= 2 and Path(tokens[0]).name == "oompah" and tokens[1] == "task":
         start = 2
     elif (
+        len(tokens) >= 2
+        and Path(tokens[0]).name == "oompah"
+        and tokens[1] == "coordinate"
+    ):
+        start = 1
+    elif (
         len(tokens) >= 4
         and tokens[0] == "uv"
         and tokens[1] == "run"
@@ -293,6 +299,14 @@ def _oompah_task_argv(command: str) -> tuple[list[str] | None, str | None]:
         and tokens[3] == "task"
     ):
         start = 4
+    elif (
+        len(tokens) >= 4
+        and tokens[0] == "uv"
+        and tokens[1] == "run"
+        and Path(tokens[2]).name == "oompah"
+        and tokens[3] == "coordinate"
+    ):
+        start = 3
 
     if start is None:
         return None, None
@@ -368,6 +382,8 @@ def _exec_oompah_task_command(
     project_id: str | None = None,
     action_policy: AgentActionPolicy | None = None,
     task_identifier: str | None = None,
+    coordination_service: Any = None,
+    workspace_path: str | Path | None = None,
 ) -> str | None:
     """Execute a simple ``oompah task ...`` command without local HTTP.
 
@@ -413,7 +429,13 @@ def _exec_oompah_task_command(
     # task service account.  Worker sessions receive an exact task grant.
     if task_identifier:
         if args.subcommand not in {
-            "view", "comment", "set-status", "add-label", "remove-label"
+            "view",
+            "comment",
+            "set-status",
+            "submit",
+            "coordinate",
+            "add-label",
+            "remove-label",
         }:
             return (
                 "Error: this agent session is granted only the assigned task "
@@ -428,6 +450,49 @@ def _exec_oompah_task_command(
             return "Error: task handoff comments must use author='oompah'"
 
     try:
+        if args.subcommand == "coordinate":
+            if coordination_service is None or not project_id:
+                return "Error: coordination service is unavailable"
+            operation = args.coordinate_operation
+            if operation == "peers":
+                payload = {
+                    "peers": coordination_service.coordination_peers(
+                        project_id,
+                        args.identifier,
+                    )
+                }
+            elif operation == "inbox":
+                payload = {
+                    "messages": coordination_service.coordination_inbox(
+                        project_id,
+                        args.identifier,
+                        unread_only=args.unread,
+                        after_id=args.after,
+                        limit=args.limit,
+                    )
+                }
+            elif operation == "send":
+                payload = {
+                    "message": coordination_service.coordination_send(
+                        project_id=project_id,
+                        sender=args.identifier,
+                        recipient=args.recipient,
+                        text=args.message,
+                        kind=args.kind,
+                        idempotency_key=args.idempotency_key,
+                    )
+                }
+            else:
+                payload = {
+                    "checkpoint": coordination_service.coordination_checkpoint(
+                        project_id=project_id,
+                        identifier=args.identifier,
+                        changed_paths=args.path or None,
+                        summary=args.summary,
+                    )
+                }
+            return json.dumps(payload, indent=2)
+
         if args.subcommand == "view":
             issue = task_tracker.fetch_issue_detail(args.identifier)
             if issue is None:
@@ -458,6 +523,16 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
+            if (
+                task_identifier
+                and str(args.status).strip().lower()
+                in {"done", "merged", "archived"}
+            ):
+                return (
+                    "Error: spawned workers must use `oompah task submit "
+                    f"{args.identifier} --summary \"...\"` so committed and "
+                    "pushed git evidence is validated before completion"
+                )
             task_tracker.update_issue(args.identifier, status=args.status)
             if getattr(args, "summary", None):
                 task_tracker.add_comment(
@@ -466,6 +541,86 @@ def _exec_oompah_task_command(
                     author="oompah",
                 )
             return f"Status set to: {args.status}"
+
+        if args.subcommand == "submit":
+            from datetime import datetime, timezone
+
+            from oompah.integration import IntegrationRecord
+            from oompah.statuses import READY_TO_INTEGRATE
+            from oompah.task_cli import _git_submission_evidence
+
+            if workspace_path is None:
+                return (
+                    "Error: task submission requires the assigned git "
+                    "workspace"
+                )
+            evidence = _git_submission_evidence(cwd=workspace_path)
+            branch = str(evidence.get("task_branch") or "").strip()
+            head_sha = str(evidence.get("head_sha") or "").strip().lower()
+            remote_head_sha = str(
+                evidence.get("remote_head_sha") or ""
+            ).strip().lower()
+            if not branch or not head_sha:
+                return (
+                    "Error: task submission requires a checked-out branch "
+                    "with a committed HEAD"
+                )
+            if not remote_head_sha:
+                return (
+                    "Error: push the task branch to origin before submission"
+                )
+            if remote_head_sha != head_sha:
+                return (
+                    "Error: the pushed remote task branch does not match "
+                    "the local HEAD"
+                )
+            if evidence.get("worktree_clean") is not True:
+                return (
+                    "Error: the worktree must be clean before task submission"
+                )
+            now = datetime.now(timezone.utc).isoformat()
+            record = IntegrationRecord(
+                state="ready",
+                task_branch=branch,
+                base_sha=(
+                    str(evidence.get("base_sha") or "").strip() or None
+                ),
+                head_sha=head_sha,
+                submitted_at=now,
+                updated_at=now,
+            )
+
+            task_tracker.set_metadata_field(
+                args.identifier,
+                "oompah.integration",
+                record.to_dict(),
+            )
+            task_tracker.update_issue(
+                args.identifier,
+                status=READY_TO_INTEGRATE,
+            )
+            if args.summary:
+                task_tracker.add_comment(
+                    args.identifier,
+                    args.summary,
+                    author="oompah",
+                )
+            if coordination_service is not None and project_id:
+                try:
+                    coordination_service.coordination_checkpoint(
+                        project_id=project_id,
+                        identifier=args.identifier,
+                        changed_paths=evidence.get("changed_paths"),
+                        commit_sha=head_sha,
+                        summary=args.summary,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "Submission coordination publication failed for %s: %s",
+                        args.identifier,
+                        exc,
+                    )
+            return f"Submitted for integration: {args.identifier}"
 
         if args.subcommand == "add-label":
             denial = check_action(
@@ -496,13 +651,23 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
-            task_tracker.add_dependency(args.identifier, args.depends_on)
-            return f"Dependency set: {args.identifier} depends on {args.depends_on}"
+            if getattr(args, "hard_start", False) is True:
+                task_tracker.add_start_dependency(args.identifier, args.depends_on)
+                kind = "Hard-start dependency"
+            else:
+                task_tracker.add_dependency(args.identifier, args.depends_on)
+                kind = "Dependency"
+            return f"{kind} set: {args.identifier} depends on {args.depends_on}"
 
         if args.subcommand == "remove-dependency":
-            task_tracker.remove_dependency(args.identifier, args.depends_on)
+            if getattr(args, "hard_start", False) is True:
+                task_tracker.remove_start_dependency(args.identifier, args.depends_on)
+                kind = "Hard-start dependency"
+            else:
+                task_tracker.remove_dependency(args.identifier, args.depends_on)
+                kind = "Dependency"
             return (
-                f"Dependency removed: {args.identifier} no longer depends on "
+                f"{kind} removed: {args.identifier} no longer depends on "
                 f"{args.depends_on}"
             )
 
@@ -562,6 +727,7 @@ def build_tool_catalog(
     project_store: Any = None,
     project_id: str | None = None,
     task_tracker: Any = None,
+    coordination_service: Any = None,
     action_policy: AgentActionPolicy | None = None,
     task_identifier: str | None = None,
     read_only: bool = False,
@@ -708,6 +874,8 @@ def build_tool_catalog(
             current_project_id,
             action_policy,
             task_identifier,
+            coordination_service,
+            workspace,
         )
         if direct is not None:
             return _wrap_text(direct)
@@ -869,6 +1037,7 @@ def build_codex_tool_catalog(
     project_store: Any = None,
     project_id: str | None = None,
     task_tracker: Any = None,
+    coordination_service: Any = None,
     action_policy: AgentActionPolicy | None = None,
     task_identifier: str | None = None,
     read_only: bool = False,
@@ -1004,7 +1173,13 @@ def build_codex_tool_catalog(
         if shell_denial is not None:
             return shell_denial
         direct = _exec_oompah_task_command(
-            command, task_tracker, current_project_id, action_policy, task_identifier
+            command,
+            task_tracker,
+            current_project_id,
+            action_policy,
+            task_identifier,
+            coordination_service,
+            workspace,
         )
         if direct is not None:
             return direct
@@ -1151,6 +1326,7 @@ def build_opencode_tool_catalog(
     project_store: Any = None,
     project_id: str | None = None,
     task_tracker: Any = None,
+    coordination_service: Any = None,
     action_policy: AgentActionPolicy | None = None,
     task_identifier: str | None = None,
     read_only: bool = False,
@@ -1300,6 +1476,8 @@ def build_opencode_tool_catalog(
             project_id,
             action_policy,
             task_identifier,
+            coordination_service,
+            workspace,
         )
         if direct is not None:
             return _wrap_text(direct)

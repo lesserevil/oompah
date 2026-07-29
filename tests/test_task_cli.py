@@ -1023,6 +1023,19 @@ class TestCmdSetDependency:
             task_cli._cmd_set_dependency("http://localhost:8080", args)
         data = m.call_args.kwargs.get("data", {})
         assert data["depends_on"] == "TASK-1"
+        assert data["dependency_type"] == "finish"
+
+    def test_hard_start_flag_selects_hard_start_dependency_type(self):
+        args = _make_args(
+            subcommand="set-dependency",
+            identifier="TASK-2",
+            depends_on="TASK-1",
+            project=None,
+            hard_start=True,
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_set_dependency("http://localhost:8080", args)
+        assert m.call_args.kwargs["data"]["dependency_type"] == "hard_start"
 
     def test_prints_confirmation(self, capsys):
         args = _make_args(
@@ -1056,6 +1069,7 @@ class TestCmdRemoveDependency:
         assert mock_http.call_args.kwargs["params"] == {
             "depends_on": "TASK-1",
             "issue_key": "TASK-2",
+            "dependency_type": "finish",
             "project_id": "proj-1",
         }
 
@@ -1073,6 +1087,136 @@ class TestCmdRemoveDependency:
         assert "TASK-2" in out
         assert "TASK-1" in out
         assert "removed" in out.lower()
+
+
+class TestCmdCoordinate:
+    def test_peers_uses_read_endpoint_and_project_scope(self, capsys):
+        args = _make_args(
+            subcommand="coordinate",
+            coordinate_operation="peers",
+            identifier="TASK-2",
+            project="proj-1",
+        )
+        with (
+            patch.object(task_cli, "_task_handoff_request", return_value=None),
+            _make_http_mock({"peers": [{"identifier": "TASK-1"}]}) as mock_http,
+        ):
+            task_cli._cmd_coordinate("http://localhost:8080", args)
+
+        assert mock_http.call_args.args == (
+            "GET",
+            "http://localhost:8080/api/v1/issues/TASK-2/coordination/peers",
+        )
+        assert mock_http.call_args.kwargs["params"] == {
+            "issue_key": "TASK-2",
+            "project_id": "proj-1",
+        }
+        assert "TASK-1" in capsys.readouterr().out
+
+    def test_inbox_forwards_cursor_limit_and_unread(self):
+        args = _make_args(
+            subcommand="coordinate",
+            coordinate_operation="inbox",
+            identifier="TASK-2",
+            project="proj-1",
+            unread=True,
+            after="message-1",
+            limit=25,
+        )
+        with (
+            patch.object(task_cli, "_task_handoff_request", return_value=None),
+            _make_http_mock({"messages": []}) as mock_http,
+        ):
+            task_cli._cmd_coordinate("http://localhost:8080", args)
+
+        assert mock_http.call_args.kwargs["params"] == {
+            "issue_key": "TASK-2",
+            "project_id": "proj-1",
+            "after_id": "message-1",
+            "limit": "25",
+            "unread_only": "true",
+        }
+
+    def test_send_posts_durable_message_payload(self):
+        args = _make_args(
+            subcommand="coordinate",
+            coordinate_operation="send",
+            identifier="TASK-2",
+            project="proj-1",
+            recipient="TASK-1",
+            message="I changed the shared interface.",
+            kind="interface-change",
+            idempotency_key="iface-v1",
+        )
+        with (
+            patch.object(task_cli, "_task_handoff_request", return_value=None),
+            _make_http_mock({"message": {"id": "message-1"}}) as mock_http,
+        ):
+            task_cli._cmd_coordinate("http://localhost:8080", args)
+
+        assert mock_http.call_args.args[0] == "POST"
+        assert mock_http.call_args.kwargs["data"] == {
+            "identifier": "TASK-2",
+            "issue_key": "TASK-2",
+            "project_id": "proj-1",
+            "recipient": "TASK-1",
+            "text": "I changed the shared interface.",
+            "kind": "interface-change",
+            "idempotency_key": "iface-v1",
+        }
+
+    def test_checkpoint_includes_git_evidence_and_changed_paths(self):
+        args = _make_args(
+            subcommand="coordinate",
+            coordinate_operation="checkpoint",
+            identifier="TASK-2",
+            project="proj-1",
+            summary="Parser complete",
+            path=["oompah/parser.py", "tests/test_parser.py"],
+        )
+        evidence = {
+            "task_branch": "epic-TASK-0--task-TASK-2",
+            "head_sha": "a" * 40,
+            "worktree_clean": True,
+        }
+        with (
+            patch.object(task_cli, "_task_handoff_request", return_value=None),
+            patch.object(
+                task_cli,
+                "_git_submission_evidence",
+                return_value=evidence,
+            ),
+            _make_http_mock({"checkpoint": {"task_identifier": "TASK-2"}}) as mock_http,
+        ):
+            task_cli._cmd_coordinate("http://localhost:8080", args)
+
+        payload = mock_http.call_args.kwargs["data"]
+        assert payload["head_sha"] == "a" * 40
+        assert payload["changed_paths"] == [
+            "oompah/parser.py",
+            "tests/test_parser.py",
+        ]
+        assert payload["summary"] == "Parser complete"
+
+    def test_scoped_handoff_response_avoids_general_api(self):
+        args = _make_args(
+            subcommand="coordinate",
+            coordinate_operation="peers",
+            identifier="TASK-2",
+            project="proj-1",
+        )
+        with (
+            patch.object(
+                task_cli,
+                "_task_handoff_request",
+                return_value={"peers": []},
+            ) as handoff,
+            patch.object(task_cli, "_http") as mock_http,
+        ):
+            task_cli._cmd_coordinate("http://localhost:8080", args)
+
+        handoff.assert_called_once()
+        mock_http.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -1149,6 +1293,36 @@ class TestBuildParser:
         assert args.subcommand == "set-status"
         assert args.status == "Done"
         assert args.summary == "All done"
+
+    def test_submit_subcommand_parses(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            ["submit", "TASK-1", "--summary", "All done", "--project", "proj-1"]
+        )
+        assert args.subcommand == "submit"
+        assert args.identifier == "TASK-1"
+        assert args.summary == "All done"
+        assert args.project == "proj-1"
+
+    def test_coordinate_send_subcommand_parses(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            [
+                "coordinate",
+                "send",
+                "TASK-2",
+                "--to",
+                "TASK-1",
+                "--message",
+                "Shared API changed",
+                "--kind",
+                "interface-change",
+            ]
+        )
+        assert args.subcommand == "coordinate"
+        assert args.coordinate_operation == "send"
+        assert args.recipient == "TASK-1"
+        assert args.message == "Shared API changed"
 
     def test_add_label_subcommand_parses(self):
         parser = task_cli.build_parser()
@@ -1277,6 +1451,16 @@ class TestMainDispatch:
     def test_main_dispatches_set_status(self):
         with patch.object(task_cli, "_cmd_set_status") as mock_fn:
             task_cli.main(["set-status", "TASK-1", "Done"])
+        mock_fn.assert_called_once()
+
+    def test_main_dispatches_submit(self):
+        with patch.object(task_cli, "_cmd_submit") as mock_fn:
+            task_cli.main(["submit", "TASK-1", "--summary", "Done"])
+        mock_fn.assert_called_once()
+
+    def test_main_dispatches_coordinate(self):
+        with patch.object(task_cli, "_cmd_coordinate") as mock_fn:
+            task_cli.main(["coordinate", "peers", "TASK-1"])
         mock_fn.assert_called_once()
 
     def test_main_dispatches_add_label(self):

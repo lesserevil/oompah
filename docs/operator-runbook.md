@@ -452,9 +452,17 @@ Check these conditions in order:
    Oompah refuses to dispatch a task with no description body. Add a description
    via the dashboard or `oompah task` CLI.
 
-5. **Tasks are blocked by unfinished dependencies:**
-   Each task must have all `blocked_by` entries resolved before dispatch. Check
-   `oompah task view <id>` for dependency status.
+5. **Tasks have unfinished dependencies:**
+   Normal dependencies constrain finish/integration order and do not block
+   dispatch. Only explicit hard-start dependencies delay a worker. Check the
+   task detail for `start_dependencies`.
+
+6. **Tasks are already waiting for integration:**
+   `Ready to Integrate` tasks have released their worker slot. Inspect
+   `GET /api/v1/state` → `integration_queue`. A `ready` item may be waiting for
+   a normal dependency to integrate before it; an `integrating` item is in the
+   rebase/test/fast-forward critical section. See
+   [Parallel Epic Integration](parallel-epic-integration.md).
 
 ### 6.2 A specific task is stuck in a dispatch loop (reject streak)
 
@@ -475,7 +483,7 @@ Common reject reasons and fixes:
 | `all_providers_rejected` | All providers failed or mismatched | Check provider health; verify model assignments |
 | `empty_description` | Task has no description body | Add a description to the task |
 | `epic_rollup_parent` | Epic with children (use child tasks) | Expected; work happens on child tasks |
-| `dependencies_unresolved` | `blocked_by` tasks are incomplete | Resolve the blocking tasks first |
+| `start_blocker=<id>` | An explicit hard-start dependency is incomplete | Finish it, or replace the edge with a normal finish-order dependency |
 
 To force-dispatch a specific task for debugging:
 
@@ -503,7 +511,32 @@ To reset a task's retry history and re-open it:
 oompah task set-status PROJ-12 Open
 ```
 
-### 6.4 Webhook forwarding degraded
+### 6.4 Parallel epic integration is not progressing
+
+First confirm the mode and queue state:
+
+```bash
+curl -s http://localhost:8080/api/v1/state | python3 -m json.tool
+```
+
+Check `config.parallel_epic_children_enabled` and `integration_queue`.
+
+- `ready`: check whether its finish dependencies have integrated. These
+  dependencies do not prevent an agent from starting; they only order queue
+  completion.
+- `integrating`: the row has an expiring lease. A normal restart recovers an
+  expired lease; do not delete its private branch.
+- `blocked`: open the task and follow its final repair comment. Conflicts route
+  to `Needs Rebase`, gate failures to `Needs CI Fix`, and unverifiable pushed
+  heads back to `Open`.
+- `integrated`: confirm terminal-audit providers are healthy if the task has
+  not advanced to `Done`.
+
+The task detail panel also shows its queue row and separate coordination
+timeline. Full enablement, recovery, and rollback instructions are in
+[Parallel Epic Integration](parallel-epic-integration.md).
+
+### 6.5 Webhook forwarding degraded
 
 **Symptom:** Dashboard shows a warning banner: "Webhooks degraded: unknown
 command 'webhook'." or events stop arriving.
@@ -533,7 +566,7 @@ expired.
 
 See `docs/webhook-forwarding.md` for full troubleshooting guidance.
 
-### 6.5 Stuck epic (open PR with no progress)
+### 6.6 Stuck epic (open PR with no progress)
 
 When an epic's work branch has an open PR that is neither being merged nor
 progressing, oompah emits a `stuck_epic` alert visible in
@@ -555,7 +588,7 @@ progressing, oompah emits a `stuck_epic` alert visible in
 - **PR never opened:** Check that the SCM integration is working (`gh auth
   status`); an agent may be running on the epic to create the PR.
 
-### 6.6 Concurrent git write errors after graceful reload
+### 6.7 Concurrent git write errors after graceful reload
 
 **Symptoms in logs:**
 
@@ -731,6 +764,8 @@ flowchart LR
     S --> A["alerts: [level, source, message]"]
     S --> B["budget: {limit, spent, exceeded, window}"]
     S --> M["orchestrator_metrics: {last_tick, maintenance, project_refresh}"]
+    S --> I["integration_queue: [durable per-task rows]"]
+    S --> F["config.parallel_epic_children_enabled"]
 ```
 
 | Key | Description |

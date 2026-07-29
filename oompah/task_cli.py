@@ -15,8 +15,9 @@ Usage::
     oompah task set-status <identifier> <status> [--summary "..."]
     oompah task add-label <identifier> <label>
     oompah task remove-label <identifier> <label>
-    oompah task set-dependency <identifier> --depends-on <dep-id>
-    oompah task remove-dependency <identifier> --depends-on <dep-id>
+    oompah task set-dependency <identifier> --depends-on <dep-id> [--hard-start]
+    oompah task remove-dependency <identifier> --depends-on <dep-id> [--hard-start]
+    oompah task submit <identifier> --summary "..."
     oompah task set-source <identifier> <source-id> [--project <id>]
     oompah task remove-source <identifier> [--project <id>]
 """
@@ -24,11 +25,14 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
 import re
+import subprocess
 import sys
 import urllib.parse
+from pathlib import Path
 from typing import Any
 
 try:
@@ -491,6 +495,8 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
         "status": args.status,
         "summary": getattr(args, "summary", None),
     }
+    if str(args.status).strip().lower() in {"done", "merged", "archived"}:
+        handoff_data.update(_git_submission_evidence())
     if _task_handoff_request(base_url, "set-status", handoff_data) is not None:
         print(f"Status set to: {args.status}")
         return
@@ -514,6 +520,111 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
         _http("POST", f"{base_url}{comment_path}", data=comment_data)
 
     print(f"Status set to: {args.status}")
+
+
+def _git_value(*args: str, cwd: str | Path | None = None) -> str | None:
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=cwd,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    value = completed.stdout.strip()
+    return value if completed.returncode == 0 and value else None
+
+
+def _git_submission_evidence(
+    *,
+    cwd: str | Path | None = None,
+) -> dict[str, Any]:
+    """Capture branch/head evidence from the worker's current worktree."""
+
+    branch = _git_value("branch", "--show-current", cwd=cwd)
+    head_sha = _git_value("rev-parse", "HEAD", cwd=cwd)
+    try:
+        status = subprocess.run(
+            ["git", "status", "--porcelain=v1"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=cwd,
+        )
+        worktree_clean = status.returncode == 0 and not status.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        worktree_clean = False
+    remote_head_sha = None
+    if branch:
+        try:
+            remote = subprocess.run(
+                ["git", "ls-remote", "--heads", "origin", branch],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                cwd=cwd,
+            )
+            if remote.returncode == 0 and remote.stdout.strip():
+                remote_head_sha = remote.stdout.split()[0].strip()
+        except (OSError, subprocess.TimeoutExpired):
+            remote_head_sha = None
+    changed_paths: list[str] = []
+    base_sha = _git_value("merge-base", "HEAD", "origin/main", cwd=cwd)
+    if base_sha:
+        try:
+            changed = subprocess.run(
+                ["git", "diff", "--name-only", f"{base_sha}..HEAD"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                cwd=cwd,
+            )
+            if changed.returncode == 0:
+                changed_paths = sorted(
+                    {
+                        path.strip()
+                        for path in changed.stdout.splitlines()
+                        if path.strip()
+                    }
+                )[:256]
+        except (OSError, subprocess.TimeoutExpired):
+            changed_paths = []
+    return {
+        key: value
+        for key, value in {
+            "task_branch": branch,
+            "head_sha": head_sha,
+            "remote_head_sha": remote_head_sha,
+            "worktree_clean": worktree_clean,
+            "changed_paths": changed_paths,
+        }.items()
+        if value is not None
+    }
+
+
+def _cmd_submit(base_url: str, args: argparse.Namespace) -> None:
+    """Submit committed worker output for ordered integration."""
+
+    identifier = args.identifier
+    data: dict[str, Any] = {
+        "identifier": identifier,
+        "issue_key": identifier,
+        "summary": getattr(args, "summary", None),
+        **_git_submission_evidence(),
+    }
+    _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
+    if _task_handoff_request(base_url, "submit", data) is not None:
+        print(f"Submitted for integration: {identifier}")
+        return
+    path = f"/api/v1/issues/{_encode_path_id(identifier)}/submit"
+    _http("POST", f"{base_url}{path}", data=data)
+    print(f"Submitted for integration: {identifier}")
 
 
 def _cmd_add_label(base_url: str, args: argparse.Namespace) -> None:
@@ -564,29 +675,35 @@ def _cmd_remove_label(base_url: str, args: argparse.Namespace) -> None:
 def _cmd_set_dependency(base_url: str, args: argparse.Namespace) -> None:
     """oompah task set-dependency <identifier> --depends-on <dep-id>"""
     identifier = args.identifier
+    hard_start = getattr(args, "hard_start", False) is True
     data: dict[str, Any] = {
         "depends_on": args.depends_on,
         "issue_key": identifier,
+        "dependency_type": "hard_start" if hard_start else "finish",
     }
     _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/dependencies"
     _http("POST", f"{base_url}{path}", data=data)
-    print(f"Dependency set: {identifier} depends on {args.depends_on}")
+    kind = "Hard-start dependency" if hard_start else "Dependency"
+    print(f"{kind} set: {identifier} depends on {args.depends_on}")
 
 
 def _cmd_remove_dependency(base_url: str, args: argparse.Namespace) -> None:
     """oompah task remove-dependency <identifier> --depends-on <dep-id>"""
     identifier = args.identifier
+    hard_start = getattr(args, "hard_start", False) is True
     params: dict[str, str] = {
         "depends_on": args.depends_on,
         "issue_key": identifier,
+        "dependency_type": "hard_start" if hard_start else "finish",
     }
     _add_project_or_managed_repo(
         params, identifier, getattr(args, "project", None)
     )
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/dependencies"
     _http("DELETE", f"{base_url}{path}", params=params)
-    print(f"Dependency removed: {identifier} no longer depends on {args.depends_on}")
+    kind = "Hard-start dependency" if hard_start else "Dependency"
+    print(f"{kind} removed: {identifier} no longer depends on {args.depends_on}")
 
 
 def _cmd_set_source(base_url: str, args: argparse.Namespace) -> None:
@@ -631,6 +748,78 @@ def _cmd_remove_source(base_url: str, args: argparse.Namespace) -> None:
     path = f"/api/v1/issues/{_encode_path_id(identifier)}"
     _http("PATCH", f"{base_url}{path}", data=data)
     print("Source removed.")
+
+
+def _cmd_coordinate(base_url: str, args: argparse.Namespace) -> None:
+    """Read or write the durable task coordination surface."""
+
+    identifier = args.identifier
+    operation = args.coordinate_operation
+    data: dict[str, Any] = {
+        "identifier": identifier,
+        "issue_key": identifier,
+    }
+    _add_project_or_managed_repo(
+        data,
+        identifier,
+        getattr(args, "project", None),
+    )
+    handoff_action = f"coordination-{operation}"
+    if operation == "send":
+        data.update(
+            {
+                "recipient": args.recipient,
+                "text": args.message,
+                "kind": args.kind,
+                "idempotency_key": args.idempotency_key,
+            }
+        )
+    elif operation == "checkpoint":
+        data.update(
+            {
+                **_git_submission_evidence(),
+                "summary": args.summary,
+                "changed_paths": args.path or None,
+            }
+        )
+    elif operation == "inbox":
+        data.update(
+            {
+                "unread_only": args.unread,
+                "after_id": args.after,
+                "limit": args.limit,
+            }
+        )
+
+    scoped = _task_handoff_request(base_url, handoff_action, data)
+    if scoped is not None:
+        print(json.dumps(scoped, indent=2, sort_keys=True))
+        return
+
+    path = (
+        f"/api/v1/issues/{_encode_path_id(identifier)}/coordination/"
+        f"{operation}"
+    )
+    if operation in {"peers", "inbox"}:
+        params = {
+            key: str(value)
+            for key, value in data.items()
+            if key
+            in {
+                "issue_key",
+                "project_id",
+                "managed_repo",
+                "after_id",
+                "limit",
+            }
+            and value is not None
+        }
+        if operation == "inbox" and data.get("unread_only"):
+            params["unread_only"] = "true"
+        result = _http("GET", f"{base_url}{path}", params=params)
+    else:
+        result = _http("POST", f"{base_url}{path}", data=data)
+    print(json.dumps(result, indent=2, sort_keys=True))
 
 
 # ---------------------------------------------------------------------------
@@ -696,6 +885,58 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     sub = parser.add_subparsers(dest="subcommand", required=True)
+
+    # --- coordinate ---
+    p_coordinate = sub.add_parser(
+        "coordinate",
+        help="Exchange durable messages with suggested peer tasks",
+    )
+    coordinate_sub = p_coordinate.add_subparsers(
+        dest="coordinate_operation",
+        required=True,
+    )
+
+    def _coordinate_common(command):
+        command.add_argument("identifier", help="Current task identifier")
+        command.add_argument(
+            "--project",
+            "--project-id",
+            dest="project",
+            default=None,
+        )
+
+    p_peers = coordinate_sub.add_parser(
+        "peers",
+        help="List server-suggested coordination peers",
+    )
+    _coordinate_common(p_peers)
+
+    p_inbox = coordinate_sub.add_parser(
+        "inbox",
+        help="Read durable messages addressed to this task",
+    )
+    _coordinate_common(p_inbox)
+    p_inbox.add_argument("--unread", action="store_true")
+    p_inbox.add_argument("--after", default=None)
+    p_inbox.add_argument("--limit", type=int, default=100)
+
+    p_send = coordinate_sub.add_parser(
+        "send",
+        help="Send a message to a server-suggested peer",
+    )
+    _coordinate_common(p_send)
+    p_send.add_argument("--to", dest="recipient", required=True)
+    p_send.add_argument("--message", "-m", required=True)
+    p_send.add_argument("--kind", default="message")
+    p_send.add_argument("--idempotency-key", default=None)
+
+    p_checkpoint = coordinate_sub.add_parser(
+        "checkpoint",
+        help="Publish changed paths and an implementation checkpoint",
+    )
+    _coordinate_common(p_checkpoint)
+    p_checkpoint.add_argument("--summary", required=True)
+    p_checkpoint.add_argument("--path", action="append", default=[])
 
     # --- view ---
     p_view = sub.add_parser("view", help="Show task details")
@@ -824,6 +1065,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="GitHub login requesting a gated intake transition",
     )
 
+    # --- submit ---
+    p_submit = sub.add_parser(
+        "submit",
+        help="Submit committed work for ordered integration",
+    )
+    p_submit.add_argument("identifier", help="Task identifier")
+    p_submit.add_argument(
+        "--summary",
+        required=True,
+        help="Completion summary recorded on the task",
+    )
+    p_submit.add_argument(
+        "--project", "--project-id",
+        dest="project",
+        default=None,
+        metavar="PROJECT_ID",
+    )
+
     # --- add-label ---
     p_add = sub.add_parser("add-label", help="Add a label to a task")
     p_add.add_argument("identifier", help="Task identifier")
@@ -866,6 +1125,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Identifier of the blocker task",
     )
     p_dep.add_argument(
+        "--hard-start",
+        action="store_true",
+        help="Block task start until the dependency is complete",
+    )
+    p_dep.add_argument(
         "--project", "--project-id",
         dest="project",
         default=None,
@@ -887,6 +1151,11 @@ def build_parser() -> argparse.ArgumentParser:
         dest="depends_on",
         metavar="DEP_ID",
         help="Identifier of the blocker task to remove",
+    )
+    p_rm_dep.add_argument(
+        "--hard-start",
+        action="store_true",
+        help="Remove a hard-start dependency instead of a finish-order edge",
     )
     p_rm_dep.add_argument(
         "--project", "--project-id",
@@ -957,11 +1226,13 @@ def build_parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------------------
 
 _DISPATCH: dict[str, Any] = {
+    "coordinate": _cmd_coordinate,
     "view": _cmd_view,
     "comment": _cmd_comment,
     "create": _cmd_create,
     "child-create": _cmd_child_create,
     "set-status": _cmd_set_status,
+    "submit": _cmd_submit,
     "add-label": _cmd_add_label,
     "remove-label": _cmd_remove_label,
     "set-dependency": _cmd_set_dependency,
@@ -980,7 +1251,13 @@ def main(argv: list[str] | None = None) -> None:
     # above.  Reject broader commands before any request is made; in
     # particular, never fall back to operator Basic credentials.
     if _task_handoff_token() and args.subcommand not in {
-        "view", "comment", "set-status", "add-label", "remove-label"
+        "view",
+        "comment",
+        "set-status",
+        "submit",
+        "coordinate",
+        "add-label",
+        "remove-label",
     }:
         sys.exit(
             "ERROR: this spawned worker has a task-scoped handoff capability; "
@@ -1010,11 +1287,13 @@ def main(argv: list[str] | None = None) -> None:
 
     # Build dispatch at call time so module-level patches in tests take effect.
     dispatch = {
+        "coordinate": _cmd_coordinate,
         "view": _cmd_view,
         "comment": _cmd_comment,
         "create": _cmd_create,
         "child-create": _cmd_child_create,
         "set-status": _cmd_set_status,
+        "submit": _cmd_submit,
         "add-label": _cmd_add_label,
         "remove-label": _cmd_remove_label,
         "set-dependency": _cmd_set_dependency,

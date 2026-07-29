@@ -273,6 +273,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             project_store=self._options.project_store,
             project_id=self._options.project_id,
             task_tracker=self._options.task_tracker,
+            coordination_service=self._options.coordination_service,
             read_only=self._options.read_only,
             task_identifier=self._options.task_identifier,
             action_policy=self._options.action_policy,

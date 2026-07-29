@@ -1369,3 +1369,38 @@ class TestCodexCliAdditionalDirectories:
         asyncio.run(run())
         additional = getattr(cap["thread_options"], "additional_directories", None)
         assert additional == [str(meta_dir)]
+
+
+def test_codex_drains_injected_coordination_as_followup(monkeypatch, tmp_path):
+    prompts: list[str] = []
+
+    async def _fake_turn(self):
+        prompts.append(self._options.prompt)
+        self._status = "succeeded"
+        if False:
+            yield None
+
+    monkeypatch.setattr(
+        CodexAcpBackendSession,
+        "_run_turn_via_api",
+        _fake_turn,
+    )
+
+    async def _run():
+        queue: asyncio.Queue[str] = asyncio.Queue()
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path),
+                prompt="initial task",
+                comment_queue=queue,
+            )
+        )
+        await session.inject_message("peer changed src/shared.py")
+        async for _ in session.run_turn():
+            pass
+        return session
+
+    session = asyncio.run(_run())
+    assert session.status == "succeeded"
+    assert prompts[0] == "initial task"
+    assert "peer changed src/shared.py" in prompts[1]

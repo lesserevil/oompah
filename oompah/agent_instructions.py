@@ -36,9 +36,9 @@ oompah task --server http://127.0.0.1:<port> view <owner/repo#number>
 When oompah starts this repository as a spawned worker, the service supplies
 an expiring capability scoped to this task and project. Use the documented
 oompah task view, comment, add-label, remove-label, and set-status commands
-for the session handoff; ACP and API sessions route these commands through the
-server-owned tracker, while subprocess sessions route them through the same
-short-lived capability.
+and coordinate commands for the session handoff; ACP and API sessions route
+these commands through the server-owned tracker, while subprocess sessions
+route them through the same short-lived capability.
 
 Never set, read, copy, or print OOMPAH_SERVER_USERNAME,
 OOMPAH_SERVER_PASSWORD, or OOMPAH_SERVER_PASSWORD_FILE from a worker. Never
@@ -59,10 +59,15 @@ oompah task comment <owner/repo#number> --message "Progress update" --author oom
 oompah task create --project <project-id> --title "Follow-up title" --description "Details" --source <owner/repo#number>
 oompah task child-create <owner/repo#number> --title "Child task title" --description "Details"
 oompah task set-dependency <owner/repo#number> --depends-on <owner/repo#other-number>
+oompah task set-dependency <owner/repo#number> --depends-on <owner/repo#other-number> --hard-start
 oompah task remove-dependency <owner/repo#number> --depends-on <owner/repo#other-number>
 oompah task add-label <owner/repo#number> needs:frontend
 oompah task set-status <owner/repo#number> Open
-oompah task set-status <owner/repo#number> Done --summary "Completed"
+oompah task submit <owner/repo#number> --summary "Completed"
+oompah coordinate peers <owner/repo#number>
+oompah coordinate inbox <owner/repo#number> --unread
+oompah coordinate send <owner/repo#number> --to <peer-task> --message "Interface update"
+oompah coordinate checkpoint <owner/repo#number> --summary "Checkpoint" --path <changed-path>
 ```
 
 ### GitHub Fallback
@@ -75,6 +80,8 @@ metadata oompah needs:
 - For epic children, use GitHub's structured sub-issue/parent relationship.
   If that is unavailable, apply the oompah-compatible `parent:<issue-number>`
   label to the child issue.
+- Normal dependencies constrain integration order but do not prevent parallel
+  starts. Use `--hard-start` only when work genuinely cannot begin first.
 - For dependencies, use GitHub's structured dependency/blocking relationship.
   If that is unavailable, apply the oompah-compatible
   `depends-on:<issue-number>` label to the blocked issue.
@@ -117,8 +124,9 @@ When ending a work session, complete all of these steps:
 1. File follow-up issues for remaining work, using `oompah task create` when
    available or the GitHub fallback above.
 2. Run the relevant quality gates for the code you changed.
-3. Update the current issue status with `oompah task set-status` when
-   available, or with the repository's GitHub issue status controls.
+3. Submit completed work with `oompah task submit` when available. Oompah
+   moves it through Ready to Integrate and terminal audit after ordered
+   integration.
 4. Push all committed work:
    ```bash
    git pull --rebase
@@ -211,10 +219,15 @@ oompah task comment <task-id> --project <project-id> --message "Progress update"
 oompah task create --project <project-id> --title "Follow-up title" --description "Details"
 oompah task child-create <task-id> --project <project-id> --title "Child task title" --description "Details"
 oompah task set-dependency <task-id> --project <project-id> --depends-on <other-task-id>
+oompah task set-dependency <task-id> --project <project-id> --depends-on <other-task-id> --hard-start
 oompah task remove-dependency <task-id> --project <project-id> --depends-on <other-task-id>
 oompah task add-label <task-id> needs:frontend --project <project-id>
 oompah task set-status <task-id> Open --project <project-id>
-oompah task set-status <task-id> Done --project <project-id> --summary "Completed"
+oompah task submit <task-id> --project <project-id> --summary "Completed"
+oompah coordinate peers <task-id> --project <project-id>
+oompah coordinate inbox <task-id> --project <project-id> --unread
+oompah coordinate send <task-id> --project <project-id> --to <peer-task-id> --message "Interface update"
+oompah coordinate checkpoint <task-id> --project <project-id> --summary "Checkpoint" --path <changed-path>
 ```
 
 ### Spawned Worker Handoff Security
@@ -222,9 +235,9 @@ oompah task set-status <task-id> Done --project <project-id> --summary "Complete
 When oompah starts this repository as a spawned worker, the service supplies
 an expiring capability scoped to this task and project. Use the documented
 oompah task view, comment, add-label, remove-label, and set-status commands
-for the session handoff; ACP and API sessions route these commands through the
-server-owned tracker, while subprocess sessions route them through the same
-short-lived capability.
+and coordinate commands for the session handoff; ACP and API sessions route
+these commands through the server-owned tracker, while subprocess sessions
+route them through the same short-lived capability.
 
 Never set, read, copy, or print OOMPAH_SERVER_USERNAME,
 OOMPAH_SERVER_PASSWORD, or OOMPAH_SERVER_PASSWORD_FILE from a worker. Never
@@ -265,8 +278,11 @@ comments.
   GitHub Issues.
 - Create decomposition children with `oompah task child-create`; do not
   hand-write parent metadata.
-- Record blockers with `oompah task set-dependency`; do not hand-write
-  dependency metadata.
+- Normal dependencies constrain integration order and are recorded with
+  `oompah task set-dependency`; they do not block parallel starts. Add
+  `--hard-start` only when implementation
+  cannot begin before the prerequisite finishes. Do not hand-write dependency
+  metadata.
 - Remove obsolete blockers with `oompah task remove-dependency`; do not
   hand-write dependency metadata.
 - Always pass `--author oompah` when posting progress comments through the CLI.
@@ -282,7 +298,8 @@ When ending a work session, complete all of these steps:
 
 1. File follow-up tasks with `oompah task create` for remaining work.
 2. Run the relevant quality gates for the code you changed.
-3. Update the current oompah task status or leave a clear handoff comment.
+3. Submit completed work with `oompah task submit`, or leave a clear handoff
+   comment when the work is incomplete.
 4. Push all committed work:
    ```bash
    git pull --rebase

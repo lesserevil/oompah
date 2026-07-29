@@ -18,6 +18,7 @@ from urllib.parse import quote
 
 import httpx
 
+from oompah.integration import parse_integration_record
 from oompah.models import BlockerRef, Issue
 from oompah.statuses import (
     ARCHIVED,
@@ -282,6 +283,10 @@ class GitLabIssueTracker:
         duplicate_screening = metadata.get("duplicate_screening")
         if not isinstance(duplicate_screening, dict):
             duplicate_screening = None
+        integration = parse_integration_record(metadata.get("integration"))
+        start_dependencies = metadata.get("start_blocked_by") or []
+        if not isinstance(start_dependencies, list):
+            start_dependencies = []
         iid = int(data["iid"])
         status = _status_from_labels(labels, str(data.get("state", "opened")))
         parent = next(
@@ -318,6 +323,11 @@ class GitLabIssueTracker:
             labels=labels,
             parent_id=parent,
             blocked_by=blockers,
+            start_blocked_by=[
+                BlockerRef(identifier=str(dep), id=str(dep))
+                for dep in start_dependencies
+                if str(dep).strip()
+            ],
             url=data.get("web_url"),
             provider_url=data.get("web_url"),
             created_at=_parse_timestamp(data.get("created_at")),
@@ -331,6 +341,7 @@ class GitLabIssueTracker:
             issue_number=str(iid),
             requestor_login=(data.get("author") or {}).get("username"),
             duplicate_screening=duplicate_screening,
+            integration=integration,
         )
 
     def _labels_with_status(self, labels: list[str], status: str) -> list[str]:
@@ -699,6 +710,26 @@ class GitLabIssueTracker:
         self.remove_label(
             blocked_id, f"blocked-by:{self.parse_identifier(blocker_id).canonical}"
         )
+
+    def add_start_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        self.parse_identifier(blocked_id)
+        blocker = self.parse_identifier(blocker_id).canonical
+        metadata = self.get_metadata(blocked_id)
+        current = metadata.get("oompah.start_blocked_by") or []
+        values = [str(value) for value in current] if isinstance(current, list) else []
+        if blocker not in values:
+            values.append(blocker)
+            self.set_metadata_field(blocked_id, "oompah.start_blocked_by", values)
+
+    def remove_start_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        self.parse_identifier(blocked_id)
+        blocker = self.parse_identifier(blocker_id).canonical
+        metadata = self.get_metadata(blocked_id)
+        current = metadata.get("oompah.start_blocked_by") or []
+        values = [str(value) for value in current] if isinstance(current, list) else []
+        updated = [value for value in values if value != blocker]
+        if updated != values:
+            self.set_metadata_field(blocked_id, "oompah.start_blocked_by", updated)
 
     def fetch_attachments(self, identifier: str) -> list[dict]:
         """Return rich attachment records stored in the issue description metadata.

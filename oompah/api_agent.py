@@ -810,6 +810,7 @@ def _execute_tool(
                 project_id,
                 action_policy,
                 task_identifier,
+                workspace_path=workspace,
             )
             if direct is not None:
                 return direct

@@ -67,6 +67,13 @@ from oompah.issue_enhancer import (
     has_quality_source,
 )
 from oompah.intake_summary import build_intake_summary
+from oompah.integration import IntegrationRecord
+from oompah.coordination import CoordinationStore
+from oompah.dependency_graph import (
+    dependency_cycle_for_new_edge,
+    effective_dependencies,
+    issue_index,
+)
 from oompah.duplicate_screening import (
     DETECTOR_VERSION as DUPLICATE_DETECTOR_VERSION,
     assess_screening,
@@ -108,7 +115,8 @@ from oompah.task_handoff import (
     validate_task_handoff_token,
 )
 from oompah.projects import ProjectError, ProjectStore
-from oompah.tracker import normalize_priority_int
+from oompah.integration_queue import IntegrationQueueStore
+from oompah.tracker import TrackerError, normalize_priority_int
 from oompah.providers import ProviderStore
 from oompah.roles import Candidate, RoleError, RoleStore, VALID_STRATEGIES, DEFAULT_STRATEGY
 from oompah.statuses import (
@@ -125,9 +133,11 @@ from oompah.statuses import (
     NEEDS_REBASE,
     OPEN,
     PROPOSED,
+    READY_TO_INTEGRATE,
     canonicalize_status,
     epic_rollup_state,
     is_dispatchable_status,
+    is_terminal_status,
 )
 from oompah.transition_gate import (
     TransitionGateResult,
@@ -2017,6 +2027,70 @@ def _on_agent_activity(identifier: str, entry) -> None:
     )
 
 
+def _integration_queue_summary(item, issue, issues) -> dict[str, Any]:
+    """Serialize a queue row with its operator-facing wait reason."""
+
+    result = item.to_dict()
+    index = issue_index(issues)
+    dependencies = effective_dependencies(issue, index)
+    unresolved: list[str] = []
+    unreachable: list[str] = []
+    parent = index.get(str(issue.parent_id or "").strip())
+    own_parent_aliases = {
+        str(value).strip()
+        for value in (
+            issue.parent_id,
+            getattr(parent, "id", None),
+            getattr(parent, "identifier", None),
+        )
+        if str(value or "").strip()
+    }
+    for dependency in dependencies:
+        blocker = index.get(dependency)
+        if blocker is None or not is_terminal_status(blocker.state):
+            unresolved.append(dependency)
+            continue
+        blocker_parent = index.get(str(blocker.parent_id or "").strip())
+        blocker_parent_aliases = {
+            str(value).strip()
+            for value in (
+                blocker.parent_id,
+                getattr(blocker_parent, "id", None),
+                getattr(blocker_parent, "identifier", None),
+            )
+            if str(value or "").strip()
+        }
+        if (
+            own_parent_aliases
+            and blocker_parent_aliases
+            and not own_parent_aliases & blocker_parent_aliases
+        ):
+            unreachable.append(dependency)
+
+    state = str(item.state or "ready")
+    if state == "blocked":
+        reason = item.last_error or "Integration requires task repair"
+    elif state == "integrating":
+        reason = "Rebasing, testing, and integrating the submitted head"
+    elif state == "integrated":
+        reason = "Integrated into the epic branch; waiting for terminal audit"
+    elif unresolved:
+        reason = (
+            "Waiting for finish dependencies to pass terminal audit: "
+            + ", ".join(unresolved)
+        )
+    elif unreachable:
+        reason = (
+            "Waiting for upstream dependency code to reach this epic branch: "
+            + ", ".join(unreachable)
+        )
+    else:
+        reason = "Waiting for the per-epic integration executor"
+    result["waiting_on"] = [*unresolved, *unreachable]
+    result["wait_reason"] = reason
+    return result
+
+
 def _fetch_and_serialize_issues(orch) -> dict[str, list]:
     """Fetch all issues and serialize — runs in thread pool to avoid blocking.
 
@@ -2026,6 +2100,18 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
     """
     all_issues = _fetch_all_issues(orch, None)
     project_names = _project_names_by_id(orch)
+    integration_queue = getattr(orch, "integration_queue", None)
+    integration_items = (
+        {
+            (item.project_id, item.task_id): item
+            for item in integration_queue.items()
+        }
+        if isinstance(integration_queue, IntegrationQueueStore)
+        else {}
+    )
+    coordination_store = getattr(orch, "coordination_store", None)
+    if not isinstance(coordination_store, CoordinationStore):
+        coordination_store = None
 
     # Build a map for parent child counts — any issue that has children gets counts
     # First pass: find all parent_ids referenced by children
@@ -2061,6 +2147,15 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
         has_open_review = branch in unmerged_branches if branch else False
         tracker_state = issue.state
         intake_summary = _issue_intake_summary(issue)
+        integration_item = integration_items.get(
+            (str(issue.project_id or ""), issue.identifier)
+        )
+        coordination_unread = 0
+        if issue.project_id and coordination_store is not None:
+            coordination_unread = coordination_store.unread_count(
+                issue.project_id,
+                issue.identifier,
+            )
         entry = {
             "id": issue.id,
             "identifier": issue.identifier,
@@ -2087,6 +2182,31 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             "target_branch": getattr(issue, "target_branch", None),
             "work_branch": getattr(issue, "work_branch", None),
             "merged_at": getattr(issue, "merged_at", None),
+            "integration": (
+                issue.integration.to_dict()
+                if getattr(issue, "integration", None) is not None
+                else None
+            ),
+            "integration_queue": (
+                _integration_queue_summary(
+                    integration_item,
+                    issue,
+                    all_issues,
+                )
+                if integration_item is not None
+                else None
+            ),
+            "coordination_unread": coordination_unread,
+            "dependencies": [
+                blocker.identifier or blocker.id
+                for blocker in (getattr(issue, "blocked_by", None) or [])
+                if blocker.identifier or blocker.id
+            ],
+            "start_dependencies": [
+                blocker.identifier or blocker.id
+                for blocker in (getattr(issue, "start_blocked_by", None) or [])
+                if blocker.identifier or blocker.id
+            ],
             # UI context badge for shared-epic children: distinguishes
             # "done on epic branch" (Done) from "merged to target" (Merged).
             "display_status_context": _child_display_context(issue),
@@ -2653,6 +2773,451 @@ async def api_state():
         )
 
 
+def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
+    """Build validated durable evidence for one worker submission."""
+
+    summary = str(body.get("summary") or "").strip()
+    if not summary:
+        raise ValueError("summary is required for task submission")
+    task_branch = (
+        str(body.get("task_branch") or "").strip()
+        or getattr(issue, "work_branch", None)
+        or getattr(issue, "branch_name", None)
+    )
+    if not task_branch:
+        raise ValueError("task_branch is required for task submission")
+    head_sha = str(body.get("head_sha") or "").strip().lower() or None
+    if head_sha is None:
+        raise ValueError("head_sha is required for task submission")
+    if not re.fullmatch(r"[0-9a-f]{7,64}", head_sha):
+        raise ValueError("head_sha must be a hexadecimal git object id")
+    remote_head_sha = (
+        str(body.get("remote_head_sha") or "").strip().lower() or None
+    )
+    if remote_head_sha is None:
+        raise ValueError(
+            "remote_head_sha is required; push the task branch before submission"
+        )
+    if not re.fullmatch(r"[0-9a-f]{7,64}", remote_head_sha):
+        raise ValueError("remote_head_sha must be a hexadecimal git object id")
+    if remote_head_sha != head_sha:
+        raise ValueError(
+            "the pushed remote task branch does not match the local HEAD"
+        )
+    if body.get("worktree_clean") is not True:
+        raise ValueError(
+            "the worktree must be clean before task submission"
+        )
+    base_sha = str(body.get("base_sha") or "").strip().lower() or None
+    if base_sha is not None and not re.fullmatch(r"[0-9a-f]{7,64}", base_sha):
+        raise ValueError("base_sha must be a hexadecimal git object id")
+    raw_dependency_heads = body.get("dependency_heads")
+    dependency_heads = (
+        {
+            str(identifier): str(sha).lower()
+            for identifier, sha in raw_dependency_heads.items()
+            if str(identifier).strip()
+            and re.fullmatch(r"[0-9a-fA-F]{7,64}", str(sha).strip())
+        }
+        if isinstance(raw_dependency_heads, dict)
+        else {}
+    )
+    existing = getattr(issue, "integration", None)
+    if (
+        existing is not None
+        and existing.state in {"ready", "queued", "integrating", "integrated"}
+        and existing.head_sha == head_sha
+        and existing.task_branch == task_branch
+    ):
+        return existing
+    now = datetime.now(timezone.utc).isoformat()
+    return IntegrationRecord(
+        state="ready",
+        task_branch=task_branch,
+        base_branch=(
+            str(body.get("base_branch") or "").strip()
+            or getattr(issue, "target_branch", None)
+        ),
+        base_sha=base_sha,
+        head_sha=head_sha,
+        submitted_at=now,
+        updated_at=now,
+        dependency_heads=dependency_heads,
+    )
+
+
+async def _persist_worker_submission(
+    tracker,
+    issue,
+    body: dict[str, Any],
+) -> IntegrationRecord:
+    """Atomically order tracker writes so evidence exists before lifecycle state."""
+
+    record = _submission_record(issue, body)
+    existing = getattr(issue, "integration", None)
+    if (
+        existing is not None
+        and record is existing
+        and existing.head_sha == record.head_sha
+        and existing.task_branch == record.task_branch
+    ):
+        return existing
+    await _run_api_io(
+        tracker.set_metadata_field,
+        issue.identifier,
+        "oompah.integration",
+        record.to_dict(),
+    )
+    await _run_api_io(
+        tracker.update_issue,
+        issue.identifier,
+        status=READY_TO_INTEGRATE,
+    )
+    summary = str(body.get("summary") or "").strip()
+    await _run_api_io(
+        tracker.add_comment,
+        issue.identifier,
+        summary,
+        author="oompah",
+    )
+    return record
+
+
+def _enqueue_worker_submission(orch, project_id: str, issue, record) -> None:
+    """Mirror an epic-child submission into the durable integration queue."""
+
+    if not getattr(orch.config, "parallel_epic_children_enabled", False):
+        return
+    epic_id = str(getattr(issue, "parent_id", None) or "").strip()
+    if not epic_id:
+        return
+    if not record.task_branch or not record.head_sha:
+        raise ValueError(
+            "parallel epic submission requires task_branch and head_sha"
+        )
+    orch.integration_queue.enqueue(
+        project_id=project_id,
+        epic_id=epic_id,
+        task_id=issue.identifier,
+        task_branch=record.task_branch,
+        head_sha=record.head_sha,
+        base_sha=record.base_sha,
+        priority=getattr(issue, "priority", None),
+        submitted_at=record.submitted_at,
+    )
+
+
+def _publish_submission_coordination(
+    orch,
+    project_id: str,
+    issue,
+    record,
+    body: dict[str, Any],
+) -> None:
+    """Publish checkpoint/submission notices without blocking handoff."""
+
+    try:
+        checkpoint = orch.coordination_checkpoint(
+            project_id=project_id,
+            identifier=issue.identifier,
+            changed_paths=body.get("changed_paths"),
+            commit_sha=record.head_sha,
+            summary=body.get("summary"),
+        )
+        for peer in checkpoint.get("peers", []):
+            recipient = str(peer.get("identifier") or "").strip()
+            if not recipient:
+                continue
+            orch.coordination_send(
+                project_id=project_id,
+                sender=issue.identifier,
+                recipient=recipient,
+                kind="submitted-result",
+                text=(
+                    f"{issue.identifier} submitted {record.head_sha}: "
+                    f"{str(body.get('summary') or '').strip()}"
+                ),
+                changed_paths=body.get("changed_paths"),
+                commit_sha=record.head_sha,
+                idempotency_key=(
+                    f"submitted:{record.head_sha}:{recipient}"
+                ),
+                system=True,
+            )
+    except Exception as exc:  # noqa: BLE001 - durable submission wins
+        logger.warning(
+            "Submission coordination publication failed for %s: %s",
+            issue.identifier,
+            exc,
+        )
+
+
+@app.post("/api/v1/issues/{identifier}/submit")
+async def api_submit_issue(identifier: str, request: Request):
+    """Stage committed task work for dependency-ordered integration."""
+
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "request body must be a JSON object",
+                }
+            },
+            status_code=400,
+        )
+    if not isinstance(body, dict):
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "request body must be a JSON object",
+                }
+            },
+            status_code=400,
+        )
+    orch = _get_orchestrator()
+    resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
+    requested_project = body.get("project_id") or request.query_params.get("project_id")
+    if requested_project:
+        tracker, project_id = _get_tracker_for_issue_or_project(
+            orch, resolved_identifier, requested_project
+        )
+    else:
+        tracker, project_id, issue = _find_tracker_for_issue(
+            orch, resolved_identifier
+        )
+        if tracker is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "issue_not_found",
+                        "message": f"Issue {resolved_identifier!r} not found",
+                    }
+                },
+                status_code=404,
+            )
+    issue = await _run_api_io(tracker.fetch_issue_detail, resolved_identifier)
+    if issue is None:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "issue_not_found",
+                    "message": f"Issue {resolved_identifier!r} not found",
+                }
+            },
+            status_code=404,
+        )
+    try:
+        record = await _persist_worker_submission(tracker, issue, body)
+        _enqueue_worker_submission(orch, project_id, issue, record)
+        _publish_submission_coordination(
+            orch, project_id, issue, record, body
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            {"error": {"code": "validation", "message": str(exc)}},
+            status_code=400,
+        )
+    _api_cache.invalidate("issues:all")
+    _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
+    orch.request_refresh()
+    await broadcast_issues()
+    return JSONResponse(
+        {
+            "ok": True,
+            "state": READY_TO_INTEGRATE,
+            "integration": record.to_dict(),
+        },
+        status_code=201,
+    )
+
+
+def _coordination_error(exc: Exception) -> JSONResponse:
+    if isinstance(exc, PermissionError):
+        return JSONResponse(
+            {"error": {"code": "coordination_forbidden", "message": str(exc)}},
+            status_code=403,
+        )
+    if isinstance(exc, (ValueError, TrackerError)):
+        return JSONResponse(
+            {"error": {"code": "validation", "message": str(exc)}},
+            status_code=400,
+        )
+    logger.warning("Coordination operation failed: %s", exc)
+    return JSONResponse(
+        {
+            "error": {
+                "code": "coordination_unavailable",
+                "message": "coordination operation failed",
+            }
+        },
+        status_code=503,
+    )
+
+
+def _coordination_project_id(
+    orch,
+    identifier: str,
+    body: dict[str, Any],
+    request: Request,
+) -> tuple[str, str]:
+    resolved = _resolve_identifier(identifier, body, request.query_params)
+    project_id = str(
+        body.get("project_id")
+        or request.query_params.get("project_id")
+        or ""
+    ).strip()
+    if project_id:
+        return project_id, resolved
+    tracker, found_project, issue = _find_tracker_for_issue(orch, resolved)
+    if tracker is None or issue is None or not found_project:
+        raise TrackerError(f"Task not found: {resolved}")
+    return found_project, resolved
+
+
+@app.get("/api/v1/issues/{identifier}/coordination/peers")
+async def api_coordination_peers(identifier: str, request: Request):
+    """Return advisory peers this task is authorized to message."""
+
+    try:
+        orch = _get_orchestrator()
+        project_id, resolved = _coordination_project_id(
+            orch, identifier, {}, request
+        )
+        peers = await _run_api_io(
+            orch.coordination_peers,
+            project_id,
+            resolved,
+        )
+        return JSONResponse({"peers": peers})
+    except Exception as exc:
+        return _coordination_error(exc)
+
+
+@app.get("/api/v1/issues/{identifier}/coordination/inbox")
+async def api_coordination_inbox(identifier: str, request: Request):
+    """Return durable messages for a task, including live-delivery fallback."""
+
+    try:
+        orch = _get_orchestrator()
+        project_id, resolved = _coordination_project_id(
+            orch, identifier, {}, request
+        )
+        unread_only = (
+            str(request.query_params.get("unread_only") or "").lower()
+            in {"1", "true", "yes", "on"}
+        )
+        try:
+            limit = int(request.query_params.get("limit") or 100)
+        except ValueError:
+            raise ValueError("limit must be an integer") from None
+        messages = await _run_api_io(
+            orch.coordination_inbox,
+            project_id,
+            resolved,
+            unread_only=unread_only,
+            after_id=request.query_params.get("after_id"),
+            limit=limit,
+        )
+        return JSONResponse({"messages": messages})
+    except Exception as exc:
+        return _coordination_error(exc)
+
+
+@app.get("/api/v1/issues/{identifier}/coordination")
+async def api_coordination_timeline(identifier: str, request: Request):
+    """Return the separate coordination timeline for a task."""
+
+    try:
+        orch = _get_orchestrator()
+        project_id, resolved = _coordination_project_id(
+            orch, identifier, {}, request
+        )
+        try:
+            limit = int(request.query_params.get("limit") or 100)
+        except ValueError:
+            raise ValueError("limit must be an integer") from None
+        messages = await _run_api_io(
+            orch.coordination_timeline,
+            project_id,
+            resolved,
+            limit=limit,
+        )
+        return JSONResponse({"messages": messages})
+    except Exception as exc:
+        return _coordination_error(exc)
+
+
+@app.post("/api/v1/issues/{identifier}/coordination/send")
+async def api_coordination_send(identifier: str, request: Request):
+    """Persist and best-effort deliver a message to a suggested peer."""
+
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise ValueError("request body must be a JSON object")
+        orch = _get_orchestrator()
+        project_id, resolved = _coordination_project_id(
+            orch, identifier, body, request
+        )
+        message = await _run_api_io(
+            orch.coordination_send,
+            project_id=project_id,
+            sender=resolved,
+            recipient=str(body.get("recipient") or "").strip(),
+            text=str(body.get("text") or "").strip(),
+            kind=str(body.get("kind") or "message").strip(),
+            changed_paths=body.get("changed_paths"),
+            commit_sha=body.get("commit_sha"),
+            idempotency_key=body.get("idempotency_key"),
+        )
+        await broadcast_issues()
+        return JSONResponse({"message": message}, status_code=201)
+    except (json.JSONDecodeError, ValueError) as exc:
+        return _coordination_error(
+            exc
+            if isinstance(exc, ValueError)
+            else ValueError("request body must be valid JSON")
+        )
+    except Exception as exc:
+        return _coordination_error(exc)
+
+
+@app.post("/api/v1/issues/{identifier}/coordination/checkpoint")
+async def api_coordination_checkpoint(identifier: str, request: Request):
+    """Publish progress and automatic changed-path conflict warnings."""
+
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise ValueError("request body must be a JSON object")
+        orch = _get_orchestrator()
+        project_id, resolved = _coordination_project_id(
+            orch, identifier, body, request
+        )
+        checkpoint = await _run_api_io(
+            orch.coordination_checkpoint,
+            project_id=project_id,
+            identifier=resolved,
+            changed_paths=body.get("changed_paths"),
+            commit_sha=body.get("head_sha") or body.get("commit_sha"),
+            summary=body.get("summary"),
+        )
+        await broadcast_issues()
+        return JSONResponse({"checkpoint": checkpoint}, status_code=201)
+    except (json.JSONDecodeError, ValueError) as exc:
+        return _coordination_error(
+            exc
+            if isinstance(exc, ValueError)
+            else ValueError("request body must be valid JSON")
+        )
+    except Exception as exc:
+        return _coordination_error(exc)
+
+
 @app.post("/api/v1/task-handoff")
 async def api_task_handoff(request: Request):
     """Apply one server-issued, task-scoped worker handoff operation.
@@ -2688,7 +3253,18 @@ async def api_task_handoff(request: Request):
     action = str(body.get("action") or "").strip()
     project_id = str(body.get("project_id") or "").strip()
     identifier = str(body.get("identifier") or "").strip()
-    if action not in {"view", "comment", "set-status", "add-label", "remove-label"}:
+    if action not in {
+        "view",
+        "comment",
+        "set-status",
+        "submit",
+        "coordination-peers",
+        "coordination-inbox",
+        "coordination-send",
+        "coordination-checkpoint",
+        "add-label",
+        "remove-label",
+    }:
         return JSONResponse(
             {"error": {"code": "handoff_forbidden", "message": "task handoff action is not granted"}},
             status_code=403,
@@ -2745,6 +3321,52 @@ async def api_task_handoff(request: Request):
                 }
             )
 
+        if action == "coordination-peers":
+            peers = await _run_api_io(
+                orch.coordination_peers,
+                project_id,
+                identifier,
+            )
+            return JSONResponse({"peers": peers})
+
+        if action == "coordination-inbox":
+            messages = await _run_api_io(
+                orch.coordination_inbox,
+                project_id,
+                identifier,
+                unread_only=bool(body.get("unread_only")),
+                after_id=body.get("after_id"),
+                limit=int(body.get("limit") or 100),
+            )
+            return JSONResponse({"messages": messages})
+
+        if action == "coordination-send":
+            message = await _run_api_io(
+                orch.coordination_send,
+                project_id=project_id,
+                sender=identifier,
+                recipient=str(body.get("recipient") or "").strip(),
+                text=str(body.get("text") or "").strip(),
+                kind=str(body.get("kind") or "message").strip(),
+                changed_paths=body.get("changed_paths"),
+                commit_sha=body.get("commit_sha"),
+                idempotency_key=body.get("idempotency_key"),
+            )
+            await broadcast_issues()
+            return JSONResponse({"message": message}, status_code=201)
+
+        if action == "coordination-checkpoint":
+            checkpoint = await _run_api_io(
+                orch.coordination_checkpoint,
+                project_id=project_id,
+                identifier=identifier,
+                changed_paths=body.get("changed_paths"),
+                commit_sha=body.get("head_sha") or body.get("commit_sha"),
+                summary=body.get("summary"),
+            )
+            await broadcast_issues()
+            return JSONResponse({"checkpoint": checkpoint}, status_code=201)
+
         if action == "comment":
             text = str(body.get("message") or body.get("text") or "").strip()
             if not text:
@@ -2756,6 +3378,26 @@ async def api_task_handoff(request: Request):
             # A spawned worker cannot impersonate a human/operator author.
             await _run_api_io(tracker.add_comment, identifier, text, author="oompah")
             return JSONResponse({"ok": True})
+
+        if action == "submit":
+            try:
+                record = await _persist_worker_submission(tracker, issue, body)
+                _enqueue_worker_submission(orch, project_id, issue, record)
+                _publish_submission_coordination(
+                    orch, project_id, issue, record, body
+                )
+            except ValueError as exc:
+                record_task_handoff_failure(
+                    token, "task handoff submission validation failed"
+                )
+                return JSONResponse(
+                    {"error": {"code": "validation", "message": str(exc)}},
+                    status_code=400,
+                )
+            _api_cache.invalidate("issues:all")
+            _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+            await broadcast_issues()
+            return JSONResponse({"ok": True, "integration": record.to_dict()})
 
         if action == "set-status":
             status = body.get("status")
@@ -2786,6 +3428,27 @@ async def api_task_handoff(request: Request):
             if rejection is not None:
                 record_task_handoff_failure(token, "task handoff status transition rejected")
                 return rejection
+            if is_terminal_status(status):
+                submission_body = {**body, "summary": body.get("summary")}
+                record = await _persist_worker_submission(
+                    tracker,
+                    issue,
+                    submission_body,
+                )
+                _enqueue_worker_submission(orch, project_id, issue, record)
+                _publish_submission_coordination(
+                    orch, project_id, issue, record, submission_body
+                )
+                _api_cache.invalidate("issues:all")
+                _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+                await broadcast_issues()
+                return JSONResponse(
+                    {
+                        "ok": True,
+                        "staged_status": READY_TO_INTEGRATE,
+                        "integration": record.to_dict(),
+                    }
+                )
             await _run_api_io(tracker.update_issue, identifier, status=status)
             summary = str(body.get("summary") or "").strip()
             if summary:
@@ -2819,6 +3482,14 @@ async def api_task_handoff(request: Request):
         _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
         await broadcast_issues()
         return JSONResponse({"ok": True})
+    except ValueError as exc:
+        record_task_handoff_failure(
+            token, "task handoff operation validation failed"
+        )
+        return JSONResponse(
+            {"error": {"code": "validation", "message": str(exc)}},
+            status_code=400,
+        )
     except Exception:
         record_task_handoff_failure(token, "task handoff operation failed")
         logger.warning(
@@ -8349,10 +9020,11 @@ async def api_remove_label(identifier: str, label: str, request: Request):
 
 @app.post("/api/v1/issues/{identifier}/dependencies")
 async def api_add_dependency(identifier: str, request: Request):
-    """Record that *identifier* depends on (is blocked by) another issue.
+    """Record a finish-order or hard-start dependency.
 
     Request body (JSON):
         depends_on  – identifier of the blocker task (required)
+        dependency_type – ``finish`` (default) or ``hard_start``
         issue_key   – full identifier when the path param is URL-encoded
         project_id  – optional; used to resolve the tracker directly
         managed_repo – optional; ``owner/repo`` alternative to project_id
@@ -8389,6 +9061,17 @@ async def api_add_dependency(identifier: str, request: Request):
                     "error": {
                         "code": "validation",
                         "message": "depends_on is required",
+                    }
+                },
+                status_code=400,
+            )
+        dependency_type = str(body.get("dependency_type") or "finish").strip().lower()
+        if dependency_type not in {"finish", "hard_start"}:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "dependency_type must be 'finish' or 'hard_start'",
                     }
                 },
                 status_code=400,
@@ -8437,11 +9120,66 @@ async def api_add_dependency(identifier: str, request: Request):
                     status_code=404,
                 )
 
-        tracker.add_dependency(resolved_identifier, depends_on)
+        blocked_issue = tracker.fetch_issue_detail(resolved_identifier)
+        blocker_issue = tracker.fetch_issue_detail(depends_on)
+        if blocked_issue is None or blocker_issue is None:
+            missing = (
+                resolved_identifier if blocked_issue is None else depends_on
+            )
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "issue_not_found",
+                        "message": f"Dependency task {missing!r} was not found",
+                    }
+                },
+                status_code=404,
+            )
+        current_refs = (
+            blocked_issue.start_blocked_by
+            if dependency_type == "hard_start"
+            else blocked_issue.blocked_by
+        )
+        already_present = any(
+            depends_on
+            in {
+                str(ref.id or "").strip(),
+                str(ref.identifier or "").strip(),
+            }
+            for ref in current_refs
+        )
+        if not already_present:
+            cycle = dependency_cycle_for_new_edge(
+                tracker.fetch_all_issues(),
+                resolved_identifier,
+                depends_on,
+            )
+            if cycle is not None:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "dependency_cycle",
+                            "message": (
+                                "Dependency would create a cycle: "
+                                + " -> ".join(cycle)
+                            ),
+                            "path": list(cycle),
+                        }
+                    },
+                    status_code=409,
+                )
+
+        if dependency_type == "hard_start":
+            tracker.add_start_dependency(resolved_identifier, depends_on)
+        else:
+            tracker.add_dependency(resolved_identifier, depends_on)
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         await broadcast_issues()
-        return JSONResponse({"ok": True}, status_code=201)
+        return JSONResponse(
+            {"ok": True, "dependency_type": dependency_type},
+            status_code=201,
+        )
     except Exception as exc:
         logger.error("Add dependency API error: %s", exc)
         return JSONResponse(
@@ -8456,6 +9194,7 @@ async def api_remove_dependency(identifier: str, request: Request):
 
     Query parameters:
         depends_on   – identifier of the blocker task to remove (required)
+        dependency_type – ``finish`` (default) or ``hard_start``
         issue_key    – full identifier when the path param is URL-encoded
         project_id   – optional; used to resolve the tracker directly
         managed_repo – optional ``owner/repo`` alternative to project_id
@@ -8469,6 +9208,19 @@ async def api_remove_dependency(identifier: str, request: Request):
                     "error": {
                         "code": "validation",
                         "message": "depends_on is required",
+                    }
+                },
+                status_code=400,
+            )
+        dependency_type = str(
+            request.query_params.get("dependency_type") or "finish"
+        ).strip().lower()
+        if dependency_type not in {"finish", "hard_start"}:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "dependency_type must be 'finish' or 'hard_start'",
                     }
                 },
                 status_code=400,
@@ -8521,12 +9273,15 @@ async def api_remove_dependency(identifier: str, request: Request):
                     status_code=404,
                 )
 
-        tracker.remove_dependency(resolved_identifier, depends_on)
+        if dependency_type == "hard_start":
+            tracker.remove_start_dependency(resolved_identifier, depends_on)
+        else:
+            tracker.remove_dependency(resolved_identifier, depends_on)
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         orch.request_refresh()
         await broadcast_issues()
-        return JSONResponse({"ok": True})
+        return JSONResponse({"ok": True, "dependency_type": dependency_type})
     except Exception as exc:
         logger.error("Remove dependency API error: %s", exc)
         return JSONResponse(
@@ -8791,6 +9546,32 @@ async def api_issue_full_detail(identifier: str, request: Request):
         display_id = getattr(issue, "display_identifier", None) or _display_identifier(
             issue.identifier, project_name
         )
+        coordination_store = getattr(orch, "coordination_store", None)
+        if not isinstance(coordination_store, CoordinationStore):
+            coordination_store = None
+        integration_queue_summary = None
+        integration_store = getattr(orch, "integration_queue", None)
+        if project_id and isinstance(integration_store, IntegrationQueueStore):
+            aliases = {
+                str(value).strip()
+                for value in (issue.id, issue.identifier)
+                if str(value or "").strip()
+            }
+            integration_item = next(
+                (
+                    item
+                    for item in integration_store.items(project_id=project_id)
+                    if item.task_id in aliases
+                ),
+                None,
+            )
+            if integration_item is not None:
+                graph_issues = tracker.fetch_all_issues()
+                integration_queue_summary = _integration_queue_summary(
+                    integration_item,
+                    issue,
+                    graph_issues,
+                )
         result = {
             "id": issue.id,
             "identifier": issue.identifier,
@@ -8817,6 +9598,42 @@ async def api_issue_full_detail(identifier: str, request: Request):
             "target_branch": getattr(issue, "target_branch", None),
             "work_branch": getattr(issue, "work_branch", None),
             "merged_at": getattr(issue, "merged_at", None),
+            "integration": (
+                issue.integration.to_dict()
+                if getattr(issue, "integration", None) is not None
+                else None
+            ),
+            "integration_queue": integration_queue_summary,
+            "coordination": (
+                [
+                    message.to_dict()
+                    for message in coordination_store.timeline(
+                        project_id,
+                        issue.identifier,
+                        limit=100,
+                    )
+                ]
+                if project_id and coordination_store is not None
+                else []
+            ),
+            "coordination_unread": (
+                coordination_store.unread_count(
+                    project_id,
+                    issue.identifier,
+                )
+                if project_id and coordination_store is not None
+                else 0
+            ),
+            "dependencies": [
+                blocker.identifier or blocker.id
+                for blocker in (getattr(issue, "blocked_by", None) or [])
+                if blocker.identifier or blocker.id
+            ],
+            "start_dependencies": [
+                blocker.identifier or blocker.id
+                for blocker in (getattr(issue, "start_blocked_by", None) or [])
+                if blocker.identifier or blocker.id
+            ],
             # Indicate whether the tracker state is fresh (read from canonical
             # source) or potentially stale (read from a non-state-branch checkout
             # or when the state-branch worktree could not be synced).

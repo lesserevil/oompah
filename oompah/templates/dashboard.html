@@ -2093,6 +2093,8 @@ const COLUMN_CONFIG = [
   {key: 'Needs Human', label: 'Needs Human', status: 'Needs Human', base: false, group: 'waiting'},
   {key: 'Needs CI Fix', label: 'Needs CI Fix', status: 'Needs CI Fix', base: false},
   {key: 'Needs Rebase', label: 'Needs Rebase', status: 'Needs Rebase', base: false},
+  {key: 'In Validation', label: 'In Validation', status: 'In Validation', base: false},
+  {key: 'Ready to Integrate', label: 'Ready to Integrate', status: 'Ready to Integrate', base: false},
   {key: 'Decomposed', label: 'Decomposed', status: 'Decomposed', base: false, group: 'triage'},
   {key: 'Duplicate Candidate', label: 'Duplicate Candidate', status: 'Duplicate Candidate', base: false, group: 'triage'},
   {key: 'Done', label: 'Done', status: 'Done', base: true},
@@ -3728,6 +3730,34 @@ function renderDuplicateScreeningSummary(summary) {
   `;
 }
 
+function renderIntegrationSummary(record, queue) {
+  if (!record && !queue) return '';
+  const source = queue || record || {};
+  const state = source.state || record?.state || 'ready';
+  const branch = source.task_branch ? ` · ${source.task_branch}` : '';
+  const head = source.head_sha ? ` @ ${source.head_sha.slice(0, 8)}` : '';
+  const reason = source.wait_reason || source.last_error || record?.last_error || '';
+  const detail = reason ? ` · ${reason}` : '';
+  return `<div class="duplicate-screening-summary duplicate-screening-${esc(state)}"
+    title="${esc(`Integration ${state}${branch}${head}${detail}`)}">
+    Integration: ${esc(state)}${esc(head)}${reason ? ` · ${esc(reason)}` : ''}
+  </div>`;
+}
+
+function renderCoordinationTimeline(messages) {
+  if (!Array.isArray(messages) || !messages.length) return 'No coordination messages';
+  return `<div class="coordination-timeline">${messages.map(message => `
+    <div class="coordination-message">
+      <div><strong>${esc(message.kind || 'message')}</strong>
+        ${esc(message.sender_task || '?')} → ${esc(message.recipient_task || '?')}</div>
+      <div>${esc(message.text || '')}</div>
+      ${message.changed_paths && message.changed_paths.length
+        ? `<div class="integration-summary">Paths: ${esc(message.changed_paths.join(', '))}</div>`
+        : ''}
+    </div>
+  `).join('')}</div>`;
+}
+
 function intakeDisplayValue(value, fallback) {
   if (Array.isArray(value)) return value.length ? value.join(', ') : (fallback || 'None');
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
@@ -3826,6 +3856,9 @@ function createCard(issue) {
         ${epicBadgeHtml}
         ${mergedBadgeHtml}
         ${branchContextHtml}
+        ${issue.coordination_unread
+          ? `<span class="branch-context-badge" title="Unread coordination messages">${esc(issue.coordination_unread)} peer</span>`
+          : ''}
       </span>
       <span class="priority-badge ${pClass}">P${issue.priority ?? 4}</span>
     </div>
@@ -3835,6 +3868,7 @@ function createCard(issue) {
          data-field="description" data-id="${esc(issue.identifier)}">${esc(issue.description || '')}</div>
     ${renderCardIntakeSummary(issue)}
     ${renderDuplicateScreeningSummary(issue.duplicate_screening)}
+    ${renderIntegrationSummary(issue.integration, issue.integration_queue)}
     ${renderCardAttachments(issue)}
   `;
 
@@ -5199,6 +5233,27 @@ async function openDetailPanel(identifier) {
       <div class="detail-field-label">Duplicate check</div>
       <div class="detail-field-value">
         ${renderDuplicateScreeningSummary(detail.duplicate_screening) || 'Not enabled'}
+      </div>
+    </div>
+  `;
+  html += `
+    <div class="detail-field">
+      <div class="detail-field-label">Dependencies</div>
+      <div class="detail-field-value">
+        Must finish after: ${esc((detail.dependencies || []).join(', ') || 'None')}<br>
+        Cannot start until: ${esc((detail.start_dependencies || []).join(', ') || 'None')}
+      </div>
+    </div>
+    <div class="detail-field">
+      <div class="detail-field-label">Integration</div>
+      <div class="detail-field-value">
+        ${renderIntegrationSummary(detail.integration, detail.integration_queue) || 'Not submitted'}
+      </div>
+    </div>
+    <div class="detail-field">
+      <div class="detail-field-label">Coordination</div>
+      <div class="detail-field-value">
+        ${renderCoordinationTimeline(detail.coordination)}
       </div>
     </div>
   `;

@@ -1,10 +1,4 @@
-"""Tests for P0 dispatch bypass policy (oompah-zlz_2-dyi).
-
-P0 tasks bypass the blocker-chain check (a blocker in non-terminal
-state OR closed-with-unmerged-PR no longer blocks dispatch). Other
-gates — pauses, structural sanity, dedup, label gates that signal
-human interaction — still apply to P0.
-"""
+"""Tests for finish-order and hard-start dispatch policy."""
 
 from unittest.mock import MagicMock
 
@@ -19,6 +13,7 @@ def _make_issue(
     priority: int | None = None,
     labels: list | None = None,
     blocked_by: list | None = None,
+    start_blocked_by: list | None = None,
     description: str = "Body so the empty-description gate passes.",
 ) -> Issue:
     return Issue(
@@ -30,6 +25,7 @@ def _make_issue(
         priority=priority,
         labels=labels or [],
         blocked_by=blocked_by or [],
+        start_blocked_by=start_blocked_by or [],
     )
 
 
@@ -50,16 +46,14 @@ def _make_orchestrator(tmp_path) -> Orchestrator:
     return orch
 
 
-class TestP0BypassesBlockerChain:
-    """P0 dispatch must succeed even when a blocker is non-terminal
-    or closed-with-unmerged-PR."""
+class TestDependencyDispatchSemantics:
+    """Finish-order edges never block start; hard-start edges always do."""
 
-    def test_p1_with_open_blocker_is_rejected(self, tmp_path):
-        # Regression: ensure non-P0 still blocked.
+    def test_p1_with_open_finish_order_dependency_dispatches(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         blocker = BlockerRef(id="upstream", identifier="upstream", state="open")
         issue = _make_issue(priority=1, blocked_by=[blocker])
-        assert orch._should_dispatch(issue) is False
+        assert orch._should_dispatch(issue) is True
 
     def test_p0_with_open_blocker_dispatches(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
@@ -67,13 +61,12 @@ class TestP0BypassesBlockerChain:
         issue = _make_issue(priority=0, blocked_by=[blocker])
         assert orch._should_dispatch(issue) is True
 
-    def test_p1_with_closed_unmerged_blocker_is_rejected(self, tmp_path):
-        # Regression: closed-with-unmerged-PR still blocks non-P0.
+    def test_p1_with_closed_unmerged_finish_dependency_dispatches(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         orch._unmerged_review_branches = {"upstream"}
         blocker = BlockerRef(id="upstream", identifier="upstream", state="closed")
         issue = _make_issue(priority=1, blocked_by=[blocker])
-        assert orch._should_dispatch(issue) is False
+        assert orch._should_dispatch(issue) is True
 
     def test_p0_with_closed_unmerged_blocker_dispatches(self, tmp_path):
         # The dyi case: trickle-6zi (P0) was held by trickle-0vv whose
@@ -93,6 +86,25 @@ class TestP0BypassesBlockerChain:
         ]
         issue = _make_issue(priority=0, blocked_by=blockers)
         assert orch._should_dispatch(issue) is True
+
+    def test_non_p0_with_open_hard_start_dependency_is_rejected(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        blocker = BlockerRef(id="upstream", identifier="upstream", state="open")
+        issue = _make_issue(priority=1, start_blocked_by=[blocker])
+        assert orch._should_dispatch(issue) is False
+
+    def test_p0_does_not_bypass_hard_start_dependency(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        blocker = BlockerRef(id="upstream", identifier="upstream", state="open")
+        issue = _make_issue(priority=0, start_blocked_by=[blocker])
+        assert orch._should_dispatch(issue) is False
+
+    def test_duplicate_preflight_bypasses_hard_start_dependency(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        blocker = BlockerRef(id="upstream", identifier="upstream", state="open")
+        issue = _make_issue(priority=1, start_blocked_by=[blocker])
+        orch.config.duplicate_preflight_max_agents = 1
+        assert orch._should_dispatch(issue, duplicate_preflight=True) is True
 
 
 class TestP0StillRespectsHumanGates:

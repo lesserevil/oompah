@@ -68,10 +68,11 @@ oompah task comment <task-id> --project <project-id> --message "Progress update"
 oompah task create --project <project-id> --title "Follow-up title" --description "Details"
 oompah task child-create <task-id> --project <project-id> --title "Child task title" --description "Details"
 oompah task set-dependency <task-id> --project <project-id> --depends-on <other-task-id>
+oompah task set-dependency <task-id> --project <project-id> --depends-on <other-task-id> --hard-start
 oompah task remove-dependency <task-id> --project <project-id> --depends-on <other-task-id>
 oompah task add-label <task-id> needs:frontend --project <project-id>
 oompah task set-status <task-id> Open --project <project-id>
-oompah task set-status <task-id> Done --project <project-id> --summary "Completed"
+oompah task submit <task-id> --project <project-id> --summary "Completed"
 ```
 
 ### GitHub Issue Intake
@@ -109,8 +110,10 @@ comments.
   GitHub Issues.
 - Create decomposition children with `oompah task child-create`; do not
   hand-write parent metadata.
-- Record blockers with `oompah task set-dependency`; do not hand-write
-  dependency metadata.
+- Record finish-order constraints with `oompah task set-dependency`; they do
+  not block parallel starts. Add `--hard-start` only when implementation
+  cannot begin before the prerequisite finishes. Do not hand-write dependency
+  metadata.
 - Remove obsolete blockers with `oompah task remove-dependency`; do not
   hand-write dependency metadata.
 - Always pass `--author oompah` when posting progress comments through the CLI.
@@ -127,7 +130,8 @@ When ending a work session, complete all of these steps:
 1. File follow-up tasks with `oompah task create` for remaining work.
 2. Run focused checks for the code you changed. Oompah runs the configured
    complete branch gate once for the exact review-ready head.
-3. Update the current oompah task status or leave a clear handoff comment.
+3. Submit completed work with `oompah task submit`, or leave a clear handoff
+   comment when the work is incomplete.
 4. Push all committed work:
    ```bash
    git pull --rebase

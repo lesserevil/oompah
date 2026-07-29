@@ -15,6 +15,7 @@ from oompah.statuses import (
     NEEDS_REBASE,
     OPEN,
     PROPOSED,
+    READY_TO_INTEGRATE,
     canonicalize_status,
     is_dispatchable_status,
     is_terminal_status,
@@ -99,6 +100,18 @@ def test_in_validation_canonicalizes_aliases_and_has_lifecycle_flags():
     assert not is_terminal_status(IN_VALIDATION)
     assert not is_working_status(IN_VALIDATION)
     assert not is_dispatchable_status(IN_VALIDATION)
+
+
+def test_ready_to_integrate_is_active_but_not_dispatchable_or_terminal():
+    assert canonicalize_status("ready-to-integrate") == READY_TO_INTEGRATE
+    assert canonicalize_status("ready for integration") == READY_TO_INTEGRATE
+    assert READY_TO_INTEGRATE in CANONICAL_STATUSES
+    assert status_rank(IN_VALIDATION) < status_rank(READY_TO_INTEGRATE)
+    assert status_rank(READY_TO_INTEGRATE) < status_rank(DONE)
+    assert not is_terminal_status(READY_TO_INTEGRATE)
+    assert not is_working_status(READY_TO_INTEGRATE)
+    assert not is_dispatchable_status(READY_TO_INTEGRATE)
+    assert epic_rollup_state([READY_TO_INTEGRATE, OPEN]) == IN_PROGRESS
 
 
 # ---------------------------------------------------------------------------

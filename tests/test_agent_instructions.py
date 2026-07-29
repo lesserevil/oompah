@@ -26,7 +26,8 @@ Keep docs in sync.
     assert updated.startswith(original)
     assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" in updated
     assert "oompah task create --project <project-id>" in updated
-    assert "oompah task set-status <owner/repo#number> Done" in updated
+    assert "oompah task submit <owner/repo#number>" in updated
+    assert "oompah coordinate peers <owner/repo#number>" in updated
     assert "Use these commands only after the CLI is installed" in updated
     assert "GitHub Fallback" in updated
     assert "Work is not complete until the code is pushed" in updated
@@ -96,7 +97,10 @@ def test_rendered_oompah_task_instructions_use_native_markdown_store():
     assert "Do not decompose work in GitHub" in rendered
     assert "OOMPAH_SERVER_URL=\"${OOMPAH_SERVER_URL:-http://127.0.0.1:<port>}\"" in rendered
     assert "oompah task view <task-id> --project <project-id>" in rendered
-    assert "oompah task set-status <task-id> Done --project <project-id>" in rendered
+    assert "oompah task submit <task-id> --project <project-id>" in rendered
+    assert "oompah coordinate peers <task-id> --project <project-id>" in rendered
+    assert "oompah coordinate checkpoint <task-id>" in rendered
+    assert "Normal dependencies constrain integration order" in rendered
     assert "Use `$TMPDIR` or `mktemp` for scratch files" in rendered
     assert "Never hard-code `/tmp`" in rendered
     assert "Work is not complete until the code is pushed" in rendered
