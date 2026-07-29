@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T07:26:49.140378Z'
+updated_at: '2026-07-29T07:35:30.218102Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -55,13 +55,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 34c2fa2a-157b-4d63-908e-4fc91784e203
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 77150226
-  total_output_tokens: 252947
+  total_input_tokens: 81850509
+  total_output_tokens: 265790
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 68817205
-      output_tokens: 217592
+      input_tokens: 73517488
+      output_tokens: 230435
       cost_usd: 0.0
     sonnet:
       input_tokens: 2359197
@@ -270,6 +270,12 @@ oompah.task_costs:
     output_tokens: 3767
     cost_usd: 0.0
     recorded_at: '2026-07-29T07:26:29.630521+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 4700283
+    output_tokens: 12843
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T07:35:26.627270+00:00'
 ---
 ## Summary
 
@@ -2094,5 +2100,25 @@ author: oompah
 created: 2026-07-29 07:26
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 07:35
+---
+Agent completed successfully in 519s (4713126 tokens)
+---
+author: oompah
+created: 2026-07-29 07:35
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 72
+- Tokens: 4.7M in / 12.8K out [4.7M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 39s
+- Log: OOMPAH-470__20260729T072651Z.jsonl
+---
+author: oompah
+created: 2026-07-29 07:35
+---
+Agent completed 9 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
