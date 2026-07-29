@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-537
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Wake event-driven scheduler when a project resumes
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:05:46.463901Z'
-updated_at: '2026-07-29T00:05:46.463901Z'
+updated_at: '2026-07-29T00:05:58.953166Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,3 +27,11 @@ Production follow-up discovered while verifying OOMPAH-535 and OOMPAH-536. POST 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 00:05
+---
+Claimed directly during live verification. The project pause is already persisted as false, but no refresh event was posted, so no agent can be dispatched before this fix or the periodic full sync.
+---
+<!-- COMMENTS:END -->
