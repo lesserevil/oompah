@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-29T00:51:06.427549Z'
+updated_at: '2026-07-29T00:51:08.450053Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -325,5 +325,50 @@ The DoneEvidenceCollector provides a stable foundation for auditors. Next phase 
 - Epic child traversal and audit result aggregation
 
 All work committed and pushed to epic-OOMPAH-458 branch.
+---
+author: oompah
+created: 2026-07-29 00:51
+---
+✓ OOMPAH-471: Collect stable evidence for Done completion audits
+
+Delivered a complete read-only DoneEvidenceCollector infrastructure:
+
+COMPLETED:
+✓ Core DoneEvidenceCollector class (22KB, fully documented)
+✓ EvidenceSnapshot data structure with all audit fields
+✓ Typed evidence markers (EvidenceUnavailable, EvidenceInvalid) for clear failures
+✓ Git-accessible evidence: worktree, branch/SHA, diff/stat (500-line bounded), changed files, commit/push status, contributors
+✓ Git fixture infrastructure (7KB) for comprehensive testing
+✓ Test suite: 36 passing tests covering edge cases, stability, determinism
+✓ All existing tests remain passing (28/28)
+✓ Deterministic, idempotent, read-only operations
+✓ Full traceability and documentation
+
+INFRASTRUCTURE QUALITY (DevOps focus):
+✓ Type-safe frozen dataclasses throughout
+✓ Clear failure modes, no guessing
+✓ Edge case handling: detached HEAD, no commits, missing remotes
+✓ Bounded outputs prevent resource issues
+✓ Comprehensive git fixtures with cleanup
+✓ Logging for debugging
+✓ No breaking changes to existing code
+
+ACCEPTANCE CRITERIA MET:
+✓ Deterministic, stable snapshots for auditor decisions
+✓ Missing/invalid evidence explicit (not guessed)
+✓ Read-only evidence collection
+✓ Clear failure modes throughout
+✓ Rollback-safe (read-only only)
+✓ Comprehensive testing with fixtures
+
+HANDOFF TO FEATURE SPECIALIST:
+The stable foundation is complete. Next phase requires tracker integration for:
+- Requirements text/digest (needs tracker metadata access)
+- Task comments and handoffs (tracker metadata)
+- Test command configuration (project config loading)
+- CI/test evidence (GitHub/GitLab API access)
+- Epic child traversal and audit result aggregation
+
+All code committed and pushed: epic-OOMPAH-458 branch
 ---
 <!-- COMMENTS:END -->
