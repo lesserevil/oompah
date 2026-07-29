@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:24.220262Z'
-updated_at: '2026-07-29T18:58:57.427931Z'
+updated_at: '2026-07-29T19:02:43.068420Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-485
 target_branch: null
 review_url: null
@@ -261,5 +261,10 @@ author: oompah
 created: 2026-07-29 18:58
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-29 19:02
+---
+Continuation review: prior run committed 2 changes (dcf6b5339, 290e83498) adding the In Validation board column and full terminal-audit detail UI to the dashboard, plus a template/JS static-contract test file. Verified today: (1) tests/test_dashboard_terminal_audit.py — all 12 tests pass (column rendering, task placement/filters, phase/attempt/revision/models/result rendering, safe escaping, safe API projection consumption, pending-as-status not alert, fail-closed override visibility, target+confirmation+reason validation, PATCH+audit_override request shape, loading/error paths, card+detail integration, responsive @720px + overflow-wrap hooks). (2) Neighboring suites still green: test_dashboard_conditional_columns, test_dashboard_board_reconciliation, test_dashboard_hide_merged, test_dashboard_detail_panel_width — 108 passed. Working tree clean; branch up to date with origin. Submitting.
 ---
 <!-- COMMENTS:END -->

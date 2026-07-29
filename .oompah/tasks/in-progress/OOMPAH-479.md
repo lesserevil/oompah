@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-29T18:45:00.221652Z'
+updated_at: '2026-07-29T19:02:42.184964Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -130,5 +130,10 @@ author: oompah
 created: 2026-07-29 18:45
 ---
 **Implementation**: Routed 6 direct tracker.update_issue(MERGED) calls through TerminalTransitionCoordinator in orchestrator: (1) Done→Merged promotion (2 locations), (2) merged-label maintenance, (3) stale In Review reconciliation, (4) epic rollup children, (5) YOLO direct merge. Created _request_merged_via_coordinator() helper wrapper for async coordinator calls in sync contexts. Now updating 20 failing tests to mock the coordinator instead of tracker.
+---
+author: oompah
+created: 2026-07-29 19:02
+---
+**Verification**: All 494 tests pass. Implemented routing of Merged transitions through TerminalTransitionCoordinator: (1) Created _request_merged_via_coordinator() helper for sync-context async calls, (2) Updated 6 direct tracker.update_issue(MERGED) calls to use coordinator with evidence fingerprints, (3) Updated test suite to mock coordinator instead of direct tracker calls, ensuring idempotent webhook/YOLO/reconciliation handling. Acceptance criteria met: every merge observation validated before task says Merged, duplicate observations remain idempotent.
 ---
 <!-- COMMENTS:END -->
