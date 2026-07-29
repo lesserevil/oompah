@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-539
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Keep Open-task duplicate-screening board state synchronized with live workers
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T02:21:39.391715Z'
+updated_at: '2026-07-29T02:22:44.247042Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: d1a8f463-984a-47d1-84c4-749087137b34
+oompah.agent_run_id: 67133101-ff8a-48bb-bd31-fd1df594e639
 oompah.task_costs:
   total_input_tokens: 1546
   total_output_tokens: 3187
@@ -281,5 +281,15 @@ Output tail:
 ```text
 No existing worktree matched the review branch tip. Recreate the task worktree before retrying.
 ```
+---
+author: oompah
+created: 2026-07-29 02:22
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 02:22
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
