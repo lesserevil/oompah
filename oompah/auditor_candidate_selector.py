@@ -342,8 +342,12 @@ class AuditorCandidateSelector:
                 continue
             fallback.append(candidate)
 
+        # Same-provider candidates are a fallback policy, not additional
+        # round-robin choices.  Keeping them alongside independent candidates
+        # would eventually dispatch a contributing provider even though an
+        # independently provable provider is available.
         if independent:
-            return [*independent, *fallback], None
+            return independent, None
         if fallback:
             return fallback, None
         if unknown_models:

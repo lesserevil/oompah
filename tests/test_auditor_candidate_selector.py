@@ -267,6 +267,39 @@ class TestAuditorCandidateSelector_SameProviderDifferentModel:
         assert auditor_role.candidates[0].provider_id == "prov-a"
         assert auditor_role.candidates[0].model == "model-2"
 
+    def test_same_provider_fallback_is_not_kept_with_independent_candidates(self):
+        """Contributing-provider fallbacks are used only when independence is unavailable."""
+        providers = {
+            "prov-a": _make_provider(
+                "prov-a", "ProviderA", models=["model-1", "model-2"]
+            ),
+            "prov-b": _make_provider("prov-b", "ProviderB", models=["model-3"]),
+        }
+        role = Role(
+            name="default",
+            strategy="round_robin",
+            candidates=[
+                Candidate(provider_id="prov-a", model="model-1"),
+                Candidate(provider_id="prov-a", model="model-2"),
+                Candidate(provider_id="prov-b", model="model-3"),
+            ],
+            updated_at=datetime.now(timezone.utc),
+        )
+
+        selector = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store(providers),
+        )
+        auditor_role, reason = selector.seed_auditor_role(
+            contributors=[_make_contributor(provider_id="prov-a", model_id="model-1")]
+        )
+
+        assert reason is None
+        assert auditor_role is not None
+        assert [(c.provider_id, c.model) for c in auditor_role.candidates] == [
+            ("prov-b", "model-3")
+        ]
+
     def test_rejects_same_model_even_on_same_provider(self):
         """Exact (provider, model) match is excluded."""
         prov = _make_provider("prov-a", "ProviderA", models=["model-x"], default_model="model-x")
