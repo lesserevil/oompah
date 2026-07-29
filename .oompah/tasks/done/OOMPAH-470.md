@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T03:38:48.590187Z'
+updated_at: '2026-07-29T03:38:50.689832Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -1066,5 +1066,10 @@ author: oompah
 created: 2026-07-29 03:38
 ---
 COMPLETION: OOMPAH-470 is fully implemented and verified. Delivered: (1) oompah/auditor_candidate_selector.py — AuditorCandidateSelector with NoCandidateReason; (2) Migration seeding from deduplicated union of deep/standard/default role candidates plus provider defaults; (3) Filtering pipeline: whitelist → credentials → health → budget → model validity → contributor exclusion; (4) Independence policy: prefer independent providers, allow same-provider explicit-model fallback only when no independent option, reject unknown SDK models on contributing providers; (5) Bootstrap integration (idempotent seeding); (6) Operators can edit via existing RoleStore API; (7) 39 tests covering all acceptance criteria scenarios. All commits pushed to origin/epic-OOMPAH-458.
+---
+author: oompah
+created: 2026-07-29 03:38
+---
+Auditor role seeding and independent provider-model candidate selection fully implemented. AuditorCandidateSelector with complete filtering pipeline (whitelist, credentials, health, budget, model validity, contributor exclusion) and independence policy. Migration seeding from deep/standard/default union plus provider defaults. Bootstrap integration. 39/39 tests passing.
 ---
 <!-- COMMENTS:END -->
