@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-539
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Keep Open-task duplicate-screening board state synchronized with live workers
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T02:20:42.595293Z'
+updated_at: '2026-07-29T02:21:20.332280Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -213,5 +213,29 @@ When duplicate screening claim is acquired/completed:
 ✅ test_duplicate_preflight.py (18 tests)
 ✅ test_dashboard_duplicate_screening.py (4 tests)
 ✅ test_server_issue_snapshot.py (20 tests)
+---
+author: oompah
+created: 2026-07-29 02:21
+---
+**Verification: All Tests Pass ✅**
+
+Ran focused tests for duplicate-screening related behavior and neighboring suites:
+
+**Test Results:**
+- test_server_duplicate_screening_sync.py: 4/4 PASSED (new sync tests)
+- test_duplicate_preflight.py: 18/18 PASSED (lifecycle tests)
+- test_dashboard_duplicate_screening.py: 4/4 PASSED (UI rendering)
+- test_server_issue_snapshot.py: 20/20 PASSED (snapshot behavior)
+
+**Total: 46/46 tests passed**
+
+**What was tested:**
+✅ Snapshot refresh starts before broadcast (fixes ordering issue)
+✅ Wait function correctly indicates completion vs timeout (prevents stale broadcasts)
+✅ Broadcast skipped if refresh times out (no stale data propagation)
+✅ All existing duplicate screening functionality intact
+✅ All snapshot serialization and filtering intact
+
+**Ready for merge.** Changes committed and pushed to origin/OOMPAH-539.
 ---
 <!-- COMMENTS:END -->
