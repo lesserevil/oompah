@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-482
 type: feature
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Dispatch one repair-planner run for an epic that fails audit
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:30.191340Z'
-updated_at: '2026-07-29T19:19:08.526177Z'
+updated_at: '2026-07-29T22:50:27.547553Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-482
 target_branch: null
 review_url: null
@@ -36,7 +36,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 524da379-2dfe-4079-978e-1f855f327aee
+oompah.agent_run_id: 68acba9c-17ed-4e8e-9e68-dc3a8439fb49
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-482
 oompah.task_costs:
   total_input_tokens: 406632
@@ -72,12 +72,45 @@ oompah.task_costs:
     recorded_at: '2026-07-29T19:19:07.093326+00:00'
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-459--task-OOMPAH-482
+  base_branch: epic-OOMPAH-459
+  base_sha: a50a9a6451f8a2222a5688bea2f2690b7cfc170a
   head_sha: 8ac2e0fffcd70cd366e05155213dcd14b76adffb
   submitted_at: '2026-07-29T19:18:51.657554+00:00'
-  updated_at: '2026-07-29T19:18:51.657554+00:00'
+  updated_at: '2026-07-29T22:50:04.629045+00:00'
+  last_error: 'Rebase onto the latest epic head conflicted: warning: skipped previously
+    applied commit d36868f03
+
+    warning: skipped previously applied commit 192e07161
+
+    warning: skipped previously applied commit 8d830a512
+
+    warning: skipped previously applied commit 65c8e4725
+
+    hint: use --reapply-cherry-picks to include skipped commits
+
+    hint: Disable this message with "git config set advice.skippedCherryPicks false"
+
+    Rebasing (1/2)
+
+    error: could not apply 7b12cf8cc... OOMPAH-476: Stage terminal status requests
+    through coordinator
+
+    hint: Resolve all conflicts manually, mark them as resolved with
+
+    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+    hint: You can instead skip this commit: run "git rebase --skip".
+
+    hint: To abort and get back to the state before "git rebase", run "git rebase
+    --abort".
+
+    hint: Disable this message with "git config set advice.mergeConflict false"
+
+    Could not apply 7b12cf8cc... # OOMPAH-476: Stage terminal status requests through
+    coordinator'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-482__20260729T183344Z
@@ -246,5 +279,29 @@ Run #7 [attempt=7, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 33m 10s
 - Log: OOMPAH-482__20260729T184610Z.jsonl
+---
+author: oompah
+created: 2026-07-29 22:50
+---
+Integration found a rebase conflict on `epic-OOMPAH-459--task-OOMPAH-482`. Resolve it against `epic-OOMPAH-459`, run the required tests, push the same private branch, and `oompah task submit` it again.
+---
+author: oompah
+created: 2026-07-29 22:50
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 22:50
+---
+Agent failed: Epic branch epic-OOMPAH-459 diverged from origin/epic-OOMPAH-459; reconcile both heads before dispatching more children. Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-07-29 22:50
+---
+Run #1 [attempt=1, profile=standard, role=— -> Claude/sonnet]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 5s
 ---
 <!-- COMMENTS:END -->

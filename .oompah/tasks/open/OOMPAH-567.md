@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-567
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Install complete test dependencies in fresh Makefile worktrees
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:48:39.126282Z'
-updated_at: '2026-07-29T22:49:16.762221Z'
+updated_at: '2026-07-29T22:50:25.857415Z'
 work_branch: null
 target_branch: null
 review_url: null
