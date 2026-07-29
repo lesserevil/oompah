@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-469
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Add the reserved read-only auditor focus and prompt contract
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:09.346734Z'
-updated_at: '2026-07-29T00:34:43.780728Z'
+updated_at: '2026-07-29T00:35:09.156035Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -297,5 +297,10 @@ author: oompah
 created: 2026-07-29 00:34
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-29 00:35
+---
+Recovered the completed worker handoff after its in-agent CLI received HTTP 401. Commit 4ee93839f is pushed on epic-OOMPAH-458; the branch is clean. Verification recorded by the worker: 393 focused auditor/prompt/authority tests and 188 ACP backend tests passed; Ruff and git diff checks passed. A redundant redispatch on the still-Open tracker record was stopped by completing this handoff.
 ---
 <!-- COMMENTS:END -->
