@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-07-29T03:13:17.360680Z'
+updated_at: '2026-07-29T03:13:20.014347Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -303,5 +303,10 @@ Summary of delivered work:
 - tests/test_auditor_result_api.py: 68 tests covering owner session, wrong session/task/project, expired/stale audit, malformed enum, oversized output, status injection, secret-like fields, duplicate/conflicting submissions, coordinator failure, and tool policy enforcement.
 
 Security properties verified: PASS/FAIL/NEEDS_HUMAN-only verdicts enforced, no arbitrary status injection, no credential leakage via safe_evidence, session ownership enforced via AuditorTargetContract fields, conflicting submissions rejected.
+---
+author: oompah
+created: 2026-07-29 03:13
+---
+Added auditor-only structured result submission API and tool. Enhanced parse_auditor_result with size limits and credential detection. Wired audit_result_handler to coordinator in both API and ACP worker paths. 68 new tests covering all acceptance criteria scenarios; all 177 tests across auditor/coordinator suites pass. Branch epic-OOMPAH-458 pushed.
 ---
 <!-- COMMENTS:END -->
