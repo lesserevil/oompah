@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T13:52:12.352393Z'
+updated_at: '2026-07-29T13:52:15.069037Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -3813,5 +3813,10 @@ author: oompah
 created: 2026-07-29 13:52
 ---
 VERIFICATION: Ran complete test suite. Result: 13178 passed, 40 skipped, 40 warnings in 66.31s. All tests pass successfully. The implementation includes comprehensive test coverage for: different provider/model scenarios, same-provider fallback, multi-contributor epic exclusion, unknown ACP model handling, round-robin ordering, whitelist enforcement, health/credential filtering, budget constraints, empty role handling, and migration seeding. No test failures detected.
+---
+author: oompah
+created: 2026-07-29 13:52
+---
+COMPLETED: Implemented reserved editable auditor role with independent provider-model candidate selection. Implementation includes: auditor role creation and migration seeding from deduplicated role union (deep/standard/default + configured provider defaults); comprehensive candidate filtering by whitelist/credentials/health/budget/model validity; contributor model exclusion with preference for independent providers; fallback to contributing providers only when model differs from all contributed models; rejection of unknown ACP models; normalized no-candidate diagnostics. All code committed and pushed to epic-OOMPAH-458. Full test suite: 13178 passed, 40 skipped. Acceptance criteria met: selected auditors are demonstrably independent; unsafe candidates excluded; role editable through existing configuration path.
 ---
 <!-- COMMENTS:END -->
