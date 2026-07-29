@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import shlex
 import subprocess
 import threading
@@ -74,6 +76,52 @@ def test_new_head_command_or_target_invalidates_pass(tmp_path):
     assert counter.read_text(encoding="utf-8") == "xxxx"
 
 
+def test_pre_sanitization_evidence_is_invalidated(tmp_path):
+    repo = _git_repo(tmp_path)
+    counter = tmp_path / "counter"
+    state = tmp_path / "quality.json"
+    command = f"printf x >> {shlex.quote(str(counter))}"
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    legacy_key = hashlib.sha256(
+        "\0".join(
+            (
+                "https://example.test/org/repo",
+                "main",
+                "work",
+                head_sha,
+                command,
+            )
+        ).encode("utf-8")
+    ).hexdigest()
+    state.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "results": {
+                    legacy_key: {
+                        "status": "passed",
+                        "head_sha": head_sha,
+                        "command": command,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run(BranchQualityGate(str(state)), repo, command)
+
+    assert result.passed and not result.cached
+    assert counter.read_text(encoding="utf-8") == "x"
+    assert json.loads(state.read_text(encoding="utf-8"))["version"] == 2
+
+
 def test_failure_and_timeout_do_not_create_passing_evidence(tmp_path):
     repo = _git_repo(tmp_path)
     state = tmp_path / "quality.json"
@@ -126,6 +174,28 @@ def test_no_command_is_an_explicit_non_blocking_result(tmp_path):
     )
 
     assert result.status == "not_configured"
+    assert result.passed
+
+
+def test_gate_subprocess_strips_client_credentials_only(tmp_path, monkeypatch):
+    repo = _git_repo(tmp_path)
+    monkeypatch.setenv("OOMPAH_SERVER_USERNAME", "operator")
+    monkeypatch.setenv("OOMPAH_SERVER_PASSWORD", "secret")
+    monkeypatch.setenv("OOMPAH_SERVER_PASSWORD_FILE", "/secret/path")
+    monkeypatch.setenv("QUALITY_GATE_SENTINEL", "visible")
+    command = (
+        'test -z "${OOMPAH_SERVER_USERNAME+x}"'
+        ' && test -z "${OOMPAH_SERVER_PASSWORD+x}"'
+        ' && test -z "${OOMPAH_SERVER_PASSWORD_FILE+x}"'
+        ' && test "$QUALITY_GATE_SENTINEL" = visible'
+    )
+
+    result = _run(
+        BranchQualityGate(str(tmp_path / "quality.json")),
+        repo,
+        command,
+    )
+
     assert result.passed
 
 
