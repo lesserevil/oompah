@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: Needs Human
+status: Open
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T05:07:32.144281Z'
+updated_at: '2026-07-29T05:23:23.998742Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -1032,5 +1032,17 @@ author: oompah
 created: 2026-07-29 05:07
 ---
 Agent completed 6 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
+---
+author: oompah
+created: 2026-07-29 05:23
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #8)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
