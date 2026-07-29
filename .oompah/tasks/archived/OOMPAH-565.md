@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-565
 type: task
-status: In Progress
+status: Archived
 priority: 0
 title: Rebase epic-OOMPAH-459 onto main
 parent: OOMPAH-459
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:12:18.295069Z'
-updated_at: '2026-07-29T23:21:39.288465Z'
+updated_at: '2026-07-29T23:22:00.067718Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-565
 target_branch: null
 review_url: null
@@ -720,5 +720,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 59s
 - Log: OOMPAH-565__20260729T232046Z.jsonl
+---
+author: oompah
+created: 2026-07-29 23:21
+---
+Operator recovery completed the rebase at verified head cfa5ca64f (13,615 tests passed). This auto-filed repair task is now obsolete; archiving it to prevent another repair worker from racing the canonical epic branch.
 ---
 <!-- COMMENTS:END -->
