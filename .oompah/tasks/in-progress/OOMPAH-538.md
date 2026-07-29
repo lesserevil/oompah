@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-07-29T00:41:38.435072Z'
+updated_at: '2026-07-29T01:13:41.599540Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -101,5 +101,10 @@ author: oompah
 created: 2026-07-29 00:41
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-29 01:13
+---
+Your branch is pushed and verification is sufficient. The task CLI 401 is the known bug you just fixed; for this final handoff, explicitly export OOMPAH_SERVER_URL=http://127.0.0.1:8090, OOMPAH_SERVER_USERNAME=oompah-cli, and OOMPAH_SERVER_PASSWORD_FILE=/home/shedwards/.oompah/secrets/oompah-cli-password, then post the handoff and exit. Do not rerun the full suite again.
 ---
 <!-- COMMENTS:END -->
