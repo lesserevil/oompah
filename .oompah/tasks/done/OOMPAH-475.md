@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T16:23:46.802781Z'
+updated_at: '2026-07-29T16:25:35.394071Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -1371,5 +1371,37 @@ author: oompah
 created: 2026-07-29 16:23
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-29 16:25
+---
+✓ Verification: All work is committed, pushed, and tested.
+
+**Status:** Complete and ready for review
+
+**Verification Results:**
+- Full test suite: 13,185 passed, 40 skipped ✓
+- Git status: working tree clean, branch up to date with origin ✓
+- All implementation files present and committed ✓
+- All documentation complete and committed ✓
+
+**Deliverables (all pushed to epic-OOMPAH-458):**
+- Implementation: auditor_dispatch.py, auditor.py, auditor_candidate_selector.py, terminal_audit.py, terminal_transition_coordinator.py + integration with orchestrator
+- Documentation: plans/independent-auditor-dispatch.md (design & flow), docs/auditor-dispatch-operations.md (operator guide)
+- Tests: 7 new dispatch tests + full focused test suite (78+ tests)
+- Configuration: .env.example updates for OOMPAH_AUDIT_MAX_ATTEMPTS
+
+**Feature Completeness:**
+✓ Priority audit lane with persisted In Validation requests
+✓ Independent candidate selection with provider constraints
+✓ Epic-branch serialization lock (writer/auditor safety)
+✓ Global concurrency limit enforcement
+✓ Attempt identity persisted before launch
+✓ Candidate rotation on transient failure (backoff up to OOMPAH_AUDIT_MAX_ATTEMPTS)
+✓ Restart rehydration & abandoned-session detection
+✓ Idempotent retry semantics
+✓ Actionable Needs Human fallback (no candidates/max attempts exhausted)
+
+All acceptance criteria met.
 ---
 <!-- COMMENTS:END -->
