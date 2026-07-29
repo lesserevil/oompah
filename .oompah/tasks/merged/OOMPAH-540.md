@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-540
 type: task
-status: In Review
+status: Merged
 priority: null
 title: Let read-only duplicate preflight bypass dependency and epic serialization
   gates
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T00:46:32.053029Z'
-updated_at: '2026-07-29T00:54:05.876243Z'
+updated_at: '2026-07-29T00:59:56.331030Z'
 work_branch: OOMPAH-540
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/572
