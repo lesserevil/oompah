@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-29T23:58:41.495154Z'
+updated_at: '2026-07-29T23:59:42.607601Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,24 @@ author: oompah
 created: 2026-07-29 23:58
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-07-29 23:59
+---
+**Understanding:** This is a bug fix for restart-safety and explicit retries in durable integration. Key issues:
+
+1. **Restart lease recovery:** On orchestrator restart, integrating leases remain stuck for ~1 hour (current lease expiration). Need to recover abandoned leases at startup.
+
+2. **Explicit retry vs background sync:** Currently, enqueue() is idempotent for same head+branch. This blocks explicit user resubmits from clearing blocked rows. Need to distinguish explicit retries from background sync.
+
+3. **Process cleanup on shutdown:** quality_gate.py creates subprocesses with start_new_session=True (process groups), but there's no guaranteed cleanup on orchestrator shutdown. Active process groups can prevent leases from becoming reclaimable.
+
+**Planned approach:**
+1. Add explicit_retry flag to IntegrationQueueStore.enqueue() to distinguish explicit submissions
+2. Implement abandoned integrating lease recovery at orchestrator startup
+3. Add graceful shutdown hook in orchestrator to terminate active quality gate process groups
+4. Add tests for: blocked explicit resubmit, restart with durable integrating row, shutdown cleanup, no duplicate claims
+
+Will proceed with discovery of server submission wiring next.
 ---
 <!-- COMMENTS:END -->
