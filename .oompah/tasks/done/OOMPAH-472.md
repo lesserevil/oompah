@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T02:18:31.257629Z'
+updated_at: '2026-07-29T02:18:40.296729Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -58,13 +58,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 12a6348c-da5b-4d79-ad96-90dc83f31b20
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 61
-  total_output_tokens: 40112
+  total_input_tokens: 75
+  total_output_tokens: 42530
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 61
-      output_tokens: 40112
+      input_tokens: 75
+      output_tokens: 42530
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -85,6 +85,12 @@ oompah.task_costs:
     output_tokens: 2290
     cost_usd: 0.0
     recorded_at: '2026-07-29T02:13:30.105260+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 14
+    output_tokens: 2418
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T02:18:37.744109+00:00'
 ---
 ## Summary
 
@@ -298,5 +304,25 @@ author: oompah
 created: 2026-07-29 02:18
 ---
 Completion: MergedEvidenceCollector is fully delivered. The implementation (oompah/merged_evidence_collector.py, 989 lines) with 61 tests (tests/test_merged_evidence_collector.py, 1366 lines) is committed as ede290441 on origin/epic-OOMPAH-458. Working tree is clean. All acceptance criteria met: the collector distinguishes correct-target landing from tracker labels alone via SCM review state, CI status, and git commit containment; detects 10+ precise failure modes; supports epic/nested-epic rollups with child Done audit chains.
+---
+author: oompah
+created: 2026-07-29 02:18
+---
+Delivered MergedEvidenceCollector (oompah/merged_evidence_collector.py) with 61 passing tests. Verifies actual target-branch landing via SCM review state, CI status, and git containment. Detects wrong target, open/unmerged review, failed/pending CI, stale branch tip, stranded commits, deleted branches, epic rollups, and nested epic chains. Committed as ede290441 on origin/epic-OOMPAH-458.
+---
+author: oompah
+created: 2026-07-29 02:18
+---
+Agent completed successfully in 74s (2432 tokens)
+---
+author: oompah
+created: 2026-07-29 02:18
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 22, Tool calls: 14
+- Tokens: 14 in / 2.4K out [2.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 14s
+- Log: OOMPAH-472__20260729T021728Z.jsonl
 ---
 <!-- COMMENTS:END -->
