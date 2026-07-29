@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-477
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Replace the post-worker completion verifier with Done audit staging
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T18:14:45.140903Z'
+updated_at: '2026-07-29T18:16:37.522669Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -121,5 +121,10 @@ author: oompah
 created: 2026-07-29 18:14
 ---
 Implementation: Replaced _run_completion_verifier() call with terminal_transition_coordinator.request_transition() in worker-exit path. Removed _verifier_reject_counts tracking and retry ceiling logic. Added deprecation notice to old verifier method. Updated test_close_gate.py to mock the coordinator. Challenge: Tests need proper project_id setup to avoid early returns. Working on test updates.
+---
+author: oompah
+created: 2026-07-29 18:16
+---
+Verification: Focused tests pass. Replaced _run_completion_verifier() call with terminal_transition_coordinator.request_transition() to stage Done audits. Key changes: (1) Removed max 3 verifier rejection ceiling and _verifier_reject_counts tracking; (2) Preserved close and unpushed gates as deterministic prechecks; (3) Compute evidence fingerprint from issue description, project_id, task_id, and branch; (4) Captured contributor provenance (orchestrator identity); (5) Deprecate old verifier method; (6) Updated close_gate test to mock coordinator. Tests pass: test_dispatch_close_race.py (17/17), test_close_gate.py::TestOrchestratorCloseGateWiring (8/8), test_unpushed_gate.py (45/45). No fail-open ceiling - auditor determines Done result independently.
 ---
 <!-- COMMENTS:END -->
