@@ -338,6 +338,7 @@ class TestProjectPauseAPI:
         srv._orchestrator = orch
         self.client = TestClient(app)
         self.store = store
+        self.orch = orch
         yield
         srv._orchestrator = old_orch
 
@@ -359,6 +360,12 @@ class TestProjectPauseAPI:
         assert body["ok"] is True
         assert body["paused"] is False
         assert self.store.get("proj-api").paused is False
+        self.orch.request_refresh.assert_called_once_with()
+
+    def test_pause_endpoint_does_not_request_refresh(self):
+        res = self.client.post("/api/v1/projects/proj-api/pause")
+        assert res.status_code == 200
+        self.orch.request_refresh.assert_not_called()
 
     def test_pause_unknown_project_returns_404(self):
         res = self.client.post("/api/v1/projects/proj-nope/pause")
@@ -369,6 +376,15 @@ class TestProjectPauseAPI:
         res = self.client.post("/api/v1/projects/proj-nope/resume")
         assert res.status_code == 404
         assert res.json()["error"]["code"] == "not_found"
+        self.orch.request_refresh.assert_not_called()
+
+    def test_resume_validation_failure_does_not_request_refresh(self):
+        self.orch.project_store.update = MagicMock(
+            side_effect=ProjectError("invalid project update")
+        )
+        res = self.client.post("/api/v1/projects/proj-api/resume")
+        assert res.status_code == 400
+        self.orch.request_refresh.assert_not_called()
 
     def test_pause_persists_to_disk(self, tmp_path):
         self.client.post("/api/v1/projects/proj-api/pause")
