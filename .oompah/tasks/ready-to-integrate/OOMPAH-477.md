@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T18:29:21.782552Z'
+updated_at: '2026-07-29T18:29:41.535769Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-477
 target_branch: null
 review_url: null
@@ -39,13 +39,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 423efc3d-2fbf-4654-b0a8-b1cb97484db6
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-477
 oompah.task_costs:
-  total_input_tokens: 1309833
-  total_output_tokens: 43226
+  total_input_tokens: 1310143
+  total_output_tokens: 43303
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1309833
-      output_tokens: 43226
+      input_tokens: 1310143
+      output_tokens: 43303
       cost_usd: 0.0
   runs:
   - profile: default
@@ -60,6 +60,12 @@ oompah.task_costs:
     output_tokens: 38152
     cost_usd: 0.0
     recorded_at: '2026-07-29T18:16:53.882139+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 310
+    output_tokens: 77
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T18:29:40.147105+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -215,5 +221,15 @@ author: oompah
 created: 2026-07-29 18:29
 ---
 Replace post-worker completion verifier with Done audit staging via terminal-transition-coordinator. Preserved deterministic close/unpushed gates, removed retry ceiling, deferred review creation until audit passes. All tests passing.
+---
+author: oompah
+created: 2026-07-29 18:29
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 15
+- Tokens: 310 in / 77 out [387 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 45s
+- Log: OOMPAH-477__20260729T182602Z.jsonl
 ---
 <!-- COMMENTS:END -->
