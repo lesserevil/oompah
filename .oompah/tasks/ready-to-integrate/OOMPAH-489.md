@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-489
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Validate nested epic auditing, repair planning, races, and cross-tracker behavior
 parent: OOMPAH-460
@@ -16,7 +16,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-07-29T19:21:02.315980Z'
+updated_at: '2026-07-29T19:21:14.635403Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-489
 target_branch: null
 review_url: null
@@ -84,12 +84,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T19:17:08.033429+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-489
-  base_branch: epic-OOMPAH-460
-  base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
-  updated_at: '2026-07-29T19:17:51.499166+00:00'
+  head_sha: ea5f0f0a9a5ead2ca542f17afb038973c5e4727b
+  submitted_at: '2026-07-29T19:21:10.523904+00:00'
+  updated_at: '2026-07-29T19:21:10.523904+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-489__20260729T184610Z
@@ -230,5 +230,10 @@ author: oompah
 created: 2026-07-29 19:21
 ---
 Verification: python -m pytest tests/test_epic_terminal_audit_contract.py -v => 19 passed, 1 skipped (auditor_candidate_selector not yet importable), 1 xfail (repair-planner from OOMPAH-482) in 0.69s. Broader neighboring suites (test_terminal_transition_coordinator.py, test_terminal_audit_enforcement.py) => 130 passed, 1 skipped, 1 xfailed in 0.93s. All lifecycle contract paths exercised across native Markdown, GitHub, and GitLab tracker adapters.
+---
+author: oompah
+created: 2026-07-29 19:21
+---
+Added end-to-end epic terminal-audit lifecycle contract (tests/test_epic_terminal_audit_contract.py, 21 tests) covering shared and nested epic rollup evidence, In-Validation blocking, Done/Merged branch chain across native/GitHub/GitLab tracker adapters, race scenarios (stale evidence, duplicate webhook+poll signals, restart recovery), authorized owner override, and gated placeholders (importorskip + xfail) for the independent-auditor selector and repair-planner behaviors from blocked OOMPAH-479/OOMPAH-482. All focused tests pass.
 ---
 <!-- COMMENTS:END -->
