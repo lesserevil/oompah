@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T21:18:39.662918Z'
+updated_at: '2026-07-29T21:19:09.980422Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -106,5 +106,19 @@ author: oompah
 created: 2026-07-29 21:18
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-29 21:19
+---
+**Understanding**: Epic integration deadlocks when a parent epic branch is stale (lacks merged code that its children depend on). The issue requires: (1) Detecting when a Ready queue's first task depends on merged code missing from its epic, (2) Scheduling a safe epic rebase/reconciliation, (3) Preventing duplicate repair dispatch, (4) Resuming integration after repair, (5) Preserving finish-order and terminal-audit gates.
+
+**Planned approach**: 
+1. Locate and understand the current claim_next logic and epic synchronization policy in orchestrator.py
+2. Identify where the deadlock detection should occur
+3. Implement a repair path that rebases the epic branch to incorporate merged dependencies
+4. Add duplicate repair prevention
+5. Expose actionable queue/maintenance state
+6. Add tests for the repair workflow
+7. Verify existing tests still pass
 ---
 <!-- COMMENTS:END -->
