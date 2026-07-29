@@ -14,7 +14,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T14:38:32.101999Z'
-updated_at: '2026-07-29T14:47:35.845790Z'
+updated_at: '2026-07-29T15:07:17.236226Z'
 work_branch: OOMPAH-543
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/577
@@ -51,5 +51,10 @@ author: oompah
 created: 2026-07-29 14:38
 ---
 Claimed by the interactive Codex session performing the owner-requested Open dependency audit. The human-only label prevents scheduler dispatch while I add the supported removal path and use it to prune verified unnecessary edges.
+---
+author: oompah
+created: 2026-07-29 15:07
+---
+PR #577 CI note: GitHub-hosted Python 3.13 job 90612340751 entered pytest at 14:47:59 UTC and remained in progress >19 minutes; 3.11 and 3.12 passed in about 6 minutes. Exact commit 4591eeca8 passed locally under Python 3.13.11 via make test-serial: 13,136 passed, 7 skipped in 277.11s with clean exit. The immediately preceding main run's Python 3.13 job also passed in 5m29s. This is currently consistent with an isolated hosted-runner/subprocess-test stall rather than a deterministic PR regression; GitHub does not expose the live log archive until completion. PR remains blocked on that required check.
 ---
 <!-- COMMENTS:END -->
