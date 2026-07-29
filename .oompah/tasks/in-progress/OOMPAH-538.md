@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-07-29T01:13:41.599540Z'
+updated_at: '2026-07-29T01:17:38.813753Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 5c6a838c-97c4-418f-8544-d41a32b8b8cb
 oompah.task_costs:
-  total_input_tokens: 338230
-  total_output_tokens: 1640
+  total_input_tokens: 44082980
+  total_output_tokens: 69641
   total_cost_usd: 0.0
   by_model:
     sonnet:
       input_tokens: 338230
       output_tokens: 1640
+      cost_usd: 0.0
+    haiku:
+      input_tokens: 43744750
+      output_tokens: 68001
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -59,6 +63,12 @@ oompah.task_costs:
     output_tokens: 1640
     cost_usd: 0.0
     recorded_at: '2026-07-29T00:40:19.223661+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 43744750
+    output_tokens: 68001
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T01:17:36.286764+00:00'
 ---
 ## Summary
 
@@ -106,5 +116,25 @@ author: oompah
 created: 2026-07-29 01:13
 ---
 Your branch is pushed and verification is sufficient. The task CLI 401 is the known bug you just fixed; for this final handoff, explicitly export OOMPAH_SERVER_URL=http://127.0.0.1:8090, OOMPAH_SERVER_USERNAME=oompah-cli, and OOMPAH_SERVER_PASSWORD_FILE=/home/shedwards/.oompah/secrets/oompah-cli-password, then post the handoff and exit. Do not rerun the full suite again.
+---
+author: oompah
+created: 2026-07-29 01:17
+---
+Agent completed successfully in 2160s (43812751 tokens)
+---
+author: oompah
+created: 2026-07-29 01:17
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 155
+- Tokens: 43.7M in / 68.0K out [43.8M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 36m 0s
+- Log: OOMPAH-538__20260729T004138Z.jsonl
+---
+author: oompah
+created: 2026-07-29 01:17
+---
+Agent completed without closing this issue (2160s (43812751 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
