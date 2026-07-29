@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T02:30:10.240685Z'
+updated_at: '2026-07-29T02:30:13.260011Z'
 work_branch: OOMPAH-539
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/575
@@ -402,5 +402,10 @@ author: oompah
 created: 2026-07-29 02:30
 ---
 Completion: PR #575 opened at https://github.com/lesserevil/oompah/pull/575. The implementation was already complete from the previous agent run — the only missing step was the PR itself. Changes: server.py snapshot refresh-before-broadcast ordering fix + test_server_duplicate_screening_sync.py (4 new tests). All 46 focused tests pass; make test passes (12,890/12,890). Closing task.
+---
+author: oompah
+created: 2026-07-29 02:30
+---
+Fixed duplicate-screening board sync race: refresh snapshot before broadcast in server.py, added return value to wait fn to detect timeout, skip broadcast on stale data. 4 new tests in test_server_duplicate_screening_sync.py. All 46 focused tests + full make test (12,890 passed) green. PR #575 opened.
 ---
 <!-- COMMENTS:END -->
