@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-538
 type: task
-status: In Progress
+status: Done
 priority: null
 title: Make spawned-agent task handoffs authenticate without exposing service credentials
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-07-29T01:26:40.159893Z'
+updated_at: '2026-07-29T01:28:45.684676Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -270,5 +270,10 @@ author: oompah
 created: 2026-07-29 01:26
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-29 01:28
+---
+CI Failure Fixer verification: Recreated the worktree (the prior gate error 'No existing worktree matched the review branch tip' was a metadata/worktree lifecycle issue, not a test failure). Ran full \`make test\` in the fresh worktree — 12883 passed, 41 skipped, 0 failed in 45.62s. Focused tests/test_task_handoff.py: 12/12 pass. Branch OOMPAH-538 (commit 49521488f) is already pushed to origin and matches HEAD, no additional fix required. Closing.
 ---
 <!-- COMMENTS:END -->
