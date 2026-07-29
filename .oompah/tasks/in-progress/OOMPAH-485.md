@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-485
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Add In Validation and terminal-audit details to the dashboard
 parent: OOMPAH-460
@@ -12,8 +12,8 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:24.220262Z'
-updated_at: '2026-07-29T02:04:13.542089Z'
-work_branch: epic-OOMPAH-460
+updated_at: '2026-07-29T18:26:19.464699Z'
+work_branch: epic-OOMPAH-460--task-OOMPAH-485
 target_branch: null
 review_url: null
 review_number: null
@@ -89,8 +89,8 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 1a92387f-66be-4904-bf9f-d8eaf75859c5
-oompah.work_branch: epic-OOMPAH-460
+oompah.agent_run_id: 841cec2b-8ab7-4970-b87a-612634674177
+oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-485
 oompah.task_costs:
   total_input_tokens: 210
   total_output_tokens: 5275
@@ -107,6 +107,14 @@ oompah.task_costs:
     output_tokens: 5275
     cost_usd: 0.0
     recorded_at: '2026-07-29T02:04:10.255551+00:00'
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-460--task-OOMPAH-485
+  base_branch: epic-OOMPAH-460
+  base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
+  updated_at: '2026-07-29T18:26:17.238513+00:00'
 ---
 ## Summary
 
@@ -149,5 +157,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 25s
 - Log: OOMPAH-485__20260729T020248Z.jsonl
+---
+author: oompah
+created: 2026-07-29 18:26
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 18:26
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->

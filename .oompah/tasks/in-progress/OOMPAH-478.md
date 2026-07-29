@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-478
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Route epic rollup, child Done, and epic close transitions through audits
 parent: OOMPAH-459
@@ -12,8 +12,8 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-29T01:37:19.165351Z'
-work_branch: epic-OOMPAH-459
+updated_at: '2026-07-29T18:26:15.384277Z'
+work_branch: epic-OOMPAH-459--task-OOMPAH-478
 target_branch: null
 review_url: null
 review_number: null
@@ -57,8 +57,8 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 281b5440-05d8-4d8d-abc8-a793de37295e
-oompah.work_branch: epic-OOMPAH-459
+oompah.agent_run_id: b2111678-117c-49b0-9e2e-bcfe926acf56
+oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-478
 oompah.task_costs:
   total_input_tokens: 396
   total_output_tokens: 10399
@@ -81,6 +81,14 @@ oompah.task_costs:
     output_tokens: 5751
     cost_usd: 0.0
     recorded_at: '2026-07-29T01:37:17.161698+00:00'
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-459--task-OOMPAH-478
+  base_branch: epic-OOMPAH-459
+  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
+  updated_at: '2026-07-29T18:26:12.657814+00:00'
 ---
 ## Summary
 
@@ -143,5 +151,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 54s
 - Log: OOMPAH-478__20260729T013526Z.jsonl
+---
+author: oompah
+created: 2026-07-29 18:26
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 18:26
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-477
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Replace the post-worker completion verifier with Done audit staging
 parent: OOMPAH-459
@@ -12,8 +12,8 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T18:17:06.099039Z'
-work_branch: epic-OOMPAH-459
+updated_at: '2026-07-29T18:26:02.700003Z'
+work_branch: epic-OOMPAH-459--task-OOMPAH-477
 target_branch: null
 review_url: null
 review_number: null
@@ -36,8 +36,8 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: a4cf5471-8a4e-496b-b703-00f107494405
-oompah.work_branch: epic-OOMPAH-459
+oompah.agent_run_id: 423efc3d-2fbf-4654-b0a8-b1cb97484db6
+oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-477
 oompah.task_costs:
   total_input_tokens: 1309833
   total_output_tokens: 43226
@@ -60,6 +60,14 @@ oompah.task_costs:
     output_tokens: 38152
     cost_usd: 0.0
     recorded_at: '2026-07-29T18:16:53.882139+00:00'
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-459--task-OOMPAH-477
+  base_branch: epic-OOMPAH-459
+  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
+  updated_at: '2026-07-29T18:25:59.154143+00:00'
 ---
 ## Summary
 
@@ -170,5 +178,15 @@ Steps to resolve:
   git push origin epic-OOMPAH-459
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-29 18:25
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 18:26
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
