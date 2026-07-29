@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T16:25:52.098608Z'
+updated_at: '2026-07-29T18:01:39.698184Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
