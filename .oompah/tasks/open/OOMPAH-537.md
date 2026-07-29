@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-537
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Wake event-driven scheduler when a project resumes
 parent: null
@@ -10,12 +10,26 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:05:46.463901Z'
-updated_at: '2026-07-29T00:05:58.953166Z'
+updated_at: '2026-07-29T00:07:32.185154Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 264f8df40f31538e96ffb9b1a258e71d424985893cf6c21d4edcf3cfc96f0c51
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 4a4f8815-72af-46c7-a6ac-039ba5cbf156
+  claim_owner: a100bafe-ba90-4f2d-b9f3-55dd838ca3d9
+  claimed_at: '2026-07-29T00:07:29.714018+00:00'
+  claim_expires_at: '2026-07-29T00:37:29.714018+00:00'
+  retry_count: 0
+  retry_after: null
 ---
 ## Summary
 
