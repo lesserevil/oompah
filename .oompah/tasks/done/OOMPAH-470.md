@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T03:10:44.126310Z'
+updated_at: '2026-07-29T03:13:01.106522Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -822,5 +822,37 @@ author: oompah
 created: 2026-07-29 03:10
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 03:12
+---
+**VERIFICATION COMPLETE**: All implementation work for OOMPAH-470 has been verified as complete and confirmed working.
+
+**Summary of Changes:**
+- oompah/auditor_candidate_selector.py: Complete implementation with AuditorCandidateSelector class, NoCandidateReason enum, and supporting functions
+- Seeding: Pulls deduplicated union of deep/standard/default role candidates plus configured provider defaults (no hardcoded IDs)
+- Filtering Pipeline: Whitelist → Credentials → Health → Budget (subscription ACP bypass, dataclass-friendly snapshots) → Model Validity → Exclude contributors
+- Independent Preference: Prioritizes providers not used by any contributor; allows same-provider fallback only when explicit model differs from all contributed models; always rejects unknown SDK models on contributing providers
+- Normalized Diagnostics: 10 reason codes (empty_role, no_providers, no_whitelisted_providers, all_require_missing_credentials, all_unhealthy, all_over_budget, all_are_contributors, unknown_acp_models_only, invalid_model, unknown_error)
+- Bootstrap Integration: oompah/bootstrap.py seeds auditor role idempotently; operators can edit via existing RoleStore API
+
+**Test Results:**
+- tests/test_auditor_candidate_selector.py: 38 tests PASSED
+- Full test suite: 13,121 tests PASSED, 40 skipped
+- All acceptance criteria satisfied and verified
+
+**Acceptance Criteria Met:**
+- ✓ Selected auditors are demonstrably independent under the agreed policy
+- ✓ Unsafe or unverifiable candidates (contributor models, unknown SDK models, unhealthy/uncredentialed/over-budget providers, non-whitelisted providers) are excluded
+- ✓ Operators can edit auditor candidates through the existing role configuration path
+
+Commits on epic-OOMPAH-458:
+- 4926230c1 Implement auditor role independent candidate selection
+- f220e5b2e Integrate auditor role seeding into bootstrap
+- 094f60a5a Seed independent auditor candidates
+- 3a2871400 Handle dataclass budget snapshots
+- 3e4b65d6a Enforce independent auditor fallback policy
+
+Branch is up to date with origin. Ready to close.
 ---
 <!-- COMMENTS:END -->
