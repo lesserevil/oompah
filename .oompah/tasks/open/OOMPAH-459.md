@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-459
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Route all terminal-state producers through independent auditing
 parent: null
@@ -20,7 +20,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-29T16:56:23.318201Z'
+updated_at: '2026-07-29T17:44:00.759368Z'
 work_branch: null
 target_branch: null
 review_url: null
