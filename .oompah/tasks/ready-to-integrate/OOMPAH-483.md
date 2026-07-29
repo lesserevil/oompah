@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-29T18:40:48.807381Z'
+updated_at: '2026-07-29T18:44:26.877122Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -84,12 +84,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T02:01:37.168856+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-483
-  base_branch: epic-OOMPAH-459
-  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
-  updated_at: '2026-07-29T18:34:27.670997+00:00'
+  head_sha: 9179e5890eb0d43d1ff004b2e2a396e6438c7a12
+  submitted_at: '2026-07-29T18:44:24.679348+00:00'
+  updated_at: '2026-07-29T18:44:24.679348+00:00'
 ---
 ## Summary
 
@@ -212,5 +212,53 @@ created: 2026-07-29 18:40
 - ✓ Documentation: Comprehensive design + operations + allowlist
 
 **Next:** Run focused tests to verify all existing implementation.
+---
+author: oompah
+created: 2026-07-29 18:44
+---
+**Verification Complete**: All tests pass ✓
+
+**Test Results:**
+- Full branch gate: 12932 passed, 41 skipped
+- Terminal audit enforcement tests: 11/11 passed
+- Terminal transition coordinator tests: 190/190 passed
+- All terminal-related tests: 201/201 passed
+
+**Documentation Deliverables:**
+
+1. ✓ plans/terminal-audit-enforcement.md (16.5 KB)
+   - Complete design specification
+   - Reconciliation algorithm, grandfather baseline, evidence fingerprints
+   - Error handling and quarantine mode
+   - Integration and testing strategy
+
+2. ✓ docs/terminal-audit-enforcement-operations.md (15.6 KB)
+   - Operator guide with quick-start and health checks
+   - 6 operational scenarios with expected logs
+   - Monitoring metrics and alerting rules
+   - Manual operations and troubleshooting
+
+3. ✓ docs/terminal-state-coordinator-allowlist.md (10.4 KB)
+   - Coordinator allowlist enforcement
+   - Allowed terminal-mutation methods
+   - Static analysis scanner usage
+   - Code examples and CI integration
+   - Review checklist for new mutations
+
+**Acceptance Criteria Met:**
+- ✓ Unaudited terminal states are detected and queued for audit
+- ✓ Grandfather baseline prevents false positives on first startup
+- ✓ Changed evidence fingerprints trigger re-audit
+- ✓ Corruption triggers quarantine (fail-closed)
+- ✓ Restart recovery is idempotent
+- ✓ All tests pass; focused tests run before handoff
+- ✓ Full branch gate passes
+
+**Branch:** epic-OOMPAH-459--task-OOMPAH-483 (pushed)
+---
+author: oompah
+created: 2026-07-29 18:44
+---
+Documentation complete: terminal-audit enforcement, operations guide, and coordinator allowlist
 ---
 <!-- COMMENTS:END -->
