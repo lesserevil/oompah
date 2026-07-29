@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T02:16:56.003378Z'
+updated_at: '2026-07-29T02:20:42.595293Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -165,5 +165,53 @@ Found the synchronization bug between /api/v1/state and /api/v1/issues endpoints
 - Add snapshot version/timestamp to prevent stale payloads from overwriting newer ones
 
 Exploring server.py around lines 1631-1750 and _do_broadcast_issues flow.
+---
+author: oompah
+created: 2026-07-29 02:20
+---
+**Implementation: Duplicate Screening Snapshot Synchronization Fix**
+
+**Changes Made:**
+
+1. **Modified _wait_for_issues_snapshot_refresh()** (server.py line 1748):
+   - Now returns bool indicating success (True) or timeout (False)
+   - Caller can detect if refresh completed vs timed out
+   - Prevents broadcasting stale data when refresh is slow
+
+2. **Fixed _do_broadcast_issues()** (server.py line 2110):
+   - CRITICAL FIX: Reordered operations to refresh BEFORE broadcast
+   - Old order: broadcast stale snapshot → then refresh (WRONG)
+   - New order: force refresh → wait → broadcast refreshed data (RIGHT)
+   - Only broadcasts if refresh completes successfully
+   - Prevents stale payloads from overwriting newer state
+
+3. **Updated refresh timeout** (server.py):
+   - Increased timeout from 500ms to 2000ms
+   - Allows for slow issue corpuses (description mentioned up to tens of seconds)
+   - Uses generous timeout but doesn't block indefinitely
+
+**How It Works:**
+
+When duplicate screening claim is acquired/completed:
+1. Orchestrator calls _notify_observers()
+2. Server calls _on_orchestrator_change()
+3. Schedules _throttled_broadcast_issues()
+4. _do_broadcast_issues():
+   - Forces snapshot refresh with force=True
+   - Waits up to 2 seconds for refresh to complete
+   - Fetches fresh data from tracker (cache invalidated by orchestrator)
+   - Only broadcasts if refresh succeeded
+   - If timeout: skips broadcast to avoid stale data
+
+**Tests Added (test_server_duplicate_screening_sync.py):**
+✅ Refresh starts before broadcast
+✅ Wait function returns True on completion
+✅ Wait function returns False on timeout  
+✅ Broadcast skipped if refresh times out
+
+**All Existing Tests Pass:**
+✅ test_duplicate_preflight.py (18 tests)
+✅ test_dashboard_duplicate_screening.py (4 tests)
+✅ test_server_issue_snapshot.py (20 tests)
 ---
 <!-- COMMENTS:END -->
