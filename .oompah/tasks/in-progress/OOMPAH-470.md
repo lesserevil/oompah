@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T01:31:15.594019Z'
+updated_at: '2026-07-29T01:31:24.187559Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -485,5 +485,15 @@ author: oompah
 created: 2026-07-29 01:31
 ---
 Agent completed without closing this issue (609s (8149243 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-29 01:31
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 01:31
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
