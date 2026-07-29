@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T04:57:24.629602Z'
+updated_at: '2026-07-29T04:57:52.892073Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
