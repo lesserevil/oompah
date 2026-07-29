@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:12:18.295069Z'
-updated_at: '2026-07-29T23:07:12.224095Z'
+updated_at: '2026-07-29T23:09:10.621890Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-565
 target_branch: null
 review_url: null
@@ -552,5 +552,10 @@ author: oompah
 created: 2026-07-29 23:07
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 23:09
+---
+Understanding: epic-OOMPAH-459 is at a50a9a645, same as origin/epic-OOMPAH-459 (branches are in sync now). origin/main is 2 commits ahead at 441c09132 (OOMPAH-567 changes). The merge base is 9fab41077. I need to rebase the 5 epic commits onto origin/main. The epic branch is checked out in its own worktree at /home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-459. Approach: use git -C to run rebase from the epic worktree directory.
 ---
 <!-- COMMENTS:END -->
