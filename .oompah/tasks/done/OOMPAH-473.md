@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:13.914904Z'
-updated_at: '2026-07-29T07:02:40.112556Z'
+updated_at: '2026-07-29T07:02:42.373400Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -336,5 +336,10 @@ Acceptance criteria met:
 ✓ Rejects active worker/claim/retry/review, active child/dependency, changed requirements/SHA
 ✓ Direct dispositions (duplicate/obsolete) require source link, not synthetic audit
 ✓ Returns exact SafetyFailureMode plus RestorationGuidance with recommended state
+---
+author: oompah
+created: 2026-07-29 07:02
+---
+ArchivedEvidenceCollector shipped: read-only safe-retirement validator with 20 SafetyFailureMode diagnostics, structured DispositionType (retention/duplicate/obsolete/blocked/superseded), source-link enforcement for direct dispositions, restoration guidance, and 53 unit tests (208 tests total across adjacent audit suites).
 ---
 <!-- COMMENTS:END -->

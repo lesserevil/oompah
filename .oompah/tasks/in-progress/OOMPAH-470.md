@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T07:02:26.581623Z'
+updated_at: '2026-07-29T07:02:46.029436Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -55,13 +55,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 2931b0ed-5cda-4621-bc01-da9bd88ae104
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 76990525
-  total_output_tokens: 243787
+  total_input_tokens: 76990631
+  total_output_tokens: 247429
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 68657504
-      output_tokens: 208432
+      input_tokens: 68657610
+      output_tokens: 212074
       cost_usd: 0.0
     sonnet:
       input_tokens: 2359197
@@ -252,6 +252,12 @@ oompah.task_costs:
     output_tokens: 11753
     cost_usd: 0.0
     recorded_at: '2026-07-29T06:33:57.511851+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 106
+    output_tokens: 3642
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T07:02:42.407390+00:00'
 ---
 ## Summary
 
@@ -1922,5 +1928,38 @@ author: oompah
 created: 2026-07-29 07:02
 ---
 Auditor role seeding and independent provider-model candidate selection implemented with full test coverage (39 tests, 13,176 total passing). All acceptance criteria met.
+---
+author: oompah
+created: 2026-07-29 07:02
+---
+Agent completed successfully in 206s (3748 tokens)
+---
+author: oompah
+created: 2026-07-29 07:02
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 39, Tool calls: 15
+- Tokens: 106 in / 3.6K out [3.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 26s
+- Log: OOMPAH-470__20260729T065918Z.jsonl
+---
+author: oompah
+created: 2026-07-29 07:02
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-458` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-458
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-458
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
