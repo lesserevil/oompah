@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-562
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Recover integration queues blocked by stale epic ancestry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T21:17:57.979924Z'
+updated_at: '2026-07-29T21:18:39.662918Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,7 +36,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 1a228f11-6207-4812-9768-2a2b46a96aaa
+oompah.agent_run_id: 00021a4c-ff96-47d6-b846-ffece2d2f18a
 oompah.task_costs:
   total_input_tokens: 910697
   total_output_tokens: 4297
@@ -96,5 +96,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 48s
 - Log: OOMPAH-562__20260729T211610Z.jsonl
+---
+author: oompah
+created: 2026-07-29 21:18
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 21:18
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
