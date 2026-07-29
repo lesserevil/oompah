@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-476
 type: feature
-status: Needs CI Fix
+status: Ready to Integrate
 priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T23:25:02.424266Z'
+updated_at: '2026-07-29T23:44:32.632959Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-476
 target_branch: null
 review_url: null
@@ -146,60 +146,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T23:20:03.152724+00:00'
 oompah.integration:
   version: 1
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-476
-  base_branch: epic-OOMPAH-459
-  base_sha: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
   head_sha: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
-  submitted_at: '2026-07-29T23:16:05.901895+00:00'
-  updated_at: '2026-07-29T23:25:00.350064+00:00'
-  last_error: "Combined-tree quality gate failed: ocess.py\", line 104, in close\n\
-    \      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_client_auth.py::TestNoCredentials::test_whitespace_only_env_treated_as_absent\n\
-    ===== 1 failed, 13614 passed, 7 skipped, 41 warnings in 245.72s (0:04:05) ======\n\
-    make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-476'\n\
-    \nUsing CPython 3.12.12\nCreating virtual environment at: .venv\nActivate with:\
-    \ source .venv/bin/activate\nResolved 53 packages in 211ms\n   Building oompah\
-    \ @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-476\n      Built oompah\
-    \ @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-476\nPrepared 1 package\
-    \ in 289ms\nInstalled 53 packages in 75ms\n + annotated-doc==0.0.5\n + annotated-types==0.8.0\n\
-    \ + anyio==4.14.2\n + attrs==26.1.0\n + babel==2.18.0\n + bcrypt==4.3.0\n + certifi==2026.7.22\n\
-    \ + cffi==2.1.0\n + click==8.4.2\n + cryptography==49.0.0\n + fastapi==0.141.1\n\
-    \ + h11==0.16.0\n + httpcore==1.0.9\n + httptools==0.8.0\n + httpx==0.28.1\n +\
-    \ httpx-sse==0.4.3\n + idna==3.18\n + jinja2==3.1.6\n + jsonschema==4.26.0\n +\
-    \ jsonschema-specifications==2025.9.1\n + markupsafe==3.0.3\n + mcp==1.29.0\n\
-    \ + oompah==0.1.0 (from file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-476)\n\
-    \ + passlib==1.7.4\n + pycparser==3.0\n + pydantic==2.13.4\n + pydantic-core==2.46.4\n\
-    \ + pydantic-settings==2.14.2\n + pyjwt==2.13.0\n + python-dateutil==2.9.0.post0\n\
-    \ + python-dotenv==1.2.2\n + python-liquid==2.3.0\n + python-multipart==0.0.32\n\
-    \ + pytz==2026.3.post1\n + pyyaml==6.0.3\n + referencing==0.37.0\n + rpds-py==2026.6.3\n\
-    \ + six==1.17.0\n + sse-starlette==3.4.6\n + starlette==1.3.1\n + tree-sitter==0.26.0\n\
-    \ + tree-sitter-javascript==0.25.0\n + tree-sitter-markdown==0.5.1\n + tree-sitter-python==0.25.0\n\
-    \ + tree-sitter-rust==0.24.2\n + tree-sitter-typescript==0.23.2\n + tree-sitter-yaml==0.7.2\n\
-    \ + typing-extensions==4.16.0\n + typing-inspection==0.4.2\n + uvicorn==0.52.0\n\
-    \ + uvloop==0.22.1\n + watchfiles==1.2.0\n + websockets==17.0\nResolved 74 packages\
-    \ in 113ms\n   Building oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-476\n\
-    \      Built oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-476\n\
-    Prepared 1 package in 231ms\nUninstalled 2 packages in 3ms\nInstalled 23 packages\
-    \ in 31ms\n + charset-normalizer==3.4.9\n + claude-agent-sdk==0.2.128\n + distro==1.9.0\n\
-    \ + execnet==2.1.2\n + granian==2.7.9\n + griffelib==2.1.0\n + iniconfig==2.3.0\n\
-    \ + jiter==0.16.0\n ~ oompah==0.1.0 (from file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-476)\n\
-    \ + openai==2.50.0\n + openai-agents==0.17.8\n + packaging==26.2\n + pluggy==1.6.0\n\
-    \ + pygments==2.20.0\n + pytest==9.1.1\n + pytest-asyncio==1.4.0\n + pytest-timeout==2.4.0\n\
-    \ + pytest-xdist==3.8.0\n + requests==2.34.2\n + sniffio==1.3.1\n + tqdm==4.70.0\n\
-    \ + urllib3==2.7.0\n - websockets==17.0\n + websockets==16.1.1\nUninstalled 8\
-    \ packages in 8ms\nInstalled 8 packages in 21ms\nmake[1]: *** [Makefile:224: test]\
-    \ Error 1\n"
+  submitted_at: '2026-07-29T23:44:29.968990+00:00'
+  updated_at: '2026-07-29T23:44:29.968990+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-476__20260729T230652Z
@@ -891,5 +843,10 @@ Installed 8 packages in 21ms
 make[1]: *** [Makefile:224: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-07-29 23:44
+---
+Re-run repaired canonical epic head under sanitized quality-gate environment; prior sole failure was inherited service authentication.
 ---
 <!-- COMMENTS:END -->
