@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T16:02:17.432894Z'
+updated_at: '2026-07-29T16:02:47.502455Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: d70ef3f8-348e-480e-9167-be3942228f45
+oompah.agent_run_id: f521cb76-2ee1-4233-bc92-b7a90ca4535f
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 44812638
@@ -1096,5 +1096,15 @@ author: oompah
 created: 2026-07-29 16:02
 ---
 Agent completed without closing this issue (683s (8616953 tokens)). Escalating from 'default' to 'standard'. Retrying in 20s (2/3).
+---
+author: oompah
+created: 2026-07-29 16:02
+---
+Retrying (attempt #2, agent: standard)
+---
+author: oompah
+created: 2026-07-29 16:02
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
