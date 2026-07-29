@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T00:36:06.833548Z'
+updated_at: '2026-07-29T00:36:17.258538Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -264,5 +264,19 @@ author: oompah
 created: 2026-07-29 00:36
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 00:36
+---
+**Understanding:** This issue requires creating a reserved 'auditor' role that selects an independent provider-model candidate. The implementation must:
+1. Seed from deduplicated union of deep/standard/default role candidates + configured provider defaults
+2. Filter by whitelist, credentials, health, budget, model validity
+3. Exclude all contributor models; prefer independent providers
+4. Fall back to same-provider different-model only when safe
+5. Reject unknown SDK models on contributing providers
+6. Return normalized no-candidate diagnostics
+7. Support operator editing via existing role configuration paths
+
+**Plan:** Explore oompah/roles.py (RoleStore/Candidate), oompah/work_contributors.py (WorkContributor), oompah/providers.py (ProviderStore), and test patterns to understand the architecture, then implement the auditor role with independent candidate selection logic and comprehensive tests.
 ---
 <!-- COMMENTS:END -->
