@@ -22,7 +22,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T16:52:40.311890Z'
+updated_at: '2026-07-29T16:52:42.566015Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -153,5 +153,10 @@ author: oompah
 created: 2026-07-29 16:52
 ---
 Branch quality gate passed for `c8f3be6769a1614486951a9932d9954aaeb7bc1a` using `make test` in 72.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-29 16:52
+---
+Rebase conflicts resolved. 21 commits rebased onto origin/main. Merged HEAD+branch changes across acp_agent.py, acp_backends/{base,codex,opencode}.py, acp_tools.py, api_agent.py, orchestrator.py, models.py. Preserved both: task_identifier/action_policy/task_handoff_token/read_only from main and focus/auditor/audit_target/audit_result_handler from branch. Focused tests pass: 137 auditor tests + 383 acp/api/authority + 159 dispatch/duplicate detection.
 ---
 <!-- COMMENTS:END -->
