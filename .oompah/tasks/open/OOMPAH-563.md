@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:36:54.712161Z'
-updated_at: '2026-07-29T21:37:53.006245Z'
+updated_at: '2026-07-29T21:39:09.328048Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,55 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: bdde81b07a41310991436e518c773d153354bfafae950790f7022c715f28a6f3
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-29T21:39:05.316495+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 9e9faa16-2fc8-4f47-8cf8-00143fba229d
-  claim_owner: c2c2ef6b-2a29-4c5e-a18b-825e02f11596
-  claimed_at: '2026-07-29T21:37:47.657336+00:00'
-  claim_expires_at: '2026-07-29T22:07:47.657336+00:00'
+  evidence: 'Focus handoff: duplicate_detector
+
+
+    Duplicate preflight verdict: no_duplicate
+
+
+    Matches: none
+
+
+    Evidence: Reviewed active OOMPAH-281 and OOMPAH-282, plus closest archived tasks
+    OOMPAH-219, OOMPAH-257, and OOMPAH-265. None covers atomic `service_state.json`
+    persistence or terminal-audit quarantine recovery. No files or tracker records
+    were modified.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: cfb10b58-eddd-4b60-8fc0-76274d98ace6
+oompah.task_costs:
+  total_input_tokens: 493525
+  total_output_tokens: 2600
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 493525
+      output_tokens: 2600
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 493525
+    output_tokens: 2600
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T21:39:05.315145+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-563__20260729T213757Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-563
+    source_sha: 31f8938b8f669a316a830690aaedcc1e0d3834bf
+    completed_at: '2026-07-29T21:39:05.324442+00:00'
 ---
 ## Summary
 
@@ -56,5 +94,15 @@ author: oompah
 created: 2026-07-29 21:37
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-29 21:39
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 11
+- Tokens: 493.5K in / 2.6K out [496.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 16s
+- Log: OOMPAH-563__20260729T213757Z.jsonl
 ---
 <!-- COMMENTS:END -->
