@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-545
 type: epic
-status: Backlog
+status: In Progress
 priority: 0
 title: Make task dependencies finish-order constraints
 parent: null
@@ -15,7 +15,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:21:51.688684Z'
-updated_at: '2026-07-29T16:23:36.010837Z'
+updated_at: '2026-07-29T16:25:54.198005Z'
 work_branch: null
 target_branch: null
 review_url: null
