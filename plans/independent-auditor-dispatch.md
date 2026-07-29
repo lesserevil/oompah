@@ -17,7 +17,7 @@ This document complements the terminal-transition coordinator design (`plans/ter
 
 ### Design Principles
 
-1. **Priority over ordinary work**: Audit requests in the `In Validation` state are dispatched at a higher priority than ordinary `Open` issues, so audits do not starve behind feature work.
+1. **Priority over ordinary work**: The audit lane runs before ordinary `Open` dispatch when a global slot is available. Within the lane, `OOMPAH_AUDIT_PRIORITY` orders requests that do not have an explicit task priority, so audits do not starve behind feature work.
 
 2. **One auditor per epic branch**: Serialize auditor work on the same epic/task branch to prevent race conditions with branch writers (agents that claim the branch for implementation).
 
@@ -122,7 +122,7 @@ The independent auditor candidate selection process mirrors the seeded auditor r
 **Selection order:**
 
 1. Load the auditor role from the project's role store (`.oompah/roles.json`).
-2. Call `AuditorCandidateSelector.select_candidates(contributors=task_contributors)` to get the next eligible independent candidate.
+2. Call `AuditorCandidateSelector.select_candidates(contributors=task_contributors, exclude=attempted_pairs)` to get eligible independent candidates in the configured role order.
 3. Exclude provider/model pairs already attempted for this audit. If no candidate remains, use the selector's reason (for example, `all_are_contributors`) and mark the audit with `NO_AUDITOR` failure.
 4. Apply provider health, budget, and rate-limit preflight checks.
 5. Persist the attempt and launch.
@@ -140,8 +140,8 @@ When a candidate fails (provider error, timeout, auditor crash), the system:
 
 1. Marks the attempt `ended_at` and records the failure reason (from provider logs or auditor exit code).
 2. Increments `candidate_rotation_count`.
-3. On the next scheduler tick, calls `select_candidate` again to get the next independent candidate.
-4. If `select_candidate` returns `None`, submit a `NO_AUDITOR` failure.
+3. After the normal retry backoff, the next scheduler tick calls `select_candidates` again, excluding candidates already used by this audit.
+4. If `select_candidates` returns no candidates, submit a `NO_AUDITOR` failure.
 
 ### Retry and Recovery Semantics
 
@@ -162,9 +162,9 @@ When a candidate fails (provider error, timeout, auditor crash), the system:
 
 1. Auditor tool raises exception (rate limit, timeout, connection error, etc.).
 2. Orchestrator catches the exception, marks attempt `ended_at`, logs reason.
-3. On next scheduler tick, dispatcher detects the ended attempt.
+3. On the next scheduler tick, dispatcher detects the ended attempt after its persisted retry time.
 4. Dispatcher checks if retry count < OOMPAH_AUDIT_MAX_ATTEMPTS.
-5. Dispatcher calls `select_candidate` to rotate to the next candidate.
+5. Dispatcher calls `select_candidates` to rotate to the next candidate.
 6. Dispatcher persists new attempt with incremented `candidate_rotation_count`.
 7. Dispatcher launches new auditor session with the new candidate.
 
@@ -203,7 +203,7 @@ Rate-limit responses (HTTP 429) persist the failure and use the same
 exponential backoff as ordinary worker retries before rotating to a different
 provider.
 
-### Proposed Configuration Variables
+### Configuration Variables
 
 New environment variables for independent auditor dispatch:
 
@@ -287,38 +287,38 @@ pre-persisted attempt row when the attempt ID matches.
 
 ### Candidate Selector
 
-The dispatch lane uses `AuditorCandidateSelector.select_candidates(contributors)`
-to obtain the next independent candidate not already recorded for the audit.
-The selector is stateless and deterministic given the same role and contributor
-set.
+The dispatch lane uses `AuditorCandidateSelector.select_candidates(contributors,
+exclude=attempted_pairs)` to obtain the next independent candidate not already
+recorded for the audit. The audit lane considers candidates in the saved role
+order; it does not apply the role store's round-robin usage history. Selection
+is deterministic given the same role, contributor set, and attempted pairs.
 
 ## Monitoring and Observability
 
 ### Metrics
 
-**Dispatch metrics:**
-- `audit_dispatch_count` (counter) — audits dispatched
-- `audit_dispatch_rotation_count` (counter) — times an audit rotated to a new candidate
-- `audit_exhaustion_count` (counter) — audits with all candidates exhausted (routed to Needs Human)
-- `audit_lane_skip_reasons` (histogram) — why audits were skipped (locked, no_candidates, rate_limited, etc.)
-- `audit_attempt_duration_ms` (histogram) — wall-clock time from attempt start to completion or crash
+The live `/api/v1/state` snapshot exposes the following under
+`orchestrator_metrics.audits`:
 
-**Queue metrics:**
-- `audits_pending_count` (gauge) — tasks in In Validation with pending audits
-- `audits_in_progress_count` (gauge) — running auditor agents
+- `dispatch_count` — audits dispatched
+- `rotation_count` — audits dispatched after a candidate rotation
+- `exhaustion_count` — audits routed to `Needs Human` after exhaustion
+- `pending_count` — tasks in `In Validation` with a pending audit
+- `in_progress_count` — running auditor agents
+- `last_error` — most recent audit-lane error, if any
 
-The live `/api/v1/state` snapshot exposes these counters under
-`orchestrator_metrics.audits` and includes auditor identity fields in each
-running-worker row.
+The same snapshot includes `audit_lane_ms` and related dispatch timings under
+`orchestrator_metrics.last_dispatch`, plus `audit_id` and `audit_attempt_id`
+in each running-worker row.
 
 ### Logging
 
-Dispatch-lane operations are logged at INFO level with task_id, audit_id, attempt_id, provider, and model:
+Dispatch posts tracker comments with the attempt number and candidate. Service
+logs contain the task identifier for dispatch failures; inspect both with the
+project Make target:
 
 ```
-[INFO] audit dispatch: starting audit-1 (task OOMPAH-123) on prov-abc/gpt-4, candidate rotation 0
-[INFO] audit dispatch: auditor exit (audit-1) — transient failure, rotating to next candidate
-[INFO] audit dispatch: rotation failed — no independent candidates remaining; routing to Needs Human
+make logs
 ```
 
 ### Errors and Alerts
@@ -379,7 +379,7 @@ class TestAuditDispatchIntegration:
         # Verify attempt rehydrated, rotation attempted
     
     def test_rate_limit_rotation(self):
-        # Provider returns 429; verify immediate candidate switch
+        # Provider returns 429; verify candidate switch after normal backoff
     
     def test_timeout_rotation(self):
         # Auditor tool times out; verify rotation on next tick

@@ -31,18 +31,18 @@ These `.env` settings control the dispatch lane.
 ```bash
 # Maximum number of auditor candidates to attempt per audit before
 # routing to Needs Human when all independent candidates fail.
-# Recommended: 3-5 (gives each candidate a fair chance at retrying).
+# Recommended: 3-5 (allows several independent candidates to be tried).
 OOMPAH_AUDIT_MAX_ATTEMPTS=3
 
 # Time-to-live (seconds) for running auditor attempts.
-# If an auditor session crashes or hangs and remains in "in-progress"
-# for longer than this, it is considered abandoned and eligible for retry.
+# A live auditor session older than this is considered abandoned and eligible
+# for retry. An attempt with no live worker is reclaimed immediately.
 # Recommended: 3600 (1 hour). Set higher for slower CI environments.
 OOMPAH_AUDIT_ATTEMPT_TTL=3600
 
-# Relative priority for dispatching In Validation audits vs. Open issues.
-# Higher priority means audits are dispatched sooner. Recommended: 100-200.
-# Set to 0 to deprioritize audits (ordinary work first).
+# Relative ordering among In Validation audits without an explicit task
+# priority. The audit lane still runs before ordinary Open work when a slot is
+# available. Recommended: 100-200.
 OOMPAH_AUDIT_PRIORITY=100
 
 # Maximum number of In Validation tasks scanned per scheduler tick.
@@ -64,7 +64,7 @@ OOMPAH_MAX_CONCURRENT_AGENTS=5
 # Budget limit (auditors count against this).
 # If you want unlimited audit attempts regardless of budget, set
 # a high limit for completion verification work.
-OOMPAH_BUDGET_LIMIT=100.00
+OOMPAH_BUDGET_LIMIT=50.00
 
 # Retry backoff settings (same for audits and normal work).
 # Auditor provider/tool failures use the normal exponential delay before
@@ -89,9 +89,13 @@ The auditor role defines which providers/models are eligible auditors. It is con
 }
 ```
 
-**Strategy:**
-- **`priority`**: Use candidates in configured order; rotate only on failure.
-- **`round_robin`**: Cycle through candidates by last-used timestamp to spread load.
+**Candidate order:**
+
+The audit lane considers candidates in the saved role order and excludes every
+provider/model pair already attempted by that audit. A retry therefore rotates
+to the next eligible pair. The role's `strategy` field remains part of the
+shared role configuration, but the audit lane does not apply round-robin usage
+history.
 
 **Adding candidates:**
 
@@ -181,14 +185,17 @@ The audit was routed to `Needs Human` because all auditor candidates used the sa
 
 ### Auditor Rate-Limited (HTTP 429)
 
-The selected provider returned a rate-limit error. Oompah automatically rotates to the next candidate.
+The selected provider returned a rate-limit error. Oompah persists the failed
+attempt, waits for the normal exponential retry backoff, and then rotates to
+the next independent candidate.
 
 **If rotations keep failing:**
 
 1. Check provider health: Dashboard → Providers → check rate-limit status.
 2. Increase the provider's quota or throttle limit in the provider configuration.
 3. Add more independent providers to the auditor role.
-4. Increase `OOMPAH_AUDIT_ATTEMPT_TTL` if the audit is spending too long waiting for rate-limit recovery.
+4. Increase `OOMPAH_MAX_RETRY_BACKOFF_MS` only if the provider needs a longer
+   cooldown before the next attempt.
 
 ### Auditor Timeout (Took Too Long)
 
@@ -238,8 +245,7 @@ If `audits_pending_count` is large and growing, audits are being queued faster t
 # Check the current dispatch snapshot
 curl -s http://localhost:8080/api/v1/state | jq '.orchestrator_metrics.last_dispatch'
 
-# Increase concurrency for faster dispatch
-export OOMPAH_MAX_CONCURRENT_AGENTS=10
+# Update OOMPAH_MAX_CONCURRENT_AGENTS in .env, then restart for faster dispatch
 make restart
 
 # List configured providers
@@ -260,9 +266,11 @@ make restart
 Oompah detects running attempts from metadata and:
 
 1. Reloads each pending/in-progress audit.
-2. If the attempt is older than `OOMPAH_AUDIT_ATTEMPT_TTL`, marks it abandoned.
-3. Rotates to the next candidate on the next scheduler tick.
-4. If the attempt is recent, assumes the auditor is still running and skips.
+2. If a live worker still owns a recent attempt, skips it; if a live worker
+   exceeds `OOMPAH_AUDIT_ATTEMPT_TTL`, terminates and reclaims it.
+3. If no live worker owns the attempt (the normal post-restart case), marks it
+   abandoned immediately rather than launching a duplicate.
+4. Rotates to the next candidate on the next scheduler tick.
 
 This is safe and idempotent — no duplicate audits are created.
 
@@ -307,7 +315,7 @@ Environment:
 OOMPAH_AUDIT_MAX_ATTEMPTS=1          # Only one provider, no rotation
 OOMPAH_AUDIT_ATTEMPT_TTL=1800        # 30 min (quick TTL for fast feedback)
 OOMPAH_AUDIT_PRIORITY=150            # High priority to unblock tasks quickly
-OOMPAH_AUDIT_LANE_SCAN_LIMIT=64      # Scan all pending audits each tick
+OOMPAH_AUDIT_LANE_SCAN_LIMIT=64      # Scan up to 64 pending audits each tick
 ```
 
 ### Large Setup (Multiple Providers)
@@ -365,7 +373,7 @@ OOMPAH_BUDGET_LIMIT=0                # Unlimited (internal provider)
 ### Reduce Audit Latency
 
 1. **Increase priority**: `OOMPAH_AUDIT_PRIORITY=200`
-2. **Increase concurrency**: `OOMPAH_MAX_CONCURRENT_AGENTS=20`
+2. **Increase concurrency**: set `OOMPAH_MAX_CONCURRENT_AGENTS=20` in `.env`
 3. **Add more auditor candidates**: More providers = more rotation options, less queueing.
 
 ### Reduce Audit Cost
@@ -376,9 +384,9 @@ OOMPAH_BUDGET_LIMIT=0                # Unlimited (internal provider)
 
 ### Optimize for High Throughput
 
-1. `OOMPAH_AUDIT_LANE_SCAN_LIMIT=128` (scan more audits per tick)
-2. `OOMPAH_MAX_CONCURRENT_AGENTS=50` (parallel audits)
-3. Round-robin role strategy (spread load across candidates)
+1. Set `OOMPAH_AUDIT_LANE_SCAN_LIMIT=128` in `.env` (scan more audits per tick)
+2. Set `OOMPAH_MAX_CONCURRENT_AGENTS=50` in `.env` (parallel audits and work)
+3. Add independent providers to the auditor role (more rotation options)
 
 ## See Also
 
