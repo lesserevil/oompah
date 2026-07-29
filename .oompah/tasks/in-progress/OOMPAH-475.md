@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T15:38:08.982592Z'
+updated_at: '2026-07-29T15:38:25.144087Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -48,13 +48,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 8a7a1374-e6c2-4772-8936-d4555a7f0fb7
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 33767902
-  total_output_tokens: 120413
+  total_input_tokens: 33767992
+  total_output_tokens: 123125
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 33658732
-      output_tokens: 116290
+      input_tokens: 33658822
+      output_tokens: 119002
       cost_usd: 0.0
     sonnet:
       input_tokens: 51911
@@ -137,6 +137,12 @@ oompah.task_costs:
     output_tokens: 62847
     cost_usd: 0.0
     recorded_at: '2026-07-29T15:34:44.269828+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 90
+    output_tokens: 2712
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T15:38:21.513854+00:00'
 ---
 ## Summary
 
@@ -839,5 +845,38 @@ author: oompah
 created: 2026-07-29 15:38
 ---
 Independent auditor dispatch documentation complete: design document (plans/independent-auditor-dispatch.md, 420 lines) and operator guide (docs/auditor-dispatch-operations.md, 388 lines) covering audit dispatch flow, candidate selection, retry/recovery semantics, epic-branch locking, global concurrency, configuration, monitoring, troubleshooting, and recovery procedures. All 13,185 tests pass. Acceptance criteria met.
+---
+author: oompah
+created: 2026-07-29 15:38
+---
+Agent completed successfully in 121s (2802 tokens)
+---
+author: oompah
+created: 2026-07-29 15:38
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 26, Tool calls: 11
+- Tokens: 90 in / 2.7K out [2.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 1s
+- Log: OOMPAH-475__20260729T153622Z.jsonl
+---
+author: oompah
+created: 2026-07-29 15:38
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-458` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-458
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-458
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
