@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from oompah.terminal_audit import (
-    ContributorIdentity,
     EvidenceFingerprint,
     FailureClassification,
     TargetState,
@@ -72,6 +71,12 @@ _MAX_SAFE_EVIDENCE_KEY_LENGTH = 128
 #: or multi-line injections into the coordinator comment.
 _MAX_SAFE_EVIDENCE_VALUE_LENGTH = 512
 
+#: Maximum number of optional questions or instructions in one result.
+_MAX_RESULT_LIST_ITEMS = 5
+
+#: Maximum length of one optional question or instruction.
+_MAX_RESULT_LIST_ITEM_LENGTH = 512
+
 # ---------------------------------------------------------------------------
 # Credential / secret field detection
 # ---------------------------------------------------------------------------
@@ -107,10 +112,14 @@ _RESULT_SECRET_RE = re.compile(
     r"|AKIA[0-9A-Z]{16}"
     # PEM private-key headers
     r"|-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY"
+    # Bearer values are unsafe even without an assignment delimiter.
+    r"|Bearer\s+[A-Za-z0-9_./+\-]{1,}"
     # JWT: three dot-separated Base64url segments (header.payload.signature)
     r"|(?:[A-Za-z0-9\-_]{10,}\.){2}[A-Za-z0-9\-_]{10,}"
-    # Explicit Bearer / token assignment patterns with long values
-    r"|(?:Bearer|token|api[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|client[_-]?secret)\s*[=:]\s*[A-Za-z0-9\-_./+]{20,}"
+    # Explicit Bearer / credential assignment patterns.  Assignment values
+    # are rejected even when short: credentials are not required to meet a
+    # minimum length before they become unsafe to echo into a tracker.
+    r"|(?:Bearer|token|api[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|secret|authorization)\s*[=:]\s*[^\s,;]+"
     r")",
     re.IGNORECASE,
 )
@@ -132,9 +141,8 @@ def _check_safe_evidence_for_secrets(
 ) -> str | None:
     """Return an error string if any key or value appears credential-like.
 
-    Returns ``None`` when the mapping is clean.  The check is applied only to
-    ``safe_evidence``; the ``message`` field is covered by a separate size
-    limit (4 000 chars) which already caps the damage vector there.
+    Returns ``None`` when the mapping is clean. Free-text message, question,
+    and instruction fields use the same pattern check through their parser.
     """
     for key, value in safe_evidence.items():
         if _SECRET_KEY_RE.search(str(key)):
@@ -147,6 +155,17 @@ def _check_safe_evidence_for_secrets(
                 "Error: auditor result safe_evidence contains a value that matches "
                 "a known credential pattern; remove it before submitting"
             )
+    return None
+
+
+def _check_result_text_for_secrets(value: str, field_name: str) -> str | None:
+    """Reject credential-like content in a free-text result field."""
+
+    if _RESULT_SECRET_RE.search(value):
+        return (
+            f"Error: auditor result {field_name} contains a value that matches "
+            "a known credential pattern; remove it before submitting"
+        )
     return None
 
 
@@ -307,6 +326,36 @@ def pending_auditor_target(
     return None
 
 
+def check_auditor_session_target(policy: Any, target: Any) -> str | None:
+    """Verify that a server-issued auditor policy owns *target*.
+
+    Tool catalogs are also constructible outside the orchestrator (for
+    tests and backend adapters), so the catalog boundary must repeat the
+    server-side ownership check instead of relying on prompt instructions.
+    """
+
+    if policy is None or getattr(policy, "read_only", False) is not True:
+        return "Error: submit_audit_result is restricted to an auditor session"
+    if getattr(policy, "auditor_session", False) is not True:
+        return "Error: submit_audit_result is restricted to an auditor session"
+    try:
+        contract = (
+            target
+            if isinstance(target, AuditorTargetContract)
+            else auditor_target_contract(target)
+        )
+    except (TypeError, ValueError):
+        return "Error: auditor session has no valid target contract"
+
+    task_identifier = getattr(policy, "task_identifier", None)
+    if task_identifier and str(task_identifier) != contract.task_id:
+        return "Error: auditor session does not own the requested task"
+    project_id = getattr(policy, "project_id", None)
+    if project_id and str(project_id) != contract.project_id:
+        return "Error: auditor session does not own the requested project"
+    return None
+
+
 AUDITOR_RESULT_TOOL_SCHEMA: dict[str, Any] = {
     "type": "function",
     "function": {
@@ -327,7 +376,7 @@ AUDITOR_RESULT_TOOL_SCHEMA: dict[str, Any] = {
                 "evidence_fingerprint": {"type": "string"},
                 "verdict": {
                     "type": "string",
-                    "enum": ["pass", "fail", "needs_human", "error"],
+                    "enum": ["pass", "fail", "needs_human"],
                 },
                 "failure_classification": {
                     "type": ["string", "null"],
@@ -340,8 +389,15 @@ AUDITOR_RESULT_TOOL_SCHEMA: dict[str, Any] = {
                     "type": "object",
                     "additionalProperties": {"type": "string"},
                 },
-                "auditor": {
-                    "type": ["string", "null"],
+                "questions": {
+                    "type": "array",
+                    "items": {"type": "string", "maxLength": _MAX_RESULT_LIST_ITEM_LENGTH},
+                    "maxItems": _MAX_RESULT_LIST_ITEMS,
+                },
+                "instructions": {
+                    "type": "array",
+                    "items": {"type": "string", "maxLength": _MAX_RESULT_LIST_ITEM_LENGTH},
+                    "maxItems": _MAX_RESULT_LIST_ITEMS,
                 },
                 "attempt_id": {"type": ["string", "null"]},
             },
@@ -373,6 +429,8 @@ def _result_payload(result: AuditResult) -> dict[str, Any]:
         "safe_evidence": dict(result.safe_evidence or {}),
         "auditor": result.auditor.to_dict() if result.auditor else None,
         "attempt_id": result.attempt_id,
+        "questions": list(result.questions),
+        "instructions": list(result.instructions),
     }
 
 
@@ -392,9 +450,9 @@ def parse_auditor_result(
       that do not match the session's trusted :class:`AuditorTargetContract`.
     - Enforces maximum lengths for ``message`` and each ``safe_evidence``
       key/value pair to prevent oversized output.
-    - Detects credential-like patterns in ``safe_evidence`` keys and values
-      to prevent the auditor from exfiltrating secrets through coordinator
-      comments.
+    - Detects credential-like patterns in free-text and ``safe_evidence``
+      fields to prevent the auditor from exfiltrating secrets through
+      coordinator comments.
     """
 
     if not isinstance(args, Mapping):
@@ -409,7 +467,8 @@ def parse_auditor_result(
             "failure_classification",
             "message",
             "safe_evidence",
-            "auditor",
+            "questions",
+            "instructions",
             "attempt_id",
         }
         unexpected = set(args) - allowed_keys
@@ -450,6 +509,9 @@ def parse_auditor_result(
                 f"Error: auditor result message exceeds maximum length "
                 f"({len(message)} > {_MAX_RESULT_MESSAGE_LENGTH} characters)"
             )
+        message_secret_error = _check_result_text_for_secrets(message, "message")
+        if message_secret_error is not None:
+            return None, message_secret_error
 
         # --- Safe evidence size and content checks ---
         safe_evidence = args.get("safe_evidence")
@@ -482,9 +544,47 @@ def parse_auditor_result(
             if secret_error is not None:
                 return None, secret_error
 
-        auditor = args.get("auditor")
-        if auditor is not None and not isinstance(auditor, str):
-            return None, "Error: auditor result auditor must be a string or null"
+        def _parse_result_list(field_name: str) -> tuple[str, ...]:
+            raw_items = args.get(field_name)
+            if raw_items is None:
+                return ()
+            if not isinstance(raw_items, list):
+                raise ValueError(f"{field_name} must be an array")
+            if len(raw_items) > _MAX_RESULT_LIST_ITEMS:
+                raise ValueError(
+                    f"{field_name} exceeds maximum item count "
+                    f"({_MAX_RESULT_LIST_ITEMS})"
+                )
+            items: list[str] = []
+            for item in raw_items:
+                if not isinstance(item, str):
+                    raise ValueError(f"{field_name} items must be strings")
+                if len(item) > _MAX_RESULT_LIST_ITEM_LENGTH:
+                    raise ValueError(
+                        f"{field_name} item exceeds maximum length "
+                        f"({_MAX_RESULT_LIST_ITEM_LENGTH} characters)"
+                    )
+                item_secret_error = _check_result_text_for_secrets(item, field_name)
+                if item_secret_error is not None:
+                    raise ValueError(item_secret_error.removeprefix("Error: "))
+                items.append(item)
+            return tuple(items)
+
+        questions = _parse_result_list("questions")
+        instructions = _parse_result_list("instructions")
+
+        verdict = Verdict.from_raw(args["verdict"])
+        if verdict == Verdict.ERROR:
+            raise ValueError(
+                "auditor result verdict must be PASS, FAIL, or NEEDS_HUMAN"
+            )
+        failure_classification = (
+            FailureClassification.from_raw(args["failure_classification"])
+            if args.get("failure_classification")
+            else None
+        )
+        if verdict == Verdict.FAIL and failure_classification is None:
+            raise ValueError("FAIL verdict requires a failure_classification")
 
         result = AuditResult(
             audit_id=contract.audit_id,
@@ -492,20 +592,16 @@ def parse_auditor_result(
             evidence_fingerprint=EvidenceFingerprint(
                 str(args["evidence_fingerprint"])
             ),
-            verdict=Verdict.from_raw(args["verdict"]),
-            failure_classification=(
-                FailureClassification.from_raw(args["failure_classification"])
-                if args.get("failure_classification")
-                else None
-            ),
+            verdict=verdict,
+            failure_classification=failure_classification,
             message=message,
             safe_evidence=dict(safe_evidence) if safe_evidence is not None else None,
-            auditor=(
-                ContributorIdentity(auditor)
-                if auditor
-                else None
-            ),
+            # Identity is server-authenticated by the session/policy and is
+            # deliberately not accepted as model-controlled payload data.
+            auditor=None,
             attempt_id=supplied_attempt or None,
+            questions=questions,
+            instructions=instructions,
         )
     except (KeyError, TypeError, ValueError) as exc:
         return None, f"Error: invalid auditor result: {exc}"
@@ -520,9 +616,8 @@ def submit_auditor_result(
     """Validate and optionally forward a result to the audit scheduler.
 
     The ``handler`` is the coordinator's ``apply_audit_result`` method wrapped
-    as a synchronous callable.  It must be supplied by the orchestrator when
-    dispatching an auditor session; without it the result is validated but not
-    applied.
+    as a synchronous callable. It must be supplied by the orchestrator when
+    dispatching an auditor session; without it submission fails closed.
 
     The tool returns a JSON object with ``accepted=true`` on success.  On
     coordinator rejection or scheduler failure the returned string starts with
@@ -532,15 +627,23 @@ def submit_auditor_result(
     result, error = parse_auditor_result(args, target)
     if error is not None or result is None:
         return error or "Error: invalid auditor result"
-    if handler is not None:
-        try:
-            outcome = handler(result)
-        except Exception as exc:
-            return f"Error: audit scheduler rejected result: {exc}"
-        if outcome is not None:
-            if isinstance(outcome, str):
-                return outcome
-            return json.dumps(outcome, default=str)
+    if handler is None:
+        # Validation without a coordinator callback is not submission. A
+        # false success here would let a detached or misconfigured auditor
+        # stop after producing a verdict that was never applied.
+        return "Error: audit scheduler is unavailable; result was not submitted"
+    try:
+        outcome = handler(result)
+    except Exception:
+        # Do not echo exception text: tracker/provider failures can contain
+        # credentials, request bodies, or internal paths.
+        return "Error: audit scheduler rejected result"
+    if outcome is not None:
+        if isinstance(outcome, str):
+            return outcome
+        if isinstance(outcome, Mapping) and outcome.get("accepted") is False:
+            return "Error: audit scheduler rejected result"
+        return json.dumps(outcome, default=str)
     return json.dumps({"accepted": True, "result": _result_payload(result)})
 
 
@@ -628,9 +731,12 @@ __all__ = [
     "_MAX_SAFE_EVIDENCE_ENTRIES",
     "_MAX_SAFE_EVIDENCE_KEY_LENGTH",
     "_MAX_SAFE_EVIDENCE_VALUE_LENGTH",
+    "_MAX_RESULT_LIST_ITEMS",
+    "_MAX_RESULT_LIST_ITEM_LENGTH",
     "_RESULT_SECRET_RE",
     "_SECRET_KEY_RE",
     "auditor_target_contract",
+    "check_auditor_session_target",
     "check_auditor_command",
     "pending_auditor_target",
     "parse_auditor_result",

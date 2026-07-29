@@ -149,7 +149,7 @@ def test_api_auditor_can_submit_result_but_normal_sessions_do_not_receive_it():
             "message": "Verification passed.",
             "attempt_id": target.attempt_id,
         },
-        action_policy=auditor_policy(task_identifier="TASK-1"),
+        action_policy=auditor_policy(task_identifier="task-1"),
         audit_target=target,
         audit_result_handler=received.append,
     )

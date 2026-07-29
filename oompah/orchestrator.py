@@ -18317,7 +18317,10 @@ class Orchestrator:
             agent_log_path = _agent_log_path(log_dir, issue.identifier)
 
             action_policy = (
-                auditor_policy(task_identifier=issue.identifier)
+                auditor_policy(
+                    task_identifier=issue.identifier,
+                    project_id=issue.project_id,
+                )
                 if focus.name.lower() == AUDITOR_FOCUS_NAME
                 else None
             )
@@ -18856,7 +18859,10 @@ class Orchestrator:
                 audit_target=audit_target,
                 audit_result_handler=_acp_audit_handler,
                 action_policy=(
-                    auditor_policy(task_identifier=issue.identifier)
+                    auditor_policy(
+                        task_identifier=issue.identifier,
+                        project_id=issue.project_id,
+                    )
                     if focus.name.lower() == AUDITOR_FOCUS_NAME
                     else action_policy
                 ),
@@ -19073,7 +19079,10 @@ class Orchestrator:
                 task_handoff_token=handoff_token,
                 comment_queue=_comment_queue,
                 action_policy=(
-                    auditor_policy(task_identifier=issue.identifier)
+                    auditor_policy(
+                        task_identifier=issue.identifier,
+                        project_id=issue.project_id,
+                    )
                     if focus.name.lower() == AUDITOR_FOCUS_NAME
                     else None
                 ),

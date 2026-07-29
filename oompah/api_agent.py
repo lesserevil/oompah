@@ -31,6 +31,7 @@ from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_RESULT_TOOL_NAME,
     AUDITOR_RESULT_TOOL_SCHEMA,
+    check_auditor_session_target,
     submit_auditor_result,
 )
 
@@ -757,8 +758,9 @@ def _execute_tool(
         )
 
     if name == AUDITOR_RESULT_TOOL_NAME:
-        if action_policy is None or not action_policy.read_only:
-            return "Error: submit_audit_result is restricted to an auditor session"
+        session_denial = check_auditor_session_target(action_policy, audit_target)
+        if session_denial is not None:
+            return session_denial
         return submit_auditor_result(args, audit_target, audit_result_handler)
 
     handler = _TOOL_DISPATCH.get(name)

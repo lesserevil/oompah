@@ -59,6 +59,8 @@ state on the strength of a failure.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 import re
 import uuid
@@ -288,6 +290,8 @@ class AuditResult:
     safe_evidence: Mapping[str, Any] | None = None
     auditor: ContributorIdentity | None = None
     attempt_id: str | None = None
+    questions: tuple[str, ...] = ()
+    instructions: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.audit_id, str) or not self.audit_id.strip():
@@ -314,12 +318,22 @@ class AuditResult:
             raise TypeError("AuditResult.message must be a string")
         if self.safe_evidence is not None and not isinstance(self.safe_evidence, Mapping):
             raise TypeError("AuditResult.safe_evidence must be a mapping or None")
+        for field_name in ("questions", "instructions"):
+            values = getattr(self, field_name)
+            if isinstance(values, list):
+                values = tuple(values)
+                object.__setattr__(self, field_name, values)
+            if not isinstance(values, tuple) or not all(
+                isinstance(value, str) for value in values
+            ):
+                raise TypeError(f"AuditResult.{field_name} must be a sequence of strings")
 
 
 class ResultRejection:
     """Reason strings used when :meth:`apply_audit_result` rejects a result."""
 
     AUDIT_NOT_FOUND = "audit not found in pending chain"
+    AUDIT_OWNERSHIP_MISMATCH = "audit does not belong to the requested task or project"
     TARGET_MISMATCH = "target state does not match audit"
     FINGERPRINT_MISMATCH = "evidence fingerprint does not match audit"
     STATE_MISMATCH = "audit is no longer pending or in progress"
@@ -796,6 +810,21 @@ class TerminalTransitionCoordinator:
         identifier = current_issue.identifier
         decision = _ResultDecision()
 
+        # Task and project ownership are server-bound arguments, not model
+        # payload fields. Reject a record copied into the wrong metadata
+        # document before any tracker mutation can occur.
+        issue_ids = {identifier}
+        if getattr(current_issue, "id", None):
+            issue_ids.add(str(current_issue.id))
+        if getattr(current_issue, "project_id", None) and (
+            str(current_issue.project_id) != project_id
+        ):
+            return ResultOutcome(
+                success=False,
+                audit_id=result.audit_id,
+                reason=ResultRejection.AUDIT_OWNERSHIP_MISMATCH,
+            )
+
         # --- CAS: verify the tracker still holds the issue in In Validation ---
         # We deliberately trust the caller's Issue payload here because the
         # coordinator owns the transition into In Validation and no other
@@ -803,6 +832,38 @@ class TerminalTransitionCoordinator:
         # caller passed a stale Issue the metadata update below will still
         # catch a chain drift; this is a fast reject for the common case.
         if canonicalize_status(current_issue.state or "") != IN_VALIDATION:
+            # A replay after the first successful terminal update may carry a
+            # refreshed Issue object whose state is no longer In Validation.
+            # It is safe to acknowledge only an exact, already-recorded
+            # idempotency key; all other stale submissions remain rejected.
+            try:
+                current_doc = store.read(identifier)
+            except TerminalAuditMetadataQuarantinedError:
+                current_doc = None
+            if current_doc is not None:
+                record = next(
+                    (
+                        item
+                        for item in current_doc.pending_chain
+                        if item.audit_id == result.audit_id
+                    ),
+                    None,
+                )
+                if (
+                    record is not None
+                    and record.task_id in issue_ids
+                    and record.project_id == project_id
+                    and _result_idempotency_key(result)
+                    in _load_applied_attempt_log(current_doc)
+                ):
+                    return ResultOutcome(
+                        success=True,
+                        audit_id=result.audit_id,
+                        applied_status=_last_applied_status(
+                            current_doc, result.audit_id
+                        ),
+                        idempotent=True,
+                    )
             return ResultOutcome(
                 success=False,
                 audit_id=result.audit_id,
@@ -827,10 +888,8 @@ class TerminalTransitionCoordinator:
         def _updater(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
             # --- Duplicate-result idempotency ---
             applied_attempts = _load_applied_attempt_log(doc)
-            if (
-                result.attempt_id is not None
-                and result.attempt_id in applied_attempts
-            ):
+            idempotency_key = _result_idempotency_key(result)
+            if idempotency_key in applied_attempts:
                 decision.outcome = ResultOutcome(
                     success=True,
                     audit_id=result.audit_id,
@@ -845,6 +904,13 @@ class TerminalTransitionCoordinator:
             for index, record in enumerate(chain):
                 if record.audit_id != result.audit_id:
                     continue
+                if record.task_id not in issue_ids or record.project_id != project_id:
+                    decision.outcome = ResultOutcome(
+                        success=False,
+                        audit_id=result.audit_id,
+                        reason=ResultRejection.AUDIT_OWNERSHIP_MISMATCH,
+                    )
+                    return doc
                 if record.target_state != result.target_state:
                     decision.outcome = ResultOutcome(
                         success=False,
@@ -882,7 +948,7 @@ class TerminalTransitionCoordinator:
 
             record = chain[target_index]
             now = _now_iso8601()
-            attempt = _make_attempt(result, now)
+            attempt = _make_attempt(result, now, attempt_id=idempotency_key)
 
             # --- Decide how to route the result ---
             action = _route_result(result, record.previous_state)
@@ -921,7 +987,7 @@ class TerminalTransitionCoordinator:
                 decision.applied_attempt = True
                 # Record attempt_id in the applied log so a duplicate submit
                 # is not routed a second time.
-                new_unknown = _record_applied_attempt(doc, result.attempt_id)
+                new_unknown = _record_applied_attempt(doc, idempotency_key)
                 return replace(
                     doc, pending_chain=chain, unknown_fields=new_unknown
                 )
@@ -950,7 +1016,7 @@ class TerminalTransitionCoordinator:
                 next_pending.target_state if next_pending is not None else None
             )
 
-            new_unknown = _record_applied_attempt(doc, result.attempt_id)
+            new_unknown = _record_applied_attempt(doc, idempotency_key)
             decision.target_status = action.status
             decision.comment_text = action.comment
             decision.audit_id = result.audit_id
@@ -1286,7 +1352,44 @@ def _target_state_to_status(target: TargetState) -> str:
     raise ValueError(f"Unknown target state: {target!r}")
 
 
-def _make_attempt(result: AuditResult, now: str) -> AuditAttempt:
+def _result_idempotency_key(result: AuditResult) -> str:
+    """Return a stable key for replaying an identical result.
+
+    New audit records do not have an attempt ID until their first result is
+    received. Deriving a key from the complete typed result preserves
+    idempotency for retries while still treating a changed verdict/message or
+    evidence set as a conflicting submission.
+    """
+
+    if result.attempt_id:
+        return result.attempt_id
+    payload = {
+        "audit_id": result.audit_id,
+        "target_state": result.target_state.value,
+        "evidence_fingerprint": result.evidence_fingerprint.digest,
+        "verdict": result.verdict.value,
+        "failure_classification": (
+            result.failure_classification.value
+            if result.failure_classification is not None
+            else None
+        ),
+        "message": result.message,
+        "safe_evidence": sorted(
+            (str(key), str(value))
+            for key, value in (result.safe_evidence or {}).items()
+        ),
+        "questions": list(result.questions),
+        "instructions": list(result.instructions),
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return f"result-{digest}"
+
+
+def _make_attempt(
+    result: AuditResult, now: str, *, attempt_id: str | None = None
+) -> AuditAttempt:
     """Build the persisted :class:`AuditAttempt` for *result*."""
 
     request_state = (
@@ -1296,7 +1399,7 @@ def _make_attempt(result: AuditResult, now: str) -> AuditAttempt:
     )
     if result.verdict == Verdict.ERROR:
         request_state = RequestState.IN_PROGRESS
-    attempt_id = result.attempt_id or f"attempt-{uuid.uuid4().hex[:12]}"
+    attempt_id = attempt_id or result.attempt_id or f"attempt-{uuid.uuid4().hex[:12]}"
     return AuditAttempt(
         attempt_id=attempt_id,
         target_state=result.target_state,
@@ -1335,7 +1438,7 @@ def _compose_pass_message(result: AuditResult) -> str:
     """
 
     body = _sanitize_line(result.message) if result.message else "Audit verdict: PASS."
-    parts = [f"Audit PASS — {result.target_state.value}", body]
+    parts = [f"Audit PASS — {result.target_state.value}", _append_result_context(body, result)]
     evidence_line = _format_safe_evidence_line(result.safe_evidence)
     if evidence_line:
         parts.append(evidence_line)
@@ -1354,7 +1457,7 @@ def _compose_fail_message(
     )
     return (
         f"Audit FAIL — {classification.value.replace('_', ' ')}. "
-        f"Routing task to {target_status}.\n\n{body}"
+        f"Routing task to {target_status}.\n\n{_append_result_context(body, result)}"
     )
 
 
@@ -1363,7 +1466,7 @@ def _compose_needs_human_message(result: AuditResult) -> str:
     header = f"Needs Human — {result.target_state.value} audit requires operator input."
     if not body:
         body = "The auditor could not produce a safe verdict."
-    combined = f"{header}\n\n{body}"
+    combined = f"{header}\n\n{_append_result_context(body, result)}"
     if not _ACTION_TAIL_RE.search(combined):
         combined = combined.rstrip() + _NEEDS_HUMAN_HINT
     return combined
@@ -1376,7 +1479,26 @@ def _sanitize_line(value: str) -> str:
     the coordinator; this function only tidies whitespace.
     """
 
-    return str(value).strip()
+    return redact_terminal_audit_text(str(value).strip())
+
+
+def _append_result_context(body: str, result: AuditResult) -> str:
+    """Append bounded, coordinator-owned rendering of human follow-ups."""
+
+    parts = [body]
+    questions = [
+        _sanitize_line(item) for item in result.questions if item.strip()
+    ]
+    instructions = [
+        _sanitize_line(item) for item in result.instructions if item.strip()
+    ]
+    if questions:
+        parts.append("Questions:\n" + "\n".join(f"- {item}" for item in questions))
+    if instructions:
+        parts.append(
+            "Instructions:\n" + "\n".join(f"- {item}" for item in instructions)
+        )
+    return "\n\n".join(parts)
 
 
 def _format_safe_evidence_line(safe: Mapping[str, Any] | None) -> str:
@@ -1385,7 +1507,9 @@ def _format_safe_evidence_line(safe: Mapping[str, Any] | None) -> str:
     items = []
     for key, value in safe.items():
         if isinstance(value, str) and value.strip():
-            items.append(f"- {key}: {value.strip()}")
+            safe_key = redact_terminal_audit_text(str(key))
+            safe_value = redact_terminal_audit_text(value.strip())
+            items.append(f"- {safe_key}: {safe_value}")
     if not items:
         return ""
     return "Safe evidence:\n" + "\n".join(items)

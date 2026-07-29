@@ -19,9 +19,7 @@ import asyncio
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from oompah.auditor import (
     AUDITOR_RESULT_TOOL_NAME,
@@ -42,7 +40,7 @@ from oompah.terminal_audit import (
     TargetState,
     Verdict,
 )
-from oompah.terminal_transition_coordinator import AuditResult, ResultOutcome
+from oompah.terminal_transition_coordinator import AuditResult
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +137,30 @@ class TestOwnerSession:
         assert err is None
         assert result.safe_evidence == {"tests": "42 passed", "commit": "abc123"}
 
+    def test_optional_questions_and_instructions_are_bounded_and_typed(self):
+        result, err = _parse(
+            _valid_args(
+                verdict="needs_human",
+                message="The CI authority is ambiguous?",
+                questions=["Which CI result should be treated as authoritative?"],
+                instructions=["Review the failing job and update this task."],
+            )
+        )
+        assert err is None
+        assert result.questions == (
+            "Which CI result should be treated as authoritative?",
+        )
+        assert result.instructions == (
+            "Review the failing job and update this task.",
+        )
+
+    def test_optional_questions_and_instructions_reject_oversized_lists(self):
+        result, err = _parse(
+            _valid_args(questions=["question"] * 6)
+        )
+        assert result is None
+        assert "questions" in (err or "")
+
     def test_submit_passes_result_to_handler(self):
         received: list[AuditResult] = []
 
@@ -159,11 +181,10 @@ class TestOwnerSession:
         assert data["ok"] is True
         assert data["applied_status"] == "Done"
 
-    def test_submit_without_handler_returns_accepted_json(self):
+    def test_submit_without_handler_is_not_reported_as_accepted(self):
         response = _submit(_valid_args(), handler=None)
-        data = json.loads(response)
-        assert data["accepted"] is True
-        assert data["result"]["audit_id"] == "audit-42"
+        assert response.startswith("Error:")
+        assert "not submitted" in response
 
     def test_valid_submission_via_execute_tool(self):
         """Integration: _execute_tool accepts submit_audit_result for auditor sessions."""
@@ -258,6 +279,36 @@ class TestWrongSession:
         )
         assert response.startswith("Error:")
 
+    def test_auditor_policy_bound_to_other_task_cannot_submit(self):
+        from oompah.api_agent import _execute_tool
+
+        response = _execute_tool(
+            Path("."),
+            AUDITOR_RESULT_TOOL_NAME,
+            _valid_args(),
+            action_policy=auditor_policy(task_identifier="TASK-OTHER"),
+            audit_target=_target(),
+            audit_result_handler=lambda _result: None,
+        )
+        assert response.startswith("Error:")
+        assert "does not own the requested task" in response
+
+    def test_auditor_policy_bound_to_other_project_cannot_submit(self):
+        from oompah.api_agent import _execute_tool
+
+        response = _execute_tool(
+            Path("."),
+            AUDITOR_RESULT_TOOL_NAME,
+            _valid_args(),
+            action_policy=auditor_policy(
+                task_identifier="TASK-42", project_id="proj-OTHER"
+            ),
+            audit_target=_target(),
+            audit_result_handler=lambda _result: None,
+        )
+        assert response.startswith("Error:")
+        assert "does not own the requested project" in response
+
 
 # ---------------------------------------------------------------------------
 # Expired / stale audit
@@ -268,11 +319,7 @@ class TestExpiredStaleAudit:
     def test_coordinator_rejects_nonexistent_audit_id(self):
         """Coordinator returns failure when audit_id is not in the chain."""
         from oompah.models import Issue
-        from oompah.terminal_audit import (
-            AuditAttempt,
-            RequestState,
-            TerminalAuditRecord,
-        )
+        from oompah.terminal_audit import RequestState, TerminalAuditRecord
         from oompah.terminal_transition_coordinator import (
             ResultRejection,
             TerminalTransitionCoordinator,
@@ -476,6 +523,16 @@ class TestMalformedEnum:
         assert result is None
         assert "invalid auditor result" in (err or "").lower()
 
+    def test_internal_error_verdict_is_not_publicly_accepted(self):
+        result, err = _parse(_valid_args(verdict="error"))
+        assert result is None
+        assert err is not None
+
+    def test_fail_requires_failure_classification(self):
+        result, err = _parse(_valid_args(verdict="fail"))
+        assert result is None
+        assert "failure_classification" in (err or "")
+
     def test_status_string_verdict_is_rejected(self):
         """'PASS' (uppercase) should succeed via normalisation; 'done' is not a verdict."""
         result_upper, err_upper = _parse(_valid_args(verdict="PASS"))
@@ -612,6 +669,13 @@ class TestStatusInjection:
         assert result is None
         assert "invalid auditor result fields" in (err or "")
 
+    def test_model_cannot_supply_auditor_identity(self):
+        args = _valid_args()
+        args["auditor"] = "someone-else"
+        result, err = _parse(args)
+        assert result is None
+        assert "invalid auditor result fields" in (err or "")
+
     def test_extra_arbitrary_fields_are_rejected(self):
         for extra_key in ("approve", "transition", "override", "merge", "close"):
             args = _valid_args()
@@ -634,6 +698,13 @@ class TestStatusInjection:
 
 
 class TestSecretLikeFields:
+    def test_secret_pattern_in_message_is_rejected(self):
+        result, err = _parse(
+            _valid_args(message="Authorization: Bearer short-but-still-secret")
+        )
+        assert result is None
+        assert "credential pattern" in (err or "")
+
     def test_github_pat_in_safe_evidence_value_is_rejected(self):
         result, err = _parse(
             _valid_args(safe_evidence={"output": "ghp_ABCDEFGHIJKLMNOPabcdef1234"})
@@ -643,7 +714,7 @@ class TestSecretLikeFields:
 
     def test_aws_access_key_in_safe_evidence_value_is_rejected(self):
         result, err = _parse(
-            _valid_args(safe_evidence={"aws": "AKIAIOSFODNN7EXAMPLE"})
+            _valid_args(safe_evidence={"aws": "AKIAIOSFODNN7EXAMPLE"})  # pragma: allowlist secret
         )
         assert result is None
         assert "credential pattern" in (err or "")
@@ -665,7 +736,7 @@ class TestSecretLikeFields:
 
     def test_api_key_key_in_safe_evidence_is_rejected(self):
         result, err = _parse(
-            _valid_args(safe_evidence={"api_key": "sk-1234567890abcdef1234567890abcdef"})
+            _valid_args(safe_evidence={"api_key": "sk-1234567890abcdef1234567890abcdef"})  # pragma: allowlist secret
         )
         assert result is None
         assert err is not None  # Either key or value match
@@ -687,7 +758,7 @@ class TestSecretLikeFields:
     def test_openai_key_pattern_in_value_is_rejected(self):
         result, err = _parse(
             _valid_args(
-                safe_evidence={"info": "sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234"}
+                safe_evidence={"info": "sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234"}  # pragma: allowlist secret
             )
         )
         assert result is None
@@ -697,7 +768,7 @@ class TestSecretLikeFields:
         result, err = _parse(
             _valid_args(
                 safe_evidence={
-                    "key": "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQ..."
+                    "key": "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQ..."  # pragma: allowlist secret
                 }
             )
         )
@@ -723,9 +794,9 @@ class TestSecretLikeFields:
         """Unit test the _RESULT_SECRET_RE pattern directly."""
         assert _RESULT_SECRET_RE.search("ghp_AbCdEfGhIjKlMnOpQrStUvWx")
         assert _RESULT_SECRET_RE.search("ghs_AbCdEfGhIjKlMnOpQrStUvWx1234")
-        assert _RESULT_SECRET_RE.search("AKIAIOSFODNN7EXAMPLE")
-        assert _RESULT_SECRET_RE.search("sk-AbCdEfGhIjKlMnOpQrStUvWx1234567")
-        assert _RESULT_SECRET_RE.search("xoxb-12345-67890-abcdefghijklmnop")
+        assert _RESULT_SECRET_RE.search("AKIAIOSFODNN7EXAMPLE")  # pragma: allowlist secret
+        assert _RESULT_SECRET_RE.search("sk-AbCdEfGhIjKlMnOpQrStUvWx1234567")  # pragma: allowlist secret
+        assert _RESULT_SECRET_RE.search("xoxb-12345-67890-abcdefghijklmnop")  # pragma: allowlist secret
         assert not _RESULT_SECRET_RE.search("abc123 passed in 12.3s")
         assert not _RESULT_SECRET_RE.search("commit abc1234 merged")
 
@@ -758,8 +829,8 @@ class TestDuplicateAndConflictingSubmissions:
         assert result1.audit_id == result2.audit_id
         assert result1.verdict == result2.verdict
 
-    def test_coordinator_deduplicates_same_attempt_id(self):
-        """The coordinator is idempotent for duplicate (audit_id, attempt_id) pairs."""
+    def test_coordinator_deduplicates_identical_result_without_attempt_id(self):
+        """The coordinator derives an idempotency key when none is supplied."""
         from oompah.models import Issue
         from oompah.terminal_audit import RequestState, TerminalAuditRecord
         from oompah.terminal_transition_coordinator import TerminalTransitionCoordinator
@@ -808,13 +879,15 @@ class TestDuplicateAndConflictingSubmissions:
             evidence_fingerprint=fingerprint,
             verdict=Verdict.PASS,
             message="ok",
-            attempt_id="attempt-dup-1",
+            attempt_id=None,
         )
         first = asyncio.run(coord.apply_audit_result(issue, audit_result, "proj-42"))
         assert first.success is True
         first_updates = len(tracker.update_calls)
 
-        # Resubmit the identical attempt_id — must be idempotent
+        # A refreshed task snapshot is terminal after the first application;
+        # an exact replay must still be idempotent rather than stale-rejected.
+        issue.state = "Done"
         second = asyncio.run(coord.apply_audit_result(issue, audit_result, "proj-42"))
         assert second.success is True
         assert second.idempotent is True
@@ -910,7 +983,7 @@ class TestCoordinatorFailure:
 
         response = _submit(_valid_args(), handler=failing_handler)
         assert response.startswith("Error:")
-        assert "coordinator exploded" in response
+        assert "coordinator exploded" not in response
 
     def test_coordinator_exception_does_not_leak_secrets(self):
         """Exception messages must not include the raw AuditResult object."""
@@ -919,8 +992,7 @@ class TestCoordinatorFailure:
 
         response = _submit(_valid_args(), handler=failing_handler)
         assert response.startswith("Error:")
-        # The error message includes the exception text but is still a safe string
-        assert isinstance(response, str)
+        assert "Internal error processing" not in response
 
 
 # ---------------------------------------------------------------------------
@@ -978,3 +1050,18 @@ class TestToolPolicy:
             action_policy=None,
         )
         assert resp2.startswith("Error:")
+
+    def test_read_only_non_auditor_policy_cannot_submit(self):
+        from oompah.authority_boundary import AgentActionPolicy
+        from oompah.api_agent import _execute_tool
+
+        response = _execute_tool(
+            Path("."),
+            AUDITOR_RESULT_TOOL_NAME,
+            _valid_args(),
+            action_policy=AgentActionPolicy(read_only=True),
+            audit_target=_target(),
+            audit_result_handler=lambda _result: None,
+        )
+        assert response.startswith("Error:")
+        assert "restricted to an auditor session" in response

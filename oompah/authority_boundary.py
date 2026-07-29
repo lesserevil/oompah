@@ -136,6 +136,10 @@ class AgentActionPolicy:
     task_identifier: str | None = None
     session_id: str | None = None
     read_only: bool = False
+    # True only for the scheduler-created completion-auditor session.  A
+    # generic read-only policy must not be able to invoke the result tool.
+    auditor_session: bool = False
+    project_id: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +190,7 @@ def external_task_policy(
 def auditor_policy(
     task_identifier: str | None = None,
     session_id: str | None = None,
+    project_id: str | None = None,
 ) -> AgentActionPolicy:
     """Return the immutable server policy for a completion auditor.
 
@@ -200,6 +205,8 @@ def auditor_policy(
         task_identifier=task_identifier,
         session_id=session_id,
         read_only=True,
+        auditor_session=True,
+        project_id=project_id,
     )
 
 

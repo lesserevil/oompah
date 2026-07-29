@@ -616,6 +616,7 @@ def build_tool_catalog(
     from oompah.auditor import (
         AUDITOR_FOCUS_NAME,
         AUDITOR_RESULT_TOOL_NAME,
+        check_auditor_session_target,
         submit_auditor_result,
     )
 
@@ -625,7 +626,10 @@ def build_tool_catalog(
     ):
         from oompah.authority_boundary import auditor_policy
 
-        action_policy = auditor_policy(task_identifier=project_id)
+        action_policy = auditor_policy(
+            task_identifier=getattr(audit_target, "task_id", None),
+            project_id=project_id,
+        )
 
     workspace = Path(workspace_path)
     current_project_id = project_id
@@ -816,6 +820,9 @@ def build_tool_catalog(
         {"result": dict},
     )
     async def submit_audit_result_tool(args: dict[str, Any]) -> dict[str, Any]:
+        session_denial = check_auditor_session_target(action_policy, audit_target)
+        if session_denial is not None:
+            return _wrap_text(session_denial)
         payload = args.get("result") if isinstance(args.get("result"), dict) else args
         return _wrap_text(submit_auditor_result(payload, audit_target, audit_result_handler))
 
@@ -926,14 +933,21 @@ def build_codex_tool_catalog(
         _exec_search_files,
         _exec_run_command,
     )
-    from oompah.auditor import AUDITOR_FOCUS_NAME
+    from oompah.auditor import (
+        AUDITOR_FOCUS_NAME,
+        check_auditor_session_target,
+        submit_auditor_result,
+    )
     auditor_mode = auditor or str(getattr(focus, "name", "")).lower() == AUDITOR_FOCUS_NAME
     if auditor_mode and (
         action_policy is None or not action_policy.read_only
     ):
         from oompah.authority_boundary import auditor_policy
 
-        action_policy = auditor_policy(task_identifier=project_id)
+        action_policy = auditor_policy(
+            task_identifier=getattr(audit_target, "task_id", None),
+            project_id=project_id,
+        )
 
     workspace = Path(workspace_path)
     current_project_id = project_id
@@ -1058,14 +1072,32 @@ def build_codex_tool_catalog(
         message: str,
         failure_classification: str = "",
         safe_evidence_json: str = "",
-        auditor: str = "",
         attempt_id: str = "",
+        questions_json: str = "",
+        instructions_json: str = "",
     ) -> str:
         """Submit the validated completion-audit result to the scheduler."""
+        session_denial = check_auditor_session_target(action_policy, audit_target)
+        if session_denial is not None:
+            return session_denial
         try:
             safe_evidence = json.loads(safe_evidence_json) if safe_evidence_json else None
-        except (TypeError, ValueError) as exc:
-            return f"Error: safe_evidence_json must be valid JSON: {exc}"
+        except (TypeError, ValueError):
+            return "Error: safe_evidence_json must be valid JSON"
+        optional_lists: dict[str, Any] = {}
+        for field_name, raw_value in (
+            ("questions", questions_json),
+            ("instructions", instructions_json),
+        ):
+            if not raw_value:
+                continue
+            try:
+                parsed = json.loads(raw_value)
+            except (TypeError, ValueError):
+                return f"Error: {field_name}_json must be valid JSON"
+            if not isinstance(parsed, list):
+                return f"Error: {field_name}_json must be a JSON array"
+            optional_lists[field_name] = parsed
         return submit_auditor_result(
             {
                 "audit_id": audit_id,
@@ -1075,8 +1107,8 @@ def build_codex_tool_catalog(
                 "message": message,
                 "failure_classification": failure_classification or None,
                 "safe_evidence": safe_evidence,
-                "auditor": auditor or None,
                 "attempt_id": attempt_id or None,
+                **optional_lists,
             },
             audit_target,
             audit_result_handler,
@@ -1177,6 +1209,7 @@ def build_opencode_tool_catalog(
     from oompah.auditor import (
         AUDITOR_FOCUS_NAME,
         AUDITOR_RESULT_TOOL_NAME,
+        check_auditor_session_target,
         submit_auditor_result,
     )
 
@@ -1186,7 +1219,10 @@ def build_opencode_tool_catalog(
     ):
         from oompah.authority_boundary import auditor_policy
 
-        action_policy = auditor_policy(task_identifier=project_id)
+        action_policy = auditor_policy(
+            task_identifier=getattr(audit_target, "task_id", None),
+            project_id=project_id,
+        )
 
     workspace = Path(workspace_path)
 
@@ -1376,6 +1412,9 @@ def build_opencode_tool_catalog(
         {"result": dict},
     )
     async def submit_audit_result_tool(args: dict[str, Any]) -> dict[str, Any]:
+        session_denial = check_auditor_session_target(action_policy, audit_target)
+        if session_denial is not None:
+            return _wrap_text(session_denial)
         payload = args.get("result") if isinstance(args.get("result"), dict) else args
         return _wrap_text(submit_auditor_result(payload, audit_target, audit_result_handler))
 
