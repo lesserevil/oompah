@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:02:08.142762Z'
-updated_at: '2026-07-29T22:02:22.815776Z'
+updated_at: '2026-07-29T22:06:45.311540Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-564
 target_branch: null
 review_url: null
@@ -27,6 +27,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-459
   base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
   updated_at: '2026-07-29T22:02:20.651337+00:00'
+oompah.task_costs:
+  total_input_tokens: 29
+  total_output_tokens: 9351
+  total_cost_usd: 0.0
+  by_model:
+    sonnet:
+      input_tokens: 29
+      output_tokens: 9351
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: sonnet
+    input_tokens: 29
+    output_tokens: 9351
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T22:06:41.709879+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-564__20260729T220224Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-459--task-OOMPAH-564
+    source_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
+    completed_at: '2026-07-29T22:06:41.714578+00:00'
 ---
 ## Summary
 
@@ -51,5 +77,25 @@ author: oompah
 created: 2026-07-29 22:02
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-29 22:06
+---
+Agent completed successfully in 263s (9380 tokens)
+---
+author: oompah
+created: 2026-07-29 22:06
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 70, Tool calls: 46
+- Tokens: 29 in / 9.4K out [9.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 23s
+- Log: OOMPAH-564__20260729T220224Z.jsonl
+---
+author: oompah
+created: 2026-07-29 22:06
+---
+Agent completed without closing this issue (263s (9380 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
