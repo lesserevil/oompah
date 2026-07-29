@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-476
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T01:28:35.379726Z'
+updated_at: '2026-07-29T16:53:33.599663Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -58,7 +58,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 69fe4064-a0b3-4763-8f40-111d66a26140
+oompah.agent_run_id: 6961c244-f87a-4cf8-98a6-4f650fc948ad
 oompah.work_branch: epic-OOMPAH-459
 oompah.task_costs:
   total_input_tokens: 114
@@ -118,5 +118,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 7s
 - Log: OOMPAH-476__20260729T012631Z.jsonl
+---
+author: oompah
+created: 2026-07-29 16:53
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 16:53
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->

@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T16:53:12.739419Z'
+updated_at: '2026-07-29T16:53:27.682762Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -32,6 +32,22 @@ oompah.review_number: '578'
 oompah.work_branch: epic-OOMPAH-458
 oompah.target_branch: main
 oompah.agent_run_id: 29180c88-0367-44c1-89b3-3ed8ed169d1d
+oompah.task_costs:
+  total_input_tokens: 184
+  total_output_tokens: 50409
+  total_cost_usd: 0.0
+  by_model:
+    opus:
+      input_tokens: 184
+      output_tokens: 50409
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: opus
+    input_tokens: 184
+    output_tokens: 50409
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T16:53:25.126439+00:00'
 ---
 ## Summary
 
@@ -167,5 +183,20 @@ author: oompah
 created: 2026-07-29 16:53
 ---
 Rebased epic-OOMPAH-458 onto origin/main. Resolved conflicts across acp_agent.py, acp_backends/{base,codex,opencode}.py, acp_tools.py, api_agent.py, orchestrator.py, and models.py by combining main's task_identifier/action_policy/task_handoff_token/read_only additions with the branch's auditor focus/audit_target/audit_result_handler additions. 21 original commits preserved. Focused tests (137 auditor + 383 acp/api/authority + 159 dispatch) pass. Force-pushed to origin.
+---
+author: oompah
+created: 2026-07-29 16:53
+---
+Agent completed successfully in 1545s (50593 tokens)
+---
+author: oompah
+created: 2026-07-29 16:53
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 236, Tool calls: 178
+- Tokens: 184 in / 50.4K out [50.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 25m 45s
+- Log: OOMPAH-458__20260729T162743Z.jsonl
 ---
 <!-- COMMENTS:END -->
