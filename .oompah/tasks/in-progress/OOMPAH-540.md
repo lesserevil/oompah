@@ -8,10 +8,11 @@ title: Let read-only duplicate preflight bypass dependency and epic serializatio
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-07-29T00:46:32.053029Z'
-updated_at: '2026-07-29T00:53:02.627287Z'
+updated_at: '2026-07-29T00:53:21.664512Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,7 +49,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 73e1116f-9f2b-44a0-8afc-21271ba96602
+oompah.agent_run_id: ef3574fd-dfd0-43ee-b663-8287aef7f342
 oompah.task_costs:
   total_input_tokens: 22
   total_output_tokens: 4352
@@ -137,5 +138,20 @@ author: oompah
 created: 2026-07-29 00:53
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-540`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-29 00:53
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 00:53
+---
+Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-29 00:53
+---
+Temporarily marked human-only to prevent redispatch while the already-tested interactive branch is committed, merged, deployed, and verified. The label will be removed when the task is completed.
 ---
 <!-- COMMENTS:END -->

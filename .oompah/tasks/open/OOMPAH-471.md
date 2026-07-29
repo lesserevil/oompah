@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-471
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Collect stable evidence for Done completion audits
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-29T00:51:25.067918Z'
+updated_at: '2026-07-29T00:53:09.766090Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
