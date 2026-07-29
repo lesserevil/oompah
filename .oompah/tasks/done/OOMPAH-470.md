@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: In Progress
+status: Done
 priority: 3
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T14:20:59.033849Z'
+updated_at: '2026-07-29T14:22:54.786564Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -3915,5 +3915,44 @@ author: oompah
 created: 2026-07-29 14:20
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 14:22
+---
+COMPLETION VERIFICATION: Implementation is complete, committed, and pushed on epic-OOMPAH-458.
+
+**Delivered:**
+1. Reserved editable auditor role created with dedicated focus/contract
+2. Migration seeding from deduplicated union of deep/standard/default role candidates + configured provider defaults
+3. Comprehensive candidate filtering respecting provider whitelist, credentials, health, budget, and model validity
+4. Contributor model exclusion policy: prefers independent providers, falls back only when model ID differs from all contributed models
+5. Rejection of unknown ACP models on contributing providers (not independently provable)
+6. Normalized no-candidate diagnostics
+
+**Key files:**
+- oompah/auditor_candidate_selector.py (685 lines): Core selection logic
+- oompah/auditor.py: Auditor role definition
+- oompah/bootstrap.py: Migration seeding on startup
+- tests/test_auditor_candidate_selector.py: Comprehensive test coverage
+
+**Tests passing:** 13178 passed, 40 skipped (66.07s)
+
+**Test coverage includes:**
+- Different provider/model independent selection
+- Same-provider different-model fallback
+- Same-model different-provider (independent)
+- Multi-contributor epic exclusion
+- Unknown ACP model rejection
+- Round-robin ordering
+- Whitelist enforcement
+- Credential/health/budget filtering
+- Empty role diagnostics
+- Migration seeding validation
+- No-candidate error reporting
+
+**Acceptance criteria met:**
+✓ Selected auditors are demonstrably independent under agreed policy
+✓ Unsafe/unverifiable candidates never used
+✓ Operators can edit auditor candidates through existing role configuration path
 ---
 <!-- COMMENTS:END -->
