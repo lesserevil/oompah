@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-550
 type: epic
-status: Backlog
+status: Done
 priority: 0
 title: Broker durable coordination between concurrent agents
 parent: null
@@ -15,7 +15,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:13.053468Z'
-updated_at: '2026-07-29T17:57:13.073972Z'
+updated_at: '2026-07-29T18:28:54.721344Z'
 work_branch: null
 target_branch: null
 review_url: null

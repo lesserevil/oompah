@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-29T18:26:15.384277Z'
+updated_at: '2026-07-29T18:28:45.694802Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-478
 target_branch: null
 review_url: null
@@ -161,5 +161,17 @@ author: oompah
 created: 2026-07-29 18:26
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 18:28
+---
+Understanding: Epic rollup transitions need to route through coordinator audits instead of direct terminal writes. Key changes:
+1. Replace direct terminal writes in rollup reconciliation, stale In Review child completion, parent auto-close, and epic/child merged promotion with coordinator requests
+2. Ensure In Validation children block rollup landing
+3. Parent Done requires all required children to have current passed Done audits
+4. Parent Merged must chain own Done audit when missing
+5. Preserve existing branch/landing-evidence gates
+
+Starting discovery phase to locate rollup, audit, and coordinator code.
 ---
 <!-- COMMENTS:END -->

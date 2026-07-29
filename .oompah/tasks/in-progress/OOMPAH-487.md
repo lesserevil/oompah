@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-487
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Document auditor configuration, overrides, migration, and recovery
 parent: OOMPAH-460
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-29T02:09:34.229036Z'
+updated_at: '2026-07-29T18:28:54.077801Z'
 work_branch: epic-OOMPAH-460
 target_branch: null
 review_url: null
@@ -55,7 +55,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 750a01b5-18bb-4d1e-b8ef-9ae288a4374a
+oompah.agent_run_id: 2eeecd8d-67c6-4744-9ad6-c5841e6eb4cb
 oompah.work_branch: epic-OOMPAH-460
 oompah.task_costs:
   total_input_tokens: 186
@@ -115,5 +115,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 24s
 - Log: OOMPAH-487__20260729T020810Z.jsonl
+---
+author: oompah
+created: 2026-07-29 18:28
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
