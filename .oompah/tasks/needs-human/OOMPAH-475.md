@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T14:53:03.981561Z'
+updated_at: '2026-07-29T14:53:32.485166Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -48,8 +48,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 9bf1248e-b7da-4a96-acb2-e2c4a0ed12cb
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 6374474
-  total_output_tokens: 46128
+  total_input_tokens: 6431733
+  total_output_tokens: 47001
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -59,6 +59,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 51897
       output_tokens: 555
+      cost_usd: 0.0
+    opus:
+      input_tokens: 57259
+      output_tokens: 873
       cost_usd: 0.0
   runs:
   - profile: default
@@ -97,6 +101,12 @@ oompah.task_costs:
     output_tokens: 555
     cost_usd: 0.0
     recorded_at: '2026-07-29T14:52:33.276407+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 57259
+    output_tokens: 873
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T14:53:28.690185+00:00'
 ---
 ## Summary
 
@@ -456,5 +466,25 @@ author: oompah
 created: 2026-07-29 14:53
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-29 14:53
+---
+Agent completed successfully in 26s (58132 tokens)
+---
+author: oompah
+created: 2026-07-29 14:53
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 1
+- Tokens: 57.3K in / 873 out [58.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 26s
+- Log: OOMPAH-475__20260729T145304Z.jsonl
+---
+author: oompah
+created: 2026-07-29 14:53
+---
+Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
