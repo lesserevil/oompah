@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T04:17:42.254925Z'
+updated_at: '2026-07-29T04:17:52.429103Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -55,13 +55,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 87645c99-ab61-43fe-995b-2b6f9f9b89dd
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 55022981
-  total_output_tokens: 184504
+  total_input_tokens: 55023079
+  total_output_tokens: 187598
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 46689960
-      output_tokens: 149149
+      input_tokens: 46690058
+      output_tokens: 152243
       cost_usd: 0.0
     sonnet:
       input_tokens: 2359197
@@ -204,6 +204,12 @@ oompah.task_costs:
     output_tokens: 1120
     cost_usd: 0.0
     recorded_at: '2026-07-29T03:59:03.979531+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 98
+    output_tokens: 3094
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T04:17:47.974930+00:00'
 ---
 ## Summary
 
@@ -1414,5 +1420,38 @@ The auditor role has been created as a reserved, editable role seeded from the d
 AuditorCandidateSelector implements the full filtering pipeline respecting project provider whitelist, credentials, health, budget, and model validity, with contributor exclusion that prefers independent providers and falls back to same-provider candidates with explicit different model IDs. Unknown/SDK-managed models on contributing providers are properly excluded as unverifiable.
 
 NoCandidateReason provides normalized diagnostics for operators. Migration seeding is integrated into bootstrap. All 39 tests passing. Operators can edit auditor candidates through the existing RoleStore API.
+---
+author: oompah
+created: 2026-07-29 04:17
+---
+Agent completed successfully in 135s (3192 tokens)
+---
+author: oompah
+created: 2026-07-29 04:17
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 33, Tool calls: 11
+- Tokens: 98 in / 3.1K out [3.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 15s
+- Log: OOMPAH-470__20260729T041536Z.jsonl
+---
+author: oompah
+created: 2026-07-29 04:17
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-458` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-458
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-458
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->

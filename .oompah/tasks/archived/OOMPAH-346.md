@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-346
 type: bug
-status: Merged
+status: Archived
 priority: 0
 title: Reserve round-robin providers atomically at dispatch time
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-22T00:50:14.701022Z'
-updated_at: '2026-07-22T03:51:44.023454Z'
+updated_at: '2026-07-29T04:18:00.412688Z'
 work_branch: OOMPAH-346
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/527
