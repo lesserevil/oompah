@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-337
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Build GitLabIssueTracker core REST adapter and protocol registration
 parent: OOMPAH-323
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:30.718256Z'
-updated_at: '2026-07-22T16:32:52.508772Z'
+updated_at: '2026-07-29T16:46:28.647900Z'
 work_branch: null
 target_branch: null
 review_url: null
