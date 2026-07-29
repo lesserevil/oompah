@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-559
 type: feature
-status: Backlog
+status: Done
 priority: 0
 title: Recover integration failures and clean private workspaces safely
 parent: OOMPAH-555
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:27.458733Z'
-updated_at: '2026-07-29T17:57:22.463402Z'
+updated_at: '2026-07-29T18:28:31.579898Z'
 work_branch: null
 target_branch: null
 review_url: null
