@@ -25,6 +25,12 @@ from oompah.focus import (
     save_suggestion,
     score_focus,
     select_focus,
+    select_focus_async,
+)
+from oompah.duplicate_screening import (
+    ScreeningVerdict,
+    complete_claim_record,
+    new_claim_record,
 )
 from oompah.models import Issue
 
@@ -1167,6 +1173,98 @@ class TestDuplicateDetectorFocus:
         )
 
         assert select_focus(issue, foci).name == "chore"
+
+    def test_checked_screening_record_completes_focus_without_legacy_label(self):
+        foci = [
+            self._get_duplicate_detector(),
+            Focus(
+                name="chore",
+                role="Maintenance",
+                description="",
+                keywords=["update"],
+                status="active",
+            ),
+        ]
+        issue = _make_issue(
+            title="Update duplicate detection documentation",
+            description="Apply the requested documentation update.",
+            labels=[],
+            project_id="project-1",
+            issue_type="task",
+        )
+        claim = new_claim_record(issue, owner="scheduler")
+        issue.duplicate_screening = complete_claim_record(
+            claim,
+            verdict=ScreeningVerdict.NO_DUPLICATE,
+        ).to_dict()
+
+        assert select_focus(issue, foci).name == "chore"
+
+    def test_task_edit_invalidates_structured_completed_focus(self):
+        duplicate = self._get_duplicate_detector()
+        chore = Focus(
+            name="chore",
+            role="Maintenance",
+            description="",
+            keywords=["update"],
+            status="active",
+        )
+        issue = _make_issue(
+            title="Update duplicate detection documentation",
+            description="Apply the requested documentation update.",
+            labels=[],
+            project_id="project-1",
+            issue_type="task",
+        )
+        claim = new_claim_record(issue, owner="scheduler")
+        issue.duplicate_screening = complete_claim_record(
+            claim,
+            verdict=ScreeningVerdict.NO_DUPLICATE,
+        ).to_dict()
+        issue.title = "Update duplicate detection documentation with duplicate examples"
+
+        assert select_focus(issue, [duplicate, chore]).name == "duplicate_detector"
+
+    @pytest.mark.asyncio
+    async def test_async_triage_excludes_structurally_completed_duplicate_focus(
+        self,
+        monkeypatch,
+    ):
+        duplicate = self._get_duplicate_detector()
+        chore = Focus(
+            name="chore",
+            role="Maintenance",
+            description="",
+            keywords=["update"],
+            status="active",
+        )
+        issue = _make_issue(
+            title="Update duplicate detection documentation",
+            description="Apply the requested documentation update.",
+            labels=[],
+            project_id="project-1",
+            issue_type="task",
+        )
+        claim = new_claim_record(issue, owner="scheduler")
+        issue.duplicate_screening = complete_claim_record(
+            claim,
+            verdict=ScreeningVerdict.NO_DUPLICATE,
+        ).to_dict()
+
+        async def _triage(_issue, active_foci, _provider):
+            assert [focus.name for focus in active_foci] == ["chore"]
+            return "chore", "only remaining applicable focus"
+
+        monkeypatch.setattr("oompah.focus._triage_cache", {})
+        monkeypatch.setattr("oompah.focus._select_focus_llm", _triage)
+
+        selected = await select_focus_async(
+            issue,
+            [duplicate, chore],
+            provider=object(),
+        )
+
+        assert selected.name == "chore"
 
     def test_selected_for_rogers_prefix_issue(self):
         """An issue with a topic-prefix title should score duplicate_detector."""

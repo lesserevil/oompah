@@ -582,11 +582,26 @@ def _text_matches(text: str, keywords: list[str]) -> int:
 def _completed_focus_names(issue: Issue) -> set[str]:
     """Return focus names whose work phase has already completed on *issue*."""
     prefix = "focus-complete:"
-    return {
+    completed = {
         label[len(prefix):].strip().lower()
         for label in (issue.labels or [])
         if label.lower().startswith(prefix) and label[len(prefix):].strip()
     }
+    # Duplicate preflight now returns a server-consumed structured result from
+    # a read-only worker.  Its revision-aware metadata is the authoritative
+    # handoff marker; do not require the screening agent to mutate a legacy
+    # ``focus-complete`` label merely to keep ordinary focus triage from
+    # selecting duplicate_detector again for implementation.
+    try:
+        from oompah.duplicate_screening import assess_screening
+
+        if assess_screening(issue).implementation_eligible:
+            completed.add("duplicate_detector")
+    except (AttributeError, TypeError, ValueError):
+        # Malformed or partial tracker snapshots fail closed in the screening
+        # gate itself. They must not suppress a fresh duplicate preflight.
+        pass
+    return completed
 
 
 def score_focus(focus: Focus, issue: Issue) -> int:
