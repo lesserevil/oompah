@@ -15,6 +15,7 @@ children:
 - OOMPAH-482
 - OOMPAH-483
 - OOMPAH-564
+- OOMPAH-565
 blocked_by:
 - OOMPAH-458
 labels:
@@ -22,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-29T22:02:10.260799Z'
+updated_at: '2026-07-29T22:12:18.452478Z'
 work_branch: null
 target_branch: null
 review_url: null
