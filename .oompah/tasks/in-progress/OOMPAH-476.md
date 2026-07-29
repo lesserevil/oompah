@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-476
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T17:49:28.010045Z'
+updated_at: '2026-07-29T17:51:53.297897Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -58,7 +58,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: eccad0f3-ca64-4582-966e-b25b0be49340
+oompah.agent_run_id: bd59b561-74de-4b96-9fd1-db75041a8131
 oompah.work_branch: epic-OOMPAH-459
 oompah.task_costs:
   total_input_tokens: 46028706

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-468
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Persist worker and epic contributor provider-model provenance
 parent: OOMPAH-458
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-28T22:03:54.079967Z'
+updated_at: '2026-07-29T17:51:52.488624Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
