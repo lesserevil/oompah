@@ -1,17 +1,20 @@
 ---
-id: OOMPAH-547
+id: OOMPAH-549
 type: feature
 status: Done
 priority: 0
-title: Split finish-order dependencies from hard-start dependencies
+title: Expose finish-order lifecycle in UI, prompts, and operator documentation
 parent: OOMPAH-545
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-546
+- OOMPAH-547
+- OOMPAH-548
 labels:
 - human-only
 assignee: null
-created_at: '2026-07-29T16:23:09.212852Z'
-updated_at: '2026-07-29T18:27:43.477561Z'
+created_at: '2026-07-29T16:23:11.842687Z'
+updated_at: '2026-07-29T18:27:51.068284Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,11 +23,11 @@ merged_at: null
 ---
 ## Summary
 
-Reinterpret Issue.blocked_by and existing dependency APIs as finish-order constraints. Add start_blocked_by metadata plus supported CLI/API add/remove operations for hard-start dependencies. Normal finish dependencies must not reject implementation dispatch; hard-start edges must reject until satisfied. Inherit both relationship types from parent epics at the appropriate dispatch or integration boundary. Validate new edges against cycles across the combined graph and return an actionable edge path.
+Update task/epic workflow documentation, bootstrap/AGENTS command references, prompts, dashboard terminology, and API descriptions so blocked_by is presented as Must finish after and start_blocked_by as Cannot start until. Document Ready to Integrate, task submission, cycle recovery, and the distinction between agent completion and task completion. Ensure the UI shows exact dependency and integration wait reasons without normal-operation alerts.
 
-Tests must cover ordinary dispatch, inherited epic edges, P0 behavior, duplicate preflight, cycle creation/rejection, exact idempotent removal, native/GitHub/GitLab persistence, and API/CLI errors.
+Tests must cover generated bootstrap instructions, prompt contracts, dashboard rendering, OpenAPI descriptions, and status-label catalogs.
 
-Acceptance criteria: finish edges allow early work, hard-start edges preserve true prerequisites, cycles cannot be introduced, existing dependency data remains readable, and focused tests plus make test pass.
+Acceptance criteria: agents and operators receive unambiguous instructions, existing command documentation is updated, actionable blocked reasons are visible, and focused tests plus make test pass.
 
 ## Acceptance Criteria
 
@@ -53,10 +56,5 @@ author: oompah
 created: 2026-07-29 18:17
 ---
 The parent epic OOMPAH-545 merged from epic-OOMPAH-545, but this task was Needs Human with work branch unset. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
----
-author: oompah
-created: 2026-07-29 18:27
----
-Implemented in PR #579 and merged to main at 31f8938b8f669a316a830690aaedcc1e0d3834bf. Full GitHub CI passed on Python 3.11, 3.12, and 3.13; focused post-rebase compatibility tests passed.
 ---
 <!-- COMMENTS:END -->
