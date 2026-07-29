@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-29T18:30:11.540586Z'
+updated_at: '2026-07-29T18:37:28.582709Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -189,5 +189,23 @@ Understanding: This is a continuation run (attempt #1). Previous agent ran but d
 3. Deprecate OOMPAH_VERIFY_COMPLETION and OOMPAH_VERIFY_COMPLETION_LLM with startup warnings and release note migration
 4. Add config/env parsing tests, deprecation-warning tests, doc link/content checks
 Starting with codebase exploration.
+---
+author: oompah
+created: 2026-07-29 18:37
+---
+Discovery: The epic branch is at origin/epic-OOMPAH-460 (before OOMPAH-459/483/486 implementation is merged). I can see from main branch:
+1. oompah/auditor.py, oompah/auditor_candidate_selector.py, oompah/auditor_dispatch.py exist in main
+2. ServiceConfig.audit_max_attempts (int=3) parsed via OOMPAH_AUDIT_MAX_ATTEMPTS - NOT yet on epic branch
+3. docs/auditor-dispatch-operations.md exists in main but NOT on epic branch
+4. OOMPAH_VERIFY_COMPLETION/OOMPAH_VERIFY_COMPLETION_LLM still exist without deprecation warnings
+5. task-epic-workflow.md does not include 'In Validation' status in lifecycle
+6. No tests for audit_max_attempts config parsing or deprecation warnings
+
+Implementation plan:
+- Add OOMPAH_AUDIT_MAX_ATTEMPTS (+ related audit settings) to .env.example and ServiceConfig
+- Create docs/auditor-dispatch-operations.md with full lifecycle docs and Mermaid diagram
+- Update docs/task-epic-workflow.md to include In Validation status
+- Add deprecation logging for OOMPAH_VERIFY_COMPLETION / OOMPAH_VERIFY_COMPLETION_LLM
+- Add tests: config parsing, deprecation warnings, doc content checks
 ---
 <!-- COMMENTS:END -->
