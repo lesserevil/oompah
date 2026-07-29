@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:03:33.910422Z'
-updated_at: '2026-07-29T21:17:21.907328Z'
+updated_at: '2026-07-29T21:21:08.980576Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-07-29 21:17
 ---
 **Implementation:** Added aggressive pruning for terminal branches and worktrees. Changes: (1) Added worktree_cleanup_interval_seconds config (default 60s) in config.py and .env.example for independent scheduling; (2) Added _get_protected_branch_names() to identify branches to protect (default, release, state branches); (3) Added _delete_branch_safely() to safely delete local and remote branches only for unprotected refs; (4) Added _prune_gone_upstream_branches() for safe cleanup of fully merged branches whose upstream is gone; (5) Modified _remove_worktree_locked() and _remove_epic_worktree_locked() to delete associated branches when removing worktrees; (6) Updated all managed git fetch commands to use --prune flag to remove deleted remote-tracking refs; (7) Integrated gone-upstream pruning into _do_cleanup_worktrees() via new _prune_gone_upstream_branches() in orchestrator.py; (8) Updated _maybe_cleanup_worktrees() to use independent interval config.
+---
+author: oompah
+created: 2026-07-29 21:21
+---
+**Verification:** All focused tests pass (428 tests from orchestrator_handlers, projects, config + 11 storage cleanup tests). Verified: (1) worktree_cleanup_interval_seconds config properly loaded and defaulted to 60s; (2) protected branch detection correctly includes default, release, and state branches; (3) all terminal worktree cleanup tests pass; (4) project store tests pass for worktree removal with new branch deletion logic; (5) gone-upstream pruning helper functions work correctly; (6) fetch --prune added to all managed fetch operations; (7) orchestrator integration with independent worktree cleanup interval verified. Ready for final submission.
 ---
 <!-- COMMENTS:END -->
