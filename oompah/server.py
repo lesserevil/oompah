@@ -8454,6 +8454,12 @@ async def api_issue_full_detail(identifier: str, request: Request):
             )
         # Use the resolved project_id (may differ from query param if it was None)
         project_id = resolved_project_id
+        # Native Markdown tracker records do not persist their managed-project
+        # identity on each task.  Attach the authoritative identity resolved
+        # above before computing project-aware summaries such as duplicate
+        # screening; otherwise a current fingerprint is falsely shown as stale.
+        if project_id:
+            issue.project_id = project_id
         project_names = _project_names_by_id(orch)
         project_name = project_names.get(project_id or "")
         # Prefer the tracker's own display_identifier when set; otherwise use
