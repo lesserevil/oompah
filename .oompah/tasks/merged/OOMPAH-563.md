@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-563
 type: bug
-status: In Review
+status: Merged
 priority: 1
 title: Make service-state persistence atomic and recover terminal-audit quarantine
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:36:54.712161Z'
-updated_at: '2026-07-29T22:03:04.740931Z'
+updated_at: '2026-07-29T22:10:11.062960Z'
 work_branch: OOMPAH-563
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/583
