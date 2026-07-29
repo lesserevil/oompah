@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-555
 type: epic
-status: Backlog
+status: Done
 priority: 0
 title: Execute epic children in parallel with ordered integration
 parent: null
@@ -18,7 +18,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:20.776850Z'
-updated_at: '2026-07-29T17:57:18.266217Z'
+updated_at: '2026-07-29T18:28:58.660052Z'
 work_branch: null
 target_branch: null
 review_url: null
