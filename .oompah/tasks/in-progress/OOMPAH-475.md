@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T01:26:17.910019Z'
+updated_at: '2026-07-29T14:34:51.384596Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: c84f562e-a966-429d-911a-79a008c82eab
+oompah.agent_run_id: fb866520-a3d5-4744-9e04-88bd1a0b36ce
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 409050
@@ -105,5 +105,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 15s
 - Log: OOMPAH-475__20260729T012510Z.jsonl
+---
+author: oompah
+created: 2026-07-29 14:34
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 14:34
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
