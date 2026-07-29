@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-488
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Validate the complete task Done-Merged-Archived audit lifecycle
 parent: OOMPAH-460
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-29T19:39:38.708494Z'
+updated_at: '2026-07-29T19:39:54.582393Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -87,12 +87,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T18:45:49.622121+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-488
-  base_branch: epic-OOMPAH-460
-  base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
-  updated_at: '2026-07-29T18:51:06.452314+00:00'
+  head_sha: c2be769195db65f505259e7b938f9379a2c3e163
+  submitted_at: '2026-07-29T19:39:52.304190+00:00'
+  updated_at: '2026-07-29T19:39:52.304190+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-488__20260729T183010Z
@@ -293,5 +293,10 @@ author: oompah
 created: 2026-07-29 19:39
 ---
 Completion: Delivered tests/test_done_merged_archived_lifecycle.py (52 tests, all passing). The test file validates the complete Done→Merged→Archived audit lifecycle using offline/deterministic fixtures. Merged from origin/main to get sibling task infrastructure (auditor.py, evidence collectors, coordinator). Branch epic-OOMPAH-460--task-OOMPAH-488 pushed and ready for integration.
+---
+author: oompah
+created: 2026-07-29 19:39
+---
+Implemented tests/test_done_merged_archived_lifecycle.py with 52 comprehensive lifecycle tests. Validates complete Done→Merged→Archived audit chain with three distinct auditors, worker self-certification prevention, failure variants (incomplete/CI/wrong-target/unsafe-archive), and restart recovery. Merged from origin/main to get sibling task infrastructure. All 13,627 tests pass.
 ---
 <!-- COMMENTS:END -->
