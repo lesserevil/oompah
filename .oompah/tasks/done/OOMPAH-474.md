@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-07-29T02:39:31.854120Z'
+updated_at: '2026-07-29T02:39:34.526154Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -197,5 +197,10 @@ Delivered:
 - 59 tests cover all required scenarios from the acceptance criteria; 276 total tests passed across new suite and neighboring suites.
 
 Security properties verified: no arbitrary status injection, no credential leakage via safe_evidence, session ownership enforced via AuditorTargetContract fields, conflicting submissions rejected.
+---
+author: oompah
+created: 2026-07-29 02:39
+---
+Added auditor-only structured result submission API and tool. Enhanced parse_auditor_result with size limits and credential detection. Wired audit_result_handler to coordinator in both API and ACP worker paths. 59 new tests covering all acceptance criteria scenarios; 276 passed.
 ---
 <!-- COMMENTS:END -->
