@@ -11,7 +11,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:08.114469Z'
-updated_at: '2026-07-29T18:15:42.562791Z'
+updated_at: '2026-07-29T18:17:14.794858Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-07-29 18:15
 ---
 The parent epic OOMPAH-545 merged from epic-OOMPAH-545, but this task was Open with work branch unset. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-29 18:17
+---
+The parent epic OOMPAH-545 merged from epic-OOMPAH-545, but this task was Needs Human with work branch unset. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
