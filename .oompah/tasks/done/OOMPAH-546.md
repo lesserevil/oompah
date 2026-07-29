@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-546
 type: feature
-status: Needs Human
+status: Done
 priority: 0
 title: Add Ready to Integrate lifecycle and integration metadata
 parent: OOMPAH-545
@@ -11,7 +11,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:08.114469Z'
-updated_at: '2026-07-29T18:17:14.794858Z'
+updated_at: '2026-07-29T18:27:34.850377Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-476
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
@@ -13,8 +13,8 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T18:26:08.194601Z'
-work_branch: epic-OOMPAH-459
+updated_at: '2026-07-29T18:27:35.598231Z'
+work_branch: epic-OOMPAH-459--task-OOMPAH-476
 target_branch: null
 review_url: null
 review_number: null
@@ -58,8 +58,8 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: f101e16f-564f-4904-a7cb-e47bb5469278
-oompah.work_branch: epic-OOMPAH-459
+oompah.agent_run_id: 15a2d346-7b50-4e3a-981c-fb082de02a01
+oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-476
 oompah.task_costs:
   total_input_tokens: 64066811
   total_output_tokens: 131299
@@ -126,6 +126,14 @@ oompah.task_costs:
     output_tokens: 8314
     cost_usd: 0.0
     recorded_at: '2026-07-29T18:25:17.806635+00:00'
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-459--task-OOMPAH-476
+  base_branch: epic-OOMPAH-459
+  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
+  updated_at: '2026-07-29T18:27:30.122105+00:00'
 ---
 ## Summary
 
@@ -463,5 +471,15 @@ author: oompah
 created: 2026-07-29 18:25
 ---
 Agent completed without closing this issue (495s (2132823 tokens)). Escalating from 'default' to 'standard'. Retrying in 20s (2/3).
+---
+author: oompah
+created: 2026-07-29 18:27
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 18:27
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->

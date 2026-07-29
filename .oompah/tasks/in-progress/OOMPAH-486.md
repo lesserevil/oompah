@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-486
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Add terminal-audit metrics, maintenance health, and actionable alerts
 parent: OOMPAH-460
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-29T02:08:02.038395Z'
+updated_at: '2026-07-29T18:27:32.061764Z'
 work_branch: epic-OOMPAH-460
 target_branch: null
 review_url: null
@@ -37,7 +37,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: f17c37b1-df78-4eb3-9af1-1ac083d11e9d
+oompah.agent_run_id: 26f87f8f-a990-4582-ac34-02dfa50c2fc0
 oompah.work_branch: epic-OOMPAH-460
 oompah.task_costs:
   total_input_tokens: 2610630
@@ -97,5 +97,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 42s
 - Log: OOMPAH-486__20260729T020423Z.jsonl
+---
+author: oompah
+created: 2026-07-29 18:27
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
