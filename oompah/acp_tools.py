@@ -408,7 +408,9 @@ def _task_evidence_fingerprint(issue: Any, project_id: str) -> Any:
             or getattr(issue, "branch_name", None)
             or ""
         ),
+        source_sha=str(getattr(issue, "source_sha", "") or ""),
         target_branch=str(getattr(issue, "target_branch", "") or ""),
+        target_sha=str(getattr(issue, "target_sha", "") or ""),
         review_id=str(getattr(issue, "review_number", "") or ""),
         review_state=str(getattr(issue, "review_state", "") or ""),
         contributors=contributors,
@@ -430,7 +432,11 @@ async def _stage_acp_terminal_status(
     if terminal_transition_coordinator is None:
         return "Error: terminal transition service is unavailable"
 
-    issue = task_tracker.fetch_issue_detail(args.identifier)
+    try:
+        issue = task_tracker.fetch_issue_detail(args.identifier)
+    except Exception:
+        # Keep tracker/metadata implementation details out of ACP tool output.
+        return "Error: terminal transition request failed"
     if issue is None:
         return f"Error: Issue {args.identifier!r} not found"
     if not getattr(issue, "project_id", None):

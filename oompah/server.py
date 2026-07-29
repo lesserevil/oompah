@@ -3522,6 +3522,23 @@ async def api_task_handoff(request: Request):
                     },
                     status_code=400,
                 )
+            if body.get("audit_override") or body.get("override_reason") is not None:
+                record_task_handoff_failure(
+                    token, "task handoff terminal label override rejected"
+                )
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "terminal_transition",
+                            "message": (
+                                "Status-label mutations cannot request an audit "
+                                "override; use the task status operation with an "
+                                "explicit override_reason."
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
             transition_body = {
                 **body,
                 "project_id": project_id,

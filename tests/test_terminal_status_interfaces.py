@@ -272,3 +272,58 @@ async def test_acp_terminal_router_hides_tracker_error_details():
     assert result == "Error: terminal transition request failed"
     assert "metadata" not in result.lower()
     assert tracker.status_updates == []
+
+
+@pytest.mark.asyncio
+async def test_acp_terminal_router_hides_tracker_fetch_errors():
+    from oompah.acp_tools import _exec_oompah_task_command_async
+
+    class FailingTracker:
+        def fetch_issue_detail(self, identifier):
+            raise RuntimeError("terminal-audit metadata internals")
+
+    result = await _exec_oompah_task_command_async(
+        "oompah task set-status task-7 Done",
+        FailingTracker(),
+        "proj-1",
+        terminal_transition_coordinator=MagicMock(),
+    )
+
+    assert result == "Error: terminal transition request failed"
+    assert "metadata" not in result.lower()
+
+
+def test_task_handoff_terminal_label_rejects_override_fields(client):
+    from oompah.task_handoff import issue_task_handoff_token
+
+    issue = Issue("task-label-override", "task-label-override", "Task", state="Open")
+    orch, tracker, coordinator = _orchestrator(issue)
+    token = issue_task_handoff_token(
+        project_id="proj-1",
+        task_identifier="task-label-override",
+        allowed_actions={"add-label"},
+    )
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        # TestClient cannot set the private ASGI scope capability directly;
+        # exercise the same validation helper through the handoff route's
+        # authorization middleware header.
+        response = client.post(
+            "/api/v1/task-handoff",
+            headers={"x-oompah-task-capability": token},
+            json={
+                "action": "add-label",
+                "project_id": "proj-1",
+                "identifier": "task-label-override",
+                "label": "oompah:status:done",
+                "audit_override": True,
+                "override_reason": "not supported on labels",
+            },
+        )
+
+    assert response.status_code == 400
+    assert "override" in response.json()["error"]["message"].lower()
+    assert coordinator.overrides == []
+    assert tracker.status_updates == []
