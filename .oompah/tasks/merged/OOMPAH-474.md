@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-474
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Add the auditor-only structured result submission API and tool
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-07-29T03:13:32.194932Z'
+updated_at: '2026-07-29T17:56:49.759894Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
