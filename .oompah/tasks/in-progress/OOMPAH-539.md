@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T02:14:12.630348Z'
+updated_at: '2026-07-29T02:14:28.526064Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -114,5 +114,25 @@ author: oompah
 created: 2026-07-29 02:14
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-29 02:14
+---
+**Understanding & Plan (Frontend)**
+
+The issue is a state synchronization bug between live worker state and the issue board snapshot:
+- When duplicate screening is active, /api/v1/state correctly shows duplicate_preflight=true, but /api/v1/issues still shows duplicate_screening.state=unchecked (stale)
+- When screening completes, the inverse occurs: board shows 'running' after worker exits, while canonical state already has the checked verdict
+- This causes UI surfaces (dashboard, detail panel) to show incorrect/stale screening state
+
+As a Frontend agent, I need to:
+1. Identify where the issue-board snapshot is generated/cached (/api/v1/issues)
+2. Find where duplicate-preflight claims are acquired/released/completed
+3. Implement cache invalidation and refresh logic at those lifecycle points
+4. Ensure refreshed data is broadcast via WebSocket/payload AFTER the tracker mutation
+5. Verify the Open column placement is preserved and no optimistic In Progress movement occurs
+6. Add tests for state sync through start/renewal/completion/failure scenarios
+
+Starting investigation into codebase structure.
 ---
 <!-- COMMENTS:END -->
