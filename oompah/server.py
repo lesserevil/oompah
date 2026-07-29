@@ -139,6 +139,7 @@ from oompah.agent_profile_store import (
     AgentProfileStore,
     AgentProfileStoreError,
 )
+from oompah.auditor_candidate_selector import AUDITOR_ROLE_NAME
 
 if TYPE_CHECKING:
     from oompah.orchestrator import Orchestrator
@@ -10317,7 +10318,20 @@ async def api_get_roles():
         _serialize_role_row(role_name, _role_store.get(role_name), _provider_store)
         for role_name in ROLE_MATRIX_KEYS
     ]
-    return JSONResponse({"rows": rows})
+    # Keep the historical four-row ``rows`` contract for existing dashboard
+    # clients, while exposing the reserved auditor through the same role
+    # configuration endpoint.  The UI and newer clients can edit this
+    # optional row without making legacy callers provide it.
+    return JSONResponse(
+        {
+            "rows": rows,
+            AUDITOR_ROLE_NAME: _serialize_role_row(
+                AUDITOR_ROLE_NAME,
+                _role_store.get(AUDITOR_ROLE_NAME),
+                _provider_store,
+            ),
+        }
+    )
 
 
 @app.put("/api/v1/roles")
@@ -10351,9 +10365,10 @@ async def api_put_roles(request: Request):
     Legacy rows are promoted internally to a single-candidate priority
     role so both formats pass through the same validation + storage path.
 
-    All four standard roles are required for v1. Each candidate is
-    validated against ProviderStore: provider_id must exist and model
-    must be in the provider's catalog (ACP-mode providers with empty
+    All four standard roles are required for v1. The reserved ``auditor``
+    role is optional for backwards compatibility with older clients. Each
+    candidate is validated against ProviderStore: provider_id must exist and
+    model must be in the provider's catalog (ACP-mode providers with empty
     catalogs accept any model name).
 
     If any validation fails the entire request is rejected with 400
@@ -10384,8 +10399,13 @@ async def api_put_roles(request: Request):
     errors: list[str] = []
     # Maps role_name -> (strategy, list-of-Candidate)
     parsed: dict[str, tuple[str, list[Candidate]]] = {}
-    for role in ROLE_MATRIX_KEYS:
+    # ``auditor`` is optional for backwards compatibility with clients that
+    # still submit exactly the four standard roles.  When present it is
+    # validated and persisted through the same atomic RoleStore path.
+    for role in (*ROLE_MATRIX_KEYS, AUDITOR_ROLE_NAME):
         if role not in body:
+            if role == AUDITOR_ROLE_NAME:
+                continue
             errors.append(f"missing role {role!r}")
             continue
         row = body[role]
@@ -10520,7 +10540,16 @@ async def api_put_roles(request: Request):
         _serialize_role_row(role_name, _role_store.get(role_name), _provider_store)
         for role_name in ROLE_MATRIX_KEYS
     ]
-    return JSONResponse({"rows": rows})
+    return JSONResponse(
+        {
+            "rows": rows,
+            AUDITOR_ROLE_NAME: _serialize_role_row(
+                AUDITOR_ROLE_NAME,
+                _role_store.get(AUDITOR_ROLE_NAME),
+                _provider_store,
+            ),
+        }
+    )
 
 
 @app.get("/api/v1/agent-profiles/role-matrix")

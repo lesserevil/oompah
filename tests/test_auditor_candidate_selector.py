@@ -927,3 +927,164 @@ class TestSeedAuditorRoleFromConfig:
         seed_auditor_role_from_config(
             role_store, provider_store, project_config=None, contributors=None
         )
+
+
+class TestAuditorCandidateSelectorPolicyGaps:
+    """Regression coverage for policy checks that must fail closed."""
+
+    def test_seed_retains_union_and_uses_round_robin_order(self):
+        providers = {
+            "deep-provider": _make_provider("deep-provider", "Deep", ["deep-model"]),
+            "standard-provider": _make_provider(
+                "standard-provider", "Standard", ["standard-model"]
+            ),
+            "default-provider": _make_provider(
+                "default-provider", "Default", ["default-model"]
+            ),
+            "remaining-provider": _make_provider(
+                "remaining-provider", "Remaining", ["remaining-model"]
+            ),
+        }
+        now = datetime.now(timezone.utc)
+        roles = {
+            "deep": Role(
+                "deep", "priority", [Candidate("deep-provider", "deep-model")], now
+            ),
+            "standard": Role(
+                "standard", "priority", [Candidate("standard-provider", "standard-model")], now
+            ),
+            "default": Role(
+                "default", "priority", [Candidate("default-provider", "default-model")], now
+            ),
+        }
+        role_store = _make_role_store_with_roles(roles)
+        provider_store = _make_provider_store(providers)
+
+        role, reason = AuditorCandidateSelector(role_store, provider_store).seed_auditor_role()
+
+        assert reason is None
+        assert role is not None
+        assert role.strategy == "round_robin"
+        assert [(c.provider_id, c.model) for c in role.candidates] == [
+            ("deep-provider", "deep-model"),
+            ("standard-provider", "standard-model"),
+            ("default-provider", "default-model"),
+            ("remaining-provider", "remaining-model"),
+        ]
+
+    def test_health_result_blocks_unhealthy_provider(self):
+        provider = _make_provider("provider", "Provider", ["model"])
+        role = Role(
+            "default", "priority", [Candidate("provider", "model")], datetime.now(timezone.utc)
+        )
+        selector = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"provider": provider}),
+            health_results={"provider": {"success": False, "error_reason": "timeout"}},
+        )
+
+        selected, reason = selector.seed_auditor_role()
+
+        assert selected is None
+        assert reason is not None
+        assert reason.reason == "all_unhealthy"
+        assert "timeout" in reason.detail
+
+    def test_provider_health_attribute_blocks_unhealthy_provider(self):
+        provider = _make_provider("provider", "Provider", ["model"])
+        provider.health_status = "overloaded"
+        role = Role(
+            "default", "priority", [Candidate("provider", "model")], datetime.now(timezone.utc)
+        )
+
+        selected, reason = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"provider": provider}),
+        ).seed_auditor_role()
+
+        assert selected is None
+        assert reason is not None
+        assert reason.reason == "all_unhealthy"
+
+    def test_budget_state_blocks_paid_candidate(self):
+        provider = _make_provider("provider", "Provider", ["model"])
+        role = Role(
+            "default", "priority", [Candidate("provider", "model")], datetime.now(timezone.utc)
+        )
+        selector = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"provider": provider}),
+            budget_state={"budget_limit": 1.0, "estimated_cost": 1.0},
+        )
+
+        selected, reason = selector.seed_auditor_role()
+
+        assert selected is None
+        assert reason is not None
+        assert reason.reason == "all_over_budget"
+
+    def test_explicitly_free_candidate_survives_over_budget_state(self):
+        provider = _make_provider("provider", "Provider", ["free-model"])
+        provider.model_costs = {
+            "free-model": {"cost_per_1k_input": 0, "cost_per_1k_output": 0}
+        }
+        role = Role(
+            "default", "priority", [Candidate("provider", "free-model")], datetime.now(timezone.utc)
+        )
+        selected, reason = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"provider": provider}),
+            budget_state={"budget_limit": 1.0, "estimated_cost": 2.0},
+        ).seed_auditor_role()
+
+        assert reason is None
+        assert selected is not None
+        assert selected.candidates[0].model == "free-model"
+
+    def test_project_whitelist_accepts_provider_name(self):
+        provider = _make_provider("provider-id", "Operator Provider", ["model"])
+        role = Role(
+            "default", "priority", [Candidate("provider-id", "model")], datetime.now(timezone.utc)
+        )
+        selected, reason = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"provider-id": provider}),
+            _make_project_config(["operator provider"]),
+        ).seed_auditor_role()
+
+        assert reason is None
+        assert selected is not None
+
+    def test_unknown_contributor_model_blocks_same_provider_explicit_fallback(self):
+        provider = _make_provider("provider", "Provider", ["model-a", "model-b"])
+        role = Role(
+            "default",
+            "priority",
+            [Candidate("provider", "model-a"), Candidate("provider", "model-b")],
+            datetime.now(timezone.utc),
+        )
+        contributor = _make_contributor(provider_id="provider", model_id=None)
+
+        selected, reason = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"provider": provider}),
+        ).seed_auditor_role([contributor])
+
+        assert selected is None
+        assert reason is not None
+        assert reason.reason == "unknown_acp_models_only"
+
+    def test_invalid_model_has_normalized_diagnostic(self):
+        provider = _make_provider("provider", "Provider", ["known-model"])
+        provider.default_model = None
+        role = Role(
+            "default", "priority", [Candidate("provider", "unknown-model")], datetime.now(timezone.utc)
+        )
+        selected, reason = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"provider": provider}),
+        ).seed_auditor_role()
+
+        assert selected is None
+        assert reason is not None
+        assert reason.reason == "invalid_model"

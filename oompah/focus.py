@@ -89,6 +89,10 @@ class Focus:
         # it must not be able to remove the scheduler-only reservation.
         if self.name.strip().lower() == AUDITOR_FOCUS_NAME:
             self.reserved = True
+            # The reserved focus must resolve through the editable auditor
+            # role.  Preserve that routing even when an operator supplies a
+            # customized auditor entry in foci.json.
+            self.model_role = self.model_role or AUDITOR_FOCUS_NAME
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -435,6 +439,7 @@ BUILTIN_FOCI: list[Focus] = [
         issue_types=[],
         labels=[],
         priority=0,
+        model_role=AUDITOR_FOCUS_NAME,
         reserved=True,
         capabilities=sorted(AUDITOR_ALLOWED_TOOLS),
     ),

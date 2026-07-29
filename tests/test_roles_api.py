@@ -206,6 +206,17 @@ class TestGetRolesNewFields:
         assert "candidates" not in fast
         assert "strategy" not in fast
 
+    def test_reserved_auditor_is_exposed_as_optional_role_row(self, roles_client):
+        """The existing endpoint exposes auditor without changing its four-row contract."""
+        response = roles_client["client"].get("/api/v1/roles")
+
+        assert response.status_code == 200
+        assert [row["role"] for row in response.json()["rows"]] == [
+            "fast", "standard", "deep", "default"
+        ]
+        assert response.json()["auditor"]["role"] == "auditor"
+        assert response.json()["auditor"]["status"] == "unassigned"
+
     def test_multi_candidate_role_get(self, roles_client):
         """Roles with multiple candidates expose all of them in order."""
         role_store = roles_client["role_store"]
@@ -324,6 +335,23 @@ class TestGetRolesBackwardCompat:
 
 class TestPutRolesNewFormat:
     """PUT /api/v1/roles accepts the new strategy + candidates body."""
+
+    def test_reserved_auditor_can_be_edited_through_role_endpoint(self, roles_client):
+        client = roles_client["client"]
+        p_api = roles_client["p_api"]
+        body = _all_roles_body(p_api.id)
+        body["auditor"] = {
+            "strategy": "round_robin",
+            "candidates": [
+                {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"}
+            ],
+        }
+
+        response = client.put("/api/v1/roles", json=body)
+
+        assert response.status_code == 200, response.text
+        assert response.json()["auditor"]["strategy"] == "round_robin"
+        assert roles_client["role_store"].get("auditor").model == "nvidia/MiniMax-M2.7"
 
     def test_single_candidate_new_format_accepted(self, roles_client):
         """New format with one candidate per role is accepted."""
