@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-476
 type: feature
-status: Done
+status: Open
 priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T18:06:38.580849Z'
+updated_at: '2026-07-29T18:06:53.389572Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -61,8 +61,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 4b912218-3fb5-4b35-bbd1-0ec2eb466c4f
 oompah.work_branch: epic-OOMPAH-459
 oompah.task_costs:
-  total_input_tokens: 61942291
-  total_output_tokens: 121193
+  total_input_tokens: 61942302
+  total_output_tokens: 122985
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -70,8 +70,8 @@ oompah.task_costs:
       output_tokens: 109501
       cost_usd: 0.0
     sonnet:
-      input_tokens: 1357992
-      output_tokens: 10643
+      input_tokens: 1358003
+      output_tokens: 12435
       cost_usd: 0.0
     opus:
       input_tokens: 117200
@@ -114,6 +114,12 @@ oompah.task_costs:
     output_tokens: 23459
     cost_usd: 0.0
     recorded_at: '2026-07-29T18:05:36.314442+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 11
+    output_tokens: 1792
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T18:06:44.623199+00:00'
 ---
 ## Summary
 
@@ -388,5 +394,38 @@ author: oompah
 created: 2026-07-29 18:06
 ---
 Stage API, dashboard, and CLI terminal requests through coordinator: all terminal status interfaces (API PATCH, MCP/ACP tools, CLI, dashboard) now route Done/Merged/Archived through TerminalTransitionCoordinator. Returns In Validation + audit ID. Owner override with override_reason authorized. Tests passing.
+---
+author: oompah
+created: 2026-07-29 18:06
+---
+Agent completed successfully in 48s (1803 tokens)
+---
+author: oompah
+created: 2026-07-29 18:06
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 20, Tool calls: 11
+- Tokens: 11 in / 1.8K out [1.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 48s
+- Log: OOMPAH-476__20260729T180558Z.jsonl
+---
+author: oompah
+created: 2026-07-29 18:06
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-459` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-459
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-459
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
