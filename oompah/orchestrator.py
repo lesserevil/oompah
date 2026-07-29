@@ -24102,7 +24102,17 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 )
                 continue
 
-            if state_norm == "in_progress":
+            if (
+                running_entry
+                and running_entry.is_auditor
+                and canonicalize_status(issue.state) == IN_VALIDATION
+            ):
+                # Auditors intentionally run while the audited task remains
+                # In Validation. Treat that state as active for auditor
+                # entries only; ordinary implementation workers must still
+                # be stopped if their task moves out of In Progress.
+                self.state.running[issue_id].issue = issue
+            elif state_norm == "in_progress":
                 # Still in progress — update issue snapshot
                 self.state.running[issue_id].issue = issue
             elif state_norm in terminal_norms:

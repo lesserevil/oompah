@@ -15,6 +15,7 @@ from oompah.statuses import (
     DONE,
     IN_PROGRESS,
     IN_REVIEW,
+    IN_VALIDATION,
     MERGED,
     NEEDS_CI_FIX,
     NEEDS_REBASE,
@@ -1569,6 +1570,78 @@ class TestBacklogStatusReconciliation:
         orch._terminate_running.assert_not_called()
         tracker.update_issue.assert_called_once_with("TRICKLE-1", status=IN_PROGRESS)
         assert orch.state.running[issue.id].issue.state == IN_PROGRESS
+
+    def test_reconcile_keeps_auditor_running_in_validation(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("audit-1", state=IN_VALIDATION)
+        fresh = _make_issue("audit-1", state=IN_VALIDATION)
+        task = MagicMock()
+        task.done.return_value = False
+        orch.state.running[issue.id] = RunningEntry(
+            worker_task=task,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            is_auditor=True,
+        )
+        orch._fetch_running_states = MagicMock(return_value={issue.id: fresh})
+        orch._terminate_running = AsyncMock()
+
+        asyncio.run(orch._reconcile())
+
+        orch._terminate_running.assert_not_called()
+        assert orch.state.running[issue.id].issue is fresh
+
+    def test_reconcile_stops_ordinary_worker_in_validation(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("worker-1", state=IN_PROGRESS)
+        fresh = _make_issue("worker-1", state=IN_VALIDATION)
+        task = MagicMock()
+        task.done.return_value = False
+        orch.state.running[issue.id] = RunningEntry(
+            worker_task=task,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+        )
+        orch._fetch_running_states = MagicMock(return_value={issue.id: fresh})
+        orch._terminate_running = AsyncMock(return_value=True)
+
+        asyncio.run(orch._reconcile())
+
+        orch._terminate_running.assert_awaited_once_with(
+            issue.id,
+            cleanup_workspace=False,
+        )
+
+    def test_reconcile_stops_auditor_after_terminal_transition(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("audit-2", state=IN_VALIDATION)
+        fresh = _make_issue("audit-2", state="Done")
+        task = MagicMock()
+        task.done.return_value = False
+        orch.state.running[issue.id] = RunningEntry(
+            worker_task=task,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            is_auditor=True,
+        )
+        orch._fetch_running_states = MagicMock(return_value={issue.id: fresh})
+        orch._terminate_running = AsyncMock(return_value=True)
+
+        asyncio.run(orch._reconcile())
+
+        orch._terminate_running.assert_awaited_once_with(
+            issue.id,
+            cleanup_workspace=True,
+        )
 
 
 class TestShouldDispatchCompleted:
