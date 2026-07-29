@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-548
 type: feature
-status: Needs Human
+status: Done
 priority: 0
 title: Add worker submission handoff and ordered terminal staging
 parent: OOMPAH-545
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:10.331989Z'
-updated_at: '2026-07-29T18:17:17.740293Z'
+updated_at: '2026-07-29T18:27:45.036702Z'
 work_branch: null
 target_branch: null
 review_url: null
