@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T00:36:17.258538Z'
+updated_at: '2026-07-29T00:36:42.664232Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -278,5 +278,26 @@ created: 2026-07-29 00:36
 7. Support operator editing via existing role configuration paths
 
 **Plan:** Explore oompah/roles.py (RoleStore/Candidate), oompah/work_contributors.py (WorkContributor), oompah/providers.py (ProviderStore), and test patterns to understand the architecture, then implement the auditor role with independent candidate selection logic and comprehensive tests.
+---
+author: oompah
+created: 2026-07-29 00:36
+---
+**Discovery:** Reviewed oompah/roles.py (RoleStore, Candidate, CandidateSelector), oompah/work_contributors.py (WorkContributor, collect_epic_contributors for identifying contributors), oompah/providers.py (ProviderStore, health checks), and oompah/provider_health.py (normalized error reasons). 
+
+Architecture is clear:
+- RoleStore manages roles with multi-candidate support (priority/round_robin strategy)
+- WorkContributor tracks (provider_id, model_id) for each completed run
+- ProviderStore manages ModelProvider instances with health/budget tracking
+- ProjectConfig has provider_whitelist field
+- ErrorReasons are normalized (missing_credentials, auth_failed, etc)
+
+Key insight: No existing 'auditor' role or independent-candidate filtering. Need to implement:
+1. AuditorCandidateSelector class with independent provider-model selection logic
+2. Role seeding function pulling from deep/standard/default + configured defaults
+3. Candidate filtering by whitelist, credentials, health, budget, model validity
+4. Contributor exclusion with independent-provider preference
+5. Normalized no-candidate diagnostics
+
+Starting implementation in oompah/roles.py and oompah/auditor.py.
 ---
 <!-- COMMENTS:END -->
