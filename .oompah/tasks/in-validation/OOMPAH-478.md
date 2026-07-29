@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-478
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Route epic rollup, child Done, and epic close transitions through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-29T23:34:58.063302Z'
+updated_at: '2026-07-29T23:39:28.340394Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-478
 target_branch: null
 review_url: null
@@ -99,12 +99,37 @@ oompah.task_costs:
     recorded_at: '2026-07-29T23:19:30.811167+00:00'
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-459--task-OOMPAH-478
+  base_branch: epic-OOMPAH-459
+  base_sha: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
   head_sha: b68d7438fd5afee99b5e77688274478c748bdb3a
+  integrated_sha: b68d7438fd5afee99b5e77688274478c748bdb3a
   submitted_at: '2026-07-29T23:34:55.475421+00:00'
-  updated_at: '2026-07-29T23:34:55.475421+00:00'
+  updated_at: '2026-07-29T23:39:25.064951+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-87db541fd5de
+    project_id: proj-14849f1b
+    task_id: OOMPAH-478
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a6edb7eef5e8240b9c7fc23efbbdad625e428269a63282ed5ed4b211f3b944fd
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-29T23:39:26.237376+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -386,5 +411,10 @@ author: oompah
 created: 2026-07-29 23:34
 ---
 Rebased task-specific rollup transition work onto repaired epic head cfa5ca64f, preserving both newer status imports and removing the obsolete corrupted base commit.
+---
+author: oompah
+created: 2026-07-29 23:39
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
