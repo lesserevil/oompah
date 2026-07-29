@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-29T20:13:32.927290Z'
+updated_at: '2026-07-29T20:13:47.627093Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -40,13 +40,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 26a0bf9d-f9b8-43e6-b7bf-55eda8937c73
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-486
 oompah.task_costs:
-  total_input_tokens: 16621853
-  total_output_tokens: 47032
+  total_input_tokens: 16623045
+  total_output_tokens: 47361
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 16417344
-      output_tokens: 28598
+      input_tokens: 16418536
+      output_tokens: 28927
       cost_usd: 0.0
     sonnet:
       input_tokens: 119736
@@ -87,6 +87,12 @@ oompah.task_costs:
     output_tokens: 589
     cost_usd: 0.0
     recorded_at: '2026-07-29T19:57:22.672903+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 1192
+    output_tokens: 329
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T20:13:46.249012+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -316,5 +322,15 @@ author: oompah
 created: 2026-07-29 20:13
 ---
 Completed frontend audit throughput stat for dashboard agent-bar. Displays queued/running audit counts during active validation, hidden when idle. Backend metrics (TerminalAuditMetrics, TerminalAuditAlertRegistry, orchestrator integration) shipped across 3 commits with all 9 backend tests passing. Frontend now provides complete observability: operators can distinguish healthy throughput from actionable audit stalls without routine-operation noise.
+---
+author: oompah
+created: 2026-07-29 20:13
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 73
+- Tokens: 1.2K in / 329 out [1.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 16m 9s
+- Log: OOMPAH-486__20260729T195744Z.jsonl
 ---
 <!-- COMMENTS:END -->
