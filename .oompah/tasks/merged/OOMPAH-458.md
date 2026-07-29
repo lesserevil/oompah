@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-458
 type: epic
-status: In Review
+status: Merged
 priority: 0
 title: Dispatch independent auditor agents and evaluate target-specific evidence
 parent: null
@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T17:46:09.326000Z'
+updated_at: '2026-07-29T17:51:39.148322Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
