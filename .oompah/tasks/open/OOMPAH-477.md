@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T01:28:48.622621Z'
+updated_at: '2026-07-29T01:30:48.507598Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -22,18 +22,38 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: c05645ee2c2ac1f81cb7a09756e16a3ff56e6291b5d1474b0c161bbe06ba4871
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-29T01:30:44.798730+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: ad1e3833-7bea-489d-ab09-49cfae457651
-  claim_owner: bb8dc074-1652-491f-b4a8-188fd113fd9d
-  claimed_at: '2026-07-29T01:28:39.443657+00:00'
-  claim_expires_at: '2026-07-29T01:58:39.443657+00:00'
+  evidence: "Focus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: Active OOMPAH-475, 476, 478, 479, 480, 481, and 488\
+    \ cover auditor dispatch, API/rollup/merge/release/archive routing, and lifecycle\
+    \ testing\u2014not worker-exit Done staging. Terminal OOMPAH-468 and OOMPAH-492\
+    \ are historical and distinct."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 91008da1-919f-46dc-a208-369201074fa8
 oompah.work_branch: epic-OOMPAH-459
+oompah.task_costs:
+  total_input_tokens: 1308655
+  total_output_tokens: 5074
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 1308655
+      output_tokens: 5074
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 1308655
+    output_tokens: 5074
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T01:30:44.798106+00:00'
 ---
 ## Summary
 
@@ -66,5 +86,15 @@ author: oompah
 created: 2026-07-29 01:28
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-29 01:30
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 17
+- Tokens: 1.3M in / 5.1K out [1.3M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 2s
+- Log: OOMPAH-477__20260729T012849Z.jsonl
 ---
 <!-- COMMENTS:END -->
