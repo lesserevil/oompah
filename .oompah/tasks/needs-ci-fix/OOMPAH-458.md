@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T17:37:58.744817Z'
+updated_at: '2026-07-29T17:38:21.040228Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -203,5 +203,17 @@ author: oompah
 created: 2026-07-29 16:57
 ---
 Branch quality gate passed for `b17ee5ef5500d9fe61c6a70f985fcd55fbad6fa0` using `make test` in 81.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-29 17:38
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #14)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
