@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-473
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Collect safe-retirement evidence for Archived audits
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:13.914904Z'
-updated_at: '2026-07-29T01:23:27.860642Z'
+updated_at: '2026-07-29T06:34:10.105123Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 1d4a65c3-90be-473a-8cb9-7b1f2ed9d226
+oompah.agent_run_id: 8acf12d9-bf3a-4925-a3b2-82b45307a62f
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 1000782
@@ -104,5 +104,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 15s
 - Log: OOMPAH-473__20260729T012115Z.jsonl
+---
+author: oompah
+created: 2026-07-29 06:34
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 06:34
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
