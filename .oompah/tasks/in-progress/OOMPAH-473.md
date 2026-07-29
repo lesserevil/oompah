@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:13.914904Z'
-updated_at: '2026-07-29T06:57:01.384018Z'
+updated_at: '2026-07-29T06:57:18.686557Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 3d5310e9-feb6-4d53-80d1-327e5a33c23a
+oompah.agent_run_id: 6049f2c1-0da8-4532-bf67-91d485f51e08
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 13653325
@@ -262,5 +262,15 @@ author: oompah
 created: 2026-07-29 06:57
 ---
 Agent completed without closing this issue (973s (12684061 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-29 06:57
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 06:57
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
