@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-07-29T01:21:42.493119Z'
+updated_at: '2026-07-29T01:22:50.742012Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -151,5 +151,38 @@ author: oompah
 created: 2026-07-29 01:21
 ---
 Security review: Understanding phase complete. Implementation uses short-lived opaque tokens scoped to project/task/actions with HMAC constant-time comparison, process-local registry, failures recorded without logging tokens, endpoint validates scope before tracker access, credentials removed from agent environment. Test coverage includes scope enforcement, credential boundary, cross-project escape attempts, and failed handoff lifecycle. Now running focused tests.
+---
+author: oompah
+created: 2026-07-29 01:22
+---
+Security Audit Complete: Implementation verified.
+
+SECURITY FINDINGS:
+✓ Token generation: secrets.token_urlsafe(32) - cryptographically secure
+✓ Storage: SHA256 hashes only, no plaintext tokens in memory
+✓ Scope enforcement: All 4 comparisons use hmac.compare_digest (timing attack resistant)
+  - Token digest (prevents forgery)
+  - Project ID (prevents cross-project escape)
+  - Task ID (prevents task scope escape)  
+  - Action (prevents action escalation)
+✓ Expiry enforcement: 15-minute default TTL with constant-time validation
+✓ Process-local registry: Not persisted, can't be stolen from disk
+✓ Credential boundary: CLIENT_AUTH_ENV_VARS removed from agent environment
+✓ Error messages: Never echo credentials, token, or URL
+✓ Endpoint isolation: Capability header only on /api/v1/task-handoff
+✓ Authority preservation: Status transitions still validated through intake gates
+✓ Failure tracking: Failed handoffs recorded, prevent silent redispatch
+
+TEST COVERAGE: 1296 tests pass (12 handoff-specific, 165 CLI/agent, plus 1119 integration)
+- Token scope/expiry/revoke working
+- Cross-project/cross-task escape attempts blocked
+- Credential boundary enforced in ACP/API/subprocess paths
+- Failed handoffs held for human review
+- Auth failures prevent automatic redispatch
+
+No reusable service credentials exposed in prompts, logs, env, or repository files.
+Project/action-policy authorization boundaries preserved.
+
+Ready for deployment.
 ---
 <!-- COMMENTS:END -->
