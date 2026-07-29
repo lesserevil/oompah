@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-486
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Add terminal-audit metrics, maintenance health, and actionable alerts
 parent: OOMPAH-460
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-29T20:13:19.015405Z'
+updated_at: '2026-07-29T20:13:32.927290Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -89,12 +89,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T19:57:22.672903+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-486
-  base_branch: epic-OOMPAH-460
-  base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
-  updated_at: '2026-07-29T19:57:40.588775+00:00'
+  head_sha: 46b7ce15b55cb20a003ee65c31b75e0c7385213b
+  submitted_at: '2026-07-29T20:13:30.858946+00:00'
+  updated_at: '2026-07-29T20:13:30.858946+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-486__20260729T195540Z
@@ -311,5 +311,10 @@ created: 2026-07-29 20:13
 ✓ test_dashboard_review_badge.py — 1/1 passed
 
 Frontend implementation complete: audit throughput stat displays queued/running counts in the agent-bar only during active validation, hidden when idle. Operators can now distinguish healthy throughput from actionable audit stalls without receiving routine-operation alerts.
+---
+author: oompah
+created: 2026-07-29 20:13
+---
+Completed frontend audit throughput stat for dashboard agent-bar. Displays queued/running audit counts during active validation, hidden when idle. Backend metrics (TerminalAuditMetrics, TerminalAuditAlertRegistry, orchestrator integration) shipped across 3 commits with all 9 backend tests passing. Frontend now provides complete observability: operators can distinguish healthy throughput from actionable audit stalls without routine-operation noise.
 ---
 <!-- COMMENTS:END -->
