@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-29T01:30:53.468128Z'
+updated_at: '2026-07-29T01:33:41.628543Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -25,15 +25,31 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: e66713f0-8b9f-4f27-8cec-a4a4dbb6a72d
-  claim_owner: bb8dc074-1652-491f-b4a8-188fd113fd9d
-  claimed_at: '2026-07-29T01:30:48.912025+00:00'
-  claim_expires_at: '2026-07-29T02:00:48.912025+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: Duplicate-screening worker exited with reason normal.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-07-29T01:34:39.044365+00:00'
 oompah.agent_run_id: 131815d1-b006-4f0b-b2bb-fd7953537d60
 oompah.work_branch: epic-OOMPAH-459
+oompah.task_costs:
+  total_input_tokens: 162
+  total_output_tokens: 4648
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 162
+      output_tokens: 4648
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 162
+    output_tokens: 4648
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T01:33:39.043297+00:00'
 ---
 ## Summary
 
@@ -66,5 +82,15 @@ author: oompah
 created: 2026-07-29 01:30
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-29 01:33
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 49, Tool calls: 19
+- Tokens: 162 in / 4.6K out [4.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 48s
+- Log: OOMPAH-478__20260729T013057Z.jsonl
 ---
 <!-- COMMENTS:END -->
