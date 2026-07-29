@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-551
 type: feature
-status: Backlog
+status: Done
 priority: 0
 title: Persist coordination messages and derive peer suggestions
 parent: OOMPAH-550
@@ -11,7 +11,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:14.047092Z'
-updated_at: '2026-07-29T17:57:14.129370Z'
+updated_at: '2026-07-29T18:28:02.805883Z'
 work_branch: null
 target_branch: null
 review_url: null
