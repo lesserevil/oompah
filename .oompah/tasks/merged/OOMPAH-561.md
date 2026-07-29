@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-561
 type: chore
-status: In Review
+status: Merged
 priority: 1
 title: Prune terminal branches and worktrees aggressively
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:03:33.910422Z'
-updated_at: '2026-07-29T22:03:01.103926Z'
+updated_at: '2026-07-29T22:09:16.873823Z'
 work_branch: OOMPAH-561
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/582
