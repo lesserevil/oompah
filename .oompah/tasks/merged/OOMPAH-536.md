@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-536
 type: bug
-status: In Review
+status: Merged
 priority: 1
 title: Route implementation away from completed duplicate preflight focus
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-28T23:51:54.516163Z'
-updated_at: '2026-07-28T23:55:43.462278Z'
+updated_at: '2026-07-29T00:01:37.885779Z'
 work_branch: OOMPAH-536
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/570
