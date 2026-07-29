@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-564
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 0
 title: Rebase epic-OOMPAH-459 onto main
 parent: OOMPAH-459
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:02:08.142762Z'
-updated_at: '2026-07-29T22:27:18.384583Z'
+updated_at: '2026-07-29T22:42:17.929400Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-564
 target_branch: null
 review_url: null
@@ -21,12 +21,58 @@ oompah.agent_run_id: 834d79c3-54aa-4532-9ff3-52bde39351e3
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-564
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-459--task-OOMPAH-564
-  head_sha: e01949e4d9dd3a0513e4f7a1eeaf092e8b54a52a
+  base_branch: epic-OOMPAH-459
+  base_sha: a50a9a6451f8a2222a5688bea2f2690b7cfc170a
+  head_sha: a50a9a6451f8a2222a5688bea2f2690b7cfc170a
   submitted_at: '2026-07-29T22:26:57.260858+00:00'
-  updated_at: '2026-07-29T22:26:57.260858+00:00'
+  updated_at: '2026-07-29T22:42:16.211091+00:00'
+  last_error: "Combined-tree quality gate failed: nted\nFAILED tests/test_authority_boundary.py::TestNoPolicyBackwardCompat::test_update_project_no_policy_passes\n\
+    FAILED tests/test_prompt_injection_e2e.py::TestFullPipelineIntegration::test_external_task_cannot_create_child_tasks\n\
+    FAILED tests/test_prompt_injection_e2e.py::TestFullPipelineIntegration::test_external_task_cannot_close_its_own_issue\n\
+    FAILED tests/test_sdk_install_guards.py::TestBuildToolCatalogClaudeGuard::test_missing_sdk_raises_import_error\n\
+    FAILED tests/test_sdk_install_guards.py::TestBuildCodexToolCatalogCodexGuard::test_missing_sdk_raises_import_error\n\
+    FAILED tests/test_sdk_install_guards.py::TestBuildToolCatalogClaudeGuard::test_error_message_includes_uv_command\n\
+    FAILED tests/test_sdk_install_guards.py::TestBuildCodexToolCatalogCodexGuard::test_error_message_includes_uv_command\n\
+    FAILED tests/test_sdk_install_guards.py::TestInstallHintStrings::test_build_tool_catalog_error_oompah_extra\n\
+    FAILED tests/test_sdk_install_guards.py::TestInstallHintStrings::test_build_codex_tool_catalog_error_oompah_extra\n\
+    FAILED tests/test_task_handoff.py::TestTaskScopeDirectPath::test_direct_acp_submit_requires_and_persists_pushed_git_evidence\n\
+    FAILED tests/test_task_handoff.py::TestTaskScopeDirectPath::test_direct_acp_submission_survives_coordination_outage\n\
+    FAILED tests/test_task_handoff.py::TestTaskScopeDirectPath::test_api_session_routes_handoff_without_http_self_call\n\
+    FAILED tests/test_task_handoff.py::TestTaskScopeDirectPath::test_direct_acp_command_allows_only_assigned_task_and_actions\n\
+    FAILED tests/test_terminal_status_interfaces.py::test_acp_terminal_router_stages_and_supports_override\n\
+    FAILED tests/test_terminal_status_interfaces.py::test_acp_terminal_router_hides_tracker_fetch_errors\n\
+    FAILED tests/test_terminal_status_interfaces.py::test_acp_terminal_router_hides_tracker_error_details\n\
+    ERROR tests/test_console.py::TestConsoleSession::test_resolve_backend_consulted_per_turn\n\
+    ERROR tests/test_console.py::TestConsoleSession::test_concurrent_inputs_serialize\n\
+    ERROR tests/test_console.py::TestConsoleSession::test_submit_persists_and_broadcasts\n\
+    ERROR tests/test_console.py::TestConsoleSession::test_restart_replays_transcript\n\
+    = 112 failed, 13275 passed, 42 skipped, 40 warnings, 4 errors in 238.29s (0:03:58)\
+    \ =\nmake[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-564'\n\
+    \nUsing CPython 3.12.12\nCreating virtual environment at: .venv\nActivate with:\
+    \ source .venv/bin/activate\nResolved 53 packages in 367ms\n   Building oompah\
+    \ @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-564\n      Built oompah\
+    \ @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-564\nPrepared 1 package\
+    \ in 275ms\nInstalled 53 packages in 78ms\n + annotated-doc==0.0.5\n + annotated-types==0.8.0\n\
+    \ + anyio==4.14.2\n + attrs==26.1.0\n + babel==2.18.0\n + bcrypt==4.3.0\n + certifi==2026.7.22\n\
+    \ + cffi==2.1.0\n + click==8.4.2\n + cryptography==49.0.0\n + fastapi==0.141.1\n\
+    \ + h11==0.16.0\n + httpcore==1.0.9\n + httptools==0.8.0\n + httpx==0.28.1\n +\
+    \ httpx-sse==0.4.3\n + idna==3.18\n + jinja2==3.1.6\n + jsonschema==4.26.0\n +\
+    \ jsonschema-specifications==2025.9.1\n + markupsafe==3.0.3\n + mcp==1.29.0\n\
+    \ + oompah==0.1.0 (from file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-564)\n\
+    \ + passlib==1.7.4\n + pycparser==3.0\n + pydantic==2.13.4\n + pydantic-core==2.46.4\n\
+    \ + pydantic-settings==2.14.2\n + pyjwt==2.13.0\n + python-dateutil==2.9.0.post0\n\
+    \ + python-dotenv==1.2.2\n + python-liquid==2.3.0\n + python-multipart==0.0.32\n\
+    \ + pytz==2026.3.post1\n + pyyaml==6.0.3\n + referencing==0.37.0\n + rpds-py==2026.6.3\n\
+    \ + six==1.17.0\n + sse-starlette==3.4.6\n + starlette==1.3.1\n + tree-sitter==0.26.0\n\
+    \ + tree-sitter-javascript==0.25.0\n + tree-sitter-markdown==0.5.1\n + tree-sitter-python==0.25.0\n\
+    \ + tree-sitter-rust==0.24.2\n + tree-sitter-typescript==0.23.2\n + tree-sitter-yaml==0.7.2\n\
+    \ + typing-extensions==4.16.0\n + typing-inspection==0.4.2\n + uvicorn==0.52.0\n\
+    \ + uvloop==0.22.1\n + watchfiles==1.2.0\n + websockets==17.0\nUninstalled 4 packages\
+    \ in 2ms\nInstalled 13 packages in 15ms\nmake[1]: *** [Makefile:217: test] Error\
+    \ 1\n"
 oompah.task_costs:
   total_input_tokens: 886934
   total_output_tokens: 16341

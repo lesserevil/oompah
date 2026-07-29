@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T22:21:22.976553Z'
+updated_at: '2026-07-29T22:42:10.398091Z'
 work_branch: OOMPAH-562
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/580
@@ -316,5 +316,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 40s
 - Log: OOMPAH-562__20260729T220901Z.jsonl
+---
+author: oompah
+created: 2026-07-29 22:42
+---
+Deployed on main via PRs #580 and #581 (final merge 9fab4107). Live recovery filed and completed the required epic repair; origin/epic-OOMPAH-459 is now 0 commits behind current main, and the previously attempts=0 integration queue has made its first executor claim (OOMPAH-564 integrating, attempt 1).
 ---
 <!-- COMMENTS:END -->

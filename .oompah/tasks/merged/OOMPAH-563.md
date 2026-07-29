@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:36:54.712161Z'
-updated_at: '2026-07-29T22:10:11.062960Z'
+updated_at: '2026-07-29T22:42:11.577186Z'
 work_branch: OOMPAH-563
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/583
@@ -217,5 +217,10 @@ author: oompah
 created: 2026-07-29 21:48
 ---
 LIVE RECOVERY VERIFIED after make graceful on submitted head f47d09a7b: new service instance 88c6ab59-ff17-48bf-8439-b36679919662; dashboard alerts empty; terminal-audit baseline_initialized=true, quarantined=false, pending_audits=0, errors=[]; 1,181 existing terminal records grandfathered; service_state.json parses successfully, is mode 0600, and no temporary files remain. The live alert is cleared.
+---
+author: oompah
+created: 2026-07-29 22:42
+---
+Deployed on main via PR #583 (merge 61230608) and activated by graceful restart. Live terminal-audit enforcement rebuilt its baseline successfully: quarantine is false, errors are empty, and the dashboard alert has cleared.
 ---
 <!-- COMMENTS:END -->
