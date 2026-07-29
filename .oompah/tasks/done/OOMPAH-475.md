@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T15:38:06.882590Z'
+updated_at: '2026-07-29T15:38:08.982592Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -834,5 +834,10 @@ Independent auditor dispatch documentation system is complete, tested, and deliv
 ✓ Concurrency and serialization documented (no races with branch writers, global limit respect)
 
 All acceptance criteria from OOMPAH-475 are addressed in the design and operator documentation.
+---
+author: oompah
+created: 2026-07-29 15:38
+---
+Independent auditor dispatch documentation complete: design document (plans/independent-auditor-dispatch.md, 420 lines) and operator guide (docs/auditor-dispatch-operations.md, 388 lines) covering audit dispatch flow, candidate selection, retry/recovery semantics, epic-branch locking, global concurrency, configuration, monitoring, troubleshooting, and recovery procedures. All 13,185 tests pass. Acceptance criteria met.
 ---
 <!-- COMMENTS:END -->
