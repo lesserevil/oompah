@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:13.914904Z'
-updated_at: '2026-07-29T06:35:07.499956Z'
+updated_at: '2026-07-29T06:39:47.586285Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -130,5 +130,35 @@ UNDERSTANDING: Implementing ArchivedEvidenceCollector, a read-only validator for
 Pattern follows DoneEvidenceCollector/MergedEvidenceCollector design: explicit unavailable/invalid markers, deterministic snapshots, accurate failure mode detection.
 
 Tests will cover: retention-qualified items, recent items, active worker, active child, unresolved dependency, changed requirements, changed SHA, duplicate with/without link, obsolete reason, safe restoration state.
+---
+author: oompah
+created: 2026-07-29 06:39
+---
+DISCOVERY & IMPLEMENTATION: Created ArchivedEvidenceCollector (oompah/archived_evidence_collector.py, 480 lines).
+
+Implementation includes:
+- DispositionType enum: retention, duplicate, obsolete, blocked, superseded
+- TaskStateSnapshot: captures pre-archive state (worker, review, children, dependencies)
+- AuditReferenceEvidence: links to prior Done/Merged audit with verdict & fingerprint
+- SafetyFailureMode enum: 20 specific failure modes for audit safety
+- RestorationGuidance: recommended state and actions when archive is unsafe
+
+Safety checks:
+- Passes when no active worker/claim/retry, no open review, no active children/dependencies
+- Requires structured disposition reason with source links for duplicate/obsolete/superseded
+- Verifies prior Done/Merged audit passed and fingerprint hasn't changed
+- Detects requirement/SHA changes after prior audit
+- Enforces retention period (configurable)
+
+Tests (47 passing):
+- DispositionType parsing and validation
+- Safe archival (retention/duplicate/obsolete)
+- Recent items (retention period enforcement)
+- Active worker/claim/retry/review/child/dependency blocking
+- Changed requirements and SHA detection
+- Fingerprint mismatches
+- Failed prior audits
+- Missing disposition reasons and source links
+- Restoration guidance for each failure mode
 ---
 <!-- COMMENTS:END -->
