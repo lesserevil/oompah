@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-539
 type: task
-status: In Progress
+status: In Review
 priority: null
 title: Keep Open-task duplicate-screening board state synchronized with live workers
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T02:29:44.331857Z'
+updated_at: '2026-07-29T02:29:58.801327Z'
 work_branch: null
 target_branch: null
 review_url: null
