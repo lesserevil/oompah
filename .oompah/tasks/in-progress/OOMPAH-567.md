@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:48:39.126282Z'
-updated_at: '2026-07-29T22:52:21.691375Z'
+updated_at: '2026-07-29T22:52:42.312991Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -116,5 +116,10 @@ author: oompah
 created: 2026-07-29 22:52
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-29 22:52
+---
+Understanding: Fresh worktrees fail make test because test targets depend only on setup which installs .[server], leaving claude/codex/granian test deps absent. Need to: (1) Add idempotent test-specific setup marker installing .[dev] without changing prod start/setup; (2) Ensure marker invalidated by pyproject.toml; (3) Add regression tests proving test depends on dev extra + server startup remains server-only. Approach: Examine Makefile test targets and pyproject.toml structure, then implement cached marker pattern.
 ---
 <!-- COMMENTS:END -->
