@@ -124,6 +124,7 @@ from oompah.statuses import (
     BACKLOG,
     CANONICAL_STATUSES,
     DONE,
+    IN_VALIDATION,
     IN_PROGRESS,
     IN_REVIEW,
     MERGED,
@@ -134,10 +135,22 @@ from oompah.statuses import (
     OPEN,
     PROPOSED,
     READY_TO_INTEGRATE,
+    TERMINAL_STATUSES,
     canonicalize_status,
     epic_rollup_state,
     is_dispatchable_status,
     is_terminal_status,
+)
+from oompah.terminal_audit import (
+    ContributorIdentity,
+    EvidenceFingerprint,
+    TargetState,
+    compute_evidence_fingerprint,
+)
+from oompah.terminal_transition_coordinator import (
+    OverrideRejection,
+    OverrideResult,
+    TransitionResult,
 )
 from oompah.transition_gate import (
     TransitionGateResult,
@@ -3309,6 +3322,8 @@ async def api_task_handoff(request: Request):
                 status_code=404,
             )
 
+        terminal_payload: dict[str, Any] | None = None
+
         if action == "view":
             comments = await _run_api_io(tracker.fetch_comments, identifier)
             return JSONResponse(
@@ -3436,28 +3451,35 @@ async def api_task_handoff(request: Request):
             if rejection is not None:
                 record_task_handoff_failure(token, "task handoff status transition rejected")
                 return rejection
-            if is_terminal_status(status):
-                submission_body = {**body, "summary": body.get("summary")}
-                record = await _persist_worker_submission(
-                    tracker,
-                    issue,
-                    submission_body,
+            terminal_target = _terminal_target_for_status(status)
+            if terminal_target is not None:
+                # A task-scoped capability cannot impersonate an owner. Keep
+                # the identity fixed to the handoff actor while still routing
+                # explicit override fields through the coordinator's owner
+                # authorization check.
+                transition_body = dict(body)
+                transition_body["project_id"] = project_id
+                transition_body["actor_login"] = "oompah"
+                terminal_payload, terminal_error = await _stage_terminal_transition(
+                    orch=orch,
+                    tracker=tracker,
+                    project_id=project_id,
+                    issue=issue,
+                    target=terminal_target,
+                    body=transition_body,
+                    request=request,
                 )
-                _enqueue_worker_submission(orch, project_id, issue, record)
-                _publish_submission_coordination(
-                    orch, project_id, issue, record, submission_body
-                )
-                _api_cache.invalidate("issues:all")
-                _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
-                await broadcast_issues()
-                return JSONResponse(
-                    {
-                        "ok": True,
-                        "staged_status": READY_TO_INTEGRATE,
-                        "integration": record.to_dict(),
-                    }
-                )
-            await _run_api_io(tracker.update_issue, identifier, status=status)
+                if terminal_error is not None:
+                    record_task_handoff_failure(
+                        token, "task handoff terminal transition rejected"
+                    )
+                    message, status_code = terminal_error
+                    return JSONResponse(
+                        {"error": {"code": "terminal_transition", "message": message}},
+                        status_code=status_code,
+                    )
+            else:
+                await _run_api_io(tracker.update_issue, identifier, status=status)
             summary = str(body.get("summary") or "").strip()
             if summary:
                 await _run_api_io(tracker.add_comment, identifier, summary, author="oompah")
@@ -3473,7 +3495,7 @@ async def api_task_handoff(request: Request):
             _api_cache.invalidate("issues:all")
             _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
             await broadcast_issues()
-            return JSONResponse({"ok": True})
+            return JSONResponse(terminal_payload or {"ok": True})
 
         label = str(body.get("label") or "").strip()
         if not label:
@@ -3482,14 +3504,55 @@ async def api_task_handoff(request: Request):
                 {"error": {"code": "validation", "message": "label is required"}},
                 status_code=400,
             )
-        if action == "add-label":
+        from oompah.label_auth import label_name_to_status
+
+        status_from_label = label_name_to_status(label)
+        terminal_target = _terminal_target_for_status(status_from_label)
+        if terminal_target is not None:
+            if action == "remove-label":
+                record_task_handoff_failure(
+                    token, "task handoff terminal label removal rejected"
+                )
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "terminal_transition",
+                            "message": "Terminal status labels cannot be removed directly.",
+                        }
+                    },
+                    status_code=400,
+                )
+            transition_body = {
+                **body,
+                "project_id": project_id,
+                "actor_login": "oompah",
+            }
+            terminal_payload, terminal_error = await _stage_terminal_transition(
+                orch=orch,
+                tracker=tracker,
+                project_id=project_id,
+                issue=issue,
+                target=terminal_target,
+                body=transition_body,
+                request=request,
+            )
+            if terminal_error is not None:
+                record_task_handoff_failure(
+                    token, "task handoff terminal label transition rejected"
+                )
+                message, status_code = terminal_error
+                return JSONResponse(
+                    {"error": {"code": "terminal_transition", "message": message}},
+                    status_code=status_code,
+                )
+        elif action == "add-label":
             await _run_api_io(tracker.add_label, identifier, label)
         else:
             await _run_api_io(tracker.remove_label, identifier, label)
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
         await broadcast_issues()
-        return JSONResponse({"ok": True})
+        return JSONResponse(terminal_payload or {"ok": True})
     except ValueError as exc:
         record_task_handoff_failure(
             token, "task handoff operation validation failed"
@@ -3650,6 +3713,194 @@ def _request_actor_login(body: dict | None, request: Request | None = None) -> s
             if value and value.strip():
                 return value.strip()
     return ""
+
+
+_TERMINAL_TARGETS: dict[str, TargetState] = {
+    DONE: TargetState.DONE,
+    MERGED: TargetState.MERGED,
+    ARCHIVED: TargetState.ARCHIVED,
+}
+
+
+def _terminal_target_for_status(status: str | None) -> TargetState | None:
+    """Return the coordinator target for a canonical lifecycle status."""
+
+    return _TERMINAL_TARGETS.get(canonicalize_status(status))
+
+
+def _terminal_evidence_fingerprint(
+    issue,
+    project_id: str,
+) -> EvidenceFingerprint:
+    """Build the tracker-neutral evidence fingerprint used by API callers."""
+
+    contributors = getattr(issue, "contributors", ()) or ()
+    if isinstance(contributors, str):
+        contributors = (contributors,)
+    return compute_evidence_fingerprint(
+        requirements_text=str(getattr(issue, "description", "") or ""),
+        project_id=str(project_id),
+        task_id=str(getattr(issue, "identifier", "") or getattr(issue, "id", "")),
+        source_branch=str(
+            getattr(issue, "source_branch", None)
+            or getattr(issue, "work_branch", None)
+            or getattr(issue, "branch_name", None)
+            or ""
+        ),
+        source_sha=str(getattr(issue, "source_sha", "") or ""),
+        target_branch=str(getattr(issue, "target_branch", "") or ""),
+        target_sha=str(getattr(issue, "target_sha", "") or ""),
+        review_id=str(getattr(issue, "review_number", "") or ""),
+        review_state=str(getattr(issue, "review_state", "") or ""),
+        contributors=contributors,
+    )
+
+
+def _safe_terminal_transition_error(result, *, override: bool = False) -> tuple[str, int]:
+    """Map coordinator failures to stable client errors without metadata details."""
+
+    reason = str(getattr(result, "reason", "") or "")
+    if reason == "already completed":
+        return "This terminal transition has already been completed.", 409
+
+    error_code = getattr(result, "error_code", None)
+    if override and error_code == OverrideRejection.UNAUTHORIZED_ACTOR:
+        return "Only a project owner may use an audit override.", 403
+    if override and error_code == OverrideRejection.FINGERPRINT_MISMATCH:
+        return "The task changed before the override was requested; refresh and retry.", 409
+
+    return (
+        "The terminal transition could not be staged. Retry the request or ask a "
+        "project owner to review it.",
+        503,
+    )
+
+
+def _terminal_transition_payload(
+    target: TargetState,
+    result: TransitionResult | OverrideResult,
+) -> dict[str, Any]:
+    """Return the public terminal-transition response shape."""
+
+    if isinstance(result, OverrideResult):
+        return {
+            "ok": True,
+            "status": result.applied_status,
+            "requested_target": target.value,
+            "audit_id": result.override_id,
+            "audit_override": True,
+        }
+
+    return {
+        "ok": True,
+        "status": IN_VALIDATION,
+        "requested_target": target.value,
+        "audit_id": result.audit_id,
+        "queued_targets": [item.value for item in result.queued_targets],
+        "coalesced": result.coalesced,
+    }
+
+
+async def _stage_terminal_transition(
+    *,
+    orch,
+    tracker,
+    project_id: str | None,
+    issue,
+    target: TargetState,
+    body: dict[str, Any],
+    request: Request | None = None,
+) -> tuple[dict[str, Any] | None, tuple[str, int] | None]:
+    """Stage a project-aware terminal request or apply an owner override.
+
+    The returned pair is ``(payload, error)``.  Keeping this boundary shared
+    by PATCH and status-label mutations ensures neither endpoint can fall
+    through to a direct terminal tracker write.
+    """
+
+    if not project_id:
+        return None, (
+            "A managed project is required for terminal status transitions.",
+            400,
+        )
+    if issue is None:
+        return None, ("Issue not found; terminal status was not changed.", 404)
+
+    if not hasattr(issue, "project_id") or not issue.project_id:
+        issue.project_id = project_id
+
+    audit_override = body.get("audit_override", False)
+    if not isinstance(audit_override, bool):
+        return None, ("audit_override must be a boolean.", 400)
+    if not audit_override and body.get("override_reason") is not None:
+        # Do not silently accept a reason that a caller may have intended to
+        # pair with an override.  It cannot change a normal staged request.
+        return None, ("override_reason requires audit_override=true.", 400)
+
+    coordinator = getattr(orch, "terminal_transition_coordinator", None)
+    if coordinator is None or not callable(
+        getattr(coordinator, "request_transition", None)
+    ):
+        return None, ("Terminal transition service is unavailable.", 503)
+
+    actor = _request_actor_login(body, request)
+    if audit_override:
+        reason = body.get("override_reason")
+        if not isinstance(reason, str) or not reason.strip():
+            return None, (
+                "override_reason is required when audit_override=true.",
+                400,
+            )
+        if not actor:
+            return None, (
+                "An actor identity is required when audit_override=true.",
+                400,
+            )
+        try:
+            result = await coordinator.override_transition(
+                current_issue=issue,
+                requested_target=target,
+                authorized_actor=ContributorIdentity(actor, "api"),
+                project_id=str(project_id),
+                evidence_fingerprint=_terminal_evidence_fingerprint(issue, str(project_id)),
+                reason=reason,
+                project=_project_by_id(orch, str(project_id)),
+            )
+        except (TypeError, ValueError) as exc:
+            logger.info("Rejected terminal override request: %s", exc)
+            return None, ("The terminal override request is invalid.", 400)
+        except Exception:
+            logger.exception("Terminal override request failed")
+            return None, (
+                "The terminal transition could not be staged. Retry the request or "
+                "ask a project owner to review it.",
+                503,
+            )
+        if not result.success:
+            return None, _safe_terminal_transition_error(result, override=True)
+        return _terminal_transition_payload(target, result), None
+
+    try:
+        result = await coordinator.request_transition(
+            current_issue=issue,
+            requested_target=target,
+            trigger_identity=ContributorIdentity(actor or "api-client", "api"),
+            project_id=str(project_id),
+            evidence_fingerprint=_terminal_evidence_fingerprint(issue, str(project_id)),
+        )
+    except (TypeError, ValueError) as exc:
+        logger.info("Rejected terminal transition request: %s", exc)
+        return None, ("The terminal transition request is invalid.", 400)
+    except Exception:
+        logger.exception("Terminal transition request failed")
+        return None, (
+            "The terminal transition could not be staged. Retry the request or ask "
+            "a project owner to review it.",
+            503,
+        )
+    if not result.success:
+        return None, _safe_terminal_transition_error(result)
+    return _terminal_transition_payload(target, result), None
 
 
 def _request_bool(body: dict | None, *keys: str) -> bool:
@@ -8327,6 +8578,8 @@ async def api_update_issue(identifier: str, request: Request):
         new_title = body.get("title")
         new_description = body.get("description")
         needs_human_comment = body.get("needs_human_comment", body.get("comment"))
+        terminal_transition_payload: dict[str, Any] | None = None
+        terminal_target: TargetState | None = None
 
         # Optional tracker-identity / branch fields accepted for update.
         # These are persisted to the tracker adapter when supported; validated
@@ -8396,6 +8649,7 @@ async def api_update_issue(identifier: str, request: Request):
         transition_to_status: str | None = None
         if new_status is not None:
             requested_status = canonicalize_status(new_status)
+            terminal_target = _terminal_target_for_status(requested_status)
             existing_status = canonicalize_status(
                 existing_issue.state if existing_issue is not None else None
             )
@@ -8499,7 +8753,36 @@ async def api_update_issue(identifier: str, request: Request):
                 handled_status = True
                 transition_result = None
 
-        if new_status is not None and str(new_status).strip().lower() == "closed":
+            # Terminal lifecycle updates are always staged through the
+            # server-owned coordinator.  This branch deliberately runs after
+            # intake gates but before the generic tracker update construction
+            # below, so no ordinary API client can write a terminal status
+            # directly.
+            if terminal_target is not None:
+                terminal_transition_payload, terminal_error = (
+                    await _stage_terminal_transition(
+                        orch=orch,
+                        tracker=tracker,
+                        project_id=project_id,
+                        issue=existing_issue,
+                        target=terminal_target,
+                        body=body,
+                        request=request,
+                    )
+                )
+                if terminal_error is not None:
+                    message, status_code = terminal_error
+                    return JSONResponse(
+                        {"error": {"code": "terminal_transition", "message": message}},
+                        status_code=status_code,
+                    )
+                handled_status = True
+
+        if (
+            terminal_transition_payload is None
+            and new_status is not None
+            and str(new_status).strip().lower() == "closed"
+        ):
             # Legacy close alias; apply other fields first if any.
             update_fields: dict[str, str] = {}
             if new_priority is not None:
@@ -8515,7 +8798,7 @@ async def api_update_issue(identifier: str, request: Request):
             update_fields = {}
             needs_human_status: str | None = None
             if new_status is not None:
-                if handled_status:
+                if handled_status or terminal_transition_payload is not None:
                     pass
                 elif canonicalize_status(new_status) == NEEDS_HUMAN:
                     needs_human_status = str(new_status)
@@ -8569,7 +8852,7 @@ async def api_update_issue(identifier: str, request: Request):
         # Only applies to non-terminal transitions: the backend hook overwrites
         # the user's intended "active" state (open/in_progress) for epics
         # but does not block terminal transitions (close/archive).
-        if new_status is not None and is_epic:
+        if new_status is not None and is_epic and terminal_transition_payload is None:
             terminal = {
                 _state_key(s)
                 for s in getattr(orch.config, "tracker_terminal_states", ["Done"])
@@ -8612,6 +8895,12 @@ async def api_update_issue(identifier: str, request: Request):
         if new_status is not None:
             terminal = {_state_key(s) for s in orch.config.tracker_terminal_states}
             status_norm = _state_key(new_status)
+            if terminal_target is not None and terminal_transition_payload is not None:
+                # A staged terminal request should stop a running worker, but
+                # the task itself remains In Validation until an auditor
+                # applies the requested terminal state.
+                status_norm = _state_key(terminal_target.value)
+                terminal.add(status_norm)
             # A manual or watchdog reopen must become dispatchable immediately.
             # Otherwise an issue previously deferred into ``completed`` remains
             # invisible until the periodic watchdog sweep clears that stale
@@ -8667,7 +8956,7 @@ async def api_update_issue(identifier: str, request: Request):
         ):
             orch.request_refresh()
         await broadcast_issues()
-        return JSONResponse({"ok": True})
+        return JSONResponse(terminal_transition_payload or {"ok": True})
     except Exception as exc:
         from oompah.tracker import StateBranchFetchError
 
@@ -8913,10 +9202,12 @@ async def api_add_label(identifier: str, request: Request):
         from oompah.label_auth import label_name_to_status
 
         status_from_label = label_name_to_status(label)
+        terminal_target = _terminal_target_for_status(status_from_label)
         transition_result: TransitionGateResult | None = None
         transition_actor = ""
         transition_from_status: str | None = None
         transition_to_status: str | None = None
+        terminal_payload: dict[str, Any] | None = None
         existing_issue = None
         if status_from_label is not None:
             try:
@@ -8941,7 +9232,42 @@ async def api_add_label(identifier: str, request: Request):
             )
             if rejection is not None:
                 return rejection
-            tracker.update_issue(resolved_identifier, status=status_from_label)
+            if terminal_target is not None:
+                # A forge/status-label mutation has no safe way to carry an
+                # explicit owner override.  Treat it as a normal staged
+                # request so the label cannot bypass terminal auditing.
+                if body.get("audit_override"):
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "terminal_transition",
+                                "message": (
+                                    "Status-label mutations cannot request an audit "
+                                    "override; use the task status API with an "
+                                    "explicit override_reason."
+                                ),
+                            }
+                        },
+                        status_code=400,
+                    )
+                terminal_payload, terminal_error = await _stage_terminal_transition(
+                    orch=orch,
+                    tracker=tracker,
+                    project_id=project_id,
+                    issue=existing_issue,
+                    target=terminal_target,
+                    body=body,
+                    request=request,
+                )
+                if terminal_error is not None:
+                    message, status_code = terminal_error
+                    return JSONResponse(
+                        {"error": {"code": "terminal_transition", "message": message}},
+                        status_code=status_code,
+                    )
+            else:
+                tracker.update_issue(resolved_identifier, status=status_from_label)
+                terminal_payload = None
         else:
             tracker.add_label(resolved_identifier, label)
 
@@ -8957,7 +9283,7 @@ async def api_add_label(identifier: str, request: Request):
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         await broadcast_issues()
-        return JSONResponse({"ok": True}, status_code=201)
+        return JSONResponse(terminal_payload or {"ok": True}, status_code=201)
     except Exception as exc:
         logger.error("Add label API error: %s", exc)
         return JSONResponse(
@@ -9013,6 +9339,21 @@ async def api_remove_label(identifier: str, label: str, request: Request):
                     },
                     status_code=404,
                 )
+        from oompah.label_auth import label_name_to_status
+
+        if _terminal_target_for_status(label_name_to_status(decoded_label)) is not None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "terminal_transition",
+                        "message": (
+                            "Terminal status labels cannot be removed directly; "
+                            "request the task status through the coordinator-backed API."
+                        ),
+                    }
+                },
+                status_code=400,
+            )
         tracker.remove_label(resolved_identifier, decoded_label)
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
@@ -14416,6 +14757,105 @@ def _status_before_label_event(tracker, event, to_status: str) -> str | None:
     return None
 
 
+def _stage_authorized_terminal_label_event(
+    orch,
+    event,
+    project,
+    identifier: str,
+    from_status: str | None,
+) -> None:
+    """Convert a forge terminal-label edit into a coordinator request.
+
+    Forge label webhooks cannot carry ``audit_override`` or an override reason.
+    The label is therefore treated as an ordinary request and the task is
+    moved back to ``In Validation`` after the audit chain is persisted.  If
+    staging fails, reconciliation restores the last trusted label.
+    """
+
+    try:
+        from oompah.label_auth import label_name_to_status
+
+        tracker = orch._tracker_for_project(project.id)
+        issue = tracker.fetch_issue_detail(identifier)
+        if issue is None:
+            return
+        issue.project_id = project.id
+        # The forge has already reflected the label in the fetched issue. Feed
+        # the coordinator a nonterminal snapshot so it can atomically replace
+        # that direct terminal label with In Validation.
+        previous = canonicalize_status(from_status) if from_status else ""
+        if previous in TERMINAL_STATUSES or not previous:
+            previous = IN_REVIEW
+        issue.state = previous
+        result = asyncio.run(
+            orch.request_terminal_transition(
+                current_issue=issue,
+                requested_target=_terminal_target_for_status(
+                    label_name_to_status(event.label_name)
+                ),
+                trigger_identity=ContributorIdentity(event.label_actor, "forge"),
+                project_id=project.id,
+            )
+        )
+        if result.success:
+            logger.info(
+                "Staged forge terminal label for %s as audit %s",
+                identifier,
+                result.audit_id,
+            )
+            return
+        logger.warning(
+            "Forge terminal label request for %s was not staged: %s",
+            identifier,
+            result.reason,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to stage forge terminal label for %s: %s", identifier, exc
+        )
+
+    # A failed staging attempt must not leave a direct terminal forge label in
+    # place. The webhook reconciliation path restores the previous trusted
+    # status label and records the failed external mutation.
+    try:
+        tracker = orch._tracker_for_project(project.id)
+        _do_revert_status_label(
+            tracker,
+            event.issue_number,
+            event.label_name,
+            event.action,
+            previous_trusted_status=from_status,
+        )
+    except Exception as exc:
+        logger.warning("Failed to revert unstaged terminal label: %s", exc)
+
+
+def _request_webhook_terminal_transition(
+    orch,
+    issue,
+    target: TargetState,
+    project,
+    actor: str | None = None,
+) -> TransitionResult | None:
+    """Stage a terminal transition discovered by forge reconciliation."""
+
+    issue.project_id = project.id
+    # A merge webhook often arrives after the forge has already changed the
+    # task's visible state to Done. Feed a nonterminal snapshot so staging
+    # replaces that direct terminal observation with In Validation.
+    if canonicalize_status(getattr(issue, "state", None)) in TERMINAL_STATUSES:
+        issue.state = IN_REVIEW
+    identity = str(actor or "forge-webhook").strip() or "forge-webhook"
+    return asyncio.run(
+        orch.request_terminal_transition(
+            current_issue=issue,
+            requested_target=target,
+            trigger_identity=ContributorIdentity(identity, "forge"),
+            project_id=project.id,
+        )
+    )
+
+
 def _handle_authorized_status_label_event(orch, event, project) -> None:
     """Trust or reject an actor-authorized status label under intake gates."""
 
@@ -14481,6 +14921,18 @@ def _handle_authorized_status_label_event(orch, event, project) -> None:
             target=_revert_rejected_status_label_change,
             args=(orch, event, project, comment),
             name=f"webhook-label-gate-revert-{project.name}",
+            daemon=True,
+        ).start()
+        return
+
+    if _terminal_target_for_status(to_status) is not None and identifier:
+        # Owner authorization for a forge label is not an audit override: the
+        # webhook has no required reason field. Stage it in a worker and let
+        # reconciliation revert the label if the coordinator is unavailable.
+        threading.Thread(
+            target=_stage_authorized_terminal_label_event,
+            args=(orch, event, project, identifier, from_status),
+            name=f"webhook-terminal-stage-{project.name}",
             daemon=True,
         ).start()
         return
@@ -15155,9 +15607,21 @@ def _label_task_merged_from_merge_group(orch, event, project) -> None:
             )
             return
         if canonicalize_status(issue.state) != MERGED:
-            tracker.update_issue(issue.identifier, status=MERGED)
+            result = _request_webhook_terminal_transition(
+                orch,
+                issue,
+                TargetState.MERGED,
+                project,
+                event.author,
+            )
+            if result is not None and not result.success:
+                logger.warning(
+                    "merge_group request for %s was not staged: %s",
+                    issue.identifier,
+                    result.reason,
+                )
             logger.info(
-                "merge_group: marked %s as Merged (head_ref=%r)",
+                "merge_group: staged %s as Merged (head_ref=%r)",
                 issue.identifier,
                 head_ref,
             )
@@ -15288,9 +15752,21 @@ def _label_task_merged_from_pr(orch, event, project) -> None:
             )
             return
         if canonicalize_status(issue.state) != MERGED:
-            tracker.update_issue(issue.identifier, status=MERGED)
+            result = _request_webhook_terminal_transition(
+                orch,
+                issue,
+                TargetState.MERGED,
+                project,
+                event.author,
+            )
+            if result is not None and not result.success:
+                logger.warning(
+                    "webhook Merged request for %s was not staged: %s",
+                    issue.identifier,
+                    result.reason,
+                )
             logger.info(
-                "webhook: marked %s as Merged (PR #%s closed+merged, branch=%s)",
+                "webhook: staged %s as Merged (PR #%s closed+merged, branch=%s)",
                 issue.identifier,
                 event.review_id,
                 source_branch,

@@ -46,6 +46,7 @@ raising.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -59,6 +60,12 @@ from oompah.authority_boundary import (
     check_action,
     check_read_only_mutation,
     check_shell_command,
+)
+from oompah.statuses import canonicalize_status
+from oompah.terminal_audit import (
+    ContributorIdentity,
+    TargetState,
+    compute_evidence_fingerprint,
 )
 
 logger = logging.getLogger(__name__)
@@ -376,6 +383,113 @@ def _format_issue_detail(detail: dict[str, Any]) -> str:
     return buf.getvalue().rstrip()
 
 
+_TERMINAL_STATUS_TARGETS = {
+    "Done": TargetState.DONE,
+    "Merged": TargetState.MERGED,
+    "Archived": TargetState.ARCHIVED,
+}
+
+
+def _target_for_task_status(status: str | None) -> TargetState | None:
+    return _TERMINAL_STATUS_TARGETS.get(canonicalize_status(status))
+
+
+def _task_evidence_fingerprint(issue: Any, project_id: str) -> Any:
+    contributors = getattr(issue, "contributors", ()) or ()
+    if isinstance(contributors, str):
+        contributors = (contributors,)
+    return compute_evidence_fingerprint(
+        requirements_text=str(getattr(issue, "description", "") or ""),
+        project_id=project_id,
+        task_id=str(getattr(issue, "identifier", "") or getattr(issue, "id", "")),
+        source_branch=str(
+            getattr(issue, "source_branch", None)
+            or getattr(issue, "work_branch", None)
+            or getattr(issue, "branch_name", None)
+            or ""
+        ),
+        target_branch=str(getattr(issue, "target_branch", "") or ""),
+        review_id=str(getattr(issue, "review_number", "") or ""),
+        review_state=str(getattr(issue, "review_state", "") or ""),
+        contributors=contributors,
+    )
+
+
+async def _stage_acp_terminal_status(
+    *,
+    args: Any,
+    task_tracker: Any,
+    project_id: str | None,
+    project_store: Any,
+    terminal_transition_coordinator: Any,
+) -> str:
+    """Stage an ACP task status through the server-owned coordinator."""
+
+    if not project_id:
+        return "Error: terminal status changes require a project-scoped ACP session"
+    if terminal_transition_coordinator is None:
+        return "Error: terminal transition service is unavailable"
+
+    issue = task_tracker.fetch_issue_detail(args.identifier)
+    if issue is None:
+        return f"Error: Issue {args.identifier!r} not found"
+    if not getattr(issue, "project_id", None):
+        issue.project_id = project_id
+
+    target = _target_for_task_status(args.status)
+    if target is None:
+        return f"Error: unsupported terminal status {args.status!r}"
+
+    audit_override = getattr(args, "audit_override", False) is True
+    reason = getattr(args, "override_reason", None)
+    actor = str(getattr(args, "actor", None) or "").strip()
+    if audit_override:
+        if not isinstance(reason, str) or not reason.strip():
+            return "Error: --override-reason is required with --audit-override"
+        if not actor:
+            return "Error: --actor is required with --audit-override"
+        try:
+            project = project_store.get(project_id) if project_store is not None else None
+            result = await terminal_transition_coordinator.override_transition(
+                current_issue=issue,
+                requested_target=target,
+                authorized_actor=ContributorIdentity(actor, "acp"),
+                project_id=project_id,
+                evidence_fingerprint=_task_evidence_fingerprint(issue, project_id),
+                reason=reason,
+                project=project,
+            )
+        except Exception:
+            # Keep coordinator/storage details out of the agent-facing tool
+            # response; operators can use the server logs for diagnostics.
+            return "Error: terminal override request failed"
+        if not result.success:
+            return "Error: terminal override was not authorized or could not be applied"
+        return (
+            f"Status set by owner override: {result.applied_status} "
+            f"(audit ID: {result.override_id or 'recorded'})"
+        )
+
+    try:
+        result = await terminal_transition_coordinator.request_transition(
+            current_issue=issue,
+            requested_target=target,
+            trigger_identity=ContributorIdentity(actor or "acp-agent", "acp"),
+            project_id=project_id,
+            evidence_fingerprint=_task_evidence_fingerprint(issue, project_id),
+        )
+    except Exception:
+        return "Error: terminal transition request failed"
+    if not result.success:
+        if result.reason == "already completed":
+            return "Error: terminal transition has already been completed"
+        return "Error: terminal transition could not be staged"
+    return (
+        f"Terminal transition queued: {target.value} "
+        f"(status: In Validation, audit ID: {result.audit_id or 'pending'})"
+    )
+
+
 def _exec_oompah_task_command(
     command: str,
     task_tracker: Any,
@@ -384,6 +498,8 @@ def _exec_oompah_task_command(
     task_identifier: str | None = None,
     coordination_service: Any = None,
     workspace_path: str | Path | None = None,
+    project_store: Any = None,
+    terminal_transition_coordinator: Any = None,
 ) -> str | None:
     """Execute a simple ``oompah task ...`` command without local HTTP.
 
@@ -523,11 +639,25 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
-            if (
-                task_identifier
-                and str(args.status).strip().lower()
-                in {"done", "merged", "archived"}
-            ):
+            target = _target_for_task_status(args.status)
+            if target is not None and terminal_transition_coordinator is not None:
+                try:
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    return asyncio.run(
+                        _stage_acp_terminal_status(
+                            args=args,
+                            task_tracker=task_tracker,
+                            project_id=project_id,
+                            project_store=project_store,
+                            terminal_transition_coordinator=terminal_transition_coordinator,
+                        )
+                    )
+                return (
+                    "Error: terminal task updates must be awaited through the "
+                    "ACP tool runner"
+                )
+            if task_identifier and target is not None:
                 return (
                     "Error: spawned workers must use `oompah task submit "
                     f"{args.identifier} --summary \"...\"` so committed and "
@@ -715,6 +845,108 @@ def _exec_oompah_task_command(
     return f"Error: unsupported oompah task subcommand: {args.subcommand}"
 
 
+async def _exec_oompah_task_command_async(
+    command: str,
+    task_tracker: Any,
+    project_id: str | None = None,
+    action_policy: AgentActionPolicy | None = None,
+    task_identifier: str | None = None,
+    coordination_service: Any = None,
+    workspace_path: str | Path | None = None,
+    project_store: Any = None,
+    terminal_transition_coordinator: Any = None,
+) -> str | None:
+    """Async direct-task router used by ACP tool handlers.
+
+    The synchronous helper remains available for compatibility with callers
+    that invoke the command router outside an event loop. ACP SDK handlers use
+    this variant so coordinator requests are awaited instead of self-calling
+    the local HTTP API or blocking the service loop.
+    """
+
+    argv, parse_error = _oompah_task_argv(command)
+    if parse_error is not None:
+        return parse_error
+    if argv is None:
+        return None
+    if task_tracker is None:
+        return "Error: oompah task direct routing requires an active task tracker"
+
+    from oompah.task_cli import build_parser
+
+    parser = build_parser()
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return f"Error: invalid oompah task command (exit {exc.code})"
+
+    requested_project = getattr(args, "project", None)
+    if requested_project and project_id and requested_project != project_id:
+        return (
+            f"Error: oompah task command requested project {requested_project!r}, "
+            f"but this ACP session is scoped to {project_id!r}"
+        )
+
+    if task_identifier:
+        if args.subcommand not in {
+            "view",
+            "comment",
+            "set-status",
+            "submit",
+            "coordinate",
+            "add-label",
+            "remove-label",
+        }:
+            return (
+                "Error: this agent session is granted only the assigned task "
+                "handoff operations"
+            )
+        if args.identifier != task_identifier:
+            return (
+                f"Error: task handoff is scoped to {task_identifier!r}; "
+                f"requested {args.identifier!r}"
+            )
+        if args.subcommand == "comment" and args.author != "oompah":
+            return "Error: task handoff comments must use author='oompah'"
+
+    if (
+        args.subcommand == "set-status"
+        and _target_for_task_status(args.status) is not None
+        and terminal_transition_coordinator is not None
+    ):
+        denial = check_action(
+            action_policy,
+            ProtectedAction.TASK_STATUS_TRANSITION,
+            f"set-status {args.status!r} for {args.identifier!r}",
+        )
+        if denial is not None:
+            return denial
+        result = await _stage_acp_terminal_status(
+            args=args,
+            task_tracker=task_tracker,
+            project_id=project_id,
+            project_store=project_store,
+            terminal_transition_coordinator=terminal_transition_coordinator,
+        )
+        if getattr(args, "summary", None):
+            task_tracker.add_comment(args.identifier, args.summary, author="oompah")
+        return result
+
+    # All nonterminal commands retain the exact synchronous implementation and
+    # therefore the established output and compatibility behavior.
+    return _exec_oompah_task_command(
+        command,
+        task_tracker,
+        project_id,
+        action_policy,
+        task_identifier,
+        coordination_service,
+        workspace_path,
+        project_store,
+        terminal_transition_coordinator,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Claude Agent SDK tool catalog
 # ---------------------------------------------------------------------------
@@ -728,6 +960,7 @@ def build_tool_catalog(
     project_id: str | None = None,
     task_tracker: Any = None,
     coordination_service: Any = None,
+    terminal_transition_coordinator: Any = None,
     action_policy: AgentActionPolicy | None = None,
     task_identifier: str | None = None,
     read_only: bool = False,
@@ -868,7 +1101,7 @@ def build_tool_catalog(
         shell_denial = check_shell_command(action_policy, cmd)
         if shell_denial is not None:
             return _wrap_text(shell_denial)
-        direct = _exec_oompah_task_command(
+        direct = await _exec_oompah_task_command_async(
             cmd,
             task_tracker,
             current_project_id,
@@ -876,6 +1109,8 @@ def build_tool_catalog(
             task_identifier,
             coordination_service,
             workspace,
+            project_store,
+            terminal_transition_coordinator,
         )
         if direct is not None:
             return _wrap_text(direct)
@@ -1038,6 +1273,7 @@ def build_codex_tool_catalog(
     project_id: str | None = None,
     task_tracker: Any = None,
     coordination_service: Any = None,
+    terminal_transition_coordinator: Any = None,
     action_policy: AgentActionPolicy | None = None,
     task_identifier: str | None = None,
     read_only: bool = False,
@@ -1163,7 +1399,7 @@ def build_codex_tool_catalog(
         return _exec_search_files(workspace, {"pattern": pattern, "path": path})
 
     @function_tool
-    def run_command(command: str) -> str:
+    async def run_command(command: str) -> str:
         """Run a shell command inside the workspace. Stays inside the
         workspace — ``cd`` to absolute paths outside is refused.
         Project-specific tracker environment overrides are applied when
@@ -1172,7 +1408,7 @@ def build_codex_tool_catalog(
         shell_denial = check_shell_command(action_policy, command)
         if shell_denial is not None:
             return shell_denial
-        direct = _exec_oompah_task_command(
+        direct = await _exec_oompah_task_command_async(
             command,
             task_tracker,
             current_project_id,
@@ -1180,6 +1416,8 @@ def build_codex_tool_catalog(
             task_identifier,
             coordination_service,
             workspace,
+            project_store,
+            terminal_transition_coordinator,
         )
         if direct is not None:
             return direct
@@ -1327,6 +1565,7 @@ def build_opencode_tool_catalog(
     project_id: str | None = None,
     task_tracker: Any = None,
     coordination_service: Any = None,
+    terminal_transition_coordinator: Any = None,
     action_policy: AgentActionPolicy | None = None,
     task_identifier: str | None = None,
     read_only: bool = False,
@@ -1470,7 +1709,7 @@ def build_opencode_tool_catalog(
         shell_denial = check_shell_command(action_policy, cmd)
         if shell_denial is not None:
             return _wrap_text(shell_denial)
-        direct = _exec_oompah_task_command(
+        direct = await _exec_oompah_task_command_async(
             cmd,
             task_tracker,
             project_id,
@@ -1478,6 +1717,8 @@ def build_opencode_tool_catalog(
             task_identifier,
             coordination_service,
             workspace,
+            project_store,
+            terminal_transition_coordinator,
         )
         if direct is not None:
             return _wrap_text(direct)

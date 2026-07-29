@@ -3083,6 +3083,34 @@ async function updateIssue(identifier, fields) {
     if (data) renderBoard(data);
     return false;
   }
+  // Terminal requests are staged by the coordinator. Keep the board's
+  // feedback explicit so an operator does not mistake In Validation for a
+  // failed or silently ignored Done/Merged/Archived request.
+  if (outgoing.status !== undefined) {
+    let result = null;
+    try { result = await res.json(); } catch (_) { /* legacy empty response */ }
+    if (result && result.requested_target && result.status === 'In Validation') {
+      const auditId = result.audit_id || 'pending';
+      const message = 'Queued ' + result.requested_target +
+        ' for validation (audit ID: ' + auditId + ').';
+      // The optimistic drag target is not the persisted state: the task is
+      // now In Validation while the audit is pending. Move it back to the
+      // validation column and stop stale WebSocket snapshots from restoring
+      // the terminal target during the optimistic window.
+      delete optimisticUpdates[optimisticKey];
+      if (boardData) {
+        moveIssueInBoard(apiIdentifier, result.status, projectId);
+        renderBoard(boardData);
+      }
+      document.getElementById('status-text').textContent = message;
+      const boardError = document.getElementById('board-error');
+      if (boardError) {
+        boardError.textContent = message;
+        boardError.hidden = false;
+        boardError.setAttribute('role', 'status');
+      }
+    }
+  }
   return true;
 }
 

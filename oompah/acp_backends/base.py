@@ -138,6 +138,9 @@ class AcpBackendOptions:
     auditor: bool = False
     audit_target: Any = None
     audit_result_handler: Any = None
+    # Server-owned terminal transition coordinator. ACP task mutation tools
+    # use this instead of writing Done/Merged/Archived directly.
+    terminal_transition_coordinator: Any = None
     # Optional asyncio.Queue for mid-run comment injection (OOMPAH-211).
     # When set, the backend drains this queue at each turn boundary and
     # sends any pending text as a new user turn in the same session.

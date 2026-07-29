@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 import oompah.server as server_module
 from oompah.server import app, _state_key, _verify_epic_state_after_update
 from oompah.models import Issue
+from oompah.terminal_transition_coordinator import TransitionResult
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +51,9 @@ def _make_mock_orchestrator(project_id: str = "proj-1") -> tuple[MagicMock, Magi
     mock_orch = MagicMock()
     mock_orch._tracker_for_project = MagicMock(return_value=mock_tracker)
     mock_orch.config.tracker_terminal_states = ["closed"]
+    mock_orch.terminal_transition_coordinator.request_transition = AsyncMock(
+        return_value=TransitionResult(success=True, audit_id="audit-epic-1")
+    )
     mock_orch.state.running = {}
     mock_orch.state.retry_attempts = {}
     mock_orch.state.claimed = set()

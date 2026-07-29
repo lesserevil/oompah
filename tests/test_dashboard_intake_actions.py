@@ -210,6 +210,17 @@ class TestDashboardIntakeActions:
         assert "showBoardError(message)" in body
         assert "clearBoardError()" in body
 
+    def test_update_issue_surfaces_terminal_validation_audit(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "updateIssue")
+
+        assert "result.requested_target" in body
+        assert "result.status === 'In Validation'" in body
+        assert "result.audit_id" in body
+        assert "Queued ' + result.requested_target" in body
+        assert "delete optimisticUpdates[optimisticKey]" in body
+        assert "moveIssueInBoard(apiIdentifier, result.status, projectId)" in body
+
     def test_board_error_region_exists(self):
         html = (
             Path(__file__).resolve().parents[1]

@@ -274,6 +274,9 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             project_id=self._options.project_id,
             task_tracker=self._options.task_tracker,
             coordination_service=self._options.coordination_service,
+            terminal_transition_coordinator=(
+                self._options.terminal_transition_coordinator
+            ),
             read_only=self._options.read_only,
             task_identifier=self._options.task_identifier,
             action_policy=self._options.action_policy,

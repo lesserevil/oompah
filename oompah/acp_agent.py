@@ -111,6 +111,7 @@ class AcpAgentSession:
         task_identifier: str | None = None,
         action_policy: Any = None,
         task_handoff_token: str | None = None,
+        terminal_transition_coordinator: Any = None,
         comment_queue: Any = None,
         focus: Any = None,
         auditor: bool = False,
@@ -144,6 +145,7 @@ class AcpAgentSession:
         self.auditor = auditor
         self.audit_target = audit_target
         self.audit_result_handler = audit_result_handler
+        self.terminal_transition_coordinator = terminal_transition_coordinator
         # Mid-run comment injection queue (OOMPAH-211).
         self.comment_queue = comment_queue
 
@@ -262,6 +264,7 @@ class AcpAgentSession:
             task_identifier=self.task_identifier,
             action_policy=self.action_policy,
             task_handoff_token=self.task_handoff_token,
+            terminal_transition_coordinator=self.terminal_transition_coordinator,
             comment_queue=self.comment_queue,
             focus=self.focus,
             auditor=self.auditor,

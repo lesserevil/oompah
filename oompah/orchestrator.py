@@ -20707,6 +20707,7 @@ class Orchestrator:
                 task_tracker=task_tracker,
                 coordination_service=self,
                 task_identifier=issue.identifier,
+                terminal_transition_coordinator=self.terminal_transition_coordinator,
                 read_only=read_only_preflight,
                 focus=focus,
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
@@ -20944,6 +20945,7 @@ class Orchestrator:
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
                 audit_target=audit_target,
                 audit_result_handler=_acp_audit_handler,
+                terminal_transition_coordinator=self.terminal_transition_coordinator,
             )
             self._acp_agent_sessions[issue.id] = session
 
