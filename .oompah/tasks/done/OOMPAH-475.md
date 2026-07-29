@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T16:22:32.420358Z'
+updated_at: '2026-07-29T16:23:16.055928Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -1294,5 +1294,28 @@ author: oompah
 created: 2026-07-29 16:22
 ---
 Understanding: Previous agents created documentation (plans/independent-auditor-dispatch.md and docs/auditor-dispatch-operations.md) but a prior run failed to commit/push the work. My job is to check git status, commit any uncommitted changes, push, and close the task.
+---
+author: oompah
+created: 2026-07-29 16:23
+---
+Completion: All work is committed, pushed, and verified.
+
+**Implementation (oompah/auditor_dispatch.py, oompah/auditor.py, oompah/auditor_candidate_selector.py, oompah/terminal_audit.py, oompah/terminal_transition_coordinator.py, oompah/orchestrator.py, oompah/models.py, oompah/config.py, .env.example):**
+- Priority audit lane reads persisted In Validation requests
+- Independent candidate selection with provider-independence constraints
+- Epic-branch serialization lock preventing writer/auditor races
+- Global concurrency limit enforcement
+- Attempt identity persisted before launch
+- Candidate rotation on transient failure with backoff up to OOMPAH_AUDIT_MAX_ATTEMPTS
+- Restart rehydration: detects abandoned auditor sessions and retries idempotently
+- No-candidates / max-attempts path submits actionable Needs Human failure
+
+**Tests (tests/test_auditor_dispatch.py + existing suites):**
+- 7 new dispatch tests: persist/finish identity, candidate rotation, restart recovery, live-attempt deduplication + timeout recovery, changed-fingerprint invalidation, max-attempts/no-candidates actionable, branch-key sharing across epic children
+- All 78 focused tests pass (test_auditor_dispatch, test_auditor_candidate_selector, test_auditor_contract, test_terminal_audit)
+
+**Documentation:**
+- plans/independent-auditor-dispatch.md (design, flow diagrams, retry semantics, test strategy)
+- docs/auditor-dispatch-operations.md (operator guide: configuration, monitoring, troubleshooting, recovery)
 ---
 <!-- COMMENTS:END -->

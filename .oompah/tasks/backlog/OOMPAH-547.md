@@ -1,0 +1,33 @@
+---
+id: OOMPAH-547
+type: feature
+status: Backlog
+priority: 1
+title: Split finish-order dependencies from hard-start dependencies
+parent: OOMPAH-545
+children: []
+blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-07-29T16:23:09.212852Z'
+updated_at: '2026-07-29T16:23:09.212852Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+---
+## Summary
+
+Reinterpret Issue.blocked_by and existing dependency APIs as finish-order constraints. Add start_blocked_by metadata plus supported CLI/API add/remove operations for hard-start dependencies. Normal finish dependencies must not reject implementation dispatch; hard-start edges must reject until satisfied. Inherit both relationship types from parent epics at the appropriate dispatch or integration boundary. Validate new edges against cycles across the combined graph and return an actionable edge path.
+
+Tests must cover ordinary dispatch, inherited epic edges, P0 behavior, duplicate preflight, cycle creation/rejection, exact idempotent removal, native/GitHub/GitLab persistence, and API/CLI errors.
+
+Acceptance criteria: finish edges allow early work, hard-start edges preserve true prerequisites, cycles cannot be introduced, existing dependency data remains readable, and focused tests plus make test pass.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+

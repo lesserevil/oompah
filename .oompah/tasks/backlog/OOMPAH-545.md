@@ -5,12 +5,16 @@ status: Backlog
 priority: 1
 title: Make task dependencies finish-order constraints
 parent: null
-children: []
+children:
+- OOMPAH-546
+- OOMPAH-547
+- OOMPAH-548
+- OOMPAH-549
 blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T16:21:51.688684Z'
-updated_at: '2026-07-29T16:21:51.688684Z'
+updated_at: '2026-07-29T16:23:11.995416Z'
 work_branch: null
 target_branch: null
 review_url: null
