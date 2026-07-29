@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-07-29T01:22:58.615778Z'
+updated_at: '2026-07-29T01:23:00.717396Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -184,5 +184,10 @@ No reusable service credentials exposed in prompts, logs, env, or repository fil
 Project/action-policy authorization boundaries preserved.
 
 Ready for deployment.
+---
+author: oompah
+created: 2026-07-29 01:23
+---
+Spawned agents now have secure, scoped task handoff capabilities without exposing operator credentials. Implementation includes short-lived tokens (15min), process-local registry, constant-time scope validation, credential boundary enforcement, endpoint isolation, and failure tracking to prevent silent redispatch. All security tests pass. Ready for production.
 ---
 <!-- COMMENTS:END -->
