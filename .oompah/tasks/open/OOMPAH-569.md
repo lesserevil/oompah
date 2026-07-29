@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-569
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Sanitize credentials from branch quality-gate subprocesses
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:26:15.028867Z'
-updated_at: '2026-07-29T23:26:20.329566Z'
+updated_at: '2026-07-29T23:29:34.468937Z'
 work_branch: null
 target_branch: null
 review_url: null
