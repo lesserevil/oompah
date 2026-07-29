@@ -591,6 +591,136 @@ def _make_orchestrator(tmp_path, projects=None):
 
 
 class TestOrchestratorIntegration:
+    def test_scheduler_watchdog_wakes_once_after_clearing_stale_completed(
+        self, tmp_path
+    ):
+        """Recovered tasks are considered immediately, with one batch wake-up."""
+        orch = _make_orchestrator(tmp_path)
+        first = _make_issue("T-190", OPEN)
+        first.id = "issue-190"
+        second = _make_issue("T-191", OPEN)
+        second.id = "issue-191"
+        orch._last_candidates = [first, second]
+        orch.state.completed.update({first.id, second.id})
+
+        with patch.object(orch, "request_refresh") as request_refresh:
+            fixed = orch._watchdog_stale_completed()
+
+        assert fixed == 2
+        assert first.id not in orch.state.completed
+        assert second.id not in orch.state.completed
+        request_refresh.assert_called_once_with()
+
+    def test_scheduler_watchdog_does_not_wake_without_recovery(self, tmp_path):
+        """A no-op watchdog pass must not create periodic dispatch churn."""
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue("T-192", OPEN)
+        issue.id = "issue-192"
+        orch._last_candidates = [issue]
+
+        with patch.object(orch, "request_refresh") as request_refresh:
+            fixed = orch._watchdog_stale_completed()
+
+        assert fixed == 0
+        request_refresh.assert_not_called()
+
+    def test_scheduler_watchdog_preserves_terminal_completion(self, tmp_path):
+        """Terminal tasks remain suppressed and do not wake dispatch."""
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue("T-193", "Merged")
+        issue.id = "issue-193"
+        orch._last_candidates = [issue]
+        orch.state.completed.add(issue.id)
+
+        with patch.object(orch, "request_refresh") as request_refresh:
+            fixed = orch._watchdog_stale_completed()
+
+        assert fixed == 0
+        assert issue.id in orch.state.completed
+        request_refresh.assert_not_called()
+
+    def test_stalled_watchdog_reopen_clears_suppression_and_wakes_once(
+        self, tmp_path
+    ):
+        """Verified tracker reopens become selectable on the next dispatch pass."""
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        first = _make_issue("T-194", OPEN)
+        first.id = "issue-194"
+        second = _make_issue("T-195", OPEN)
+        second.id = "issue-195"
+        tracker.fetch_issue_detail.side_effect = [first, second]
+        result = WatchdogAuditResult(
+            decisions=[
+                StalledTaskDecision(
+                    task_id=first.identifier,
+                    project_id=None,
+                    stalled_status=NEEDS_HUMAN,
+                    classification="actionable",
+                    action="reopen",
+                    evidence="completed without a human question",
+                ),
+                StalledTaskDecision(
+                    task_id=second.identifier,
+                    project_id=None,
+                    stalled_status=NEEDS_CI_FIX,
+                    classification="actionable",
+                    action="reopen",
+                    evidence="CI now passes",
+                ),
+            ]
+        )
+        orch.state.completed.update({first.id, second.id})
+        orch.state.claimed.update({first.id, second.id})
+        orch.state.claimed_issues[first.id] = first
+        orch.state.claimed_issues[second.id] = second
+        orch.state.reopen_counts[first.id] = 3
+        orch.state.reopen_counts[second.id] = 3
+
+        with patch.object(orch, "request_refresh") as request_refresh:
+            recovered = orch._reconcile_stalled_watchdog_reopens(
+                result, {None: tracker}
+            )
+
+        assert recovered == 2
+        assert not ({first.id, second.id} & orch.state.completed)
+        assert not ({first.id, second.id} & orch.state.claimed)
+        assert first.id not in orch.state.claimed_issues
+        assert second.id not in orch.state.claimed_issues
+        assert first.id not in orch.state.reopen_counts
+        assert second.id not in orch.state.reopen_counts
+        request_refresh.assert_called_once_with()
+
+    def test_stalled_watchdog_does_not_reconcile_unverified_reopen(self, tmp_path):
+        """A failed or reverted tracker write cannot clear scheduler safeguards."""
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        issue = _make_issue("T-196", NEEDS_HUMAN)
+        issue.id = "issue-196"
+        tracker.fetch_issue_detail.return_value = issue
+        result = WatchdogAuditResult(
+            decisions=[
+                StalledTaskDecision(
+                    task_id=issue.identifier,
+                    project_id=None,
+                    stalled_status=NEEDS_HUMAN,
+                    classification="actionable",
+                    action="reopen",
+                    evidence="completion evidence",
+                )
+            ]
+        )
+        orch.state.completed.add(issue.id)
+
+        with patch.object(orch, "request_refresh") as request_refresh:
+            recovered = orch._reconcile_stalled_watchdog_reopens(
+                result, {None: tracker}
+            )
+
+        assert recovered == 0
+        assert issue.id in orch.state.completed
+        request_refresh.assert_not_called()
+
     def test_watchdog_coalesced_when_already_in_flight(self, tmp_path):
         """If watchdog is already in-flight, a second call is coalesced (skipped)."""
         orch = _make_orchestrator(tmp_path)
