@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-543
 type: bug
-status: Open
+status: In Review
 priority: 1
 title: Support removing task dependencies through the CLI and API
 parent: null
@@ -14,7 +14,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T14:38:32.101999Z'
-updated_at: '2026-07-29T14:39:53.278739Z'
+updated_at: '2026-07-29T14:47:30.439532Z'
 work_branch: null
 target_branch: null
 review_url: null
