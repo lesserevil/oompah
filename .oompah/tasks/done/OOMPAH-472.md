@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T05:42:05.120520Z'
+updated_at: '2026-07-29T05:42:29.027942Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -1059,5 +1059,15 @@ author: oompah
 created: 2026-07-29 05:42
 ---
 Understanding: Previous agents completed MergedEvidenceCollector implementation (commit ede290441). All 61 tests pass. Branch epic-OOMPAH-458 is clean and up to date with origin. Previous closure attempts were refused due to 'uncommitted changes' but current git status shows the working tree is clean. Running final verification and closing.
+---
+author: oompah
+created: 2026-07-29 05:42
+---
+Verification: All 61 tests in tests/test_merged_evidence_collector.py pass. Branch epic-OOMPAH-458 is clean and up to date with origin/epic-OOMPAH-458. Implementation committed at ede290441. git status shows working tree clean, no uncommitted or unpushed changes exist.
+---
+author: oompah
+created: 2026-07-29 05:42
+---
+Completion: MergedEvidenceCollector implemented in oompah/merged_evidence_collector.py (2355 lines across impl + tests, commit ede290441 on epic-OOMPAH-458). 61 tests cover all acceptance criteria: correct landing, wrong target, open/closed-unmerged reviews, failed/pending CI, squash/rebase/merge commits, deleted branches, stale branch tips, stranded commits, shared epics, and nested epic target chains. All tests pass. Branch is committed and pushed to origin/epic-OOMPAH-458 with a clean working tree.
 ---
 <!-- COMMENTS:END -->
