@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-543
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Support removing task dependencies through the CLI and API
 parent: null
@@ -14,7 +14,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T14:38:32.101999Z'
-updated_at: '2026-07-29T14:38:32.101999Z'
+updated_at: '2026-07-29T14:38:42.614821Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,3 +41,11 @@ An operator can remove one exact dependency edge using only the supported oompah
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 14:38
+---
+Claimed by the interactive Codex session performing the owner-requested Open dependency audit. The human-only label prevents scheduler dispatch while I add the supported removal path and use it to prune verified unnecessary edges.
+---
+<!-- COMMENTS:END -->
