@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-562
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Recover integration queues blocked by stale epic ancestry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T21:31:17.336116Z'
+updated_at: '2026-07-29T21:31:53.761876Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -63,6 +63,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-562
     source_sha: 31f8938b8f669a316a830690aaedcc1e0d3834bf
     completed_at: '2026-07-29T21:17:53.207725+00:00'
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-562
+  head_sha: 6cbfc7951f2e938bf7e7890ab6b341676a9a0cdd
+  submitted_at: '2026-07-29T21:31:51.603568+00:00'
+  updated_at: '2026-07-29T21:31:51.603568+00:00'
 ---
 ## Summary
 
@@ -189,5 +197,35 @@ The implementation correctly:
 7. Handles errors gracefully with logging
 
 Ready for code review and merge.
+---
+author: oompah
+created: 2026-07-29 21:31
+---
+OOMPAH-562: Detect and repair integration queues blocked by stale epic ancestry
+
+Implemented automatic detection and repair of integration queue deadlocks caused by stale epic ancestry. When an integration queue's first ready item depends on merged code that is unreachable from the epic branch:
+
+1. _detect_and_repair_integration_queue_staleness_block() detects the condition
+2. Classifies it as the synchronization policy's required-base condition  
+3. Files a safe epic rebase/reconciliation task (never direct epic-to-epic sync)
+4. Prevents duplicate repair dispatch with 10-minute cooldown
+5. Sets epic to REBASING state to enable synchronization
+6. Resumes integration after repair completes
+
+Changes:
+- Added _detect_and_repair_integration_queue_staleness_block() method to detect and file rebase tasks
+- Modified _process_integration_queues() to invoke detection when claim_next() returns None
+- Uses existing _file_rebase_task() infrastructure for safe rebase dispatch
+- Preserves finish-order and terminal-audit gates
+- Graceful error handling with detailed logging
+
+All tests pass (46/46 integration, epic_rebase_state, and parallel_epic_children tests).
+
+Acceptance criteria met:
+✓ Ready queue with merged code absent from epic branch enters bounded repair path
+✓ After repair, eligible items claimed in dependency order
+✓ No permanent attempts=0 queue remains
+✓ Failures surface actionable errors without losing private heads
+✓ make test passes
 ---
 <!-- COMMENTS:END -->
