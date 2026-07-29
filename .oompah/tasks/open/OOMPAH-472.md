@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: Done
+status: Open
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T05:42:31.223957Z'
+updated_at: '2026-07-29T05:42:55.175955Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -58,13 +58,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 05fd776b-2030-4141-95d4-21af217af3bb
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 4250185
-  total_output_tokens: 85341
+  total_input_tokens: 4250199
+  total_output_tokens: 87641
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 2827026
-      output_tokens: 77841
+      input_tokens: 2827040
+      output_tokens: 80141
       cost_usd: 0.0
     opus:
       input_tokens: 1423159
@@ -179,6 +179,12 @@ oompah.task_costs:
     output_tokens: 3330
     cost_usd: 0.0
     recorded_at: '2026-07-29T05:07:28.628071+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 14
+    output_tokens: 2300
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T05:42:41.399809+00:00'
 ---
 ## Summary
 
@@ -1074,5 +1080,38 @@ author: oompah
 created: 2026-07-29 05:42
 ---
 MergedEvidenceCollector implemented in oompah/merged_evidence_collector.py. 61 tests cover all acceptance criteria including correct landing, wrong target, open/closed-unmerged reviews, failed/pending CI, squash/rebase/merge commits, deleted branches, stale branch tips, stranded commits, shared epics, and nested epic target chains. All tests pass. Committed at ede290441 on epic-OOMPAH-458.
+---
+author: oompah
+created: 2026-07-29 05:42
+---
+Agent completed successfully in 66s (2314 tokens)
+---
+author: oompah
+created: 2026-07-29 05:42
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 22, Tool calls: 16
+- Tokens: 14 in / 2.3K out [2.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 6s
+- Log: OOMPAH-472__20260729T054138Z.jsonl
+---
+author: oompah
+created: 2026-07-29 05:42
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-458` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-458
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-458
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
