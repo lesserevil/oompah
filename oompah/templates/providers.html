@@ -630,6 +630,7 @@ async function loadRoleMatrix() {
     const data = await res.json();
     roleStoreRows = {};
     (data.rows || []).forEach(r => { roleStoreRows[r.role] = r; });
+    if (data.auditor) roleStoreRows[data.auditor.role || 'auditor'] = data.auditor;
   } catch (e) {
     roleStoreRows = {};
   }
@@ -638,13 +639,13 @@ async function loadRoleMatrix() {
 
 // === Role-assignment matrix (oompah-zlz_2-6xc) =======================
 //
-// Renders a four-row matrix mapping fast / standard / deep / default to
-// (provider, model) pairs. Reads from the in-memory providers +
+// Renders the standard role matrix plus the reserved, operator-editable
+// auditor role to (provider, model) pairs. Reads from the in-memory providers +
 // agentProfiles arrays so it stays in sync as the surrounding UI
 // edits providers / profiles. Persists via PUT /api/v1/agent-profiles
 // /role-matrix.
 
-const ROLE_MATRIX_ROLES = ['fast', 'standard', 'deep', 'default'];
+const ROLE_MATRIX_ROLES = ['fast', 'standard', 'deep', 'default', 'auditor'];
 // Local edit state. Mirrors the on-disk profile state until the operator
 // edits a row, at which point the dirty flag flips to enable Save.
 const roleMatrixState = {

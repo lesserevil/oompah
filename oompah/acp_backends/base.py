@@ -124,10 +124,18 @@ class AcpBackendOptions:
     # mutations of another task in the same project.
     task_identifier: str | None = None
     # Server-issued authority policy, kept separate from task scope.
+    # Passed through to every backend so a backend that rebuilds its native
+    # tool catalog cannot silently drop the auditor restriction.
     action_policy: Any = None
     # Short-lived capability for native subprocess backends (Codex CLI,
     # OpenCode). It is never included in the prompt or logs.
     task_handoff_token: str | None = None
+    # Reserved auditor focus (OOMPAH-469): identifies auditor sessions and the
+    # target being audited, and wires the auditor-only result callback.
+    focus: Any = None
+    auditor: bool = False
+    audit_target: Any = None
+    audit_result_handler: Any = None
     # Optional asyncio.Queue for mid-run comment injection (OOMPAH-211).
     # When set, the backend drains this queue at each turn boundary and
     # sends any pending text as a new user turn in the same session.

@@ -154,6 +154,17 @@ def _optional_string(raw: Mapping[str, Any], key: str, type_name: str) -> str | 
     return value
 
 
+def _optional_non_negative_int(
+    raw: Mapping[str, Any], key: str, type_name: str
+) -> int:
+    value = raw.get(key, 0)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(
+            f"{type_name} optional field {key!r} must be a non-negative integer"
+        )
+    return value
+
+
 def _normalize_text(value: str | None) -> str:
     """Normalize text without changing case-sensitive identifiers."""
 
@@ -378,6 +389,19 @@ class AuditAttempt:
     requested_by: ContributorIdentity | None = None
     created_at: str | None = None
     completed_at: str | None = None
+    # Dispatch metadata is optional so records written by older coordinators
+    # remain readable.  These fields deliberately live on the existing
+    # attempt record: the attempt identity is the idempotency boundary used by
+    # both the scheduler and the result coordinator.
+    provider_id: str | None = None
+    model: str | None = None
+    started_at: str | None = None
+    ended_at: str | None = None
+    failure_reason: str | None = None
+    candidate_rotation_count: int = 0
+    branch_key: str | None = None
+    session_id: str | None = None
+    next_retry_at: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.attempt_id, str) or not self.attempt_id.strip():
@@ -396,6 +420,21 @@ class AuditAttempt:
             self.requested_by, ContributorIdentity
         ):
             raise TypeError("AuditAttempt.requested_by must be ContributorIdentity or null")
+        for name in (
+            "provider_id", "model", "started_at", "ended_at", "failure_reason",
+            "branch_key", "session_id", "next_retry_at",
+        ):
+            value = getattr(self, name)
+            if value is not None and not isinstance(value, str):
+                raise TypeError(f"AuditAttempt.{name} must be a string or null")
+        if (
+            isinstance(self.candidate_rotation_count, bool)
+            or not isinstance(self.candidate_rotation_count, int)
+            or self.candidate_rotation_count < 0
+        ):
+            raise ValueError(
+                "AuditAttempt.candidate_rotation_count must be a non-negative integer"
+            )
 
     @property
     def id(self) -> str:
@@ -423,6 +462,15 @@ class AuditAttempt:
             result["created_at"] = self.created_at
         if self.completed_at is not None:
             result["completed_at"] = self.completed_at
+        for key in (
+            "provider_id", "model", "started_at", "ended_at", "failure_reason",
+            "branch_key", "session_id", "next_retry_at",
+        ):
+            value = getattr(self, key)
+            if value is not None:
+                result[key] = value
+        if self.candidate_rotation_count:
+            result["candidate_rotation_count"] = self.candidate_rotation_count
         return result
 
     @classmethod
@@ -451,6 +499,17 @@ class AuditAttempt:
             ),
             created_at=_optional_string(data, "created_at", cls.__name__),
             completed_at=_optional_string(data, "completed_at", cls.__name__),
+            provider_id=_optional_string(data, "provider_id", cls.__name__),
+            model=_optional_string(data, "model", cls.__name__),
+            started_at=_optional_string(data, "started_at", cls.__name__),
+            ended_at=_optional_string(data, "ended_at", cls.__name__),
+            failure_reason=_optional_string(data, "failure_reason", cls.__name__),
+            candidate_rotation_count=_optional_non_negative_int(
+                data, "candidate_rotation_count", cls.__name__
+            ),
+            branch_key=_optional_string(data, "branch_key", cls.__name__),
+            session_id=_optional_string(data, "session_id", cls.__name__),
+            next_retry_at=_optional_string(data, "next_retry_at", cls.__name__),
         )
 
 

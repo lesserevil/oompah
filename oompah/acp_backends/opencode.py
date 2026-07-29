@@ -276,6 +276,10 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             read_only=self._options.read_only,
             task_identifier=self._options.task_identifier,
             action_policy=self._options.action_policy,
+            focus=self._options.focus,
+            auditor=self._options.auditor,
+            audit_target=self._options.audit_target,
+            audit_result_handler=self._options.audit_result_handler,
         )
 
     # ---- run_turn: drive the opencode serve subprocess ----

@@ -26,6 +26,14 @@ from typing import Any, Callable
 
 from oompah.prompt import RenderedPrompt
 from oompah.client_auth import agent_environment
+from oompah.authority_boundary import AgentActionPolicy, check_shell_command
+from oompah.auditor import (
+    AUDITOR_ALLOWED_TOOLS,
+    AUDITOR_RESULT_TOOL_NAME,
+    AUDITOR_RESULT_TOOL_SCHEMA,
+    check_auditor_session_target,
+    submit_auditor_result,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -343,6 +351,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    AUDITOR_RESULT_TOOL_SCHEMA,
 ]
 
 
@@ -655,7 +664,7 @@ def _exec_attach_image(workspace: Path, args: dict[str, Any]) -> str:
 
 # Tools that require explicit opt-in. They are NOT registered with the
 # model unless ``ApiAgentSession.enabled_tools`` includes them.
-_OPT_IN_TOOLS: frozenset[str] = frozenset({"attach_image"})
+_OPT_IN_TOOLS: frozenset[str] = frozenset({"attach_image", AUDITOR_RESULT_TOOL_NAME})
 
 
 # Phrases that indicate a confirmation-seeking question.  When an
@@ -714,6 +723,7 @@ _TOOL_REQUIRED_ARGS: dict[str, list[str]] = {
     "list_files": [],
     "ask_question": ["question"],
     "attach_image": ["issue_identifier", "filename", "content_base64"],
+    AUDITOR_RESULT_TOOL_NAME: ["audit_id", "target_state", "evidence_fingerprint", "verdict", "message"],
 }
 
 _READ_ONLY_TOOL_NAMES = frozenset({"read_file", "search_files", "list_files"})
@@ -729,7 +739,9 @@ def _execute_tool(
     task_tracker: Any = None,
     project_id: str | None = None,
     task_identifier: str | None = None,
-    action_policy: Any = None,
+    action_policy: AgentActionPolicy | None = None,
+    audit_target: Any = None,
+    audit_result_handler: Any = None,
 ) -> str:
     """Execute a tool call and return its string result.
 
@@ -738,6 +750,18 @@ def _execute_tool(
     """
     if read_only and name not in _READ_ONLY_TOOL_NAMES:
         return f"Error: tool {name!r} is unavailable in a read-only session"
+
+    if action_policy is not None and action_policy.read_only and name not in AUDITOR_ALLOWED_TOOLS:
+        return (
+            "Error: auditor capability policy denied this tool. Only read-only "
+            "repository/test tools and submit_audit_result are available."
+        )
+
+    if name == AUDITOR_RESULT_TOOL_NAME:
+        session_denial = check_auditor_session_target(action_policy, audit_target)
+        if session_denial is not None:
+            return session_denial
+        return submit_auditor_result(args, audit_target, audit_result_handler)
 
     handler = _TOOL_DISPATCH.get(name)
     if handler is None:
@@ -770,10 +794,8 @@ def _execute_tool(
 
     try:
         if name == "run_command":
-            from oompah.authority_boundary import check_shell_command
-
             shell_denial = check_shell_command(
-                action_policy, str(args.get("command", ""))
+                action_policy, str(args.get("command") or "")
             )
             if shell_denial is not None:
                 return shell_denial
@@ -1102,7 +1124,9 @@ class ApiAgentSession:
         task_tracker: Any = None,
         project_id: str | None = None,
         task_identifier: str | None = None,
-        action_policy: Any = None,
+        action_policy: AgentActionPolicy | None = None,
+        audit_target: Any = None,
+        audit_result_handler: Any = None,
     ):
         # Strip trailing slash for clean URL joining
         self.base_url = base_url.rstrip("/")
@@ -1123,7 +1147,19 @@ class ApiAgentSession:
         # by default. The orchestrator passes an explicit set when the
         # active focus opts in and the resolved model has the image
         # capability.
-        self.enabled_tools = enabled_tools
+        if action_policy is not None and action_policy.read_only:
+            # A capability policy is server authority, not merely a prompt
+            # hint. Intersect caller input with the canonical allowlist so a
+            # malformed dispatch cannot even advertise a mutation tool to the
+            # model; _execute_tool repeats this check at execution time.
+            requested_tools = (
+                set(AUDITOR_ALLOWED_TOOLS)
+                if enabled_tools is None
+                else set(enabled_tools)
+            )
+            self.enabled_tools = requested_tools & set(AUDITOR_ALLOWED_TOOLS)
+        else:
+            self.enabled_tools = enabled_tools
         self.read_only = bool(read_only)
         # Total context window for ``model`` (input + output, in tokens).
         # When set, _call_api budgets each request: prunes the oldest
@@ -1138,6 +1174,8 @@ class ApiAgentSession:
         self.project_id = project_id
         self.task_identifier = task_identifier
         self.action_policy = action_policy
+        self.audit_target = audit_target
+        self.audit_result_handler = audit_result_handler
         self._ssl_ctx = _build_ssl_context()
         self._url = f"{self.base_url}/chat/completions"
 
@@ -1476,6 +1514,8 @@ class ApiAgentSession:
                             self.project_id,
                             self.task_identifier,
                             self.action_policy,
+                            self.audit_target,
+                            self.audit_result_handler,
                         )
 
                     tool_failed = result_str.startswith("Error")

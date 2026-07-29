@@ -111,6 +111,10 @@ class AcpAgentSession:
         action_policy: Any = None,
         task_handoff_token: str | None = None,
         comment_queue: Any = None,
+        focus: Any = None,
+        auditor: bool = False,
+        audit_target: Any = None,
+        audit_result_handler: Any = None,
     ):
         self.workspace_path = workspace_path
         self.prompt = prompt
@@ -134,6 +138,10 @@ class AcpAgentSession:
         self.task_identifier = task_identifier
         self.action_policy = action_policy
         self.task_handoff_token = task_handoff_token
+        self.focus = focus
+        self.auditor = auditor
+        self.audit_target = audit_target
+        self.audit_result_handler = audit_result_handler
         # Mid-run comment injection queue (OOMPAH-211).
         self.comment_queue = comment_queue
 
@@ -252,6 +260,10 @@ class AcpAgentSession:
             action_policy=self.action_policy,
             task_handoff_token=self.task_handoff_token,
             comment_queue=self.comment_queue,
+            focus=self.focus,
+            auditor=self.auditor,
+            audit_target=self.audit_target,
+            audit_result_handler=self.audit_result_handler,
         )
 
         try:

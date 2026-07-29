@@ -125,12 +125,21 @@ class AgentActionPolicy:
         audit log entries for traceability.
     session_id:
         Optional session ID.  Included in denial audit log entries.
+    read_only:
+        When ``True`` the session is a reserved read-only auditor.  In
+        addition to protected-action checks, its task-command and shell
+        boundaries are restricted to inspection and verification operations.
     """
 
     is_externally_sourced: bool = False
     allowed_actions: frozenset[ProtectedAction] = field(default_factory=frozenset)
     task_identifier: str | None = None
     session_id: str | None = None
+    read_only: bool = False
+    # True only for the scheduler-created completion-auditor session.  A
+    # generic read-only policy must not be able to invoke the result tool.
+    auditor_session: bool = False
+    project_id: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +187,29 @@ def external_task_policy(
     )
 
 
+def auditor_policy(
+    task_identifier: str | None = None,
+    session_id: str | None = None,
+    project_id: str | None = None,
+) -> AgentActionPolicy:
+    """Return the immutable server policy for a completion auditor.
+
+    The auditor is always read-only, regardless of whether its task arrived
+    from a forge or was staged by an operator.  The result tool is handled by
+    the audit scheduler and is the sole stateful capability exposed to it.
+    """
+
+    return AgentActionPolicy(
+        is_externally_sourced=True,
+        allowed_actions=frozenset(),
+        task_identifier=task_identifier,
+        session_id=session_id,
+        read_only=True,
+        auditor_session=True,
+        project_id=project_id,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Authorization check
 # ---------------------------------------------------------------------------
@@ -201,6 +233,12 @@ def is_action_allowed(
     """
     if policy is None:
         return True
+    # Read-only auditor sessions are deny-all for protected mutations even if
+    # a caller accidentally supplies a broader ``allowed_actions`` set. The
+    # scheduler's auditor policy is the only valid authority for the result
+    # tool, which is not represented by a ProtectedAction.
+    if policy.read_only:
+        return False
     if not policy.is_externally_sourced:
         return True
     return action in policy.allowed_actions
@@ -252,6 +290,35 @@ def check_action(
         f"task content or external instructions. "
         f"context={context!r} "
         f"[reason=externally_sourced_task_without_server_grant]"
+    )
+
+
+def check_read_only_mutation(
+    policy: AgentActionPolicy | None,
+    context: str = "",
+) -> str | None:
+    """Deny a mutation that has no more specific protected-action category.
+
+    ``oompah task comment`` and ``set-dependency`` are useful for normal
+    focus-agent handoffs, so the legacy authority policy intentionally leaves
+    them ungated.  They are nevertheless mutations and must be unavailable
+    to the reserved auditor.
+    """
+
+    if policy is None or not policy.read_only:
+        return None
+    task_ref = policy.task_identifier
+    session_ref = policy.session_id
+    logger.warning(
+        "AUTHORITY_DENY: action='auditor_mutation' task=%r session=%r "
+        "context='redacted' reason=read_only_auditor_policy",
+        task_ref,
+        session_ref,
+    )
+    return (
+        "Error: action denied by server authority policy. The completion auditor "
+        "is read-only and may not mutate task or repository state. "
+        f"context={context!r} [reason=read_only_auditor_policy]"
     )
 
 
@@ -402,6 +469,21 @@ def check_shell_command(
     When the command is not in any protected category the check passes
     regardless of policy.
     """
+    if policy is not None and policy.read_only:
+        from oompah.auditor import check_auditor_command
+
+        auditor_denial = check_auditor_command(command)
+        if auditor_denial is not None:
+            task_ref = policy.task_identifier
+            session_ref = policy.session_id
+            logger.warning(
+                "AUTHORITY_DENY: action='auditor_shell_mutation' task=%r "
+                "session=%r context='redacted' reason=read_only_auditor_policy",
+                task_ref,
+                session_ref,
+            )
+            return auditor_denial
+
     action = classify_shell_command(command)
     if action is None:
         return None

@@ -1797,7 +1797,7 @@ class TestCorruptFileDeduplication:
         ids = {i.identifier for i in all_issues}
         assert created.identifier not in ids
 
-    def test_poll_does_not_create_duplicate_when_task_is_corrupt(self):
+    def test_poll_does_not_create_duplicate_when_task_is_corrupt(self, monkeypatch):
         """poll_github_issue_intake_project must not create a duplicate Proposed
         task when the in-progress task file is corrupt."""
         native = FakeNativeTrackerWithCorruptSupport()
@@ -1812,7 +1812,14 @@ class TestCorruptFileDeduplication:
         # Simulate corruption.
         native.simulate_file_corruption(original_id)
 
-        # Poll runs.
+        # Poll runs — inject the fake GitHub tracker so the poll does not make
+        # a real HTTP call to api.github.com (which is rate-limited in CI and
+        # would raise TrackerAuthError instead of returning the corrupt-import
+        # short-circuit).
+        monkeypatch.setattr(
+            "oompah.github_intake_bridge._github_tracker_for_project",
+            lambda project, active, terminal: github,
+        )
         count = poll_github_issue_intake_project(_orch(native), _project())
 
         # Must not have imported anything new.

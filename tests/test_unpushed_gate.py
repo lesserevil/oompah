@@ -366,17 +366,26 @@ class TestCheckUnpushedHelper:
         assert commits_ahead == 0
         assert err == ""
 
-    def test_uncommitted_detected(self):
-        """Non-empty git status --porcelain → has_uncommitted=True."""
-        def run_side_effect(cmd, **kwargs):
-            cmd_str = " ".join(cmd) if isinstance(cmd, list) else str(cmd)
-            if "status" in cmd_str:
+    def test_uncommitted_detected(self, tmp_path):
+        """Non-empty git status --porcelain in worktree → has_uncommitted=True.
+
+        A branch-specific worktree_path must be provided for the status check
+        to run.  When no worktree_path is given, the check is skipped to avoid
+        false positives from the main clone's dirty state.
+        """
+        worktree_dir = tmp_path / "feature-wt"
+        worktree_dir.mkdir()
+
+        def run_side_effect(cmd, cwd=None, **kwargs):
+            cmd_list = list(cmd)
+            if "status" in cmd_list:
                 return MagicMock(returncode=0, stdout=" M modified.txt\n", stderr="")
             return MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("subprocess.run", side_effect=run_side_effect):
             has_uncommitted, commits_ahead, lines, err = _check_unpushed(
                 "/tmp/repo", "my-branch", "main",
+                worktree_path=str(worktree_dir),
             )
         assert has_uncommitted is True
         assert commits_ahead == 0
@@ -487,48 +496,61 @@ class TestWorktreePathStatusCheck:
             f"Expected all status calls to use worktree {worktree_dir}, got {status_cwds}"
         )
 
-    def test_worktree_path_absent_falls_back_to_repo_path(self):
-        """When worktree_path is empty, repo_path is used for status."""
-        seen_cwds: list[str] = []
+    def test_worktree_path_absent_skips_status_check(self):
+        """When worktree_path is empty, git status is NOT run (no false positives).
+
+        The main clone (repo_path) may be on a different branch with its own
+        dirty state.  Using it as a fallback for the branch status check
+        produces false-positive uncommitted-changes refusals.  The correct
+        behaviour is to skip the status check entirely when no branch-specific
+        worktree is available and rely solely on commits_ahead.
+        """
+        seen_status_cwds: list[str] = []
 
         def run_side_effect(cmd, cwd=None, **kwargs):
             if "status" in cmd:
-                seen_cwds.append(str(cwd) if cwd else "")
+                seen_status_cwds.append(str(cwd) if cwd else "")
             return MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("subprocess.run", side_effect=run_side_effect):
-            _check_unpushed(
+            has_uncommitted, _, _, _ = _check_unpushed(
                 "/tmp/main-repo",
                 "my-branch",
                 "main",
                 worktree_path="",
             )
 
-        status_cwds = [c for c in seen_cwds if c]
-        assert status_cwds, "git status --porcelain was not called"
-        assert all(c == "/tmp/main-repo" for c in status_cwds)
+        # Status check must NOT run (no branch-specific worktree to check)
+        assert not seen_status_cwds, (
+            f"git status --porcelain should not be called when worktree_path "
+            f"is empty; was called with cwd={seen_status_cwds}"
+        )
+        assert has_uncommitted is False
 
-    def test_worktree_path_nonexistent_falls_back_to_repo_path(self, tmp_path):
-        """When worktree_path points to a missing directory, repo_path is used."""
+    def test_worktree_path_nonexistent_skips_status_check(self, tmp_path):
+        """When worktree_path points to a missing directory, status check is skipped."""
         nonexistent = str(tmp_path / "does-not-exist")
-        seen_cwds: list[str] = []
+        seen_status_cwds: list[str] = []
 
         def run_side_effect(cmd, cwd=None, **kwargs):
             if "status" in cmd:
-                seen_cwds.append(str(cwd) if cwd else "")
+                seen_status_cwds.append(str(cwd) if cwd else "")
             return MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("subprocess.run", side_effect=run_side_effect):
-            _check_unpushed(
+            has_uncommitted, _, _, _ = _check_unpushed(
                 "/tmp/main-repo",
                 "my-branch",
                 "main",
                 worktree_path=nonexistent,
             )
 
-        status_cwds = [c for c in seen_cwds if c]
-        assert status_cwds, "git status --porcelain was not called"
-        assert all(c == "/tmp/main-repo" for c in status_cwds)
+        # Status check must NOT run (worktree directory does not exist)
+        assert not seen_status_cwds, (
+            f"git status should not be called when worktree_path does not exist; "
+            f"was called with cwd={seen_status_cwds}"
+        )
+        assert has_uncommitted is False
 
     def test_regression_oompah_306_main_dirty_worktree_clean(self, tmp_path):
         """Regression: main repo dirty, branch worktree clean → gate allows.
@@ -572,6 +594,46 @@ class TestWorktreePathStatusCheck:
             f"allowed={result.allowed}, has_uncommitted={result.has_uncommitted}, "
             f"skip_reason={result.skip_reason!r}"
         )
+
+    def test_no_worktree_main_repo_dirty_does_not_refuse(self):
+        """Regression: no worktree + dirty main repo → gate must allow.
+
+        Previously, when no per-task worktree existed, _check_unpushed fell
+        back to running git status in repo_path (the main clone).  If the
+        main clone had unrelated uncommitted changes (e.g. AGENTS.md modified
+        on the main branch while the feature branch is clean), the gate would
+        incorrectly refuse closure with 'Worktree has uncommitted changes'.
+
+        With the fix, the status check is skipped when worktree_path is absent.
+        The gate must allow in this case (only commits_ahead matters).
+        """
+        issue = FakeIssue(identifier="OOMPAH-472", branch_name="epic-OOMPAH-458")
+
+        def run_side_effect(cmd, cwd=None, **kwargs):
+            cmd_list = list(cmd)
+            if "status" in cmd_list:
+                # Simulate main-repo dirty (AGENTS.md modified)
+                return MagicMock(returncode=0, stdout=" M AGENTS.md\n", stderr="")
+            if "--count" in cmd_list:
+                # Branch fully pushed: 0 commits ahead
+                return MagicMock(returncode=0, stdout="0\n", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("subprocess.run", side_effect=run_side_effect):
+            result = check_unpushed_gate(
+                issue,
+                repo_path="/tmp/main-repo",
+                base_branch="main",
+                worktree_path="",  # No per-task worktree available
+            )
+
+        assert result.allowed is True, (
+            f"Gate must allow when no per-task worktree is available and the "
+            f"main repo is dirty (unrelated branch). "
+            f"allowed={result.allowed}, has_uncommitted={result.has_uncommitted}, "
+            f"skip_reason={result.skip_reason!r}"
+        )
+        assert result.has_uncommitted is False
 
     def test_worktree_path_forwarded_from_check_unpushed_gate(self, tmp_path):
         """check_unpushed_gate passes worktree_path through to _check_unpushed."""

@@ -57,6 +57,7 @@ from oompah.authority_boundary import (
     AgentActionPolicy,
     ProtectedAction,
     check_action,
+    check_read_only_mutation,
     check_shell_command,
 )
 
@@ -379,8 +380,10 @@ def _exec_oompah_task_command(
     ``add-label``, ``remove-label``) require
     :attr:`ProtectedAction.TASK_STATUS_TRANSITION`.  Task-creation subcommands
     (``create``, ``child-create``) require
-    :attr:`ProtectedAction.TASK_CREATE_DECOMPOSE`.  ``view``, ``comment``, and
-    ``set-dependency`` and ``remove-dependency`` are not gated.
+    :attr:`ProtectedAction.TASK_CREATE_DECOMPOSE`.  ``view``, ``comment``,
+    ``set-dependency`` and ``remove-dependency`` are not gated by the action
+    policy, but ``comment``, ``set-dependency``, and ``remove-dependency`` are
+    additionally denied for the reserved auditor focus (which is read-only).
     """
     argv, parse_error = _oompah_task_argv(command)
     if parse_error is not None:
@@ -434,7 +437,17 @@ def _exec_oompah_task_command(
             )
 
         if args.subcommand == "comment":
-            task_tracker.add_comment(args.identifier, args.message, author="oompah" if task_identifier else args.author)
+            denial = check_read_only_mutation(
+                action_policy,
+                f"comment on {args.identifier!r}",
+            )
+            if denial is not None:
+                return denial
+            task_tracker.add_comment(
+                args.identifier,
+                args.message,
+                author="oompah" if task_identifier else args.author,
+            )
             return "Comment posted."
 
         if args.subcommand == "set-status":
@@ -477,6 +490,12 @@ def _exec_oompah_task_command(
             return f"Label removed: {args.label}"
 
         if args.subcommand == "set-dependency":
+            denial = check_read_only_mutation(
+                action_policy,
+                f"set-dependency {args.identifier!r}",
+            )
+            if denial is not None:
+                return denial
             task_tracker.add_dependency(args.identifier, args.depends_on)
             return f"Dependency set: {args.identifier} depends on {args.depends_on}"
 
@@ -546,6 +565,10 @@ def build_tool_catalog(
     action_policy: AgentActionPolicy | None = None,
     task_identifier: str | None = None,
     read_only: bool = False,
+    focus: Any = None,
+    auditor: bool = False,
+    audit_target: Any = None,
+    audit_result_handler: Any = None,
 ) -> list[Any]:
     """Build the SDK-flavored tool list for one ACP session.
 
@@ -590,6 +613,23 @@ def build_tool_catalog(
         _exec_search_files,
         _exec_run_command,
     )
+    from oompah.auditor import (
+        AUDITOR_FOCUS_NAME,
+        AUDITOR_RESULT_TOOL_NAME,
+        check_auditor_session_target,
+        submit_auditor_result,
+    )
+
+    auditor_mode = auditor or str(getattr(focus, "name", "")).lower() == AUDITOR_FOCUS_NAME
+    if auditor_mode and (
+        action_policy is None or not action_policy.read_only
+    ):
+        from oompah.authority_boundary import auditor_policy
+
+        action_policy = auditor_policy(
+            task_identifier=getattr(audit_target, "task_id", None),
+            project_id=project_id,
+        )
 
     workspace = Path(workspace_path)
     current_project_id = project_id
@@ -773,6 +813,28 @@ def build_tool_catalog(
             )
         )
 
+    @tool(
+        AUDITOR_RESULT_TOOL_NAME,
+        "Submit a validated completion-audit result to the audit scheduler. "
+        "This is the only stateful operation available to the read-only auditor.",
+        {"result": dict},
+    )
+    async def submit_audit_result_tool(args: dict[str, Any]) -> dict[str, Any]:
+        session_denial = check_auditor_session_target(action_policy, audit_target)
+        if session_denial is not None:
+            return _wrap_text(session_denial)
+        payload = args.get("result") if isinstance(args.get("result"), dict) else args
+        return _wrap_text(submit_auditor_result(payload, audit_target, audit_result_handler))
+
+    if auditor_mode:
+        return [
+            read_file,
+            list_files,
+            search_files,
+            run_command,
+            submit_audit_result_tool,
+        ]
+
     readable = [
         read_file,
         list_files,
@@ -810,6 +872,10 @@ def build_codex_tool_catalog(
     action_policy: AgentActionPolicy | None = None,
     task_identifier: str | None = None,
     read_only: bool = False,
+    focus: Any = None,
+    auditor: bool = False,
+    audit_target: Any = None,
+    audit_result_handler: Any = None,
 ) -> list[Any]:
     """Build the OpenAI-Agents-SDK-flavored tool list for a Codex session.
 
@@ -867,6 +933,21 @@ def build_codex_tool_catalog(
         _exec_search_files,
         _exec_run_command,
     )
+    from oompah.auditor import (
+        AUDITOR_FOCUS_NAME,
+        check_auditor_session_target,
+        submit_auditor_result,
+    )
+    auditor_mode = auditor or str(getattr(focus, "name", "")).lower() == AUDITOR_FOCUS_NAME
+    if auditor_mode and (
+        action_policy is None or not action_policy.read_only
+    ):
+        from oompah.authority_boundary import auditor_policy
+
+        action_policy = auditor_policy(
+            task_identifier=getattr(audit_target, "task_id", None),
+            project_id=project_id,
+        )
 
     workspace = Path(workspace_path)
     current_project_id = project_id
@@ -982,6 +1063,60 @@ def build_codex_tool_catalog(
             action_policy=action_policy,
         )
 
+    @function_tool
+    def submit_audit_result(
+        audit_id: str,
+        target_state: str,
+        evidence_fingerprint: str,
+        verdict: str,
+        message: str,
+        failure_classification: str = "",
+        safe_evidence_json: str = "",
+        attempt_id: str = "",
+        questions_json: str = "",
+        instructions_json: str = "",
+    ) -> str:
+        """Submit the validated completion-audit result to the scheduler."""
+        session_denial = check_auditor_session_target(action_policy, audit_target)
+        if session_denial is not None:
+            return session_denial
+        try:
+            safe_evidence = json.loads(safe_evidence_json) if safe_evidence_json else None
+        except (TypeError, ValueError):
+            return "Error: safe_evidence_json must be valid JSON"
+        optional_lists: dict[str, Any] = {}
+        for field_name, raw_value in (
+            ("questions", questions_json),
+            ("instructions", instructions_json),
+        ):
+            if not raw_value:
+                continue
+            try:
+                parsed = json.loads(raw_value)
+            except (TypeError, ValueError):
+                return f"Error: {field_name}_json must be valid JSON"
+            if not isinstance(parsed, list):
+                return f"Error: {field_name}_json must be a JSON array"
+            optional_lists[field_name] = parsed
+        return submit_auditor_result(
+            {
+                "audit_id": audit_id,
+                "target_state": target_state,
+                "evidence_fingerprint": evidence_fingerprint,
+                "verdict": verdict,
+                "message": message,
+                "failure_classification": failure_classification or None,
+                "safe_evidence": safe_evidence,
+                "attempt_id": attempt_id or None,
+                **optional_lists,
+            },
+            audit_target,
+            audit_result_handler,
+        )
+
+    if auditor_mode:
+        return [read_file, list_files, search_files, run_command, submit_audit_result]
+
     readable = [
         read_file,
         list_files,
@@ -1019,6 +1154,10 @@ def build_opencode_tool_catalog(
     action_policy: AgentActionPolicy | None = None,
     task_identifier: str | None = None,
     read_only: bool = False,
+    focus: Any = None,
+    auditor: bool = False,
+    audit_target: Any = None,
+    audit_result_handler: Any = None,
 ) -> list[Any]:
     """Build the OpenCode-SDK-flavored tool list for an OpenCode session.
 
@@ -1067,6 +1206,23 @@ def build_opencode_tool_catalog(
         _exec_search_files,
         _exec_run_command,
     )
+    from oompah.auditor import (
+        AUDITOR_FOCUS_NAME,
+        AUDITOR_RESULT_TOOL_NAME,
+        check_auditor_session_target,
+        submit_auditor_result,
+    )
+
+    auditor_mode = auditor or str(getattr(focus, "name", "")).lower() == AUDITOR_FOCUS_NAME
+    if auditor_mode and (
+        action_policy is None or not action_policy.read_only
+    ):
+        from oompah.authority_boundary import auditor_policy
+
+        action_policy = auditor_policy(
+            task_identifier=getattr(audit_target, "task_id", None),
+            project_id=project_id,
+        )
 
     workspace = Path(workspace_path)
 
@@ -1248,6 +1404,28 @@ def build_opencode_tool_catalog(
                 action_policy=action_policy,
             )
         )
+
+    @tool(
+        AUDITOR_RESULT_TOOL_NAME,
+        "Submit a validated completion-audit result to the audit scheduler. "
+        "This is the only stateful operation available to the read-only auditor.",
+        {"result": dict},
+    )
+    async def submit_audit_result_tool(args: dict[str, Any]) -> dict[str, Any]:
+        session_denial = check_auditor_session_target(action_policy, audit_target)
+        if session_denial is not None:
+            return _wrap_text(session_denial)
+        payload = args.get("result") if isinstance(args.get("result"), dict) else args
+        return _wrap_text(submit_auditor_result(payload, audit_target, audit_result_handler))
+
+    if auditor_mode:
+        return [
+            read_file,
+            list_files,
+            search_files,
+            run_command,
+            submit_audit_result_tool,
+        ]
 
     readable = [
         read_file,
