@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T22:12:05.947880Z'
+updated_at: '2026-07-29T22:15:12.027584Z'
 work_branch: OOMPAH-562
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/580
@@ -278,5 +278,18 @@ author: oompah
 created: 2026-07-29 22:12
 ---
 CI failure root cause: In \`_detect_and_repair_integration_queue_staleness_block\`, the cooldown check uses \`self._epic_rebase_filed_at.get(cooldown_key, 0)\` as the default. On a fresh CI VM where \`time.monotonic()\` returns a value < 600 seconds (10 min cooldown), the check \`now - 0 < 600\` erroneously evaluates True on the FIRST call, blocking legitimate repair. Confirmed by simulating monotonic=100.0 locally — reproduces the CI failure. The rest of the codebase (line 15647) uses \`float('-inf')\` as the default for exactly this reason. Minimal fix: change default from \`0\` to \`float('-inf')\`.
+---
+author: oompah
+created: 2026-07-29 22:15
+---
+**Implementation & verification**
+
+Fix pushed as 555a3d421 (rebased on top of parallel-agent commit 9a54a83ca which made the identical core orchestrator patch). My commit adds a dedicated regression test \`test_stale_queue_repair_survives_low_monotonic_clock\` that pins \`time.monotonic\` to 42.0 to reproduce the fresh-VM condition deterministically, so this class of bug can never resurface without a red test.
+
+Focused tests locally:
+- tests/test_parallel_epic_children.py: 13/13 PASSED
+- tests/test_integration_queue.py + tests/test_epic_rebase_state.py: 50/50 PASSED (combined)
+
+Root cause recap: \`self._epic_rebase_filed_at.get(cooldown_key, 0)\` used 0 as the default. On a freshly booted CI VM where \`time.monotonic()\` < 600s, \`now - 0 < 600\` erroneously triggered the 10-minute cooldown on the FIRST call, so the repair returned False and the two new tests asserted \`False is True\`. The rest of the codebase (line 15647) already uses \`float('-inf')\` for this exact reason.
 ---
 <!-- COMMENTS:END -->
