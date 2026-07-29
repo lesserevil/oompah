@@ -14,12 +14,16 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T14:38:32.101999Z'
-updated_at: '2026-07-29T14:47:30.439532Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-29T14:47:35.845790Z'
+work_branch: OOMPAH-543
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/577
+review_number: '577'
 merged_at: null
+oompah.review_url: https://github.com/lesserevil/oompah/pull/577
+oompah.review_number: '577'
+oompah.work_branch: OOMPAH-543
+oompah.target_branch: main
 ---
 ## Summary
 
