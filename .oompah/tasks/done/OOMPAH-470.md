@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T10:18:52.874394Z'
+updated_at: '2026-07-29T10:20:46.497375Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -2916,5 +2916,53 @@ author: oompah
 created: 2026-07-29 10:18
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 10:20
+---
+COMPLETION: All implementation delivered, tested, and verified on epic-OOMPAH-458.
+
+**Deliverables:**
+- auditor.py (744 lines): Reserved editable auditor role with capability policy and security boundaries
+  - AuditorCapabilityPolicy: read-only tool policy with credential detection
+  - AuditorTargetContract: trusted input validation
+  - check_auditor_command: validates read-only inspection commands only
+  - Prevents credential exfiltration via pattern detection in messages/evidence
+  
+- auditor_candidate_selector.py (662 lines): Independent provider-model selection
+  - seed_auditor_role(): Seeding from deduplicated union (deep/standard/default + provider defaults)
+  - select_candidate(): Applies contributor policy at audit time
+  - Prefers independent providers; falls back to different models on contributor providers
+  - Excludes SDK-managed unknown models on contributing providers
+  - Validates whitelist, credentials, health, budget, model validity
+  - Returns normalized no-candidate reasons
+
+**Test Coverage:**
+✅ 13,176 tests passed, 40 skipped
+✅ Different provider/model candidates
+✅ Same-provider different-model fallback
+✅ Same model on another provider (independent)
+✅ Multi-contributor epic exclusion
+✅ Unknown ACP models exclusion
+✅ Round-robin ordering
+✅ Provider whitelist enforcement
+✅ Health/credentials/budget validation
+✅ Empty role diagnostics
+✅ Migration seeding
+✅ No-candidate diagnostic normalization
+
+**Acceptance Criteria Met:**
+✅ Selected auditors demonstrably independent under agreed policy
+✅ Unsafe/unverifiable candidates never used
+✅ Operators can edit auditor candidates through existing role configuration path
+✅ No hardcoded local provider IDs
+✅ Seeding from deduplicated union of role candidates
+
+**Git Status:**
+- Branch: epic-OOMPAH-458 (up-to-date with origin)
+- Working tree: clean
+- All code committed and pushed
+
+Ready to close.
 ---
 <!-- COMMENTS:END -->
