@@ -2480,6 +2480,30 @@ class Orchestrator:
             evidence_fingerprint=evidence_fingerprint,
         )
 
+    def _request_terminal_transition_from_maintenance(self, **kwargs: Any):
+        """Bridge a synchronous maintenance observation to terminal auditing.
+
+        Release reconciliation runs in the maintenance worker, while the
+        coordinator's per-project async locks belong to the dispatch loop.
+        Submitting the request back to that loop preserves its serialization
+        guarantees; the ``asyncio.run`` fallback keeps standalone synchronous
+        maintenance calls (including focused tests) usable before ``run()``
+        owns a loop.
+        """
+        request = self.terminal_transition_coordinator.request_transition(**kwargs)
+        if not asyncio.iscoroutine(request):
+            return request
+
+        loop = self._dispatch_loop
+        if loop is not None and loop.is_running():
+            if self._running_loop() is loop:
+                raise RuntimeError(
+                    "synchronous maintenance cannot block the dispatch loop for "
+                    "a terminal transition"
+                )
+            return asyncio.run_coroutine_threadsafe(request, loop).result()
+        return asyncio.run(request)
+
     def _tracker_for_issue(self, issue: Issue) -> TrackerProtocol:
         """Get the appropriate tracker for an issue."""
         if issue.project_id:
@@ -13315,6 +13339,9 @@ class Orchestrator:
                     scm=scm,
                     repo=repo,
                     should_stop=lambda: self._job_deadline_exceeded("release_picks"),
+                    terminal_transition_requester=(
+                        self._request_terminal_transition_from_maintenance
+                    ),
                 )
                 if result.changed:
                     logger.info(

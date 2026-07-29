@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -35,6 +35,7 @@ from oompah.release_pick_schema import (
 )
 from oompah.scm import ReviewRequest
 from oompah.statuses import ARCHIVED, BACKLOG, DONE, MERGED, NEEDS_HUMAN, OPEN
+from oompah.terminal_audit import compute_evidence_fingerprint
 
 
 # ---------------------------------------------------------------------------
@@ -940,6 +941,23 @@ class TestOrchestratorReconcileReleasePicksPass:
         orch._run_maintenance_job.assert_called_once()
         assert orch._run_maintenance_job.call_args.kwargs["max_runtime_s"] == 4
 
+    def test_terminal_audit_requester_bridges_maintenance_to_coordinator(self, tmp_path):
+        orch = self._make_orch(tmp_path)
+        staged = MagicMock()
+        request_transition = AsyncMock(return_value=staged)
+        orch.terminal_transition_coordinator.request_transition = request_transition
+
+        result = orch._request_terminal_transition_from_maintenance(
+            current_issue=_issue("TASK-1.1"),
+            requested_target=MagicMock(),
+            trigger_identity=MagicMock(),
+            project_id="proj-1",
+            evidence_fingerprint=MagicMock(),
+        )
+
+        assert result is staged
+        request_transition.assert_awaited_once()
+
     def test_do_merged_labels_does_not_run_release_picks(self, tmp_path):
         """Merged-label maintenance no longer hides release-pick reconciliation."""
         orch = self._make_orch(tmp_path)
@@ -1031,6 +1049,7 @@ class TestOrchestratorReconcileReleasePicksPass:
         assert "project_id" in captured_kwargs[0]
         assert captured_kwargs[0]["project_id"] == "proj-1"
         assert callable(captured_kwargs[0]["should_stop"])
+        assert callable(captured_kwargs[0]["terminal_transition_requester"])
 
     def test_continues_on_project_failure(self, tmp_path):
         """A failure for one project does not prevent processing others."""
@@ -1405,22 +1424,161 @@ class TestCheckPrOutcome:
 
         assert result.status == ReleasePick.MERGED
 
-    def test_merged_pr_marks_child_task_merged(self):
+    @pytest.mark.parametrize("issue_type", ["task", "epic"])
+    def test_merged_pr_stages_audit_without_direct_child_update(self, issue_type):
         tracker, source, entry, children, scm, repo = self._setup(pr_state="merged")
+        children[0].issue_type = issue_type
+        scm.get_branch_head_sha.return_value = "a" * 40
+        entry.commits = ["first", "second"]
+        requester = MagicMock()
 
-        _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+        _check_pr_outcome(
+            tracker,
+            source,
+            entry,
+            children,
+            scm=scm,
+            repo=repo,
+            project_id="proj-1",
+            terminal_transition_requester=requester,
+        )
 
-        tracker.update_issue.assert_called_once_with("TASK-1.1", status=MERGED)
+        tracker.update_issue.assert_not_called()
+        requester.assert_called_once()
+        kwargs = requester.call_args.kwargs
+        assert kwargs["current_issue"].identifier == "TASK-1.1"
+        assert kwargs["requested_target"].value == MERGED
+        assert kwargs["project_id"] == "proj-1"
 
-    def test_merged_pr_does_not_re_mark_already_merged_child(self):
-        """If child is already Merged, update_issue should NOT be called again."""
+        with patch(
+            "oompah.release_pick_reconciler.compute_evidence_fingerprint",
+            wraps=compute_evidence_fingerprint,
+        ) as fingerprint:
+            _check_pr_outcome(
+                tracker,
+                source,
+                entry,
+                children,
+                scm=scm,
+                repo=repo,
+                project_id="proj-1",
+                terminal_transition_requester=MagicMock(),
+            )
+
+        assert fingerprint.call_args.kwargs["source_sha"] == "first,second"
+        assert fingerprint.call_args.kwargs["target_branch"] == "release/1.0"
+        assert fingerprint.call_args.kwargs["target_sha"] == "a" * 40
+        assert fingerprint.call_args.kwargs["review_id"] == "42"
+
+    def test_merged_pr_does_not_restage_already_merged_child(self):
+        """A child already Merged does not receive another audit request."""
         tracker, source, entry, children, scm, repo = self._setup(
             pr_state="merged", child_state=MERGED
         )
+        requester = MagicMock()
 
-        _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+        _check_pr_outcome(
+            tracker,
+            source,
+            entry,
+            children,
+            scm=scm,
+            repo=repo,
+            project_id="proj-1",
+            terminal_transition_requester=requester,
+        )
 
         tracker.update_issue.assert_not_called()
+        requester.assert_not_called()
+
+    def test_wrong_release_target_is_preserved_in_audit_evidence(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="merged")
+        scm.find_pr_for_branch.return_value = _make_review_request(
+            "merged", target_branch="main"
+        )
+        requester = MagicMock()
+
+        with patch(
+            "oompah.release_pick_reconciler.compute_evidence_fingerprint",
+            wraps=compute_evidence_fingerprint,
+        ) as fingerprint:
+            _check_pr_outcome(
+                tracker,
+                source,
+                entry,
+                children,
+                scm=scm,
+                repo=repo,
+                project_id="proj-1",
+                terminal_transition_requester=requester,
+            )
+
+        assert "expected target branch: release/1.0" in fingerprint.call_args.kwargs[
+            "requirements_text"
+        ]
+        assert "observed review target branch: main" in fingerprint.call_args.kwargs[
+            "requirements_text"
+        ]
+        assert requester.call_args.kwargs["requested_target"].value == MERGED
+
+    def test_failed_ci_is_preserved_in_audit_evidence(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="merged")
+        pr = _make_review_request("merged")
+        pr.ci_status = "failed"
+        scm.find_pr_for_branch.return_value = pr
+
+        with patch(
+            "oompah.release_pick_reconciler.compute_evidence_fingerprint",
+            wraps=compute_evidence_fingerprint,
+        ) as fingerprint:
+            _check_pr_outcome(
+                tracker,
+                source,
+                entry,
+                children,
+                scm=scm,
+                repo=repo,
+                project_id="proj-1",
+                terminal_transition_requester=MagicMock(),
+            )
+
+        assert "CI: failed" in fingerprint.call_args.kwargs["requirements_text"]
+        assert "ci=failed" in fingerprint.call_args.kwargs["review_state"]
+
+    def test_partial_selected_commits_change_audit_evidence(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="merged")
+        entry.commits = ["first", "second"]
+        first_requester = MagicMock()
+        _check_pr_outcome(
+            tracker,
+            source,
+            entry,
+            children,
+            scm=scm,
+            repo=repo,
+            project_id="proj-1",
+            terminal_transition_requester=first_requester,
+        )
+
+        tracker2, source2, entry2, children2, scm2, repo2 = self._setup(
+            pr_state="merged"
+        )
+        entry2.commits = ["first"]
+        second_requester = MagicMock()
+        _check_pr_outcome(
+            tracker2,
+            source2,
+            entry2,
+            children2,
+            scm=scm2,
+            repo=repo2,
+            project_id="proj-1",
+            terminal_transition_requester=second_requester,
+        )
+
+        first_fingerprint = first_requester.call_args.kwargs["evidence_fingerprint"]
+        second_fingerprint = second_requester.call_args.kwargs["evidence_fingerprint"]
+        assert first_fingerprint != second_fingerprint
 
     def test_merged_pr_updates_child_backport_of_to_merged(self):
         tracker, source, entry, children, scm, repo = self._setup(pr_state="merged")
@@ -1860,8 +2018,8 @@ class TestReconcilePrOutcomeIntegration:
         ]
         assert len(source_calls) == 0
 
-    def test_merged_pr_child_task_updated_to_merged(self):
-        """When PR merges, the child task status is updated to Merged."""
+    def test_merged_pr_child_task_is_staged_for_audit(self):
+        """When PR merges, canonical child state is delegated to the auditor."""
         source, child = self._source_with_pr_open()
         pr = _make_review_request("merged", source_branch="release/1.0")
 
@@ -1878,10 +2036,19 @@ class TestReconcilePrOutcomeIntegration:
         )
         scm = MagicMock()
         scm.find_pr_for_branch.return_value = pr
+        requester = MagicMock()
 
-        reconcile_release_picks(tracker, scm=scm, repo="org/repo")
+        reconcile_release_picks(
+            tracker,
+            project_id="proj-1",
+            scm=scm,
+            repo="org/repo",
+            terminal_transition_requester=requester,
+        )
 
-        tracker.update_issue.assert_called_once_with("TASK-1.1", status=MERGED)
+        tracker.update_issue.assert_not_called()
+        requester.assert_called_once()
+        assert requester.call_args.kwargs["requested_target"].value == MERGED
 
     def test_pr_outcome_idempotent_for_already_merged_entry(self):
         """A source entry already at merged is not re-processed (terminal)."""
