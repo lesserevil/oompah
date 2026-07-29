@@ -10492,12 +10492,12 @@ class Orchestrator:
         maintenance jobs.
 
         The interval is configurable via
-        ``OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS`` (default 1800 s /
-        30 minutes).  The actual work is in
+        ``OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS`` (default 300 s /
+        5 minutes).  The actual work is in
         :meth:`_do_stalled_task_watchdog`.
         """
         interval_s = float(
-            getattr(self.config, "stalled_task_watchdog_interval_seconds", 1800)
+            getattr(self.config, "stalled_task_watchdog_interval_seconds", 300)
         )
         self._run_maintenance_job(
             "stalled_task_watchdog",

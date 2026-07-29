@@ -52,8 +52,8 @@ class TestConstants:
     def test_env_var_name(self):
         assert ENV_VAR == "OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS"
 
-    def test_default_interval_is_1800(self):
-        assert DEFAULT_INTERVAL_SECONDS == 1800
+    def test_default_interval_is_300(self):
+        assert DEFAULT_INTERVAL_SECONDS == 300
 
     def test_stalled_states_contains_expected(self):
         assert NEEDS_HUMAN in STALLED_STATES
@@ -63,9 +63,9 @@ class TestConstants:
 
 
 class TestConfigDefault:
-    def test_service_config_default_is_1800(self):
+    def test_service_config_default_is_300(self):
         cfg = ServiceConfig()
-        assert cfg.stalled_task_watchdog_interval_seconds == 1800
+        assert cfg.stalled_task_watchdog_interval_seconds == 300
 
     def test_env_override_parsed(self):
         with patch.dict(os.environ, {ENV_VAR: "600"}):
