@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:36:54.712161Z'
-updated_at: '2026-07-29T21:39:21.243289Z'
+updated_at: '2026-07-29T21:39:51.300353Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -114,5 +114,10 @@ author: oompah
 created: 2026-07-29 21:39
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-29 21:39
+---
+Root cause confirmed: Orchestrator._save_state performed an unlocked in-place read/modify/write from dispatch and maintenance threads. Live logs captured malformed JSON twice, after which later writes replaced the document with only a maintenance cursor. Implemented a process-local RLock covering the full transaction, fsynced same-directory temporary writes plus atomic replace, and fail-closed preservation after any read failure. Added deterministic overlapping-writer, corrupt-state preservation, serialization-failure, terminal-audit merge, and post-restart recovery tests; focused suite is green (27 passed).
 ---
 <!-- COMMENTS:END -->
