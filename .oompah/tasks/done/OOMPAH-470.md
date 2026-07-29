@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T02:39:53.727881Z'
+updated_at: '2026-07-29T02:44:59.149830Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -745,5 +745,28 @@ author: oompah
 created: 2026-07-29 02:39
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 02:44
+---
+VERIFICATION COMPLETE: All implementation work for OOMPAH-470 has been verified as complete and pushed to epic-OOMPAH-458.
+
+Implementation Summary:
+- oompah/auditor_candidate_selector.py: Implements AuditorCandidateSelector with seed_auditor_role() and select_candidate() methods
+- NoCandidateReason: Normalized diagnostics with 10 reason codes (empty_role, no_providers, no_whitelisted_providers, all_require_missing_credentials, all_unhealthy, all_over_budget, all_are_contributors, unknown_acp_models_only, invalid_model, unknown_error)
+- Seeding: Pulls deduplicated union of deep/standard/default role candidates, then remaining configured provider defaults (no hardcoded IDs)
+- Filtering Pipeline: Whitelist → Credentials → Health → Budget (subscription ACP bypass, dataclass-friendly snapshots) → Model Validity → Exclude contributors
+- Independent Preference: Prioritizes providers not used by any contributor; allows same-provider fallback only when explicit model differs from all contributed models; always rejects unknown ACP/SDK models on contributing providers
+- Bootstrap Integration: oompah/bootstrap.py seeds idempotently; operators can edit via existing RoleStore API
+- Tests: 38 auditor selector tests + 73 related tests (auditor contract/focus/roles API) + 266 role store/contributors/matrix tests all passing
+
+Commits:
+- 4926230c1 Implement auditor role independent candidate selection
+- f220e5b2e Integrate auditor role seeding into bootstrap
+- 094f60a5a Seed independent auditor candidates
+- 3a2871400 Handle dataclass budget snapshots
+- 3e4b65d6a Enforce independent auditor fallback policy
+
+Total test results: 13112 passed, 40 skipped. Branch is up to date with origin. Closing task.
 ---
 <!-- COMMENTS:END -->
