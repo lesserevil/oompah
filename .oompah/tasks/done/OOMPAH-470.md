@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T02:19:23.515556Z'
+updated_at: '2026-07-29T02:19:26.207701Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -691,5 +691,10 @@ Acceptance criteria satisfied:
 - Operators can edit auditor candidates through the existing role configuration path.
 
 Branch is up to date with origin. Closing task.
+---
+author: oompah
+created: 2026-07-29 02:19
+---
+Auditor role independent candidate selection implemented and pushed on epic-OOMPAH-458. Seeded from deduplicated union of deep/standard/default candidates plus configured provider defaults. Filter pipeline enforces whitelist, credentials, health, budget, model validity, and contributor exclusion with independent-provider preference and safe same-provider explicit-model fallback. Unknown SDK models on contributing providers are always rejected. Normalized no-candidate diagnostics. Bootstrap seeds idempotently; operators edit via existing RoleStore API. 377 focused tests pass (auditor selector, auditor contract/focus, roles API, role store, work contributors, providers role matrix).
 ---
 <!-- COMMENTS:END -->
