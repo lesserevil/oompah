@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T06:26:01.052466Z'
+updated_at: '2026-07-29T06:26:03.135190Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -1219,5 +1219,10 @@ Primary deliverable (MergedEvidenceCollector): Committed at ede290441 on epic-OO
 Blocker fix (closure false-positive): Committed at e941308f3. The orchestrator's unpushed gate was incorrectly checking the main clone for uncommitted changes (AGENTS.md modified) instead of the feature branch's worktree. Fixed by: (1) removing the repo_path fallback for git status in _check_unpushed, (2) adding epic worktree fallback in orchestrator, (3) creating the OOMPAH-472 worktree for immediate mitigation of the running service.
 
 All 90 focused tests pass. Branch is pushed and up to date.
+---
+author: oompah
+created: 2026-07-29 06:26
+---
+MergedEvidenceCollector implemented (ede290441): verifies target-branch landing via SCM review state, CI status, and git containment; 61 tests cover all specified failure modes. Fixed orchestrator unpushed gate false-positive (e941308f3): gate no longer uses main clone for git status when no per-task worktree exists, preventing AGENTS.md dirty state from blocking closures of shared-epic tasks.
 ---
 <!-- COMMENTS:END -->
