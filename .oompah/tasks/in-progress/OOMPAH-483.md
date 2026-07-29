@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-29T18:35:37.760105Z'
+updated_at: '2026-07-29T18:40:48.807381Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -161,5 +161,56 @@ created: 2026-07-29 18:35
 4. Add examples of properly-audited terminal-state changes
 
 **Next:** Explore codebase for static analysis/AST enforcement parts and what CI integration exists.
+---
+author: oompah
+created: 2026-07-29 18:40
+---
+**Discovery & Implementation Complete**: Created comprehensive documentation for terminal-audit enforcement (OOMPAH-483).
+
+**Documents Created:**
+
+1. **plans/terminal-audit-enforcement.md** (16.5 KB)
+   - Design overview and key guarantees
+   - Grandfather baseline concept and algorithm
+   - Evidence fingerprint computation
+   - Reconciliation algorithm (scan → compare → queue)
+   - First-startup vs later-run behavior
+   - Error handling and quarantine mode
+   - Storage schema (service_state.json)
+   - Server startup integration
+   - Testing strategy
+
+2. **docs/terminal-audit-enforcement-operations.md** (15.6 KB)
+   - Quick-start verification
+   - 6 realistic operational scenarios:
+     * First startup (baseline creation)
+     * Changed evidence detection
+     * Direct tracker mutations
+     * Corrupt state recovery
+     * Metadata corruption handling
+     * Restart recovery
+   - Monitoring metrics and alerting rules
+   - Manual operations (baseline reset, etc.)
+   - Configuration options
+   - Troubleshooting guide
+   - Glossary
+
+3. **docs/terminal-state-coordinator-allowlist.md** (10.4 KB)
+   - Overview of allowed/blocked terminal mutations
+   - Allowlist entries (close_issue, archive_issue, set_status)
+   - Exception paths (tests, comparisons, justified deviations)
+   - Static analysis scanner usage
+   - Examples of blocked vs allowed code
+   - CI integration
+   - Review checklist for adding new mutations
+
+**Implementation Status:**
+- ✓ Coordinator (OOMPAH-465/466): Staging and result application
+- ✓ Enforcement (OOMPAH-483): Periodic reconciliation pass
+- ✓ Metadata persistence: Terminal audit chains in task metadata
+- ✓ Tests: Full coverage in test_terminal_audit_enforcement.py
+- ✓ Documentation: Comprehensive design + operations + allowlist
+
+**Next:** Run focused tests to verify all existing implementation.
 ---
 <!-- COMMENTS:END -->
