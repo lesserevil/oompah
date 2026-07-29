@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-538
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make spawned-agent task handoffs authenticate without exposing service credentials
 parent: null
@@ -12,12 +12,26 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-07-29T00:37:46.580348Z'
+updated_at: '2026-07-29T00:38:23.571524Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: ed30fc8ebb3f597f003d7302a72f5d668323d86c30d630f0aa9b7e03d24e0cec
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: ecc9b036-96cb-4e82-abff-5ee2641be927
+  claim_owner: f4d00fa0-7632-4aaf-969a-6ff8237892b3
+  claimed_at: '2026-07-29T00:38:22.965512+00:00'
+  claim_expires_at: '2026-07-29T01:08:22.965512+00:00'
+  retry_count: 0
+  retry_after: null
 ---
 ## Summary
 
