@@ -2,7 +2,7 @@
 id: OOMPAH-545
 type: epic
 status: Backlog
-priority: 1
+priority: 0
 title: Make task dependencies finish-order constraints
 parent: null
 children:
@@ -11,10 +11,11 @@ children:
 - OOMPAH-548
 - OOMPAH-549
 blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-07-29T16:21:51.688684Z'
-updated_at: '2026-07-29T16:23:11.995416Z'
+updated_at: '2026-07-29T16:23:36.010837Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,3 +42,11 @@ Finish dependencies do not prevent agent dispatch, hard-start dependencies do, R
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 16:23
+---
+Claimed by the interactive Codex session for the owner-requested parallel-epic execution implementation. Keep human-only; do not dispatch another worker. Work will be completed, tested, pushed, and handed off through the parent epic.
+---
+<!-- COMMENTS:END -->

@@ -1,0 +1,33 @@
+---
+id: OOMPAH-558
+type: feature
+status: Backlog
+priority: 1
+title: Rebase, test, fast-forward, and audit queued task results
+parent: OOMPAH-555
+children: []
+blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-07-29T16:23:24.105345Z'
+updated_at: '2026-07-29T16:23:24.105345Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+---
+## Summary
+
+Build the integration executor. Under one epic lease, fetch remote refs, rebase the private task branch onto the expected epic head, run the project configured quality gate on the combined tree, verify the remote head has not changed, fast-forward the epic branch, persist integration evidence, publish coordination events, and request the independent Done audit. Use noninteractive git operations and preserve every recoverable branch on failure.
+
+Tests must cover clean integration, semantic test failure, textual conflict, remote compare-and-swap race, stale or missing task head, audit rejection, retry idempotency, pushed ancestry, and one final epic PR only after all children pass.
+
+Acceptance criteria: only tested combined code reaches the epic branch and Done audit, no concurrent push can overwrite work, and focused tests plus make test pass.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
