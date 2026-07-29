@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T09:12:46.915698Z'
+updated_at: '2026-07-29T09:14:06.678159Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -55,8 +55,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 916fa5d1-919e-4d9e-b8ff-35e9531fa44f
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 84734043
-  total_output_tokens: 291763
+  total_input_tokens: 85043619
+  total_output_tokens: 294913
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -64,8 +64,8 @@ oompah.task_costs:
       output_tokens: 254426
       cost_usd: 0.0
     sonnet:
-      input_tokens: 2359210
-      output_tokens: 18548
+      input_tokens: 2668786
+      output_tokens: 21698
       cost_usd: 0.0
     opus:
       input_tokens: 5973824
@@ -318,6 +318,12 @@ oompah.task_costs:
     output_tokens: 3732
     cost_usd: 0.0
     recorded_at: '2026-07-29T09:11:34.975232+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 309576
+    output_tokens: 3150
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T09:14:03.020064+00:00'
 ---
 ## Summary
 
@@ -2741,5 +2747,25 @@ author: oompah
 created: 2026-07-29 09:12
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 09:14
+---
+Agent completed successfully in 78s (312726 tokens)
+---
+author: oompah
+created: 2026-07-29 09:14
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 7
+- Tokens: 309.6K in / 3.1K out [312.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 18s
+- Log: OOMPAH-470__20260729T091247Z.jsonl
+---
+author: oompah
+created: 2026-07-29 09:14
+---
+Agent completed 12 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
