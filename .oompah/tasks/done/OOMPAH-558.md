@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-558
 type: feature
-status: Backlog
+status: Done
 priority: 0
 title: Rebase, test, fast-forward, and audit queued task results
 parent: OOMPAH-555
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:24.105345Z'
-updated_at: '2026-07-29T17:57:21.338767Z'
+updated_at: '2026-07-29T18:28:27.590192Z'
 work_branch: null
 target_branch: null
 review_url: null
