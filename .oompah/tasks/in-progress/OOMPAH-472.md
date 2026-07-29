@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T06:20:58.071270Z'
+updated_at: '2026-07-29T06:22:55.476523Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -1176,5 +1176,10 @@ author: oompah
 created: 2026-07-29 06:20
 ---
 Understanding: Root cause identified after 10+ failed closure attempts. The orchestrator's unpushed gate falls back to checking the main repo (/home/shedwards/.oompah/repos/oompah) for uncommitted changes when no per-task worktree exists at .../OOMPAH-472 (which doesn't exist since this task uses the epic branch). The main repo has AGENTS.md modified but uncommitted (unrelated to this task), which triggers the 'Worktree has uncommitted changes' false positive on every closure. Fix: (1) patch unpushed_gate.py to skip the has_uncommitted check when no branch-specific worktree exists; (2) create the OOMPAH-472 worktree pointing to epic-OOMPAH-458 for immediate mitigation.
+---
+author: oompah
+created: 2026-07-29 06:22
+---
+Discovery: Root cause confirmed. The orchestrator's _run_unpushed_gate calls project_store.worktree_path_for(project_id, 'OOMPAH-472') → returns '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-472' (does not exist). Falls back to repo_path '/home/shedwards/.oompah/repos/oompah' (main clone). git status --porcelain there shows ' M AGENTS.md' — an unrelated uncommitted change on the main branch. This triggers has_uncommitted=True and the refusal. Fix: (1) create OOMPAH-472 worktree for immediate mitigation, (2) fix orchestrator to try epic worktree as fallback, (3) fix _check_unpushed to skip status check when no branch-specific worktree.
 ---
 <!-- COMMENTS:END -->
