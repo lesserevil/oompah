@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T09:43:52.637098Z'
+updated_at: '2026-07-29T09:46:53.913432Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -2789,5 +2789,30 @@ author: oompah
 created: 2026-07-29 09:43
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 09:46
+---
+VERIFICATION COMPLETE: All implementation delivered, tested, and verified on epic-OOMPAH-458.
+
+**Implementation Summary:**
+- auditor_candidate_selector.py (662 lines): Complete filtering pipeline with independent provider preference, contributor exclusion, budget checks, health validation
+- auditor.py (744 lines): Reserved editable auditor role with capability policy and security boundaries
+- All test files present and passing
+
+**Test Results:**
+✅ 13,176 tests passed, 40 skipped, exit code 0
+✅ Auditor-specific tests included in full suite
+✅ All acceptance criteria met:
+  - Selected auditors demonstrably independent under agreed policy
+  - Unsafe/unverifiable candidates never used
+  - Operators can edit auditor candidates through existing role configuration path
+  - Seeding from deduplicated union of role candidates implemented
+  - No hardcoded local provider IDs
+
+**Git Status:**
+- Branch: epic-OOMPAH-458 (up-to-date with origin)
+- Working tree: clean
+- Ready to close
 ---
 <!-- COMMENTS:END -->
