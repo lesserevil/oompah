@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-481
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Route automatic archive and intake retirement through Archived audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:29.211296Z'
-updated_at: '2026-07-29T18:57:58.213453Z'
+updated_at: '2026-07-29T18:58:13.347481Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-481
 target_branch: null
 review_url: null
@@ -77,12 +77,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T01:59:19.448217+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-481
-  base_branch: epic-OOMPAH-459
-  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
-  updated_at: '2026-07-29T18:29:58.173928+00:00'
+  head_sha: b08bd6cb5bfe77eb28206c07d39c1aa260b30069
+  submitted_at: '2026-07-29T18:58:11.505661+00:00'
+  updated_at: '2026-07-29T18:58:11.505661+00:00'
 ---
 ## Summary
 
@@ -210,5 +210,10 @@ Successfully routed all automatic archive operations through Archived audits:
 - test_release_pick_migration.py (updated 6 archive-related tests)
 
 Total: 133 tests passing, no failures. Ready for review and integration.
+---
+author: oompah
+created: 2026-07-29 18:58
+---
+Routed automatic archive operations through Archived audits with disposition reasons and pre-archive state capture
 ---
 <!-- COMMENTS:END -->
