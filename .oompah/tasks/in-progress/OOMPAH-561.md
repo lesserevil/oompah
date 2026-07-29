@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:03:33.910422Z'
-updated_at: '2026-07-29T21:06:13.745445Z'
+updated_at: '2026-07-29T21:06:45.003330Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -116,5 +116,10 @@ author: oompah
 created: 2026-07-29 21:06
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-29 21:06
+---
+**Understanding:** Task requires pruning terminal branches/worktrees aggressively. Confirmed gaps to fix: (1) fetch needs --prune flag, (2) worktree cleanup needs independent interval/batch config, (3) terminal Merged/Archived entries should remove local+remote branches, (4) no-op entries shouldn't consume budget, (5) gone-upstream branches should be swept safely. Will explore config/orchestrator/repo_health code, implement changes, and verify with focused tests. Protected branches (default, release, Git state) must never be deleted.
 ---
 <!-- COMMENTS:END -->
