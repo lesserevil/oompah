@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-544
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Bound individual pytest tests to five seconds in CI
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:ci
 assignee: null
 created_at: '2026-07-29T15:11:56.176459Z'
-updated_at: '2026-07-29T15:11:56.176459Z'
+updated_at: '2026-07-29T15:12:04.658278Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Add pytest-timeout to the development/test dependencies and configure pytest so 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 15:12
+---
+Claimed by the interactive Codex session. Implementing on the existing PR #577 branch so the new commit supersedes the stalled workflow run and reruns the full Python matrix.
+---
+<!-- COMMENTS:END -->
