@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-488
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Validate the complete task Done-Merged-Archived audit lifecycle
 parent: OOMPAH-460
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-29T18:50:50.100744Z'
+updated_at: '2026-07-29T18:51:08.491560Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 0d67827f-9a98-4bc9-8710-2ae9c36caed4
+oompah.agent_run_id: e6f8f304-f318-4755-9b98-065c34332cf2
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-488
 oompah.task_costs:
   total_input_tokens: 979159
@@ -92,7 +92,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-460--task-OOMPAH-488
   base_branch: epic-OOMPAH-460
   base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
-  updated_at: '2026-07-29T18:44:50.825001+00:00'
+  updated_at: '2026-07-29T18:51:06.452314+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-488__20260729T183010Z
@@ -258,5 +258,15 @@ created: 2026-07-29 18:50
 **Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-29 18:51
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 18:51
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
