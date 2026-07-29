@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-29T18:29:01.050879Z'
+updated_at: '2026-07-29T18:30:36.412076Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -115,5 +115,10 @@ author: oompah
 created: 2026-07-29 18:29
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-29 18:30
+---
+**Understanding**: OOMPAH-479 requires routing webhook, YOLO, and merged-branch reconciliation events through Merged audits via the TerminalTransitionCoordinator. Current dependencies (OOMPAH-475, OOMPAH-477, OOMPAH-458) suggest upstream infrastructure is being built. Planning to: (1) Identify all current direct Merged status writes in webhook/YOLO/reconciliation paths, (2) Replace them with coordinator.request_transition(TargetState.MERGED), (3) Add provider-neutral tests for webhook/YOLO/reconciliation scenarios with merge evidence, (4) Verify idempotence and no direct terminal tracker calls.
 ---
 <!-- COMMENTS:END -->
