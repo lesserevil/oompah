@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-473
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Collect safe-retirement evidence for Archived audits
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:13.914904Z'
-updated_at: '2026-07-29T06:39:47.586285Z'
+updated_at: '2026-07-29T06:40:14.434374Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -160,5 +160,27 @@ Tests (47 passing):
 - Failed prior audits
 - Missing disposition reasons and source links
 - Restoration guidance for each failure mode
+---
+author: oompah
+created: 2026-07-29 06:40
+---
+VERIFICATION: All 47 tests passing ✓
+
+ArchivedEvidenceCollector complete and ready for integration:
+- Read-only collector validates task retirement safety
+- 20 specific failure modes for exact diagnostics
+- Restoration guidance points operators to fixes
+- DispositionType: retention/duplicate/obsolete/blocked/superseded
+- Required source links for direct dispositions (not inventing audits)
+- Comprehensive test coverage: all acceptance criteria met
+
+Code: oompah/archived_evidence_collector.py (480 lines)
+Tests: tests/test_archived_evidence_collector.py (47 tests)
+Git: Committed and pushed to epic-OOMPAH-458
+
+Acceptance criteria met:
+✓ Automatic archive passes only when retirement is safe and justified
+✓ Archival never hides active, changed, or unresolved work
+✓ Returns exact unsafe conditions and restoration state
 ---
 <!-- COMMENTS:END -->
