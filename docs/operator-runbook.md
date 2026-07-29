@@ -452,9 +452,10 @@ Check these conditions in order:
    Oompah refuses to dispatch a task with no description body. Add a description
    via the dashboard or `oompah task` CLI.
 
-5. **Tasks are blocked by unfinished dependencies:**
-   Each task must have all `blocked_by` entries resolved before dispatch. Check
-   `oompah task view <id>` for dependency status.
+5. **Tasks have unfinished dependencies:**
+   Normal dependencies constrain finish/integration order and do not block
+   dispatch. Only explicit hard-start dependencies delay a worker. Check the
+   task detail for `start_dependencies`.
 
 ### 6.2 A specific task is stuck in a dispatch loop (reject streak)
 
@@ -475,7 +476,7 @@ Common reject reasons and fixes:
 | `all_providers_rejected` | All providers failed or mismatched | Check provider health; verify model assignments |
 | `empty_description` | Task has no description body | Add a description to the task |
 | `epic_rollup_parent` | Epic with children (use child tasks) | Expected; work happens on child tasks |
-| `dependencies_unresolved` | `blocked_by` tasks are incomplete | Resolve the blocking tasks first |
+| `start_blocker=<id>` | An explicit hard-start dependency is incomplete | Finish it, or replace the edge with a normal finish-order dependency |
 
 To force-dispatch a specific task for debugging:
 

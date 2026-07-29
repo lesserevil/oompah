@@ -306,7 +306,14 @@ class TestTaskHandoffEndpoint:
         tracker.add_comment.assert_any_call(
             "TASK-1", "handoff complete", author="oompah"
         )
-        tracker.update_issue.assert_called_once_with("TASK-1", status="Done")
+        tracker.update_issue.assert_called_once_with(
+            "TASK-1", status="Ready to Integrate"
+        )
+        tracker.set_metadata_field.assert_called_once()
+        assert tracker.set_metadata_field.call_args.args[:2] == (
+            "TASK-1",
+            "oompah.integration",
+        )
 
     def test_capability_header_cannot_bypass_basic_auth_on_general_api(self):
         from fastapi.testclient import TestClient

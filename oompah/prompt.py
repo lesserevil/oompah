@@ -282,6 +282,14 @@ def _issue_to_template_vars(issue: Issue) -> dict[str, Any]:
             }
             for b in issue.blocked_by
         ],
+        "start_blocked_by": [
+            {
+                "id": b.id or "",
+                "identifier": b.identifier or "",
+                "state": b.state or "",
+            }
+            for b in issue.start_blocked_by
+        ],
         "created_at": issue.created_at.isoformat() if issue.created_at else "",
         "updated_at": issue.updated_at.isoformat() if issue.updated_at else "",
         # Tracker identity fields (TASK-457.2 / TASK-460.2).

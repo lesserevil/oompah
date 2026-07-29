@@ -78,11 +78,11 @@ making an HTTP request.
 | Create a child task under this task               | `oompah task child-create {{ issue.identifier }} --title "..."`                                                   |
 | Set dependencies for this task                    | `oompah task set-dependency {{ issue.identifier }} --depends-on <other-id>`                                       |
 | Hand off to a different focus                     | `oompah task add-label {{ issue.identifier }} needs:frontend` and `oompah task set-status {{ issue.identifier }} Open` |
-| Close when done                                   | `oompah task set-status {{ issue.identifier }} Done --summary "Done"`                                             |
+| Submit completed work                             | `oompah task submit {{ issue.identifier }} --summary "Done"`                                                      |
 
 **Always pass `--author oompah`** when posting comments — comments must be attributed to `oompah`, not your git user.
 
-**You are NOT done until `oompah task set-status {{ issue.identifier }} Done --summary "..."` succeeds.** Pushing your branch is not enough — the orchestrator will keep re-dispatching you (escalating profiles each time) until the task is closed. After your final commit and push, close the task immediately, then exit.
+**You are NOT done until `oompah task submit {{ issue.identifier }} --summary "..."` succeeds.** Pushing your branch is not enough. Submission records the exact branch head and moves the task to Ready to Integrate; oompah then integrates it in dependency order and performs the terminal audit. After your final commit and push, submit the task immediately, then exit.
 
 **Stay in your worktree.** You are running in `{{ issue.branch_name }}`'s worktree. Do NOT `cd` to absolute paths — the workspace IS the project from your perspective. `run_command` will refuse `cd` commands that leave the worktree. Use relative paths from where you are.
 
@@ -259,7 +259,7 @@ This issue already has a review open but CI tests are failing. Your ONLY job is 
 5. Fix ONLY the failing tests — minimal changes
 6. Run the test suite locally again to confirm the fix
 7. Commit, push, and verify CI passes
-8. Post a comment with the fix summary and close the issue using `oompah task set-status {{ issue.identifier }} Done --summary "..."`
+8. Submit the fix with its summary using `oompah task submit {{ issue.identifier }} --summary "..."`
 {% else %}
 1. Read the issue carefully and understand the requirements
 2. Post a comment with your understanding and plan
@@ -270,5 +270,5 @@ This issue already has a review open but CI tests are failing. Your ONLY job is 
 7. Run any relevant tests to verify your changes
 8. Post a comment with test results
 9. Commit and push (see Git Workflow above)
-10. Post a completion summary and close the issue using `oompah task set-status {{ issue.identifier }} Done --summary "..."`
+10. Submit the completed work using `oompah task submit {{ issue.identifier }} --summary "..."`
 {% endif %}

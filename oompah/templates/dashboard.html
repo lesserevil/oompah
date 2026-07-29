@@ -2093,6 +2093,8 @@ const COLUMN_CONFIG = [
   {key: 'Needs Human', label: 'Needs Human', status: 'Needs Human', base: false, group: 'waiting'},
   {key: 'Needs CI Fix', label: 'Needs CI Fix', status: 'Needs CI Fix', base: false},
   {key: 'Needs Rebase', label: 'Needs Rebase', status: 'Needs Rebase', base: false},
+  {key: 'In Validation', label: 'In Validation', status: 'In Validation', base: false},
+  {key: 'Ready to Integrate', label: 'Ready to Integrate', status: 'Ready to Integrate', base: false},
   {key: 'Decomposed', label: 'Decomposed', status: 'Decomposed', base: false, group: 'triage'},
   {key: 'Duplicate Candidate', label: 'Duplicate Candidate', status: 'Duplicate Candidate', base: false, group: 'triage'},
   {key: 'Done', label: 'Done', status: 'Done', base: true},
@@ -3728,6 +3730,18 @@ function renderDuplicateScreeningSummary(summary) {
   `;
 }
 
+function renderIntegrationSummary(record) {
+  if (!record) return '';
+  const state = record.state || 'ready';
+  const branch = record.task_branch ? ` · ${record.task_branch}` : '';
+  const head = record.head_sha ? ` @ ${record.head_sha.slice(0, 8)}` : '';
+  const error = record.last_error ? ` · ${record.last_error}` : '';
+  return `<div class="duplicate-screening-summary duplicate-screening-${esc(state)}"
+    title="${esc(`Integration ${state}${branch}${head}${error}`)}">
+    Integration: ${esc(state)}${esc(head)}
+  </div>`;
+}
+
 function intakeDisplayValue(value, fallback) {
   if (Array.isArray(value)) return value.length ? value.join(', ') : (fallback || 'None');
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
@@ -3835,6 +3849,7 @@ function createCard(issue) {
          data-field="description" data-id="${esc(issue.identifier)}">${esc(issue.description || '')}</div>
     ${renderCardIntakeSummary(issue)}
     ${renderDuplicateScreeningSummary(issue.duplicate_screening)}
+    ${renderIntegrationSummary(issue.integration)}
     ${renderCardAttachments(issue)}
   `;
 
@@ -5199,6 +5214,21 @@ async function openDetailPanel(identifier) {
       <div class="detail-field-label">Duplicate check</div>
       <div class="detail-field-value">
         ${renderDuplicateScreeningSummary(detail.duplicate_screening) || 'Not enabled'}
+      </div>
+    </div>
+  `;
+  html += `
+    <div class="detail-field">
+      <div class="detail-field-label">Dependencies</div>
+      <div class="detail-field-value">
+        Finish order: ${esc((detail.dependencies || []).join(', ') || 'None')}<br>
+        Hard start: ${esc((detail.start_dependencies || []).join(', ') || 'None')}
+      </div>
+    </div>
+    <div class="detail-field">
+      <div class="detail-field-label">Integration</div>
+      <div class="detail-field-value">
+        ${renderIntegrationSummary(detail.integration) || 'Not submitted'}
       </div>
     </div>
   `;

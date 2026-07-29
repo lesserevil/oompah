@@ -40,6 +40,8 @@ def _make_mock_orchestrator(project_id: str = "proj-1") -> tuple[MagicMock, Magi
     mock_tracker = MagicMock()
     mock_tracker.add_dependency = MagicMock()
     mock_tracker.remove_dependency = MagicMock()
+    mock_tracker.add_start_dependency = MagicMock()
+    mock_tracker.remove_start_dependency = MagicMock()
     mock_tracker.fetch_issue_detail = MagicMock(
         return_value=Issue(
             id="TASK-1",
@@ -93,8 +95,38 @@ class TestAddDependencyEndpoint:
             )
 
         assert resp.status_code == 201
-        assert resp.json() == {"ok": True}
+        assert resp.json() == {"ok": True, "dependency_type": "finish"}
         mock_tracker.add_dependency.assert_called_once_with("TASK-2", "TASK-1")
+
+    def test_hard_start_dependency_uses_explicit_tracker_method(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues/TASK-2/dependencies",
+                json={
+                    "depends_on": "TASK-1",
+                    "dependency_type": "hard_start",
+                    "project_id": "proj-1",
+                },
+            )
+
+        assert resp.status_code == 201
+        assert resp.json()["dependency_type"] == "hard_start"
+        mock_tracker.add_start_dependency.assert_called_once_with("TASK-2", "TASK-1")
+        mock_tracker.add_dependency.assert_not_called()
+
+    def test_unknown_dependency_type_is_rejected(self, client):
+        mock_orch, _ = _make_mock_orchestrator()
+        with patch.object(server_module, "_get_orchestrator", return_value=mock_orch):
+            resp = client.post(
+                "/api/v1/issues/TASK-2/dependencies",
+                json={"depends_on": "TASK-1", "dependency_type": "start-ish"},
+            )
+        assert resp.status_code == 400
 
     def test_missing_depends_on_returns_400(self, client):
         """POST without depends_on returns 400 validation error."""
@@ -380,10 +412,31 @@ class TestRemoveDependencyEndpoint:
             )
 
         assert resp.status_code == 200
-        assert resp.json() == {"ok": True}
+        assert resp.json() == {"ok": True, "dependency_type": "finish"}
         mock_tracker.remove_dependency.assert_called_once_with("TASK-2", "TASK-1")
         mock_orch.request_refresh.assert_called_once_with()
         broadcast.assert_awaited_once()
+
+    def test_remove_hard_start_dependency_uses_explicit_tracker_method(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.delete(
+                "/api/v1/issues/TASK-2/dependencies",
+                params={
+                    "depends_on": "TASK-1",
+                    "dependency_type": "hard_start",
+                    "project_id": "proj-1",
+                },
+            )
+
+        assert resp.status_code == 200
+        mock_tracker.remove_start_dependency.assert_called_once_with(
+            "TASK-2", "TASK-1"
+        )
+        mock_tracker.remove_dependency.assert_not_called()
 
     def test_remove_dependency_requires_depends_on(self, client):
         mock_orch, mock_tracker = _make_mock_orchestrator()

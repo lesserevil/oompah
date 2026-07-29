@@ -21,6 +21,7 @@ from typing import Any
 import yaml
 
 from oompah.checkpoint_queue import CheckpointQueue
+from oompah.integration import parse_integration_record
 from oompah.models import BlockerRef, Issue
 from oompah.statuses import (
     ARCHIVED,
@@ -646,6 +647,7 @@ class OompahMarkdownTracker:
                 "parent": parent or None,
                 "children": [],
                 "blocked_by": [],
+                "start_blocked_by": [],
                 "labels": effective_labels,
                 "assignee": None,
                 "created_at": now,
@@ -794,6 +796,55 @@ class OompahMarkdownTracker:
             _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
             self.invalidate_read_cache()
             self._commit_and_push(f"Remove dependency from oompah task {meta['id']}")
+
+    def add_start_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        with self._write_lock:
+            self._prepare_default_branch_for_write()
+            rec = self._read_record_uncached(blocked_id)
+            if not rec:
+                raise TrackerError(f"Native oompah task not found: {blocked_id}")
+            meta = dict(rec["meta"])
+            deps = _dedupe_strings(
+                _string_list(
+                    meta.get("start_blocked_by")
+                    or meta.get("oompah.start_blocked_by")
+                )
+                + [blocker_id]
+            )
+            meta["start_blocked_by"] = deps
+            meta["oompah.start_blocked_by"] = deps
+            meta["updated_at"] = _now_iso()
+            _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
+            self.invalidate_read_cache()
+            self._commit_and_push(
+                f"Add hard-start dependency to oompah task {meta['id']}"
+            )
+
+    def remove_start_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        with self._write_lock:
+            self._prepare_default_branch_for_write()
+            rec = self._read_record_uncached(blocked_id)
+            if not rec:
+                raise TrackerError(f"Native oompah task not found: {blocked_id}")
+            meta = dict(rec["meta"])
+            blocker_key = str(blocker_id).strip().casefold()
+            current = _dedupe_strings(
+                _string_list(
+                    meta.get("start_blocked_by")
+                    or meta.get("oompah.start_blocked_by")
+                )
+            )
+            deps = [dep for dep in current if dep.strip().casefold() != blocker_key]
+            if deps == current:
+                return
+            meta["start_blocked_by"] = deps
+            meta["oompah.start_blocked_by"] = deps
+            meta["updated_at"] = _now_iso()
+            _write_markdown(Path(rec["path"]), meta, str(rec["body"]))
+            self.invalidate_read_cache()
+            self._commit_and_push(
+                f"Remove hard-start dependency from oompah task {meta['id']}"
+            )
 
     def fetch_attachments(self, identifier: str) -> list[dict]:
         rec = self._read_record(identifier)
@@ -1116,6 +1167,9 @@ class OompahMarkdownTracker:
         labels = _string_list(meta.get("labels"))
         priority = normalize_priority_int(meta.get("priority"))
         blocked_ids = _string_list(meta.get("blocked_by") or meta.get("dependencies"))
+        start_blocked_ids = _string_list(
+            meta.get("start_blocked_by") or meta.get("oompah.start_blocked_by")
+        )
         created_at = _parse_utc(meta.get("created_at") or meta.get("created_date"))
         updated_at = _parse_utc(meta.get("updated_at") or meta.get("updated_date"))
         closed_at = updated_at if status_key(state) in {
@@ -1154,6 +1208,9 @@ class OompahMarkdownTracker:
             parent_id=_optional_str(meta.get("parent") or meta.get("parent_task_id")),
             labels=[label.lower() for label in labels],
             blocked_by=[BlockerRef(id=dep, identifier=dep) for dep in blocked_ids],
+            start_blocked_by=[
+                BlockerRef(id=dep, identifier=dep) for dep in start_blocked_ids
+            ],
             created_at=created_at,
             updated_at=updated_at,
             closed_at=closed_at,
@@ -1164,6 +1221,7 @@ class OompahMarkdownTracker:
                 if isinstance(meta.get("oompah.duplicate_screening"), dict)
                 else None
             ),
+            integration=parse_integration_record(meta.get("oompah.integration")),
             work_branch=_optional_str(
                 meta.get("work_branch") or meta.get("oompah.work_branch")
             ),

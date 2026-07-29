@@ -637,7 +637,7 @@ class TestSharedModeDispatchGating:
         orch = _make_orch(tmp_path, projects=[proj])
         orch.config.duplicate_preflight_max_agents = 2
         child = _make_issue(identifier="task-2", parent_id="epic-1", state="open")
-        child.blocked_by = [BlockerRef(id="task-1", identifier="task-1")]
+        child.start_blocked_by = [BlockerRef(id="task-1", identifier="task-1")]
         orch._reviews_cache = {}
 
         with (
@@ -840,7 +840,7 @@ class TestSharedModeDispatchGating:
         orch = _make_orch(tmp_path, projects=[proj])
         orch._reviews_cache = {}
         child = _make_issue(identifier="c2", parent_id="epic-1", state="open")
-        child.blocked_by = [BlockerRef(id="c1", identifier="c1")]
+        child.start_blocked_by = [BlockerRef(id="c1", identifier="c1")]
         # Epic branch: blocker c1 Done; the child c2 itself not yet done.
         def _epic_status(project_id, epic_id, child_id):
             return "Done" if child_id == "c1" else None
@@ -862,7 +862,7 @@ class TestSharedModeDispatchGating:
         orch = _make_orch(tmp_path, projects=[proj])
         orch._reviews_cache = {}
         child = _make_issue(identifier="c2", parent_id="epic-1", state="open")
-        child.blocked_by = [BlockerRef(id="c1", identifier="c1")]
+        child.start_blocked_by = [BlockerRef(id="c1", identifier="c1")]
         def _epic_status(project_id, epic_id, child_id):
             return "In Progress" if child_id == "c1" else None
         orch.project_store.read_task_status_in_epic_worktree.side_effect = _epic_status

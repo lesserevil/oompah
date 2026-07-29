@@ -19,6 +19,7 @@ from oompah.statuses import (
     IN_PROGRESS,
     IN_REVIEW,
     IN_VALIDATION,
+    READY_TO_INTEGRATE,
     MERGED,
     NEEDS_ANSWER,
     NEEDS_CI_FIX,
@@ -232,6 +233,7 @@ class TestOompahMarkdownTrackerMutations:
 
         tracker.add_parent_child(child.identifier, parent.identifier)
         tracker.add_dependency(child.identifier, "REPO-99")
+        tracker.add_start_dependency(child.identifier, "REPO-98")
         tracker.add_label(child.identifier, "backend")
         tracker.set_metadata_field(child.identifier, "oompah.work_branch", "oompah/repo-1")
         tracker.set_metadata_field(
@@ -244,6 +246,7 @@ class TestOompahMarkdownTrackerMutations:
         refreshed = tracker.fetch_issue_detail(child.identifier)
         assert refreshed.parent_id == parent.identifier
         assert refreshed.blocked_by[0].identifier == "REPO-99"
+        assert refreshed.start_blocked_by[0].identifier == "REPO-98"
         assert "backend" in refreshed.labels
         assert refreshed.work_branch == "oompah/repo-1"
         assert refreshed.review_url == "https://github.com/org/repo/pull/7"
@@ -287,6 +290,19 @@ class TestOompahMarkdownTrackerMutations:
 
         with pytest.raises(TrackerError, match="not found"):
             tracker.remove_dependency("REPO-999", "REPO-90")
+
+    def test_remove_hard_start_dependency_preserves_finish_order_edges(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Ordered task")
+        tracker.add_dependency(issue.identifier, "REPO-90")
+        tracker.add_start_dependency(issue.identifier, "REPO-91")
+        tracker.add_start_dependency(issue.identifier, "REPO-92")
+
+        tracker.remove_start_dependency(issue.identifier, "repo-91")
+        refreshed = tracker.fetch_issue_detail(issue.identifier)
+
+        assert [ref.identifier for ref in refreshed.blocked_by] == ["REPO-90"]
+        assert [ref.identifier for ref in refreshed.start_blocked_by] == ["REPO-92"]
 
     def test_external_github_metadata_normalizes_provider_fields(self, tmp_path):
         tracker = _tracker(tmp_path)
@@ -886,6 +902,7 @@ class TestOompahMarkdownTrackerAllStatusDirectories:
         (NEEDS_REBASE,       "needs-rebase"),
         (IN_REVIEW,          "in-review"),
         (IN_VALIDATION,      "in-validation"),
+        (READY_TO_INTEGRATE, "ready-to-integrate"),
         (DECOMPOSED,         "decomposed"),
         (DUPLICATE_CANDIDATE, "duplicate-candidate"),
         (DONE,               "done"),

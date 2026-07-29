@@ -54,6 +54,7 @@ from urllib.parse import quote
 
 import httpx
 
+from oompah.integration import parse_integration_record
 from oompah.models import BlockerRef, Issue
 from oompah.statuses import (
     ARCHIVED,
@@ -1341,6 +1342,24 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
     )
     if not isinstance(duplicate_screening, dict):
         duplicate_screening = None
+    integration = parse_integration_record(
+        meta.get("integration") or meta.get("oompah.integration")
+    )
+    start_dependency_numbers = meta.get("start_blocked_by") or []
+    if not isinstance(start_dependency_numbers, list):
+        start_dependency_numbers = []
+    start_blocked_by = [
+        BlockerRef(
+            id=str(dep),
+            identifier=(
+                str(dep)
+                if "#" in str(dep)
+                else f"{owner}/{repo}#{str(dep).lstrip('#')}"
+            ),
+        )
+        for dep in start_dependency_numbers
+        if str(dep).strip()
+    ]
 
     # Description: issue body with metadata block stripped.
     description_text = _BODY_METADATA_RE.sub("", body).strip()
@@ -1373,6 +1392,7 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         closed_at=_gh_timestamp(gh_issue.get("closed_at")),
         intake=intake,
         duplicate_screening=duplicate_screening,
+        integration=integration,
         tracker_kind="github_issues",
         tracker_owner=owner,
         tracker_repo=repo,
@@ -1382,6 +1402,7 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         requestor_login=requestor_login,
         parent_id=parent_id,
         blocked_by=blocked_by,
+        start_blocked_by=start_blocked_by,
     )
 
 
@@ -2362,6 +2383,30 @@ class GitHubIssueTracker:
             if "404" not in str(exc):
                 raise
         self.remove_label(blocked_id, depends_on_label)
+
+    def add_start_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        """Persist a hard-start edge in oompah-owned issue metadata."""
+        self.parse_identifier(blocked_id)
+        blocker = self.parse_identifier(blocker_id)
+        metadata = self.get_metadata(blocked_id)
+        current = metadata.get("oompah.start_blocked_by") or []
+        values = [str(value) for value in current] if isinstance(current, list) else []
+        blocker_value = str(blocker.number)
+        if blocker_value not in values:
+            values.append(blocker_value)
+            self.set_metadata_field(blocked_id, "oompah.start_blocked_by", values)
+
+    def remove_start_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        """Remove a hard-start edge from oompah-owned issue metadata."""
+        self.parse_identifier(blocked_id)
+        blocker = self.parse_identifier(blocker_id)
+        metadata = self.get_metadata(blocked_id)
+        current = metadata.get("oompah.start_blocked_by") or []
+        values = [str(value) for value in current] if isinstance(current, list) else []
+        blocker_value = str(blocker.number)
+        updated = [value for value in values if value != blocker_value]
+        if updated != values:
+            self.set_metadata_field(blocked_id, "oompah.start_blocked_by", updated)
 
     # ------------------------------------------------------------------
     # Attachments

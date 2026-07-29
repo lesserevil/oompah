@@ -51,6 +51,7 @@ from oompah.duplicate_screening import (
     new_claim_record,
     save_record as save_duplicate_screening_record,
 )
+from oompah.integration import IntegrationRecord
 from oompah.config import (
     ServiceConfig,
     WorkflowError,
@@ -100,6 +101,7 @@ from oompah.statuses import (
     NEEDS_REBASE,
     OPEN,
     PROPOSED,
+    READY_TO_INTEGRATE,
     canonicalize_status,
     epic_rollup_state,
     is_dispatchable_status,
@@ -9008,27 +9010,22 @@ class Orchestrator:
                 return _reject("no_slots")
             if not self._per_state_available(issue.state):
                 return _reject("per_state_limit")
-        # Blocker rule for "open"/"todo" state — bypassed for P0.
-        # P0 work is critical and is allowed to run even when its
-        # declared blockers are non-terminal or have unmerged PRs.
-        # Rationale: a P0 ci-fix on its own branch doesn't actually
-        # depend on an upstream PR landing — its branch state is
-        # independent. The `human-only` and `asking_question` label
-        # gates above still apply and remain the operator's escape
-        # hatch when a P0 must wait for a human. (oompah-zlz_2-dyi)
-        if not duplicate_preflight and not is_p0 and state_norm in ("open", "todo"):
-            for blocker in issue.blocked_by:
+        # Ordinary dependency edges constrain finish/integration order, not
+        # dispatch order. Only explicit hard-start edges delay a worker.
+        # Duplicate preflight remains read-only and bypasses both forms.
+        if not duplicate_preflight and state_norm in ("open", "todo"):
+            for blocker in issue.start_blocked_by:
                 blocker_state = blocker.state or ""
-                # If blocker state is unknown, look it up
                 if not blocker_state and blocker.id:
-                    resolved = self._resolve_blocker_state(blocker, issue)
-                    blocker_state = resolved
+                    blocker_state = self._resolve_blocker_state(blocker, issue)
                 if not self._blocker_satisfied(issue, blocker, blocker_state):
-                    # Blocker not yet closed — still blocked
-                    return _reject(f"blocker={blocker.id} state={blocker_state}")
+                    return _reject(
+                        f"start_blocker={blocker.id} state={blocker_state}"
+                    )
                 if self._blocker_has_unmerged_pr(blocker):
-                    # Blocker is closed but PR hasn't merged — still blocked
-                    return _reject(f"blocker={blocker.id} unmerged_review")
+                    return _reject(
+                        f"start_blocker={blocker.id} unmerged_review"
+                    )
         # An auditor and an implementation worker must never share a
         # worktree concurrently.  Check this independently of the P0 and
         # shared-epic gates below because both ordinary tasks and P0 children
@@ -9247,7 +9244,7 @@ class Orchestrator:
         # Collect all unique blocker IDs that need resolution
         to_resolve: dict[str, list[tuple[BlockerRef, Issue]]] = {}
         for issue in candidates:
-            for blocker in issue.blocked_by:
+            for blocker in issue.start_blocked_by:
                 blocker_state = (blocker.state or "").strip().lower()
                 if not blocker_state and blocker.id:
                     to_resolve.setdefault(blocker.id, []).append((blocker, issue))
@@ -18153,6 +18150,7 @@ class Orchestrator:
                     "view",
                     "comment",
                     "set-status",
+                    "submit",
                     "add-label",
                     "remove-label",
                 },
@@ -20390,6 +20388,150 @@ class Orchestrator:
             )
         return result
 
+    def _capture_worker_submission_record(
+        self,
+        entry: RunningEntry,
+        current: Issue,
+        project_id: str | None,
+    ) -> IntegrationRecord:
+        """Enrich tracker submission metadata from the worker's worktree."""
+
+        existing = getattr(current, "integration", None)
+        workspace_path = entry.workspace_path
+        if not workspace_path:
+            try:
+                workspace_path = self.workspace_mgr.workspace_path_for(
+                    entry.identifier
+                )
+            except Exception:
+                workspace_path = None
+
+        def _git(*args: str) -> str | None:
+            if not workspace_path:
+                return None
+            try:
+                result = subprocess.run(
+                    ["git", "-C", workspace_path, *args],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return None
+            value = result.stdout.strip()
+            return value if result.returncode == 0 and value else None
+
+        project = self.project_store.get(project_id) if project_id else None
+        base_branch = (
+            (existing.base_branch if existing else None)
+            or current.target_branch
+            or (project.default_branch if project else None)
+            or "main"
+        )
+        now = datetime.now(timezone.utc).isoformat()
+        return IntegrationRecord(
+            state="ready",
+            task_branch=(
+                (existing.task_branch if existing else None)
+                or _git("branch", "--show-current")
+                or current.work_branch
+                or entry.issue.work_branch
+                or current.branch_name
+            ),
+            base_branch=base_branch,
+            base_sha=(
+                (existing.base_sha if existing else None)
+                or _git("rev-parse", f"origin/{base_branch}")
+            ),
+            head_sha=(
+                (existing.head_sha if existing else None)
+                or _git("rev-parse", "HEAD")
+            ),
+            attempts=existing.attempts if existing else 0,
+            submitted_at=(existing.submitted_at if existing else None) or now,
+            updated_at=now,
+            dependency_heads=(
+                dict(existing.dependency_heads) if existing else {}
+            ),
+        )
+
+    def _accept_worker_submission(
+        self,
+        entry: RunningEntry,
+        current: Issue,
+        project_id: str | None,
+    ) -> bool:
+        """Validate and retain a worker submission without opening a review."""
+
+        tracker = (
+            self._tracker_for_project(project_id) if project_id else self.tracker
+        )
+        if not self._run_unpushed_gate(entry, current, project_id):
+            self.state.completed.discard(entry.issue.id)
+            return False
+
+        verifier_result = self._run_completion_verifier(
+            entry,
+            current,
+            project_id,
+        )
+        if not verifier_result.passed:
+            record = self._capture_worker_submission_record(
+                entry,
+                current,
+                project_id,
+            )
+            blocked = replace(
+                record,
+                state="blocked",
+                last_error="completion_verifier_rejected",
+                updated_at=datetime.now(timezone.utc).isoformat(),
+            )
+            tracker.set_metadata_field(
+                current.identifier,
+                "oompah.integration",
+                blocked.to_dict(),
+            )
+            tracker.update_issue(current.identifier, status=OPEN)
+            self._post_comment(
+                current.identifier,
+                verifier_result.render_rejection_comment(),
+                project_id=project_id,
+            )
+            next_attempt = (entry.retry_attempt or 0) + 1
+            self._schedule_retry(
+                entry.issue.id,
+                attempt=next_attempt,
+                identifier=entry.identifier,
+                delay_ms=self._backoff_delay(next_attempt),
+                error="completion_verifier_rejected",
+                project_id=project_id,
+                context_entry=entry,
+            )
+            self.state.completed.discard(entry.issue.id)
+            return False
+
+        record = self._capture_worker_submission_record(
+            entry,
+            current,
+            project_id,
+        )
+        tracker.set_metadata_field(
+            current.identifier,
+            "oompah.integration",
+            record.to_dict(),
+        )
+        self.state.completed.add(entry.issue.id)
+        self._clear_reopen_count(entry.issue.id)
+        self._verifier_reject_counts.pop(entry.issue.id, None)
+        logger.info(
+            "Accepted worker submission for %s at %s; waiting for integration",
+            current.identifier,
+            record.head_sha or "unknown head",
+        )
+        return True
+
     def _finish_epic_review_repair(
         self,
         tracker,
@@ -21106,6 +21248,15 @@ class Orchestrator:
                     # Completed-focus markers prevent the selector from
                     # returning the task to a focus that already finished.
                     pass
+                elif (
+                    current
+                    and canonicalize_status(current.state) == READY_TO_INTEGRATE
+                ):
+                    self._accept_worker_submission(
+                        entry,
+                        current,
+                        project_id,
+                    )
                 elif current and not _is_terminal_state(
                     current.state, self.config.tracker_terminal_states
                 ):

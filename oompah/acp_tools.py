@@ -413,7 +413,7 @@ def _exec_oompah_task_command(
     # task service account.  Worker sessions receive an exact task grant.
     if task_identifier:
         if args.subcommand not in {
-            "view", "comment", "set-status", "add-label", "remove-label"
+            "view", "comment", "set-status", "submit", "add-label", "remove-label"
         }:
             return (
                 "Error: this agent session is granted only the assigned task "
@@ -467,6 +467,27 @@ def _exec_oompah_task_command(
                 )
             return f"Status set to: {args.status}"
 
+        if args.subcommand == "submit":
+            from oompah.integration import IntegrationRecord
+            from oompah.statuses import READY_TO_INTEGRATE
+
+            task_tracker.set_metadata_field(
+                args.identifier,
+                "oompah.integration",
+                IntegrationRecord(state="ready").to_dict(),
+            )
+            task_tracker.update_issue(
+                args.identifier,
+                status=READY_TO_INTEGRATE,
+            )
+            if args.summary:
+                task_tracker.add_comment(
+                    args.identifier,
+                    args.summary,
+                    author="oompah",
+                )
+            return f"Submitted for integration: {args.identifier}"
+
         if args.subcommand == "add-label":
             denial = check_action(
                 action_policy,
@@ -496,13 +517,23 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
-            task_tracker.add_dependency(args.identifier, args.depends_on)
-            return f"Dependency set: {args.identifier} depends on {args.depends_on}"
+            if getattr(args, "hard_start", False) is True:
+                task_tracker.add_start_dependency(args.identifier, args.depends_on)
+                kind = "Hard-start dependency"
+            else:
+                task_tracker.add_dependency(args.identifier, args.depends_on)
+                kind = "Dependency"
+            return f"{kind} set: {args.identifier} depends on {args.depends_on}"
 
         if args.subcommand == "remove-dependency":
-            task_tracker.remove_dependency(args.identifier, args.depends_on)
+            if getattr(args, "hard_start", False) is True:
+                task_tracker.remove_start_dependency(args.identifier, args.depends_on)
+                kind = "Hard-start dependency"
+            else:
+                task_tracker.remove_dependency(args.identifier, args.depends_on)
+                kind = "Dependency"
             return (
-                f"Dependency removed: {args.identifier} no longer depends on "
+                f"{kind} removed: {args.identifier} no longer depends on "
                 f"{args.depends_on}"
             )
 

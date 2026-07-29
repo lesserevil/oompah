@@ -15,8 +15,9 @@ Usage::
     oompah task set-status <identifier> <status> [--summary "..."]
     oompah task add-label <identifier> <label>
     oompah task remove-label <identifier> <label>
-    oompah task set-dependency <identifier> --depends-on <dep-id>
-    oompah task remove-dependency <identifier> --depends-on <dep-id>
+    oompah task set-dependency <identifier> --depends-on <dep-id> [--hard-start]
+    oompah task remove-dependency <identifier> --depends-on <dep-id> [--hard-start]
+    oompah task submit <identifier> [--summary "..."]
     oompah task set-source <identifier> <source-id> [--project <id>]
     oompah task remove-source <identifier> [--project <id>]
 """
@@ -27,6 +28,7 @@ import argparse
 import math
 import os
 import re
+import subprocess
 import sys
 import urllib.parse
 from typing import Any
@@ -491,6 +493,8 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
         "status": args.status,
         "summary": getattr(args, "summary", None),
     }
+    if str(args.status).strip().lower() in {"done", "merged", "archived"}:
+        handoff_data.update(_git_submission_evidence())
     if _task_handoff_request(base_url, "set-status", handoff_data) is not None:
         print(f"Status set to: {args.status}")
         return
@@ -514,6 +518,53 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
         _http("POST", f"{base_url}{comment_path}", data=comment_data)
 
     print(f"Status set to: {args.status}")
+
+
+def _git_value(*args: str) -> str | None:
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    value = completed.stdout.strip()
+    return value if completed.returncode == 0 and value else None
+
+
+def _git_submission_evidence() -> dict[str, Any]:
+    """Capture branch/head evidence from the worker's current worktree."""
+
+    return {
+        key: value
+        for key, value in {
+            "task_branch": _git_value("branch", "--show-current"),
+            "head_sha": _git_value("rev-parse", "HEAD"),
+        }.items()
+        if value
+    }
+
+
+def _cmd_submit(base_url: str, args: argparse.Namespace) -> None:
+    """Submit committed worker output for ordered integration."""
+
+    identifier = args.identifier
+    data: dict[str, Any] = {
+        "identifier": identifier,
+        "issue_key": identifier,
+        "summary": getattr(args, "summary", None),
+        **_git_submission_evidence(),
+    }
+    _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
+    if _task_handoff_request(base_url, "submit", data) is not None:
+        print(f"Submitted for integration: {identifier}")
+        return
+    path = f"/api/v1/issues/{_encode_path_id(identifier)}/submit"
+    _http("POST", f"{base_url}{path}", data=data)
+    print(f"Submitted for integration: {identifier}")
 
 
 def _cmd_add_label(base_url: str, args: argparse.Namespace) -> None:
@@ -564,29 +615,35 @@ def _cmd_remove_label(base_url: str, args: argparse.Namespace) -> None:
 def _cmd_set_dependency(base_url: str, args: argparse.Namespace) -> None:
     """oompah task set-dependency <identifier> --depends-on <dep-id>"""
     identifier = args.identifier
+    hard_start = getattr(args, "hard_start", False) is True
     data: dict[str, Any] = {
         "depends_on": args.depends_on,
         "issue_key": identifier,
+        "dependency_type": "hard_start" if hard_start else "finish",
     }
     _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/dependencies"
     _http("POST", f"{base_url}{path}", data=data)
-    print(f"Dependency set: {identifier} depends on {args.depends_on}")
+    kind = "Hard-start dependency" if hard_start else "Dependency"
+    print(f"{kind} set: {identifier} depends on {args.depends_on}")
 
 
 def _cmd_remove_dependency(base_url: str, args: argparse.Namespace) -> None:
     """oompah task remove-dependency <identifier> --depends-on <dep-id>"""
     identifier = args.identifier
+    hard_start = getattr(args, "hard_start", False) is True
     params: dict[str, str] = {
         "depends_on": args.depends_on,
         "issue_key": identifier,
+        "dependency_type": "hard_start" if hard_start else "finish",
     }
     _add_project_or_managed_repo(
         params, identifier, getattr(args, "project", None)
     )
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/dependencies"
     _http("DELETE", f"{base_url}{path}", params=params)
-    print(f"Dependency removed: {identifier} no longer depends on {args.depends_on}")
+    kind = "Hard-start dependency" if hard_start else "Dependency"
+    print(f"{kind} removed: {identifier} no longer depends on {args.depends_on}")
 
 
 def _cmd_set_source(base_url: str, args: argparse.Namespace) -> None:
@@ -824,6 +881,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="GitHub login requesting a gated intake transition",
     )
 
+    # --- submit ---
+    p_submit = sub.add_parser(
+        "submit",
+        help="Submit committed work for ordered integration",
+    )
+    p_submit.add_argument("identifier", help="Task identifier")
+    p_submit.add_argument(
+        "--summary",
+        default=None,
+        help="Optional completion summary recorded on the task",
+    )
+    p_submit.add_argument(
+        "--project", "--project-id",
+        dest="project",
+        default=None,
+        metavar="PROJECT_ID",
+    )
+
     # --- add-label ---
     p_add = sub.add_parser("add-label", help="Add a label to a task")
     p_add.add_argument("identifier", help="Task identifier")
@@ -866,6 +941,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Identifier of the blocker task",
     )
     p_dep.add_argument(
+        "--hard-start",
+        action="store_true",
+        help="Block task start until the dependency is complete",
+    )
+    p_dep.add_argument(
         "--project", "--project-id",
         dest="project",
         default=None,
@@ -887,6 +967,11 @@ def build_parser() -> argparse.ArgumentParser:
         dest="depends_on",
         metavar="DEP_ID",
         help="Identifier of the blocker task to remove",
+    )
+    p_rm_dep.add_argument(
+        "--hard-start",
+        action="store_true",
+        help="Remove a hard-start dependency instead of a finish-order edge",
     )
     p_rm_dep.add_argument(
         "--project", "--project-id",
@@ -962,6 +1047,7 @@ _DISPATCH: dict[str, Any] = {
     "create": _cmd_create,
     "child-create": _cmd_child_create,
     "set-status": _cmd_set_status,
+    "submit": _cmd_submit,
     "add-label": _cmd_add_label,
     "remove-label": _cmd_remove_label,
     "set-dependency": _cmd_set_dependency,
@@ -980,7 +1066,7 @@ def main(argv: list[str] | None = None) -> None:
     # above.  Reject broader commands before any request is made; in
     # particular, never fall back to operator Basic credentials.
     if _task_handoff_token() and args.subcommand not in {
-        "view", "comment", "set-status", "add-label", "remove-label"
+        "view", "comment", "set-status", "submit", "add-label", "remove-label"
     }:
         sys.exit(
             "ERROR: this spawned worker has a task-scoped handoff capability; "
@@ -1015,6 +1101,7 @@ def main(argv: list[str] | None = None) -> None:
         "create": _cmd_create,
         "child-create": _cmd_child_create,
         "set-status": _cmd_set_status,
+        "submit": _cmd_submit,
         "add-label": _cmd_add_label,
         "remove-label": _cmd_remove_label,
         "set-dependency": _cmd_set_dependency,

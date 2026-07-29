@@ -67,6 +67,7 @@ from oompah.issue_enhancer import (
     has_quality_source,
 )
 from oompah.intake_summary import build_intake_summary
+from oompah.integration import IntegrationRecord
 from oompah.duplicate_screening import (
     DETECTOR_VERSION as DUPLICATE_DETECTOR_VERSION,
     assess_screening,
@@ -125,9 +126,11 @@ from oompah.statuses import (
     NEEDS_REBASE,
     OPEN,
     PROPOSED,
+    READY_TO_INTEGRATE,
     canonicalize_status,
     epic_rollup_state,
     is_dispatchable_status,
+    is_terminal_status,
 )
 from oompah.transition_gate import (
     TransitionGateResult,
@@ -2087,6 +2090,21 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             "target_branch": getattr(issue, "target_branch", None),
             "work_branch": getattr(issue, "work_branch", None),
             "merged_at": getattr(issue, "merged_at", None),
+            "integration": (
+                issue.integration.to_dict()
+                if getattr(issue, "integration", None) is not None
+                else None
+            ),
+            "dependencies": [
+                blocker.identifier or blocker.id
+                for blocker in (getattr(issue, "blocked_by", None) or [])
+                if blocker.identifier or blocker.id
+            ],
+            "start_dependencies": [
+                blocker.identifier or blocker.id
+                for blocker in (getattr(issue, "start_blocked_by", None) or [])
+                if blocker.identifier or blocker.id
+            ],
             # UI context badge for shared-epic children: distinguishes
             # "done on epic branch" (Done) from "merged to target" (Merged).
             "display_status_context": _child_display_context(issue),
@@ -2653,6 +2671,155 @@ async def api_state():
         )
 
 
+def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
+    """Build validated durable evidence for one worker submission."""
+
+    head_sha = str(body.get("head_sha") or "").strip().lower() or None
+    if head_sha is not None and not re.fullmatch(r"[0-9a-f]{7,64}", head_sha):
+        raise ValueError("head_sha must be a hexadecimal git object id")
+    base_sha = str(body.get("base_sha") or "").strip().lower() or None
+    if base_sha is not None and not re.fullmatch(r"[0-9a-f]{7,64}", base_sha):
+        raise ValueError("base_sha must be a hexadecimal git object id")
+    raw_dependency_heads = body.get("dependency_heads")
+    dependency_heads = (
+        {
+            str(identifier): str(sha).lower()
+            for identifier, sha in raw_dependency_heads.items()
+            if str(identifier).strip()
+            and re.fullmatch(r"[0-9a-fA-F]{7,64}", str(sha).strip())
+        }
+        if isinstance(raw_dependency_heads, dict)
+        else {}
+    )
+    now = datetime.now(timezone.utc).isoformat()
+    return IntegrationRecord(
+        state="ready",
+        task_branch=(
+            str(body.get("task_branch") or "").strip()
+            or getattr(issue, "work_branch", None)
+            or getattr(issue, "branch_name", None)
+        ),
+        base_branch=(
+            str(body.get("base_branch") or "").strip()
+            or getattr(issue, "target_branch", None)
+        ),
+        base_sha=base_sha,
+        head_sha=head_sha,
+        submitted_at=now,
+        updated_at=now,
+        dependency_heads=dependency_heads,
+    )
+
+
+async def _persist_worker_submission(
+    tracker,
+    issue,
+    body: dict[str, Any],
+) -> IntegrationRecord:
+    """Atomically order tracker writes so evidence exists before lifecycle state."""
+
+    record = _submission_record(issue, body)
+    await _run_api_io(
+        tracker.set_metadata_field,
+        issue.identifier,
+        "oompah.integration",
+        record.to_dict(),
+    )
+    await _run_api_io(
+        tracker.update_issue,
+        issue.identifier,
+        status=READY_TO_INTEGRATE,
+    )
+    summary = str(body.get("summary") or "").strip()
+    if summary:
+        await _run_api_io(
+            tracker.add_comment,
+            issue.identifier,
+            summary,
+            author="oompah",
+        )
+    return record
+
+
+@app.post("/api/v1/issues/{identifier}/submit")
+async def api_submit_issue(identifier: str, request: Request):
+    """Stage committed task work for dependency-ordered integration."""
+
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "request body must be a JSON object",
+                }
+            },
+            status_code=400,
+        )
+    if not isinstance(body, dict):
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "request body must be a JSON object",
+                }
+            },
+            status_code=400,
+        )
+    orch = _get_orchestrator()
+    resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
+    requested_project = body.get("project_id") or request.query_params.get("project_id")
+    if requested_project:
+        tracker, project_id = _get_tracker_for_issue_or_project(
+            orch, resolved_identifier, requested_project
+        )
+    else:
+        tracker, project_id, issue = _find_tracker_for_issue(
+            orch, resolved_identifier
+        )
+        if tracker is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "issue_not_found",
+                        "message": f"Issue {resolved_identifier!r} not found",
+                    }
+                },
+                status_code=404,
+            )
+    issue = await _run_api_io(tracker.fetch_issue_detail, resolved_identifier)
+    if issue is None:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "issue_not_found",
+                    "message": f"Issue {resolved_identifier!r} not found",
+                }
+            },
+            status_code=404,
+        )
+    try:
+        record = await _persist_worker_submission(tracker, issue, body)
+    except ValueError as exc:
+        return JSONResponse(
+            {"error": {"code": "validation", "message": str(exc)}},
+            status_code=400,
+        )
+    _api_cache.invalidate("issues:all")
+    _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
+    orch.request_refresh()
+    await broadcast_issues()
+    return JSONResponse(
+        {
+            "ok": True,
+            "state": READY_TO_INTEGRATE,
+            "integration": record.to_dict(),
+        },
+        status_code=201,
+    )
+
+
 @app.post("/api/v1/task-handoff")
 async def api_task_handoff(request: Request):
     """Apply one server-issued, task-scoped worker handoff operation.
@@ -2688,7 +2855,14 @@ async def api_task_handoff(request: Request):
     action = str(body.get("action") or "").strip()
     project_id = str(body.get("project_id") or "").strip()
     identifier = str(body.get("identifier") or "").strip()
-    if action not in {"view", "comment", "set-status", "add-label", "remove-label"}:
+    if action not in {
+        "view",
+        "comment",
+        "set-status",
+        "submit",
+        "add-label",
+        "remove-label",
+    }:
         return JSONResponse(
             {"error": {"code": "handoff_forbidden", "message": "task handoff action is not granted"}},
             status_code=403,
@@ -2757,6 +2931,22 @@ async def api_task_handoff(request: Request):
             await _run_api_io(tracker.add_comment, identifier, text, author="oompah")
             return JSONResponse({"ok": True})
 
+        if action == "submit":
+            try:
+                record = await _persist_worker_submission(tracker, issue, body)
+            except ValueError as exc:
+                record_task_handoff_failure(
+                    token, "task handoff submission validation failed"
+                )
+                return JSONResponse(
+                    {"error": {"code": "validation", "message": str(exc)}},
+                    status_code=400,
+                )
+            _api_cache.invalidate("issues:all")
+            _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+            await broadcast_issues()
+            return JSONResponse({"ok": True, "integration": record.to_dict()})
+
         if action == "set-status":
             status = body.get("status")
             if not isinstance(status, str) or not status.strip():
@@ -2786,6 +2976,23 @@ async def api_task_handoff(request: Request):
             if rejection is not None:
                 record_task_handoff_failure(token, "task handoff status transition rejected")
                 return rejection
+            if is_terminal_status(status):
+                submission_body = {**body, "summary": body.get("summary")}
+                record = await _persist_worker_submission(
+                    tracker,
+                    issue,
+                    submission_body,
+                )
+                _api_cache.invalidate("issues:all")
+                _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+                await broadcast_issues()
+                return JSONResponse(
+                    {
+                        "ok": True,
+                        "staged_status": READY_TO_INTEGRATE,
+                        "integration": record.to_dict(),
+                    }
+                )
             await _run_api_io(tracker.update_issue, identifier, status=status)
             summary = str(body.get("summary") or "").strip()
             if summary:
@@ -8349,10 +8556,11 @@ async def api_remove_label(identifier: str, label: str, request: Request):
 
 @app.post("/api/v1/issues/{identifier}/dependencies")
 async def api_add_dependency(identifier: str, request: Request):
-    """Record that *identifier* depends on (is blocked by) another issue.
+    """Record a finish-order or hard-start dependency.
 
     Request body (JSON):
         depends_on  – identifier of the blocker task (required)
+        dependency_type – ``finish`` (default) or ``hard_start``
         issue_key   – full identifier when the path param is URL-encoded
         project_id  – optional; used to resolve the tracker directly
         managed_repo – optional; ``owner/repo`` alternative to project_id
@@ -8389,6 +8597,17 @@ async def api_add_dependency(identifier: str, request: Request):
                     "error": {
                         "code": "validation",
                         "message": "depends_on is required",
+                    }
+                },
+                status_code=400,
+            )
+        dependency_type = str(body.get("dependency_type") or "finish").strip().lower()
+        if dependency_type not in {"finish", "hard_start"}:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "dependency_type must be 'finish' or 'hard_start'",
                     }
                 },
                 status_code=400,
@@ -8437,11 +8656,17 @@ async def api_add_dependency(identifier: str, request: Request):
                     status_code=404,
                 )
 
-        tracker.add_dependency(resolved_identifier, depends_on)
+        if dependency_type == "hard_start":
+            tracker.add_start_dependency(resolved_identifier, depends_on)
+        else:
+            tracker.add_dependency(resolved_identifier, depends_on)
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         await broadcast_issues()
-        return JSONResponse({"ok": True}, status_code=201)
+        return JSONResponse(
+            {"ok": True, "dependency_type": dependency_type},
+            status_code=201,
+        )
     except Exception as exc:
         logger.error("Add dependency API error: %s", exc)
         return JSONResponse(
@@ -8456,6 +8681,7 @@ async def api_remove_dependency(identifier: str, request: Request):
 
     Query parameters:
         depends_on   – identifier of the blocker task to remove (required)
+        dependency_type – ``finish`` (default) or ``hard_start``
         issue_key    – full identifier when the path param is URL-encoded
         project_id   – optional; used to resolve the tracker directly
         managed_repo – optional ``owner/repo`` alternative to project_id
@@ -8469,6 +8695,19 @@ async def api_remove_dependency(identifier: str, request: Request):
                     "error": {
                         "code": "validation",
                         "message": "depends_on is required",
+                    }
+                },
+                status_code=400,
+            )
+        dependency_type = str(
+            request.query_params.get("dependency_type") or "finish"
+        ).strip().lower()
+        if dependency_type not in {"finish", "hard_start"}:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "dependency_type must be 'finish' or 'hard_start'",
                     }
                 },
                 status_code=400,
@@ -8521,12 +8760,15 @@ async def api_remove_dependency(identifier: str, request: Request):
                     status_code=404,
                 )
 
-        tracker.remove_dependency(resolved_identifier, depends_on)
+        if dependency_type == "hard_start":
+            tracker.remove_start_dependency(resolved_identifier, depends_on)
+        else:
+            tracker.remove_dependency(resolved_identifier, depends_on)
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         orch.request_refresh()
         await broadcast_issues()
-        return JSONResponse({"ok": True})
+        return JSONResponse({"ok": True, "dependency_type": dependency_type})
     except Exception as exc:
         logger.error("Remove dependency API error: %s", exc)
         return JSONResponse(
@@ -8817,6 +9059,21 @@ async def api_issue_full_detail(identifier: str, request: Request):
             "target_branch": getattr(issue, "target_branch", None),
             "work_branch": getattr(issue, "work_branch", None),
             "merged_at": getattr(issue, "merged_at", None),
+            "integration": (
+                issue.integration.to_dict()
+                if getattr(issue, "integration", None) is not None
+                else None
+            ),
+            "dependencies": [
+                blocker.identifier or blocker.id
+                for blocker in (getattr(issue, "blocked_by", None) or [])
+                if blocker.identifier or blocker.id
+            ],
+            "start_dependencies": [
+                blocker.identifier or blocker.id
+                for blocker in (getattr(issue, "start_blocked_by", None) or [])
+                if blocker.identifier or blocker.id
+            ],
             # Indicate whether the tracker state is fresh (read from canonical
             # source) or potentially stale (read from a non-state-branch checkout
             # or when the state-branch worktree could not be synced).

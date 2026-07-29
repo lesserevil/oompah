@@ -15,6 +15,7 @@ from oompah.duplicate_screening import (
     new_claim_record,
 )
 from oompah.models import Issue
+from oompah.integration import IntegrationRecord
 from oompah.tracker import StateBranchMissingError, TrackerError
 from oompah import server as server_module
 
@@ -338,6 +339,28 @@ def test_empty_issue_board_orders_proposed_before_backlog():
     board = server_module._empty_issue_board()
 
     assert list(board)[:2] == ["Proposed", "Backlog"]
+
+
+def test_ready_to_integrate_board_entry_includes_integration_evidence():
+    issue = _issue("TASK-READY", "Ready to Integrate")
+    issue.integration = IntegrationRecord(
+        state="ready",
+        task_branch="oompah/task/TASK-READY",
+        base_branch="epic-TASK-1",
+        head_sha="a" * 40,
+    )
+
+    payload = server_module._fetch_and_serialize_issues(_orch_with_issues([issue]))
+
+    entry = payload["Ready to Integrate"][0]
+    assert entry["integration"] == {
+        "version": 1,
+        "state": "ready",
+        "attempts": 0,
+        "task_branch": "oompah/task/TASK-READY",
+        "base_branch": "epic-TASK-1",
+        "head_sha": "a" * 40,
+    }
 
 
 def test_fetch_and_serialize_issues_includes_intake_summary():

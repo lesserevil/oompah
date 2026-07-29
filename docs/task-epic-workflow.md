@@ -218,10 +218,10 @@ epic branch and returns it to review.
 
 ## Closing And Rollup
 
-Child task completion is not always the same as project integration:
+Child task completion is not the same as project integration:
 
-- `Done` means the agent finished the task. For shared epics, a child can be
-  `Done` while its work still waits on the epic rollup PR.
+- `Ready to Integrate` means the worker submitted a committed private branch.
+- `Done` means oompah integrated and audited the task result.
 - `In Review` means a PR exists and review metadata is recorded.
 - `Merged` means the review branch landed on its expected target.
 - `Archived` means the task is intentionally closed and should not reopen.
@@ -242,8 +242,9 @@ oompah task create --project <project-id> --title "Title" --description "Details
 oompah task create --project <project-id> --title "Follow-up" --source <originating-task-id>
 oompah task child-create <epic-id> --project <project-id> --title "Child title" --description "Details"
 oompah task set-dependency <task-id> --project <project-id> --depends-on <other-task-id>
+oompah task set-dependency <task-id> --project <project-id> --depends-on <other-task-id> --hard-start
 oompah task set-status <task-id> Open --project <project-id>
-oompah task set-status <task-id> Done --project <project-id> --summary "Completed"
+oompah task submit <task-id> --project <project-id> --summary "Completed"
 oompah task comment <task-id> --project <project-id> --message "Progress update" --author oompah
 ```
 

@@ -1023,6 +1023,19 @@ class TestCmdSetDependency:
             task_cli._cmd_set_dependency("http://localhost:8080", args)
         data = m.call_args.kwargs.get("data", {})
         assert data["depends_on"] == "TASK-1"
+        assert data["dependency_type"] == "finish"
+
+    def test_hard_start_flag_selects_hard_start_dependency_type(self):
+        args = _make_args(
+            subcommand="set-dependency",
+            identifier="TASK-2",
+            depends_on="TASK-1",
+            project=None,
+            hard_start=True,
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_set_dependency("http://localhost:8080", args)
+        assert m.call_args.kwargs["data"]["dependency_type"] == "hard_start"
 
     def test_prints_confirmation(self, capsys):
         args = _make_args(
@@ -1056,6 +1069,7 @@ class TestCmdRemoveDependency:
         assert mock_http.call_args.kwargs["params"] == {
             "depends_on": "TASK-1",
             "issue_key": "TASK-2",
+            "dependency_type": "finish",
             "project_id": "proj-1",
         }
 
@@ -1149,6 +1163,16 @@ class TestBuildParser:
         assert args.subcommand == "set-status"
         assert args.status == "Done"
         assert args.summary == "All done"
+
+    def test_submit_subcommand_parses(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            ["submit", "TASK-1", "--summary", "All done", "--project", "proj-1"]
+        )
+        assert args.subcommand == "submit"
+        assert args.identifier == "TASK-1"
+        assert args.summary == "All done"
+        assert args.project == "proj-1"
 
     def test_add_label_subcommand_parses(self):
         parser = task_cli.build_parser()
@@ -1277,6 +1301,11 @@ class TestMainDispatch:
     def test_main_dispatches_set_status(self):
         with patch.object(task_cli, "_cmd_set_status") as mock_fn:
             task_cli.main(["set-status", "TASK-1", "Done"])
+        mock_fn.assert_called_once()
+
+    def test_main_dispatches_submit(self):
+        with patch.object(task_cli, "_cmd_submit") as mock_fn:
+            task_cli.main(["submit", "TASK-1", "--summary", "Done"])
         mock_fn.assert_called_once()
 
     def test_main_dispatches_add_label(self):

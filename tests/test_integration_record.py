@@ -1,0 +1,52 @@
+"""Tests for durable private-branch integration metadata."""
+
+import pytest
+
+from oompah.integration import IntegrationRecord, parse_integration_record
+
+
+def test_integration_record_round_trips_all_supported_evidence():
+    record = IntegrationRecord(
+        state="ready",
+        task_branch="oompah/task/ABC-2",
+        base_branch="epic-ABC-1",
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+        attempts=2,
+        submitted_at="2026-07-29T12:00:00Z",
+        updated_at="2026-07-29T12:01:00Z",
+        dependency_heads={"ABC-1": "c" * 40},
+    )
+
+    assert IntegrationRecord.from_dict(record.to_dict()) == record
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        None,
+        [],
+        {},
+        {"version": 999, "state": "ready"},
+        {"version": 1, "state": "unknown"},
+        {"version": 1, "state": "ready", "attempts": -1},
+        {"version": "nope", "state": "ready"},
+    ],
+)
+def test_parse_integration_record_rejects_malformed_or_unsupported_data(raw):
+    assert parse_integration_record(raw) is None
+
+
+def test_integration_record_ignores_unknown_future_keys():
+    record = parse_integration_record(
+        {
+            "version": 1,
+            "state": "queued",
+            "task_branch": "task-1",
+            "future_field": {"safe": True},
+        }
+    )
+
+    assert record is not None
+    assert record.state == "queued"
+    assert "future_field" not in record.to_dict()
