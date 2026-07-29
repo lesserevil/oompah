@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-562
 type: bug
-status: In Review
+status: Merged
 priority: 1
 title: Recover integration queues blocked by stale epic ancestry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T21:54:38.540130Z'
+updated_at: '2026-07-29T22:01:04.897646Z'
 work_branch: OOMPAH-562
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/580
