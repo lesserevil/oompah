@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:36:54.712161Z'
-updated_at: '2026-07-29T21:45:25.023561Z'
+updated_at: '2026-07-29T21:45:58.215869Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -170,5 +170,10 @@ author: oompah
 created: 2026-07-29 21:45
 ---
 PRIMARY CHECKOUT COORDINATION: implementation is complete on branch OOMPAH-563 and the full gate is green (13,581 passed, 7 skipped). Do not modify or submit a competing head. Please stop and hand off without code changes; the primary checkout is committing and publishing the tested implementation now.
+---
+author: oompah
+created: 2026-07-29 21:45
+---
+Understanding & plan: worktree is currently clean (previous run's work was not committed). Restarting from main. Root cause: \`Orchestrator._save_state\` (oompah/orchestrator.py:1863) does an unlocked read-modify-write, opening \`service_state.json\` for write directly (no temp+atomic-replace). Multiple caller sites (pause, maintenance cursor, epic_rebase_states, shared_absorption_evidence, restart_issues, budget window, terminal-audit) can interleave and produce malformed JSON. On corruption \`_load_state\` swallows the error and returns \`{}\`, so the next \`_save_state\` overwrites the corrupt file, destroying evidence. Plan: (1) add a process-local reentrant lock covering \`_load_state\` + \`_save_state\`; (2) in \`_save_state\`, refuse to write when \`_state_load_failed\` is set (fail-closed preservation); (3) write via same-directory tempfile with fsync and \`os.replace\`; (4) add deterministic tests for concurrent writers, corrupt-state preservation, terminal-audit merge, and post-restart recovery. Terminal-audit path already uses \`_save_state_for_terminal_audit\` → \`_save_state\`, so it stays merge-compatible for free.
 ---
 <!-- COMMENTS:END -->
