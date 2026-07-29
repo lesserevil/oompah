@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-29T18:39:22.284907Z'
+updated_at: '2026-07-29T18:50:28.073348Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-478
 target_branch: null
 review_url: null
@@ -198,5 +198,17 @@ Implementation: Modified epic rollup transitions to route terminal states throug
 6. Added TERMINAL_STATUSES to imports from statuses module
 
 Ready to run tests to verify behavior.
+---
+author: oompah
+created: 2026-07-29 18:50
+---
+Verification: All tests pass (12932 passed, 41 skipped). Changes implement:
+
+1. Terminal state routing through coordinator for epic rollup reconciliation, auto-close, and stale child completion
+2. In Validation children block terminal rollup landing
+3. Skip reconciliation if epic In Validation or has audit:repair-needed label
+4. Non-terminal state updates continue direct tracker updates
+
+Tests updated to verify coordinator requests instead of direct tracker writes. Branch containment and landing-evidence gates preserved.
 ---
 <!-- COMMENTS:END -->
