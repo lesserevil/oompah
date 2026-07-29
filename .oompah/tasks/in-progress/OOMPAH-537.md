@@ -1,0 +1,123 @@
+---
+id: OOMPAH-537
+type: task
+status: In Progress
+priority: null
+title: Wake event-driven scheduler when a project resumes
+parent: null
+children: []
+blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-07-29T00:05:46.463901Z'
+updated_at: '2026-07-29T00:09:36.173647Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 264f8df40f31538e96ffb9b1a258e71d424985893cf6c21d4edcf3cfc96f0c51
+  detector_version: duplicate-detector-v1
+  verdict: no_duplicate
+  checked_at: '2026-07-29T00:09:25.803569+00:00'
+  matched_identifiers: []
+  evidence: "Based on my comprehensive duplicate investigation, I have thoroughly\
+    \ searched the oompah task tracker and codebase for similar issues.\n\n## Investigation\
+    \ Summary\n\n**Search Scope:**\n- `.oompah/tasks/open/` \u2014 1 task found (OOMPAH-281,\
+    \ unrelated: self-hosted GitHub Actions runner)\n- `.oompah/tasks/backlog/` \u2014\
+    \ 1 task found (OOMPAH-282, unrelated: state branch migration error)\n- `.oompah/tasks/merged/`\
+    \ \u2014 Multiple tasks reviewed (OOMPAH-271, OOMPAH-272, OOMPAH-275, etc., all\
+    \ unrelated)\n- `.oompah/tasks/archived/` \u2014 Hundreds of tasks scanned for\
+    \ keywords\n- Source code (`oompah/server.py`, `oompah/orchestrator.py`, etc.)\
+    \ \u2014 Confirmed the `api_project_resume` endpoint exists at line 11197 but\
+    \ lacks scheduler wake-up logic\n- Keyword searches: \"wake\", \"scheduler\",\
+    \ \"refresh\", \"dispatch\", \"pause\", \"resume\", \"project_resume\", \"orchestrator_refresh\"\
+    \ \u2014 No matching tasks found\n\n**Key Findings:**\n1. OOMPAH-537 addresses\
+    \ a unique problem: the POST `/api/v1/projects/{project_id}/resume` endpoint persists\
+    \ `paused=false` but does NOT wake the event-driven scheduler, causing delayed\
+    \ dispatch until the 5-minute full-sync safety poll.\n2. The only open task (OOMPAH-281)\
+    \ is unrelated (self-hosted GitHub Actions runner).\n3. No existing active tasks\
+    \ address scheduler wake-up, event-driven tick triggering, or project-specific\
+    \ refresh events.\n4. The issue mentions OOMPAH-535 and OOMPAH-536 as related\
+    \ tasks discovered during verification, but these do not appear in the task tracker\
+    \ yet (likely newly created in production).\n\n---\n\n**Focus handoff: duplicate_detector**\n\
+    \n**Duplicate preflight verdict: no_duplicate**\n\n**Matches: none**\n\n**Evidence:**\
+    \ Comprehensive search of `.oompah/tasks/` (open, backlog, merged, archived) and\
+    \ keyword searches across source code for \"wake\", \"scheduler\", \"refresh\"\
+    , \"dispatch\", \"project_resume\", and related terms yielded no active or open\
+    \ tasks describing the same functionality. OOMPAH-537 is a unique production follow-up\
+    \ task addressing a gap in the project resume endpoi"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 5be1b978-8654-4f81-8fca-68fc962013e7
+oompah.task_costs:
+  total_input_tokens: 290
+  total_output_tokens: 7039
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 290
+      output_tokens: 7039
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 290
+    output_tokens: 7039
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T00:09:25.803157+00:00'
+---
+## Summary
+
+Production follow-up discovered while verifying OOMPAH-535 and OOMPAH-536. POST /api/v1/projects/{project_id}/resume persists paused=false, but unlike global orchestrator unpause it does not request a refresh or post a REFRESH_REQUESTED event. With event-driven scheduling, the project can remain undispatched and the dashboard snapshot can continue showing paused=true until the five-minute full-sync safety poll.\n\nImplementation scope:\n- After a successful project resume, wake the active orchestrator so it runs an immediate poll/reconciliation/dispatch cycle.\n- Preserve 404/validation behavior and project-scoped pause semantics. Do not globally unpause the orchestrator.\n- Ensure the dashboard snapshot refreshes promptly from the resulting tick.\n\nRequired tests:\n- Project resume clears the project pause and requests exactly one scheduler refresh/wake-up.\n- Unknown-project and failed updates do not request a refresh.\n- Project pause does not accidentally wake or globally change scheduler state unless explicitly intended.\n- Run focused tests and make test.\n\nAcceptance criteria:\nA resumed project becomes dispatchable without waiting for the periodic full-sync interval; the next event-driven tick sees paused=false; other project/global pause state is unchanged; and production verification can observe OOMPAH-469 dispatched under a non-duplicate implementation focus.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 00:05
+---
+Claimed directly during live verification. The project pause is already persisted as false, but no refresh event was posted, so no agent can be dispatched before this fix or the periodic full sync.
+---
+author: oompah
+created: 2026-07-29 00:07
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-29 00:07
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-29 00:09
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 81, Tool calls: 41
+- Tokens: 290 in / 7.0K out [7.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 51s
+- Log: OOMPAH-537__20260729T000736Z.jsonl
+---
+author: oompah
+created: 2026-07-29 00:09
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 00:09
+---
+Focus: Frontend Developer
+---
+<!-- COMMENTS:END -->
