@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-340
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Extend parse_gitlab_webhook and server handler for Push/Issue/Note/Pipeline/Job
   hooks
@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:28:20.576396Z'
-updated_at: '2026-07-22T15:29:06.893956Z'
+updated_at: '2026-07-29T15:35:48.374856Z'
 work_branch: null
 target_branch: null
 review_url: null
