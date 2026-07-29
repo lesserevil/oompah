@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-07-29T02:21:26.108259Z'
+updated_at: '2026-07-29T02:22:14.740946Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -162,5 +162,10 @@ author: oompah
 created: 2026-07-29 02:21
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-29 02:22
+---
+Understanding: Reviewing the codebase for OOMPAH-474. The task requires adding an auditor-only structured result submission API endpoint in server.py keyed by audit ID and task/project identity. The data model is already in place (AuditResult, TerminalTransitionCoordinator.apply_audit_result), and the tool schema (AUDITOR_RESULT_TOOL_SCHEMA) and parsing (parse_auditor_result) exist in auditor.py. What appears to be missing is: (1) a server-side HTTP POST endpoint /api/v1/auditor/submit-result that authenticates the caller as the auditor session, validates session ownership, validates payload, and calls coordinator.apply_audit_result; (2) tests covering owner session, wrong session/task/project, expired/stale audit, malformed enum, oversized output, attempted status injection, secret-like fields, duplicate/conflicting submissions, and coordinator failure.
 ---
 <!-- COMMENTS:END -->
