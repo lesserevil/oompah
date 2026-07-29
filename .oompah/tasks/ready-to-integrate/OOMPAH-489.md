@@ -16,7 +16,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-07-29T19:21:14.635403Z'
+updated_at: '2026-07-29T19:21:30.831545Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-489
 target_branch: null
 review_url: null
@@ -51,8 +51,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 8a79fe1a-5014-4660-a3c0-54f4d4bcb1cb
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-489
 oompah.task_costs:
-  total_input_tokens: 1976956
-  total_output_tokens: 15957
+  total_input_tokens: 1976997
+  total_output_tokens: 16926
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -62,6 +62,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 49952
       output_tokens: 366
+      cost_usd: 0.0
+    opus:
+      input_tokens: 41
+      output_tokens: 969
       cost_usd: 0.0
   runs:
   - profile: default
@@ -82,6 +86,12 @@ oompah.task_costs:
     output_tokens: 366
     cost_usd: 0.0
     recorded_at: '2026-07-29T19:17:08.033429+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 41
+    output_tokens: 969
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T19:21:29.471084+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -235,5 +245,15 @@ author: oompah
 created: 2026-07-29 19:21
 ---
 Added end-to-end epic terminal-audit lifecycle contract (tests/test_epic_terminal_audit_contract.py, 21 tests) covering shared and nested epic rollup evidence, In-Validation blocking, Done/Merged branch chain across native/GitHub/GitLab tracker adapters, race scenarios (stale evidence, duplicate webhook+poll signals, restart recovery), authorized owner override, and gated placeholders (importorskip + xfail) for the independent-auditor selector and repair-planner behaviors from blocked OOMPAH-479/OOMPAH-482. All focused tests pass.
+---
+author: oompah
+created: 2026-07-29 19:21
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 22
+- Tokens: 41 in / 969 out [1.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 42s
+- Log: OOMPAH-489__20260729T191755Z.jsonl
 ---
 <!-- COMMENTS:END -->
