@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T16:53:10.463643Z'
+updated_at: '2026-07-29T16:53:12.739419Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -162,5 +162,10 @@ author: oompah
 created: 2026-07-29 16:53
 ---
 Verification: focused tests pass on the rebased branch. Force-pushed epic-OOMPAH-458 to origin. All 21 branch commits preserved on top of origin/main (7b7341201). Merge conflicts resolved: acp_agent, acp_backends/{base,codex,opencode}, acp_tools, api_agent, orchestrator, models. Ready for review.
+---
+author: oompah
+created: 2026-07-29 16:53
+---
+Rebased epic-OOMPAH-458 onto origin/main. Resolved conflicts across acp_agent.py, acp_backends/{base,codex,opencode}.py, acp_tools.py, api_agent.py, orchestrator.py, and models.py by combining main's task_identifier/action_policy/task_handoff_token/read_only additions with the branch's auditor focus/audit_target/audit_result_handler additions. 21 original commits preserved. Focused tests (137 auditor + 383 acp/api/authority + 159 dispatch) pass. Force-pushed to origin.
 ---
 <!-- COMMENTS:END -->
