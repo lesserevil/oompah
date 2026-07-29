@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-471
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Collect stable evidence for Done completion audits
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-29T01:31:16.317037Z'
+updated_at: '2026-07-29T01:33:13.123837Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -507,5 +507,21 @@ author: oompah
 created: 2026-07-29 01:31
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-29 01:33
+---
+Verification complete: All work committed and pushed on epic-OOMPAH-458. Test results: 36/36 DoneEvidenceCollector tests passing. Implementation includes:
+
+✓ Read-only DoneEvidenceCollector class (deterministic evidence collection)
+✓ EvidenceSnapshot data structure with all audit evidence fields  
+✓ Typed evidence markers (EvidenceUnavailable, EvidenceInvalid) for clear failures
+✓ Git-accessible evidence: worktree, branch/SHA, diff/stat (500-line bounded), changed files, commit/push status, contributors
+✓ Comprehensive git fixture infrastructure for testing
+✓ Full test coverage with edge case handling (detached HEAD, no commits, missing remotes)
+✓ Deterministic, idempotent, read-only operations
+✓ No breaking changes to existing code (28 existing tests still passing)
+
+Acceptance criteria met: Deterministic stable snapshots, missing/invalid evidence explicit, read-only collection, clear failure modes, rollback-safe. Ready for feature specialist integration with tracker metadata and epic child traversal.
 ---
 <!-- COMMENTS:END -->
