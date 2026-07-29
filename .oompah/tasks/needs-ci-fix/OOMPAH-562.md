@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-562
 type: bug
-status: Merged
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Recover integration queues blocked by stale epic ancestry
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T22:03:35.158883Z'
+updated_at: '2026-07-29T22:08:40.076046Z'
 work_branch: OOMPAH-562
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/580
@@ -257,5 +258,10 @@ author: oompah
 created: 2026-07-29 22:03
 ---
 Manual recovery landing: original implementation merged in PR #580. During landing review, the new recovery method was found to lack required regression coverage and had stale in-memory authorization/duplicate-dispatch edge cases. Follow-up commit 750007ae adds focused coverage (45 related tests passing) and hardens authorization, repository locking, active-rebase reuse, cooldown, and unrepairable Done dependencies; PR #581 is waiting on the required CI matrix.
+---
+author: oompah
+created: 2026-07-29 22:08
+---
+YOLO: CI tests failed on MR #581. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
