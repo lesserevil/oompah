@@ -19089,6 +19089,7 @@ class Orchestrator:
                 focus=focus,
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
                 audit_target=audit_target,
+                audit_result_handler=_acp_audit_handler,
             )
             self._acp_agent_sessions[issue.id] = session
 

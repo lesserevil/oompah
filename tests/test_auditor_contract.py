@@ -261,15 +261,18 @@ def test_acp_agent_passes_auditor_policy_to_backend(monkeypatch):
         "oompah.acp_agent.get_backend_or_raise", lambda _name: lambda: backend
     )
     policy = auditor_policy("TASK-1")
+    result_handler = object()
     session = AcpAgentSession(
         workspace_path=".",
         prompt="audit",
         action_policy=policy,
         auditor=True,
         audit_target=_target(),
+        audit_result_handler=result_handler,
     )
 
     assert asyncio.run(session.run_task()) == "succeeded"
     assert options_seen[0].action_policy is policy
     assert options_seen[0].auditor is True
     assert options_seen[0].audit_target.audit_id == "audit-42"
+    assert options_seen[0].audit_result_handler is result_handler
