@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-561
 type: chore
-status: Backlog
+status: In Progress
 priority: 1
 title: Prune terminal branches and worktrees aggressively
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:03:33.910422Z'
-updated_at: '2026-07-29T21:03:33.910422Z'
+updated_at: '2026-07-29T21:03:48.415225Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Increase cleanup throughput for the parallel agent scheduler. Scope: make manage
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 21:03
+---
+Implementation started from the primary checkout. Confirmed current gaps: five-minute inherited cleanup cadence, default batch 25, no-op entries consume the budget, terminal task/epic cleanup leaves local and remote branches, and managed fetch does not prune remote-tracking refs. Adding guarded terminal branch cleanup, safe gone-upstream pruning, independent interval/batch defaults, and regression coverage.
+---
+<!-- COMMENTS:END -->
