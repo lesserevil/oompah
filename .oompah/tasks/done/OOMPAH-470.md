@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T02:17:49.550648Z'
+updated_at: '2026-07-29T02:19:23.515556Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -659,5 +659,37 @@ author: oompah
 created: 2026-07-29 02:17
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 02:19
+---
+Verification (continuation attempt #2): Reviewed the prior work already committed and pushed on epic-OOMPAH-458. All acceptance criteria are met and covered by tests.
+
+Commits landed on this branch for OOMPAH-470:
+- 4926230c1 Implement auditor role independent candidate selection
+- f220e5b2e Integrate auditor role seeding into bootstrap
+- 094f60a5a Seed independent auditor candidates (server/UI/tests)
+- 3a2871400 Handle dataclass budget snapshots
+- 3e4b65d6a Enforce independent auditor fallback policy
+
+Focused test results (all pass):
+- tests/test_auditor_candidate_selector.py: 38 passed
+- tests/test_auditor_contract.py + test_auditor_focus.py + test_roles_api.py: 73 passed, 1 skipped
+- tests/test_role_store.py + test_work_contributors.py + test_providers_role_matrix.py: 266 passed
+
+Implementation summary:
+- oompah/auditor_candidate_selector.py: NoCandidateReason + AuditorCandidateSelector with seed_auditor_role(), select_candidate(), and helper filters. seed_auditor_role_from_config() wraps it for RoleStore integration.
+- Seeding pulls dedup union of deep/standard/default role candidates then remaining configured provider defaults (no hardcoded provider IDs).
+- Filter pipeline: whitelist -> credentials -> health -> budget (subscription ACP bypass, dataclass-friendly budget snapshots) -> model validity -> exclude every contributor model.
+- Independent preference: providers not used by any contributor win; fallback to a contributing provider is allowed only when the candidate has an explicit model ID different from every contributed model on that provider. Unknown ACP/SDK-managed models on contributing providers are always rejected.
+- Normalized no-candidate reasons: empty_role, no_providers, no_whitelisted_providers, all_require_missing_credentials, all_unhealthy, all_over_budget, all_are_contributors, unknown_acp_models_only, unknown_error.
+- Bootstrap: oompah/bootstrap.py seeds the auditor role idempotently if it does not already exist; operators can edit auditor candidates through the existing RoleStore/API paths (tests/test_roles_api.py covers this).
+
+Acceptance criteria satisfied:
+- Selected auditors are demonstrably independent under the agreed policy.
+- Unsafe or unverifiable candidates (contributor models, unknown SDK models on contributing providers, unhealthy/uncredentialed/over-budget providers, non-whitelisted providers) are excluded.
+- Operators can edit auditor candidates through the existing role configuration path.
+
+Branch is up to date with origin. Closing task.
 ---
 <!-- COMMENTS:END -->
