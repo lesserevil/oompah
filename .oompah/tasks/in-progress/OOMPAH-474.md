@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-474
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Add the auditor-only structured result submission API and tool
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-07-29T02:39:34.526154Z'
+updated_at: '2026-07-29T02:39:46.327970Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -59,13 +59,17 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 63217c42-7bd5-43b3-9408-c4b72ac96ef1
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 108185
-  total_output_tokens: 5470
+  total_input_tokens: 108307
+  total_output_tokens: 54624
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 108185
       output_tokens: 5470
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 122
+      output_tokens: 49154
       cost_usd: 0.0
   runs:
   - profile: default
@@ -80,6 +84,12 @@ oompah.task_costs:
     output_tokens: 1002
     cost_usd: 0.0
     recorded_at: '2026-07-29T02:21:10.013845+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 122
+    output_tokens: 49154
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T02:39:42.434925+00:00'
 ---
 ## Summary
 
@@ -202,5 +212,38 @@ author: oompah
 created: 2026-07-29 02:39
 ---
 Added auditor-only structured result submission API and tool. Enhanced parse_auditor_result with size limits and credential detection. Wired audit_result_handler to coordinator in both API and ACP worker paths. 59 new tests covering all acceptance criteria scenarios; 276 passed.
+---
+author: oompah
+created: 2026-07-29 02:39
+---
+Agent completed successfully in 1098s (49276 tokens)
+---
+author: oompah
+created: 2026-07-29 02:39
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 195, Tool calls: 141
+- Tokens: 122 in / 49.2K out [49.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 18m 18s
+- Log: OOMPAH-474__20260729T022126Z.jsonl
+---
+author: oompah
+created: 2026-07-29 02:39
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-458` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-458
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-458
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->

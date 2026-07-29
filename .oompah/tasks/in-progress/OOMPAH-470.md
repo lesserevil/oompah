@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T02:20:41.131166Z'
+updated_at: '2026-07-29T02:39:53.727881Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -52,7 +52,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 77276807-4354-4db2-bb1a-6af65bcb1831
+oompah.agent_run_id: d3cbc67c-2206-4e5b-8796-4756130c17fd
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 47532870
@@ -735,5 +735,15 @@ Steps to resolve:
   git push origin epic-OOMPAH-458
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-29 02:39
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 02:39
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
