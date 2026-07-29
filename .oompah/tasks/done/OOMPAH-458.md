@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T17:45:19.862923Z'
+updated_at: '2026-07-29T17:45:21.928559Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -271,5 +271,10 @@ author: oompah
 created: 2026-07-29 17:44
 ---
 Implementation: added monkeypatch fixture to test_poll_does_not_create_duplicate_when_task_is_corrupt in tests/test_github_intake_bridge.py that swaps _github_tracker_for_project for a lambda returning the existing FakeGitHubTracker instance — same pattern used by every other poll-based test in this module. Verification: 56/56 tests in test_github_intake_bridge.py pass locally on Python 3.12. Commit 7a3538f09 pushed to epic-OOMPAH-458.
+---
+author: oompah
+created: 2026-07-29 17:45
+---
+CI fix: added monkeypatch to test_poll_does_not_create_duplicate_when_task_is_corrupt to inject FakeGitHubTracker so the poll no longer calls real api.github.com (rate-limited 403 -> TrackerAuthError on Py3.12 CI). 56/56 tests in test_github_intake_bridge.py pass locally. Commit 7a3538f09.
 ---
 <!-- COMMENTS:END -->
