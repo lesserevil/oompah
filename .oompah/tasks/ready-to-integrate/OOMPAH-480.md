@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-29T23:35:01.389253Z'
+updated_at: '2026-07-29T23:47:41.519009Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null
@@ -89,9 +89,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-480
-  head_sha: 6d070d8e343fb93dce439cbb7c99c32d2524d12c
-  submitted_at: '2026-07-29T23:34:59.497072+00:00'
-  updated_at: '2026-07-29T23:34:59.497072+00:00'
+  head_sha: ddd22322598e8d5b4711bb8b77639e99d00ddc6d
+  submitted_at: '2026-07-29T23:47:39.496059+00:00'
+  updated_at: '2026-07-29T23:47:39.496059+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-480__20260729T182912Z
@@ -372,5 +372,10 @@ author: oompah
 created: 2026-07-29 23:35
 ---
 Rebased release-pick audit work cleanly onto repaired epic head cfa5ca64f.
+---
+author: oompah
+created: 2026-07-29 23:47
+---
+Recovered the rebased private head left by the service auto-restart; resubmitting ddd223225 for a fresh sanitized quality gate.
 ---
 <!-- COMMENTS:END -->
