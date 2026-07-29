@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-484
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose safe terminal-audit state in project, task, and activity APIs
 parent: OOMPAH-460
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:23.210919Z'
-updated_at: '2026-07-29T19:15:39.176257Z'
+updated_at: '2026-07-29T19:15:52.031308Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-484
 target_branch: null
 review_url: null
@@ -63,12 +63,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T02:02:37.416064+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-484
-  base_branch: epic-OOMPAH-460
-  base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
-  updated_at: '2026-07-29T18:44:45.178083+00:00'
+  head_sha: 28208fdb229f7ec8c9b12c81eebc3dd693185521
+  submitted_at: '2026-07-29T19:15:50.004178+00:00'
+  updated_at: '2026-07-29T19:15:50.004178+00:00'
 ---
 ## Summary
 
@@ -216,5 +216,10 @@ Delivered:
 4. Tests (test_terminal_status_interfaces.py): 38 tests covering all audit states, redaction contract, list/detail agreement, and dashboard contracts.
 
 Acceptance criteria met: UI and operators can understand audit state from stable safe APIs without parsing comments or tracker metadata, and no sensitive content is exposed.
+---
+author: oompah
+created: 2026-07-29 19:15
+---
+Exposed safe terminal-audit state across task list, detail, and activity APIs. Added _issue_terminal_audit_summary() and _terminal_audit_phase() to server.py, rendered in dashboard.html via renderTerminalAuditSummary/renderTerminalAuditDetail with per-phase CSS. 38 new API serialization/redaction tests in test_terminal_status_interfaces.py covering all audit states (queued/running/passed/failed/overridden/grandfathered/malformed/ACP-unknown). No sensitive content exposed; legacy fields unchanged.
 ---
 <!-- COMMENTS:END -->
