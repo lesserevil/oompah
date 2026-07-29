@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T05:50:39.607092Z'
+updated_at: '2026-07-29T05:51:02.192597Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -58,13 +58,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 1a18fb7c-bd6d-4418-b9a0-3baccb0cddc5
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 4250199
-  total_output_tokens: 87641
+  total_input_tokens: 4329754
+  total_output_tokens: 88326
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 2827040
-      output_tokens: 80141
+      input_tokens: 2906595
+      output_tokens: 80826
       cost_usd: 0.0
     opus:
       input_tokens: 1423159
@@ -185,6 +185,12 @@ oompah.task_costs:
     output_tokens: 2300
     cost_usd: 0.0
     recorded_at: '2026-07-29T05:42:41.399809+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 79555
+    output_tokens: 685
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T05:50:58.941018+00:00'
 ---
 ## Summary
 
@@ -1123,5 +1129,25 @@ author: oompah
 created: 2026-07-29 05:50
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-29 05:50
+---
+Agent completed successfully in 22s (80240 tokens)
+---
+author: oompah
+created: 2026-07-29 05:51
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 1
+- Tokens: 79.6K in / 685 out [80.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 22s
+- Log: OOMPAH-472__20260729T055039Z.jsonl
+---
+author: oompah
+created: 2026-07-29 05:51
+---
+Agent completed 7 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
