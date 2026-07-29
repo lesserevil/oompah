@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-29T18:47:10.219264Z'
+updated_at: '2026-07-29T19:02:18.250120Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 84a2164f-5f0f-4709-a974-3fe468782345
+oompah.agent_run_id: ed38a3a3-d22a-4dba-9a32-2f9476951d12
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-480
 oompah.task_costs:
   total_input_tokens: 1017169
