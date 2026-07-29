@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-569
 type: task
-status: In Review
+status: Merged
 priority: null
 title: Sanitize credentials from branch quality-gate subprocesses
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:26:15.028867Z'
-updated_at: '2026-07-29T23:34:30.525901Z'
+updated_at: '2026-07-29T23:41:25.372299Z'
 work_branch: OOMPAH-569
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/585
