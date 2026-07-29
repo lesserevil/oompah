@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-29T01:33:15.347418Z'
+updated_at: '2026-07-29T01:33:28.395866Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -41,13 +41,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: de60e49c-44ec-4764-bdf9-ba8929035a81
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 1447668
-  total_output_tokens: 53009
+  total_input_tokens: 1447834
+  total_output_tokens: 53055
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1447668
-      output_tokens: 53009
+      input_tokens: 1447834
+      output_tokens: 53055
       cost_usd: 0.0
   runs:
   - profile: default
@@ -86,6 +86,12 @@ oompah.task_costs:
     output_tokens: 2618
     cost_usd: 0.0
     recorded_at: '2026-07-29T01:20:37.310641+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 166
+    output_tokens: 46
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T01:33:26.181352+00:00'
 ---
 ## Summary
 
@@ -528,5 +534,15 @@ author: oompah
 created: 2026-07-29 01:33
 ---
 Delivered complete read-only DoneEvidenceCollector infrastructure: 574-line core class with deterministic evidence collection, EvidenceSnapshot structure, typed evidence markers (EvidenceUnavailable/EvidenceInvalid), 237-line git fixture infrastructure, 496-line test suite with 36 passing tests covering all edge cases. Meets all acceptance criteria: deterministic snapshots, explicit missing/invalid evidence, read-only operations, clear failure modes, rollback-safe, comprehensive testing. All work committed to epic-OOMPAH-458 and verified passing.
+---
+author: oompah
+created: 2026-07-29 01:33
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 8
+- Tokens: 166 in / 46 out [212 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 13s
+- Log: OOMPAH-471__20260729T013121Z.jsonl
 ---
 <!-- COMMENTS:END -->
