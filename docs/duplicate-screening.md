@@ -49,6 +49,13 @@ ready during the same tick. If capacity shrinks below the number of running
 agents, Oompah does not terminate either screening or implementation agents;
 it simply starts no additional work until capacity is available.
 
+Because screening is read-only qualification work, it deliberately bypasses
+dependency readiness and one-agent-per-epic/shared-branch serialization.
+Blocked Open tasks can be screened early, and multiple siblings can be
+screened while another sibling implements. Those gates still apply unchanged
+to implementation workers, and active screening workers do not count as
+shared-branch writers.
+
 ## Screening States
 
 The task card and detail panel expose these states:
@@ -96,8 +103,9 @@ If an `Open` task is not starting:
 3. If it is `stale`, confirm that the retry backoff has elapsed and agent
    capacity is available.
 4. Confirm `OOMPAH_DUPLICATE_PREFLIGHT_MAX_AGENTS` is greater than zero.
-5. Check normal dispatch gates such as dependencies, project pause, provider
-   availability, budget, and shared-epic serialization.
+5. Check the gates that still apply to screening, such as project pause,
+   provider availability, budget, and per-state capacity. Dependency readiness
+   and shared-epic serialization do not block read-only screening.
 
 Scheduler diagnostics include duplicate-preflight counts for selected,
 started, checked, running, backoff, no-capacity, and claim-race outcomes.

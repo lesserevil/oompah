@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch, call
 import pytest
 
 from oompah.config import ServiceConfig
+from oompah.duplicate_screening import new_claim_record
 from oompah.models import BlockerRef, Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
@@ -511,7 +512,14 @@ class TestResolveBlockerState:
 class TestSharedModeDispatchGating:
     """epic_strategy='shared' must allow only 1 in-flight child per epic."""
 
-    def _set_up_running_sibling(self, orch, parent_id: str, sibling_id: str):
+    def _set_up_running_sibling(
+        self,
+        orch,
+        parent_id: str,
+        sibling_id: str,
+        *,
+        duplicate_preflight: bool = False,
+    ):
         sibling = _make_issue(identifier=sibling_id, parent_id=parent_id)
         entry = RunningEntry(
             worker_task=MagicMock(),
@@ -521,6 +529,7 @@ class TestSharedModeDispatchGating:
             retry_attempt=0,
             started_at=MagicMock(),
             agent_profile_name="default",
+            duplicate_preflight=duplicate_preflight,
         )
         orch.state.running[sibling.id] = entry
 
@@ -608,6 +617,95 @@ class TestSharedModeDispatchGating:
         # Confirm the rejection reason was the shared-epic-busy gate
         reason, _count = orch.state.reject_streak[child.id]
         assert "shared_epic_busy" in reason
+
+    def test_duplicate_preflight_bypasses_running_shared_sibling(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.config.duplicate_preflight_max_agents = 2
+        self._set_up_running_sibling(
+            orch,
+            parent_id="epic-1",
+            sibling_id="task-running",
+        )
+        child = _make_issue(identifier="task-2", parent_id="epic-1", state="open")
+        orch._reviews_cache = {}
+
+        assert orch._should_dispatch(child, duplicate_preflight=True) is True
+
+    def test_dependency_blocked_task_can_only_duplicate_preflight(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.config.duplicate_preflight_max_agents = 2
+        child = _make_issue(identifier="task-2", parent_id="epic-1", state="open")
+        child.blocked_by = [BlockerRef(id="task-1", identifier="task-1")]
+        orch._reviews_cache = {}
+
+        with (
+            patch.object(
+                orch,
+                "_implementation_duplicate_screening_ready",
+                return_value=True,
+            ),
+            patch.object(orch, "_resolve_blocker_state", return_value="open"),
+        ):
+            assert orch._should_dispatch(child) is False
+            assert orch._should_dispatch(child, duplicate_preflight=True) is True
+
+    def test_running_duplicate_preflight_does_not_block_implementation(
+        self, tmp_path
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        self._set_up_running_sibling(
+            orch,
+            parent_id="epic-1",
+            sibling_id="task-screening",
+            duplicate_preflight=True,
+        )
+        child = _make_issue(identifier="task-2", parent_id="epic-1", state="open")
+        orch._reviews_cache = {}
+
+        assert orch._should_dispatch(child) is True
+
+    def test_claimed_duplicate_preflight_does_not_block_implementation(
+        self, tmp_path
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        screening = _make_issue(
+            identifier="task-screening",
+            parent_id="epic-1",
+            state="open",
+        )
+        screening.duplicate_screening = new_claim_record(
+            screening,
+            owner="scheduler",
+        ).to_dict()
+        orch.state.claimed.add(screening.id)
+        orch.state.claimed_issues[screening.id] = screening
+        child = _make_issue(identifier="task-2", parent_id="epic-1", state="open")
+        orch._reviews_cache = {}
+
+        assert orch._should_dispatch(child) is True
+
+    def test_preflight_selection_allows_blocked_shared_siblings_in_same_batch(
+        self, tmp_path
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.config.duplicate_preflight_max_agents = 2
+        orch.state.max_concurrent_agents = 2
+        children = [
+            _make_issue(identifier="task-a", parent_id="epic-1", state="open"),
+            _make_issue(identifier="task-b", parent_id="epic-1", state="open"),
+        ]
+        for child in children:
+            child.blocked_by = [BlockerRef(id="blocker", identifier="blocker")]
+        orch._reviews_cache = {}
+
+        selected = orch._select_duplicate_preflight_candidates(children)
+
+        assert [issue.identifier for issue in selected] == ["task-a", "task-b"]
 
     def test_allows_when_no_sibling_running_in_shared_mode(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
