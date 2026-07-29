@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-29T18:58:34.686382Z'
+updated_at: '2026-07-29T18:58:36.833758Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -241,5 +241,10 @@ Acceptance criteria verified:
 ✅ Migration from OOMPAH_VERIFY_COMPLETION — §Migration Notes in operator-runbook.md and §Migration from Completion Verifier in auditor doc
 ✅ OOMPAH_AUDIT_MAX_ATTEMPTS in .env.example and ServiceConfig — confirmed by tests
 ✅ In Validation in task-epic-workflow.md lifecycle — confirmed by test
+---
+author: oompah
+created: 2026-07-29 18:58
+---
+Delivered docs/auditor-dispatch-operations.md (new) with Mermaid lifecycle, auditor role/independence rules/target audits/In Validation/failure routing/owner override/no-candidate recovery/upgrade grandfathering/restart behavior/migration; updated docs/task-epic-workflow.md (In Validation status), docs/operator-runbook.md (migration notes §10.1); added OOMPAH_AUDIT_MAX_ATTEMPTS + 3 related audit env vars to .env.example and ServiceConfig; deprecated OOMPAH_VERIFY_COMPLETION/LLM with startup warnings; 19 new tests in TestAuditDispatchConfiguration covering config parsing, env overrides, deprecation warnings, and doc content checks. All 13126 tests pass.
 ---
 <!-- COMMENTS:END -->
