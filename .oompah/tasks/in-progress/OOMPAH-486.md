@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-29T20:06:55.387488Z'
+updated_at: '2026-07-29T20:12:27.364200Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -280,5 +280,16 @@ author: oompah
 created: 2026-07-29 20:06
 ---
 **Discovery**: Found terminal-audit metrics are exposed via orchestrator.get_snapshot()["terminal_audit"] and broadcast to dashboard via WebSocket state updates. The agent-bar component in oompah/templates/dashboard.html currently shows Agents, Tokens, Cost, Budget, Reviews, Proposed foci, and Questions. Will add an audit throughput stat to display queued/running audit counts during active audit validation, hidden when idle. This satisfies the requirement to help operators distinguish healthy throughput from audit stalls without routine-operation noise.
+---
+author: oompah
+created: 2026-07-29 20:12
+---
+**Implementation**: Added audit throughput stat to dashboard agent-bar (oompah/templates/dashboard.html):
+
+1. HTML element: New agent-stat span showing 'Audits: Xq/Yr' format (q=queued, r=running) with aria-label for accessibility
+2. JavaScript function: updateAuditThroughputStat() receives terminal_audit metrics from state and conditionally displays the stat only when queued>0 or running>0
+3. State integration: Wired into handleStateUpdate() to receive state.terminal_audit from WebSocket broadcasts
+
+The stat is hidden when idle (both queued and running are 0), preventing routine-operation noise while making active validation throughput immediately visible to operators. Backend metrics (queued, running counts) are provided via orchestrator.get_snapshot()["terminal_audit"], alleviating the need for operators to dig through logs or metrics endpoints.
 ---
 <!-- COMMENTS:END -->
