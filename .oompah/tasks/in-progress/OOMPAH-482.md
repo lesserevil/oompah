@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:30.191340Z'
-updated_at: '2026-07-29T19:18:27.624438Z'
+updated_at: '2026-07-29T19:18:38.790117Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-482
 target_branch: null
 review_url: null
@@ -207,5 +207,19 @@ Verification: All focused tests pass.
 - tests/test_dispatch_lane_contract.py + tick suites: 89 passed
 
 Total: 568 tests pass. No regressions. Branch pushed to origin.
+---
+author: oompah
+created: 2026-07-29 19:18
+---
+Completion: OOMPAH-482 implemented and verified.
+
+Delivered:
+- Coordinator stamps 'audit:repair-needed' label + repair metadata on epic FAIL audit → Open routing
+- _should_dispatch_epic allows one repair run for audit:repair-needed epics with children
+- Persisted 'claimed' flag prevents duplicate repair dispatch on restart
+- New epic_repair_planner focus (priority 9) selected by label, instructs agent to inspect children/reopen/create/add deps/remove label without implementing code
+- 20 comprehensive new tests covering all acceptance criteria scenarios
+
+Ready to submit.
 ---
 <!-- COMMENTS:END -->
