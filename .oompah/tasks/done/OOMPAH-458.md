@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-458
 type: epic
-status: In Progress
+status: Done
 priority: 0
 title: Dispatch independent auditor agents and evaluate target-specific evidence
 parent: null
@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T16:52:57.862296Z'
+updated_at: '2026-07-29T16:53:10.463643Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -157,5 +157,10 @@ author: oompah
 created: 2026-07-29 16:52
 ---
 Rebase conflicts resolved. 21 commits rebased onto origin/main. Merged HEAD+branch changes across acp_agent.py, acp_backends/{base,codex,opencode}.py, acp_tools.py, api_agent.py, orchestrator.py, models.py. Preserved both: task_identifier/action_policy/task_handoff_token/read_only from main and focus/auditor/audit_target/audit_result_handler from branch. Focused tests pass: 137 auditor tests + 383 acp/api/authority + 159 dispatch/duplicate detection.
+---
+author: oompah
+created: 2026-07-29 16:53
+---
+Verification: focused tests pass on the rebased branch. Force-pushed epic-OOMPAH-458 to origin. All 21 branch commits preserved on top of origin/main (7b7341201). Merge conflicts resolved: acp_agent, acp_backends/{base,codex,opencode}, acp_tools, api_agent, orchestrator, models. Ready for review.
 ---
 <!-- COMMENTS:END -->
