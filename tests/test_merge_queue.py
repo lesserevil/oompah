@@ -383,18 +383,33 @@ class TestYoloEnqueueMode:
     def _make_orchestrator(self, tmp_path, projects=None):
         from oompah.config import ServiceConfig
         from oompah.orchestrator import Orchestrator
+        from unittest.mock import AsyncMock
+        from oompah.terminal_audit import TargetState
+        from oompah.terminal_transition_coordinator import TransitionResult
 
         project_store = MagicMock()
         project_store.list_all.return_value = projects or []
         project_store.get.side_effect = lambda pid: next(
             (p for p in (projects or []) if p.id == pid), None
         )
-        return Orchestrator(
+        orch = Orchestrator(
             config=ServiceConfig(),
             workflow_path="WORKFLOW.md",
             project_store=project_store,
             state_path=str(tmp_path / "state.json"),
         )
+        # Mock the coordinator's request_transition to return success
+        orch.terminal_transition_coordinator.request_transition = AsyncMock(
+            return_value=TransitionResult(
+                success=True,
+                audit_id="audit-123",
+                queued_targets=[TargetState.MERGED],
+                coalesced=False,
+                superseded_audit_id=None,
+                reason=None,
+            )
+        )
+        return orch
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
@@ -1789,6 +1804,9 @@ class TestYoloGitHubTrackerUpdates:
     def _make_orchestrator(self, tmp_path, projects=None):
         from oompah.config import ServiceConfig
         from oompah.orchestrator import Orchestrator
+        from unittest.mock import AsyncMock
+        from oompah.terminal_audit import TargetState
+        from oompah.terminal_transition_coordinator import TransitionResult
 
         project_store = MagicMock()
         project_store.list_all.return_value = projects or []
@@ -1802,6 +1820,17 @@ class TestYoloGitHubTrackerUpdates:
             state_path=str(tmp_path / "state.json"),
         )
         orch.config.tracker_kind = "github_issues"
+        # Mock the coordinator's request_transition to return success
+        orch.terminal_transition_coordinator.request_transition = AsyncMock(
+            return_value=TransitionResult(
+                success=True,
+                audit_id="audit-123",
+                queued_targets=[TargetState.MERGED],
+                coalesced=False,
+                superseded_audit_id=None,
+                reason=None,
+            )
+        )
         return orch
 
     def _make_github_tracker(self, issue_id: str, issue_state: str = "In Review"):
@@ -1877,9 +1906,10 @@ class TestYoloGitHubTrackerUpdates:
         orch._yolo_review_actions_sync()
 
         # Task must be updated to Merged.
-        tracker.update_issue.assert_called_once_with(
-            task_issue.identifier, status="Merged"
-        )
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
         # A comment must be posted.
         tracker.add_comment.assert_called_once()
         comment_text = tracker.add_comment.call_args[0][1]

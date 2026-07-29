@@ -2504,6 +2504,59 @@ class Orchestrator:
             return asyncio.run_coroutine_threadsafe(request, loop).result()
         return asyncio.run(request)
 
+    def _request_merged_via_coordinator(
+        self,
+        issue: Issue,
+        project_id: str,
+        trigger_identity: str = "merge-reconciliation",
+        trigger_source: str = "oompah",
+        evidence_fingerprint: EvidenceFingerprint | None = None,
+    ) -> TransitionResult | None:
+        """Request a Merged transition through the terminal coordinator (sync wrapper).
+
+        Wraps the async request_terminal_transition for use in sync reconciliation
+        methods. Returns None on failure rather than raising, for best-effort
+        reconciliation semantics.
+        """
+        try:
+            issue.project_id = project_id
+            if evidence_fingerprint is None:
+                # Auto-compute fingerprint from issue fields
+                contributors = getattr(issue, "contributors", ()) or ()
+                if isinstance(contributors, str):
+                    contributors = (contributors,)
+                evidence_fingerprint = compute_evidence_fingerprint(
+                    requirements_text=str(issue.description or ""),
+                    project_id=str(project_id),
+                    task_id=str(issue.identifier),
+                    source_branch=str(
+                        getattr(issue, "source_branch", None)
+                        or issue.work_branch
+                        or issue.branch_name
+                        or ""
+                    ),
+                    target_branch=str(issue.target_branch or ""),
+                    review_id=str(issue.review_number or ""),
+                    review_state=str(getattr(issue, "review_state", "") or ""),
+                    contributors=contributors,
+                )
+            return asyncio.run(
+                self.request_terminal_transition(
+                    current_issue=issue,
+                    requested_target=TargetState.MERGED,
+                    trigger_identity=ContributorIdentity(trigger_identity, trigger_source),
+                    project_id=project_id,
+                    evidence_fingerprint=evidence_fingerprint,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - best-effort reconciliation
+            logger.debug(
+                "Failed to request Merged via coordinator for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return None
+
     def _tracker_for_issue(self, issue: Issue) -> TrackerProtocol:
         """Get the appropriate tracker for an issue."""
         if issue.project_id:
@@ -11961,34 +12014,44 @@ class Orchestrator:
                         rollup_strategy=rollup_strategy,
                     )
                 ):
-                    try:
-                        tracker.update_issue(issue.identifier, status=MERGED)
+                    result = self._request_merged_via_coordinator(
+                        issue,
+                        project_id,
+                        trigger_identity="done-review-reconciliation",
+                        trigger_source="oompah",
+                    )
+                    if result is None or not result.success:
+                        logger.debug(
+                            "Failed to stage Merged transition for %s: %s",
+                            issue.identifier,
+                            result.reason if result else "coordinator error",
+                        )
+                    else:
                         logger.info(
-                            "Marked Done task %s Merged: branch %s has merged",
+                            "Staged %s as Merged via coordinator: branch %s has merged",
                             issue.identifier,
                             branch,
                         )
-                    except TrackerError as exc:
-                        logger.debug(
-                            "Failed to mark merged Done task %s merged: %s",
-                            issue.identifier,
-                            exc,
-                        )
                     continue
                 if self._done_issue_branch_tip_landed(issue, project, project_id):
-                    try:
-                        tracker.update_issue(issue.identifier, status=MERGED)
+                    result = self._request_merged_via_coordinator(
+                        issue,
+                        project_id,
+                        trigger_identity="done-review-reconciliation",
+                        trigger_source="oompah",
+                    )
+                    if result is None or not result.success:
+                        logger.debug(
+                            "Failed to stage Merged transition for %s: %s",
+                            issue.identifier,
+                            result.reason if result else "coordinator error",
+                        )
+                    else:
                         logger.info(
-                            "Marked Done task %s Merged: branch %s is already "
-                            "contained in its target",
+                            "Staged %s as Merged via coordinator: branch %s is already contained "
+                            "in its target",
                             issue.identifier,
                             self._branch_for_issue(issue, project),
-                        )
-                    except TrackerError as exc:
-                        logger.debug(
-                            "Failed to mark landed Done task %s merged: %s",
-                            issue.identifier,
-                            exc,
                         )
                     continue
                 if not self._done_issue_has_unmerged_review_work(
@@ -12399,16 +12462,23 @@ class Orchestrator:
                             branch,
                         )
                         continue
-                    try:
-                        tracker.update_issue(issue.identifier, status=MERGED)
+                    result = self._request_merged_via_coordinator(
+                        issue,
+                        project_id,
+                        trigger_identity="merged-label-maintenance",
+                        trigger_source="oompah",
+                    )
+                    if result is None or not result.success:
+                        logger.debug(
+                            "Failed to stage Merged transition for %s: %s",
+                            issue.identifier,
+                            result.reason if result else "coordinator error",
+                        )
+                    else:
                         logger.info(
-                            "Marked %s as Merged (branch %s)",
+                            "Staged %s as Merged via coordinator (branch %s)",
                             issue.identifier,
                             branch,
-                        )
-                    except TrackerError as exc:
-                        logger.debug(
-                            "Failed to label %s as merged: %s", issue.identifier, exc
                         )
 
     def _reconcile_in_review_pr_outcomes(self) -> None:
@@ -13157,19 +13227,25 @@ class Orchestrator:
         issue: Issue,
         branch: str,
     ) -> None:
-        try:
-            tracker.update_issue(issue.identifier, status=MERGED)
+        project_id = getattr(issue, "project_id", None) or ""
+        result = self._request_merged_via_coordinator(
+            issue,
+            project_id,
+            trigger_identity="stale-in-review-reconciliation",
+            trigger_source="oompah",
+        )
+        if result is None or not result.success:
+            logger.debug(
+                "Failed to stage Merged transition for %s: %s",
+                issue.identifier,
+                result.reason if result else "coordinator error",
+            )
+        else:
             logger.info(
-                "Marked %s as Merged during stale In Review reconciliation "
+                "Staged %s as Merged via coordinator during stale In Review reconciliation "
                 "(branch %s)",
                 issue.identifier,
                 branch,
-            )
-        except TrackerError as exc:
-            logger.debug(
-                "Failed to mark stale In Review task %s merged: %s",
-                issue.identifier,
-                exc,
             )
 
     def _mark_stale_in_review_done(
@@ -14212,16 +14288,26 @@ class Orchestrator:
         containment_targets = (landed_target,) if landed_target else (epic_branch,)
 
         tracker = self._tracker_for_issue(epic)
-        try:
-            tracker.update_issue(epic.identifier, status=MERGED)
+        project_id = getattr(epic, "project_id", None) or ""
+        result = self._request_merged_via_coordinator(
+            epic,
+            project_id,
+            trigger_identity="epic-rollup-reconciliation",
+            trigger_source="oompah",
+        )
+        if result is None or not result.success:
+            logger.debug(
+                "Failed to stage Merged transition for epic %s: %s",
+                epic.identifier,
+                result.reason if result else "coordinator error",
+            )
+        else:
             self._clear_stuck_epic_alert(epic.identifier)
             logger.info(
-                "Marked epic %s Merged (branch %s merged to main)",
+                "Staged epic %s as Merged via coordinator (branch %s merged to main)",
                 epic.identifier,
                 epic_branch,
             )
-        except TrackerError as exc:
-            logger.debug("Failed to mark epic %s merged: %s", epic.identifier, exc)
 
         try:
             children = self._fetch_epic_children(epic)
@@ -14310,17 +14396,25 @@ class Orchestrator:
                     epic.identifier,
                 )
                 continue
-            try:
-                tracker.update_issue(child.identifier, status=MERGED)
+            project_id = getattr(child, "project_id", None) or ""
+            result = self._request_merged_via_coordinator(
+                child,
+                project_id,
+                trigger_identity="epic-rollup-reconciliation",
+                trigger_source="oompah",
+            )
+            if result is None or not result.success:
+                logger.debug(
+                    "Failed to stage Merged transition for child %s: %s",
+                    child.identifier,
+                    result.reason if result else "coordinator error",
+                )
+            else:
                 self._cleanup_landed_private_child_branch(epic, child)
                 logger.info(
-                    "Marked epic child %s Merged (epic %s landed)",
+                    "Staged epic child %s as Merged via coordinator (epic %s landed)",
                     child.identifier,
                     epic.identifier,
-                )
-            except TrackerError as exc:
-                logger.debug(
-                    "Failed to mark child %s merged: %s", child.identifier, exc
                 )
 
     def _cleanup_landed_private_child_branch(
@@ -16273,8 +16367,14 @@ class Orchestrator:
             if not issue:
                 return
             if canonicalize_status(issue.state) != MERGED:
-                tracker.update_issue(issue.identifier, status=MERGED)
-                self.state.completed.discard(issue.id)
+                result = self._request_merged_via_coordinator(
+                    issue,
+                    project.id,
+                    trigger_identity="yolo-merge",
+                    trigger_source="oompah",
+                )
+                if result is not None and result.success:
+                    self.state.completed.discard(issue.id)
             tracker.add_comment(
                 issue.identifier,
                 f"YOLO: merged PR #{review_id}.",

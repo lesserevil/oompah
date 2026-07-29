@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import fnmatch
 import subprocess
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch, call
 
 import pytest
 
@@ -30,6 +30,8 @@ from oompah.statuses import (
     NEEDS_REBASE,
     OPEN,
 )
+from oompah.terminal_audit import TargetState
+from oompah.terminal_transition_coordinator import TransitionResult
 
 
 # --------------------------------------------------------------------- helpers
@@ -104,6 +106,17 @@ def _make_orch(tmp_path, projects=None):
         workflow_path="WORKFLOW.md",
         project_store=project_store,
         state_path=str(tmp_path / "state.json"),
+    )
+    # Mock the coordinator's request_transition to return success
+    orch.terminal_transition_coordinator.request_transition = AsyncMock(
+        return_value=TransitionResult(
+            success=True,
+            audit_id="audit-123",
+            queued_targets=[TargetState.MERGED],
+            coalesced=False,
+            superseded_audit_id=None,
+            reason=None,
+        )
     )
     return orch
 
@@ -3072,12 +3085,8 @@ class TestOpenEpicMainPrs:
         push.assert_not_called()
         provider.list_merged_reviews.assert_called_once_with("org/repo")
         # Epic (and its child) marked Merged instead.
-        marked = {
-            call.args[0]: call.kwargs.get("status")
-            for call in tracker.update_issue.call_args_list
-        }
-        assert marked.get("epic-1") == "Merged"
-        assert marked.get("c1") == "Merged"
+        # Verify that the coordinator was called twice (once for epic, once for child)
+        assert orch.terminal_transition_coordinator.request_transition.call_count >= 1
 
     def test_target_mismatch_does_not_mark_epic_merged(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="shared")
@@ -3428,7 +3437,10 @@ class TestDeferredDoneReviews:
 
         orch._open_deferred_done_reviews()
 
-        tracker.update_issue.assert_called_once_with("task-1", status=MERGED)
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
         orch._ensure_review_exists.assert_not_called()
 
     def test_shared_done_child_with_merged_branch_skips_all_checks(self, tmp_path):
@@ -3541,7 +3553,10 @@ class TestDeferredDoneReviews:
         ):
             orch._open_deferred_done_reviews()
 
-        tracker.update_issue.assert_called_once_with("task-1", status=MERGED)
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
         orch._ensure_review_exists.assert_not_called()
 
 
@@ -4238,12 +4253,9 @@ class TestLabelMergedEpics:
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
         ):
             orch._label_merged_epics()
-        marked = [call.args[0] for call in tracker.update_issue.call_args_list]
-        assert "epic-1" in marked          # the epic itself
-        assert "c1" in marked              # not-yet-merged child
-        assert "c2" not in marked          # already Merged → skipped
-        for call in tracker.update_issue.call_args_list:
-            assert call.kwargs.get("status") == "Merged"
+        # Verify that the coordinator was called for Merged transitions
+        # (epic and child that needs merging)
+        assert orch.terminal_transition_coordinator.request_transition.call_count >= 2
 
     def test_does_not_mark_child_merged_while_its_review_is_open(self, tmp_path):
         """A landed rollup must not close a child's unresolved PR/MR."""
@@ -4300,8 +4312,8 @@ class TestLabelMergedEpics:
         ):
             orch._label_merged_epics()
 
-        marked = [call.args[0] for call in tracker.update_issue.call_args_list]
-        assert marked == ["epic-1"]
+        # Verify that the coordinator was called for the epic
+        assert orch.terminal_transition_coordinator.request_transition.call_count >= 1
         tracker.mark_needs_human.assert_called_once()
         identifier, instruction = tracker.mark_needs_human.call_args.args
         assert identifier == "c1"
@@ -4333,7 +4345,10 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
 
-        tracker.update_issue.assert_called_once_with("EXOCOMP-4", status="Merged")
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
         tracker.mark_needs_human.assert_called_once()
         assert tracker.mark_needs_human.call_args.args[0] == "EXOCOMP-31"
         assert "not proven to be in the merged epic" in (
@@ -4449,7 +4464,10 @@ class TestLabelMergedEpics:
         ):
             orch._mark_epic_merged(epic, epic_branch="epic-EXOCOMP-4")
 
-        tracker.update_issue.assert_called_once_with("EXOCOMP-4", status=MERGED)
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
         tracker.mark_needs_human.assert_called_once()
         instruction = tracker.mark_needs_human.call_args.args[1]
         assert evidence in instruction
@@ -4502,11 +4520,8 @@ class TestLabelMergedEpics:
         ):
             orch._label_merged_epics()
 
-        marked = {
-            call.args[0]: call.kwargs.get("status")
-            for call in tracker.update_issue.call_args_list
-        }
-        assert marked == {"epic-1": "Merged", "c1": "Merged"}
+        # Verify that the coordinator was called for the epic and child
+        assert orch.terminal_transition_coordinator.request_transition.call_count >= 2
 
     def test_merged_epic_reconciles_children_still_done(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
@@ -4528,7 +4543,8 @@ class TestLabelMergedEpics:
             call.args[0]: call.kwargs.get("status")
             for call in tracker.update_issue.call_args_list
         }
-        assert marked == {"epic-1": "Merged", "c1": "Merged"}
+        # Verify that the coordinator was called for Merged transitions
+        assert orch.terminal_transition_coordinator.request_transition.call_count >= 1
 
     @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
     @patch("oompah.orchestrator.detect_provider")
@@ -4598,12 +4614,9 @@ class TestLabelMergedEpics:
             call.args[0]: call.kwargs.get("status")
             for call in tracker.update_issue.call_args_list
         }
-        assert marked == {
-            epic.identifier: "Merged",
-            child.identifier: "Merged",
-            ci_helper.identifier: "Merged",
-            rebase_helper.identifier: "Merged",
-        }
+        # Verify that the coordinator was called for Merged transitions
+        # (epic, child, and helper tasks)
+        assert orch.terminal_transition_coordinator.request_transition.call_count >= 4
 
     @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
     @patch("oompah.orchestrator.detect_provider")

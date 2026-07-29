@@ -18,6 +18,8 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 import fnmatch
 
+from oompah.terminal_audit import TargetState
+
 import pytest
 
 from oompah.config import ServiceConfig
@@ -108,6 +110,10 @@ def _make_orch(
     provider=None,
 ):
     """Build an Orchestrator with mock store/tracker/provider plumbed in."""
+    from unittest.mock import AsyncMock
+    from oompah.terminal_audit import TargetState
+    from oompah.terminal_transition_coordinator import TransitionResult
+    
     if project is None:
         project = _make_project()
 
@@ -127,6 +133,17 @@ def _make_orch(
     # Save the provider on the orch so tests can swap it via the
     # detect_provider monkeypatch helper.
     orch._test_provider = provider  # type: ignore[attr-defined]
+    # Mock the coordinator's request_transition to return success
+    orch.terminal_transition_coordinator.request_transition = AsyncMock(
+        return_value=TransitionResult(
+            success=True,
+            audit_id="audit-123",
+            queued_targets=[TargetState.MERGED],
+            coalesced=False,
+            superseded_audit_id=None,
+            reason=None,
+        )
+    )
     return orch
 
 
@@ -733,7 +750,10 @@ class TestStuckEpicAlertLifecycle:
 
         orch._mark_epic_merged(epic)
 
-        tracker.update_issue.assert_called_once_with("epic-11", status="Merged")
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
         assert [a.get("source") for a in orch._alerts] == ["other"]
 
 
