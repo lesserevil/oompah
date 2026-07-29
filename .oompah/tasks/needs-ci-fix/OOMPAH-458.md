@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T17:38:21.040228Z'
+updated_at: '2026-07-29T17:41:28.668854Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -31,7 +31,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/578
 oompah.review_number: '578'
 oompah.work_branch: epic-OOMPAH-458
 oompah.target_branch: main
-oompah.agent_run_id: 29180c88-0367-44c1-89b3-3ed8ed169d1d
+oompah.agent_run_id: 1b419d05-be18-4b25-9822-3d17eb54309c
 oompah.task_costs:
   total_input_tokens: 184
   total_output_tokens: 50409
@@ -215,5 +215,15 @@ created: 2026-07-29 17:38
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-29 17:41
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-29 17:41
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
