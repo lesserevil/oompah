@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T18:07:07.155298Z'
+updated_at: '2026-07-29T18:08:42.870496Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -111,5 +111,10 @@ author: oompah
 created: 2026-07-29 18:07
 ---
 Understanding: Replacing post-worker completion verifier with Done audit staging via the terminal-transition-coordinator. Key changes: (1) In normal worker-exit path, preserve close gate + unpushed gate as deterministic prechecks; (2) When agent requests terminal state, capture contributor provenance and call terminal_transition_coordinator.request_transition() instead of _run_completion_verifier; (3) Remove max 3 retry ceiling; (4) Reuse deterministic acceptance-reference extraction as Done evidence; (5) Ensure review creation happens after passed Done audit, not at staging; (6) Deprecate old verifier call path without deleting reusable helpers; (7) Update worker-exit, close-gate, unpushed-gate, dispatch-close-race, GitHub lifecycle, retry, and review-handoff tests. Planned approach: (A) Identify current _run_completion_verifier call site in orchestrator.py; (B) Replace it with terminal_transition_coordinator flow; (C) Update related tests; (D) Verify completion verifier helpers still work for Done evidence extraction.
+---
+author: oompah
+created: 2026-07-29 18:08
+---
+Discovery: Found completion verifier at _run_completion_verifier() called from _on_worker_exit() line 20481. Current flow: (1) verify close gate, (2) verify unpushed gate, (3) run completion verifier with max 3 rejects, (4) create review and mark completed. New flow: (1-2) keep gates, (3) replace with terminal_transition_coordinator.request_transition() to stage Done audit, (4) defer review creation until auditor processes audit. Key classes: TargetState, ContributorIdentity, EvidenceFingerprint in oompah/terminal_audit.py. Terminal coordinator already implemented in oompah/terminal_transition_coordinator.py. Now implementing orchestrator integration.
 ---
 <!-- COMMENTS:END -->
