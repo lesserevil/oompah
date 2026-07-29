@@ -87,8 +87,13 @@ def _check_unpushed(
     is used as the cwd for ``git status --porcelain``.  This ensures the
     check reflects the branch's own working tree rather than the main clone,
     which may have unrelated uncommitted changes on a different branch.
-    When ``worktree_path`` is absent or the directory does not exist,
-    ``repo_path`` is used as a fallback.
+
+    When ``worktree_path`` is absent or the directory does not exist, the
+    uncommitted-changes check is **skipped** entirely.  Using ``repo_path``
+    (the main clone) as a fallback is incorrect: the main clone may be on a
+    different branch with its own unrelated dirty state, which would produce
+    a false-positive refusal.  The ``commits_ahead`` check below independently
+    catches the case where an agent committed but never pushed.
     """
     has_uncommitted = False
     commits_ahead = 0
@@ -99,29 +104,25 @@ def _check_unpushed(
         return False, 0, [], "no_branch"
 
     # --- 1. Check for uncommitted changes in the worktree ---
-    # Prefer the branch-specific worktree directory so that unrelated dirty
-    # state in the main clone (on a different branch) is not mistaken for
-    # uncommitted work on *this* branch.
-    status_cwd = (
-        worktree_path
-        if worktree_path and os.path.isdir(worktree_path)
-        else repo_path
-    )
-    try:
-        status_result = subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=status_cwd,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if status_result.returncode == 0:
-            for line in status_result.stdout.splitlines():
-                if line.strip():
-                    has_uncommitted = True
-                    break
-    except (subprocess.TimeoutExpired, OSError, FileNotFoundError) as exc:
-        logger.debug("unpushed_gate: git status failed: %s", exc)
+    # Only run git status when a branch-specific worktree_path is provided
+    # and exists.  The main clone (repo_path) may be on a different branch;
+    # its dirty state would be a false positive for this branch's check.
+    if worktree_path and os.path.isdir(worktree_path):
+        try:
+            status_result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=worktree_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if status_result.returncode == 0:
+                for line in status_result.stdout.splitlines():
+                    if line.strip():
+                        has_uncommitted = True
+                        break
+        except (subprocess.TimeoutExpired, OSError, FileNotFoundError) as exc:
+            logger.debug("unpushed_gate: git status failed: %s", exc)
 
     # --- 2. Check for unpushed commits on the branch ---
     # Fetch to get the latest remote state (quick, never fails)

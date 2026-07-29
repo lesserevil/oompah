@@ -19756,7 +19756,39 @@ class Orchestrator:
             except Exception as exc:
                 logger.debug(
                     "unpushed_gate: worktree path lookup failed for %s: %s "
-                    "— falling back to repo_path for status check",
+                    "— will try epic worktree fallback",
+                    entry.identifier,
+                    exc,
+                )
+
+        # Fallback: child tasks in shared-epic mode work on the epic branch.
+        # Their per-task worktree directory (named after the task identifier)
+        # does not exist; instead, look up the epic worktree via work_branch.
+        # Without this fallback, the gate would check the main clone's dirty
+        # state (a different branch) and trigger a false-positive refusal.
+        if not worktree_path and project_id:
+            try:
+                import os as _os
+                work_branch = (
+                    getattr(current_issue, "work_branch", None) or
+                    getattr(current_issue, "branch_name", None) or ""
+                ).strip()
+                # Epic branches follow the "epic-<IDENTIFIER>" convention.
+                if work_branch.startswith("epic-"):
+                    epic_id = work_branch[len("epic-"):]
+                    epic_wt = self.project_store.epic_worktree_path_for(
+                        project_id, epic_id
+                    )
+                    if epic_wt and _os.path.isdir(epic_wt):
+                        worktree_path = epic_wt
+                        logger.debug(
+                            "unpushed_gate: using epic worktree %s for %s",
+                            epic_wt,
+                            entry.identifier,
+                        )
+            except Exception as exc:
+                logger.debug(
+                    "unpushed_gate: epic worktree fallback failed for %s: %s",
                     entry.identifier,
                     exc,
                 )
