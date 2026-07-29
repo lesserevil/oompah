@@ -110,11 +110,17 @@ async def test_wait_for_issues_snapshot_refresh_returns_false_on_timeout():
         await asyncio.sleep(10)
         return {"data": []}
     
-    with patch.object(server, "_issues_refresh_task", asyncio.create_task(never_completes())):
-        result = await server._wait_for_issues_snapshot_refresh(timeout_ms=10)
-        assert result is False, "Should return False when refresh times out"
-        # Clean up the task
-        await server._issues_refresh_task
+    task = asyncio.create_task(never_completes())
+    with patch.object(server, "_issues_refresh_task", task):
+        try:
+            result = await server._wait_for_issues_snapshot_refresh(timeout_ms=10)
+            assert result is False, "Should return False when refresh times out"
+        finally:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 
 @pytest.mark.asyncio
