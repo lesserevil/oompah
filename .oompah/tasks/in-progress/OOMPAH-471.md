@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-471
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Collect stable evidence for Done completion audits
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-29T00:44:04.514338Z'
+updated_at: '2026-07-29T00:46:07.833398Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -23,26 +23,31 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: bbf8d5e5edc4870aa540fcedc17ec12f41dd5cf9ba613de0e62272d322e74cdb
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-29T00:45:59.380748+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: f0608535-b7fd-4e54-90fa-c9cc6a38471f
-  claim_owner: f4d00fa0-7632-4aaf-969a-6ff8237892b3
-  claimed_at: '2026-07-29T00:44:01.388162+00:00'
-  claim_expires_at: '2026-07-29T01:14:01.388162+00:00'
+  evidence: "Focus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: No active task implements a DoneEvidenceCollector.\
+    \ OOMPAH-458 is the parent epic; OOMPAH-470 covers auditor selection; OOMPAH-472\
+    \ covers Merged landing evidence; OOMPAH-477/478/488/489 cover downstream routing\
+    \ and lifecycle tests. OOMPAH-462\u2013469 are terminal infrastructure or prerequisites,\
+    \ and no matching collector exists in source or tests."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 3
   retry_after: null
-oompah.agent_run_id: 9984320f-3ea2-4071-b33d-b185d5b9a8bb
+oompah.agent_run_id: 70e9c267-475b-4096-8cc3-d740242c0e7a
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 490939
-  total_output_tokens: 16977
+  total_input_tokens: 1447248
+  total_output_tokens: 22299
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 490939
-      output_tokens: 16977
+      input_tokens: 1447248
+      output_tokens: 22299
       cost_usd: 0.0
   runs:
   - profile: default
@@ -63,6 +68,12 @@ oompah.task_costs:
     output_tokens: 2133
     cost_usd: 0.0
     recorded_at: '2026-07-28T22:28:59.346664+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 956309
+    output_tokens: 5322
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T00:45:59.380041+00:00'
 ---
 ## Summary
 
@@ -185,5 +196,25 @@ author: oompah
 created: 2026-07-29 00:44
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-29 00:46
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 16
+- Tokens: 956.3K in / 5.3K out [961.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 56s
+- Log: OOMPAH-471__20260729T004404Z.jsonl
+---
+author: oompah
+created: 2026-07-29 00:46
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 00:46
+---
+Focus: DevOps Engineer
 ---
 <!-- COMMENTS:END -->
