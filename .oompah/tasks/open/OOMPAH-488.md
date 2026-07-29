@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-488
 type: task
-status: Needs Human
+status: Open
 priority: 1
 title: Validate the complete task Done-Merged-Archived audit lifecycle
 parent: OOMPAH-460
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-29T18:50:48.028367Z'
+updated_at: '2026-07-29T18:50:50.100744Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null

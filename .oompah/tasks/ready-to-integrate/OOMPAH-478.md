@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-29T18:50:42.569063Z'
+updated_at: '2026-07-29T18:50:56.314279Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-478
 target_branch: null
 review_url: null
@@ -60,13 +60,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: b2111678-117c-49b0-9e2e-bcfe926acf56
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-478
 oompah.task_costs:
-  total_input_tokens: 396
-  total_output_tokens: 10399
+  total_input_tokens: 2618
+  total_output_tokens: 10910
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 396
-      output_tokens: 10399
+      input_tokens: 2618
+      output_tokens: 10910
       cost_usd: 0.0
   runs:
   - profile: default
@@ -81,6 +81,12 @@ oompah.task_costs:
     output_tokens: 5751
     cost_usd: 0.0
     recorded_at: '2026-07-29T01:37:17.161698+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 2222
+    output_tokens: 511
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T18:50:54.924884+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -215,5 +221,15 @@ author: oompah
 created: 2026-07-29 18:50
 ---
 Route epic rollup, child Done, and epic close transitions through audits - implemented terminal state routing through coordinator for proper audit chains
+---
+author: oompah
+created: 2026-07-29 18:50
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 132
+- Tokens: 2.2K in / 511 out [2.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 24m 48s
+- Log: OOMPAH-478__20260729T182724Z.jsonl
 ---
 <!-- COMMENTS:END -->
