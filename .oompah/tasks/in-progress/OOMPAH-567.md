@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-567
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Install complete test dependencies in fresh Makefile worktrees
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:48:39.126282Z'
-updated_at: '2026-07-29T22:48:39.126282Z'
+updated_at: '2026-07-29T22:49:16.762221Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Fresh integration worktrees run the configured quality gate via make test. The M
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 22:49
+---
+Implementing the fresh-worktree Makefile test dependency fix directly from the primary checkout.
+---
+<!-- COMMENTS:END -->

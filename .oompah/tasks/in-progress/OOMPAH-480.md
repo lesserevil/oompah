@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-480
 type: feature
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Route release-delivery and release-pick terminal updates through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-29T19:12:57.282726Z'
+updated_at: '2026-07-29T22:49:25.702102Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null
@@ -80,12 +80,45 @@ oompah.task_costs:
     recorded_at: '2026-07-29T19:12:55.852394+00:00'
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-459--task-OOMPAH-480
+  base_branch: epic-OOMPAH-459
+  base_sha: a50a9a6451f8a2222a5688bea2f2690b7cfc170a
   head_sha: f2812fda7d0bf4511612a8219723297802ec2e71
   submitted_at: '2026-07-29T19:12:40.787976+00:00'
-  updated_at: '2026-07-29T19:12:40.787976+00:00'
+  updated_at: '2026-07-29T22:49:00.711858+00:00'
+  last_error: 'Rebase onto the latest epic head conflicted: warning: skipped previously
+    applied commit d36868f03
+
+    warning: skipped previously applied commit 192e07161
+
+    warning: skipped previously applied commit 8d830a512
+
+    warning: skipped previously applied commit 65c8e4725
+
+    hint: use --reapply-cherry-picks to include skipped commits
+
+    hint: Disable this message with "git config set advice.skippedCherryPicks false"
+
+    Rebasing (1/2)
+
+    error: could not apply 7b12cf8cc... OOMPAH-476: Stage terminal status requests
+    through coordinator
+
+    hint: Resolve all conflicts manually, mark them as resolved with
+
+    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+    hint: You can instead skip this commit: run "git rebase --skip".
+
+    hint: To abort and get back to the state before "git rebase", run "git rebase
+    --abort".
+
+    hint: Disable this message with "git config set advice.mergeConflict false"
+
+    Could not apply 7b12cf8cc... # OOMPAH-476: Stage terminal status requests through
+    coordinator'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-480__20260729T182912Z
@@ -241,5 +274,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 9m 30s
 - Log: OOMPAH-480__20260729T190333Z.jsonl
+---
+author: oompah
+created: 2026-07-29 22:49
+---
+Integration found a rebase conflict on `epic-OOMPAH-459--task-OOMPAH-480`. Resolve it against `epic-OOMPAH-459`, run the required tests, push the same private branch, and `oompah task submit` it again.
 ---
 <!-- COMMENTS:END -->
