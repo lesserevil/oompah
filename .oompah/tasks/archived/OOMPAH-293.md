@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-293
 type: epic
-status: Merged
+status: Archived
 priority: 1
 title: Build Git-backed repository maps for faster agent startup
 parent: null
@@ -21,7 +21,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-21T15:13:33.130186Z'
-updated_at: '2026-07-22T00:38:33.186480Z'
+updated_at: '2026-07-29T01:18:19.813938Z'
 work_branch: epic-OOMPAH-293
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/488
