@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-560
 type: task
-status: Backlog
+status: Done
 priority: 0
 title: Expose, document, and pilot parallel epic integration
 parent: OOMPAH-555
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:29.405626Z'
-updated_at: '2026-07-29T17:57:23.458507Z'
+updated_at: '2026-07-29T18:28:35.810042Z'
 work_branch: null
 target_branch: null
 review_url: null
