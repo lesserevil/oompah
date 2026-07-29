@@ -180,6 +180,7 @@ async def setup_services(
     import os
 
     from oompah.agent_profile_store import AgentProfileStore
+    from oompah.auditor_candidate_selector import seed_auditor_role_from_config
     from oompah.config import (
         ServiceConfig,
         WorkflowError,
@@ -295,6 +296,19 @@ async def setup_services(
             agent_profile_store.list_all(),
             provider_store=provider_store,
         )
+
+    # Seed the auditor role with an independent provider-model candidate
+    # (OOMPAH-470). The auditor must use a provider not involved in work
+    # contributors so audit results are independently verifiable.
+    # This is idempotent: if auditor role already exists, seeding is skipped.
+    if role_store.get("auditor") is None:
+        seed_auditor_role_from_config(
+            role_store=role_store,
+            provider_store=provider_store,
+            project_config=None,  # No project-specific whitelist at boot time
+            contributors=None,  # Epic audit filtering happens at audit time
+        )
+        logger.info("Auditor role seeded (OOMPAH-470)")
 
     webhook_forwarder = WebhookForwarder(
         project_store=project_store,
