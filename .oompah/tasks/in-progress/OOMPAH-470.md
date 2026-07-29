@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T09:11:29.556994Z'
+updated_at: '2026-07-29T09:11:40.006136Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -55,13 +55,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 59f14d26-a6d6-4a16-809b-4487934be76b
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 84733929
-  total_output_tokens: 288031
+  total_input_tokens: 84734043
+  total_output_tokens: 291763
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 76400895
-      output_tokens: 250694
+      input_tokens: 76401009
+      output_tokens: 254426
       cost_usd: 0.0
     sonnet:
       input_tokens: 2359210
@@ -312,6 +312,12 @@ oompah.task_costs:
     output_tokens: 1851
     cost_usd: 0.0
     recorded_at: '2026-07-29T08:37:22.541520+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 114
+    output_tokens: 3732
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T09:11:34.975232+00:00'
 ---
 ## Summary
 
@@ -2667,5 +2673,38 @@ OOMPAH-470: Seed the auditor role and select an independent provider-model candi
 - Branch: epic-OOMPAH-458 (up-to-date with origin)
 - Working tree: clean
 - Key commits: d4f5180f4, 3e4b65d6a, 3a2871400, 094f60a5a, f220e5b2e, 4926230c1
+---
+author: oompah
+created: 2026-07-29 09:11
+---
+Agent completed successfully in 166s (3846 tokens)
+---
+author: oompah
+created: 2026-07-29 09:11
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 41, Tool calls: 13
+- Tokens: 114 in / 3.7K out [3.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 46s
+- Log: OOMPAH-470__20260729T090853Z.jsonl
+---
+author: oompah
+created: 2026-07-29 09:11
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-458` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-458
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-458
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
