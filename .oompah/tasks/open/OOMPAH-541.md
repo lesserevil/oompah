@@ -13,7 +13,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T01:23:36.484044Z'
-updated_at: '2026-07-29T01:25:04.690374Z'
+updated_at: '2026-07-29T01:29:50.301065Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-07-29 01:23
 ---
 Claimed by the current interactive session for immediate implementation and live verification. The human-only label prevents scheduler dispatch while this branch is active.
+---
+author: oompah
+created: 2026-07-29 01:29
+---
+Implemented the resolved-project identity fix and regression coverage for explicit and cross-project detail lookup plus genuine stale-content preservation. Focused API/dashboard suite: 48 passed. Full suite: 13,095 passed, 7 skipped. Secret and diff checks pass.
 ---
 <!-- COMMENTS:END -->
