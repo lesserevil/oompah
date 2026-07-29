@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-309
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Harden shared-epic protection when _resolve_parent_epic fails for a child with
   parent_id set
@@ -14,7 +14,7 @@ labels:
 - focus-complete:epic_planner
 assignee: null
 created_at: '2026-07-21T16:53:17.046767Z'
-updated_at: '2026-07-22T21:30:13.462678Z'
+updated_at: '2026-07-29T21:48:15.470626Z'
 work_branch: epic-OOMPAH-309
 target_branch: epic-OOMPAH-307
 review_url: https://github.com/lesserevil/oompah/pull/540
