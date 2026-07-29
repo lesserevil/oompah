@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T02:29:18.208312Z'
+updated_at: '2026-07-29T02:29:22.257332Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: a60db616-f3b5-4480-8639-7da332e7b3c0
+oompah.agent_run_id: 22e4ef8d-f71c-4a6d-9a97-932046bab716
 oompah.task_costs:
   total_input_tokens: 701957
   total_output_tokens: 14579
@@ -378,5 +378,15 @@ Required: open a PR before closing.
   gh pr create --base main --head OOMPAH-539 --title "OOMPAH-539: Keep Open-task duplicate-screening board state synchronized with live workers" --body "..."
 
 Task reopened. Re-dispatch on the next tick will see this comment in its prompt context.
+---
+author: oompah
+created: 2026-07-29 02:29
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 02:29
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
