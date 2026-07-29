@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-474
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Add the auditor-only structured result submission API and tool
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-07-29T02:39:09.277350Z'
+updated_at: '2026-07-29T02:39:31.854120Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -185,5 +185,17 @@ Implementation complete. Changes made:
 3. tests/test_auditor_result_api.py — 59 new tests covering: owner session, wrong session/task/project, expired/stale audit, malformed enum, oversized output, status injection, secret-like fields, duplicate/conflicting submissions, coordinator failure, and tool policy enforcement.
 
 Test run: 276 passed across new suite and all neighboring suites.
+---
+author: oompah
+created: 2026-07-29 02:39
+---
+Completion: Branch pushed (6f260a0b6 on epic-OOMPAH-458).
+
+Delivered:
+- Auditor result endpoint enforces PASS/FAIL/NEEDS_HUMAN-only verdicts, bounded payload sizes, credential/secret field rejection, and idempotent/conflicting submission handling.
+- Coordinator wired in both API and ACP session dispatch paths — verdicts now reach TerminalTransitionCoordinator.apply_audit_result rather than being silently discarded.
+- 59 tests cover all required scenarios from the acceptance criteria; 276 total tests passed across new suite and neighboring suites.
+
+Security properties verified: no arbitrary status injection, no credential leakage via safe_evidence, session ownership enforced via AuditorTargetContract fields, conflicting submissions rejected.
 ---
 <!-- COMMENTS:END -->
