@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-29T18:32:16.101788Z'
+updated_at: '2026-07-29T18:33:41.925088Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 3d130809-ed1a-43c3-a7b9-91f4bad339af
+oompah.agent_run_id: d6f5601e-997d-4175-8930-e6aa5fc7277b
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-488
 oompah.task_costs:
   total_input_tokens: 677000
@@ -76,7 +76,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-460--task-OOMPAH-488
   base_branch: epic-OOMPAH-460
   base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
-  updated_at: '2026-07-29T18:30:04.233300+00:00'
+  updated_at: '2026-07-29T18:33:39.968207+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-488__20260729T183010Z
@@ -159,5 +159,15 @@ author: oompah
 created: 2026-07-29 18:32
 ---
 Agent completed without closing this issue (133s (284865 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-29 18:33
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-29 18:33
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

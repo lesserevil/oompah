@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-482
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Dispatch one repair-planner run for an epic that fails audit
 parent: OOMPAH-459
@@ -13,8 +13,8 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:30.191340Z'
-updated_at: '2026-07-29T02:00:19.263628Z'
-work_branch: epic-OOMPAH-459
+updated_at: '2026-07-29T18:33:38.216923Z'
+work_branch: epic-OOMPAH-459--task-OOMPAH-482
 target_branch: null
 review_url: null
 review_number: null
@@ -36,8 +36,8 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: fc0ab54d-53aa-4201-b432-2cf0a8881e69
-oompah.work_branch: epic-OOMPAH-459
+oompah.agent_run_id: 7be8778b-9663-4db8-8135-ef23067bee34
+oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-482
 oompah.task_costs:
   total_input_tokens: 285362
   total_output_tokens: 1668
@@ -54,6 +54,14 @@ oompah.task_costs:
     output_tokens: 1668
     cost_usd: 0.0
     recorded_at: '2026-07-29T02:00:16.746610+00:00'
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-459--task-OOMPAH-482
+  base_branch: epic-OOMPAH-459
+  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
+  updated_at: '2026-07-29T18:33:35.425775+00:00'
 ---
 ## Summary
 
@@ -96,5 +104,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 47s
 - Log: OOMPAH-482__20260729T015933Z.jsonl
+---
+author: oompah
+created: 2026-07-29 18:33
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 18:33
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
