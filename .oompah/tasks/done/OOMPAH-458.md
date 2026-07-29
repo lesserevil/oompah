@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T17:45:21.928559Z'
+updated_at: '2026-07-29T17:45:37.967078Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -33,13 +33,13 @@ oompah.work_branch: epic-OOMPAH-458
 oompah.target_branch: main
 oompah.agent_run_id: 1563cbff-136b-43bc-bf80-dc4c160ad62c
 oompah.task_costs:
-  total_input_tokens: 58356
-  total_output_tokens: 51120
+  total_input_tokens: 58402
+  total_output_tokens: 61008
   total_cost_usd: 0.0
   by_model:
     opus:
-      input_tokens: 58356
-      output_tokens: 51120
+      input_tokens: 58402
+      output_tokens: 61008
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -54,6 +54,12 @@ oompah.task_costs:
     output_tokens: 711
     cost_usd: 0.0
     recorded_at: '2026-07-29T17:41:44.972023+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 46
+    output_tokens: 9888
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T17:45:35.844289+00:00'
 ---
 ## Summary
 
@@ -276,5 +282,20 @@ author: oompah
 created: 2026-07-29 17:45
 ---
 CI fix: added monkeypatch to test_poll_does_not_create_duplicate_when_task_is_corrupt to inject FakeGitHubTracker so the poll no longer calls real api.github.com (rate-limited 403 -> TrackerAuthError on Py3.12 CI). 56/56 tests in test_github_intake_bridge.py pass locally. Commit 7a3538f09.
+---
+author: oompah
+created: 2026-07-29 17:45
+---
+Agent completed successfully in 204s (9934 tokens)
+---
+author: oompah
+created: 2026-07-29 17:45
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 54, Tool calls: 40
+- Tokens: 46 in / 9.9K out [9.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 24s
+- Log: OOMPAH-458__20260729T174213Z.jsonl
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-476
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T17:43:47.554246Z'
+updated_at: '2026-07-29T17:45:44.279648Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -58,7 +58,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 50f2b6b9-802f-47f3-adc9-190e7578b234
+oompah.agent_run_id: eccad0f3-ca64-4582-966e-b25b0be49340
 oompah.work_branch: epic-OOMPAH-459
 oompah.task_costs:
   total_input_tokens: 46028440
@@ -246,5 +246,15 @@ created: 2026-07-29 17:43
 **Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-29 17:45
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 17:45
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
